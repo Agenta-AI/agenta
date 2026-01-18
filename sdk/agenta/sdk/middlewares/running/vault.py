@@ -63,7 +63,12 @@ class DenyException(Exception):
         self.headers = headers
 
 
-async def _allow_local_secrets(host: str, credentials: Optional[str], scope_type: Optional[str], scope_id: Optional[str]):
+async def _allow_local_secrets(
+    host: str,
+    credentials: Optional[str],
+    scope_type: Optional[str],
+    scope_id: Optional[str],
+):
     """
     Verify if the user has permission to use local secrets.
     Makes an API call to /api/permissions/verify to check access.
@@ -146,7 +151,7 @@ async def _allow_local_secrets(host: str, credentials: Optional[str], scope_type
                         content="Out of credits. Please set your LLM provider API keys or contact support.",
                     )
                 elif response.status_code == 429:
-                    headers = {
+                    resp_headers = {
                         key: value
                         for key, value in {
                             "Retry-After": response.headers.get("retry-after"),
@@ -162,7 +167,7 @@ async def _allow_local_secrets(host: str, credentials: Optional[str], scope_type
                     raise DenyException(
                         status_code=429,
                         content="API Rate limit exceeded. Please try again later or upgrade your plan.",
-                        headers=headers or None,
+                        headers=resp_headers or None,
                     )
                 elif response.status_code != 200:
                     raise DenyException(
@@ -214,7 +219,13 @@ async def _allow_local_secrets(host: str, credentials: Optional[str], scope_type
         ) from exc
 
 
-async def get_secrets(api_url: str, credentials: Optional[str], host: Optional[str] = None, scope_type: Optional[str] = None, scope_id: Optional[str] = None) -> tuple[list, list, list]:
+async def get_secrets(
+    api_url: str,
+    credentials: Optional[str],
+    host: Optional[str] = None,
+    scope_type: Optional[str] = None,
+    scope_id: Optional[str] = None,
+) -> tuple[list, list, list]:
     headers = None
     if credentials:
         headers = {"Authorization": credentials}
@@ -286,9 +297,7 @@ async def get_secrets(api_url: str, credentials: Optional[str], host: Optional[s
                     key: value
                     for key, value in {
                         "Retry-After": response.headers.get("retry-after"),
-                        "X-RateLimit-Limit": response.headers.get(
-                            "x-ratelimit-limit"
-                        ),
+                        "X-RateLimit-Limit": response.headers.get("x-ratelimit-limit"),
                         "X-RateLimit-Remaining": response.headers.get(
                             "x-ratelimit-remaining"
                         ),

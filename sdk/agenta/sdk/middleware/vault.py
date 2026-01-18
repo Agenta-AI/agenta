@@ -1,5 +1,4 @@
-from os import getenv
-from typing import Callable, Optional, Dict
+from typing import Callable
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
