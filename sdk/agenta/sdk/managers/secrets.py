@@ -237,15 +237,35 @@ class SecretsManager:
 
     @staticmethod
     async def retrieve_secrets() -> tuple[list, list, list]:
+        host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
+        scope_type = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.scope_type
+        scope_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.scope_id
+
         return await get_secrets(
-            f"{ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host}/api",
+            f"{host}/api",
             RunningContext.get().credentials,
+            host,
+            scope_type,
+            scope_id,
         )
 
     @staticmethod
     async def ensure_secrets_in_workflow():
         ctx = RunningContext.get()
 
+        # First check if secrets are already available in RoutingContext
+        # (populated by the HTTP middleware with proper user credentials)
+        routing_ctx = RoutingContext.get()
+        if routing_ctx.secrets:
+            ctx.secrets = routing_ctx.secrets
+            ctx.vault_secrets = routing_ctx.vault_secrets
+            ctx.local_secrets = routing_ctx.local_secrets
+
+            RunningContext.set(ctx)
+
+            return ctx.secrets
+
+        # Fall back to fetching via retrieve_secrets() for non-HTTP workflow contexts
         secrets, vault_secrets, local_secrets = await SecretsManager.retrieve_secrets()
 
         ctx.secrets = secrets
