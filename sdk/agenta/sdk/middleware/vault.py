@@ -1,71 +1,23 @@
-from os import getenv
-from json import dumps
-from typing import Callable, Dict, Optional, List, Any
+from typing import Callable
 
-import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from agenta.sdk.utils.logging import get_module_logger
-from agenta.sdk.utils.constants import TRUTHY
-from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.exceptions import display_exception
-from agenta.client.backend.types import SecretDto as SecretDTO
-from agenta.client.backend.types import (
-    StandardProviderDto as StandardProviderDTO,
-    StandardProviderSettingsDto as StandardProviderSettingsDTO,
+
+# Import shared vault logic from middlewares/running/vault.py
+from agenta.sdk.middlewares.running.vault import (
+    get_secrets,
+    DenyException,
+    _strip_service_prefix,
+    _ALWAYS_ALLOW_LIST,
 )
 
 import agenta as ag
 
 log = get_module_logger(__name__)
-
-
-_ALWAYS_ALLOW_LIST = [
-    "/health",
-    "/openapi.json",
-]
-
-_PROVIDER_KINDS = [
-    "openai",
-    "cohere",
-    "anyscale",
-    "deepinfra",
-    "alephalpha",
-    "groq",
-    "mistral",
-    "mistralai",
-    "anthropic",
-    "perplexityai",
-    "togetherai",
-    "openrouter",
-    "gemini",
-]
-
-_AUTH_ENABLED = (
-    getenv("AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED", "true").lower() in TRUTHY
-)
-
-_CACHE_ENABLED = (
-    getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
-)
-
-_cache = TTLLRUCache()
-
-
-class DenyException(Exception):
-    def __init__(
-        self,
-        status_code: int = 403,
-        content: str = "Forbidden",
-        headers: Optional[Dict[str, str]] = None,
-    ) -> None:
-        super().__init__()
-
-        self.status_code = status_code
-        self.content = content
-        self.headers = headers
 
 
 class VaultMiddleware(BaseHTTPMiddleware):
@@ -85,7 +37,20 @@ class VaultMiddleware(BaseHTTPMiddleware):
         request.state.vault = {}
 
         try:
-            secrets, vault_secrets, local_secrets = await self._get_secrets(request)
+            credentials = request.state.auth.get("credentials")
+
+            # Determine if we should skip permission check for this path
+            skip_permission_check = (
+                _strip_service_prefix(request.url.path) in _ALWAYS_ALLOW_LIST
+            )
+
+            secrets, vault_secrets, local_secrets = await get_secrets(
+                api_url=f"{self.host}/api",
+                credentials=credentials,
+                host=self.host if not skip_permission_check else None,
+                scope_type=self.scope_type,
+                scope_id=self.scope_id,
+            )
 
             request.state.vault = {
                 "secrets": secrets,
@@ -102,315 +67,3 @@ class VaultMiddleware(BaseHTTPMiddleware):
             display_exception("Vault: Secrets Exception")
 
         return await call_next(request)
-
-    async def _get_secrets(self, request: Request) -> tuple[list, list, list]:
-        credentials = request.state.auth.get("credentials")
-
-        headers = None
-        if credentials:
-            headers = {"Authorization": credentials}
-
-        _hash = dumps(
-            {
-                "headers": headers,
-            },
-            sort_keys=True,
-        )
-
-        if _CACHE_ENABLED:
-            secrets_cache = _cache.get(_hash)
-
-            if secrets_cache:
-                secrets = secrets_cache.get("secrets")
-                vault_secrets = secrets_cache.get("vault_secrets")
-                local_secrets = secrets_cache.get("local_secrets")
-
-                if vault_secrets is None or local_secrets is None:
-                    return secrets, [], []
-
-                return secrets, vault_secrets, local_secrets
-
-        local_secrets: List[Dict[str, Any]] = []
-        allow_secrets = True
-
-        try:
-            if _strip_service_prefix(request.url.path) not in _ALWAYS_ALLOW_LIST:
-                await self._allow_local_secrets(credentials)
-
-            for provider_kind in _PROVIDER_KINDS:
-                provider = provider_kind
-                key_name = f"{provider.upper()}_API_KEY"
-                key = getenv(key_name)
-
-                if not key:
-                    continue
-
-                secret = SecretDTO(
-                    kind="provider_key",  # type: ignore
-                    data=StandardProviderDTO(
-                        kind=provider,
-                        provider=StandardProviderSettingsDTO(key=key),
-                    ),
-                )
-
-                local_secrets.append(secret.model_dump())
-        except DenyException as e:  # pylint: disable=bare-except
-            if e.status_code == 429:
-                raise e
-            log.warning(f"Agenta [secrets] {e.status_code}: {e.content}")
-            allow_secrets = False
-        except Exception:  # pylint: disable=bare-except
-            display_exception("Vault: Local Secrets Exception")
-
-        vault_secrets: List[Dict[str, Any]] = []
-
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.host}/api/vault/v1/secrets/",
-                    headers=headers,
-                )
-
-                if response.status_code == 429:
-                    headers = {
-                        key: value
-                        for key, value in {
-                            "Retry-After": response.headers.get("retry-after"),
-                            "X-RateLimit-Limit": response.headers.get(
-                                "x-ratelimit-limit"
-                            ),
-                            "X-RateLimit-Remaining": response.headers.get(
-                                "x-ratelimit-remaining"
-                            ),
-                        }.items()
-                        if value is not None
-                    }
-                    raise DenyException(
-                        status_code=429,
-                        content="API Rate limit exceeded. Please try again later or upgrade your plan.",
-                        headers=headers or None,
-                    )
-
-                if response.status_code != 200:
-                    vault_secrets = []
-
-                else:
-                    vault_secrets = response.json()
-        except Exception:  # pylint: disable=bare-except
-            display_exception("Vault: Vault Secrets Exception")
-
-        local_standard = {}
-        vault_standard = {}
-        vault_custom = []
-
-        if local_secrets:
-            for secret in local_secrets:
-                local_standard[secret["data"]["kind"]] = secret  # type: ignore
-
-        if vault_secrets:
-            for secret in vault_secrets:
-                if secret["kind"] == "provider_key":  # type: ignore
-                    vault_standard[secret["data"]["kind"]] = secret  # type: ignore
-                elif secret["kind"] == "custom_provider":  # type: ignore
-                    vault_custom.append(secret)
-
-        combined_standard = {**local_standard, **vault_standard}
-        combined_vault = list(vault_standard.values()) + vault_custom
-        secrets = list(combined_standard.values()) + vault_custom
-
-        if not allow_secrets:
-            _cache.put(
-                _hash,
-                {
-                    "secrets": secrets,
-                    "vault_secrets": combined_vault,
-                    "local_secrets": local_secrets,
-                },
-            )
-
-        return secrets, combined_vault, local_secrets
-
-    async def _allow_local_secrets(self, credentials):
-        try:
-            if not _AUTH_ENABLED:
-                return
-
-            if not credentials:
-                raise DenyException(
-                    status_code=401,
-                    content="Invalid credentials. Please check your credentials or login again.",
-                )
-
-            # HEADERS
-            headers = {"Authorization": credentials}
-            # PARAMS
-            params = {}
-            ## SCOPE
-            if self.scope_type and self.scope_id:
-                params["scope_type"] = self.scope_type
-                params["scope_id"] = self.scope_id
-            ## ACTION
-            params["action"] = "view_secret"
-            ## RESOURCE
-            params["resource_type"] = "local_secrets"
-
-            _hash = dumps(
-                {
-                    "headers": headers,
-                    "params": params,
-                },
-                sort_keys=True,
-            )
-
-            access = None
-
-            if _CACHE_ENABLED:
-                access = _cache.get(_hash)
-
-                if isinstance(access, Exception):
-                    raise access
-
-            try:
-                async with httpx.AsyncClient() as client:
-                    try:
-                        response = await client.get(
-                            f"{self.host}/api/permissions/verify",
-                            headers=headers,
-                            params=params,
-                            timeout=30.0,
-                        )
-                    except httpx.TimeoutException as exc:
-                        # log.debug(f"Timeout error while verify secrets access: {exc}")
-                        raise DenyException(
-                            status_code=504,
-                            content=f"Could not verify secrets access: connection to {self.host} timed out. Please check your network connection.",
-                        ) from exc
-                    except httpx.ConnectError as exc:
-                        # log.debug(f"Connection error while verify secrets access: {exc}")
-                        raise DenyException(
-                            status_code=503,
-                            content=f"Could not verify secrets access: connection to {self.host} failed. Please check if agenta is available.",
-                        ) from exc
-                    except httpx.NetworkError as exc:
-                        # log.debug(f"Network error while verify secrets access: {exc}")
-                        raise DenyException(
-                            status_code=503,
-                            content=f"Could not verify secrets access: connection to {self.host} failed. Please check your network connection.",
-                        ) from exc
-                    except httpx.HTTPError as exc:
-                        # log.debug(f"HTTP error while verify secrets access: {exc}")
-                        raise DenyException(
-                            status_code=502,
-                            content=f"Could not verify secrets access: connection to {self.host} failed. Please check if agenta is available.",
-                        ) from exc
-
-                    if response.status_code == 401:
-                        # log.debug("Agenta returned 401 - Invalid credentials")
-                        raise DenyException(
-                            status_code=401,
-                            content="Invalid credentials. Please check your credentials or login again.",
-                        )
-                    elif response.status_code == 403:
-                        # log.debug("Agenta returned 403 - Permission denied")
-                        raise DenyException(
-                            status_code=403,
-                            content="Out of credits. Please set your LLM provider API keys or contact support.",
-                        )
-                    elif response.status_code == 429:
-                        headers = {
-                            key: value
-                            for key, value in {
-                                "Retry-After": response.headers.get("retry-after"),
-                                "X-RateLimit-Limit": response.headers.get(
-                                    "x-ratelimit-limit"
-                                ),
-                                "X-RateLimit-Remaining": response.headers.get(
-                                    "x-ratelimit-remaining"
-                                ),
-                            }.items()
-                            if value is not None
-                        }
-                        raise DenyException(
-                            status_code=429,
-                            content="API Rate limit exceeded. Please try again later or upgrade your plan.",
-                            headers=headers or None,
-                        )
-                    elif response.status_code != 200:
-                        # log.debug(
-                        #     f"Agenta returned {response.status_code} - Unexpected status code"
-                        # )
-                        raise DenyException(
-                            status_code=500,
-                            content=f"Could not verify secrets access: {self.host} returned unexpected status code {response.status_code}. Please try again later or contact support if the issue persists.",
-                        )
-
-                    try:
-                        auth = response.json()
-                    except ValueError as exc:
-                        # log.debug(f"Agenta returned invalid JSON response: {exc}")
-                        raise DenyException(
-                            status_code=500,
-                            content=f"Could not verify secrets access: {self.host} returned unexpected invalid JSON response. Please try again later or contact support if the issue persists.",
-                        ) from exc
-
-                    if not isinstance(auth, dict):
-                        # log.debug(
-                        #     f"Agenta returned invalid response format: {type(auth)}"
-                        # )
-                        raise DenyException(
-                            status_code=500,
-                            content=f"Could not verify secrets access: {self.host} returned unexpected invalid response format. Please try again later or contact support if the issue persists.",
-                        )
-
-                    effect = auth.get("effect")
-
-                    access = effect == "allow"
-
-                    if effect != "allow":
-                        # log.debug("Access denied by Agenta - effect: {effect}")
-                        raise DenyException(
-                            status_code=403,
-                            content="Out of credits. Please set your LLM provider API keys or contact support.",
-                        )
-
-                    return
-
-            except DenyException as deny:
-                if deny.status_code != 429:
-                    _cache.put(_hash, deny)
-
-                raise deny
-            except Exception as exc:  # pylint: disable=bare-except
-                # log.debug(
-                #     f"Unexpected error while verifying credentials (remote): {exc}"
-                # )
-                raise DenyException(
-                    status_code=500,
-                    content=f"Could not verify credentials: unexpected error - {str(exc)}. Please try again later or contact support if the issue persists.",
-                ) from exc
-
-        except DenyException as deny:
-            raise deny
-        except Exception as exc:
-            # log.debug(f"Unexpected error while verifying credentials (local): {exc}")
-            raise DenyException(
-                status_code=500,
-                content=f"Could not verify credentials: unexpected error - {str(exc)}. Please try again later or contact support if the issue persists.",
-            ) from exc
-
-
-def _strip_service_prefix(path: str) -> str:
-    if not path.startswith("/services/"):
-        return path
-
-    parts = path.split("/", 3)
-    if len(parts) < 4:
-        return "/"
-
-    service_name = parts[2]
-    remainder = parts[3]
-
-    if not service_name or not remainder or remainder.startswith("/"):
-        return path
-
-    return f"/{remainder}"

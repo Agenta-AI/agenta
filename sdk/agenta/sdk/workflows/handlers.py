@@ -1930,6 +1930,37 @@ class SinglePromptConfig(BaseModel):
     )
 
 
+def _apply_responses_bridge_if_needed(
+    formatted_prompt: PromptTemplate, provider_settings: Dict
+) -> Dict:
+    """
+    Checks if web_search_preview tool is present and applies responses bridge if needed.
+
+    If a web_search_preview, code_execution, or mcp tool is detected, this function
+    modifies the provider_settings to use the responses bridge by prepending
+    'openai/responses/' to the model name.
+
+    Args:
+        formatted_prompt: The formatted prompt template containing LLM config and tools
+        provider_settings: The provider settings dictionary that may be modified
+
+    Returns:
+        The provider_settings dictionary, potentially modified to use responses bridge
+    """
+    tools = formatted_prompt.llm_config.tools
+    if tools:
+        for tool in tools:
+            if isinstance(tool, dict) and tool.get("type") in [
+                "web_search_preview",
+                "code_execution",
+                "mcp",
+            ]:
+                model_val = provider_settings.get("model")
+                if model_val and "/" not in model_val:
+                    provider_settings["model"] = f"openai/responses/{model_val}"
+    return provider_settings
+
+
 @instrument()
 async def completion_v0(
     parameters: Data,
@@ -1963,11 +1994,17 @@ async def completion_v0(
     if not provider_settings:
         raise InvalidSecretsV0Error(expected="dict", got=provider_settings)
 
+    formatted_prompt = config.prompt.format(**inputs)
+
+    provider_settings = _apply_responses_bridge_if_needed(
+        formatted_prompt, provider_settings
+    )
+
     with mockllm.user_aws_credentials_from(provider_settings):
         response = await mockllm.acompletion(
             **{
                 k: v
-                for k, v in config.prompt.format(**inputs).to_openai_kwargs().items()
+                for k, v in formatted_prompt.to_openai_kwargs().items()
                 if k != "model"
             },
             **provider_settings,
@@ -2021,6 +2058,10 @@ async def chat_v0(
 
     if not provider_settings:
         raise InvalidSecretsV0Error(expected="dict", got=provider_settings)
+
+    provider_settings = _apply_responses_bridge_if_needed(
+        formatted_prompt, provider_settings
+    )
 
     with mockllm.user_aws_credentials_from(provider_settings):
         response = await mockllm.acompletion(
