@@ -225,7 +225,9 @@ class route:
 
         async def invoke_endpoint(req: Request, request: WorkflowServiceRequest):
             credentials = req.state.auth.get("credentials")
-            secrets = req.state.vault.get("secrets") if hasattr(req.state, "vault") else None
+            secrets = (
+                req.state.vault.get("secrets") if hasattr(req.state, "vault") else None
+            )
 
             try:
                 response = await workflow.invoke(
