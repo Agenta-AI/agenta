@@ -1,6 +1,6 @@
 @host = http://localhost
 @token = replace-me
-@base_url = {{host}}/api/preview/workflows
+@base_url = {{host}}/api/v2/workflows
 
 ###
 # @name create_account

@@ -28,7 +28,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/v2/evaluations/runs/",
         json={"runs": [run]},
     )
     assert response.status_code == 200
@@ -56,7 +56,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/v2/evaluations/runs/",
         json={"runs": [run]},
     )
     assert response.status_code == 200
@@ -84,7 +84,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/v2/evaluations/runs/",
         json={"runs": [run]},
     )
     assert response.status_code == 200
@@ -93,7 +93,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/evaluations/runs/{run_3['id']}/archive",
+        f"/v2/evaluations/runs/{run_3['id']}/archive",
     )
 
     assert response.status_code == 200
@@ -111,7 +111,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/evaluations/runs/",
+            "/v2/evaluations/runs/",
         )
         # ----------------------------------------------------------------------
 
@@ -125,7 +125,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/evaluations/runs/?include_archived=true",
+            "/v2/evaluations/runs/?include_archived=true",
         )
         # ----------------------------------------------------------------------
 
@@ -145,7 +145,7 @@ class TestEvaluationRunsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/evaluations/runs/?flags={flags}&include_archived=true",
+            f"/v2/evaluations/runs/?flags={flags}&include_archived=true",
         )
         # ----------------------------------------------------------------------
 
@@ -169,7 +169,7 @@ class TestEvaluationRunsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/evaluations/runs/?tags={tags}",
+            f"/v2/evaluations/runs/?tags={tags}",
         )
         # ----------------------------------------------------------------------
 
@@ -191,7 +191,7 @@ class TestEvaluationRunsQueries:
         tags = quote(dumps(tags))
         response = authed_api(
             "GET",
-            f"/preview/evaluations/runs/?tags={tags}",
+            f"/v2/evaluations/runs/?tags={tags}",
         )
         # ----------------------------------------------------------------------
 
@@ -215,7 +215,7 @@ class TestEvaluationRunsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/evaluations/runs/?meta={meta}",
+            f"/v2/evaluations/runs/?meta={meta}",
         )
         # ----------------------------------------------------------------------
 
@@ -237,7 +237,7 @@ class TestEvaluationRunsQueries:
         meta = quote(dumps(meta))
         response = authed_api(
             "GET",
-            f"/preview/evaluations/runs/?meta={meta}",
+            f"/v2/evaluations/runs/?meta={meta}",
         )
         # ----------------------------------------------------------------------
 
@@ -255,7 +255,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/evaluations/runs/?status=success",
+            "/v2/evaluations/runs/?status=success",
         )
         # ----------------------------------------------------------------------
 
@@ -269,7 +269,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/evaluations/runs/?status=pending",
+            "/v2/evaluations/runs/?status=pending",
         )
         # ----------------------------------------------------------------------
 
@@ -283,7 +283,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/evaluations/runs/?status=failure&include_archived=true",
+            "/v2/evaluations/runs/?status=failure&include_archived=true",
         )
         # ----------------------------------------------------------------------
 

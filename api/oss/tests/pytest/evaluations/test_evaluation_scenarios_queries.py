@@ -28,7 +28,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/v2/evaluations/runs/",
         json={"runs": [run]},
     )
     assert response.status_code == 200
@@ -56,7 +56,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/v2/evaluations/runs/",
         json={"runs": [run]},
     )
     assert response.status_code == 200
@@ -80,7 +80,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/scenarios/",
+        "/v2/evaluations/scenarios/",
         json={"scenarios": scenarios},
     )
 
@@ -105,7 +105,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/scenarios/",
+        "/v2/evaluations/scenarios/",
         json={"scenarios": scenarios},
     )
 
@@ -130,7 +130,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/scenarios/",
+        "/v2/evaluations/scenarios/",
         json={"scenarios": scenarios},
     )
 
@@ -153,7 +153,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/evaluations/scenarios/",
+            "/v2/evaluations/scenarios/",
         )
         # ----------------------------------------------------------------------
 
@@ -172,7 +172,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/evaluations/scenarios/?tags={quote(dumps(tags))}",
+            f"/v2/evaluations/scenarios/?tags={quote(dumps(tags))}",
         )
         # ----------------------------------------------------------------------
 
@@ -191,7 +191,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/evaluations/scenarios/?meta={quote(dumps(meta))}",
+            f"/v2/evaluations/scenarios/?meta={quote(dumps(meta))}",
         )
         # ----------------------------------------------------------------------
 
@@ -210,7 +210,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/evaluations/scenarios/?run_ids={run_id}",
+            f"/v2/evaluations/scenarios/?run_ids={run_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -225,7 +225,7 @@ class TestEvaluationScenariosQueries:
         run_id = mock_data["runs"][1]["id"]
         response = authed_api(
             "GET",
-            f"/preview/evaluations/scenarios/?run_ids={run_id}",
+            f"/v2/evaluations/scenarios/?run_ids={run_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -241,7 +241,7 @@ class TestEvaluationScenariosQueries:
         run_2_id = mock_data["runs"][1]["id"]
         response = authed_api(
             "GET",
-            f"/preview/evaluations/scenarios/?run_ids={run_1_id}&run_ids={run_2_id}",
+            f"/v2/evaluations/scenarios/?run_ids={run_1_id}&run_ids={run_2_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -255,7 +255,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/evaluations/scenarios/?status=success",
+            "/v2/evaluations/scenarios/?status=success",
         )
         # ----------------------------------------------------------------------
 
@@ -268,7 +268,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/evaluations/scenarios/?status=pending",
+            "/v2/evaluations/scenarios/?status=pending",
         )
         # ----------------------------------------------------------------------
 
@@ -281,7 +281,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/evaluations/scenarios/?status=running",
+            "/v2/evaluations/scenarios/?status=running",
         )
         # ----------------------------------------------------------------------
 

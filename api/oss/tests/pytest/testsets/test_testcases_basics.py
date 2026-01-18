@@ -35,7 +35,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/simple/testsets/",
+        "/v2/simple/testsets/",
         json={
             "testset": testset,
         },
@@ -63,7 +63,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/simple/testsets/",
+        "/v2/simple/testsets/",
         json={
             "testset": testset,
         },
@@ -75,7 +75,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/simple/testsets/{testset_2['id']}/archive",
+        f"/v2/simple/testsets/{testset_2['id']}/archive",
     )
 
     assert response.status_code == 200
@@ -98,7 +98,7 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "GET",
-            f"/preview/simple/testsets/testcases/{testcase_id}",
+            f"/v2/simple/testsets/testcases/{testcase_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -113,7 +113,7 @@ class TestTestcasesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/simple/testsets/testcases/",
+            "/v2/simple/testsets/testcases/",
         )
         # ----------------------------------------------------------------------
 
@@ -131,7 +131,7 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/testcases/query",
+            "/v2/simple/testsets/testcases/query",
             json={
                 "testcase_ids": testcase_ids,
             },
@@ -151,7 +151,7 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/testcases/query",
+            "/v2/simple/testsets/testcases/query",
             json={
                 "testset_id": testset_id,
             },

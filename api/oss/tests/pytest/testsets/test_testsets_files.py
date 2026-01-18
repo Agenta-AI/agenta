@@ -34,7 +34,7 @@ class TestTestsetsFiles:
 
             response = authed_api(
                 "POST",
-                "/preview/simple/testsets/upload",
+                "/v2/simple/testsets/upload",
                 files=files,
                 data=data,
             )
@@ -73,7 +73,7 @@ class TestTestsetsFiles:
 
             response = authed_api(
                 "POST",
-                "/preview/simple/testsets/upload",
+                "/v2/simple/testsets/upload",
                 files=files,
                 data=data,
             )
@@ -115,7 +115,7 @@ class TestTestsetsFiles:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/",
+            "/v2/simple/testsets/",
             json={
                 "testset": testset,
             },
@@ -128,7 +128,7 @@ class TestTestsetsFiles:
         with TemporaryFile(mode="w+b", suffix=".csv") as tmpfile:
             response = authed_api(
                 "POST",
-                f"/preview/simple/testsets/{testset_id}/download",
+                f"/v2/simple/testsets/{testset_id}/download",
                 params={
                     "file_type": "csv",
                     "file_name": "testset_export.csv",
@@ -177,7 +177,7 @@ class TestTestsetsFiles:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/",
+            "/v2/simple/testsets/",
             json={
                 "testset": testset,
             },
@@ -190,7 +190,7 @@ class TestTestsetsFiles:
         with TemporaryFile(mode="w+b", suffix=".json") as tmpfile:
             response = authed_api(
                 "POST",
-                f"/preview/simple/testsets/{testset_id}/download",
+                f"/v2/simple/testsets/{testset_id}/download",
                 params={
                     "file_type": "json",
                     "file_name": "testset_export.json",
@@ -240,7 +240,7 @@ class TestTestsetsFiles:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/",
+            "/v2/simple/testsets/",
             json={
                 "testset": testset,
             },
@@ -279,7 +279,7 @@ class TestTestsetsFiles:
 
             response = authed_api(
                 "POST",
-                f"/preview/simple/testsets/{testset_id}/upload",
+                f"/v2/simple/testsets/{testset_id}/upload",
                 files=files,
                 data=data,
             )

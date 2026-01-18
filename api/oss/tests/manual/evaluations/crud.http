@@ -1,6 +1,6 @@
 @host = http://localhost
 @token = replace-me
-@base_url = {{host}}/api/preview/evaluations
+@base_url = {{host}}/api/v2/evaluations
 
 ###
 # @name create_account

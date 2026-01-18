@@ -24,7 +24,7 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/v2/annotations/",
             json={
                 "annotation": {
                     "data": {
@@ -72,7 +72,7 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/v2/annotations/",
             json={
                 "annotation": {
                     "data": {
@@ -96,7 +96,7 @@ class TestAnnotationsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/v2/annotations/{trace_id}/{span_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -134,7 +134,7 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/v2/annotations/",
             json={
                 "annotation": {
                     "data": {
@@ -163,7 +163,7 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "PATCH",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/v2/annotations/{trace_id}/{span_id}",
             json={
                 "annotation": {
                     "data": {
@@ -210,7 +210,7 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/v2/annotations/",
             json={
                 "annotation": {
                     "data": {
@@ -234,7 +234,7 @@ class TestAnnotationsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/v2/annotations/{trace_id}/{span_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -249,7 +249,7 @@ class TestAnnotationsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/v2/annotations/{trace_id}/{span_id}",
         )
         # ----------------------------------------------------------------------
 

@@ -2,7 +2,7 @@ import requests
 from pathlib import Path
 
 # Use the preview endpoint for testset upload
-API_URL = "http://localhost:80/api/preview/simple/testsets/upload"
+API_URL = "http://localhost:80/api/v2/simple/testsets/upload"
 API_KEY = "ApiKey xxx.xxx"  # Replace with your actual key
 PROJECT_ID = "xxx"  # Replace with your actual project ID
 TESTSET_DIR = Path("testsets")

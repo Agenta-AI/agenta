@@ -12,7 +12,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/v2/evaluations/runs/",
         json={"runs": runs},
     )
 
@@ -28,7 +28,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/scenarios/",
+        "/v2/evaluations/scenarios/",
         json={"scenarios": scenarios},
     )
 
@@ -69,7 +69,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/v2/evaluations/results/",
             json={"steps": steps},
         )
         # ----------------------------------------------------------------------
@@ -122,7 +122,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/v2/evaluations/results/",
             json={"steps": steps},
         )
 
@@ -134,7 +134,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/evaluations/results/",
+            "/v2/evaluations/results/",
             params={"scenario_id": scenario_id},
         )
         # ----------------------------------------------------------------------
@@ -185,7 +185,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/v2/evaluations/results/",
             json={"steps": steps},
         )
 
@@ -207,7 +207,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "PATCH",
-            "/preview/evaluations/results/",
+            "/v2/evaluations/results/",
             json={"steps": steps},
         )
 
@@ -249,7 +249,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/v2/evaluations/results/",
             json={"steps": steps},
         )
 
@@ -263,7 +263,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/results/",
+            "/v2/evaluations/results/",
             json={"result_ids": result_ids},
         )
         # ----------------------------------------------------------------------
@@ -278,7 +278,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/results/",
+            "/v2/evaluations/results/",
             json={"result_ids": result_ids},
         )
         # ----------------------------------------------------------------------
@@ -306,7 +306,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/v2/evaluations/results/",
             json={"steps": steps},
         )
 
@@ -320,7 +320,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/evaluations/results/{result_id}",
+            f"/v2/evaluations/results/{result_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -348,7 +348,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/v2/evaluations/results/",
             json={"steps": steps},
         )
 
@@ -367,7 +367,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "PATCH",
-            f"/preview/evaluations/results/{result_id}",
+            f"/v2/evaluations/results/{result_id}",
             json={"step": step},
         )
         # ----------------------------------------------------------------------
@@ -398,7 +398,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/v2/evaluations/results/",
             json={"steps": steps},
         )
 
@@ -412,7 +412,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/results/{result_id}",
+            f"/v2/evaluations/results/{result_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -426,7 +426,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/results/{result_id}",
+            f"/v2/evaluations/results/{result_id}",
         )
         # ----------------------------------------------------------------------
 

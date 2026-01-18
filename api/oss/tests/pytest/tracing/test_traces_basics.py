@@ -10,7 +10,7 @@ class TestTraceBasics:
 
         response = authed_api(
             "POST",
-            "/preview/tracing/traces/",
+            "/v2/tracing/traces/",
             json={
                 "traces": {
                     trace_id: {
@@ -84,7 +84,7 @@ class TestTraceBasics:
 
         response = authed_api(
             "POST",
-            "/preview/tracing/traces/",
+            "/v2/tracing/traces/",
             json={
                 "spans": [
                     {
@@ -126,7 +126,7 @@ class TestTraceBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/tracing/traces/{trace_id}",
+            f"/v2/tracing/traces/{trace_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -145,7 +145,7 @@ class TestTraceBasics:
 
         response = authed_api(
             "POST",
-            "/preview/tracing/traces/",
+            "/v2/tracing/traces/",
             json={
                 "spans": [
                     {
@@ -181,7 +181,7 @@ class TestTraceBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "PUT",
-            f"/preview/tracing/traces/{trace_id}",
+            f"/v2/tracing/traces/{trace_id}",
             json={
                 "traces": {
                     trace_id: {
@@ -255,7 +255,7 @@ class TestTraceBasics:
 
         response = authed_api(
             "POST",
-            "/preview/tracing/traces/",
+            "/v2/tracing/traces/",
             json={
                 "spans": [
                     {
@@ -280,7 +280,7 @@ class TestTraceBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/tracing/traces/{trace_id}",
+            f"/v2/tracing/traces/{trace_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -291,7 +291,7 @@ class TestTraceBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/tracing/traces/{trace_id}",
+            f"/v2/tracing/traces/{trace_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -304,7 +304,7 @@ class TestTraceBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/tracing/traces/{trace_id}",
+            f"/v2/tracing/traces/{trace_id}",
         )
         # ----------------------------------------------------------------------
 

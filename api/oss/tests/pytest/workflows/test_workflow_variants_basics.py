@@ -31,7 +31,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/v2/workflows/",
         json={"workflow": workflow},
     )
 
@@ -58,7 +58,7 @@ class TestWorkflowVariantsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/v2/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"workflow-{workflow_variant_slug}",
@@ -103,7 +103,7 @@ class TestWorkflowVariantsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/v2/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"workflow-{workflow_variant_slug}",
@@ -139,7 +139,7 @@ class TestWorkflowVariantsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/workflows/variants/{workflow_variant_id}",
+            f"/v2/workflows/variants/{workflow_variant_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -159,7 +159,7 @@ class TestWorkflowVariantsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/v2/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"workflow-variant-{workflow_variant_slug}",
@@ -196,7 +196,7 @@ class TestWorkflowVariantsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "PUT",
-            f"/preview/workflows/variants/{workflow_variant_id}",
+            f"/v2/workflows/variants/{workflow_variant_id}",
             json={
                 "workflow_variant": {
                     "id": workflow_variant_id,
@@ -238,7 +238,7 @@ class TestWorkflowVariantsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/v2/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"workflow-variant-{workflow_variant_slug}",
@@ -275,7 +275,7 @@ class TestWorkflowVariantsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/workflows/variants/{workflow_variant_id}/archive",
+            f"/v2/workflows/variants/{workflow_variant_id}/archive",
         )
         # ----------------------------------------------------------------------
 
@@ -296,7 +296,7 @@ class TestWorkflowVariantsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/v2/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"workflow-variant-{workflow_variant_slug}",
@@ -331,7 +331,7 @@ class TestWorkflowVariantsBasics:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/variants/{workflow_variant_id}/archive",
+            f"/v2/workflows/variants/{workflow_variant_id}/archive",
         )
 
         assert response.status_code == 200
@@ -343,7 +343,7 @@ class TestWorkflowVariantsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/workflows/variants/{workflow_variant_id}/unarchive",
+            f"/v2/workflows/variants/{workflow_variant_id}/unarchive",
         )
         # ----------------------------------------------------------------------
 

@@ -33,7 +33,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/v2/workflows/",
         json={"workflow": workflow},
     )
 
@@ -45,7 +45,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/v2/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-{workflow_variant_slug}",
@@ -79,7 +79,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/v2/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-{workflow_variant_slug}",
@@ -111,14 +111,14 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/workflows/variants/{workflow_variant_id_1}/archive",
+        f"/v2/workflows/variants/{workflow_variant_id_1}/archive",
     )
 
     assert response.status_code == 200
 
     response = authed_api(
         "GET",
-        "/preview/workflows/variants/?include_archived=true",
+        "/v2/workflows/variants/?include_archived=true",
     )
 
     assert response.status_code == 200
@@ -141,7 +141,7 @@ class TestWorkflowVariantsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/workflows/variants/",
+            "/v2/workflows/variants/",
         )
         # ----------------------------------------------------------------------
 
@@ -163,7 +163,7 @@ class TestWorkflowVariantsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/workflows/variants/?include_archived=true",
+            "/v2/workflows/variants/?include_archived=true",
         )
         # ----------------------------------------------------------------------
 
@@ -185,7 +185,7 @@ class TestWorkflowVariantsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/workflows/variants/?include_archived=true&limit=1",
+            "/v2/workflows/variants/?include_archived=true&limit=1",
         )
         # ----------------------------------------------------------------------
 
@@ -202,7 +202,7 @@ class TestWorkflowVariantsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/workflows/variants/?include_archived=true"
+            "/v2/workflows/variants/?include_archived=true"
             f"&limit=1&next={response['workflow_variants'][0]['id']}",
         )
         # ----------------------------------------------------------------------
@@ -219,7 +219,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            "/preview/workflows/variants/?include_archived=true"
+            "/v2/workflows/variants/?include_archived=true"
             f"&limit=1&next={response['workflow_variants'][0]['id']}",
         )
         # ----------------------------------------------------------------------
@@ -239,7 +239,7 @@ class TestWorkflowVariantsQueries:
         flags = quote(dumps(mock_data["workflow_variants"][0]["flags"]))
         response = authed_api(
             "GET",
-            f"/preview/workflows/variants/?flags={flags}",
+            f"/v2/workflows/variants/?flags={flags}",
         )
         # ----------------------------------------------------------------------
 
@@ -258,7 +258,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/variants/?flags={flags}",
+            f"/v2/workflows/variants/?flags={flags}",
         )
         # ----------------------------------------------------------------------
 
@@ -277,7 +277,7 @@ class TestWorkflowVariantsQueries:
         tags = quote(dumps(mock_data["workflow_variants"][0]["tags"]))
         response = authed_api(
             "GET",
-            f"/preview/workflows/variants/?tags={tags}",
+            f"/v2/workflows/variants/?tags={tags}",
         )
         # ----------------------------------------------------------------------
 
@@ -296,7 +296,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/variants/?tags={tags}",
+            f"/v2/workflows/variants/?tags={tags}",
         )
         # ----------------------------------------------------------------------
 
@@ -315,7 +315,7 @@ class TestWorkflowVariantsQueries:
         meta = quote(dumps(mock_data["workflow_variants"][0]["meta"]))
         response = authed_api(
             "GET",
-            f"/preview/workflows/variants/?meta={meta}",
+            f"/v2/workflows/variants/?meta={meta}",
         )
         # ----------------------------------------------------------------------
 
@@ -334,7 +334,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/variants/?meta={meta}",
+            f"/v2/workflows/variants/?meta={meta}",
         )
         # ----------------------------------------------------------------------
 

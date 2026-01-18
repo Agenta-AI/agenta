@@ -33,7 +33,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/v2/workflows/",
         json={"workflow": workflow},
     )
 
@@ -45,7 +45,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/v2/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-variant-{workflow_variant_slug}",
@@ -79,7 +79,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/v2/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -114,7 +114,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/v2/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-Revision-{workflow_revision_slug}",
@@ -147,14 +147,14 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/workflows/revisions/{workflow_revision_id_1}/archive",
+        f"/v2/workflows/revisions/{workflow_revision_id_1}/archive",
     )
 
     assert response.status_code == 200
 
     response = authed_api(
         "GET",
-        "/preview/workflows/revisions/?include_archived=true",
+        "/v2/workflows/revisions/?include_archived=true",
     )
 
     assert response.status_code == 200
@@ -177,7 +177,7 @@ class TestWorkflowRevisionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/workflows/revisions/",
+            "/v2/workflows/revisions/",
         )
         # ----------------------------------------------------------------------
 
@@ -199,7 +199,7 @@ class TestWorkflowRevisionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/workflows/revisions/?include_archived=true",
+            "/v2/workflows/revisions/?include_archived=true",
         )
         # ----------------------------------------------------------------------
 
@@ -221,7 +221,7 @@ class TestWorkflowRevisionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/workflows/revisions/?include_archived=true&limit=1",
+            "/v2/workflows/revisions/?include_archived=true&limit=1",
         )
         # ----------------------------------------------------------------------
 
@@ -238,7 +238,7 @@ class TestWorkflowRevisionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/workflows/revisions/?include_archived=true"
+            "/v2/workflows/revisions/?include_archived=true"
             f"&limit=1&next={response['workflow_revisions'][0]['id']}",
         )
         # ----------------------------------------------------------------------
@@ -255,7 +255,7 @@ class TestWorkflowRevisionsQueries:
 
         response = authed_api(
             "GET",
-            "/preview/workflows/revisions/?include_archived=true"
+            "/v2/workflows/revisions/?include_archived=true"
             f"&limit=1&next={response['workflow_revisions'][0]['id']}",
         )
         # ----------------------------------------------------------------------
@@ -275,7 +275,7 @@ class TestWorkflowRevisionsQueries:
         flags = quote(dumps(mock_data["workflow_revisions"][0]["flags"]))
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/?flags={flags}",
+            f"/v2/workflows/revisions/?flags={flags}",
         )
         # ----------------------------------------------------------------------
 
@@ -294,7 +294,7 @@ class TestWorkflowRevisionsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/?flags={flags}",
+            f"/v2/workflows/revisions/?flags={flags}",
         )
         # ----------------------------------------------------------------------
 
@@ -313,7 +313,7 @@ class TestWorkflowRevisionsQueries:
         tags = quote(dumps(mock_data["workflow_revisions"][0]["tags"]))
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/?tags={tags}",
+            f"/v2/workflows/revisions/?tags={tags}",
         )
         # ----------------------------------------------------------------------
 
@@ -332,7 +332,7 @@ class TestWorkflowRevisionsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/?tags={tags}",
+            f"/v2/workflows/revisions/?tags={tags}",
         )
         # ----------------------------------------------------------------------
 
@@ -351,7 +351,7 @@ class TestWorkflowRevisionsQueries:
         meta = quote(dumps(mock_data["workflow_revisions"][0]["meta"]))
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/?meta={meta}",
+            f"/v2/workflows/revisions/?meta={meta}",
         )
         # ----------------------------------------------------------------------
 
@@ -370,7 +370,7 @@ class TestWorkflowRevisionsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/?meta={meta}",
+            f"/v2/workflows/revisions/?meta={meta}",
         )
         # ----------------------------------------------------------------------
 

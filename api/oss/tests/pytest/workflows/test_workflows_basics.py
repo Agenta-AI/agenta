@@ -11,7 +11,7 @@ class TestWorkflowsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/v2/workflows/",
             json={
                 "workflow": {
                     "slug": f"workflow-{workflow_slug}",
@@ -52,7 +52,7 @@ class TestWorkflowsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/v2/workflows/",
             json={
                 "workflow": {
                     "slug": f"workflow-{workflow_slug}",
@@ -87,7 +87,7 @@ class TestWorkflowsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/workflows/{workflow_id}",
+            f"/v2/workflows/{workflow_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -106,7 +106,7 @@ class TestWorkflowsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/v2/workflows/",
             json={
                 "workflow": {
                     "slug": f"workflow-{workflow_slug}",
@@ -142,7 +142,7 @@ class TestWorkflowsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "PUT",
-            f"/preview/workflows/{workflow_id}",
+            f"/v2/workflows/{workflow_id}",
             json={
                 "workflow": {
                     "id": workflow_id,
@@ -183,7 +183,7 @@ class TestWorkflowsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/v2/workflows/",
             json={
                 "workflow": {
                     "slug": f"workflow-{workflow_slug}",
@@ -218,7 +218,7 @@ class TestWorkflowsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/workflows/{workflow_id}/archive",
+            f"/v2/workflows/{workflow_id}/archive",
         )
         # ----------------------------------------------------------------------
 
@@ -238,7 +238,7 @@ class TestWorkflowsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/v2/workflows/",
             json={
                 "workflow": {
                     "slug": f"workflow-{workflow_slug}",
@@ -272,7 +272,7 @@ class TestWorkflowsBasics:
         # Archive the workflow first
         response = authed_api(
             "POST",
-            f"/preview/workflows/{workflow_id}/archive",
+            f"/v2/workflows/{workflow_id}/archive",
         )
 
         assert response.status_code == 200
@@ -284,7 +284,7 @@ class TestWorkflowsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/workflows/{workflow_id}/unarchive",
+            f"/v2/workflows/{workflow_id}/unarchive",
         )
         # ----------------------------------------------------------------------
 

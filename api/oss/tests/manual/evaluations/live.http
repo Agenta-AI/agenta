@@ -16,7 +16,7 @@ Authorization: Access {{auth_key}}
 
 ###
 # @name list_queries
-POST {{api_url}}/preview/simple/queries/query
+POST {{api_url}}/v2/simple/queries/query
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -24,7 +24,7 @@ Authorization: {{authorization}}
 
 ###
 # @name create_query
-POST {{api_url}}/preview/simple/queries/
+POST {{api_url}}/v2/simple/queries/
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -53,7 +53,7 @@ Authorization: {{authorization}}
 
 ###
 # @name fetch_query_revision
-POST {{api_url}}/preview/queries/revisions/retrieve
+POST {{api_url}}/v2/queries/revisions/retrieve
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -65,7 +65,7 @@ Authorization: {{authorization}}
 
 ###
 # @name list_evaluators
-POST {{api_url}}/preview/simple/evaluators/query
+POST {{api_url}}/v2/simple/evaluators/query
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -73,7 +73,7 @@ Authorization: {{authorization}}
 
 ###
 # @name fetch_evaluator_revision
-POST {{api_url}}/preview/evaluators/revisions/retrieve
+POST {{api_url}}/v2/evaluators/revisions/retrieve
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -85,7 +85,7 @@ Authorization: {{authorization}}
 
 ###
 # @name list_evaluations
-POST {{api_url}}/preview/simple/evaluations/query
+POST {{api_url}}/v2/simple/evaluations/query
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -93,7 +93,7 @@ Authorization: {{authorization}}
 
 ###
 # @name create_evaluation
-POST {{api_url}}/preview/simple/evaluations/
+POST {{api_url}}/v2/simple/evaluations/
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -120,12 +120,12 @@ Authorization: {{authorization}}
 
 ###
 # @name stop_evaluation
-POST {{api_url}}/preview/simple/evaluations/{{create_evaluation.response.body.evaluation.id}}/stop
+POST {{api_url}}/v2/simple/evaluations/{{create_evaluation.response.body.evaluation.id}}/stop
 Content-Type: application/json
 Authorization: {{authorization}}
 
 ###
 # @name start_evaluation
-POST {{api_url}}/preview/simple/evaluations/{{create_evaluation.response.body.evaluation.id}}/start
+POST {{api_url}}/v2/simple/evaluations/{{create_evaluation.response.body.evaluation.id}}/start
 Content-Type: application/json
 Authorization: {{authorization}}

@@ -11,7 +11,7 @@ def mock_data(authed_api):
     # ARRANGE ------------------------------------------------------------------
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/v2/evaluations/runs/",
         json={"runs": [{}, {}]},
     )
     assert response.status_code == 200
@@ -57,7 +57,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/metrics/",
+        "/v2/evaluations/metrics/",
         json={"metrics": metrics},
     )
 
@@ -86,7 +86,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/v2/evaluations/metrics/query",
             json={
                 "metric": {
                     "ids": metrics_ids,
@@ -111,7 +111,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/v2/evaluations/metrics/query",
             json={
                 "metric": {
                     "tags": {
@@ -139,7 +139,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/v2/evaluations/metrics/query",
             json={
                 "metric": {
                     "meta": {
@@ -169,7 +169,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/v2/evaluations/metrics/query",
             json={
                 "metric": {
                     "status": "success",
@@ -198,7 +198,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/v2/evaluations/metrics/query",
             json={
                 "metric": {
                     "statuses": ["success", "failure"],
@@ -224,7 +224,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/v2/evaluations/metrics/query",
             json={
                 "metric": {
                     "run_id": run_id,
@@ -252,7 +252,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/v2/evaluations/metrics/query",
             json={
                 "metric": {
                     "run_ids": run_ids,
@@ -283,7 +283,7 @@ class TestEvaluationMetricsQueries:
         }
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/",
+            "/v2/evaluations/metrics/",
             json={"metrics": [temporal_metric]},
         )
         assert response.status_code == 200
@@ -292,7 +292,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         run_level_response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/v2/evaluations/metrics/query",
             json={
                 "metric": {
                     "run_id": run_id,
@@ -302,7 +302,7 @@ class TestEvaluationMetricsQueries:
         )
         temporal_response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/v2/evaluations/metrics/query",
             json={
                 "metric": {
                     "run_id": run_id,

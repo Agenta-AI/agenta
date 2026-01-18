@@ -24,7 +24,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/v2/evaluations/runs/",
         json={"runs": [run]},
     )
     assert response.status_code == 200
@@ -52,7 +52,7 @@ class TestEvaluationScenariosBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/",
+            "/v2/evaluations/scenarios/",
             json={"scenarios": scenarios},
         )
         # ----------------------------------------------------------------------
@@ -76,7 +76,7 @@ class TestEvaluationScenariosBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/",
+            "/v2/evaluations/scenarios/",
             json={"scenarios": scenarios},
         )
 
@@ -88,7 +88,7 @@ class TestEvaluationScenariosBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/evaluations/scenarios/{scenario_id}",
+            f"/v2/evaluations/scenarios/{scenario_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -114,7 +114,7 @@ class TestEvaluationScenariosBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/",
+            "/v2/evaluations/scenarios/",
             json={"scenarios": scenarios},
         )
 
@@ -137,7 +137,7 @@ class TestEvaluationScenariosBasics:
 
         response = authed_api(
             "PATCH",
-            f"/preview/evaluations/scenarios/{scenario_id}",
+            f"/v2/evaluations/scenarios/{scenario_id}",
             json={"scenario": scenario},
         )
         # ----------------------------------------------------------------------
@@ -158,7 +158,7 @@ class TestEvaluationScenariosBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/",
+            "/v2/evaluations/scenarios/",
             json={"scenarios": scenarios},
         )
 
@@ -170,7 +170,7 @@ class TestEvaluationScenariosBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/scenarios/",
+            f"/v2/evaluations/scenarios/",
             json={"scenario_ids": scenario_ids},
         )
         # ----------------------------------------------------------------------
@@ -185,7 +185,7 @@ class TestEvaluationScenariosBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/scenarios/",
+            f"/v2/evaluations/scenarios/",
             json={"scenario_ids": scenario_ids},
         )
         # ----------------------------------------------------------------------
@@ -208,7 +208,7 @@ class TestEvaluationScenariosBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/",
+            "/v2/evaluations/scenarios/",
             json={"scenarios": scenarios},
         )
 
@@ -220,7 +220,7 @@ class TestEvaluationScenariosBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/evaluations/scenarios/{scenario_id}",
+            f"/v2/evaluations/scenarios/{scenario_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -245,7 +245,7 @@ class TestEvaluationScenariosBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/",
+            "/v2/evaluations/scenarios/",
             json={"scenarios": scenarios},
         )
 
@@ -268,7 +268,7 @@ class TestEvaluationScenariosBasics:
 
         response = authed_api(
             "PATCH",
-            f"/preview/evaluations/scenarios/{scenario_id}",
+            f"/v2/evaluations/scenarios/{scenario_id}",
             json={"scenario": scenario},
         )
         # ----------------------------------------------------------------------
@@ -289,7 +289,7 @@ class TestEvaluationScenariosBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/",
+            "/v2/evaluations/scenarios/",
             json={"scenarios": scenarios},
         )
 
@@ -301,7 +301,7 @@ class TestEvaluationScenariosBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/scenarios/{scenario_id}",
+            f"/v2/evaluations/scenarios/{scenario_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -315,7 +315,7 @@ class TestEvaluationScenariosBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/scenarios/{scenario_id}",
+            f"/v2/evaluations/scenarios/{scenario_id}",
         )
         # ----------------------------------------------------------------------
 

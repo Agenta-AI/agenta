@@ -27,7 +27,7 @@ class TestEvaluatorsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/evaluators/",
+            "/v2/simple/evaluators/",
             json={
                 "evaluator": {
                     "slug": f"evaluator-{evaluator_slug}",
@@ -92,7 +92,7 @@ class TestEvaluatorsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/evaluators/",
+            "/v2/simple/evaluators/",
             json={
                 "evaluator": {
                     "slug": f"evaluator-{evaluator_slug}",
@@ -131,7 +131,7 @@ class TestEvaluatorsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/simple/evaluators/{evaluator_id}",
+            f"/v2/simple/evaluators/{evaluator_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -167,7 +167,7 @@ class TestEvaluatorsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/evaluators/",
+            "/v2/simple/evaluators/",
             json={
                 "evaluator": {
                     "slug": f"evaluator-{evaluator_slug}",
@@ -216,7 +216,7 @@ class TestEvaluatorsBasics:
 
         response = authed_api(
             "PUT",
-            f"/preview/simple/evaluators/{evaluator_id}",
+            f"/v2/simple/evaluators/{evaluator_id}",
             json={
                 "evaluator": {
                     "id": evaluator_id,
@@ -280,7 +280,7 @@ class TestEvaluatorsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/evaluators/",
+            "/v2/simple/evaluators/",
             json={
                 "evaluator": {
                     "slug": f"evaluator-{evaluator_slug}",
@@ -319,7 +319,7 @@ class TestEvaluatorsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/simple/evaluators/{evaluator_id}/archive",
+            f"/v2/simple/evaluators/{evaluator_id}/archive",
         )
         # ----------------------------------------------------------------------
 
@@ -355,7 +355,7 @@ class TestEvaluatorsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/evaluators/",
+            "/v2/simple/evaluators/",
             json={
                 "evaluator": {
                     "slug": f"evaluator-{evaluator_slug}",
@@ -392,7 +392,7 @@ class TestEvaluatorsBasics:
 
         response = authed_api(
             "POST",
-            f"/preview/simple/evaluators/{evaluator_id}/archive",
+            f"/v2/simple/evaluators/{evaluator_id}/archive",
         )
 
         assert response.status_code == 200
@@ -404,7 +404,7 @@ class TestEvaluatorsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/simple/evaluators/{evaluator_id}/unarchive",
+            f"/v2/simple/evaluators/{evaluator_id}/unarchive",
         )
         # ----------------------------------------------------------------------
 

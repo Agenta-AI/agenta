@@ -27,8 +27,8 @@
 
 @host = http://localhost
 @token = replace-me
-@base_url = {{host}}/api/preview/testsets
-@simple_base_url = {{host}}/api/preview/simple/testsets
+@base_url = {{host}}/api/v2/testsets
+@simple_base_url = {{host}}/api/v2/simple/testsets
 
 ###
 # @name create_account

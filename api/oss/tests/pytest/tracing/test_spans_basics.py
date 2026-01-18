@@ -15,7 +15,7 @@ class TestSpansBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/",
+            "/v2/tracing/spans/",
             json={
                 "spans": [
                     {
@@ -120,7 +120,7 @@ class TestSpansBasics:
         # ARRANGE --------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/ingest",
+            "/v2/tracing/spans/ingest",
             json={
                 "spans": [
                     {
@@ -212,7 +212,7 @@ class TestSpansBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/query",
+            "/v2/tracing/spans/query",
         )
         # ----------------------------------------------------------------------
 

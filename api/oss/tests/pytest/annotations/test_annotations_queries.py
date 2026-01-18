@@ -17,7 +17,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/annotations/",
+        "/v2/annotations/",
         json={
             "annotation": {
                 "origin": "custom",
@@ -56,7 +56,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "GET",
-        f"/preview/annotations/{annotation_1_link['trace_id']}/{annotation_1_link['span_id']}",
+        f"/v2/annotations/{annotation_1_link['trace_id']}/{annotation_1_link['span_id']}",
     )
 
     assert response.status_code == 200
@@ -66,7 +66,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/annotations/",
+        "/v2/annotations/",
         json={
             "annotation": {
                 "origin": "human",
@@ -105,7 +105,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "GET",
-        f"/preview/annotations/{annotation_2_link['trace_id']}/{annotation_2_link['span_id']}",
+        f"/v2/annotations/{annotation_2_link['trace_id']}/{annotation_2_link['span_id']}",
     )
 
     assert response.status_code == 200
@@ -117,7 +117,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/annotations/",
+        "/v2/annotations/",
         json={
             "annotation": {
                 "origin": "auto",
@@ -156,7 +156,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "GET",
-        f"/preview/annotations/{annotation_3_link['trace_id']}/{annotation_3_link['span_id']}",
+        f"/v2/annotations/{annotation_3_link['trace_id']}/{annotation_3_link['span_id']}",
     )
 
     assert response.status_code == 200
@@ -186,7 +186,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={},
         )
         # ----------------------------------------------------------------------
@@ -203,7 +203,7 @@ class TestAnnotationsQueries:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={
                 "annotation_links": [annotation_link_1],
             },
@@ -225,7 +225,7 @@ class TestAnnotationsQueries:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={
                 "annotation_links": [annotation_link_2, annotation_link_3],
             },
@@ -245,7 +245,7 @@ class TestAnnotationsQueries:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={
                 "annotation": {
                     "links": {
@@ -267,7 +267,7 @@ class TestAnnotationsQueries:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={
                 "annotation": {
                     "links": [annotation["links"]["invocation"]],
@@ -288,7 +288,7 @@ class TestAnnotationsQueries:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={
                 "annotation": {
                     "references": {
@@ -309,7 +309,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"tags": {"tag1": "value1"}}},
         )
         # ----------------------------------------------------------------------
@@ -323,7 +323,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"tags": {"tag2": "value2"}}},
         )
         # ----------------------------------------------------------------------
@@ -337,7 +337,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"tags": {"tag1": "value3"}}},
         )
         # ----------------------------------------------------------------------
@@ -351,7 +351,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"tags": {"tag2": "value3"}}},
         )
         # ----------------------------------------------------------------------
@@ -366,7 +366,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"meta": {"meta1": "value1"}}},
         )
         # ----------------------------------------------------------------------
@@ -380,7 +380,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"meta": {"meta2": "value2"}}},
         )
         # ----------------------------------------------------------------------
@@ -394,7 +394,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"meta": {"meta1": "value3"}}},
         )
         # ----------------------------------------------------------------------
@@ -408,7 +408,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"meta": {"meta2": "value3"}}},
         )
         # ----------------------------------------------------------------------
@@ -423,7 +423,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"origin": "custom"}},
         )
         # ----------------------------------------------------------------------
@@ -437,7 +437,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"origin": "human"}},
         )
         # ----------------------------------------------------------------------
@@ -451,7 +451,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"origin": "auto"}},
         )
         # ----------------------------------------------------------------------
@@ -466,7 +466,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"kind": "adhoc"}},
         )
         # ----------------------------------------------------------------------
@@ -480,7 +480,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"kind": "eval"}},
         )
         # ----------------------------------------------------------------------
@@ -495,7 +495,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"channel": "api"}},
         )
         # ----------------------------------------------------------------------
@@ -509,7 +509,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"channel": "web"}},
         )
         # ----------------------------------------------------------------------
@@ -523,7 +523,7 @@ class TestAnnotationsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/annotations/query",
+            "/v2/annotations/query",
             json={"annotation": {"channel": "sdk"}},
         )
         # ----------------------------------------------------------------------

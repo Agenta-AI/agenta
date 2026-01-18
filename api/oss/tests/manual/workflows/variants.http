@@ -1,7 +1,7 @@
 @host = http://localhost/api
 @api_key = xxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxx
 @token = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-@base_url = {{host}}/api/preview/workflows
+@base_url = {{host}}/api/v2/workflows
 
 ###
 # @name create_account

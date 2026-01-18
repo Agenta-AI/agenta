@@ -12,7 +12,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/v2/evaluations/runs/",
         json={"runs": runs},
     )
 
@@ -27,7 +27,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/scenarios/",
+        "/v2/evaluations/scenarios/",
         json={"scenarios": scenarios},
     )
 
@@ -133,7 +133,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/results/",
+        "/v2/evaluations/results/",
         json={"steps": steps},
     )
 
@@ -158,7 +158,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {},
             },
@@ -175,7 +175,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "tags": {
@@ -197,7 +197,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "meta": {
@@ -219,7 +219,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "run_id": mock_data["runs"][0]["id"],
@@ -238,7 +238,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "run_ids": [mock_data["runs"][0]["id"]],
@@ -257,7 +257,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "scenario_id": mock_data["scenarios"][0]["id"],
@@ -276,7 +276,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "scenario_ids": [s["id"] for s in mock_data["scenarios"]],
@@ -295,7 +295,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "ids": [s["id"] for s in mock_data["steps"][:-1]],
@@ -314,7 +314,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "key": "input",
@@ -333,7 +333,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "keys": ["input", "invocation"],
@@ -352,7 +352,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "repeat_id": mock_data["steps"][0]["repeat_id"],
@@ -371,7 +371,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "repeat_ids": [
@@ -393,7 +393,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "retry_id": mock_data["steps"][0]["retry_id"],
@@ -412,7 +412,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "retry_ids": [
@@ -434,7 +434,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "status": "success",
@@ -453,7 +453,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/v2/evaluations/results/query",
             json={
                 "step": {
                     "statuses": ["success", "failure"],

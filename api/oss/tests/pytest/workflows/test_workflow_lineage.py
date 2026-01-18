@@ -31,7 +31,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/v2/workflows/",
         json={"workflow": workflow},
     )
 
@@ -45,7 +45,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/v2/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-variant-{workflow_variant_slug}",
@@ -81,7 +81,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/v2/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}-first",
@@ -114,7 +114,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/v2/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}-second",
@@ -147,7 +147,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/v2/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}-third",
@@ -178,7 +178,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "GET",
-        "/preview/workflows/revisions/",
+        "/v2/workflows/revisions/",
     )
 
     assert response.status_code == 200
@@ -202,7 +202,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/v2/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant["id"],
@@ -223,7 +223,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/v2/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant["id"],
@@ -245,7 +245,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/v2/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_revision_id": workflow_revision["id"],
@@ -266,7 +266,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/v2/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_revision_id": workflow_revision["id"],
@@ -291,7 +291,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/fork",
+            "/v2/workflows/variants/fork",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant_id,
@@ -350,7 +350,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/v2/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant["id"],
@@ -372,7 +372,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/fork",
+            "/v2/workflows/variants/fork",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant_id,
@@ -431,7 +431,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/v2/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant["id"],

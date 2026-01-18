@@ -1,5 +1,5 @@
 @host = http://localhost
-@base_url = {{host}}/api/preview/tracing
+@base_url = {{host}}/api/v2/tracing
 @api_key = ...
 
 

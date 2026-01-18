@@ -16,7 +16,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/v2/workflows/",
         json={"workflow": workflow_0},
     )
 
@@ -32,7 +32,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/v2/workflows/",
         json={"workflow": workflow_1},
     )
 
@@ -44,7 +44,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/v2/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-variant-{workflow_0_variant_0_slug}",
@@ -61,7 +61,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/v2/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_0_variant_0_revision_0_slug}",
@@ -79,7 +79,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/v2/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-variant-{workflow_1_variant_0_slug}",
@@ -96,7 +96,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/v2/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_1_variant_0_revision_0_slug}",
@@ -112,7 +112,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/v2/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-variant-{workflow_1_variant_1_slug}",
@@ -127,7 +127,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/v2/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_1_variant_1_revision_0_slug}",
@@ -145,7 +145,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/v2/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_1_variant_1_revision_1_slug}",
@@ -201,7 +201,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve?workflow_revision_id={revision_id}",
+            f"/v2/workflows/revisions/retrieve?workflow_revision_id={revision_id}",
         )
 
         assert response.status_code == 200
@@ -220,8 +220,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve"
-            f"?workflow_revision_slug={revision_slug}",
+            f"/v2/workflows/revisions/retrieve?workflow_revision_slug={revision_slug}",
         )
 
         assert response.status_code == 200
@@ -243,7 +242,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve"
+            f"/v2/workflows/revisions/retrieve"
             f"?workflow_variant_id={variant_id}"
             f"&workflow_revision_version={revision_version}",
         )
@@ -267,7 +266,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve"
+            f"/v2/workflows/revisions/retrieve"
             f"?workflow_variant_slug={variant_slug}"
             f"&workflow_revision_version={revision_version}",
         )
@@ -288,7 +287,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve?workflow_variant_id={variant_id}",
+            f"/v2/workflows/revisions/retrieve?workflow_variant_id={variant_id}",
         )
 
         assert response.status_code == 200
@@ -307,8 +306,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve"
-            f"?workflow_variant_slug={variant_slug}",
+            f"/v2/workflows/revisions/retrieve?workflow_variant_slug={variant_slug}",
         )
 
         assert response.status_code == 200

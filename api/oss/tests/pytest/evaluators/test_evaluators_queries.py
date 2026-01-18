@@ -31,7 +31,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/simple/evaluators/",
+        "/v2/simple/evaluators/",
         json={
             "evaluator": {
                 "slug": f"evaluator-{evaluator_slug}",
@@ -72,7 +72,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/simple/evaluators/",
+        "/v2/simple/evaluators/",
         json={
             "evaluator": {
                 "slug": f"evaluator-{evaluator_slug}",
@@ -111,7 +111,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/simple/evaluators/{evaluator_2['id']}/archive",
+        f"/v2/simple/evaluators/{evaluator_2['id']}/archive",
     )
 
     assert response.status_code == 200
@@ -137,7 +137,7 @@ class TestEvaluatorsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "/v2/simple/evaluators/query",  # TODO: FIX ME
             json={},
         )
         # ----------------------------------------------------------------------
@@ -157,7 +157,7 @@ class TestEvaluatorsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "/v2/simple/evaluators/query",  # TODO: FIX ME
             json={
                 "include_archived": True,
             },
@@ -181,7 +181,7 @@ class TestEvaluatorsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "/v2/simple/evaluators/query",  # TODO: FIX ME
             json={
                 "include_archived": True,
                 "windowing": {"limit": 1},
@@ -199,7 +199,7 @@ class TestEvaluatorsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "/v2/simple/evaluators/query",  # TODO: FIX ME
             json={
                 "include_archived": True,
                 "windowing": {"limit": 1, "next": response["evaluators"][0]["id"]},
@@ -217,7 +217,7 @@ class TestEvaluatorsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "/v2/simple/evaluators/query",  # TODO: FIX ME
             json={
                 "include_archived": True,
                 "windowing": {"limit": 1, "next": response["evaluators"][0]["id"]},
@@ -240,7 +240,7 @@ class TestEvaluatorsQueries:
         # flags = quote(dumps(mock_data["evaluators"][0]["flags"]))
         response = authed_api(
             "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "/v2/simple/evaluators/query",  # TODO: FIX ME
             json={
                 "flags": mock_data["evaluators"][0]["flags"],
             },
@@ -263,7 +263,7 @@ class TestEvaluatorsQueries:
         # tags = quote(dumps(mock_data["evaluators"][0]["tags"]))
         response = authed_api(
             "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME,
+            "/v2/simple/evaluators/query",  # TODO: FIX ME,
             json={
                 "tags": mock_data["evaluators"][0]["tags"],
             },
@@ -286,7 +286,7 @@ class TestEvaluatorsQueries:
         # meta = quote(dumps(mock_data["evaluators"][0]["meta"]))
         response = authed_api(
             "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "/v2/simple/evaluators/query",  # TODO: FIX ME
             json={
                 "meta": mock_data["evaluators"][0]["meta"],
             },

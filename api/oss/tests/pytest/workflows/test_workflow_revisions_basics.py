@@ -31,7 +31,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/v2/workflows/",
         json={"workflow": workflow},
     )
 
@@ -45,7 +45,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/v2/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-{workflow_variant_slug}",
@@ -95,7 +95,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/v2/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_variant_slug}",
@@ -141,7 +141,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/v2/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -178,7 +178,7 @@ class TestWorkflowRevisionsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/{workflow_revision_id}",
+            f"/v2/workflows/revisions/{workflow_revision_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -198,7 +198,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/v2/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -236,7 +236,7 @@ class TestWorkflowRevisionsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "PUT",
-            f"/preview/workflows/revisions/{workflow_revision_id}",
+            f"/v2/workflows/revisions/{workflow_revision_id}",
             json={
                 "workflow_revision": {
                     "id": workflow_revision_id,
@@ -278,7 +278,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/v2/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -316,7 +316,7 @@ class TestWorkflowRevisionsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/workflows/revisions/{workflow_revision_id}/archive",
+            f"/v2/workflows/revisions/{workflow_revision_id}/archive",
         )
         # ----------------------------------------------------------------------
 
@@ -337,7 +337,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/v2/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -373,7 +373,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/revisions/{workflow_revision_id}/archive",
+            f"/v2/workflows/revisions/{workflow_revision_id}/archive",
         )
 
         assert response.status_code == 200
@@ -385,7 +385,7 @@ class TestWorkflowRevisionsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/workflows/revisions/{workflow_revision_id}/unarchive",
+            f"/v2/workflows/revisions/{workflow_revision_id}/unarchive",
         )
         # ----------------------------------------------------------------------
 
@@ -406,7 +406,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/v2/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -447,7 +447,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/v2/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "id": workflow_revision_id,
