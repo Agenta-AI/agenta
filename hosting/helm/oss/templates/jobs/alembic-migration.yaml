@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "agenta-oss.fullname" . }}-alembic-migration
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "agenta-oss.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    "helm.sh/hook": post-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "agenta-oss.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: alembic-migration
+          image: "{{ .Values.images.api.repository }}:{{ .Values.images.api.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.images.api.pullPolicy }}
+          command:
+            - "sh"
+            - "-c"
+            - |
+              set -e
+              echo "Starting database migrations..."
+              python -c "from oss.databases.postgres.migrations.utils import split_core_and_tracing as split; split()"
+              echo "Running core migrations..."
+              python -c "from oss.databases.postgres.migrations.core.utils import run_alembic_migration as run; run()"
+              echo "Running tracing migrations..."
+              python -c "from oss.databases.postgres.migrations.tracing.utils import run_alembic_migration as run; run()"
+              echo "Copying nodes from core to tracing..."
+              python -c "from oss.databases.postgres.migrations.utils import copy_nodes_from_core_to_tracing as copy; copy()"
+              echo "Database migrations completed successfully!"
+          envFrom:
+            - configMapRef:
+                name: {{ include "agenta-oss.fullname" . }}-config
+          env:
+            - name: AGENTA_CRYPT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta-oss.fullname" . }}-secret
+                  key: AGENTA_CRYPT_KEY
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+  backoffLimit: 3
