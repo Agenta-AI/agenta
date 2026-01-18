@@ -251,13 +251,8 @@ async def get_secrets(
             return secrets, vault_secrets, local_secrets
 
     local_secrets: List[Dict[str, Any]] = []
-    allow_secrets = True
 
     try:
-        # Verify permission to use local secrets
-        if host:
-            await _allow_local_secrets(host, credentials, scope_type, scope_id)
-
         for provider_kind in _PROVIDER_KINDS:
             provider = provider_kind
             key_name = f"{provider.upper()}_API_KEY"
@@ -275,11 +270,6 @@ async def get_secrets(
             )
 
             local_secrets.append(secret.model_dump())
-    except DenyException as e:
-        if e.status_code == 429:
-            raise e
-        log.warning(f"Agenta [secrets] {e.status_code}: {e.content}")
-        allow_secrets = False
     except Exception:  # pylint: disable=bare-except
         display_exception("Vault: Local Secrets Exception")
 
@@ -339,15 +329,14 @@ async def get_secrets(
     combined_vault = list(vault_standard.values()) + vault_custom
     secrets = list(combined_standard.values()) + vault_custom
 
-    if not allow_secrets:
-        _cache.put(
-            _hash,
-            {
-                "secrets": secrets,
-                "vault_secrets": combined_vault,
-                "local_secrets": local_secrets,
-            },
-        )
+    _cache.put(
+        _hash,
+        {
+            "secrets": secrets,
+            "vault_secrets": combined_vault,
+            "local_secrets": local_secrets,
+        },
+    )
 
     return secrets, combined_vault, local_secrets
 
