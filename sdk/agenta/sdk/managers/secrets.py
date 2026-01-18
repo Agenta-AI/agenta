@@ -253,8 +253,12 @@ class SecretsManager:
     async def ensure_secrets_in_workflow():
         ctx = RunningContext.get()
 
-        # First check if secrets are already available in RoutingContext
-        # (populated by the HTTP middleware with proper user credentials)
+        # First check if secrets are already available in RunningContext
+        # (populated by decorators/running.py via workflow.invoke)
+        if ctx.secrets:
+            return ctx.secrets
+
+        # Then check RoutingContext (populated by old serving.py decorator)
         routing_ctx = RoutingContext.get()
         if routing_ctx.secrets:
             ctx.secrets = routing_ctx.secrets
