@@ -1,6 +1,6 @@
 from typing import Optional, Union, Any, Dict
 
-from opentelemetry.trace import SpanContext
+from opentelemetry.trace import SpanContext, Span as SpanInterface
 from opentelemetry.trace.status import Status, StatusCode
 from opentelemetry.sdk.trace import Span
 
@@ -10,26 +10,29 @@ from agenta.sdk.tracing.attributes import serialize
 class CustomSpan(Span):  # INHERITANCE FOR TYPING ONLY
     def __init__(
         self,
-        span: Span,
+        span: Union[Span, SpanInterface],
     ) -> None:
-        super().__init__(  # INHERITANCE FOR TYPING ONLY
-            name=span.name,
-            context=span.context,
-            parent=span.parent,
-            sampler=span._sampler,
-            trace_config=span._trace_config,
-            resource=span.resource,
-            attributes=span.attributes,
-            events=span.events,
-            links=span.links,
-            kind=span.kind,
-            span_processor=span._span_processor,
-            instrumentation_info=span.instrumentation_info,
-            record_exception=span._record_exception,
-            set_status_on_exception=span._set_status_on_exception,
-            limits=span._limits,
-            instrumentation_scope=span.instrumentation_scope,
-        )
+        # Only call super().__init__ if we have an SDK Span with all required attributes
+        # For non-SDK spans (e.g., from auto-instrumentation), skip the super().__init__
+        if isinstance(span, Span) and hasattr(span, "_sampler"):
+            super().__init__(  # INHERITANCE FOR TYPING ONLY
+                name=span.name,
+                context=span.context,
+                parent=span.parent,
+                sampler=span._sampler,
+                trace_config=span._trace_config,
+                resource=span.resource,
+                attributes=span.attributes,
+                events=span.events,
+                links=span.links,
+                kind=span.kind,
+                span_processor=span._span_processor,
+                instrumentation_info=span.instrumentation_info,
+                record_exception=span._record_exception,
+                set_status_on_exception=span._set_status_on_exception,
+                limits=span._limits,
+                instrumentation_scope=span.instrumentation_scope,
+            )
 
         self._span = span
 
