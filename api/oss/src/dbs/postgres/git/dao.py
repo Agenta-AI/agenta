@@ -7,7 +7,7 @@ from sqlalchemy import select, func, update
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.exceptions import EntityCreationConflict
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import Reference, ReferenceWithLimit, Windowing
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.dtos import (
     Artifact,
@@ -1087,6 +1087,19 @@ class GitDAO(GitDAOInterface):
         windowing: Optional[Windowing] = None,
     ) -> List[Revision]:
         async with engine.core_session() as session:
+            # Check if any artifact_ref has a per-ref limit (ReferenceWithLimit)
+            per_artifact_limit: Optional[int] = None
+            if artifact_refs:
+                limits = [
+                    getattr(ref, "limit", None)
+                    for ref in artifact_refs
+                    if getattr(ref, "limit", None) is not None
+                ]
+                if limits:
+                    # Use the minimum limit if multiple are specified
+                    per_artifact_limit = min(limits)
+
+            # Build base query
             stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
@@ -1185,6 +1198,36 @@ class GitDAO(GitDAOInterface):
                     self.RevisionDBE.deleted_at.is_(None),  # type: ignore
                 )
 
+            # Apply per-artifact limit using window function if specified
+            if per_artifact_limit is not None:
+                # Use ROW_NUMBER() to get top N per artifact_id
+                row_number = func.row_number().over(
+                    partition_by=self.RevisionDBE.artifact_id,
+                    order_by=self.RevisionDBE.id.desc(),  # type: ignore
+                ).label("row_num")
+
+                # Wrap in subquery with row number, then filter
+                subq = stmt.add_columns(row_number).subquery()
+                stmt = select(subq).filter(subq.c.row_num <= per_artifact_limit)
+
+                result = await session.execute(stmt)
+                rows = result.all()
+
+                # Extract revision data from subquery rows
+                revisions = []
+                for row in rows:
+                    # Build Revision from subquery columns (excluding row_num)
+                    revision_data = {
+                        col.name: getattr(row, col.name)
+                        for col in subq.c
+                        if col.name != "row_num"
+                    }
+                    revision = Revision(**revision_data)
+                    revisions.append(revision)
+
+                return revisions
+
+            # Standard windowing (global limit/offset)
             if windowing:
                 stmt = apply_windowing(
                     stmt=stmt,
