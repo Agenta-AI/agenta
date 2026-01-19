@@ -415,8 +415,33 @@ body {
     opacity: 1;
 }
 
-/* Danger dropdown menu item hover state */
-.ant-dropdown-menu-item-danger:hover {
-    background-color: #d0574e !important;
-    border-color: #ffccc7 !important;
+/* Prevent font-weight changes in Cascader that cause layout shift */
+.ant-cascader-menu-item,
+.ant-cascader-menu-item-content,
+.ant-cascader-menu-item:hover,
+.ant-cascader-menu-item:hover .ant-cascader-menu-item-content,
+.ant-cascader-menu-item-active,
+.ant-cascader-menu-item-active .ant-cascader-menu-item-content,
+.ant-cascader-menu-item-expand,
+.ant-cascader-menu-item-expand .ant-cascader-menu-item-content {
+    font-weight: 400 !important;
 }
+
+/* Cascader dropdown column width constraints */
+.ant-cascader-menu {
+    max-width: 280px !important;
+    min-width: 180px !important;
+}
+
+.ant-cascader-menu-item-content {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    max-width: 220px !important;
+}
+
+/* Hide loading spinner on parent items - show loading in child panel instead */
+.ant-cascader-menu-item-loading-icon {
+    display: none !important;
+}
+
