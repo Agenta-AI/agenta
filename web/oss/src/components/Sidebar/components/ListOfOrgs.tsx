@@ -106,6 +106,8 @@ const ListOfOrgs = ({
           organizations?.[0]?.name ||
           organizationLabel
         : organizationLabel
+    const isPostSignupPage = router.pathname === "/post-signup"
+    const selectionEnabled = organizationSelectionEnabled && !isPostSignupPage
 
     const [isCreateModalOpen, setCreateModalOpen] = useState(false)
     const [createForm] = Form.useForm<{name: string; description?: string}>()
@@ -166,6 +168,7 @@ const ListOfOrgs = ({
         return map
     }, [transferOwnerOptions])
 
+    const canMutateOrganizations = interactive && selectionEnabled
     const organizationMenuItems = useMemo<MenuProps["items"]>(() => {
         const items: MenuProps["items"] = organizations.map((organization) => {
             const isDemo = organization.flags?.is_demo ?? false
@@ -174,7 +177,7 @@ const ListOfOrgs = ({
 
             const baseItem = {
                 key: `organization:${organization.id}`,
-                disabled: !interactive || !organizationSelectionEnabled,
+                disabled: !interactive || !selectionEnabled,
                 label: (
                     <div className="flex items-center gap-2 justify-between w-full">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -187,7 +190,7 @@ const ListOfOrgs = ({
             }
 
             // Show submenu actions only for the currently selected org
-            if (isOwner && isEE() && isSelectedOrganization) {
+            if (canMutateOrganizations && isOwner && isEE() && isSelectedOrganization) {
                 return {
                     ...baseItem,
                     children: [
@@ -231,7 +234,7 @@ const ListOfOrgs = ({
         }
 
         // Only show "New Organization" in EE
-        if (isEE()) {
+        if (isEE() && canMutateOrganizations) {
             items.push({
                 key: "create-organization",
                 label: (
@@ -255,7 +258,14 @@ const ListOfOrgs = ({
         })
 
         return items
-    }, [effectiveSelectedId, interactive, organizationSelectionEnabled, organizations, user?.id])
+    }, [
+        canMutateOrganizations,
+        effectiveSelectedId,
+        interactive,
+        organizations,
+        selectionEnabled,
+        user?.id,
+    ])
 
     const [organizationDropdownOpen, setOrganizationDropdownOpen] = useState(false)
 
@@ -340,7 +350,6 @@ const ListOfOrgs = ({
         </Button>
     )
 
-    const isPostSignupPage = router.pathname === "/post-signup"
     const canShow = Boolean(
         (project?.project_id || effectiveSelectedId || selectedOrganization?.id) && user?.id,
     )
@@ -448,6 +457,10 @@ const ListOfOrgs = ({
         const keyString = key as string
 
         if (keyString === "create-organization") {
+            if (!canMutateOrganizations) {
+                setOrganizationDropdownOpen(false)
+                return
+            }
             setOrganizationDropdownOpen(false)
             setCreateModalOpen(true)
             return
@@ -480,6 +493,10 @@ const ListOfOrgs = ({
 
         // Handle rename action
         if (keyString.startsWith("rename:")) {
+            if (!canMutateOrganizations) {
+                setOrganizationDropdownOpen(false)
+                return
+            }
             const organizationId = keyString.split(":")[1]
             const org = organizations.find((o) => o.id === organizationId)
             if (org) {
@@ -493,6 +510,10 @@ const ListOfOrgs = ({
 
         // Handle transfer action
         if (keyString.startsWith("transfer:")) {
+            if (!canMutateOrganizations) {
+                setOrganizationDropdownOpen(false)
+                return
+            }
             const organizationId = keyString.split(":")[1]
             setOrgToTransfer(organizationId)
             setTransferModalOpen(true)
@@ -502,6 +523,10 @@ const ListOfOrgs = ({
 
         // Handle delete action
         if (keyString.startsWith("delete:")) {
+            if (!canMutateOrganizations) {
+                setOrganizationDropdownOpen(false)
+                return
+            }
             const organizationId = keyString.split(":")[1]
             const org = organizations.find((o) => o.id === organizationId)
             if (org) {
@@ -513,7 +538,7 @@ const ListOfOrgs = ({
             return
         }
 
-        if (!interactive || !organizationSelectionEnabled) {
+        if (!interactive || !selectionEnabled) {
             setOrganizationDropdownOpen(false)
             return
         }
@@ -620,6 +645,7 @@ const ListOfOrgs = ({
                                 items: organizationMenuItems,
                                 selectedKeys: selectedOrganizationKey,
                                 onClick: handleOrganizationMenuClick,
+                                className: "min-w-[150px]",
                             }}
                         >
                             <div data-org-selector>
