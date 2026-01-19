@@ -18,6 +18,7 @@ import {
     Spread,
 } from "lexical"
 
+import {copyToClipboard} from "../../../../utils/copyToClipboard"
 import {useDrillInContext} from "../context/DrillInContext"
 
 const {Text} = Typography
@@ -100,12 +101,12 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
     const spanRef = React.useRef<HTMLSpanElement>(null)
 
     const handleCopy = useCallback(async () => {
-        try {
-            await navigator.clipboard.writeText(parsed.fullValue)
+        const success = await copyToClipboard(parsed.fullValue)
+        if (success) {
             setCopied(true)
             message.success("Copied to clipboard")
             setTimeout(() => setCopied(false), 2000)
-        } catch {
+        } else {
             message.error("Failed to copy")
         }
     }, [parsed.fullValue])
