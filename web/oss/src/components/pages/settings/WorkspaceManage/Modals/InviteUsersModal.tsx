@@ -163,8 +163,8 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                             message={
                                 <div className="flex flex-col">
                                     <Typography.Text>
-                                        Role selection is only available for Business and
-                                        Enterprise plans.
+                                        Role selection is only available for Business and Enterprise
+                                        plans.
                                     </Typography.Text>
 
                                     <Link
