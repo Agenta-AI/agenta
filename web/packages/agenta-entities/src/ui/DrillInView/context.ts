@@ -195,3 +195,15 @@ export interface DrillInProviderProps<TEntity = unknown> {
      */
     children: unknown // ReactNode
 }
+
+// ============================================================================
+// UI INJECTION CONTEXT (re-export)
+// ============================================================================
+
+export {
+    DrillInUIProvider,
+    useDrillInUI,
+    defaultShowMessage,
+    type DrillInUIComponents,
+    type DrillInUIProviderProps,
+} from "./context/DrillInUIContext"

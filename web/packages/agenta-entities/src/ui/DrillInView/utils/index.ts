@@ -21,3 +21,18 @@ export {
     type AdaptableMolecule,
     type CreateAdapterOptions,
 } from "./adapters"
+
+// DrillIn utilities
+export {
+    getDefaultValue,
+    propertyTypeToDataType,
+    isExpandable,
+    getItemCount,
+    parsePath,
+    toTypedPath,
+    formatSegment,
+    generateFieldKey,
+    formatLabel,
+    canToggleRawMode,
+    detectDataType,
+} from "./drillInUtils"
