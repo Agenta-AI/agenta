@@ -103,3 +103,33 @@ export {FieldHeader, type FieldHeaderProps} from "./field"
 // ============================================================================
 
 export {EditableText, type EditableTextProps} from "./editable"
+
+// ============================================================================
+// STATUS COMPONENTS
+// ============================================================================
+
+export {
+    StatusTag,
+    getStatusColor,
+    getStatusLabel,
+    type StatusTagProps,
+    type QueryStatus,
+    type ExecutionStatus,
+} from "./status"
+
+// ============================================================================
+// ENTITY ICON LABEL COMPONENTS
+// ============================================================================
+
+export {
+    EntityIconLabel,
+    PanelHeader,
+    type EntityIconLabelProps,
+    type PanelHeaderProps,
+} from "./entity-icon-label"
+
+// ============================================================================
+// SOURCE INDICATOR COMPONENTS
+// ============================================================================
+
+export {SourceIndicator, type SourceIndicatorProps} from "./source-indicator"
