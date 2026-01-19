@@ -12,6 +12,14 @@
  * ## State Atoms
  * - `projectIdAtom` - Current project ID (populated by app)
  *
+ * ## Chat Message Utilities
+ * - Types: `SimpleChatMessage`, `MessageContent`, `ToolCall`, etc.
+ * - Utilities: `extractTextFromContent`, `hasAttachments`, etc.
+ * - Schemas: `CHAT_MESSAGE_SCHEMA`, `CHAT_MESSAGES_ARRAY_SCHEMA`
+ *
+ * ## Hooks
+ * - `useDebounceInput` - Debounced input handling with synchronized state
+ *
  * @example
  * ```typescript
  * import { projectIdAtom, getAgentaApiUrl, axios } from '@agenta/shared'
@@ -68,3 +76,57 @@ export {
     collectPaths,
 } from "./utils"
 export type {PathSegment, DataPath, PathItem} from "./utils"
+
+// Chat message utilities
+export {
+    extractTextFromContent,
+    extractDisplayTextFromMessage,
+    hasAttachments,
+    getAttachmentInfo,
+    updateTextInContent,
+    addImageToContent,
+    addFileToContent,
+    removeAttachmentFromContent,
+    getAttachments,
+} from "./utils"
+
+// Logger utilities
+export {createLogger} from "./utils"
+export type {LoggerOptions} from "./utils"
+
+// JSON parsing utilities
+export {tryParsePartialJson, safeJson5Parse} from "./utils"
+
+// Key path utilities
+export {keyToString, stringToKeyPath} from "./utils"
+
+// JSON detection utilities
+export {
+    isJsonString,
+    isJsonObject,
+    isJsonArray,
+    tryParseJson,
+    tryParseAsObject,
+    tryParseAsArray,
+    canExpandAsJson,
+} from "./utils"
+
+// Editor language detection utilities
+export {detectEditorLanguage, getContentLanguage, looksLikeJson, type EditorLanguage} from "./utils"
+
+// Chat message types
+export type {
+    TextContentPart,
+    ImageContentPart,
+    FileContentPart,
+    MessageContentPart,
+    MessageContent,
+    ToolCall,
+    SimpleChatMessage,
+} from "./types"
+
+// Chat message schemas
+export {MESSAGE_CONTENT_SCHEMA, CHAT_MESSAGE_SCHEMA, CHAT_MESSAGES_ARRAY_SCHEMA} from "./schemas"
+
+// Hooks
+export {useDebounceInput} from "./hooks"

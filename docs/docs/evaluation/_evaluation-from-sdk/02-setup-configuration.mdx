@@ -18,7 +18,7 @@ pip install -U agenta
 ## Initialize the SDK client
 
 ```python
-from agenta.client.api import AgentaApi
+import agenta as ag
 
 app_id = "667d8cfad1812781f7e375d9"
 
@@ -29,8 +29,8 @@ api_key = "EUqJGOUu.xxxx"
 # Host
 host = "https://cloud.agenta.ai"
 
-# Initialize the client
-client = AgentaApi(base_url=host + "/api", api_key=api_key)
+# Initialize the SDK
+ag.init(host=host, api_key=api_key)
 ```
 
 ## Configuration options

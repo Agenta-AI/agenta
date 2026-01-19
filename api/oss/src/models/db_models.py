@@ -32,18 +32,54 @@ class OrganizationDB(Base):
         unique=True,
         nullable=False,
     )
-    name = Column(String, default="agenta")
-    description = Column(
+    slug = Column(
         String,
-        default="The open-source LLM developer platform for cross-functional teams.",
+        unique=True,
+        nullable=True,
     )
-    type = Column(String, nullable=True)
-    owner = Column(String, nullable=True)  # TODO: deprecate and remove
+    #
+    name = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    #
+    flags = Column(JSONB, nullable=True)
+    tags = Column(JSONB, nullable=True)
+    meta = Column(JSONB, nullable=True)
+    #
+    owner_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    #
     created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
+    #
     updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=True,
+    )
+    deleted_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    created_by_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    updated_by_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    deleted_by_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
 

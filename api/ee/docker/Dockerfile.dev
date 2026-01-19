@@ -26,6 +26,14 @@ COPY ./entrypoints /app/entrypoints/
 
 ENV PYTHONPATH=/sdk:$PYTHONPATH
 
+COPY ./oss/src/crons/queries.sh /queries.sh
+COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
+RUN sed -i -e '$a\' /etc/cron.d/queries-cron
+RUN cat -A /etc/cron.d/queries-cron
+
+RUN chmod +x /queries.sh \
+    && chmod 0644 /etc/cron.d/queries-cron
+
 COPY ./ee/src/crons/meters.sh /meters.sh
 COPY ./ee/src/crons/meters.txt /etc/cron.d/meters-cron
 RUN sed -i -e '$a\' /etc/cron.d/meters-cron
@@ -34,12 +42,12 @@ RUN cat -A /etc/cron.d/meters-cron
 RUN chmod +x /meters.sh \
     && chmod 0644 /etc/cron.d/meters-cron
 
-COPY ./oss/src/crons/queries.sh /queries.sh
-COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
-RUN sed -i -e '$a\' /etc/cron.d/queries-cron
-RUN cat -A /etc/cron.d/queries-cron
+COPY ./ee/src/crons/spans.sh /spans.sh
+COPY ./ee/src/crons/spans.txt /etc/cron.d/spans-cron
+RUN sed -i -e '$a\' /etc/cron.d/spans-cron
+RUN cat -A /etc/cron.d/spans-cron
 
-RUN chmod +x /queries.sh \
-    && chmod 0644 /etc/cron.d/queries-cron
+RUN chmod +x /spans.sh \
+    && chmod 0644 /etc/cron.d/spans-cron
 
 EXPOSE 8000

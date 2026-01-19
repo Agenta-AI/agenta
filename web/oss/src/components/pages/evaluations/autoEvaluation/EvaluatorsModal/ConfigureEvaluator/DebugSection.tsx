@@ -1136,6 +1136,7 @@ const DebugSection = () => {
                 open={openTestcaseModal}
                 onCancel={() => setOpenTestcaseModal(false)}
                 setTestsetData={handleEvaluatorTestsetData}
+                selectionMode="single"
             />
         </div>
     )

@@ -28,7 +28,7 @@ def get_or_create_workspace_default_project(
 
     if project is None:
         statement = insert(ProjectDB).values(
-            project_name="Default Project",
+            project_name="Default",
             is_default=True,
             workspace_id=workspace.id,
             organization_id=workspace.organization_id,

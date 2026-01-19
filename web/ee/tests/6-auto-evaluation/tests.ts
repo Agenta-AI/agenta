@@ -40,7 +40,7 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
             // 2. Select Testset
             const selectedTestset = testset
 
-            await goToStep("Testset")
+            await goToStep("Test set")
             await uiHelpers.selectTableRowInput({
                 rowText: selectedTestset,
                 inputType: "radio",
@@ -48,7 +48,7 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
             })
             await expect(
                 page
-                    .locator(".ant-tabs-tab", {hasText: "Testset"})
+                    .locator(".ant-tabs-tab", {hasText: "Test set"})
                     .locator(".ant-tag", {hasText: selectedTestset}),
             ).toBeVisible()
 

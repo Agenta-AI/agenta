@@ -14,6 +14,7 @@ import {
     Alert,
     Tooltip,
     Modal,
+    Form,
 } from "antd"
 import {createUseStyles} from "react-jss"
 
@@ -31,6 +32,14 @@ interface JSONSchemaEditorProps {
     form: FormInstance
     name: string | string[]
     defaultValue?: string
+}
+
+const normalizeSchemaValue = (value: unknown): string | undefined => {
+    if (typeof value === "string") return value
+    if (value && typeof value === "object") {
+        return JSON.stringify(value, null, 2)
+    }
+    return undefined
 }
 
 const createDefaultCategories = (): CategoricalOption[] => [
@@ -68,18 +77,20 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
     const [categories, setCategories] = useState<CategoricalOption[]>(createDefaultCategories())
 
     // Advanced mode state
-    const [rawSchema, setRawSchema] = useState(defaultValue ?? "")
-    const [supportsBasicMode, setSupportsBasicMode] = useState<boolean>(() => {
-        if (!defaultValue) {
-            return true
-        }
-
-        return isSchemaCompatibleWithBasicMode(defaultValue)
-    })
+    const initialSchema = normalizeSchemaValue(defaultValue)
+    const [rawSchema, setRawSchema] = useState(initialSchema ?? "")
+    const [supportsBasicMode, setSupportsBasicMode] = useState<boolean>(() =>
+        initialSchema ? isSchemaCompatibleWithBasicMode(initialSchema) : true,
+    )
+    const [isInitialized, setIsInitialized] = useState(false)
+    const [isDirty, setIsDirty] = useState(false)
 
     const lastSyncedValueRef = useRef<string | undefined>(undefined)
 
     const namePath = useMemo(() => (Array.isArray(name) ? name : [name]), [name])
+    const watchedValue = Form.useWatch(namePath as any, form)
+    const normalizedWatchedValue = useMemo(() => normalizeSchemaValue(watchedValue), [watchedValue])
+    const normalizedDefaultValue = useMemo(() => normalizeSchemaValue(defaultValue), [defaultValue])
 
     const applyParsedConfig = useCallback((parsed: SchemaConfig) => {
         setResponseFormat(parsed.responseFormat)
@@ -95,6 +106,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
         } else {
             setCategories(createDefaultCategories())
         }
+        setIsDirty(false)
     }, [])
 
     const syncFormValue = useCallback(
@@ -106,6 +118,16 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
             lastSyncedValueRef.current = value
         },
         [form, namePath],
+    )
+
+    const buildConfig = useCallback(
+        (): SchemaConfig => ({
+            responseFormat,
+            includeReasoning,
+            continuousConfig: {minimum: minValue, maximum: maxValue},
+            categoricalOptions: categories,
+        }),
+        [categories, includeReasoning, maxValue, minValue, responseFormat],
     )
 
     const getDefaultConfig = useCallback((): SchemaConfig => {
@@ -128,24 +150,32 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
         [applyParsedConfig, syncFormValue],
     )
 
-    // Initialize from default value
+    // Initialize from form value (preferred) or default fallback.
     useEffect(() => {
-        if (!defaultValue) {
+        const sourceValue = normalizedWatchedValue ?? normalizedDefaultValue
+        if (!sourceValue) {
             setSupportsBasicMode(true)
             setRawSchema("")
+            lastSyncedValueRef.current = undefined
+            setIsInitialized(true)
+            setIsDirty(false)
             return
         }
 
-        if (lastSyncedValueRef.current === defaultValue) {
+        if (lastSyncedValueRef.current === sourceValue) {
+            setIsInitialized(true)
             return
         }
 
-        const parsed = parseJSONSchema(defaultValue)
+        const parsed = parseJSONSchema(sourceValue)
         if (parsed) applyParsedConfig(parsed)
 
-        setSupportsBasicMode(isSchemaCompatibleWithBasicMode(defaultValue))
-        setRawSchema(defaultValue)
-    }, [defaultValue, applyParsedConfig])
+        setSupportsBasicMode(isSchemaCompatibleWithBasicMode(sourceValue))
+        setRawSchema(sourceValue)
+        syncFormValue(sourceValue)
+        setIsInitialized(true)
+        setIsDirty(false)
+    }, [applyParsedConfig, normalizedDefaultValue, normalizedWatchedValue, syncFormValue])
 
     useEffect(() => {
         if (!supportsBasicMode && mode !== "advanced") {
@@ -155,28 +185,15 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
 
     // Update form when basic mode changes
     useEffect(() => {
+        if (!isInitialized || !isDirty) return
         if (mode === "basic" && supportsBasicMode) {
-            const config: SchemaConfig = {
-                responseFormat,
-                includeReasoning,
-                continuousConfig: {minimum: minValue, maximum: maxValue},
-                categoricalOptions: categories,
-            }
-            const schema = generateJSONSchema(config)
+            const schema = generateJSONSchema(buildConfig())
             const schemaString = JSON.stringify(schema, null, 2)
 
+            setRawSchema(schemaString)
             syncFormValue(schemaString)
         }
-    }, [
-        mode,
-        responseFormat,
-        includeReasoning,
-        minValue,
-        maxValue,
-        categories,
-        supportsBasicMode,
-        syncFormValue,
-    ])
+    }, [isInitialized, isDirty, mode, buildConfig, supportsBasicMode, syncFormValue])
 
     const handleModeSwitch = (newMode: "basic" | "advanced") => {
         if (newMode === mode) {
@@ -184,13 +201,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
         }
 
         if (newMode === "advanced" && mode === "basic") {
-            const config: SchemaConfig = {
-                responseFormat,
-                includeReasoning,
-                continuousConfig: {minimum: minValue, maximum: maxValue},
-                categoricalOptions: categories,
-            }
-            const schema = generateJSONSchema(config)
+            const schema = generateJSONSchema(buildConfig())
             const schemaString = JSON.stringify(schema, null, 2)
             setRawSchema(schemaString)
             syncFormValue(schemaString)
@@ -211,6 +222,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                         const parsed = parseJSONSchema(rawSchema)
                         const config = parsed ?? getDefaultConfig()
                         applyConfigAndSync(config)
+                        setIsDirty(false)
                         setMode("basic")
                     },
                 })
@@ -220,6 +232,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
             const parsed = parseJSONSchema(rawSchema)
             const config = parsed ?? getDefaultConfig()
             applyConfigAndSync(config)
+            setIsDirty(false)
             setMode("basic")
             return
         }
@@ -229,16 +242,19 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
 
     const addCategory = () => {
         setCategories([...categories, {name: "", description: ""}])
+        setIsDirty(true)
     }
 
     const removeCategory = (index: number) => {
         setCategories(categories.filter((_, i) => i !== index))
+        setIsDirty(true)
     }
 
     const updateCategory = (index: number, field: "name" | "description", value: string) => {
         const updated = [...categories]
         updated[index][field] = value
         setCategories(updated)
+        setIsDirty(true)
     }
 
     if (mode === "advanced") {
@@ -265,12 +281,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                                 setSupportsBasicMode(
                                     value ? isSchemaCompatibleWithBasicMode(value) : false,
                                 )
-
-                                if (Array.isArray(name)) {
-                                    form.setFieldValue(name, value)
-                                } else {
-                                    form.setFieldValue([name], value)
-                                }
+                                form.setFieldValue(namePath, value)
                             }
                         }}
                         editorProps={{
@@ -312,7 +323,10 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                         <Select
                             style={{width: "100%"}}
                             value={responseFormat}
-                            onChange={(value) => setResponseFormat(value)}
+                            onChange={(value) => {
+                                setResponseFormat(value)
+                                setIsDirty(true)
+                            }}
                             options={[
                                 {label: "Boolean (True/False)", value: "boolean"},
                                 {label: "Continuous (Numeric Range)", value: "continuous"},
@@ -349,7 +363,10 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                                 <InputNumber
                                     style={{width: "100%"}}
                                     value={minValue}
-                                    onChange={(value) => setMinValue(value ?? 0)}
+                                    onChange={(value) => {
+                                        setMinValue(value ?? 0)
+                                        setIsDirty(true)
+                                    }}
                                 />
                             </div>
                             <div>
@@ -369,7 +386,10 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                                 <InputNumber
                                     style={{width: "100%"}}
                                     value={maxValue}
-                                    onChange={(value) => setMaxValue(value ?? 10)}
+                                    onChange={(value) => {
+                                        setMaxValue(value ?? 10)
+                                        setIsDirty(true)
+                                    }}
                                 />
                             </div>
                         </div>
@@ -432,7 +452,10 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                     <div style={{display: "flex", alignItems: "center", gap: 4}}>
                         <Checkbox
                             checked={includeReasoning}
-                            onChange={(e) => setIncludeReasoning(e.target.checked)}
+                            onChange={(e) => {
+                                setIncludeReasoning(e.target.checked)
+                                setIsDirty(true)
+                            }}
                         >
                             <Typography.Text strong>Include reasoning</Typography.Text>
                         </Checkbox>

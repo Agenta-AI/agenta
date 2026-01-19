@@ -1,31 +1,33 @@
-from typing import Optional, Literal, List
-from uuid import UUID
+from typing import Dict, Any, Optional, Literal, List
+from uuid import UUID, uuid4
 from datetime import datetime
+from json import loads, dumps
+from io import BytesIO
+from hashlib import blake2b as digest
 
-from fastapi import Query
+import orjson as oj
+import polars as pl
+
+from fastapi import HTTPException, Query
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.shared.dtos import (
-    Windowing,
-    Reference,
+from oss.src.apis.fastapi.shared.utils import parse_metadata
+from oss.src.apis.fastapi.testsets.models import (
+    TestsetQueryRequest,
+    TestsetVariantQueryRequest,
+    TestsetRevisionQueryRequest,
+    TestsetRevisionRetrieveRequest,
 )
+
+from oss.src.core.blobs.utils import compute_blob_id
+from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.testsets.dtos import (
     TestsetFlags,
     #
     TestsetQuery,
     TestsetVariantQuery,
     TestsetRevisionQuery,
-)
-
-from oss.src.apis.fastapi.shared.utils import (
-    parse_metadata,
-)
-from oss.src.apis.fastapi.testsets.models import (
-    TestsetQueryRequest,
-    TestsetVariantQueryRequest,
-    TestsetRevisionQueryRequest,
-    TestsetRevisionRetrieveRequest,
 )
 
 
@@ -632,19 +634,6 @@ def parse_testset_revision_retrieve_request_from_body(
 
 # ---------------------------------------------------------------------------- #
 
-from typing import Dict, Any
-from uuid import uuid4
-from json import loads, dumps
-from io import BytesIO
-from hashlib import blake2b as digest
-
-import orjson as oj
-import polars as pl
-
-from fastapi import HTTPException
-
-from oss.src.core.blobs.utils import compute_blob_id
-
 
 TESTSETS_COUNT_LIMIT = 10 * 1_000  # 10,000 testcases per testset
 TESTSETS_SIZE_LIMIT = 10 * 1024 * 1024  # 10 MB per testset
@@ -699,10 +688,10 @@ async def json_file_to_json_array(
         else:
             raise TypeError("Unsupported file type")
     except oj.JSONDecodeError as e:
-        print(f"Error: Invalid JSON format - {e}")
+        log.error("[TESTSETS] Invalid JSON format", exc_info=True)
         raise e
     except Exception as e:
-        print(f"Error: Unexpected issue - {e}")
+        log.error("[TESTSETS] Unexpected issue", exc_info=True)
         raise e
 
 
@@ -720,7 +709,7 @@ def json_array_to_json_file(
                 )
             )  # Pretty-print JSON
     except Exception as e:
-        print(f"Error: Could not write to file - {e}")
+        log.error("[TESTSETS] Could not write to file", exc_info=True)
         raise e
 
 
@@ -742,7 +731,7 @@ def json_array_to_json_object(
         dict: Dictionary with `testcase_id` as keys.
     """
     if not isinstance(data, list):
-        print("Error: Expected a list of objects.")
+        log.warning("[TESTSETS] Expected a list.")
         return None
 
     transformed_data = {}
@@ -790,7 +779,7 @@ def json_object_to_json_array(
         list: List of JSON objects with `testcase_id` reintroduced.
     """
     if not isinstance(data, dict):
-        print("Error: Expected a dictionary.")
+        log.warning("[TESTSETS] Expected a dict.")
         return None
 
     return [
@@ -823,11 +812,11 @@ async def csv_file_to_json_array(
             )  # infer_schema_length=0 reads all as strings
             return df.to_dicts()
         except Exception as e:
-            print(f"Error: Could not read CSV file - {e}")
+            log.error("[TESTSETS] Could not read CSV file", exc_info=True)
             raise e
 
     except Exception as e:
-        print(f"Error: Could not read CSV file - {e}")
+        log.error("[TESTSETS] Could not read CSV file", exc_info=True)
         raise e
 
 
@@ -846,7 +835,7 @@ def json_array_to_csv_file(
         column_types (dict, optional): Dictionary mapping column names to types (e.g., {"age": str, "active": int}).
     """
     if not json_array:
-        print("Error: JSON array is empty, nothing to write.")
+        log.warning("[TESTSETS] JSON array is empty, nothing to write.")
         return None
 
     try:
@@ -862,7 +851,7 @@ def json_array_to_csv_file(
         df.write_csv(output_csv_file)
 
     except Exception as e:
-        print(f"Error: Could not convert JSON array to CSV file - {e}")
+        log.error("[TESTSETS] Could not convert JSON array to CSV file", exc_info=True)
         raise e
 
 
@@ -883,7 +872,7 @@ def csv_data_to_json_array(
     if not isinstance(csv_data, list) or not all(
         isinstance(row, dict) for row in csv_data
     ):
-        print("Error: Expected a list of dictionaries (CSV-like structure).")
+        log.warning("[TESTSETS] Expected a list of dictionaries (CSV-like structure).")
         return []
 
     # Convert column types if specified
@@ -894,8 +883,8 @@ def csv_data_to_json_array(
                     try:
                         row[col] = dtype(row[col])  # Cast to the specified type
                     except (ValueError, TypeError):
-                        print(
-                            f"Warning: Could not convert column '{col}' to {dtype}, keeping original value."
+                        log.warning(
+                            f"[TESTSETS] Could not convert column '{col}' to {dtype}, keeping original value."
                         )
 
     return csv_data

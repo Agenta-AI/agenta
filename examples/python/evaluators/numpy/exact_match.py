@@ -13,7 +13,7 @@ def evaluate(
     app_params: Dict[str, str],
     inputs: Dict[str, str],
     output: Union[str, Dict[str, Any]],
-    correct_answer: str
+    correct_answer: str,
 ) -> float:
     """
     Tests NumPy functionality by counting characters in strings.

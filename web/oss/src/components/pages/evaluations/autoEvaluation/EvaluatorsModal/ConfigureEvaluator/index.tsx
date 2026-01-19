@@ -5,10 +5,12 @@ import {ArrowLeft, Info, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Form, Input, Space, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import {message} from "@/oss/components/AppMessageContext"
 import {useAppId} from "@/oss/hooks/useAppId"
+import useURL from "@/oss/hooks/useURL"
 import {EvaluationSettingsTemplate, JSSTheme, SettingsPreset} from "@/oss/lib/Types"
 import {
     CreateEvaluationConfigData,
@@ -127,6 +129,8 @@ const ConfigureEvaluator = ({
     const routeAppId = useAppId()
     const apps = useAppList()
     const appId = routeAppId ?? apps?.[0]?.app_id
+    const router = useRouter()
+    const {projectURL} = useURL()
     const classes = useStyles()
 
     // ================================================================
@@ -352,6 +356,13 @@ const ConfigureEvaluator = ({
                 if (createdConfig) {
                     // Use commitPlayground to update state and switch to edit mode
                     commitPlayground(createdConfig)
+                    if (uiVariant === "page" && createdConfig.id) {
+                        await router.replace(
+                            `${projectURL}/evaluators/configure/${encodeURIComponent(
+                                createdConfig.id,
+                            )}`,
+                        )
+                    }
                 }
             }
 

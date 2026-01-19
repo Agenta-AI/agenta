@@ -1,6 +1,5 @@
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
 
-import type {Testset} from "@/oss/lib/Types"
 import {expect} from "@agenta/web-tests/utils"
 import {
     createTagString,
@@ -8,6 +7,14 @@ import {
     TestPath,
     TestScope,
 } from "@agenta/web-tests/playwright/config/testTags"
+
+interface SimpleTestset {
+    id: string
+    name: string
+    data?: {
+        testcases: Array<{id: string; data: Record<string, unknown>}>
+    }
+}
 
 const testsetTests = () => {
     test(
@@ -27,10 +34,11 @@ const testsetTests = () => {
             await uiHelpers.waitForPath("/testsets")
             const testsets = await apiHelpers.getTestsets()
 
-            await uiHelpers.expectText("Testsets", {role: "heading"})
+            await uiHelpers.expectText("Test sets", {role: "heading"})
 
             // 3. Verify testset is visible in table
-            const testsetId = testsets[0]._id
+            // Preview endpoint returns 'id' instead of '_id'
+            const testsetId = testsets[0].id || testsets[0]._id
             const testsetName = testsets[0].name
 
             if (!testsetId) {
@@ -45,9 +53,9 @@ const testsetTests = () => {
             // 4. Click on testset row
             await uiHelpers.clickTableRow(testsetName)
 
-            // 5. Fetch testset from API
-            const testsetResponse = await apiHelpers.waitForApiResponse<Testset>({
-                route: `/api/testsets/${testsetId}`,
+            // 5. Fetch testset from API using preview endpoint
+            const testsetResponse = await apiHelpers.waitForApiResponse<{testset: SimpleTestset}>({
+                route: `/api/preview/simple/testsets/${testsetId}`,
                 method: "GET",
             })
 
@@ -55,9 +63,11 @@ const testsetTests = () => {
             await uiHelpers.waitForPath(`/testsets/${testsetId}`)
             await uiHelpers.expectText("Create a new Testset", {role: "heading"})
 
-            const testset = await testsetResponse
+            const response = await testsetResponse
+            const testset = response.testset
             expect(testset.name).toBe(testsetName)
-            expect(testset.csvdata.length).toBeGreaterThan(0)
+            // Preview endpoint returns data.testcases instead of csvdata
+            expect(testset.data?.testcases?.length).toBeGreaterThan(0)
         },
     )
 }
