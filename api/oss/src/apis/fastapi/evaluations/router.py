@@ -1676,7 +1676,9 @@ class EvaluationsRouter:
 
     # GET /evaluations/queues/{queue_id}/scenarios
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationQueueScenarioIdsResponse(), exclude=[HTTPException])
+    @suppress_exceptions(
+        default=EvaluationQueueScenarioIdsResponse(), exclude=[HTTPException]
+    )
     async def fetch_queue_scenarios(
         self,
         request: Request,

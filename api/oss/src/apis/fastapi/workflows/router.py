@@ -1115,7 +1115,9 @@ class WorkflowsRouter:
     # WORKFLOW SERVICES --------------------------------------------------------
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowServiceBatchResponse(), exclude=[HTTPException])
+    @suppress_exceptions(
+        default=WorkflowServiceBatchResponse(), exclude=[HTTPException]
+    )
     async def invoke_workflow(
         self,
         request: Request,
