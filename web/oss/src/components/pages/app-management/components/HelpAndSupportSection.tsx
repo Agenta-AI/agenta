@@ -40,7 +40,7 @@ const HelpAndSupportSection = () => {
     return (
         <div className="flex flex-col gap-4">
             <Space direction="vertical" size={8}>
-                <Title level={2} className="!my-0">
+                <Title level={2} className="!my-0 !text-[20px] !leading-[28px] !font-medium">
                     Have a question?
                 </Title>
                 <Text>Checkout our docs or send us a message on slack.</Text>
