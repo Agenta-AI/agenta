@@ -26,7 +26,6 @@ from agenta.sdk.litellm import mockllm
 from agenta.sdk.types import PromptTemplate, Message
 from agenta.sdk.managers.secrets import SecretsManager
 from agenta.sdk.decorators.tracing import instrument
-from agenta.sdk.litellm.litellm import litellm_handler
 from agenta.sdk.models.shared import Data
 from agenta.sdk.workflows.sandbox import execute_code_safely
 from agenta.sdk.workflows.templates import EVALUATOR_TEMPLATES
@@ -114,29 +113,6 @@ def _validate_webhook_url(url: str) -> None:
 
     if not addresses or any(_is_blocked_ip(ip) for ip in addresses):
         raise ValueError("Webhook URL resolves to a blocked IP range.")
-
-
-_litellm_configured = False
-
-
-def _configure_litellm():
-    """Lazy configuration of litellm - only imported when needed."""
-    global _litellm_configured
-
-    litellm = _load_litellm()
-    if not litellm:
-        raise ImportError("litellm is required for completion handling.")
-
-    if not _litellm_configured:
-        litellm.logging = False
-        litellm.set_verbose = False
-        litellm.drop_params = True
-        # litellm.turn_off_message_logging = True
-        mockllm.litellm = litellm
-        litellm.callbacks = [litellm_handler()]
-        _litellm_configured = True
-
-    return litellm
 
 
 async def _compute_embedding(openai: Any, model: str, input: str) -> List[float]:
@@ -1099,8 +1075,10 @@ async def auto_ai_critique_v0(
 
     _outputs = None
 
-    # Lazy import and configure litellm
-    litellm = _configure_litellm()
+    # Lazy import litellm (configuration is done automatically in _load_litellm)
+    litellm = _load_litellm()
+    if not litellm:
+        raise ImportError("litellm is required for completion handling.")
 
     # --------------------------------------------------------------------------
     litellm.openai_key = openai_api_key
