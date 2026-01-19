@@ -13,6 +13,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import type {EntityReference} from "../../types"
 import {
     commitModalOpenAtom,
+    commitModalContextAtom,
     resetCommitModalAtom,
     openCommitModalAtom,
     closeCommitModalAtom,
@@ -71,12 +72,16 @@ export function EntityCommitModal({
     onSuccess,
 }: EntityCommitModalProps) {
     const internalOpen = useAtomValue(commitModalOpenAtom)
+    const context = useAtomValue(commitModalContextAtom)
     const resetModal = useSetAtom(resetCommitModalAtom)
     const openModal = useSetAtom(openCommitModalAtom)
     const closeModal = useSetAtom(closeCommitModalAtom)
 
     // Determine actual open state
     const isOpen = externalOpen ?? internalOpen
+
+    // Check if diff data is available for dynamic width
+    const hasDiffData = context?.diffData?.original && context?.diffData?.modified
 
     // Initialize with external entity if provided
     useEffect(() => {
@@ -108,6 +113,15 @@ export function EntityCommitModal({
             afterClose={handleAfterClose}
             title={<EntityCommitTitle />}
             footer={<EntityCommitFooter onClose={handleClose} onSuccess={handleSuccess} />}
+            width={hasDiffData ? 900 : 520}
+            styles={{
+                body: {
+                    maxHeight: "calc(80vh - 110px)",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                },
+            }}
         >
             <EntityCommitContent />
         </EnhancedModal>
