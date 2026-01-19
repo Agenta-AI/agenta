@@ -33,10 +33,9 @@ export interface EvaluatorRevisionData {
 }
 
 export interface SettingsPreset {
-    id: string
     name: string
     description?: string
-    settings: Record<string, unknown>
+    settings_values: Record<string, unknown>
 }
 
 // ============================================================================
@@ -58,8 +57,11 @@ export const evaluatorRevisionMolecule = createStubMolecule({
     },
     extraActions: {
         /** No-op - preset application not available in stub */
-        applyPreset: atom(null, (_get, _set, _evaluatorId: string, _presetId: string) => {
-            // Stub implementation - no-op
-        }),
+        applyPreset: atom(
+            null,
+            (_get, _set, _payload: {revisionId: string; preset: SettingsPreset}) => {
+                // Stub implementation - no-op
+            },
+        ),
     },
 })
