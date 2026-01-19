@@ -1,0 +1,586 @@
+---
+title: SSO Providers
+description: Configure and manage enterprise Single Sign-On (SSO) providers for your organization
+---
+
+# SSO Providers
+
+Single Sign-On (SSO) enables your organization to centralize authentication through your existing identity provider (IdP) such as Okta, Azure AD, or Google Workspace. This guide covers configuring, managing, and enforcing SSO for your Agenta organization.
+
+:::info[Enterprise Feature]
+SSO providers require an **Enterprise Edition (EE)** license. Contact sales if you need to upgrade.
+:::
+
+## What is SSO?
+
+### SSO vs Social OAuth
+
+While both involve OAuth/OIDC protocols, they serve different purposes:
+
+| Feature | Social OAuth | Enterprise SSO |
+|---------|--------------|----------------|
+| **Purpose** | User convenience | Enterprise control |
+| **Provider** | Google, GitHub, Microsoft (personal) | Organization's IdP |
+| **Configuration** | Global (self-hosted) | Per-organization |
+| **User Management** | Individual accounts | Centralized directory |
+| **Enforcement** | Optional | Can be required |
+| **Examples** | "Sign in with Google" | "Sign in with ACME Okta" |
+
+### When to Use SSO
+
+Consider SSO when:
+- ✅ You need centralized user management
+- ✅ You require audit trails for access
+- ✅ You want to enforce authentication policies
+- ✅ You need to comply with security standards (SOC 2, ISO 27001)
+- ✅ You want single sign-on across multiple applications
+- ✅ You need to revoke access immediately when employees leave
+
+## SSO Provider Lifecycle
+
+Organizations typically progress through these phases when adopting SSO:
+
+### Phase 0: No SSO (Default)
+
+```json
+{
+  "allow_email": true,
+  "allow_social": true,
+  "allow_sso": false
+}
+```
+
+- No SSO providers configured
+- Users authenticate with email or social OAuth
+- Most common for small teams and personal use
+
+### Phase 1: SSO Configured (Optional)
+
+```json
+{
+  "allow_email": true,
+  "allow_social": true,
+  "allow_sso": true
+}
+```
+
+- SSO provider added and activated
+- SSO available as an option
+- Users can choose email, social, or SSO
+- Good for testing and gradual rollout
+
+### Phase 2: SSO Encouraged
+
+```json
+{
+  "allow_email": true,
+  "allow_social": true,
+  "allow_sso": true
+}
+```
+
+- Same flags as Phase 1
+- UI prioritizes SSO option
+- Discovery endpoint suggests SSO for domain-verified emails
+- Educate users to prefer SSO
+
+### Phase 3: SSO Required (Enforced)
+
+```json
+{
+  "allow_email": false,
+  "allow_social": false,
+  "allow_sso": true,
+  "allow_root": true
+}
+```
+
+- Only SSO authentication allowed
+- Email and social OAuth disabled
+- **`allow_root=true` prevents owner lockout**
+- Full enterprise control
+
+### Phase 4: Provider Rotation
+
+```json
+{
+  "allow_email": false,
+  "allow_social": false,
+  "allow_sso": true,
+  "allow_root": true
+}
+```
+
+- Rotate credentials (security best practice)
+- Migrate to new provider
+- Disable old provider
+- Update secrets
+
+## Creating an SSO Provider
+
+### Prerequisites
+
+Before configuring SSO in Agenta:
+
+1. ✅ Agenta Enterprise Edition license
+2. ✅ Organization owner or admin role
+3. ✅ Access to your identity provider (Okta, Azure AD, etc.)
+4. ✅ At least a Business subscription (if you use our managed offering)
+
+### Step 1: Configure Your Identity Provider
+
+Configure an OIDC application in your IdP:
+
+#### Required Settings
+
+| Setting | Value | Example |
+|---------|-------|---------|
+| **Application Type** | Web Application | OIDC Web App |
+| **Redirect URI** | `{AGENTA_WEB_URL}/auth/callback/sso:{organization_slug}:{provider_slug}` | `https://app.acme.com/auth/callback/sso:acme-corp:okta` |
+| **Scopes** | `openid`, `email`, `profile` | Required minimum |
+| **Grant Type** | Authorization Code | With PKCE recommended |
+
+#### Get Configuration Details
+
+You'll need these values:
+
+- **Issuer URL**: Your IdP's issuer endpoint (e.g. https://accounts.google.com for Google SSO)
+- **Client ID**: Application/Client ID from your IdP
+- **Client Secret**: Application/Client secret from your IdP
+
+#### Provider-Specific Guides
+
+- [Okta Integration Guide](/docs/security/guides/okta-integration)
+- [Azure AD Integration Guide](/docs/security/guides/azure-ad-integration)
+- [Google Workspace SSO](/docs/security/guides/google-workspace-sso)
+
+### Step 2: Add Provider in Agenta
+
+1. Navigate to **Settings** → **Access & Security** → **SSO Providers**
+2. Click **"Add Provider"**
+3. Fill in provider details:
+
+```
+Provider Slug: okta
+
+Issuer URL: https://acme.okta.com
+Client ID: 0oa123abc456def
+Client Secret: ••••••••••••••••
+Scopes: openid email profile
+```
+
+4. Click **"Save Provider"**
+
+### Step 3: Test Connection
+
+Before activating the provider, Agenta validates the configuration:
+
+1. Find your provider in the list
+2. Click **"Enable"**
+3. Agenta checks the OIDC well-known endpoint: `{issuer_url}/.well-known/openid-configuration`
+4. If endpoint is reachable → Provider status shows `is_valid=true`
+5. If endpoint fails → Check issuer URL and try again
+
+**What the test checks:**
+- ✅ Issuer URL is reachable
+- ✅ Well-known configuration endpoint exists
+- ✅ OIDC discovery document is valid
+
+**What the test does NOT check:**
+- ❌ Client ID validity
+- ❌ Client Secret correctness
+- ❌ Full authentication flow (no IdP redirect)
+
+:::info[Validation is Automatic]
+The test happens automatically when you enable the provider. There's no separate "Test" button - the well-known endpoint check happens immediately on enable.
+:::
+
+### Step 4: Activate SSO for Your Organization
+
+Once the provider is enabled and validated, activate SSO for users:
+
+1. Navigate to **Settings** → **Access & Security** → **Authentication Policies**
+2. Toggle **"Allow SSO"** (`allow_sso=true`) to ON
+3. Save changes
+
+**What this does:**
+- SSO becomes available as an authentication option
+- Users see "Sign in with {Provider Name}" on login
+- SSO is **optional** alongside other enabled methods (email, social)
+
+:::info[Enable vs Activate]
+**Enabling** the provider (Step 3) validates the OIDC configuration. **Activating** SSO (this step) makes it available to users by setting `allow_sso=true` in your organization's authentication policy.
+:::
+
+## Provider Configuration
+
+### Provider Flags
+
+Each provider has a validation flag:
+
+| Flag | Purpose | Set When |
+|------|---------|----------|
+| `is_valid` | Configuration tested successfully | Well-known endpoint check succeeds |
+
+**Organization vs Provider Settings:**
+
+- **Provider-level**: `is_valid` indicates the OIDC configuration is correct
+- **Organization-level**: `allow_sso=true` makes SSO available to users
+
+Both must be true for SSO to work:
+- ✅ Provider `is_valid=true` + Organization `allow_sso=true` → SSO works
+- ❌ Provider `is_valid=false` → SSO fails (bad configuration)
+- ❌ Organization `allow_sso=false` → SSO not available (even if provider is valid)
+
+### Provider Secrets
+
+Provider credentials (Client ID, Client Secret, Issuer URL) are stored encrypted:
+
+- Secrets table stores encrypted configuration
+- Provider references secret via `secret_id`
+- Secrets never exposed in API responses
+- Rotation requires updating the secret
+
+### Multiple SSO Providers
+
+Organizations can configure multiple SSO providers:
+
+**Example**: Global company with regional IdPs
+
+```
+Provider 1: okta-us (North America)
+Provider 2: okta-eu (Europe)
+Provider 3: okta-apac (Asia-Pacific)
+```
+
+Users choose which provider to authenticate with based on their region.
+
+## Enforcing SSO
+
+### Gradual Rollout Strategy
+
+**Recommended approach** for transitioning to SSO-only:
+
+#### Week 1: Configure & Test
+```json
+{
+  "allow_email": true,
+  "allow_social": true,
+  "allow_sso": true  // SSO optional
+}
+```
+- Add SSO provider
+- Test with admin users
+- Verify SSO works correctly
+
+#### Week 2: Encourage Adoption
+```json
+{
+  "allow_email": true,
+  "allow_social": true,
+  "allow_sso": true  // SSO optional
+}
+```
+- Communicate to users: "Please start using SSO"
+- Monitor adoption rate
+- Provide support for users
+
+#### Week 3: SSO Required
+```json
+{
+  "allow_email": false,
+  "allow_social": false,
+  "allow_sso": true,
+  "allow_root": true  // Owner bypass
+}
+```
+- Announce: "SSO required starting [date]"
+- Disable email and social authentication
+- Users must authenticate via SSO
+
+### Safety Mechanisms
+
+#### 1. Owner Bypass (`allow_root`)
+
+**Always enable `allow_root=true` when enforcing SSO:**
+
+```json
+{
+  "allow_email": false,
+  "allow_social": false,
+  "allow_sso": true,
+  "allow_root": true  // ← CRITICAL
+}
+```
+
+**Why?** If SSO provider has an outage or misconfiguration, the organization owner can still access the account using any authentication method to fix the issue.
+
+#### 2. Cannot Disable All Auth Methods
+
+Agenta prevents you from disabling all authentication methods:
+
+```json
+{
+  "allow_email": false,
+  "allow_social": false,
+  "allow_sso": false  // ← BLOCKED!
+}
+```
+
+**Error**: "At least one authentication method must be enabled"
+
+#### 3. Cannot Enforce SSO Without Active Provider
+
+You cannot set `allow_sso=true` as the only method without an active, valid provider:
+
+```json
+{
+  "allow_email": false,
+  "allow_social": false,
+  "allow_sso": true  // ← BLOCKED if no valid provider
+}
+```
+
+**Error**: "Cannot enforce SSO: No active and valid SSO provider configured"
+
+#### 4. Provider Modification Guard
+
+When SSO is the only allowed method, you cannot disable the provider without first enabling another method:
+
+```
+Current state:
+- allow_sso=true (only method)
+- Provider: okta (active)
+
+Action: Try to disable okta provider
+Result: ERROR - "Cannot disable SSO provider while it's the only allowed authentication method"
+
+Solution:
+1. Enable email or social: allow_email=true
+2. Disable okta provider
+3. Fix/replace provider
+4. Re-enable SSO
+5. Disable email if desired
+```
+
+## Session Identities
+
+When a user authenticates via SSO, their session gains an SSO identity:
+
+### Identity Format
+
+```
+sso:{org_slug}:{provider_slug}
+```
+
+**Examples**:
+- `sso:acme-corp:okta` - Authenticated with Okta for ACME Corp
+- `sso:subsidiary:azure-ad` - Authenticated with Azure AD for subsidiary
+
+### Identity Persistence
+
+SSO identities persist in the user's session until:
+- User signs out
+- Session expires
+- SSO provider is disabled
+- SSO link is broken (rare)
+
+### Multiple SSO Identities
+
+Users can accumulate multiple SSO identities:
+
+```json
+{
+  "identities": [
+    "email:password",
+    "sso:acme-corp:okta",
+    "sso:partner-co:azure-ad"
+  ]
+}
+```
+
+This allows access to multiple organizations with different SSO requirements.
+
+## Domain Verification and SSO
+
+Domain verification is **optional** for SSO. It's only used for:
+- **Domain restrictions** (`domains_only=true`): Limit access to verified domains only
+- **Auto-join** (`auto_join=true`): Automatically add users with verified domain emails
+
+### Domain Restrictions with SSO
+
+Restrict organization access to verified domains:
+
+**Configuration**:
+```json
+{
+  "verified_domains": ["acme.com"],
+  "allow_sso": true,
+  "domains_only": true
+}
+```
+
+**Behavior**:
+- ✅ User with `alice@acme.com` authenticates via SSO → Access granted
+- ❌ User with `bob@gmail.com` authenticates via SSO → Access denied (`AUTH_DOMAIN_DENIED`)
+
+## Troubleshooting
+
+### Test Connection Fails
+
+**Error**: "Unable to reach issuer URL"
+
+**Causes & Solutions**:
+- ❌ Incorrect Issuer URL → Verify URL in IdP documentation
+- ❌ Network/firewall issue → Check connectivity from Agenta server
+- ❌ IdP is down → Check IdP status page
+
+**Error**: "Invalid client credentials"
+
+**Causes & Solutions**:
+- ❌ Wrong Client ID → Copy exact value from IdP
+- ❌ Wrong Client Secret → Regenerate and copy new secret
+- ❌ Application disabled in IdP → Enable application
+
+**Error**: "Missing required scopes"
+
+**Causes & Solutions**:
+- ❌ Missing `openid` scope → Add to IdP configuration
+- ❌ Missing `email` scope → Add to IdP configuration
+- ❌ Missing `profile` scope → Add to IdP configuration
+
+### Users Can't Sign In
+
+**Error**: "Redirect URI mismatch"
+
+**Cause**: Callback URL not configured in IdP
+
+**Solution**:
+1. Check IdP configuration
+2. Add redirect URI: `{AGENTA_WEB_URL}/auth/callback/{provider_id}`
+3. Save IdP configuration
+4. Try again
+
+**Error**: "SSO is not enabled for this organization"
+
+**Cause**: Organization flags not set
+
+**Solution**:
+1. Navigate to **Settings** → **Access & Security**
+2. Enable **"Allow SSO"**
+3. Save changes
+
+**Error**: "This SSO provider is not active"
+
+**Cause**: Provider is disabled
+
+**Solution**:
+1. Navigate to **Settings** → **Access & Security** → **Providers**
+2. Find provider and toggle **Active** to ON
+3. Try again
+
+### Users Get "AUTH_UPGRADE_REQUIRED"
+
+**Scenario**: User has email identity, tries to access SSO-only org
+
+**This is expected behavior!**
+
+**Solution**:
+1. User sees: "This organization requires SSO"
+2. User clicks "Sign in with [Provider]"
+3. User completes SSO authentication
+4. SSO identity added to session
+5. User can now access organization
+
+## Best Practices
+
+### For Administrators
+
+1. ✅ **Test thoroughly before enforcing**: Test with subset of users
+2. ✅ **Always enable `allow_root`**: Prevents owner lockout
+3. ✅ **Communicate clearly**: Announce SSO requirement with advance notice
+4. ✅ **Gradual rollout**: Optional → Encouraged → Required
+5. ✅ **Monitor adoption**: Track which methods users are using
+6. ✅ **Rotate credentials**: Quarterly or annually
+7. ✅ **Configure backup provider**: For redundancy
+8. ✅ **Verify domains**: Enable auto-discovery for company emails
+
+### For Users
+
+1. ✅ **Use SSO when available**: Better security and convenience
+2. ✅ **Link accounts**: Accumulate multiple auth methods
+3. ✅ **Keep IdP credentials secure**: Use MFA on your IdP
+4. ✅ **Report issues immediately**: Contact admin if SSO fails
+
+## Related Documentation
+
+- [Domain Verification](/docs/security/domain-verification) - Verify email domains for auto-discovery
+- [Organizations](/docs/security/organizations) - Organization policies and management
+- [Account Linking](/docs/concepts/authentication/account-linking) - Link multiple auth methods
+- [Session Identities](/docs/concepts/authentication/session-identities) - How identities work
+- [Okta Integration](/docs/security/guides/okta-integration) - Okta-specific setup
+- [Azure AD Integration](/docs/security/guides/azure-ad-integration) - Azure AD-specific setup
+
+## FAQ
+
+### Do I need to verify my domain to use SSO?
+
+No, domain verification is **not required** for SSO. Verified domains are only used for:
+- **Auto-join** (`auto_join=true`): Automatically add users with verified domain emails
+- **Domain restrictions** (`domains_only=true`): Limit organization access to verified domains only
+
+SSO works without domain verification. Users can authenticate via SSO regardless of whether their email domain is verified.
+
+### Can I have multiple SSO providers?
+
+Yes! Configure multiple providers for different use cases:
+- Regional IdPs (okta-us, okta-eu)
+- Backup providers (in case of outages)
+- Different providers for different user groups
+
+### What happens if my SSO provider goes down?
+
+**If `allow_root=true`**: Organization owner can sign in with email/social and temporarily enable alternative auth methods
+
+**If backup provider configured**: Users can use backup provider
+
+**Otherwise**: Users cannot sign in until provider is restored
+
+### Can I migrate from Okta to Azure AD?
+
+Yes! Add Azure AD provider while keeping Okta active, communicate to users, monitor migration, then disable Okta.
+
+### How do I prevent users from using email after enabling SSO?
+
+Set organization flags:
+```json
+{
+  "allow_email": false,
+  "allow_social": false,
+  "allow_sso": true,
+  "allow_root": true
+}
+```
+
+### What's the difference between SSO and social OAuth?
+
+- **Social OAuth**: Public providers (Google, GitHub) for individual accounts
+- **SSO**: Your organization's IdP for centralized control
+
+### Can users still use email if SSO is required?
+
+No, if `allow_email=false`, email authentication is blocked. Exception: organization owner with `allow_root=true`.
+
+### How often should I rotate SSO credentials?
+
+Best practice: Quarterly or annually. More frequent if required by security policy.
+
+### What happens to SSO providers when a plan is cancelled?
+
+When an organization cancels their subscription:
+- SSO providers remain configured in the system (`is_valid` status preserved)
+- However, SSO authentication becomes **unusable**
+- Users cannot authenticate via SSO
+- Users can only authenticate via email or social login
+- Existing SSO configuration is not deleted
+- Re-subscribe to restore SSO functionality

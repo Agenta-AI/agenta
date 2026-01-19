@@ -15,6 +15,7 @@ import {
     message,
 } from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
@@ -23,6 +24,7 @@ import type {ProjectsResponse} from "@/oss/services/project/types"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
+import {settingsTabAtom} from "@/oss/state/settings"
 
 interface ListOfProjectsProps {
     collapsed: boolean
@@ -54,6 +56,7 @@ const ListOfProjects = ({
     const router = useRouter()
     const {orgs} = useOrgData()
     const {project, projects, refetch} = useProjectData()
+    const settingsTab = useAtomValue(settingsTabAtom)
 
     const totalProjects = useMemo(() => projects.filter(Boolean).length, [projects])
     const canDeleteProjects = totalProjects > 1
@@ -257,10 +260,24 @@ const ListOfProjects = ({
             if (!workspaceId || !projectId) return
             cacheLastUsedProjectId(workspaceId, projectId)
             if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
-            const href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
+
+            // Extract the current page path to preserve navigation context
+            const currentPathMatch = router.asPath.match(/\/p\/[^/]+\/(.*)/)
+            const currentPagePath = currentPathMatch?.[1]?.split("?")[0] ?? "apps"
+
+            // Preserve query params for settings tab
+            const isOnSettingsPage = currentPagePath.startsWith("settings")
+            const currentTab =
+                (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ??
+                (router.query.tab as string | undefined)
+            const tabParam =
+                isOnSettingsPage && currentTab ? `?tab=${encodeURIComponent(currentTab)}` : ""
+
+            const href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/${currentPagePath}${tabParam}`
+
             void router.push(href)
         },
-        [router],
+        [router, settingsTab],
     )
 
     const findFallbackProject = useCallback(
@@ -358,7 +375,7 @@ const ListOfProjects = ({
                           label: (
                               <div className="flex items-center gap-2">
                                   <CopyIcon size={16} />
-                                  Copy project ID
+                                  Copy ID
                               </div>
                           ),
                       },
@@ -392,7 +409,7 @@ const ListOfProjects = ({
                     <div className="flex items-center gap-2 w-full max-w-[300px]">
                         <span className="truncate">{proj.project_name}</span>
                         {proj.is_default_project && (
-                            <Tag className="bg-[#0517290F] m-0">Default</Tag>
+                            <Tag className="bg-[#0517290F] m-0">default</Tag>
                         )}
                     </div>
                 ),

@@ -60,6 +60,16 @@ export const updateProfile = async (
     return {data}
 }
 
+export const updateUsername = async (username: string): Promise<{data: User}> => {
+    const base = getBaseUrl()
+    const url = new URL("api/profile/username", base)
+    const data = await fetchJson(url, {
+        method: "PUT",
+        body: JSON.stringify({username}),
+    })
+    return {data}
+}
+
 /**
  * Change user password via REST
  * OSS note: backend may restrict direct password change; this endpoint is

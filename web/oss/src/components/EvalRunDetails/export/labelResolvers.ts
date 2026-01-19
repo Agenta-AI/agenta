@@ -31,7 +31,7 @@ function normalizeMetricLabel(metricKey?: string | null): string | undefined {
 }
 
 /**
- * Clean up technical IDs from labels (e.g., "Testset 019ada…3d9b" -> "Testset")
+ * Clean up technical IDs from labels (e.g., "Testset 019ada…3d9b" -> "Test set")
  */
 function cleanTechnicalIds(label: string): string {
     if (!label) return label

@@ -3,6 +3,9 @@ import time
 import httpx
 
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 def add_contact_to_loops(email, max_retries=5, initial_delay=1):
@@ -25,7 +28,7 @@ def add_contact_to_loops(email, max_retries=5, initial_delay=1):
     url = "https://app.loops.so/api/v1/contacts/create"
 
     # Request headers
-    headers = {"Authorization": f"Bearer {env.LOOPS_API_KEY}"}
+    headers = {"Authorization": f"Bearer {env.loops.api_key}"}
 
     # Request payload/body
     data = {"email": email}
@@ -39,7 +42,7 @@ def add_contact_to_loops(email, max_retries=5, initial_delay=1):
 
         # If response code is 429, it indicates rate limiting
         if response.status_code == 429:
-            print(f"Rate limit hit. Retrying in {delay} seconds...")
+            log.warning(f"[LOOPS] Rate limit hit. Retrying in {delay} seconds...")
             time.sleep(delay)
             retries += 1
             delay *= 2  # Double the delay for exponential backoff

@@ -50,7 +50,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await expect(page.getByText("Error").first()).not.toBeVisible()
 
                 // 5. Add a new Testcase
-                const testcaseButton = page.getByRole("button", {name: "Testcase"})
+                const testcaseButton = page.getByRole("button", {name: "Test case"})
                 await testcaseButton.scrollIntoViewIfNeeded()
                 await testcaseButton.click()
             }

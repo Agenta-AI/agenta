@@ -1,0 +1,329 @@
+###
+# Organization Flag Enforcement Tests (EE Only)
+# Tests the auth flag enforcement and auth upgrade requirements
+#
+# Prerequisites:
+# 1. AGENTA_LICENSE=ee
+# 2. Organizations set up with different flag configurations
+# 3. Users with various authentication methods
+###
+
+@baseUrl = http://localhost
+@apiUrl = {{baseUrl}}/api
+@contentType = application/json
+
+# REPLACE THESE WITH ACTUAL VALUES
+@organizationId = 00000000-0000-0000-0000-000000000000
+@projectId = 00000000-0000-0000-0000-000000000000
+
+###
+# Scenario 1: User with email:otp tries to access SSO-only organization
+###
+
+### Step 1: Login with Email OTP
+# Complete OTP login flow first to get session with identities=["email:otp"]
+
+### Step 2: Try to Access SSO-Required Organization
+# Expected: 403 Forbidden with AUTH_UPGRADE_REQUIRED
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
+Accept: application/json
+# Cookie: sAccessToken=...; sRefreshToken=...
+
+# Expected Response:
+# {
+#   "error": "AUTH_UPGRADE_REQUIRED",
+#   "message": "Additional authentication required",
+#   "required_methods": ["sso:*"],
+#   "current_identities": ["email:otp"]
+# }
+
+
+###
+# Scenario 2: User completes SSO, then retries access
+###
+
+### Step 1: Complete SSO Authentication
+# User is redirected to SSO provider
+# After successful SSO, session updated to:
+# identities = ["email:otp", "sso:acme:okta"]
+
+### Step 2: Retry Organization Access
+# Expected: 200 OK, access granted
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
+Accept: application/json
+# Cookie: sAccessToken=...; sRefreshToken=...
+
+# Expected: Successful response with project data
+
+
+###
+# Scenario 3: Organization allows multiple methods (via flags)
+###
+
+### Setup:
+# Organization flags: allow_email=true, allow_social=true, allow_sso=true
+
+### Test: Access with any valid method
+# User with identities=["email:otp"] should be allowed
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
+Accept: application/json
+
+# Expected: 200 OK
+
+
+###
+# Scenario 4: No organization_id in request
+###
+
+### Test: Request without organization context
+# Middleware should skip flag enforcement
+GET {{apiUrl}}/health
+Accept: application/json
+
+# Expected: 200 OK (no flag enforcement)
+
+
+###
+# Scenario 5: User not a member of organization
+###
+
+### Setup:
+# User exists but not in organization_members for this org
+
+### Test: Try to access organization
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
+Accept: application/json
+
+# Expected: 403 Forbidden
+# {
+#   "error": "NOT_A_MEMBER",
+#   "message": "You are not a member of this organization"
+# }
+
+
+###
+# Scenario 6: Organization has default flags (all methods allowed)
+###
+
+### Setup:
+# Organization flags: allow_email=true (default), allow_social=true (default)
+
+### Test: Access should work with any auth method
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
+Accept: application/json
+
+# Expected: 200 OK (no restrictions)
+
+
+###
+# Scenario 7: Owner Bypass (allow_root=true)
+###
+
+### Setup:
+# Organization flags: allow_email=false, allow_social=false, allow_sso=true, allow_root=true
+# User is owner of organization
+
+### Test: Owner accesses with email:otp (normally blocked method)
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
+Accept: application/json
+
+# Expected: 200 OK (owner bypasses all auth restrictions when allow_root=true)
+
+
+###
+# Scenario 8: domains_only Enforcement
+###
+
+### Setup:
+# Organization flags: domains_only=true
+# Verified domain: acme.com
+# User email: user@gmail.com
+
+### Test: User with non-verified domain tries to access
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
+Accept: application/json
+
+# Expected: 403 AUTH_DOMAIN_DENIED
+# {
+#   "error": "AUTH_DOMAIN_DENIED",
+#   "message": "Your email domain 'gmail.com' is not allowed for this organization",
+#   "current_domain": "gmail.com",
+#   "allowed_domains": ["acme.com"]
+# }
+
+
+###
+# Scenario 9: SSO Provider Disabled
+###
+
+### Setup:
+# User has session with sso:acme:okta identity
+# Admin sets provider flags.is_active=false
+
+### Test: User tries to access SSO-only org
+GET {{apiUrl}}/projects?organization_id={{organizationId}}
+Accept: application/json
+
+# Expected: 403 AUTH_SSO_DENIED
+# {
+#   "error": "AUTH_SSO_DENIED",
+#   "message": "SSO provider is disabled or no longer valid"
+# }
+
+
+###
+# Testing Flag Configurations
+###
+
+# SQL to set different flag configurations:
+
+# Config 1: SSO Only
+# UPDATE organizations
+# SET flags = jsonb_set(jsonb_set(jsonb_set(flags,
+#   '{allow_email}', 'false'),
+#   '{allow_social}', 'false'),
+#   '{allow_sso}', 'true')
+# WHERE id = '<orgId>';
+
+# Config 2: Email or Social (no SSO)
+# UPDATE organizations
+# SET flags = jsonb_set(jsonb_set(jsonb_set(flags,
+#   '{allow_email}', 'true'),
+#   '{allow_social}', 'true'),
+#   '{allow_sso}', 'false')
+# WHERE id = '<orgId>';
+
+# Config 3: Everything allowed (default)
+# UPDATE organizations
+# SET flags = jsonb_set(jsonb_set(jsonb_set(flags,
+#   '{allow_email}', 'true'),
+#   '{allow_social}', 'true'),
+#   '{allow_sso}', 'true')
+# WHERE id = '<orgId>';
+
+# Config 4: SSO only with owner bypass
+# UPDATE organizations
+# SET flags = jsonb_set(jsonb_set(jsonb_set(jsonb_set(flags,
+#   '{allow_email}', 'false'),
+#   '{allow_social}', 'false'),
+#   '{allow_sso}', 'true'),
+#   '{allow_root}', 'true')
+# WHERE id = '<orgId>';
+
+
+###
+# Verification Queries
+###
+
+# Check user's current identities
+# SELECT ui.method
+# FROM user_identities ui
+# WHERE ui.user_id = '<userId>'
+# ORDER BY ui.created_at;
+
+# Check organization flags
+# SELECT
+#   id,
+#   name,
+#   flags->'allow_email' as allow_email,
+#   flags->'allow_social' as allow_social,
+#   flags->'allow_sso' as allow_sso,
+#   flags->'allow_root' as allow_root,
+#   flags->'domains_only' as domains_only
+# FROM organizations
+# WHERE id = '<orgId>';
+
+# Check if user is organization member
+# SELECT EXISTS (
+#   SELECT 1
+#   FROM organization_members
+#   WHERE user_id = '<userId>'
+#     AND organization_id = '<orgId>'
+# ) as is_member;
+
+# Check if user is owner
+# SELECT owner_id = '<userId>' as is_owner
+# FROM organizations
+# WHERE id = '<orgId>';
+
+
+###
+# Middleware Bypass Routes (Should NOT Check Flags)
+###
+
+### Auth routes (no flag check)
+GET {{apiUrl}}/auth/discover
+Accept: application/json
+
+### Health check (no flag check)
+GET {{apiUrl}}/health
+Accept: application/json
+
+### Public routes (no flag check)
+GET {{apiUrl}}/public/status
+Accept: application/json
+
+
+###
+# Edge Cases
+###
+
+# 1. User session has no identities array
+#    → Should treat as empty, enforce flags
+
+# 2. All allow_* flags are false
+#    → System auto-enables allow_root to prevent lockout
+#    → Owner can still access
+
+# 3. User has multiple identities, only one matches
+#    → Should allow access (OR logic)
+
+# 4. Organization deleted but membership remains
+#    → Should handle gracefully
+
+# 5. Concurrent flag updates during request
+#    → Should use consistent flag snapshot
+
+
+###
+# Error Codes Summary
+###
+
+# AUTH_UPGRADE_REQUIRED
+# - Trigger: User's session identities don't match any allowed method
+# - Response: 403 with required_methods list
+# - User action: Complete additional authentication
+
+# AUTH_SSO_DENIED
+# - Trigger: SSO provider is disabled (flags.is_active=false)
+# - Response: 403 with message
+# - User action: Contact admin or use different auth method
+
+# AUTH_DOMAIN_DENIED
+# - Trigger: User's email domain not in verified domains list (when domains_only=true)
+# - Response: 403 with allowed_domains list
+# - User action: Use email from verified domain or contact admin
+
+
+###
+# Common Issues & Debugging
+###
+
+# Issue: Flags not enforced
+# Check:
+# - Middleware is registered in FastAPI app
+# - Request includes organization_id param
+# - AGENTA_LICENSE=ee
+# - organizations.flags contains auth flags
+
+# Issue: Wrong flags applied
+# Check:
+# - organization_id in request matches flags
+# - No caching issues
+# - Database query returns correct organization
+
+# Issue: Session identities not checked
+# Check:
+# - Session payload includes "identities" array
+# - Middleware can verify session correctly
+# - check_organization_access() function logic is correct

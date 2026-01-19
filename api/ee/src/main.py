@@ -2,19 +2,30 @@ from fastapi import FastAPI
 
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.routers import workspace_router, organization_router
+from ee.src.routers import (
+    workspace_router,
+    organization_router as _organization_router,
+)
 
 from ee.src.dbs.postgres.meters.dao import MetersDAO
+from ee.src.dbs.postgres.tracing.dao import TracingDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 
 from ee.src.core.meters.service import MetersService
+from ee.src.core.tracing.service import TracingService
 from ee.src.core.subscriptions.service import SubscriptionsService
 
-from ee.src.apis.fastapi.billing.router import SubscriptionsRouter
+from ee.src.apis.fastapi.billing.router import BillingRouter
+from ee.src.apis.fastapi.organizations.router import (
+    router as organization_router,
+)
+from oss.src.apis.fastapi.auth.router import auth_router
 
 # DBS --------------------------------------------------------------------------
 
 meters_dao = MetersDAO()
+
+tracing_dao = TracingDAO()
 
 subscriptions_dao = SubscriptionsDAO()
 
@@ -24,6 +35,10 @@ meters_service = MetersService(
     meters_dao=meters_dao,
 )
 
+tracing_service = TracingService(
+    tracing_dao=tracing_dao,
+)
+
 subscription_service = SubscriptionsService(
     subscriptions_dao=subscriptions_dao,
     meters_service=meters_service,
@@ -31,8 +46,10 @@ subscription_service = SubscriptionsService(
 
 # APIS -------------------------------------------------------------------------
 
-subscriptions_router = SubscriptionsRouter(
+billing_router = BillingRouter(
     subscription_service=subscription_service,
+    meters_service=meters_service,
+    tracing_service=tracing_service,
 )
 
 
@@ -43,13 +60,13 @@ def extend_main(app: FastAPI):
     # ROUTES -------------------------------------------------------------------
 
     app.include_router(
-        router=subscriptions_router.router,
+        router=billing_router.router,
         prefix="/billing",
         tags=["Billing"],
     )
 
     app.include_router(
-        router=subscriptions_router.admin_router,
+        router=billing_router.admin_router,
         prefix="/admin/billing",
         tags=["Admin", "Billing"],
     )
@@ -57,13 +74,27 @@ def extend_main(app: FastAPI):
     # ROUTES (more) ------------------------------------------------------------
 
     app.include_router(
-        organization_router.router,
+        organization_router,
+        prefix="/organizations",
+        tags=["Organizations"],
+    )
+
+    app.include_router(
+        _organization_router.router,
         prefix="/organizations",
     )
 
     app.include_router(
         workspace_router.router,
         prefix="/workspaces",
+    )
+
+    # Auth router at root level (no /api prefix) for OAuth callbacks
+    app.include_router(
+        auth_router,
+        prefix="/auth",
+        tags=["Auth"],
+        include_in_schema=False,
     )
 
     # --------------------------------------------------------------------------

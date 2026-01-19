@@ -7,7 +7,7 @@ from sqlalchemy.future import select
 from sqlalchemy import not_, and_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm.attributes import flag_modified
-
+from sqlalchemy.inspection import inspect
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
@@ -1879,8 +1879,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         # Classify metrics into 3 groups based on NULL pattern, then batch upsert
         async with engine.core_session() as session:
             # Convert DBE instances to dicts using SQLAlchemy's inspection
-            from sqlalchemy.inspection import inspect
-
             mapper = inspect(EvaluationMetricsDBE)
             column_names = {col.name for col in mapper.columns}
 

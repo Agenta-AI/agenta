@@ -3,7 +3,7 @@ export * from "./hooks"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-import {resetOrgDataAtom} from "./selectors/org"
+import {resetOrganizationDataAtom} from "./selectors/org"
 
 export const getOrgValues = () => {
     const store = getDefaultStore()
@@ -35,7 +35,7 @@ export const getOrgValues = () => {
     }
 }
 
-export const resetOrgData = () => {
+export const resetOrganizationData = () => {
     const store = getDefaultStore()
-    store.set(resetOrgDataAtom, null)
+    store.set(resetOrganizationDataAtom, null)
 }

@@ -193,10 +193,10 @@ async def use_api_key(key: str) -> Union[APIKeyDB, bool]:
         # Check the result
         if result:
             # API key is valid
-            print("API key is valid")
+            pass
         else:
             # API key is invalid
-            print("API key is invalid")
+            pass
     ```
     """
 

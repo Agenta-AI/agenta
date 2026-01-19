@@ -2,5 +2,5 @@ from oss.src.utils.env import env
 
 
 # Environment variables
-POSTGRES_URI_CORE = env.POSTGRES_URI_CORE
-POSTGRES_URI_TRACING = env.POSTGRES_URI_TRACING
+POSTGRES_URI_CORE = env.postgres.uri_core
+POSTGRES_URI_TRACING = env.postgres.uri_tracing

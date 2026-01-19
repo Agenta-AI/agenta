@@ -83,7 +83,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
 
             await uiHelpers.typeWithDelay('input[placeholder="Enter a name"]', config.name)
 
-            await goToStep("Testset")
+            await goToStep("Test set")
             await uiHelpers.selectTableRowInput({
                 rowText: config.testset,
                 inputType: "radio",

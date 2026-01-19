@@ -85,7 +85,6 @@ async def verify_permissions(
             raise Deny()
 
         # CHECK PERMISSION 1/3: SCOPE
-        # log.debug("Checking scope access...")
         allow_scope = await check_scope_access(
             # organization_id=request.state.organization_id,
             workspace_id=request.state.workspace_id,
@@ -106,7 +105,6 @@ async def verify_permissions(
             raise Deny()
 
         # CHECK PERMISSION 1/2: ACTION
-        # log.debug("Checking action access...")
         allow_action = await check_action_access(
             project_id=request.state.project_id,
             user_uid=request.state.user_id,
@@ -125,7 +123,6 @@ async def verify_permissions(
             raise Deny()
 
         # CHECK PERMISSION 3/3: RESOURCE
-        # log.debug("Checking resource access...")
         allow_resource = await check_resource_access(
             organization_id=request.state.organization_id,
             resource_type=resource_type,

@@ -1,0 +1,18 @@
+FROM python:3.11-slim-bookworm
+
+WORKDIR /app
+
+RUN pip install --upgrade pip \
+    && pip install poetry
+
+COPY ./pyproject.toml /app/
+
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi
+
+COPY ./oss /app/oss/
+COPY ./entrypoints /app/entrypoints/
+
+ENV PYTHONPATH=/app
+
+EXPOSE 80

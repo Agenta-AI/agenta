@@ -25,34 +25,44 @@ class WorkspaceMemberResponse(BaseModel):
 
 class Workspace(BaseModel):
     id: Optional[str] = None
-    name: str
+
+    name: Optional[str] = None
     description: Optional[str] = None
+
     type: Optional[str]
+
     members: Optional[List[WorkspaceMember]] = None
 
 
 class WorkspaceResponse(TimestampModel):
     id: str
-    name: str
+
+    name: Optional[str] = None
     description: Optional[str] = None
+
     type: Optional[str]
+
     organization: str
+
     members: Optional[List[WorkspaceMemberResponse]] = None
 
 
 class CreateWorkspace(BaseModel):
-    name: str
+    name: Optional[str] = None
     description: Optional[str] = None
+
     type: Optional[str] = None
 
 
 class UserRole(BaseModel):
     email: str
-    organization_id: str
     role: Optional[str] = None
+
+    organization_id: str
 
 
 class UpdateWorkspace(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+
     updated_at: Optional[datetime] = None

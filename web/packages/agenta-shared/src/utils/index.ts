@@ -28,3 +28,45 @@ export {
     collectPaths,
 } from "./pathUtils"
 export type {PathSegment, DataPath, PathItem} from "./pathUtils"
+
+// Chat message utilities
+export {
+    extractTextFromContent,
+    extractDisplayTextFromMessage,
+    hasAttachments,
+    getAttachmentInfo,
+    updateTextInContent,
+    addImageToContent,
+    addFileToContent,
+    removeAttachmentFromContent,
+    getAttachments,
+} from "./chatMessage"
+
+// Logger utilities
+export {createLogger} from "./createLogger"
+export type {LoggerOptions} from "./createLogger"
+
+// JSON parsing utilities
+export {tryParsePartialJson, safeJson5Parse} from "./jsonParsing"
+
+// Key path utilities
+export {keyToString, stringToKeyPath} from "./keyUtils"
+
+// JSON detection utilities
+export {
+    isJsonString,
+    isJsonObject,
+    isJsonArray,
+    tryParseJson,
+    tryParseAsObject,
+    tryParseAsArray,
+    canExpandAsJson,
+} from "./jsonDetection"
+
+// Editor language detection utilities
+export {
+    detectEditorLanguage,
+    getContentLanguage,
+    looksLikeJson,
+    type EditorLanguage,
+} from "./editorLanguage"

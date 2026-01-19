@@ -33,12 +33,12 @@ async def get_user_llm_providers_secrets(project_id: str) -> Dict[str, Any]:
     if not secrets:
         return {}
 
-    # 2: exclude custom_provider secrets
+    # 2: include only standard provider keys
     # value of secrets: [{data: {kind: ..., provider: {key: ...}}}]
     secrets = [
         secret.model_dump(include={"data"})
         for secret in secrets
-        if secret.kind != "custom_provider"
+        if secret.kind == "provider_key"
     ]
 
     # 3: convert secrets to readable format

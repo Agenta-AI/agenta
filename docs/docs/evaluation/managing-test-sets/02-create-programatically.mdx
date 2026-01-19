@@ -5,20 +5,24 @@ description: "Learn how to create test sets using the API or SDK"
 sidebar_position: 2
 ---
 
+:::tip
+For a complete guide on managing test sets with the SDK (including listing, retrieving, and updating), see [Managing Testsets](/evaluation/evaluation-from-sdk/managing-testsets).
+:::
+
 ## Overview
 
 Creating test sets programmatically allows you to automate test set generation, integrate with your CI/CD pipeline, or dynamically generate test cases from existing data sources.
 
 ## Creating via API
 
-You can upload a test set using our API. Find the [API endpoint reference here](/reference/api/upload-file).
+You can create a versioned testset using the simple testset API. Find the [API endpoint reference here](/reference/api/create-simple-testset).
 
 Here's an example of such a call:
 
 **HTTP Request:**
 
 ```
-POST /testsets
+POST /preview/simple/testsets/
 
 ```
 
@@ -26,58 +30,65 @@ POST /testsets
 
 ```json
 {
-  "name": "testsetname",
-  "csvdata": [
-    { "column1": "row1col1", "column2": "row1col2" },
-    { "column1": "row2col1", "column2": "row2col2" }
-  ]
+  "testset": {
+    "slug": "countries-capitals",
+    "name": "countries_capitals",
+    "data": {
+      "testcases": [
+        {"data": {"country": "France", "capital": "Paris"}},
+        {"data": {"country": "Germany", "capital": "Berlin"}}
+      ]
+    }
+  }
 }
 ```
 
 ### Example with curl
 
 ```bash
-curl -X POST "https://cloud.agenta.ai/api/testsets" \
+curl -X POST "https://cloud.agenta.ai/api/preview/simple/testsets/" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "name": "my_test_set",
-    "csvdata": [
-      {"input": "Hello", "expected": "Hi there!"},
-      {"input": "How are you?", "expected": "I am doing well!"}
-    ]
+    "testset": {
+      "slug": "my-test-set",
+      "name": "my_test_set",
+      "data": {
+        "testcases": [
+          {"data": {"input": "Hello", "expected": "Hi there!"}},
+          {"data": {"input": "How are you?", "expected": "I am doing well!"}}
+        ]
+      }
+    }
   }'
 ```
 
 ## Creating via SDK
 
 ```python
-from agenta.client.api import AgentaApi
-from agenta.client.types.new_testset import NewTestset
+import asyncio
+import agenta as ag
 
-# Initialize the client
-client = AgentaApi(
-    base_url="https://cloud.agenta.ai/api",
-    api_key="your-api-key"
-)
+ag.init(host="https://cloud.agenta.ai", api_key="your-api-key")
 
-# Create test set data
-csvdata = [
-    {"country": "France", "capital": "Paris"},
-    {"country": "Germany", "capital": "Berlin"},
-    {"country": "Spain", "capital": "Madrid"}
-]
+async def main():
+    # Create test set data
+    csvdata = [
+        {"country": "France", "capital": "Paris"},
+        {"country": "Germany", "capital": "Berlin"},
+        {"country": "Spain", "capital": "Madrid"},
+    ]
 
-# Create the test set
-response = client.testsets.create_testset(
-    request=NewTestset(
+    # Create the testset (returns a TestsetRevision)
+    testset = await ag.testsets.acreate(
         name="countries_capitals",
-        csvdata=csvdata
+        data=csvdata,
     )
-)
 
-test_set_id = response.id
-print(f"Created test set with ID: {test_set_id}")
+    testset_revision_id = testset.id
+    print(f"Created testset revision with ID: {testset_revision_id}")
+
+asyncio.run(main())
 ```
 
 ## Next steps
