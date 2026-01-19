@@ -106,3 +106,151 @@ export {
  * the static message/modal/notification exports anywhere.
  */
 export {default as AppMessageContext, message, modal, notification} from "./utils/appMessageContext"
+
+// ============================================================================
+// LLM ICONS - SVG icons for LLM providers
+// ============================================================================
+
+export {
+    // Icon Map
+    LLMIconMap,
+    // Individual Icons
+    AlephAlpha,
+    Anthropic,
+    AnyScale,
+    Azure,
+    Bedrock,
+    Cerebus,
+    DeepInfra,
+    Fireworks,
+    Gemini,
+    Groq,
+    Lepton,
+    Mistral,
+    OpenAi,
+    OpenRouter,
+    Perplexity,
+    Replicate,
+    Sagemaker,
+    Together,
+    Vertex,
+    XAI,
+    // Types
+    type IconProps,
+} from "./LLMIcons"
+
+// ============================================================================
+// SELECT LLM PROVIDER - Provider selection component
+// ============================================================================
+
+export {
+    SelectLLMProviderBase,
+    // Types
+    type SelectLLMProviderBaseProps,
+    type ProviderOption,
+    type ProviderGroup,
+    // Utilities
+    capitalize,
+    PROVIDER_ICON_MAP,
+    getProviderIcon,
+    getProviderDisplayName,
+} from "./SelectLLMProvider"
+
+// ============================================================================
+// EDITOR - Rich text and code editor built on Lexical
+// ============================================================================
+
+export {
+    // Main components
+    Editor,
+    EditorProvider,
+    DiffView,
+    // Re-exports from Lexical
+    useLexicalComposerContext,
+    ON_HYDRATE_FROM_REMOTE_CONTENT,
+    // State
+    EditorStateProvider,
+    editorStateAtom,
+    markdownViewAtom,
+    // Code editor utilities
+    createHighlightedNodes,
+    TOGGLE_FORM_VIEW,
+    DRILL_IN_TO_PATH,
+    ON_CHANGE_LANGUAGE,
+    PropertyClickPlugin,
+    $getEditorCodeAsString,
+    tryParsePartialJson,
+    safeJson5Parse,
+    // Drill-in context for Editor integration
+    DrillInProvider,
+    // Markdown utilities
+    TOGGLE_MARKDOWN_VIEW,
+    ON_CHANGE_COMMAND,
+    $convertToMarkdownStringCustom,
+    PLAYGROUND_TRANSFORMERS,
+    // Hooks
+    useEditorConfig,
+    useEditorInvariant,
+    useEditorResize,
+    // Commands
+    INITIAL_CONTENT_COMMAND,
+    // Types
+    type EditorProps,
+    type EditorPluginsProps,
+    type EditorContextType,
+    type EditorProviderProps,
+    type InitialContentPayload,
+    type CustomRenderFn,
+} from "./Editor"
+
+// ============================================================================
+// SHARED EDITOR - Editor wrapper with debounce and styling
+// ============================================================================
+
+export {
+    SharedEditor,
+    useDebounceInput,
+    type SharedEditorProps,
+    type BaseContainerProps,
+} from "./SharedEditor"
+
+// ============================================================================
+// CHAT MESSAGE - Chat message editing components and utilities
+// ============================================================================
+
+export {
+    // Types
+    type TextContentPart,
+    type ImageContentPart,
+    type FileContentPart,
+    type MessageContentPart,
+    type MessageContent,
+    type ToolCall,
+    type SimpleChatMessage,
+    // Schemas
+    MESSAGE_CONTENT_SCHEMA,
+    CHAT_MESSAGE_SCHEMA,
+    CHAT_MESSAGES_ARRAY_SCHEMA,
+    // Utilities
+    extractTextFromContent,
+    extractDisplayTextFromMessage,
+    hasAttachments,
+    getAttachmentInfo,
+    updateTextInContent,
+    addImageToContent,
+    addFileToContent,
+    removeAttachmentFromContent,
+    getAttachments,
+    // Components
+    ChatMessageEditor,
+    ChatMessageList,
+    MarkdownToggleButton,
+    ToolMessageHeader,
+    MessageAttachments,
+    AttachmentButton,
+    SimpleDropdownSelect,
+    // Component Types
+    type ChatMessageEditorProps,
+    type ChatMessageListProps,
+    type SimpleDropdownSelectProps,
+} from "./ChatMessage"
