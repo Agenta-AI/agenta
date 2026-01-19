@@ -176,7 +176,7 @@ export function EntitySelectorModal({
             centered={centered}
             className={className}
             footer={footer}
-            destroyOnClose
+            destroyOnHidden
         >
             {tabItems.length > 1 ? (
                 <Tabs

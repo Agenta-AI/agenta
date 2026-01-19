@@ -385,7 +385,7 @@ export interface EntitySelectorModalProps<
     /** Modal width */
     width?: number
     /** Destroy content on close */
-    destroyOnClose?: boolean
+    destroyOnHidden?: boolean
 }
 
 /**

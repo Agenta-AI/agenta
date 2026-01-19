@@ -4,7 +4,7 @@
  * Adapter for selecting app revisions through the hierarchy:
  * App → Variant → Revision
  *
- * Uses the appRevision controller from @/oss/state/entities/appRevision
+ * Uses the appRevisionMolecule from @agenta/entities/appRevision
  */
 
 import {atom, type Atom} from "jotai"
@@ -52,12 +52,12 @@ let atomConfig: AppRevisionAtomConfig | null = null
  *
  * @example
  * ```typescript
- * import { appRevision } from '@/oss/state/entities/appRevision'
+ * import { appRevisionMolecule } from '@agenta/entities/appRevision'
  *
  * setAppRevisionAtoms({
- *   appsAtom: appRevision.selectors.apps,
- *   variantsByAppFamily: appRevision.selectors.variantsByApp,
- *   revisionsByVariantFamily: appRevision.selectors.revisions,
+ *   appsAtom: appRevisionMolecule.selectors.apps,
+ *   variantsByAppFamily: appRevisionMolecule.selectors.variantsByApp,
+ *   revisionsByVariantFamily: appRevisionMolecule.selectors.revisions,
  * })
  * ```
  */
@@ -130,8 +130,8 @@ export const appRevisionAdapter = createAdapter<AppRevisionSelectionResult>({
         {
             type: "app",
             listAtom: appsListAtom,
-            getId: (app: unknown) => (app as {app_id: string}).app_id,
-            getLabel: (app: unknown) => (app as {app_name: string}).app_name,
+            getId: (app: unknown) => (app as {id: string}).id,
+            getLabel: (app: unknown) => (app as {name: string}).name,
             hasChildren: () => true,
             isSelectable: () => false,
         },

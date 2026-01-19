@@ -172,3 +172,17 @@ export type {
     EvaluatorRevisionSelectionResult,
     TestsetSelectionResult,
 } from "./adapters"
+
+// Initialization
+export {
+    initializeSelectionSystem,
+    resetSelectionSystem,
+    isSelectionSystemInitialized,
+} from "./initializeSelection"
+
+export type {
+    SelectionSystemConfig,
+    TestsetSelectionConfig,
+    AppRevisionSelectionConfig,
+    EvaluatorRevisionSelectionConfig,
+} from "./initializeSelection"

@@ -95,6 +95,13 @@ export interface EntityListWithPopoverProps<TSelection = EntitySelectionResult> 
      * Callback when a parent entity is hovered (for preloading)
      */
     onParentHover?: (parentId: string) => void
+
+    /**
+     * Callback when a parent entity is clicked directly (not via child selection).
+     * Use this to auto-select the latest child (e.g., latest revision).
+     * If not provided, clicking parent does nothing (user must select from popover).
+     */
+    onParentClick?: (parentId: string, parentLabel: string) => void
 }
 
 // ============================================================================
@@ -321,6 +328,7 @@ export function EntityListWithPopover<TSelection = EntitySelectionResult>({
     popoverTrigger = "hover",
     autoSelectFirst = false,
     onParentHover,
+    onParentClick,
 }: EntityListWithPopoverProps<TSelection>) {
     const [searchTerm, setSearchTerm] = useState("")
     const hasAutoSelectedRef = useRef(false)
@@ -479,15 +487,27 @@ export function EntityListWithPopover<TSelection = EntitySelectionResult>({
                                     />
                                 }
                             >
-                                <div>
+                                <div
+                                    onClick={
+                                        onParentClick
+                                            ? () => onParentClick(parentId, label)
+                                            : undefined
+                                    }
+                                    className={onParentClick ? "cursor-pointer" : undefined}
+                                >
                                     <EntityListItem
                                         label={label}
                                         labelNode={labelNode}
                                         description={description}
                                         icon={icon}
                                         hasChildren
-                                        isSelectable={false}
+                                        isSelectable={!!onParentClick}
                                         isSelected={isSelected}
+                                        onClick={
+                                            onParentClick
+                                                ? () => onParentClick(parentId, label)
+                                                : undefined
+                                        }
                                     />
                                 </div>
                             </Popover>

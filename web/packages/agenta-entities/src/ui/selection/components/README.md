@@ -187,7 +187,7 @@ interface EntitySelectorModalProps<TSelection> {
   // Modal options
   title?: string
   width?: number
-  destroyOnClose?: boolean
+  destroyOnHidden?: boolean
 }
 ```
 
