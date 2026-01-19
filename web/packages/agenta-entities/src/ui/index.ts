@@ -1,28 +1,36 @@
 /**
- * UI Utilities for Entity Molecules
+ * Entity UI Utilities
  *
- * This module provides entity-agnostic UI utilities that work with
- * the molecule pattern:
+ * This module provides entity-specific UI utilities:
  *
  * 1. **Path utilities** - Navigate and manipulate nested data structures
- * 2. **DrillIn types** - Configure how entities are displayed in drill-in views
- * 3. **ClassNames API** - Ant Design v6 style customization for styling
- * 4. **Slots API** - Custom rendering for headers, content, actions
+ * 2. **DrillIn views** - Configurable drill-in for entity inspection
+ * 3. **Entity modals** - Delete, commit, and save modals for entities
+ * 4. **Entity selection** - Hierarchical entity selection (cascader, picker)
+ *
+ * For general UI components (Editor, ChatMessage, LLM icons), import from `@agenta/ui`.
  *
  * @example
  * ```typescript
+ * // Entity-specific UI utilities
  * import {
  *   // Path utilities
  *   getValueAtPath,
  *   setValueAtPath,
  *   parsePath,
- *
  *   // DrillIn
+ *   MoleculeDrillInView,
  *   type DrillInMoleculeConfig,
- *   type MoleculeDrillInViewProps,
- *   defaultClassNames,
- *   createClassNameBuilder,
+ *   // Entity modals
+ *   useEntityDelete,
+ *   EntityCommitModal,
+ *   // Entity selection
+ *   EntityCascader,
+ *   useEntitySelector,
  * } from '@agenta/entities/ui'
+ *
+ * // General UI components - import from @agenta/ui
+ * import { Editor, ChatMessageEditor, LLMIconMap } from '@agenta/ui'
  * ```
  */
 
@@ -59,6 +67,13 @@ export {
 // ============================================================================
 
 export {
+    // Components
+    MoleculeDrillInView,
+    MoleculeDrillInBreadcrumb,
+    MoleculeDrillInFieldList,
+    MoleculeDrillInFieldItem,
+    MoleculeDrillInProvider,
+    useDrillIn,
     // Types - Molecule Config
     type DrillInMoleculeConfig,
     type DrillInDisplayConfig,
@@ -79,6 +94,7 @@ export {
     // Types - Component
     type MoleculeDrillInViewProps,
     type MoleculeDrillInAdapter,
+    type MoleculeDrillInProviderProps,
     // ClassNames utilities
     drillInPrefixCls,
     defaultClassNames,
@@ -91,12 +107,122 @@ export {
     type DrillInContextValue,
     type DrillInProviderProps,
     defaultFieldBehaviors,
+    // UI Injection Context
+    DrillInUIProvider,
+    useDrillInUI,
+    defaultShowMessage,
+    type DrillInUIComponents,
+    type DrillInUIProviderProps,
     // Adapters
     createMoleculeDrillInAdapter,
     createReadOnlyDrillInAdapter,
     createEditableDrillInAdapter,
     type AdaptableMolecule,
     type CreateAdapterOptions,
+    // Field Renderers
+    BooleanField,
+    DrillInFieldRenderer,
+    JsonArrayField,
+    JsonEditorWithLocalState,
+    JsonObjectField,
+    MessagesField,
+    NumberField,
+    RawModeDisplay,
+    TextField,
+    // Field Renderer Types
+    type BaseFieldProps,
+    type DrillInFieldRendererProps,
+    type JsonArrayFieldProps,
+    type JsonObjectFieldProps,
+    type RawModeDisplayProps,
+    type TextFieldProps,
+    // Note: SimpleChatMessage is now exported from ChatMessage module
+    // Field Utilities
+    tryParseAsObject,
+    tryParseAsArray,
+    getNestedValue,
+    getArrayItemValue,
+    canExpandValue,
+    canExpandAsArray,
+    canExpand,
+    isChatMessageObject,
+    isMessagesArray,
+    parseMessages,
+    canShowTextMode,
+    getTextModeValue,
+    textModeToStorageValue,
+    formatForJsonDisplay,
+    parseFromJsonDisplay,
+    MAX_NESTED_DEPTH,
+    // Core Components (dependency-free framework)
+    DrillInBreadcrumb,
+    DrillInControls,
+    DrillInFieldHeader,
+    DrillInContent,
+    // Core Types
+    type DrillInBreadcrumbProps,
+    type DrillInControlsProps,
+    type DrillInFieldHeaderProps,
+    type DrillInContentWithRenderersProps,
+    type DrillInContentProps,
+    type PropertyType,
+    type DataType,
+    type ValueMode,
+    type PathItem as DrillInPathItem,
+    type SchemaInfo,
+    type EntityDrillInAPI,
+    type EntityControllerAPI,
+    type EntityDualViewEditorProps,
+    // Core Utilities
+    getDefaultValue,
+    propertyTypeToDataType,
+    getItemCount,
+    toTypedPath,
+    formatSegment,
+    generateFieldKey,
+    formatLabel,
+    canToggleRawMode,
+    detectDataType,
+    // Schema Controls
+    NumberSliderControl,
+    BooleanToggleControl,
+    TextInputControl,
+    EnumSelectControl,
+    GroupedChoiceControl,
+    MessagesSchemaControl,
+    isMessagesSchema,
+    ResponseFormatControl,
+    responseFormatModalOpenAtom,
+    PromptSchemaControl,
+    isPromptSchema,
+    isPromptValue,
+    ObjectSchemaControl,
+    CollapsibleObjectControl,
+    SchemaPropertyRenderer,
+    // Schema Utilities
+    resolveAnyOfSchema,
+    hasGroupedChoices,
+    isLLMConfigLike,
+    shouldRenderObjectInline,
+    getModelSchema,
+    getResponseFormatSchema,
+    getLLMConfigProperties,
+    getLLMConfigValue,
+    hasNestedLLMConfig,
+    normalizeMessages,
+    denormalizeMessages,
+    // Schema Control Types
+    type NumberSliderControlProps,
+    type BooleanToggleControlProps,
+    type TextInputControlProps,
+    type EnumSelectControlProps,
+    type GroupedChoiceControlProps,
+    type MessagesSchemaControlProps,
+    type ResponseFormatValue,
+    type ResponseFormatControlProps,
+    type PromptSchemaControlProps,
+    type ObjectSchemaControlProps,
+    type SchemaPropertyRendererProps,
 } from "./DrillInView"
 
 // ============================================================================
@@ -292,28 +418,12 @@ export {
     type EntityCascaderProps,
     type EntityListWithPopoverProps,
     type EntitySelectorModalProps,
+    // Initialization
+    initializeSelectionSystem,
+    resetSelectionSystem,
+    isSelectionSystemInitialized,
+    type SelectionSystemConfig,
+    type TestsetSelectionConfig,
+    type AppRevisionSelectionConfig,
+    type EvaluatorRevisionSelectionConfig,
 } from "./selection"
-
-// ============================================================================
-// PRESENTATIONAL COMPONENTS - imported from @agenta/ui
-// ============================================================================
-
-export {
-    // VersionBadge
-    VersionBadge,
-    formatVersion,
-    type VersionBadgeProps,
-    // RevisionLabel
-    RevisionLabel,
-    RevisionLabelInline,
-    type RevisionLabelProps,
-    // EntityPathLabel
-    EntityPathLabel,
-    buildEntityPath,
-    formatEntityWithVersion,
-    type EntityPathLabelProps,
-    // EntityNameWithVersion
-    EntityNameWithVersion,
-    EntityNameVersionText,
-    type EntityNameWithVersionProps,
-} from "@agenta/ui"
