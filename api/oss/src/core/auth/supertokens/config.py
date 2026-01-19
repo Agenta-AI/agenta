@@ -44,6 +44,7 @@ from oss.src.core.auth.supertokens.overrides import (
     override_passwordless_functions,
     override_passwordless_apis,
     override_session_functions,
+    override_session_apis,
 )
 
 log = get_module_logger(__name__)
@@ -63,9 +64,10 @@ def get_app_info() -> InputAppInfo:
     api_parsed = urlparse(env.agenta.api_url)
     api_domain = f"{api_parsed.scheme}://{api_parsed.netloc}"
     api_gateway_path = api_parsed.path or "/"
-    # Avoid double /api when app is already mounted under root_path="/api".
-    if api_gateway_path == "/api":
-        api_gateway_path = "/"
+    # NOTE: We keep api_gateway_path as-is (e.g., "/api") so that SuperTokens
+    # sets cookie paths correctly from the browser's perspective.
+    # The browser makes requests to /api/auth/*, so cookies must be set
+    # with paths that match /api/auth/* (not just /auth/*).
 
     app_info = InputAppInfo(
         app_name="Agenta",
@@ -358,6 +360,7 @@ def init_supertokens():
             expose_access_token_to_frontend_in_cookie_based_auth=True,
             override=SessionInputOverrideConfig(
                 functions=override_session_functions,
+                apis=override_session_apis,
             ),
         )
     )
