@@ -7,40 +7,36 @@ This package provides shared UI components, hooks, and utilities for building da
 ```
 src/
 ├── components/              # Reusable UI components
-│   ├── selection/           # Selection UI components
-│   │   ├── SearchInput.tsx       # Search input with clear button
-│   │   ├── ListItem.tsx          # Generic list item (click/navigate)
-│   │   ├── VirtualList.tsx       # Virtualized list with @tanstack/react-virtual
-│   │   ├── LoadMoreButton.tsx    # Pagination "Load more" button
-│   │   ├── LoadAllButton.tsx     # "Load all" button with progress
-│   │   ├── Breadcrumb.tsx        # Navigation breadcrumb
-│   │   └── index.ts
-│   ├── presentational/      # Pure display components
-│   │   ├── version/         # Version badge components
-│   │   ├── revision/        # Revision label components
-│   │   ├── entity/          # Entity name/path components
-│   │   └── index.ts
+│   ├── selection/           # Selection UI (search, lists, pagination)
+│   ├── presentational/      # Pure display components (badges, labels, etc.)
+│   ├── modal/               # Modal layout components
+│   ├── CopyButtonDropdown.tsx  # Copy button with dropdown options
 │   ├── EnhancedModal.tsx    # Modal wrapper with lazy rendering
-│   └── index.ts
-├── InfiniteVirtualTable/   # High-performance virtualized table
-│   ├── atoms/              # Jotai atoms for column state
-│   ├── columns/            # Column creation utilities
-│   ├── components/         # UI components
-│   │   ├── common/         # Shared components (ResizableTitle, SkeletonCell)
-│   │   ├── columnVisibility/  # Column visibility controls
-│   │   └── filters/        # Filter components
-│   ├── context/            # React contexts
-│   ├── features/           # Feature shell and pagination
-│   ├── helpers/            # Store creation utilities
-│   ├── hooks/              # React hooks
-│   ├── paginated/          # Paginated entity store factory
-│   ├── providers/          # Context providers
-│   └── utils/              # Internal utilities
-├── utils/                  # Generic utilities
-│   ├── copyToClipboard.ts  # Clipboard utility
-│   ├── styles.ts           # Styling utilities (cn, sizeClasses, etc.)
 │   └── README.md
-└── index.ts                # Main exports
+├── ChatMessage/             # Chat message editing components
+│   ├── components/          # Editor, list, attachments
+│   └── README.md
+├── Editor/                  # Rich text/code editor (Lexical-based)
+│   ├── plugins/             # Editor plugins (code, markdown, tokens)
+│   ├── form/                # Form view for structured data
+│   └── README.md
+├── SharedEditor/            # Editor wrapper with debounce
+├── InfiniteVirtualTable/    # High-performance virtualized table
+│   ├── columns/             # Column creation utilities
+│   ├── components/          # Table UI components
+│   ├── hooks/               # Table hooks
+│   ├── paginated/           # Paginated entity store
+│   └── README.md
+├── LLMIcons/                # LLM provider SVG icons
+│   └── README.md
+├── SelectLLMProvider/       # LLM provider selection component
+│   └── README.md
+├── utils/                   # Generic utilities
+│   ├── copyToClipboard.ts   # Clipboard utility
+│   ├── styles.ts            # Styling utilities (cn, colors, layouts)
+│   ├── appMessageContext.tsx # Ant Design message/modal/notification
+│   └── README.md
+└── index.ts                 # Main exports
 ```
 
 ## Design Principles
@@ -52,23 +48,19 @@ src/
 
 ## Main Modules
 
-### Components
+### Components (`components/`)
 
-Reusable UI components organized by domain:
+Reusable UI components organized by domain. See [components/README.md](./components/README.md) for details.
 
 #### Selection Components (`components/selection/`)
 
 Building blocks for list selection UIs:
-- **SearchInput**: Search input with clear button and keyboard support
+- **SearchInput**: Search input with clear button
 - **ListItem**: Generic list item with click/navigate variants
 - **VirtualList**: Virtualized list using @tanstack/react-virtual
 - **LoadMoreButton**: Pagination button with count display
 - **LoadAllButton**: Load all pages with progress indicator
 - **Breadcrumb**: Navigation breadcrumb with back button
-
-```tsx
-import { SearchInput, ListItem, VirtualList, LoadMoreButton, Breadcrumb } from '@agenta/ui'
-```
 
 #### Presentational Components (`components/presentational/`)
 
@@ -77,51 +69,70 @@ Pure display components for entity information:
 - **RevisionLabel**: Revision details (version, date, message, author)
 - **EntityPathLabel**: Hierarchical paths ("App / Variant / v1")
 - **EntityNameWithVersion**: Entity name with version badge
+- **CopyButton**: Copy to clipboard with visual feedback
+- **SectionCard/ConfigBlock**: Section layout primitives
+- **MetadataHeader**: Label/value metadata display
+- **EditableText**: Inline editable text
 
-```tsx
-import { VersionBadge, RevisionLabel, EntityPathLabel, EntityNameWithVersion } from '@agenta/ui'
-```
+#### Modal Components (`components/modal/`)
 
-#### Modal Components
+- **EnhancedModal**: Modal wrapper with lazy rendering, auto-height
+- **ModalContent**: Standardized modal content layout
+- **ModalFooter**: Standardized modal footer with cancel/confirm
 
-- **EnhancedModal**: Modal wrapper with lazy rendering, auto-height, and smart style merging
+#### Action Components
 
-```tsx
-import { EnhancedModal } from '@agenta/ui'
-```
+- **CopyButtonDropdown**: Copy button with dropdown options
+
+### ChatMessage
+
+Chat message editing components for OpenAI/Anthropic message format.
+See [ChatMessage/README.md](./ChatMessage/README.md) for details.
+
+### Editor
+
+Rich text and code editor built on Lexical with JSON/YAML highlighting, markdown, and form view.
+See [Editor/README.md](./Editor/README.md) for details.
+
+### SharedEditor
+
+Editor wrapper with debounce support and styling.
+See [SharedEditor/README.md](./SharedEditor/README.md) for details.
 
 ### InfiniteVirtualTable
 
-The core table component with:
-- Virtual scrolling for large datasets
-- Infinite loading with cursor pagination
-- Column management (resize, visibility, reorder)
-- Row selection and expansion
-- Paginated entity store factory
-
+High-performance virtualized table with infinite scroll, column management, and row selection.
 See [InfiniteVirtualTable/README.md](./InfiniteVirtualTable/README.md) for details.
 
-### Utilities
+### LLMIcons
+
+SVG icons for LLM providers (OpenAI, Anthropic, etc.).
+See [LLMIcons/README.md](./LLMIcons/README.md) for details.
+
+### SelectLLMProvider
+
+LLM provider selection component with cascading menu and icons.
+See [SelectLLMProvider/README.md](./SelectLLMProvider/README.md) for details.
+
+### Utilities (`utils/`)
 
 Generic utilities:
 - **copyToClipboard**: Clipboard operations
 - **cn**: Class name concatenation utility
-- **sizeClasses, flexLayouts, textColors**: Styling constants
-
-```tsx
-import { copyToClipboard, cn, sizeClasses, flexLayouts, textColors } from '@agenta/ui'
-```
+- **sizeClasses, flexLayouts, textColors, bgColors**: Styling constants
+- **AppMessageContext**: Ant Design message/modal/notification static exports
 
 See [utils/README.md](./utils/README.md) for details.
 
 ## Importing
 
 ```typescript
-// Import everything from main entry
+// Import from main entry
 import {
   // Table
   InfiniteVirtualTable,
   useTableManager,
+  createPaginatedEntityStore,
 
   // Selection components
   SearchInput,
@@ -135,9 +146,28 @@ import {
   RevisionLabel,
   EntityPathLabel,
   EntityNameWithVersion,
+  CopyButton,
+  SectionCard,
+  MetadataHeader,
+  EditableText,
 
   // Modal
   EnhancedModal,
+  ModalContent,
+  ModalFooter,
+
+  // Editor
+  Editor,
+  SharedEditor,
+  DiffView,
+
+  // Chat
+  ChatMessageEditor,
+  ChatMessageList,
+
+  // LLM
+  LLMIconMap,
+  SelectLLMProviderBase,
 
   // Utilities
   copyToClipboard,
@@ -145,6 +175,9 @@ import {
   sizeClasses,
   flexLayouts,
   textColors,
+  message,
+  modal,
+  notification,
 } from '@agenta/ui'
 ```
 
@@ -154,10 +187,14 @@ import {
 Add to `InfiniteVirtualTable/` in the appropriate subfolder:
 - New hooks → `hooks/`
 - New components → `components/`
-- New atoms → `atoms/`
+- New store factories → `helpers/` or `paginated/`
+
+### Presentational components
+
+Add to `components/presentational/` with its own subfolder if needed.
 
 ### Generic utilities
 Add to `utils/` and export from `index.ts`.
 
-### New major components
+### New major modules
 Create a new folder at the `src/` level with its own README and export from `index.ts`.
