@@ -1,0 +1,36 @@
+---
+title: "What are the API rate limits?"
+description: "Rate limits by endpoint type and plan"
+slug: /faq/platform/api-rate-limits
+---
+
+Agenta applies rate limits per organization to ensure fair usage and system stability. Limits vary by plan and endpoint type.
+
+Each limit has two values. Burst is the maximum number of requests that can be served at once. Rate is the sustained number of requests per minute.
+
+| Endpoint Type | Example | Free | Pro | Business | Enterprise |
+|---------------|---------|------|-----|----------|------------|
+| Trace ingestion | `POST /otlp/v1/traces` | 1,200 / 1,200 per min | 3,600 / 3,600 per min | 36,000 / 36,000 per min | Custom |
+| Data retrieval | `POST */retrieve` | 1,200 / 1,200 per min | 3,600 / 3,600 per min | 36,000 / 36,000 per min | Custom |
+| Queries and analytics | `POST /tracing/*/query` | 120 / 1 per min | 180 / 1 per min | 1,800 / 1 per min | Custom |
+| Other endpoints | General API calls | 120 / 120 per min | 360 / 360 per min | 3,600 / 3,600 per min | Custom |
+
+## Rate limit response
+
+When you exceed the rate limit, the API returns `429 Too Many Requests`.
+
+```json
+{
+  "detail": "Rate limit exceeded. Please retry after 5 seconds."
+}
+```
+
+The response includes headers that help you back off:
+
+| Header | Description |
+|--------|-------------|
+| `X-RateLimit-Limit` | Maximum requests allowed (burst capacity) |
+| `X-RateLimit-Remaining` | Remaining requests in the current window |
+| `Retry-After` | Seconds to wait before retrying. Only returned on 429 responses. |
+
+Successful responses also include `X-RateLimit-Remaining`.
