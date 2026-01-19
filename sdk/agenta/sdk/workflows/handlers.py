@@ -26,7 +26,6 @@ from agenta.sdk.litellm import mockllm
 from agenta.sdk.types import PromptTemplate, Message
 from agenta.sdk.managers.secrets import SecretsManager
 from agenta.sdk.decorators.tracing import instrument
-from agenta.sdk.litellm.litellm import litellm_handler
 from agenta.sdk.models.shared import Data
 from agenta.sdk.workflows.sandbox import execute_code_safely
 from agenta.sdk.workflows.templates import EVALUATOR_TEMPLATES
@@ -114,29 +113,6 @@ def _validate_webhook_url(url: str) -> None:
 
     if not addresses or any(_is_blocked_ip(ip) for ip in addresses):
         raise ValueError("Webhook URL resolves to a blocked IP range.")
-
-
-_litellm_configured = False
-
-
-def _configure_litellm():
-    """Lazy configuration of litellm - only imported when needed."""
-    global _litellm_configured
-
-    litellm = _load_litellm()
-    if not litellm:
-        raise ImportError("litellm is required for completion handling.")
-
-    if not _litellm_configured:
-        litellm.logging = False
-        litellm.set_verbose = False
-        litellm.drop_params = True
-        # litellm.turn_off_message_logging = True
-        mockllm.litellm = litellm
-        litellm.callbacks = [litellm_handler()]
-        _litellm_configured = True
-
-    return litellm
 
 
 async def _compute_embedding(openai: Any, model: str, input: str) -> List[float]:
@@ -1099,8 +1075,10 @@ async def auto_ai_critique_v0(
 
     _outputs = None
 
-    # Lazy import and configure litellm
-    litellm = _configure_litellm()
+    # Lazy import litellm (configuration is done automatically in _load_litellm)
+    litellm = _load_litellm()
+    if not litellm:
+        raise ImportError("litellm is required for completion handling.")
 
     # --------------------------------------------------------------------------
     litellm.openai_key = openai_api_key
@@ -1930,6 +1908,37 @@ class SinglePromptConfig(BaseModel):
     )
 
 
+def _apply_responses_bridge_if_needed(
+    formatted_prompt: PromptTemplate, provider_settings: Dict
+) -> Dict:
+    """
+    Checks if web_search_preview tool is present and applies responses bridge if needed.
+
+    If a web_search_preview, code_execution, or mcp tool is detected, this function
+    modifies the provider_settings to use the responses bridge by prepending
+    'openai/responses/' to the model name.
+
+    Args:
+        formatted_prompt: The formatted prompt template containing LLM config and tools
+        provider_settings: The provider settings dictionary that may be modified
+
+    Returns:
+        The provider_settings dictionary, potentially modified to use responses bridge
+    """
+    tools = formatted_prompt.llm_config.tools
+    if tools:
+        for tool in tools:
+            if isinstance(tool, dict) and tool.get("type") in [
+                "web_search_preview",
+                "code_execution",
+                "mcp",
+            ]:
+                model_val = provider_settings.get("model")
+                if model_val and "/" not in model_val:
+                    provider_settings["model"] = f"openai/responses/{model_val}"
+    return provider_settings
+
+
 @instrument()
 async def completion_v0(
     parameters: Data,
@@ -1963,11 +1972,17 @@ async def completion_v0(
     if not provider_settings:
         raise InvalidSecretsV0Error(expected="dict", got=provider_settings)
 
+    formatted_prompt = config.prompt.format(**inputs)
+
+    provider_settings = _apply_responses_bridge_if_needed(
+        formatted_prompt, provider_settings
+    )
+
     with mockllm.user_aws_credentials_from(provider_settings):
         response = await mockllm.acompletion(
             **{
                 k: v
-                for k, v in config.prompt.format(**inputs).to_openai_kwargs().items()
+                for k, v in formatted_prompt.to_openai_kwargs().items()
                 if k != "model"
             },
             **provider_settings,
@@ -2021,6 +2036,10 @@ async def chat_v0(
 
     if not provider_settings:
         raise InvalidSecretsV0Error(expected="dict", got=provider_settings)
+
+    provider_settings = _apply_responses_bridge_if_needed(
+        formatted_prompt, provider_settings
+    )
 
     with mockllm.user_aws_credentials_from(provider_settings):
         response = await mockllm.acompletion(
