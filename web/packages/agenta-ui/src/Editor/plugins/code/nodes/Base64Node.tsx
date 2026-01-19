@@ -17,6 +17,8 @@ import {
     Spread,
 } from "lexical"
 
+import {copyToClipboard} from "../../../../utils/copyToClipboard"
+
 const {Text} = Typography
 
 /** Regex to detect base64 data URLs */
@@ -156,12 +158,12 @@ function Base64Component({
     }, [parsed, mimeType])
 
     const handleCopy = useCallback(async () => {
-        try {
-            await navigator.clipboard.writeText(parsed.fullValue)
+        const success = await copyToClipboard(parsed.fullValue)
+        if (success) {
             setCopied(true)
             message.success("Copied to clipboard")
             setTimeout(() => setCopied(false), 2000)
-        } catch {
+        } else {
             message.error("Failed to copy")
         }
     }, [parsed.fullValue])
