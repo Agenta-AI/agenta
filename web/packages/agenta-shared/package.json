@@ -13,18 +13,25 @@
         ".": "./src/index.ts",
         "./api": "./src/api/index.ts",
         "./state": "./src/state/index.ts",
-        "./utils": "./src/utils/index.ts"
+        "./utils": "./src/utils/index.ts",
+        "./hooks": "./src/hooks/index.ts",
+        "./schemas": "./src/schemas/index.ts",
+        "./types": "./src/types/index.ts"
     },
     "dependencies": {
-        "dayjs": "^1.11.10"
+        "dayjs": "^1.11.10",
+        "json5": "^2.2.3",
+        "jsonrepair": "^3.0.0"
     },
     "devDependencies": {
-        "@types/node": "^20.8.10"
+        "@types/node": "^20.8.10",
+        "@types/react": "^19.0.10"
     },
     "peerDependencies": {
         "axios": ">=1.0.0",
         "jotai": ">=2.0.0",
         "jotai-tanstack-query": ">=0.9.0",
-        "@tanstack/react-query": ">=5.0.0"
+        "@tanstack/react-query": ">=5.0.0",
+        "react": ">=18.0.0"
     }
 }
