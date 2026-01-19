@@ -206,7 +206,7 @@ export {
 } from "./stubMolecule"
 
 // ============================================================================
-// PLAYGROUND BRIDGE (unified loadable/runnable controllers)
+// ENTITY BRIDGE (unified loadable/runnable controllers)
 // ============================================================================
 
 export {
@@ -215,7 +215,7 @@ export {
     createRunnableBridge,
     // Internal state (advanced)
     loadableStateFamily,
-} from "./createPlaygroundBridge"
+} from "./createEntityBridge"
 
 export type {
     // Core types
@@ -240,4 +240,4 @@ export type {
     // Aliases
     SourceConfig,
     RunnableConfig,
-} from "./playgroundBridge"
+} from "./entityBridge"
