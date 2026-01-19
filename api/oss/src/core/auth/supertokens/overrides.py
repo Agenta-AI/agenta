@@ -1064,7 +1064,9 @@ def override_session_functions(
                 if not session_identities or not user_identities:
                     user_id = session_container.get_user_id()
                     if user_id:
-                        fetched_identities = await _get_identities_for_user_by_id(user_id)
+                        fetched_identities = await _get_identities_for_user_by_id(
+                            user_id
+                        )
                         if fetched_identities:
                             await session_container.merge_into_access_token_payload(
                                 {
@@ -1124,7 +1126,9 @@ def override_session_apis(
                 if not session_identities or not user_identities:
                     user_id = session_container.get_user_id()
                     if user_id:
-                        fetched_identities = await _get_identities_for_user_by_id(user_id)
+                        fetched_identities = await _get_identities_for_user_by_id(
+                            user_id
+                        )
                         if fetched_identities:
                             await session_container.merge_into_access_token_payload(
                                 {
