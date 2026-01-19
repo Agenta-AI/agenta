@@ -12,6 +12,7 @@ When using opentelemetry-instrumentation-langchain with async code, the current 
 may be a raw OTel span instead of Agenta's CustomSpan, which doesn't support the
 `namespace` parameter in `set_attributes()`.
 """
+
 import asyncio
 
 import agenta as ag
@@ -42,13 +43,13 @@ graph = state_graph.compile()
 
 
 @ag.instrument()
-async def invoke_graph(inputs: str):
+async def ainvoke_graph(inputs: str):
     return await graph.ainvoke({"messages": [HumanMessage(inputs)]})
 
 
 async def main():
     print("Running ASYNC version with opentelemetry-instrumentation-langchain...")
-    recent_state = await invoke_graph("Hello")
+    recent_state = await ainvoke_graph("Hello")
     recent_state["messages"][-1].pretty_print()
     print("\nASYNC version completed.")
 

@@ -7,6 +7,7 @@ Test script for LangGraph with opentelemetry-instrumentation-langchain (sync ver
 This script tests the sync version of LangGraph with the OpenTelemetry LangChain instrumentor.
 Related issue: https://github.com/Agenta-AI/agenta/issues/3489
 """
+
 import agenta as ag
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
