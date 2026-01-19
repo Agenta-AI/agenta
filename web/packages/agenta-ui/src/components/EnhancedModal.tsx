@@ -136,7 +136,7 @@ export function EnhancedModal({
             open={open}
             afterClose={handleAfterClose}
             centered
-            destroyOnClose
+            destroyOnHidden
             {...props}
             style={{borderRadius: 16, ...props.style}}
             styles={{
