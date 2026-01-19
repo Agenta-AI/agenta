@@ -153,7 +153,11 @@ export const useSidebarConfig = () => {
         {
             key: "get-started-guide-link",
             title: "Get Started Guide",
-            icon: <RocketLaunch size={16} />,
+            icon: (
+                <span id="sidebar-get-started-guide">
+                    <RocketLaunch size={16} />
+                </span>
+            ),
             isBottom: true,
             tooltip: "Open the onboarding guide",
             isHidden: !doesSessionExist || !isNewUser,
