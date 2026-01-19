@@ -377,27 +377,23 @@ export const createItemAtom = atom(
 
 ---
 
-### Entity Controller Pattern
+### Loadable Bridge Pattern
 
-For entities requiring CRUD operations with draft state, loading indicators, and cache management, use the **Entity Controller Pattern**. This provides a unified API that abstracts multiple atoms into a single cohesive interface.
+For managing data sources that provide inputs to runnables (testsets, traces), use the **Loadable Bridge** from `@agenta/entities/loadable`.
 
-**Full documentation:** `web/oss/src/state/entities/shared/README.md`
+**Full documentation:** `web/packages/agenta-entities/src/loadable/README.md`
 
-**Quick Decision - Which API to Use:**
+**What is a Loadable?**
 
-| Need | API | Returns |
-|------|-----|---------|
-| Full state + actions | `entity.controller(id)` | `[state, dispatch]` |
-| Data only | `entity.selectors.data(id)` | `T \| null` |
-| Loading/error | `entity.selectors.query(id)` | `QueryState<T>` |
-| Dirty indicator | `entity.selectors.isDirty(id)` | `boolean` |
-| Single cell (tables) | `entity.selectors.cell({id, col})` | `unknown` |
-| Dispatch in atoms | `entity.actions.update/discard` | Write atom |
+A loadable represents a data source that provides input rows for execution. Loadables can operate in:
+- **Local mode**: Manual data entry
+- **Connected mode**: Synced with an entity (testset revision, trace)
 
 **Basic Usage:**
 
 ```typescript
-import {testcase} from "@/oss/state/entities/testcase"
+import { loadableBridge } from '@agenta/entities/loadable'
+import { useAtomValue, useSetAtom } from 'jotai'
 
 // Read rows
 const rows = useAtomValue(loadableBridge.selectors.rows(loadableId))
@@ -595,84 +591,86 @@ function TestcaseEditor({ id }: { id: string }) {
   return (
     <Input
       value={state.data.input}
-      onChange={(e) => dispatch({
-        type: "update",
-        changes: {input: e.target.value}
-      })}
+      onChange={(e) => dispatch.update({ input: e.target.value })}
     />
   )
 }
 
-// Fine-grained selector - only re-renders on data change
-function TestcaseDisplay({testcaseId}: {testcaseId: string}) {
-  const data = useAtomValue(testcase.selectors.data(testcaseId))
-  if (!data) return null
-  return <div>{data.input}</div>
+// Fine-grained subscriptions - only re-renders when isDirty changes
+function DirtyIndicator({ id }: { id: string }) {
+  const isDirty = useAtomValue(testcaseMolecule.atoms.isDirty(id))
+  return isDirty ? <Badge>Modified</Badge> : null
 }
 ```
 
-**Reading Multiple Entities:**
+**Imperative API (for callbacks):**
 
 ```typescript
-// Create a derived atom that subscribes to all selected entities
-const useMultipleTestcases = (ids: string[]) => {
-  const dataAtom = useMemo(
-    () => atom((get) => ids.map(id => get(testcase.selectors.data(id))).filter(Boolean)),
-    [ids.join(",")]
-  )
-  return useAtomValue(dataAtom)
+async function handleSave(id: string) {
+  const data = testcaseMolecule.get.data(id)
+  if (!data || !testcaseMolecule.get.isDirty(id)) return
+
+  await api.save(data)
+  testcaseMolecule.set.discard(id)
 }
+```
+
+**Available Atoms:**
+
+| Atom | Type | Description |
+|------|------|-------------|
+| `data` | `T \| null` | Entity with draft merged |
+| `serverData` | `T \| null` | Raw server data |
+| `draft` | `TDraft \| null` | Local changes only |
+| `query` | `QueryState<T>` | Query state (isPending, isError) |
+| `isDirty` | `boolean` | Has unsaved local changes |
+| `isNew` | `boolean` | Entity not yet on server |
+
+**Available Molecules:**
+
+| Entity | Import | Description |
+|--------|--------|-------------|
+| Testcase | `testcaseMolecule` from `@agenta/entities/testcase` | Testcase with cell subscriptions |
+| Trace Span | `traceSpanMolecule` from `@agenta/entities/trace` | Trace span with attribute drill-in |
+| Testset | `testsetMolecule` from `@agenta/entities/testset` | Testset with list/detail queries |
+| Revision | `revisionMolecule` from `@agenta/entities/testset` | Revision with column management |
+
+**Data Flow Architecture:**
+
+```
+Server → TanStack Query → atoms.serverData
+                              ↓
+                         atoms.draft (local changes)
+                              ↓
+                         atoms.data (merged)
+                              ↓
+                         useController → Component
 ```
 
 **Anti-Patterns to Avoid:**
 
 ```typescript
-// BAD - No reactivity, snapshot read
-const globalStore = getDefaultStore()
-const data = globalStore.get(testcase.selectors.data(id))
+// BAD - atoms require React context
+async function handleSave(id: string) {
+  const data = useAtomValue(molecule.atoms.data(id)) // Won't work!
+}
 
-// GOOD - Proper subscription
-const data = useAtomValue(testcase.selectors.data(id))
+// GOOD - use imperative API
+async function handleSave(id: string) {
+  const data = molecule.get.data(id)
+}
 ```
 
 ```typescript
-// BAD - Variable shadowing
-import {testcase} from "@/oss/state/entities/testcase"
-const {testcase, ...rest} = entity  // Shadows import!
+// BAD - new atom every render
+const derived = atom((get) => get(molecule.atoms.data(id)))
 
-// GOOD - Rename destructured variable
-const {testcase: testcaseField, ...rest} = entity
+// GOOD - memoize the atom
+const derived = useMemo(
+  () => atom((get) => get(molecule.atoms.data(id))),
+  [id]
+)
 ```
-
-**Available Controllers:**
-
-| Entity | Import | Description |
-|--------|--------|-------------|
-| Testcase | `testcase` from `@/oss/state/entities/testcase` | Testcase with cell subscriptions + drill-in |
-| Trace Span | `traceSpan` from `@/oss/state/entities/trace` | Trace span with attribute drill-in |
-| Revision | `revision` from `@/oss/state/entities/testset` | Revision with column management |
-| Testset | `testset` from `@/oss/state/entities/testset` | Testset with list/detail queries |
-
-**Architecture:**
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                       Controller                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
-│  │   Query     │  │   Draft     │  │   isDirty   │              │
-│  │ (server)    │→ │  (local)    │→ │  (derived)  │              │
-│  └─────────────┘  └─────────────┘  └─────────────┘              │
-│         ↓               ↓                                        │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                 Entity Atom (merged)                        ││
-│  └─────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────┘
-```
-
-- **Query atoms** are the single source of truth for server data
-- **Draft atoms** store local changes only
-- **Entity atoms** merge: `query.data + draft → merged entity`
-- **Dirty detection** compares draft to server data
 
 ---
 
