@@ -31,7 +31,7 @@ The runnable system uses a **bridge pattern** that separates:
 
 1. **Types** (`types.ts`): Shared type definitions
 2. **Bridge** (`bridge.ts`): Connects molecule APIs to unified selectors
-3. **Factory** (`shared/createPlaygroundBridge.ts`): Creates bridges with configurable runnable types
+3. **Factory** (`shared/createEntityBridge.ts`): Creates bridges with configurable runnable types
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
@@ -203,18 +203,38 @@ The following exports are maintained for backwards compatibility:
 
 ```typescript
 // Deprecated - use runnableBridge instead
-import { useRunnable, useRunnableSelectors, PlaygroundEntityProvider } from '@agenta/entities/runnable'
+import { useRunnable, useRunnableSelectors } from '@agenta/entities/runnable'
 
 // Hook usage (still supported)
 const runnable = useRunnable('appRevision', revisionId)
 runnable.data
 runnable.inputPorts
 runnable.execute(inputs)
+```
 
-// Context provider (still supported)
-<PlaygroundEntityProvider value={customProviders}>
+## Entity Provider (Dependency Injection)
+
+For runtime dependency injection of entity implementations, use the context from `@agenta/playground`:
+
+```typescript
+import { PlaygroundEntityProvider, usePlaygroundEntities } from '@agenta/playground'
+
+// Wrap your app with the provider
+<PlaygroundEntityProvider providers={{
+    appRevision: { selectors: appRevisionMolecule.selectors },
+    evaluatorRevision: { selectors: evalMolecule.selectors, actions: evalMolecule.actions },
+}}>
     <App />
 </PlaygroundEntityProvider>
+
+// Access injected providers in components
+const { appRevision, evaluatorRevision } = usePlaygroundEntities()
+```
+
+The type definitions for providers are exported from this module:
+
+```typescript
+import type { PlaygroundEntityProviders, EntityRevisionSelectors } from '@agenta/entities/runnable'
 ```
 
 ## File Structure
@@ -224,9 +244,8 @@ runnable/
 ├── README.md                         # This file
 ├── index.ts                          # Public exports
 ├── types.ts                          # Shared type definitions
+├── providerTypes.ts                  # Provider interface types (for DI context)
 ├── bridge.ts                         # Configured runnable bridge
 ├── useRunnable.ts                    # React hook for runnables (legacy)
-├── utils.ts                          # Execution utilities
-└── context/
-    └── PlaygroundEntityContext.tsx   # DI provider (legacy)
+└── utils.ts                          # Execution utilities
 ```

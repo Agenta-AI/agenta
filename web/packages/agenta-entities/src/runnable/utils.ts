@@ -20,21 +20,26 @@ import type {
 /**
  * Compute topological order for DAG execution
  *
- * @param nodes - Array of playground nodes
+ * @param nodes - Array of nodes with nodeId property
  * @param connections - Output connections between nodes
+ * @param startNodeId - Optional starting node ID (ensures it's first)
  * @returns Array of node IDs in execution order
  */
 export function computeTopologicalOrder(
-    nodes: PlaygroundNode[],
+    nodes: Array<{nodeId: string}> | PlaygroundNode[],
     connections: OutputConnection[],
+    startNodeId?: string,
 ): string[] {
+    // Normalize nodes to get IDs
+    const nodeIds = nodes.map((n) => ("nodeId" in n ? n.nodeId : n.id))
+
     const inDegree = new Map<string, number>()
     const adjacency = new Map<string, string[]>()
 
     // Initialize
-    for (const node of nodes) {
-        inDegree.set(node.id, 0)
-        adjacency.set(node.id, [])
+    for (const nodeId of nodeIds) {
+        inDegree.set(nodeId, 0)
+        adjacency.set(nodeId, [])
     }
 
     // Build graph from connections
@@ -51,8 +56,13 @@ export function computeTopologicalOrder(
     const queue: string[] = []
     const result: string[] = []
 
+    // If startNodeId provided, ensure it's processed first
+    if (startNodeId && inDegree.get(startNodeId) === 0) {
+        queue.push(startNodeId)
+    }
+
     for (const [nodeId, degree] of inDegree.entries()) {
-        if (degree === 0) {
+        if (degree === 0 && nodeId !== startNodeId) {
             queue.push(nodeId)
         }
     }
@@ -79,14 +89,82 @@ export function computeTopologicalOrder(
 // ============================================================================
 
 /**
- * Resolve chain inputs from mappings and upstream outputs
+ * Resolve chain inputs from connections and upstream node results
+ *
+ * @param connections - All output connections in the chain
+ * @param targetNodeId - The node to resolve inputs for
+ * @param nodeResults - Results from previously executed nodes
+ * @param testcaseData - Optional testcase data for testcase.* mappings
+ * @returns Resolved input data
+ */
+export function resolveChainInputs(
+    connections: OutputConnection[],
+    targetNodeId: string,
+    nodeResults: Record<string, ExecutionResult>,
+    testcaseData?: Record<string, unknown>,
+): Record<string, unknown> {
+    const result: Record<string, unknown> = {}
+
+    // Find the connection targeting this node
+    const incomingConnection = connections.find((c) => c.targetNodeId === targetNodeId)
+
+    if (!incomingConnection) {
+        return result
+    }
+
+    const mappings = incomingConnection.inputMappings
+    const sourceNodeId = incomingConnection.sourceNodeId
+    const sourceResult = nodeResults[sourceNodeId]
+    const upstreamOutput = sourceResult?.output ?? sourceResult?.structuredOutput ?? {}
+
+    for (const mapping of mappings) {
+        // Check for valid mapping with source path
+        if (mapping.status === "valid" && mapping.sourcePath) {
+            // Get value from source
+            const sourceType = mapping.sourcePath.split(".")[0]
+            const sourcePath = mapping.sourcePath.split(".").slice(1)
+
+            let value: unknown
+
+            if (sourceType === "testcase" && testcaseData) {
+                value = getValueAtPath(testcaseData, sourcePath)
+            } else if (sourceType === "output" || sourceType === "outputs") {
+                value = getValueAtPath(upstreamOutput, sourcePath)
+            } else {
+                // Try to get from upstream output directly
+                value = getValueAtPath(upstreamOutput, mapping.sourcePath.split("."))
+            }
+
+            // Handle object-type inputs with keyInObject
+            if (mapping.keyInObject) {
+                const targetObj = (result[mapping.targetKey] as Record<string, unknown>) ?? {}
+                // keyInObject can be string or string[] - use first element if array
+                const keyName = Array.isArray(mapping.keyInObject)
+                    ? mapping.keyInObject[0]
+                    : mapping.keyInObject
+                if (keyName) {
+                    targetObj[keyName] = value
+                }
+                result[mapping.targetKey] = targetObj
+            } else {
+                result[mapping.targetKey] = value
+            }
+        }
+        // Unmapped inputs are left undefined
+    }
+
+    return result
+}
+
+/**
+ * Resolve inputs from mappings directly (simpler overload for modal usage)
  *
  * @param mappings - Input mappings for the node
  * @param upstreamOutputs - Outputs from upstream nodes
  * @param testcaseData - Optional testcase data
  * @returns Resolved input data
  */
-export function resolveChainInputs(
+export function resolveInputsFromMappings(
     mappings: InputMapping[],
     upstreamOutputs: Record<string, unknown>,
     testcaseData?: Record<string, unknown>,
@@ -135,27 +213,55 @@ function getValueAtPath(obj: unknown, path: string[]): unknown {
 // ============================================================================
 
 /**
+ * Path source info for auto-mapping
+ */
+export interface PathSource {
+    /** Full path string (e.g., "output.result" or "testcase.input") */
+    path: string
+    /** Key for matching (optional - will extract from path if not provided) */
+    key?: string
+    /** Display label (optional - used for matching if provided) */
+    label?: string
+    /** Full path string for display (e.g., "testcase.input") */
+    pathString?: string
+}
+
+/**
  * Auto-map inputs based on name matching
  *
  * @param targetKeys - Keys to map
- * @param availableSources - Available source paths
+ * @param availableSources - Available source paths (PathInfo[] or simpler {path, key}[])
  * @returns Input mappings
  */
 export function autoMapInputs(
     targetKeys: string[],
-    availableSources: Array<{path: string; key: string}>,
+    availableSources: PathSource[],
 ): InputMapping[] {
     const mappings: InputMapping[] = []
 
     for (const targetKey of targetKeys) {
-        const match = availableSources.find(
-            (source) => source.key.toLowerCase() === targetKey.toLowerCase(),
-        )
+        // Try to find a match by key, label, or last segment of path
+        const match = availableSources.find((source) => {
+            // Match by key if available
+            if (source.key && source.key.toLowerCase() === targetKey.toLowerCase()) {
+                return true
+            }
+            // Match by label if available
+            if (source.label && source.label.toLowerCase() === targetKey.toLowerCase()) {
+                return true
+            }
+            // Match by last segment of path (e.g., "testcase.input" -> "input")
+            const pathKey = source.path.split(".").pop()
+            if (pathKey && pathKey.toLowerCase() === targetKey.toLowerCase()) {
+                return true
+            }
+            return false
+        })
 
         if (match) {
             mappings.push({
                 targetKey,
-                sourcePath: match.path,
+                sourcePath: match.pathString || match.path,
                 status: "valid",
                 isAutoMapped: true,
             })

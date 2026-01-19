@@ -144,17 +144,18 @@ export {
 // UTILITIES
 // ============================================================================
 
-export {computeTopologicalOrder, resolveChainInputs, autoMapInputs, executeRunnable} from "./utils"
-
-// ============================================================================
-// CONTEXT (Entity injection for OSS/EE compatibility)
-// ============================================================================
-
 export {
-    PlaygroundEntityProvider,
-    usePlaygroundEntities,
-    usePlaygroundEntitiesOptional,
-} from "./context/PlaygroundEntityContext"
+    computeTopologicalOrder,
+    resolveChainInputs,
+    resolveInputsFromMappings,
+    autoMapInputs,
+    executeRunnable,
+} from "./utils"
+export type {PathSource, ExecuteRunnableOptions} from "./utils"
+
+// ============================================================================
+// PROVIDER TYPES (for playground entity injection)
+// ============================================================================
 
 export type {
     PlaygroundEntityProviders,
@@ -165,4 +166,4 @@ export type {
     SettingsPreset,
     AppRevisionRawData,
     EvaluatorRevisionRawData,
-} from "./context/PlaygroundEntityContext"
+} from "./providerTypes"

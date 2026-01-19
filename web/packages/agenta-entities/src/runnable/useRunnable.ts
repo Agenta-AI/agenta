@@ -37,7 +37,7 @@ import {atom, useAtomValue} from "jotai"
 import {appRevisionMolecule} from "../appRevision"
 import {evaluatorRevisionMolecule} from "../evaluatorRevision"
 
-import type {PlaygroundEntityProviders, SettingsPreset} from "./context/PlaygroundEntityContext"
+import type {PlaygroundEntityProviders, SettingsPreset} from "./providerTypes"
 import type {
     RunnableType,
     RunnableData,
