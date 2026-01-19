@@ -47,10 +47,20 @@ class Permission(str, Enum):
     RUN_SERVICE = "run_service"
 
     # Vault Secret
-    CREATE_SECRET = "create_secret"
     VIEW_SECRET = "view_secret"
-    UPDATE_SECRET = "update_secret"
-    DELETE_SECRET = "delete_secret"
+    EDIT_SECRET = "edit_secret"
+
+    # Tracing/Spans
+    VIEW_SPANS = "view_spans"
+    EDIT_SPANS = "edit_spans"
+
+    # Folders
+    VIEW_FOLDERS = "view_folders"
+    EDIT_FOLDERS = "edit_folders"
+
+    # API Keys
+    VIEW_API_KEYS = "view_api_keys"
+    EDIT_API_KEYS = "edit_api_keys"
 
     # App environment deployment
     VIEW_APP_ENVIRONMENT_DEPLOYMENT = "view_app_environment_deployment"
@@ -150,6 +160,9 @@ class Permission(str, Enum):
             cls.VIEW_EVALUATORS,
             cls.VIEW_TESTSETS,
             cls.VIEW_ANNOTATIONS,
+            cls.VIEW_SPANS,
+            cls.VIEW_FOLDERS,
+            cls.VIEW_API_KEYS,
         ]
         defaults = {
             WorkspaceRole.OWNER: [p for p in cls],
@@ -159,7 +172,6 @@ class Permission(str, Enum):
                 for p in cls
                 if p
                 not in [
-                    cls.DELETE_SECRET,
                     cls.RESET_PASSWORD,
                     cls.DELETE_TESTSET,
                     cls.DELETE_WORKSPACE,

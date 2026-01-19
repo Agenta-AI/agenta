@@ -5,7 +5,10 @@ import router from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {buildAuthUpgradeMessage} from "@/oss/lib/helpers/authMessages"
 import {getJWT} from "@/oss/services/api"
+// import {requestNavigationAtom} from "@/oss/state/appState"
+import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -16,7 +19,11 @@ import {isDemo} from "../../helpers/utils"
 export const PERMISSION_ERR_MSG =
     "You don't have permission to perform this action. Please contact your organization admin."
 
-const ENDPOINTS_PROJECT_ID_WHITELIST = ["/projects", "/profile", "/organizations"]
+const ENDPOINTS_PROJECT_ID_WHITELIST = ["/auth/", "/projects", "/profile", "/organizations"]
+let authUpgradeRedirectInFlight = false
+const resetAuthUpgradeRedirect = () => {
+    authUpgradeRedirectInFlight = false
+}
 const axios = axiosApi.create({
     baseURL: getAgentaApiUrl(),
     headers: {
@@ -135,23 +142,107 @@ axios.interceptors.response.use(
             return Promise.reject(error)
         }
 
-        if (error.response?.status === 403 && error.config.method !== "get") {
-            AlertPopup({
-                title: "Permission Denied",
-                message: error.response?.data?.detail || PERMISSION_ERR_MSG,
-                cancelText: null,
-                okText: "Ok",
-            }) // Commented out for test environment
-            error.message = error.response?.data?.detail || PERMISSION_ERR_MSG
-            throw error
-        }
+        const upgradeDetail = error.response?.data?.detail
+        if (
+            error.response?.status === 403 &&
+            (upgradeDetail?.error === "AUTH_UPGRADE_REQUIRED" ||
+                upgradeDetail?.error === "AUTH_SSO_DENIED") &&
+            !error.config?._skipAuthUpgradeRedirect
+        ) {
+            if (typeof window !== "undefined" && window.localStorage.getItem("authUpgradeOrgId")) {
+                if (error.config) {
+                    error.config._ignoreError = true
+                }
+                return Promise.reject(error)
+            }
+            if (typeof window === "undefined") {
+                return Promise.reject(error)
+            }
 
-        if (error.response?.status === 409) {
+            const detailMessage =
+                typeof upgradeDetail?.message === "string"
+                    ? upgradeDetail.message
+                    : "Additional authentication required"
+            const required = Array.isArray(upgradeDetail?.required_methods)
+                ? upgradeDetail.required_methods
+                : []
+            const currentIdentity =
+                (Array.isArray(upgradeDetail?.session_identities)
+                    ? upgradeDetail.session_identities[0]
+                    : undefined) ||
+                (Array.isArray(upgradeDetail?.user_identities)
+                    ? upgradeDetail.user_identities[0]
+                    : undefined)
+
+            const store = getDefaultStore()
+            const selectedOrgId = store.get(selectedOrgIdAtom)
+            if (!authUpgradeRedirectInFlight) {
+                authUpgradeRedirectInFlight = true
+
+                // Clear any pending invite to prevent redirect loops.
+                // When auth upgrade is required, the user needs to re-authenticate
+                // with the correct method, not re-process the invite.
+                try {
+                    window.localStorage.removeItem("invite")
+                } catch {
+                    // ignore storage errors
+                }
+
+                const message = buildAuthUpgradeMessage(
+                    required,
+                    currentIdentity,
+                    upgradeDetail?.error,
+                )
+                const authError =
+                    upgradeDetail?.error === "AUTH_SSO_DENIED" ? "sso_denied" : "upgrade_required"
+                if (upgradeDetail?.error === "AUTH_SSO_DENIED") {
+                    signOut().catch(() => null)
+                }
+                const query = new URLSearchParams({
+                    auth_error: authError,
+                    auth_message: message,
+                })
+                if (selectedOrgId) {
+                    query.set("organization_id", selectedOrgId)
+                }
+                const target = `/auth?${query.toString()}`
+                router.push(target).catch(() => {
+                    window.location.assign(target)
+                })
+                setTimeout(resetAuthUpgradeRedirect, 2000)
+            }
+
+            error.message = detailMessage
+            if (error.config) {
+                error.config._ignoreError = true
+            }
             return Promise.reject(error)
         }
 
         // if axios config has _ignoreError set to true, then don't handle error
         if (error.config?._ignoreError) throw error
+
+        if (error.response?.status === 403 && error.config.method !== "get") {
+            const detail = error.response?.data?.detail
+            const detailMessage =
+                typeof detail === "string" ? detail : detail?.message || PERMISSION_ERR_MSG
+            AlertPopup({
+                title: "Permission Denied",
+                message: detailMessage,
+                cancelText: null,
+                okText: "Ok",
+            }) // Commented out for test environment
+            error.message = detailMessage
+            throw error
+        }
+
+        const domainDeniedDetail = error.response?.data?.detail
+        if (error.response?.status === 403 && domainDeniedDetail?.error === "AUTH_DOMAIN_DENIED") {
+            if (error.config) {
+                error.config._ignoreError = true
+            }
+            throw error
+        }
 
         let msg = getErrorMessage(error.response?.data?.error || error.response?.data, "")
         if (!msg)

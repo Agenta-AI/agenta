@@ -20,6 +20,8 @@ from oss.src.core.tracing.utils import calculate_and_propagate_metrics
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
+    from ee.src.models.shared_models import Permission
+    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
 # TYPE_CHECKING to avoid circular import at runtime
 from typing import TYPE_CHECKING
@@ -28,7 +30,7 @@ if TYPE_CHECKING:
     from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
-MAX_OTLP_BATCH_SIZE = env.AGENTA_OTLP_MAX_BATCH_BYTES
+MAX_OTLP_BATCH_SIZE = env.otlp.max_batch_bytes
 MAX_OTLP_BATCH_SIZE_MB = MAX_OTLP_BATCH_SIZE // (1024 * 1024)
 
 
@@ -74,6 +76,17 @@ class OTLPRouter:
         self,
         request: Request,
     ):
+        # -------------------------------------------------------------------- #
+        # Permission check
+        # -------------------------------------------------------------------- #
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         # -------------------------------------------------------------------- #
         # Parse request into OTLP stream
         # -------------------------------------------------------------------- #

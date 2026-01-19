@@ -20,8 +20,8 @@ from oss.src.models.api.workspace_models import (
 )
 
 if is_ee():
-    from ee.src.utils.permissions import check_rbac_permission
-    from ee.src.models.api.workspace_models import WorkspaceRole
+    from ee.src.utils.permissions import check_action_access
+    from ee.src.models.shared_models import Permission
     from ee.src.services import db_manager_ee, workspace_manager
     from ee.src.services.selectors import (
         get_user_org_and_workspace_id,
@@ -72,10 +72,17 @@ async def list_organizations(
     response = [
         Organization(
             id=str(organization_db.id),
+            slug=str(organization_db.slug),
+            #
             name=str(organization_db.name),
-            owner=organization_db.owner,
             description=str(organization_db.description),
-            type=organization_db.type,  # type: ignore
+            #
+            flags=organization_db.flags,
+            tags=organization_db.tags,
+            meta=organization_db.meta,
+            #
+            owner_id=organization_db.owner_id,
+            #
             workspaces=[str(active_workspace.id)] if not is_ee() else [],
         ).model_dump(exclude_unset=True)
         for organization_db in organizations_db
@@ -151,10 +158,17 @@ async def fetch_organization_details(
 
     return OrganizationDetails(
         id=str(organization_db.id),
+        slug=str(organization_db.slug),
+        #
         name=str(organization_db.name),
-        owner=organization_db.owner,
         description=str(organization_db.description),
-        type=organization_db.type,  # type: ignore
+        #
+        flags=organization_db.flags,
+        tags=organization_db.tags,
+        meta=organization_db.meta,
+        #
+        owner_id=organization_db.owner_id,
+        #
         default_workspace={
             "id": str(active_workspace.id),
             "name": str(active_workspace.name),
@@ -192,60 +206,68 @@ async def invite_user_to_organization(
         HTTPException: If there is an error assigning the role to the user.
     """
 
-    if len(payload) != 1:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "Only one user can be invited at a time."},
-        )
-
-    if is_ee():
-        user_org_workspace_data = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        project = await db_manager_ee.get_project_by_workspace(workspace_id)
-        has_permission = await check_rbac_permission(
-            user_org_workspace_data=user_org_workspace_data,
-            project_id=str(project.id),
-            role=WorkspaceRole.WORKSPACE_ADMIN,
-        )
-        if not has_permission:
+    try:
+        if len(payload) != 1:
             return JSONResponse(
-                status_code=403,
-                content={
-                    "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
-                },
+                status_code=400,
+                content={"detail": "Only one user can be invited at a time."},
             )
 
-        owner = await db_manager.get_organization_owner(organization_id)
-        owner_domain = owner.email.split("@")[-1].lower() if owner else ""
-        user_domain = payload[0].email.split("@")[-1].lower()
-        skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
-
-        if not skip_meter:
-            check, _, _ = await check_entitlements(
-                organization_id=request.state.organization_id,
-                key=Gauge.USERS,
-                delta=1,
+        if is_ee():
+            project = await db_manager_ee.get_project_by_workspace(workspace_id)
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=str(project.id),
+                permission=Permission.ADD_USER_TO_WORKSPACE,
             )
+            if not has_permission:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
+                    },
+                )
 
-            if not check:
-                return NOT_ENTITLED_RESPONSE(Tracker.GAUGES)
+            owner = await db_manager.get_organization_owner(organization_id)
+            owner_domain = owner.email.split("@")[-1].lower() if owner else ""
+            user_domain = payload[0].email.split("@")[-1].lower()
+            skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
 
-        invite_user = await workspace_manager.invite_user_to_workspace(
-            payload=payload,
-            organization_id=organization_id,
-            project_id=str(project.id),
-            workspace_id=workspace_id,
-            user_uid=request.state.user_id,
+            if not skip_meter:
+                check, _, _ = await check_entitlements(
+                    organization_id=request.state.organization_id,
+                    key=Gauge.USERS,
+                    delta=1,
+                )
+
+                if not check:
+                    return NOT_ENTITLED_RESPONSE(Tracker.GAUGES)
+
+            invite_user = await workspace_manager.invite_user_to_workspace(
+                payload=payload,
+                organization_id=organization_id,
+                project_id=str(project.id),
+                workspace_id=workspace_id,
+                user_uid=request.state.user_id,
+            )
+            return invite_user
+
+        invitation_response = await organization_service.invite_user_to_organization(
+            payload=payload[0],
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
         )
-        return invite_user
-
-    invitation_response = await organization_service.invite_user_to_organization(
-        payload=payload[0],
-        project_id=request.state.project_id,
-        user_id=request.state.user_id,
-    )
-    return invitation_response
+        return invitation_response
+    except Exception:
+        log.error(
+            "Invite user failed",
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            project_id=getattr(request.state, "project_id", None),
+            user_id=getattr(request.state, "user_id", None),
+            exc_info=True,
+        )
+        raise
 
 
 @router.post(
@@ -270,14 +292,11 @@ async def resend_user_invitation_to_organization(
     """
 
     if is_ee():
-        user_org_workspace_data = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
         project = await db_manager_ee.get_project_by_workspace(workspace_id)
-        has_permission = await check_rbac_permission(
-            user_org_workspace_data=user_org_workspace_data,
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
             project_id=str(project.id),
-            role=WorkspaceRole.WORKSPACE_ADMIN,
+            permission=Permission.ADD_USER_TO_WORKSPACE,
         )
         if not has_permission:
             return JSONResponse(

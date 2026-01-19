@@ -1,7 +1,5 @@
 """Main Business logic"""
 
-import os
-
 from urllib.parse import urlparse
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -18,7 +16,7 @@ if is_ee():
 
 log = get_module_logger(__name__)
 
-AGENTA_SERVICES_URL = env.AGENTA_SERVICES_URL
+AGENTA_SERVICES_URL = env.agenta.services_url
 
 
 async def update_last_modified_by(

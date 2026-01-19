@@ -88,19 +88,26 @@ jobs:
           API_VERSION=$(poetry version -s)
           cd ..
 
+          cd services
+          poetry version $BUMP_TYPE
+          SERVICES_VERSION=$(poetry version -s)
+          cd ..
+
           WEB_VERSION=$(echo "$WEB_VERSION" | tr -d '[:space:]')
           EE_VERSION=$(echo "$EE_VERSION" | tr -d '[:space:]')
           OSS_VERSION=$(echo "$OSS_VERSION" | tr -d '[:space:]')
           SDK_VERSION=$(echo "$SDK_VERSION" | tr -d '[:space:]')
           API_VERSION=$(echo "$API_VERSION" | tr -d '[:space:]')
+          SERVICES_VERSION=$(echo "$SERVICES_VERSION" | tr -d '[:space:]')
 
           echo "WEB_VERSION='$WEB_VERSION'"
           echo "EE_VERSION='$EE_VERSION'"
           echo "OSS_VERSION='$OSS_VERSION'"
           echo "SDK_VERSION='$SDK_VERSION'"
           echo "API_VERSION='$API_VERSION'"
+          echo "SERVICES_VERSION='$SERVICES_VERSION'"
 
-          if [ "$EE_VERSION" = "$OSS_VERSION" ] && [ "$OSS_VERSION" = "$WEB_VERSION" ] && [ "$WEB_VERSION" = "$SDK_VERSION" ] && [ "$SDK_VERSION" = "$API_VERSION" ]; then
+          if [ "$EE_VERSION" = "$OSS_VERSION" ] && [ "$OSS_VERSION" = "$WEB_VERSION" ] && [ "$WEB_VERSION" = "$SDK_VERSION" ] && [ "$SDK_VERSION" = "$API_VERSION" ] && [ "$API_VERSION" = "$SERVICES_VERSION" ]; then
               echo "VERSIONS_MATCH=true" >> $GITHUB_OUTPUT
               echo "NEW_VERSION=$WEB_VERSION" >> $GITHUB_OUTPUT
           else
@@ -123,24 +130,10 @@ jobs:
             - web/ee
             - sdk
             - api
+            - services
 
       - name: Fail if versions don't match
         if: steps.bump_versions.outputs.VERSIONS_MATCH != 'true'
         run: |
           echo "Versions in the three folders do not match. Please check and update manually."
           exit 1
-
-  # create-tag:
-  #   needs: bump-version
-  #   runs-on: ubuntu-latest
-
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-
-  #     - name: Create and push tag
-  #       run: |
-  #         git config --global user.name "${{ github.actor }}"
-  #         git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
-  #         git tag -a "v${{ needs.bump-version.outputs.new_version }}" -m "Version ${{ needs.bump-version.outputs.new_version }}"
-  #         git push origin "v${{ needs.bump-version.outputs.new_version }}"

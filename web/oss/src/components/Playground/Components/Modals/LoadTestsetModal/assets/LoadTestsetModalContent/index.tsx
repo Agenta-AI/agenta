@@ -23,7 +23,7 @@ const NoResultsFound = dynamic(
     },
 )
 
-const LoadTestsetModalContent = ({modalProps}: LoadTestsetModalContentProps) => {
+const LoadTestsetModalContent = ({modalProps, selectionMode}: LoadTestsetModalContentProps) => {
     const projectId = useAtomValue(projectIdAtom)
     const isCreatingNew = useAtomValue(isCreatingNewTestsetAtom)
     const router = useRouter()
@@ -80,7 +80,7 @@ const LoadTestsetModalContent = ({modalProps}: LoadTestsetModalContentProps) => 
                 <Divider orientation="vertical" className="m-0 h-full" />
 
                 <div className="w-full h-full flex flex-col gap-4 grow min-h-0 overflow-hidden">
-                    <TestsetPreviewPanel />
+                    <TestsetPreviewPanel selectionMode={selectionMode} />
                 </div>
             </section>
         </div>

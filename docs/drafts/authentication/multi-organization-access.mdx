@@ -1,0 +1,444 @@
+---
+title: Multiple Organizations
+description: Understanding how users access and switch between multiple organizations in Agenta
+---
+
+# Multiple Organizations
+
+Agenta allows a single user to belong to multiple organizations, each with its own projects, members, and security policies. This guide explains how multi-organization access works and how authentication is handled when switching between organizations.
+
+## Overview
+
+### One User, Many Organizations
+
+A single Agenta user can be a member of multiple organizations simultaneously:
+
+- **Personal workspace**: Your individual projects and experiments
+- **Company workspace**: Collaborate with your team
+- **Client workspace**: Work with external partners
+- **Consulting projects**: Separate workspace per client
+
+Each organization is completely independent with:
+- Its own members and roles
+- Its own authentication policies
+- Its own projects and resources
+- Its own billing (if applicable)
+
+## How It Works
+
+### Organization Discovery
+
+After you sign in, Agenta fetches all organizations you belong to:
+
+```http
+GET /api/organizations
+Authorization: Bearer <your-session-token>
+```
+
+Response:
+```json
+{
+  "organizations": [
+    {
+      "id": "org_123",
+      "slug": "personal",
+      "name": "Personal",
+      "flags": {
+        "allow_email": true,
+        "allow_social": true,
+        "allow_sso": false
+      }
+    },
+    {
+      "id": "org_456",
+      "slug": "acme-corp",
+      "name": "ACME Corp",
+      "flags": {
+        "allow_email": false,
+        "allow_social": false,
+        "allow_sso": true
+      }
+    }
+  ]
+}
+```
+
+### Organization Filtering by Authentication Method
+
+Not all organizations may be immediately accessible with your current authentication method. Agenta automatically filters organizations based on your session identities:
+
+#### Example 1: Email Sign-In
+
+You signed in with email + password:
+- **Session identities**: `["email:password"]`
+- **Can access**: Organizations with `allow_email=true`
+- **Cannot access**: Organizations with `allow_sso=true` only
+
+#### Example 2: Multiple Authentication Methods
+
+You've authenticated with multiple methods:
+- **Session identities**: `["email:password", "social:google", "sso:acme:okta"]`
+- **Can access**: All organizations (have all three methods)
+
+## Authentication Policies Per Organization
+
+Each organization controls which authentication methods are allowed via organization flags:
+
+### Flag Reference
+
+| Flag | Purpose | Example |
+|------|---------|---------|
+| `allow_email` | Allow email/password or OTP | Personal workspaces |
+| `allow_social` | Allow social OAuth (Google, GitHub, etc.) | Team workspaces |
+| `allow_sso` | Allow enterprise SSO | Enterprise clients |
+| `allow_root` | Owner bypasses restrictions | Prevent owner lockout |
+| `domains_only` | Restrict to verified email domains | Company-wide access control |
+| `auto_join` | Auto-add users with verified domains | Open company workspaces |
+
+### Common Policy Configurations
+
+#### Personal Workspace (Flexible)
+```json
+{
+  "allow_email": true,
+  "allow_social": true,
+  "allow_sso": false
+}
+```
+→ Users can sign in with email OR social OAuth
+
+#### Team Workspace (Recommended Methods)
+```json
+{
+  "allow_email": true,
+  "allow_social": true,
+  "allow_sso": true
+}
+```
+→ Users can sign in with any method
+
+#### Enterprise Workspace (SSO Required)
+```json
+{
+  "allow_email": false,
+  "allow_social": false,
+  "allow_sso": true,
+  "allow_root": true
+}
+```
+→ Users must authenticate with SSO (except owner)
+
+#### Company Workspace (Verified Domains Only)
+```json
+{
+  "allow_email": true,
+  "allow_social": true,
+  "allow_sso": true,
+  "domains_only": true
+}
+```
+→ Users can use any method, but must have `@company.com` email
+
+## Switching Between Organizations
+
+### In the UI
+
+1. Click on the **organization selector** (usually in the top navigation)
+2. Select the organization you want to switch to
+3. Agenta checks if your current session satisfies that organization's policies
+4. If yes → You're switched immediately
+5. If no → You see an authentication upgrade prompt
+
+### URL Structure
+
+Organizations are identified in the URL by workspace ID:
+
+```
+https://app.agenta.ai/w/{workspace_id}/p/{project_id}
+```
+
+When you switch organizations, the URL changes and Agenta validates your access.
+
+## Authentication Upgrade Flow
+
+### What Triggers an Upgrade?
+
+An authentication upgrade is required when:
+
+1. **Switching to stricter organization**
+   - Current org: `allow_email=true`
+   - Target org: `allow_sso=true` only
+   - Your identities: `["email:password"]`
+   - **Result**: Need to add SSO identity
+
+2. **Organization policy changes**
+   - You're in an organization
+   - Admin changes flags to require SSO
+   - Your identities: `["email:password"]`
+   - **Result**: Next page load requires upgrade
+
+3. **Accessing specific resource**
+   - Some resources may require specific auth levels
+   - **Result**: Must authenticate with required method
+
+### The Upgrade Process
+
+When an upgrade is required:
+
+```
+Step 1: You try to access organization
+        ↓
+Step 2: Backend checks: session.identities vs org.flags
+        ↓
+Step 3: Match found? → Grant access
+        No match? → Return AUTH_UPGRADE_REQUIRED
+        ↓
+Step 4: Frontend redirects to /auth?auth_error=upgrade_required
+        ↓
+Step 5: Auth page shows required methods
+        ↓
+Step 6: You authenticate with required method
+        ↓
+Step 7: New identity added to session
+        ↓
+Step 8: You're redirected back to organization
+```
+
+### Example Upgrade Scenario
+
+**Scenario**: You want to switch from your personal workspace to your company's SSO-only workspace
+
+1. You're currently signed in with email + password
+   - Session: `["email:password"]`
+
+2. You click to switch to "ACME Corp" workspace
+   - ACME Corp flags: `allow_sso=true`, `allow_email=false`
+
+3. Backend checks: Does `["email:password"]` match `allow_sso=true`?
+   - **No match!**
+
+4. You see error page:
+   ```
+   Additional authentication required
+
+   This organization requires SSO. Please sign in with:
+   - Okta SSO (acme-corp)
+
+   [Continue with Okta] button
+   ```
+
+5. You click "Continue with Okta" and complete SSO flow
+
+6. Your session is updated:
+   - Session: `["email:password", "sso:acme:okta"]`
+
+7. You now have access to ACME Corp!
+
+## Organization Selection After Sign-In
+
+When you sign in, Agenta automatically redirects you to an organization using this priority order:
+
+### Selection Priority
+
+```
+1. Auth upgrade state (if you were in the middle of accessing a specific org)
+   ↓
+2. Filter by compatible auth method (organizations your current auth can access)
+   ↓
+3. SSO organization (if you just logged in via SSO)
+   ↓
+4. Last-used organization (remembered from previous session)
+   ↓
+5. Preferred workspace (if you set one)
+   ↓
+6. Any compatible organization
+```
+
+### Example Selection Flows
+
+#### Scenario A: Email Sign-In
+- You sign in with email + password
+- Compatible orgs: Personal, Team A, Team B
+- Last used: Team A
+- **Result**: Redirected to Team A
+
+#### Scenario B: SSO Sign-In
+- You sign in with Okta SSO
+- SSO organization: ACME Corp
+- **Result**: Redirected to ACME Corp (even if not last used)
+
+#### Scenario C: First-Time Sign-In
+- You sign in for the first time
+- Compatible orgs: Personal (only one)
+- **Result**: Redirected to Personal workspace
+
+## Invitations and Auto-Join
+
+### Invitation Flow
+
+When invited to a new organization:
+
+1. You receive invitation email
+2. Click link → redirected to Agenta
+3. If signed in with different email → prompted to sign in with invited email
+4. If not signed in → sign in with invited email
+5. Accept invitation → added to organization
+6. Can now access organization (if your auth method is allowed)
+
+### Auto-Join with Verified Domains
+
+Organizations can enable `auto_join=true` for verified domains:
+
+**Example**: ACME Corp verifies `acme.com` domain and enables auto-join
+
+1. Alice (`alice@acme.com`) signs up to Agenta
+2. Agenta sees: email domain `acme.com` is verified by ACME Corp
+3. `auto_join=true` → Alice is automatically added to ACME Corp
+4. Alice now has access to ACME Corp workspace!
+
+**Requirements for auto-join**:
+- Organization must verify the domain
+- `auto_join=true` must be enabled
+- User email must match verified domain
+- User must authenticate with allowed method
+
+## Managing Organization Access
+
+### For Users
+
+**View your organizations**:
+1. Click organization selector in navigation
+2. See list of all organizations you belong to
+
+**Leave an organization**:
+1. Navigate to organization settings
+2. Click "Leave Organization"
+3. Confirm (cannot leave if you're the only owner)
+
+### For Administrators
+
+**View organization members**:
+1. Navigate to **Settings** → **Members**
+2. See all members and their roles
+
+**Invite users**:
+1. Navigate to **Settings** → **Members**
+2. Click "Invite Member"
+3. Enter email address and select role
+4. User receives invitation
+
+**Remove users**:
+1. Navigate to **Settings** → **Members**
+2. Find user and click "Remove"
+3. Confirm removal
+
+**Configure authentication policies**:
+1. Navigate to **Settings** → **Access & Security**
+2. Toggle authentication method flags
+3. Save changes
+4. Users may need to re-authenticate
+
+## Troubleshooting
+
+### "You don't have access to this organization"
+
+**Cause**: Your current authentication method is not allowed by this organization
+
+**Solution**:
+1. Check which methods are allowed (contact organization admin)
+2. Sign in with an allowed method
+3. If you need access, contact the organization owner
+
+### "Authentication upgrade required"
+
+**Cause**: Organization requires additional authentication
+
+**Solution**:
+1. Read the required authentication methods
+2. Click to authenticate with required method
+3. Complete authentication flow
+4. You'll be redirected back to the organization
+
+### "This invitation was sent to a different email"
+
+**Cause**: You're signed in with a different email than the invitation
+
+**Solution**:
+1. Click "Sign out and use a different account"
+2. Sign in with the email that received the invitation
+3. Accept invitation
+
+### Authentication flags reset after plan cancellation
+
+**Scenario**: Organization cancelled their subscription plan
+
+**What happens**:
+- Authentication flags (`allow_email`, `allow_social`, `allow_sso`, `allow_root`) are reset to defaults
+- Organization reverts to default authentication settings
+- Users may lose access if they were using non-default auth methods
+
+**Solution**:
+- Renew subscription to restore custom authentication policies
+- Or contact organization owner to adjust access
+
+### Can't see organization in list
+
+**Possible causes**:
+1. You're not a member → Contact owner for invitation
+2. Organization is archived → Contact owner
+3. Your auth method is not compatible → Sign in with compatible method
+
+## Best Practices
+
+### For Users
+
+1. ✅ Use consistent email across organizations (e.g., work email)
+2. ✅ Authenticate with multiple methods to access all organizations
+3. ✅ Set up account linking for seamless access
+4. ✅ Use organization selector to switch (don't sign out)
+5. ❌ Don't share accounts across multiple people
+
+### For Administrators
+
+1. ✅ Clearly communicate authentication requirements to members
+2. ✅ Use verified domains + auto-join for company-wide access
+3. ✅ Enable `allow_root` when requiring SSO (prevent owner lockout)
+4. ✅ Test authentication policies before enforcing
+5. ✅ Provide graceful migration when changing policies
+
+## Related Documentation
+
+- [Account Linking](/docs/concepts/authentication/account-linking) - Link multiple authentication methods
+- [Session Identities](/docs/concepts/authentication/session-identities) - How authentication methods are tracked
+- [Authentication Upgrade Flow](/docs/concepts/authentication/auth-upgrade-flow) - Detailed upgrade process
+- [Enterprise: Organizations](/docs/security/organizations) - Organization management and policies
+- [Enterprise: Domain Verification](/docs/security/domain-verification) - Verify email domains for auto-join
+
+## FAQ
+
+### How many organizations can I belong to?
+
+There's no limit! You can belong to as many organizations as you're invited to or auto-join.
+
+### Do I need separate accounts for different organizations?
+
+No! A single Agenta account can access multiple organizations. Just authenticate with the methods each organization requires.
+
+### Can I use different authentication methods for different organizations?
+
+Yes! Your session accumulates all authentication methods you use. Different organizations can require different methods from your accumulated set.
+
+### What happens if I'm removed from an organization?
+
+You lose access to that organization's projects and resources immediately. Your other organization memberships are unaffected.
+
+### Can I transfer ownership of an organization?
+
+Yes, organization owners can transfer ownership to another member in the organization settings.
+
+### What's the difference between leaving and being removed from an organization?
+
+- **Leave**: You voluntarily exit an organization (can't leave if sole owner)
+- **Removed**: An admin removes you from the organization
+
+Both result in loss of access, but the audit trail records who initiated the action.

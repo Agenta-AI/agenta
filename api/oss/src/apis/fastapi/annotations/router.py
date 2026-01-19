@@ -183,6 +183,7 @@ class AnnotationsRouter:
 
         annotation = await self.annotations_service.fetch(
             project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id) if request.state.user_id else None,
             #
             trace_id=trace_id,
             span_id=span_id,
@@ -280,6 +281,7 @@ class AnnotationsRouter:
 
         annotations = await self.annotations_service.query(
             project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id) if request.state.user_id else None,
             #
             annotation_query=annotation_query_request.annotation,
             #

@@ -1,19 +1,13 @@
-import uniqBy from "lodash/uniqBy"
-import {v4 as uuidv4} from "uuid"
-
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {calcEvalDuration} from "@/oss/lib/evaluations/legacy"
 import {assertValidId, isValidId} from "@/oss/lib/helpers/serviceValidations"
 import {
-    ComparisonResultRow,
     EvaluationStatus,
     KeyValuePair,
     LLMRunRateLimit,
-    Testset,
     _Evaluation,
     _EvaluationScenario,
 } from "@/oss/lib/Types"
-import {fetchTestset} from "@/oss/services/testsets/api"
 import {getProjectValues} from "@/oss/state/project"
 
 // Re-export evaluator config functions from the canonical source
@@ -167,83 +161,6 @@ export const updateScenarioStatus = async (
     return axios.patch(`/preview/evaluations/scenarios/?project_id=${projectId}`, {
         scenarios: [{...scenario, status}],
     })
-}
-
-// Comparison
-export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
-    // Defensive check: Only accept valid UUIDs
-    const validIds = evaluationIds.filter((id) => isValidId(id))
-    if (validIds.length === 0) {
-        throw new Error("No valid evaluation IDs provided")
-    }
-    const scenarioGroups = await Promise.all(validIds.map(fetchAllEvaluationScenarios))
-    const testset: Testset = await fetchTestset(scenarioGroups[0][0].evaluation?.testset?.id)
-
-    const inputsNameSet = new Set<string>()
-    scenarioGroups.forEach((group) => {
-        group.forEach((scenario) => {
-            scenario.inputs.forEach((input) => inputsNameSet.add(input.name))
-        })
-    })
-
-    const rows: ComparisonResultRow[] = []
-    const inputNames = Array.from(inputsNameSet)
-    const inputValuesSet = new Set<string>()
-    const variants = scenarioGroups.map((group) => group[0].evaluation.variants[0])
-    const correctAnswers = uniqBy(
-        scenarioGroups.map((group) => group[0].correct_answers).flat(),
-        "key",
-    )
-
-    for (const data of testset.csvdata) {
-        const inputValues = inputNames
-            .filter((name) => data[name] !== undefined)
-            .map((name) => ({name, value: data[name]}))
-        const inputValuesStr = inputValues.map((ip) => ip.value).join("")
-        if (inputValuesSet.has(inputValuesStr)) continue
-        else inputValuesSet.add(inputValuesStr)
-
-        rows.push({
-            id: inputValuesStr,
-            rowId: uuidv4(),
-            inputs: inputNames
-                .map((name) => ({name, value: data[name]}))
-                .filter((ip) => ip.value !== undefined),
-            ...correctAnswers.reduce((acc, curr) => {
-                return {...acc, [`correctAnswer_${curr?.key}`]: data[curr?.key!]}
-            }, {}),
-            variants: variants.map((variant, ix) => {
-                const group = scenarioGroups[ix]
-                const scenario = group.find((scenario) =>
-                    scenario.inputs.every((input) =>
-                        inputValues.some(
-                            (ip) => ip.name === input.name && ip.value === input.value,
-                        ),
-                    ),
-                )
-                return {
-                    variantId: variant.variantId,
-                    variantName: variant.variantName,
-                    output: scenario?.outputs[0] || {
-                        result: {type: "string", value: "", error: null},
-                    },
-                    evaluationId: scenario?.evaluation.id || "",
-                    evaluatorConfigs: (scenario?.evaluators_configs || []).map((config) => ({
-                        evaluatorConfig: config,
-                        result: scenario?.results.find(
-                            (result) => result.evaluator_config === config.id,
-                        )?.result || {type: "string", value: "", error: null}, // Adjust this line
-                    })),
-                }
-            }),
-        })
-    }
-
-    return {
-        rows,
-        testset,
-        evaluations: scenarioGroups.map((group) => group[0].evaluation),
-    }
 }
 
 // Evaluation IDs by resource

@@ -31,6 +31,10 @@ from oss.src.core.folders.types import (
     FolderPathLengthExceeded,
 )
 
+if is_ee():
+    from ee.src.models.shared_models import Permission
+    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+
 
 log = get_module_logger(__name__)
 
@@ -138,6 +142,14 @@ class FoldersRouter:
         #
         folder_create_request: FolderCreateRequest,
     ) -> FolderResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_FOLDERS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         folder = await self.folders_service.create(
             project_id=UUID(str(request.state.project_id)),
             user_id=UUID(str(request.state.user_id)),
@@ -160,6 +172,14 @@ class FoldersRouter:
         #
         folder_id: UUID,
     ) -> FolderResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_FOLDERS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         folder = await self.folders_service.fetch(
             project_id=UUID(str(request.state.project_id)),
             #
@@ -182,6 +202,14 @@ class FoldersRouter:
         folder_id: UUID,
         folder_edit_request: FolderEditRequest,
     ) -> FolderResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_FOLDERS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         if folder_id != folder_edit_request.folder.id:
             raise HTTPException(
                 status_code=400,
@@ -209,6 +237,14 @@ class FoldersRouter:
         #
         folder_id: UUID,
     ) -> FolderIdResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_FOLDERS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         _folder_id = await self.folders_service.delete(
             project_id=UUID(str(request.state.project_id)),
             user_id=UUID(str(request.state.user_id)),
@@ -231,6 +267,14 @@ class FoldersRouter:
         #
         folder_query_request: FolderQueryRequest,
     ) -> FoldersResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_FOLDERS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         folders = await self.folders_service.query(
             project_id=UUID(str(request.state.project_id)),
             #

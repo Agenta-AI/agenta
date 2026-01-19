@@ -391,7 +391,7 @@ const usePreviewEvaluations = ({
                     ...(rawTestset as Testset),
                     id: revision.testset_id,
                     // Prefer explicit name from caller, then revision name, then fallback
-                    name: (rawTestset.name as string) ?? (revision.name as string) ?? "Testset",
+                    name: (rawTestset.name as string) ?? (revision.name as string) ?? "Test set",
                     // Provide testcaseIds and testcases so mappings & scenarios can use them
                     data: {
                         ...(rawTestset.data ?? {}),
