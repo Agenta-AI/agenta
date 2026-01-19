@@ -218,13 +218,17 @@ export {
     // Clone reducers (two-layer: local and backend)
     cloneLocalReducer,
     cloneBackendReducer,
-    // Delete reducer
+    // Delete reducers
     deleteTestsetsReducer,
+    deleteRevisionsReducer,
     // Clear/discard
     clearChangesAtom,
     // Change tracking
     changesSummaryAtom,
     hasUnsavedChangesAtom,
+    // Modal adapters (auto-registered on import)
+    testsetModalAdapter,
+    revisionModalAdapter,
 } from "./state"
 
 export type {
@@ -243,3 +247,9 @@ export type {
     CloneBackendResult,
     ChangesSummary,
 } from "./state"
+
+// ============================================================================
+// SELECTION CONFIG
+// ============================================================================
+
+export {testsetSelectionConfig, type TestsetSelectionConfig} from "./state"

@@ -157,4 +157,4 @@ export {
     initializeEmptyRevisionAtom,
 } from "./state"
 
-export type {TestcaseTableRow, TestcasePaginatedMeta} from "./state"
+export type {TestcaseTableRow, TestcasePaginatedMeta, InitializeEmptyRevisionParams} from "./state"

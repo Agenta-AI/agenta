@@ -44,6 +44,21 @@ import {flattenTestcase, testcaseSchema, SYSTEM_FIELDS, type FlattenedTestcase} 
  */
 export const currentRevisionIdAtom = atom<string | null>(null)
 
+/**
+ * Set the current revision ID
+ * Use this to change the revision context for testcase operations
+ */
+export const setCurrentRevisionIdAtom = atom(
+    null,
+    (_get, set, revisionId: string | null) => {
+        // Direct primitive atom set - type assertion needed for generic atom
+        ;(set as (atom: typeof currentRevisionIdAtom, value: string | null) => void)(
+            currentRevisionIdAtom,
+            revisionId,
+        )
+    },
+)
+
 // ============================================================================
 // ID TRACKING ATOMS
 // ============================================================================

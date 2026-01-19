@@ -28,6 +28,7 @@ import {
     patchRevision,
     createTestset,
     archiveTestsets,
+    archiveRevision,
     cloneTestset as cloneTestsetApi,
 } from "../api/mutations"
 import type {TestsetRevisionDelta} from "../core"
@@ -574,6 +575,28 @@ export const deleteTestsetsReducer = atom(null, async (get, _set, ids: string[])
     // Note: Cache invalidation should be handled by the caller
     // or via a query invalidation after the modal closes
 })
+
+/**
+ * Delete (archive) revisions by IDs
+ *
+ * Used by the EntityDeleteModal via the revision adapter.
+ * Reads projectId from the shared projectIdAtom.
+ *
+ * @param ids Array of revision IDs to delete
+ */
+export const deleteRevisionsReducer = atom(
+    null,
+    async (get, _set, ids: string[]): Promise<void> => {
+        const projectId = get(projectIdAtom)
+        if (!projectId || ids.length === 0) return
+
+        // Archive each revision
+        await Promise.all(ids.map((revisionId) => archiveRevision({projectId, revisionId})))
+
+        // Note: Cache invalidation should be handled by the caller
+        // or via a query invalidation after the modal closes
+    },
+)
 
 // ============================================================================
 // CLONE REDUCERS

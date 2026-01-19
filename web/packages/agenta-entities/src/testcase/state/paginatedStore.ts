@@ -23,7 +23,6 @@ import {
     deletedEntityIdsAtom,
     newEntityIdsAtom,
     testcaseDraftAtomFamily,
-    testcaseIdsAtom,
 } from "./store"
 
 // ============================================================================
@@ -256,45 +255,77 @@ export const testcaseFilters = {
 // ============================================================================
 
 /**
+ * Parameters for initializeEmptyRevisionAtom
+ */
+export interface InitializeEmptyRevisionParams {
+    /** Revision ID (optional, falls back to currentRevisionIdAtom) */
+    revisionId?: string
+    /**
+     * Total count of server testcases from paginated store.
+     * This is required for existing testsets to properly detect if server has data.
+     * For new testsets (isNewTestset=true), this can be omitted.
+     */
+    serverTotalCount?: number
+    /**
+     * Whether this is a new testset (not yet saved to server).
+     * New testsets don't have server data, so we only check local entities.
+     */
+    isNewTestset?: boolean
+}
+
+/**
  * Initialize empty revision state for "create from scratch" flow.
  *
  * Adds an initial testcase with default properties when:
- * 1. There are no server testcases (testcaseIdsAtom is empty)
+ * 1. There are no server testcases (serverTotalCount === 0 or isNewTestset)
  * 2. There are no local testcases (newEntityIdsAtom is empty)
  *
  * The mental model is: create testcases with properties, not columns.
  * Columns are derived from testcase properties.
  *
- * Accepts an optional revisionId parameter to avoid timing issues with currentRevisionIdAtom.
- * This unifies the flow for both new testsets and existing empty revisions.
+ * IMPORTANT: For existing testsets, you MUST pass serverTotalCount from the paginated store.
+ * The testcaseIdsAtom is not reliable for this check because it's not populated by
+ * the paginated store's TanStack Query cache.
  */
-export const initializeEmptyRevisionAtom = atom(null, (get, set, revisionIdParam?: string) => {
-    // Use provided revisionId or fall back to atom
-    const revisionId = revisionIdParam ?? get(currentRevisionIdAtom)
-    console.log("[initializeEmptyRevision] called with revisionId:", revisionId)
-    if (!revisionId) return
+export const initializeEmptyRevisionAtom = atom(
+    null,
+    (get, set, params?: string | InitializeEmptyRevisionParams) => {
+        // Support both old string-only signature and new params object
+        const normalizedParams: InitializeEmptyRevisionParams =
+            typeof params === "string" ? {revisionId: params} : (params ?? {})
 
-    const serverIds = get(testcaseIdsAtom)
-    const newIds = get(newEntityIdsAtom)
-    console.log("[initializeEmptyRevision] serverIds:", serverIds.length, "newIds:", newIds.length)
+        const {
+            revisionId: revisionIdParam,
+            serverTotalCount,
+            isNewTestset = false,
+        } = normalizedParams
 
-    // Only initialize if truly empty (no server data, no local data)
-    if (serverIds.length > 0 || newIds.length > 0) {
-        console.log("[initializeEmptyRevision] skipping - already has data")
-        return
-    }
+        // Use provided revisionId or fall back to atom
+        const revisionId = revisionIdParam ?? get(currentRevisionIdAtom)
+        if (!revisionId) return
 
-    // Create an initial testcase with default properties
-    // Columns are derived from testcase properties - this is the correct mental model
-    // Note: testcase schema expects properties inside `data` field
-    const initialTestcase = {
-        data: {
-            input: "",
-            correct_answer: "",
-        },
-    }
+        const newIds = get(newEntityIdsAtom)
 
-    // Add the initial testcase via the unified action
-    const result = set(testcaseMolecule.actions.add, initialTestcase)
-    console.log("[initializeEmptyRevision] created testcase:", result)
-})
+        // Check server data based on the provided count (for existing testsets)
+        // or skip the check entirely (for new testsets which have no server data)
+        const hasServerData = isNewTestset ? false : (serverTotalCount ?? 0) > 0
+
+        // Only initialize if truly empty (no server data, no local data)
+        if (hasServerData || newIds.length > 0) {
+            return
+        }
+
+        // Create an initial testcase with default properties
+        // Columns are derived from testcase properties - this is the correct mental model
+        // Note: testcase schema expects properties inside `data` field
+        const initialTestcase = {
+            data: {
+                input: "",
+                correct_answer: "",
+            },
+        }
+
+        // Add the initial testcase via the unified action
+        set(testcaseMolecule.actions.add, initialTestcase)
+    },
+)

@@ -61,4 +61,5 @@ export {
     initializeEmptyRevisionAtom,
     type TestcaseTableRow,
     type TestcasePaginatedMeta,
+    type InitializeEmptyRevisionParams,
 } from "./paginatedStore"
