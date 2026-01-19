@@ -1,0 +1,135 @@
+import type {OnboardingWidgetConfig} from "./types"
+
+export const defaultWidgetConfig: OnboardingWidgetConfig = {
+    sections: [
+        {
+            id: "iterate-prompts",
+            title: "Iterate on prompts",
+            iconId: "prompts",
+            items: [
+                {
+                    id: "create-prompt",
+                    title: "Create a prompt",
+                    description: "Open the create prompt flow.",
+                    activationHint: "open-create-prompt",
+                    completionEventIds: ["prompt_created"],
+                    completionMode: "any",
+                },
+                {
+                    id: "explore-playground",
+                    title: "Explore playground",
+                    description: "Run, commit, load a test set, and compare variants.",
+                    activationHint: "playground-walkthrough",
+                    completionEventIds: [
+                        "playground_ran_prompt",
+                        "playground_committed_change",
+                        "playground_loaded_testset",
+                        "playground_compared_side_by_side",
+                    ],
+                    completionMode: "all",
+                },
+            ],
+        },
+        {
+            id: "run-evaluation",
+            title: "Run evaluation",
+            iconId: "evaluations",
+            items: [
+                {
+                    id: "run-first-evaluation",
+                    title: "Run your first evaluation",
+                    description: "Kick off a quick evaluation with pre-selected assets.",
+                    activationHint: "run-first-evaluation",
+                    completionEventIds: ["evaluation_ran"],
+                    completionMode: "any",
+                },
+                {
+                    id: "create-test-set",
+                    title: "Create a test set",
+                    description: "Open the Test Sets flow.",
+                    activationHint: "create-testset",
+                    completionEventIds: ["testset_created"],
+                    completionMode: "any",
+                },
+                {
+                    id: "create-evaluator",
+                    title: "Create an evaluator",
+                    description: "Open the evaluator creation flow.",
+                    activationHint: "create-evaluator",
+                    completionEventIds: ["evaluator_created"],
+                    completionMode: "any",
+                },
+                {
+                    id: "run-evaluation-from-code",
+                    title: "Run evaluation from code",
+                    description: "View SDK docs or run via SDK.",
+                    activationHint: "sdk-docs",
+                    completionEventIds: ["sdk_docs_viewed", "sdk_eval_ran"],
+                    completionMode: "any",
+                },
+            ],
+        },
+        {
+            id: "prompt-management",
+            title: "Prompt management",
+            iconId: "registry",
+            items: [
+                {
+                    id: "view-registry",
+                    title: "View registry",
+                    description: "Open the registry page.",
+                    activationHint: "open-registry",
+                    completionEventIds: ["registry_page_viewed"],
+                    completionMode: "any",
+                },
+                {
+                    id: "deploy-environment",
+                    title: "Deploy to an environment",
+                    description: "Open the deploy UI in registry.",
+                    activationHint: "deploy-variant",
+                    completionEventIds: ["variant_deployed"],
+                    completionMode: "any",
+                },
+                {
+                    id: "integrate-code",
+                    title: "Integrate with code",
+                    description: "Open the integration snippet.",
+                    activationHint: "integration-snippet",
+                    completionEventIds: ["integration_snippet_viewed"],
+                    completionMode: "any",
+                },
+            ],
+        },
+        {
+            id: "tracing",
+            title: "Tracing",
+            iconId: "tracing",
+            items: [
+                {
+                    id: "add-tracing",
+                    title: "Set up tracing",
+                    description: "Open tracing setup docs/snippet.",
+                    activationHint: "tracing-snippet",
+                    completionEventIds: ["trace_received"],
+                    completionMode: "any",
+                },
+                {
+                    id: "annotate-traces",
+                    title: "Annotate traces",
+                    description: "Navigate to traces and annotate.",
+                    activationHint: "trace-annotations",
+                    completionEventIds: ["trace_annotated"],
+                    completionMode: "any",
+                },
+                {
+                    id: "testset-from-traces",
+                    title: "Create a test set from traces",
+                    description: "Create a test set from trace data.",
+                    activationHint: "trace-to-testset",
+                    completionEventIds: ["testset_created_from_traces"],
+                    completionMode: "any",
+                },
+            ],
+        },
+    ],
+}

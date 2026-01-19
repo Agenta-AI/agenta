@@ -1,5 +1,6 @@
 export {default as OnboardingCard} from "./OnboardingCard"
 export {default as OnboardingProvider} from "./OnboardingProvider"
+export {OnboardingWidget} from "./Widget"
 export {useOnboardingTour} from "./hooks/useOnboardingTour"
 
 // Tours

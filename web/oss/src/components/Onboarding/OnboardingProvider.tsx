@@ -60,6 +60,7 @@ const OnboardingInner = ({children}: {children: React.ReactNode}) => {
             onComplete={handleComplete}
             onSkip={handleSkip}
             cardTransition={{duration: 0.2}}
+            noInViewScroll
         >
             {children}
         </NextStep>

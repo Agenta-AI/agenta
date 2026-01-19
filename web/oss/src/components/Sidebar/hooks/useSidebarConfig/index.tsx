@@ -15,12 +15,15 @@ import {
     ChatCircle,
     Gauge,
     HouseIcon,
+    RocketLaunch,
 } from "@phosphor-icons/react"
+import {useSetAtom, useAtomValue} from "jotai"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {isNewUserAtom, openWidgetAtom} from "@/oss/lib/onboarding"
 import {useAppsData} from "@/oss/state/app"
 import {useOrgData} from "@/oss/state/org"
 
@@ -32,6 +35,8 @@ export const useSidebarConfig = () => {
     const {selectedOrg} = useOrgData()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
+    const openWidget = useSetAtom(openWidgetAtom)
+    const isNewUser = useAtomValue(isNewUserAtom)
 
     const hasProjectURL = Boolean(projectURL)
 
@@ -144,6 +149,18 @@ export const useSidebarConfig = () => {
             tooltip: "Invite Teammate",
             isHidden: !doesSessionExist || !selectedOrg,
             disabled: !hasProjectURL,
+        },
+        {
+            key: "get-started-guide-link",
+            title: "Get Started Guide",
+            icon: <RocketLaunch size={16} />,
+            isBottom: true,
+            tooltip: "Open the onboarding guide",
+            isHidden: !doesSessionExist || !isNewUser,
+            onClick: (e) => {
+                e.preventDefault()
+                openWidget()
+            },
         },
         {
             key: "support-chat-link",
