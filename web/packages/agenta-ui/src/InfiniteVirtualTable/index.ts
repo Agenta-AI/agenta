@@ -108,8 +108,15 @@ export type {TableExportColumnContext} from "./hooks/useTableExport"
 // Alias for backward compatibility
 export {default as ColumnVisibilityPopoverContentBase} from "./components/columnVisibility/ColumnVisibilityPopoverContent"
 
-// NOTE: Internal atoms (columnVisibility, columnWidths, columnHiddenKeys) are NOT exported.
+// NOTE: Internal atoms (columnWidths, columnHiddenKeys) are NOT exported.
 // They are implementation details used internally by the table components.
+
+// Column visibility getters (used by components that need viewport-aware rendering)
+export {
+    getColumnViewportVisibilityAtom,
+    getColumnUserVisibilityAtom,
+    getColumnEffectiveVisibilityAtom,
+} from "./atoms/columnVisibility"
 
 // ============================================================================
 // PAGINATED STORE
