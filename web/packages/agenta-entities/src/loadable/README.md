@@ -28,7 +28,7 @@ The loadable system uses a **bridge pattern** that separates:
 
 1. **Pure state** (`store.ts`): Jotai atoms with no entity dependencies
 2. **Bridge** (`bridge.ts`): Connects molecule APIs to unified selectors/actions
-3. **Factory** (`shared/createPlaygroundBridge.ts`): Creates bridges with configurable sources
+3. **Factory** (`shared/createEntityBridge.ts`): Creates bridges with configurable sources
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
