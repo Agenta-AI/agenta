@@ -73,21 +73,22 @@ Adapters must be initialized with actual atoms during app startup. This is done 
 ```typescript
 // In Providers.tsx or app initialization
 import { setAppRevisionAtoms, setEvaluatorRevisionAtoms, setTestsetAtoms } from '@agenta/entities/ui'
-import { appRevision, evaluatorRevision } from '@/oss/state/entities/playground'
+import { appRevisionMolecule } from '@agenta/entities/appRevision'
+import { evaluatorRevisionMolecule } from '@agenta/entities/evaluatorRevision'
 import { testsetMolecule, revisionMolecule } from '@agenta/entities/testset'
 
 // Configure app revision adapter
 setAppRevisionAtoms({
-  appsAtom: appRevision.selectors.apps,
-  variantsByAppFamily: (appId) => appRevision.selectors.variantsByApp(appId),
-  revisionsByVariantFamily: (variantId) => appRevision.selectors.revisions(variantId),
+  appsAtom: appRevisionMolecule.selectors.apps,
+  variantsByAppFamily: (appId) => appRevisionMolecule.selectors.variantsByApp(appId),
+  revisionsByVariantFamily: (variantId) => appRevisionMolecule.selectors.revisions(variantId),
 })
 
 // Configure evaluator revision adapter
 setEvaluatorRevisionAtoms({
-  evaluatorsAtom: evaluatorRevision.selectors.evaluators,
-  variantsAtomFamily: (evaluatorId) => evaluatorRevision.selectors.variantsByEvaluator(evaluatorId),
-  revisionsAtomFamily: (variantId) => evaluatorRevision.selectors.revisions(variantId),
+  evaluatorsAtom: evaluatorRevisionMolecule.selectors.evaluators,
+  variantsAtomFamily: (evaluatorId) => evaluatorRevisionMolecule.selectors.variantsByEvaluator(evaluatorId),
+  revisionsAtomFamily: (variantId) => evaluatorRevisionMolecule.selectors.revisions(variantId),
 })
 
 // Configure testset adapter

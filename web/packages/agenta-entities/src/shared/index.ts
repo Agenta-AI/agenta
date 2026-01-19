@@ -191,3 +191,53 @@ export {
     type UserInfo,
     type UserAuthorLabelProps,
 } from "./user"
+
+// ============================================================================
+// STUB MOLECULE (for optional/feature-flagged entities)
+// ============================================================================
+
+export {
+    createStubMolecule,
+    isStubMolecule,
+    type StubQueryState,
+    type StubMoleculeSelectors,
+    type CreateStubMoleculeConfig,
+    type StubMolecule,
+} from "./stubMolecule"
+
+// ============================================================================
+// PLAYGROUND BRIDGE (unified loadable/runnable controllers)
+// ============================================================================
+
+export {
+    // Factories
+    createLoadableBridge,
+    createRunnableBridge,
+    // Internal state (advanced)
+    loadableStateFamily,
+} from "./createPlaygroundBridge"
+
+export type {
+    // Core types
+    BridgeQueryState,
+    BaseMolecule,
+    BaseMoleculeSelectors,
+    // Loadable types
+    LoadableRow,
+    LoadableColumn,
+    LoadableSourceConfig,
+    CreateLoadableBridgeConfig,
+    LoadableBridge,
+    LoadableBridgeSelectors,
+    LoadableBridgeActions,
+    // Runnable types
+    RunnablePort,
+    RunnableData,
+    RunnableTypeConfig,
+    CreateRunnableBridgeConfig,
+    RunnableBridge,
+    RunnableBridgeSelectors,
+    // Aliases
+    SourceConfig,
+    RunnableConfig,
+} from "./playgroundBridge"

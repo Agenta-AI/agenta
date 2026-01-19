@@ -63,13 +63,21 @@ export {
 } from "./shared"
 
 // ============================================================================
-// TRACE ENTITY
+// ENTITY MODULES (Import via subpaths)
 // ============================================================================
-// NOTE: Trace entity is NOT re-exported here to avoid circular dependency issues
+// Entity modules are NOT re-exported here to avoid circular dependency issues
 // with atoms that have side effects at load time.
 //
-// Import trace directly from the subpath:
+// Import entities directly from their subpaths:
 //   import { traceSpanMolecule, TraceSpan, ... } from '@agenta/entities/trace'
+//   import { evaluatorRevisionMolecule, ... } from '@agenta/entities/evaluatorRevision'
+//   import { appRevisionMolecule, ... } from '@agenta/entities/appRevision'
+//   import { revisionMolecule, testsetMolecule, ... } from '@agenta/entities/testset'
+//   import { testcaseMolecule, ... } from '@agenta/entities/testcase'
+//
+// For loadable/runnable utilities (playground state):
+//   import { useLoadable, loadableController, ... } from '@agenta/entities/loadable'
+//   import { useRunnable, executeRunnable, ... } from '@agenta/entities/runnable'
 
 // ============================================================================
 // UI UTILITIES
