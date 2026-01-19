@@ -14,21 +14,21 @@ The ChatMessage module provides:
 
 ```
 ChatMessage/
-├── index.ts                    # Public exports
-├── types.ts                    # Type definitions
-├── schemas.ts                  # JSON validation schemas
-├── utils.ts                    # Utility functions
+├── index.ts                    # Public exports (re-exports from @agenta/shared)
 ├── README.md                   # This file
 └── components/
     ├── index.ts                # Component exports
     ├── ChatMessageEditor.tsx   # Single message editor
     ├── ChatMessageList.tsx     # List of messages
     ├── MarkdownToggleButton.tsx# Markdown preview toggle
-    ├── ToolMessageHeader.tsx   # Tool message header
-    ├── MessageAttachments.tsx  # Attachment display
-    ├── AttachmentButton.tsx    # Attachment upload
-    └── SimpleDropdownSelect.tsx# Role selector
+    ├── ToolMessageHeader.tsx   # Tool message header (uses MetadataHeader)
+    ├── MessageAttachments.tsx  # Attachment display (uses presentational components)
+    ├── AttachmentButton.tsx    # Attachment upload dropdown
+    └── SimpleDropdownSelect.tsx# Role selector (re-exports from presentational)
 ```
+
+> **Note:** Types, schemas, and utilities are re-exported from `@agenta/shared`.
+> Components use presentational components from `components/presentational/`.
 
 ## Quick Start
 
