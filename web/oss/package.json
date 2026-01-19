@@ -19,6 +19,10 @@
         "types:watch": "tsc -w"
     },
     "dependencies": {
+        "@agenta/entities": "workspace:../packages/agenta-entities",
+        "@agenta/playground": "workspace:../packages/agenta-playground",
+        "@agenta/shared": "workspace:../packages/agenta-shared",
+        "@agenta/ui": "workspace:../packages/agenta-ui",
         "@agenta/web-tests": "workspace:../tests",
         "@agentaai/nextstepjs": "^2.1.3-agenta.1",
         "@ant-design/colors": "^7.2.1",
