@@ -1,3 +1,4 @@
+import {projectIdAtom} from "@agenta/shared"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -11,6 +12,9 @@ import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {profileQueryAtom} from "@/oss/state/profile"
 import {sessionExistsAtom} from "@/oss/state/session"
 import {logAtom} from "@/oss/state/utils/logAtom"
+
+// Re-export the shared projectIdAtom so all OSS code uses the same atom as entity packages
+export {projectIdAtom}
 
 const LAST_USED_PROJECTS_KEY = "lastUsedProjectsByWorkspace"
 const LAST_NON_DEMO_PROJECT_KEY = "agenta:last-non-demo-project"
@@ -167,8 +171,6 @@ const pickPreferredProject = (
 
     return projects[0]
 }
-
-export const projectIdAtom = atom((get) => get(appIdentifiersAtom).projectId)
 
 export const projectAtom = atom((get) => {
     const projects = get(projectsAtom) as ProjectsResponse[]
