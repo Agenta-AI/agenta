@@ -20,8 +20,9 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const {user} = useProfileData()
     const [posthog] = useAtom(posthogAtom)
     const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
-    const _id: string | undefined = isDemo() ? user?.email ?? baseDistinctId : baseDistinctId
+    const analyticsId = isDemo() && user?.email ? user.email : baseDistinctId
     const identifiedRef = useRef<string | null>(null)
+    const aliasedRef = useRef(false)
     const baseCapture = posthog?.capture?.bind(posthog)
     const baseIdentify = posthog?.identify?.bind(posthog)
     const capture: PostHog["capture"] = useCallback(
@@ -36,11 +37,11 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const identify: PostHog["identify"] = useCallback(
         (id, ...args) => {
             if (!trackingEnabled) return
-            const targetId = _id !== undefined ? _id : id
+            const targetId = id ?? analyticsId
             if (!targetId) return
             baseIdentify?.(targetId, ...args)
         },
-        [_id, baseIdentify, trackingEnabled],
+        [analyticsId, baseIdentify, trackingEnabled],
     )
     useIsomorphicLayoutEffect(() => {
         if (!posthog) return
@@ -52,11 +53,19 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
 
     useIsomorphicLayoutEffect(() => {
         if (!posthog) return
-        if (!_id) return
-        if (identifiedRef.current === _id) return
-        identifiedRef.current = _id
-        identify(_id)
-    }, [identify, posthog, _id])
+        if (!analyticsId) return
+        if (posthog.get_distinct_id?.() === analyticsId) {
+            identifiedRef.current = analyticsId
+            return
+        }
+        if (identifiedRef.current === analyticsId) return
+        if (isDemo() && user?.email && baseDistinctId !== analyticsId && !aliasedRef.current) {
+            posthog.alias?.(analyticsId, baseDistinctId)
+            aliasedRef.current = true
+        }
+        identifiedRef.current = analyticsId
+        identify(analyticsId)
+    }, [analyticsId, baseDistinctId, identify, posthog, user?.email])
 
     if (!posthog) return null
     return Object.assign(posthog, {identify, capture}) as ExtendedPostHog

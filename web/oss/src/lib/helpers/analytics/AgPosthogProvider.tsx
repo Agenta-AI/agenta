@@ -63,7 +63,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
         } finally {
             setLoadingPosthog(false)
         }
-    }, [currentPath, loadingPosthog, posthogClient, setPosthogClient])
+    }, [loadingPosthog, posthogClient, setPosthogClient])
 
     useEffect(() => {
         // Initialize PostHog everywhere except auth routes (but DO initialize on post-signup for survey)
