@@ -62,17 +62,12 @@ def get_app_info() -> InputAppInfo:
     # Extract domain from full URL (e.g., "http://localhost/api" -> "http://localhost")
     api_parsed = urlparse(env.agenta.api_url)
     api_domain = f"{api_parsed.scheme}://{api_parsed.netloc}"
-    api_gateway_path = api_parsed.path or "/"
-    # NOTE: We keep api_gateway_path as-is (e.g., "/api") so that SuperTokens
-    # sets cookie paths correctly from the browser's perspective.
-    # The browser makes requests to /api/auth/*, so cookies must be set
-    # with paths that match /api/auth/* (not just /auth/*).
 
     app_info = InputAppInfo(
         app_name="Agenta",
         api_domain=api_domain,
         website_domain=env.agenta.web_url,
-        api_gateway_path=api_gateway_path,
+        api_gateway_path=env.agenta.api_url,
         api_base_path="/auth",
         website_base_path="/auth",
     )
