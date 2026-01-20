@@ -1,5 +1,6 @@
 import {ArrowUpRightIcon} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
+
 import {useStyles} from "../styles"
 
 interface WelcomeCardProps {

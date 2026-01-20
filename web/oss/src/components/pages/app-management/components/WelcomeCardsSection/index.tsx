@@ -4,10 +4,10 @@ import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import WelcomeCard from "./assets/components/WelcomeCard"
-
 import useURL from "@/oss/hooks/useURL"
 import {isNewUserAtom} from "@/oss/lib/onboarding"
+
+import WelcomeCard from "./assets/components/WelcomeCard"
 
 interface WelcomeCardsSectionProps {
     onCreatePrompt: () => void
