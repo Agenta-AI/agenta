@@ -182,14 +182,14 @@ const AppManagement: React.FC = () => {
                             </div>
                         </div>
 
-                        <GetStartedSection
+                        {/* <GetStartedSection
                             selectedOrg={selectedOrg}
                             apps={apps}
                             setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
                             setIsMaxAppModalOpen={setIsMaxAppModalOpen}
                             setIsWriteOwnAppModal={openModal}
                             setIsSetupTracingModal={setIsSetupTracingModal}
-                        />
+                        /> */}
 
                         <ObservabilityDashboardSection />
 

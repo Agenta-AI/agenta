@@ -16,7 +16,6 @@ interface WelcomeCardsSectionProps {
 }
 
 const WelcomeCardsSection = ({onCreatePrompt}: WelcomeCardsSectionProps) => {
-    const isNewUser = useAtomValue(isNewUserAtom)
     const onboardingWidgetStatus = useAtomValue(onboardingWidgetStatusAtom)
     const welcomeCardsDismissed = useAtomValue(welcomeCardsDismissedAtom)
     const setWelcomeCardsDismissed = useSetAtom(welcomeCardsDismissedAtom)
@@ -69,7 +68,7 @@ const WelcomeCardsSection = ({onCreatePrompt}: WelcomeCardsSectionProps) => {
         setWelcomeCardsDismissed(true)
     }, [setWelcomeCardsDismissed])
 
-    if (onboardingWidgetStatus === "completed" || welcomeCardsDismissed || !isNewUser) return null
+    if (onboardingWidgetStatus === "completed" || welcomeCardsDismissed) return null
 
     return (
         <div className="flex flex-col gap-8 rounded-lg bg-[#F5F7FA] p-6">
