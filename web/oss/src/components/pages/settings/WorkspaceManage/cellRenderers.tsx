@@ -6,10 +6,11 @@ import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "a
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {message} from "@/oss/components/AppMessageContext"
-import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
-import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
+import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
+import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
+import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
-import {Plan, User} from "@/oss/lib/Types"
+import {User} from "@/oss/lib/Types"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {updateUsername} from "@/oss/services/profile"
 import {
@@ -177,9 +178,8 @@ export const Roles: React.FC<{
     const [loading, setLoading] = useState(false)
     const {roles} = useWorkspaceRoles()
     const {selectedOrg, refetch} = useOrgData()
-    const {subscription}: {subscription?: any} = useSubscriptionDataWrapper() ?? {
-        subscription: undefined,
-    }
+    const {canModifyRoles} = useWorkspacePermissions()
+    const {hasRBAC} = useEntitlements()
 
     const {user} = member
     const isOwner = user.id === selectedOrg?.owner_id
@@ -226,7 +226,7 @@ export const Roles: React.FC<{
                     </Tag>
                 </Tooltip>
             )}
-            {!readOnly && !loading && isEE() && subscription?.plan === Plan.Business && (
+            {!readOnly && !loading && canModifyRoles && hasRBAC && (
                 <Dropdown
                     trigger={["click"]}
                     menu={{

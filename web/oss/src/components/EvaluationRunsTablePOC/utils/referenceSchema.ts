@@ -32,7 +32,7 @@ export interface ReferenceColumnDescriptor {
 const ROLE_LABEL: Record<ReferenceRole, string> = {
     application: "Application",
     variant: "Variant",
-    testset: "Testset",
+    testset: "Test set",
     query: "Query",
     evaluator: "Evaluator",
 }

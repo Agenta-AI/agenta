@@ -11,7 +11,7 @@ import stripe
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import acquire_lock, release_lock
 from oss.src.utils.env import env
 
 from oss.src.services.db_manager import (
@@ -24,6 +24,8 @@ from ee.src.utils.permissions import check_action_access
 from ee.src.models.shared_models import Permission
 from ee.src.core.entitlements.types import ENTITLEMENTS, CATALOG, Tracker, Quota
 from ee.src.core.subscriptions.types import Event, Plan
+from ee.src.core.meters.service import MetersService
+from ee.src.core.tracing.service import TracingService
 from ee.src.core.subscriptions.service import (
     SubscriptionsService,
     SwitchException,
@@ -49,12 +51,16 @@ FORBIDDEN_RESPONSE = JSONResponse(
 )
 
 
-class SubscriptionsRouter:
+class BillingRouter:
     def __init__(
         self,
         subscription_service: SubscriptionsService,
+        meters_service: MetersService,
+        tracing_service: TracingService,
     ):
         self.subscription_service = subscription_service
+        self.meters_service = meters_service
+        self.tracing_service = tracing_service
 
         # ROUTER
         self.router = APIRouter()
@@ -140,6 +146,28 @@ class SubscriptionsRouter:
             operation_id="admin_switch_plans",
         )
 
+        self.admin_router.add_api_route(
+            "/subscription/cancel",
+            self.cancel_subscription_admin_route,
+            methods=["POST"],
+            operation_id="admin_cancel_subscription",
+        )
+
+        # DOESN'T REQUIRE 'organization_id'
+        self.admin_router.add_api_route(
+            "/usage/report",
+            self.report_usage,
+            methods=["POST"],
+            operation_id="admin_report_usage",
+        )
+
+        self.admin_router.add_api_route(
+            "/usage/flush",
+            self.flush_usage,
+            methods=["POST"],
+            operation_id="admin_flush_usage",
+        )
+
     async def _reset_organization_flags(self, organization_id: str) -> None:
         organization = await db_manager_ee.get_organization(organization_id)
         if not organization:
@@ -161,21 +189,6 @@ class SubscriptionsRouter:
         await db_manager_ee.update_organization(
             organization_id,
             OrganizationUpdate(flags=default_flags),
-        )
-
-        self.admin_router.add_api_route(
-            "/subscription/cancel",
-            self.cancel_subscription_admin_route,
-            methods=["POST"],
-            operation_id="admin_cancel_subscription",
-        )
-
-        # DOESN'T REQUIRE 'organization_id'
-        self.admin_router.add_api_route(
-            "/usage/report",
-            self.report_usage,
-            methods=["POST"],
-            operation_id="admin_report_usage",
         )
 
     # HANDLERS
@@ -811,7 +824,7 @@ class SubscriptionsRouter:
                 content={"status": "error", "message": "Plan not found"},
             )
 
-        meters = await self.subscription_service.meters_service.fetch(
+        meters = await self.meters_service.fetch(
             organization_id=organization_id,
         )
 
@@ -846,29 +859,24 @@ class SubscriptionsRouter:
         log.info("[report] [endpoint] Trigger")
 
         try:
-            report_ongoing = await get_cache(
+            lock_key = await acquire_lock(
                 namespace="meters:report",
                 key={},
+                ttl=3600,  # 1 hour
             )
 
-            if report_ongoing:
+            if not lock_key:
                 log.info("[report] [endpoint] Skipped (ongoing)")
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
                     content={"status": "skipped"},
                 )
 
-            # await set_cache(
-            #     namespace="meters:report",
-            #     key={},
-            #     value=True,
-            #     ttl=60 * 60,  # 1 hour
-            # )
             log.info("[report] [endpoint] Lock acquired")
 
             try:
                 log.info("[report] [endpoint] Reporting usage started")
-                await self.subscription_service.meters_service.report()
+                await self.meters_service.report()
                 log.info("[report] [endpoint] Reporting usage completed")
 
                 return JSONResponse(
@@ -887,7 +895,7 @@ class SubscriptionsRouter:
                 )
 
             finally:
-                await invalidate_cache(
+                await release_lock(
                     namespace="meters:report",
                     key={},
                 )
@@ -897,6 +905,65 @@ class SubscriptionsRouter:
             # Catch-all for any errors, including cache errors
             log.error(
                 "[report] [endpoint] Fatal error:",
+                exc_info=True,
+            )
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"status": "error", "message": "Fatal error"},
+            )
+
+    @intercept_exceptions()
+    async def flush_usage(
+        self,
+    ):
+        log.info("[flush] [endpoint] Trigger")
+
+        try:
+            lock_key = await acquire_lock(
+                namespace="spans:flush",
+                key={},
+                ttl=3600,  # 1 hour
+            )
+
+            if not lock_key:
+                log.info("[flush] [endpoint] Skipped (ongoing)")
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "skipped"},
+                )
+
+            log.info("[flush] [endpoint] Lock acquired")
+
+            try:
+                log.info("[flush] [endpoint] Retention started")
+                await self.tracing_service.flush_spans()
+                log.info("[flush] [endpoint] Retention completed")
+
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "success"},
+                )
+
+            except Exception:
+                log.error(
+                    "[flush] [endpoint] Retention failed:",
+                    exc_info=True,
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    content={"status": "error", "message": "Retention failed"},
+                )
+
+            finally:
+                await release_lock(
+                    namespace="spans:flush",
+                    key={},
+                )
+                log.info("[flush] [endpoint] Lock released")
+
+        except Exception:
+            log.error(
+                "[flush] [endpoint] Fatal error:",
                 exc_info=True,
             )
             return JSONResponse(

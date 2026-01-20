@@ -287,7 +287,7 @@ const FiltersSummary = () => {
             variantOptions.isLoading,
         )
         push(
-            "Testsets",
+            "Test sets",
             summary.testsetFilters,
             "testset",
             testsetLabels,

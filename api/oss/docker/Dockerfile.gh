@@ -24,18 +24,7 @@ RUN poetry config virtualenvs.create false \
 COPY ./oss /app/oss/
 COPY ./entrypoints /app/entrypoints/
 
-# Set PYTHONPATH so worker scripts can import from oss module
 ENV PYTHONPATH=/app
-
-#
-
-#
-#
-#
-#
-
-#
-#
 
 COPY ./oss/src/crons/queries.sh /queries.sh
 COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
@@ -44,5 +33,21 @@ RUN cat -A /etc/cron.d/queries-cron
 
 RUN chmod +x /queries.sh \
     && chmod 0644 /etc/cron.d/queries-cron
+
+#
+#
+#
+#
+
+#
+#
+
+#
+#
+#
+#
+
+#
+#
 
 EXPOSE 8000

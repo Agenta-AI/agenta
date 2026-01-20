@@ -21,6 +21,7 @@ from ee.src.core.subscriptions.types import (
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
 from ee.src.core.entitlements.service import EntitlementsService
+from oss.src.utils.caching import invalidate_cache
 from ee.src.core.meters.service import MetersService
 
 log = get_module_logger(__name__)

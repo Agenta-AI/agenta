@@ -148,7 +148,7 @@ const deriveStepGroupLabel = (role: StepRole, stepMeta?: StepMeta): string => {
     if (role === "input") {
         if (refs.testset) {
             const label = formatReferenceLabel(refs.testset)
-            return label ? `Testset ${label}` : "Testset"
+            return label ? `Testset ${label}` : "Test set"
         }
 
         if (refs.query) {
