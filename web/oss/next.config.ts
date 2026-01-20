@@ -54,9 +54,13 @@ const COMMON_CONFIG: NextConfig = {
             },
         ]
     },
-    ...(!isDevelopment
-        ? {
-              transpilePackages: [
+    // Always transpile workspace packages to ensure proper module resolution
+    transpilePackages: [
+        "@agenta/entities",
+        "@agenta/shared",
+        "@agenta/ui",
+        ...(!isDevelopment
+            ? [
                   "rc-util",
                   "antd",
                   "rc-pagination",
@@ -66,7 +70,11 @@ const COMMON_CONFIG: NextConfig = {
                   "rc-table",
                   "@ant-design/icons",
                   "@ant-design/icons-svg",
-              ],
+              ]
+            : []),
+    ],
+    ...(!isDevelopment
+        ? {
               webpack: (config, {webpack, isServer}) => {
                   config.resolve ??= {}
                   config.resolve.alias = {
