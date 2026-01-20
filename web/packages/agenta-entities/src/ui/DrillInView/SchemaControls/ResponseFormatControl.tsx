@@ -216,7 +216,7 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
                 editorType="borderless"
                 className="mt-2 min-h-[300px]"
                 state="filled"
-                onChange={handleEditorChange}
+                handleChange={handleEditorChange}
             />
         </EditorProvider>
     )
