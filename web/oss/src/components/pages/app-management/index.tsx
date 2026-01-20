@@ -172,7 +172,7 @@ const AppManagement: React.FC = () => {
                             onCreatePrompt={() => setIsAddAppFromTemplatedModal(true)}
                         />
 
-                        <div className="flex items-center justify-between">
+                        {/* <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <Title level={2} className="!m-0">
                                     Home
@@ -180,7 +180,7 @@ const AppManagement: React.FC = () => {
 
                                 <ProjectHeaderActions />
                             </div>
-                        </div>
+                        </div> */}
 
                         {/* <GetStartedSection
                             selectedOrg={selectedOrg}
