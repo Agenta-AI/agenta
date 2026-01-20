@@ -6,11 +6,13 @@
  */
 
 import {tryParseAsObject, tryParseAsArray} from "@agenta/shared"
+import type {SimpleChatMessage, MessageContent} from "@agenta/shared"
 
 import type {DataType} from "../coreTypes"
 
 // Re-export for backward compatibility
 export {tryParseAsObject, tryParseAsArray}
+export type {SimpleChatMessage}
 
 /**
  * Maximum depth for recursive field expansion
@@ -102,39 +104,28 @@ export function isMessagesArray(value: string): boolean {
 }
 
 /**
- * Simple chat message interface for parsing
- */
-export interface SimpleChatMessage {
-    role: string
-    content: string | unknown[] | null
-    id?: string
-    name?: string
-    tool_call_id?: string
-    tool_calls?: unknown[]
-    function_call?: unknown
-    provider_specific_fields?: Record<string, unknown>
-    annotations?: unknown[]
-    refusal?: string | null
-}
-
-/**
  * Parse a message object into SimpleChatMessage format
  */
 function parseMessageObject(msg: Record<string, unknown>): SimpleChatMessage {
     const role = (msg.role || msg.sender || msg.author || "user") as string
-    let content = msg.content ?? msg.text ?? msg.message
-    if (
-        content !== null &&
-        content !== undefined &&
-        typeof content !== "string" &&
-        !Array.isArray(content)
-    ) {
-        content = ""
+    let content: MessageContent | undefined = undefined
+
+    const rawContent = msg.content ?? msg.text ?? msg.message
+    if (rawContent !== null && rawContent !== undefined) {
+        if (typeof rawContent === "string") {
+            content = rawContent
+        } else if (Array.isArray(rawContent)) {
+            // Cast array content to MessageContentPart[] - the shared type handles this
+            content = rawContent as MessageContent
+        }
+        // For non-string, non-array values, leave content undefined
+    } else if (rawContent === null) {
+        content = null
     }
 
     const result: SimpleChatMessage = {
         role,
-        content: content as SimpleChatMessage["content"],
+        content,
         id: msg.id as string | undefined,
     }
 
