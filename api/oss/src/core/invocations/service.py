@@ -184,6 +184,7 @@ class InvocationsService:
 
         invocation = await self._fetch_invocation(
             project_id=project_id,
+            user_id=user_id,
             #
             invocation_link=invocation_link,
         )
@@ -194,6 +195,7 @@ class InvocationsService:
         self,
         *,
         project_id: UUID,
+        user_id: Optional[UUID] = None,
         #
         trace_id: str,
         span_id: Optional[str] = None,
@@ -205,6 +207,7 @@ class InvocationsService:
 
         invocation: Optional[Invocation] = await self._fetch_invocation(
             project_id=project_id,
+            user_id=user_id,
             #
             invocation_link=invocation_link,
         )
@@ -229,6 +232,7 @@ class InvocationsService:
 
         invocation: Optional[Invocation] = await self._fetch_invocation(
             project_id=project_id,
+            user_id=user_id,
             #
             invocation_link=invocation_link,
         )
@@ -335,6 +339,7 @@ class InvocationsService:
 
         invocation = await self._fetch_invocation(
             project_id=project_id,
+            user_id=user_id,
             #
             invocation_link=invocation_link,
         )
@@ -368,6 +373,7 @@ class InvocationsService:
         self,
         *,
         project_id: UUID,
+        user_id: Optional[UUID] = None,
         #
         invocation_query: Optional[InvocationQuery] = None,
         #
@@ -401,6 +407,7 @@ class InvocationsService:
 
         invocations = await self._query_invocation(
             project_id=project_id,
+            user_id=user_id,
             #
             flags=invocation_flags,
             tags=invocation_tags,

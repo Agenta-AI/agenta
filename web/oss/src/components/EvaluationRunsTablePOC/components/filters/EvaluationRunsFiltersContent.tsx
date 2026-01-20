@@ -564,7 +564,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                                 </Section>
                             ) : null}
                             {shouldShowTestsetSection ? (
-                                <Section title="Testsets">
+                                <Section title="Test sets">
                                     <Select
                                         mode="tags"
                                         className={chipSelectClassName}

@@ -92,8 +92,21 @@ def _load_litellm(
         _litellm_module = None
     else:
         _litellm_module = _litellm
+        _configure_litellm(_litellm_module)
 
     return _litellm_module
+
+
+def _configure_litellm(litellm: _LitellmModule) -> None:
+    """Configure litellm with Agenta's callback handler for cost/token tracking."""
+    from agenta.sdk.litellm import mockllm
+    from agenta.sdk.litellm.litellm import litellm_handler
+
+    litellm.logging = False  # type: ignore
+    litellm.set_verbose = False  # type: ignore
+    litellm.drop_params = True  # type: ignore
+    mockllm.litellm = litellm  # type: ignore
+    litellm.callbacks = [litellm_handler()]  # type: ignore
 
 
 def _load_jsonpath() -> Tuple[Optional[_JsonpathModule], Optional[type["JSONPointer"]]]:

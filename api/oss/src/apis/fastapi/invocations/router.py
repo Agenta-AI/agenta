@@ -183,6 +183,7 @@ class InvocationsRouter:
 
         invocation = await self.invocations_service.fetch(
             project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id) if request.state.user_id else None,
             #
             trace_id=trace_id,
             span_id=span_id,
@@ -280,6 +281,7 @@ class InvocationsRouter:
 
         invocations = await self.invocations_service.query(
             project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id) if request.state.user_id else None,
             #
             invocation_query=invocation_query_request.invocation,
             #

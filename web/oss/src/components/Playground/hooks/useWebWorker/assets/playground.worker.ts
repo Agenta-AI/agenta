@@ -223,16 +223,44 @@ async function runVariantInputRow(payload: {
                     body: JSON.stringify(requestBody),
                     signal: controller.signal,
                 })
-                const data = await response.json()
+                let data: any = null
+                let responseText = ""
+                try {
+                    responseText = await response.text()
+                    if (responseText) {
+                        try {
+                            data = JSON.parse(responseText)
+                        } catch {
+                            data = responseText
+                        }
+                    }
+                } catch {
+                    data = null
+                }
 
                 if (!response.ok) {
-                    const errorMessage = parseValidationError(data)
+                    let errorMessage: string
+                    if (response.status === 429) {
+                        const retryAfter = response.headers.get("Retry-After")
+                        const detail =
+                            typeof (data as any)?.detail === "string"
+                                ? (data as any).detail
+                                : typeof data === "string"
+                                  ? data
+                                  : "API Rate limit exceeded. Please try again later or upgrade your plan."
+                        errorMessage = retryAfter
+                            ? `${detail} Retry after ${retryAfter}s.`
+                            : `${detail} Please try again later.`
+                    } else {
+                        errorMessage = parseValidationError(data) || "An unknown error occurred"
+                    }
                     return {
                         response: undefined,
                         error: errorMessage,
                         metadata: {
                             timestamp: new Date().toISOString(),
                             statusCode: response.status,
+                            retryAfter: response.headers.get("Retry-After") || undefined,
                             rawError: data,
                         },
                     }

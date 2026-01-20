@@ -164,7 +164,7 @@ const TestcaseViewerModal = ({testcaseId}: {testcaseId: string}) => {
 
   return (
     <Modal>
-      <h2>Testcase Details</h2>
+      <h2>Test case Details</h2>
       <pre>{JSON.stringify(queryState.data, null, 2)}</pre>
     </Modal>
   )

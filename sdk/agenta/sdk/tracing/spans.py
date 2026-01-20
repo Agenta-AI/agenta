@@ -1,36 +1,30 @@
 from typing import Optional, Union, Any, Dict
 
-from opentelemetry.trace import SpanContext
+from opentelemetry.trace import SpanContext, Span as TraceSpan
 from opentelemetry.trace.status import Status, StatusCode
-from opentelemetry.sdk.trace import Span
 
 from agenta.sdk.tracing.attributes import serialize
 
 
-class CustomSpan(Span):  # INHERITANCE FOR TYPING ONLY
+class CustomSpan:
+    """
+    A wrapper around OpenTelemetry spans that adds namespace support for attributes.
+
+    This class wraps any OpenTelemetry span (from SDK or API) and provides
+    custom methods with namespace support for attributes serialization.
+    It uses composition rather than inheritance to work with any span type,
+    including spans created by third-party instrumentation libraries.
+
+    Note: Previously this class inherited from opentelemetry.sdk.trace.Span and
+    called super().__init__() with SDK-specific internal attributes. This failed
+    for non-SDK spans (e.g., from opentelemetry-instrumentation-langchain) which
+    don't have attributes like _sampler, _trace_config, etc.
+    """
+
     def __init__(
         self,
-        span: Span,
+        span: TraceSpan,
     ) -> None:
-        super().__init__(  # INHERITANCE FOR TYPING ONLY
-            name=span.name,
-            context=span.context,
-            parent=span.parent,
-            sampler=span._sampler,
-            trace_config=span._trace_config,
-            resource=span.resource,
-            attributes=span.attributes,
-            events=span.events,
-            links=span.links,
-            kind=span.kind,
-            span_processor=span._span_processor,
-            instrumentation_info=span.instrumentation_info,
-            record_exception=span._record_exception,
-            set_status_on_exception=span._set_status_on_exception,
-            limits=span._limits,
-            instrumentation_scope=span.instrumentation_scope,
-        )
-
         self._span = span
 
     ## --- PROXY METHODS --- ##
@@ -38,6 +32,15 @@ class CustomSpan(Span):  # INHERITANCE FOR TYPING ONLY
     @property
     def name(self) -> str:
         return self._span.name
+
+    @property
+    def context(self) -> SpanContext:
+        return self._span.get_span_context()
+
+    @property
+    def parent(self):
+        # parent may not exist on all span types, return None if not available
+        return getattr(self._span, "parent", None)
 
     def get_span_context(self):
         return self._span.get_span_context()
