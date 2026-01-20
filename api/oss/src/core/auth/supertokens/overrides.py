@@ -258,6 +258,19 @@ async def _create_account(email: str, uid: str) -> bool:
 
         payload["organization_id"] = str(organization_db.id)
         await create_accounts(payload)
+
+    if env.posthog.enabled and env.posthog.api_key:
+        try:
+            posthog.capture(
+                distinct_id=email,
+                event="user_signed_up_v1",
+                properties={
+                    "source": "auth",
+                    "is_ee": is_ee(),
+                },
+            )
+        except Exception:
+            log.error("[AUTH] Failed to capture PostHog signup event", exc_info=True)
     log.info("[AUTH] _create_account done", email=email, uid=uid)
     return True
 
