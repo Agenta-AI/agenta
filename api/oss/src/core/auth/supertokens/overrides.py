@@ -1029,5 +1029,4 @@ def override_session_functions(
         return result
 
     original_implementation.create_new_session = create_new_session
-
     return original_implementation
