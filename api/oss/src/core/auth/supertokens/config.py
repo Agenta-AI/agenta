@@ -44,7 +44,6 @@ from oss.src.core.auth.supertokens.overrides import (
     override_passwordless_functions,
     override_passwordless_apis,
     override_session_functions,
-    override_session_apis,
 )
 
 log = get_module_logger(__name__)
@@ -360,7 +359,6 @@ def init_supertokens():
             expose_access_token_to_frontend_in_cookie_based_auth=True,
             override=SessionInputOverrideConfig(
                 functions=override_session_functions,
-                apis=override_session_apis,
             ),
         )
     )

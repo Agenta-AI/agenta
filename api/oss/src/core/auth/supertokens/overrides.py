@@ -38,8 +38,6 @@ from supertokens_python.recipe.emailpassword.interfaces import (
 from supertokens_python.recipe.emailpassword.types import FormField
 from supertokens_python.recipe.session.interfaces import (
     RecipeInterface as SessionRecipeInterface,
-    APIInterface as SessionAPIInterface,
-    APIOptions as SessionAPIOptions,
 )
 from supertokens_python.recipe.session import SessionContainer
 from supertokens_python.types import RecipeUserId, AccountInfo
@@ -1031,116 +1029,5 @@ def override_session_functions(
         return result
 
     original_implementation.create_new_session = create_new_session
-
-    # Override refresh_session to preserve identities after refresh
-    original_refresh_session = original_implementation.refresh_session
-
-    async def refresh_session(
-        refresh_token: str,
-        anti_csrf_token: Optional[str],
-        disable_anti_csrf: bool,
-        user_context: Dict[str, Any],
-    ):
-        """
-        Override refresh_session to ensure session_identities and user_identities
-        are preserved in the new session after refresh.
-        """
-        # Call original implementation first
-        session_container = await original_refresh_session(
-            refresh_token=refresh_token,
-            anti_csrf_token=anti_csrf_token,
-            disable_anti_csrf=disable_anti_csrf,
-            user_context=user_context,
-        )
-
-        # Check if identities are missing in the new session and restore if needed
-        if session_container:
-            try:
-                payload = session_container.get_access_token_payload()
-                session_identities = payload.get("session_identities")
-                user_identities = payload.get("user_identities")
-
-                # If identities are missing, try to fetch from database
-                if not session_identities or not user_identities:
-                    user_id = session_container.get_user_id()
-                    if user_id:
-                        fetched_identities = await _get_identities_for_user_by_id(
-                            user_id
-                        )
-                        if fetched_identities:
-                            await session_container.merge_into_access_token_payload(
-                                {
-                                    "session_identities": fetched_identities,
-                                    "user_identities": fetched_identities,
-                                }
-                            )
-            except Exception as e:
-                log.warning(f"Failed to restore identities on refresh: {e}")
-
-        return session_container
-
-    original_implementation.refresh_session = refresh_session
-
-    return original_implementation
-
-
-async def _get_identities_for_user_by_id(user_id: str) -> List[str]:
-    """Fetch user identities from database by user ID."""
-    try:
-        identities = await identities_dao.list_by_user(user_id=user_id)
-        return [identity.method for identity in identities] if identities else []
-    except Exception as e:
-        log.warning(f"Failed to fetch identities for user {user_id}: {e}")
-        return []
-
-
-def override_session_apis(
-    original_implementation: SessionAPIInterface,
-) -> SessionAPIInterface:
-    """Override session API functions to preserve identities on refresh."""
-
-    original_refresh_post = original_implementation.refresh_post
-
-    async def refresh_post(
-        api_options: SessionAPIOptions,
-        user_context: Dict[str, Any],
-    ) -> SessionContainer:
-        """
-        Override refresh_post to ensure session_identities and user_identities
-        are preserved after token refresh.
-        """
-        # Call original implementation
-        session_container = await original_refresh_post(
-            api_options=api_options,
-            user_context=user_context,
-        )
-
-        # Check if identities are missing in the refreshed session and restore if needed
-        if session_container:
-            try:
-                payload = session_container.get_access_token_payload()
-                session_identities = payload.get("session_identities")
-                user_identities = payload.get("user_identities")
-
-                # If identities are missing, fetch from database and inject
-                if not session_identities or not user_identities:
-                    user_id = session_container.get_user_id()
-                    if user_id:
-                        fetched_identities = await _get_identities_for_user_by_id(
-                            user_id
-                        )
-                        if fetched_identities:
-                            await session_container.merge_into_access_token_payload(
-                                {
-                                    "session_identities": fetched_identities,
-                                    "user_identities": fetched_identities,
-                                }
-                            )
-            except Exception as e:
-                log.warning(f"Failed to restore identities on refresh: {e}")
-
-        return session_container
-
-    original_implementation.refresh_post = refresh_post
 
     return original_implementation
