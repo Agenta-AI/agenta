@@ -4,7 +4,7 @@ import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {getEnv} from "../dynamicEnv"
-import {isDemo} from "../utils"
+import {generateOrRetrieveDistinctId, isDemo} from "../utils"
 
 import {CLOUD_CONFIG, OSS_CONFIG} from "./assets/constants"
 import {posthogAtom, type PostHogConfig} from "./store/atoms"
@@ -17,6 +17,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     const [loadingPosthog, setLoadingPosthog] = useState(false)
     const [posthogClient, setPosthogClient] = useAtom(posthogAtom)
     const failedAttemptsRef = useRef(0)
+    const initCapturedRef = useRef(false)
     const currentPath = router.asPath || router.pathname || ""
     const isAuthRoute = currentPath.startsWith("/auth") && !currentPath.startsWith("/auth/callback")
     const isPostSignupRoute = currentPath.startsWith("/post-signup")
@@ -42,6 +43,14 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                     setPosthogClient(posthog)
                     failedAttemptsRef.current = 0
                     if (process.env.NODE_ENV === "development") posthog.debug()
+                    if (!initCapturedRef.current) {
+                        initCapturedRef.current = true
+                        const distinctId = generateOrRetrieveDistinctId()
+                        if (distinctId) {
+                            posthog.identify?.(distinctId)
+                        }
+                        posthog.capture?.("$pageview", {$current_url: window.location.href})
+                    }
                 },
                 capture_pageview: false,
                 ...((isDemo() ? CLOUD_CONFIG : OSS_CONFIG) as Partial<PostHogConfig>),
@@ -54,7 +63,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
         } finally {
             setLoadingPosthog(false)
         }
-    }, [loadingPosthog, posthogClient, setPosthogClient])
+    }, [currentPath, loadingPosthog, posthogClient, setPosthogClient])
 
     useEffect(() => {
         // Initialize PostHog everywhere except auth routes (but DO initialize on post-signup for survey)
@@ -62,6 +71,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
             initPosthog()
         }
     }, [initPosthog, isAuthRoute, isPostSignupRoute])
+
 
     const handleRouteChange = useCallback(() => {
         posthogClient?.capture("$pageview", {$current_url: window.location.href})

@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useMemo, useRef} from "react"
 
 import {useAtom} from "jotai"
 import {type PostHog} from "posthog-js"
@@ -19,26 +19,28 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const trackingEnabled = getEnv("NEXT_PUBLIC_POSTHOG_API_KEY") !== ""
     const {user} = useProfileData()
     const [posthog] = useAtom(posthogAtom)
-
-    const _id: string | undefined = isDemo() ? user?.email : generateOrRetrieveDistinctId()
+    const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
+    const _id: string | undefined = isDemo() ? user?.email ?? baseDistinctId : baseDistinctId
+    const identifiedRef = useRef<string | null>(null)
     const baseCapture = posthog?.capture?.bind(posthog)
     const baseIdentify = posthog?.identify?.bind(posthog)
     const capture: PostHog["capture"] = useCallback(
         (...args) => {
-            if (trackingEnabled && user?.id) {
+            if (trackingEnabled) {
                 return baseCapture?.(...args)
             }
             return undefined
         },
-        [baseCapture, trackingEnabled, user?.id],
+        [baseCapture, trackingEnabled],
     )
     const identify: PostHog["identify"] = useCallback(
         (id, ...args) => {
-            if (trackingEnabled && user?.id) {
-                baseIdentify?.(_id !== undefined ? _id : id, ...args)
-            }
+            if (!trackingEnabled) return
+            const targetId = _id !== undefined ? _id : id
+            if (!targetId) return
+            baseIdentify?.(targetId, ...args)
         },
-        [_id, baseIdentify, trackingEnabled, user?.id],
+        [_id, baseIdentify, trackingEnabled],
     )
     useIsomorphicLayoutEffect(() => {
         if (!posthog) return
@@ -50,8 +52,11 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
 
     useIsomorphicLayoutEffect(() => {
         if (!posthog) return
-        if (posthog.get_distinct_id() !== _id) identify()
-    }, [posthog, _id])
+        if (!_id) return
+        if (identifiedRef.current === _id) return
+        identifiedRef.current = _id
+        identify(_id)
+    }, [identify, posthog, _id])
 
     if (!posthog) return null
     return Object.assign(posthog, {identify, capture}) as ExtendedPostHog
