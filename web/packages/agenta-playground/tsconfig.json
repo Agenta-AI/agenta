@@ -6,6 +6,6 @@
         "tsBuildInfoFile": ".tsbuildinfo",
         "moduleResolution": "bundler"
     },
-    "include": ["src/**/*.ts", "src/**/*.tsx"],
+    "include": ["src/**/*.ts", "src/**/*.tsx", "../css-modules.d.ts"],
     "exclude": ["node_modules", "dist"]
 }
