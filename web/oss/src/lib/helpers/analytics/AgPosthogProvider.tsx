@@ -72,7 +72,6 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
         }
     }, [initPosthog, isAuthRoute, isPostSignupRoute])
 
-
     const handleRouteChange = useCallback(() => {
         posthogClient?.capture("$pageview", {$current_url: window.location.href})
     }, [posthogClient])
