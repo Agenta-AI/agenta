@@ -29,6 +29,7 @@ import ApplicationManagementSection from "./components/ApplicationManagementSect
 import GetStartedSection from "./components/GetStartedSection"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
 import ProjectHeaderActions from "./components/ProjectHeaderActions"
+import WelcomeCardsSection from "./components/WelcomeCardsSection"
 import useCustomWorkflowConfig from "./modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 
 const CreateAppStatusModal: any = dynamic(
@@ -167,6 +168,10 @@ const AppManagement: React.FC = () => {
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
                     <>
+                        <WelcomeCardsSection
+                            onCreatePrompt={() => setIsAddAppFromTemplatedModal(true)}
+                        />
+
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <Title level={2} className="!m-0">
