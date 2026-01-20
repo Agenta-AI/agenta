@@ -1,3 +1,4 @@
+import {setProjectIdAtom as setSharedProjectIdAtom} from "@agenta/shared"
 import {atom} from "jotai"
 
 import {createInitialParsedLocation} from "./parse"
@@ -23,6 +24,8 @@ export const setLocationAtom = atom(null, (_get, set, location: ParsedAppLocatio
         ...location,
         timestamp: Date.now(),
     })
+    // Sync projectId to shared atom so entity packages can read it
+    set(setSharedProjectIdAtom, location.projectId ?? null)
 })
 
 export const appIdentifiersAtom = atom<AppIdentifiers>((get) => {
