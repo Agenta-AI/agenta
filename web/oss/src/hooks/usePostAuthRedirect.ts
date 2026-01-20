@@ -58,9 +58,10 @@ const usePostAuthRedirect = () => {
     const derivedIsInvitedUser = hasInviteFromQuery || hasInviteFromStorage
 
     const resetAuthState = useCallback(async () => {
-        await resetProfileData()
+        const profileResult = await resetProfileData()
         await resetOrganizationData()
         await resetProjectData()
+        return profileResult
     }, [resetProfileData, resetOrganizationData, resetProjectData])
 
     const handleAuthSuccess = useCallback(
@@ -151,17 +152,18 @@ const usePostAuthRedirect = () => {
                 }
             }
 
-            await resetAuthState()
-
+            const profileResult = await resetAuthState()
+            const refreshedUser = profileResult?.data ?? null
             const store = getDefaultStore()
-            const userId = (store.get(userAtom) as {id?: string} | null)?.id ?? null
+            const userId = refreshedUser?.id ?? (store.get(userAtom) as {id?: string} | null)?.id
+            const resolvedUserId = userId ?? null
 
             // Store compatible orgs outside try-catch so fallback can use them
             let compatibleOrgs: typeof orgsAtom extends Atom<infer T> ? T : never = []
 
             try {
                 const freshOrgs = await queryClient.fetchQuery({
-                    queryKey: ["orgs", userId || ""],
+                    queryKey: ["orgs", resolvedUserId || ""],
                     queryFn: () => fetchAllOrgsList(),
                     staleTime: 60_000,
                 })
@@ -239,7 +241,10 @@ const usePostAuthRedirect = () => {
                 }
 
                 // Use preferred workspace resolution with ONLY compatible orgs
-                const preferredWorkspaceId = resolvePreferredWorkspaceId(userId, compatibleOrgs)
+                const preferredWorkspaceId = resolvePreferredWorkspaceId(
+                    resolvedUserId,
+                    compatibleOrgs,
+                )
                 if (preferredWorkspaceId) {
                     await router.replace(`/w/${encodeURIComponent(preferredWorkspaceId)}`)
                     return
@@ -273,7 +278,7 @@ const usePostAuthRedirect = () => {
             if (!context.workspaceId) {
                 // Use compatible orgs if available, otherwise fall back to all orgs
                 const orgsToUse = compatibleOrgs.length > 0 ? compatibleOrgs : store.get(orgsAtom)
-                const fallbackWorkspace = resolvePreferredWorkspaceId(userId, orgsToUse)
+                const fallbackWorkspace = resolvePreferredWorkspaceId(resolvedUserId, orgsToUse)
                 if (fallbackWorkspace) {
                     context = {workspaceId: fallbackWorkspace, projectId: null}
                 }
