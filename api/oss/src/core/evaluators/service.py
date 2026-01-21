@@ -1418,7 +1418,7 @@ class SimpleEvaluatorsService:
         old_evaluator: EvaluatorConfigDB,
     ) -> EvaluatorRevisionData:
         version = "2025.07.14"
-        uri = f"agenta:built-in:{old_evaluator.evaluator_key}:v0"
+        uri = f"agenta:builtin:{old_evaluator.evaluator_key}:v0"
         url = (
             old_evaluator.settings_values.get("webhook_url", None)
             if old_evaluator.evaluator_key == "auto_webhook_test"  # type: ignore

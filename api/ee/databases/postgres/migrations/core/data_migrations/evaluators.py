@@ -3,13 +3,11 @@ import asyncio
 import traceback
 from typing import Optional
 
-from redis.asyncio import Redis
 import click
 from sqlalchemy.future import select
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-from oss.src.utils.env import env
 from ee.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
 from oss.src.models.db_models import ProjectDB as ProjectDBE
 from oss.src.dbs.postgres.workflows.dbes import (
@@ -23,44 +21,22 @@ from oss.src.models.deprecated_models import (
     DeprecatedAutoEvaluatorConfigDBwProject as DeprecatedEvaluatorConfigDBwProject,
 )
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.core.tracing.service import TracingService
-from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.dbs.postgres.tracing.dao import TracingDAO
-from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
 # Define constants
 DEFAULT_BATCH_SIZE = 200
 
 # Initialize plug-ins for migration
-tracing_service = TracingService(
-    tracing_dao=TracingDAO(),
+workflows_dao = GitDAO(
+    ArtifactDBE=WorkflowArtifactDBE,
+    VariantDBE=WorkflowVariantDBE,
+    RevisionDBE=WorkflowRevisionDBE,
 )
-
-# Redis client and TracingWorker for publishing spans to Redis Streams
-if env.redis.uri_durable:
-    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-    tracing_worker = TracingWorker(
-        service=tracing_service,
-        redis_client=redis_client,
-        stream_name="streams:tracing",
-        consumer_group="worker-tracing",
-    )
-else:
-    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
-
-tracing = TracingRouter(
-    tracing_service=tracing_service,
-    tracing_worker=tracing_worker,
+workflows_service = WorkflowsService(
+    workflows_dao=workflows_dao,
 )
 evaluators_service = EvaluatorsService(
-    workflows_service=WorkflowsService(
-        workflows_dao=GitDAO(
-            ArtifactDBE=WorkflowArtifactDBE,
-            VariantDBE=WorkflowVariantDBE,
-            RevisionDBE=WorkflowRevisionDBE,
-        ),
-    )
+    workflows_service=workflows_service,
 )
 simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,

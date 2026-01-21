@@ -144,8 +144,8 @@ CONFIGURATION_REGISTRY: dict = dict(
 #   - version: The version identifier (e.g., "v0", "v1", "latest")
 #
 # Examples:
-#   - URI: "agenta:built-in:echo:v0"
-#     Access: HANDLER_REGISTRY["agenta"]["built-in"]["echo"]["v0"]
+#   - URI: "agenta:builtin:echo:v0"
+#     Access: HANDLER_REGISTRY["agenta"]["builtin"]["echo"]["v0"]
 #
 #   - URI: "user:custom:mymodule.my_workflow:latest"
 #     Access: HANDLER_REGISTRY["user"]["custom"]["mymodule.my_workflow"]["latest"]
