@@ -4,7 +4,7 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {useNextStep} from "@agentaai/nextstepjs"
 import {CaretDown, CaretUp, RocketLaunch, X} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button, Typography, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -31,6 +31,7 @@ import {
     type OnboardingWidgetItem,
 } from "@/oss/lib/onboarding"
 
+import {ANNOTATE_TRACES_TOUR_ID, registerAnnotateTracesTour} from "../tours/annotateTracesTour"
 import {DEPLOY_PROMPT_TOUR_ID, registerDeployPromptTour} from "../tours/deployPromptTour"
 import {registerWidgetClosedTour} from "../tours/widgetClosedTour"
 
@@ -77,6 +78,35 @@ const OnboardingWidget = () => {
         return `${base}/variants`
     }, [appURL, recentlyVisitedAppURL, baseAppURL])
 
+    const observabilityUrl = useMemo(() => {
+        const base = appURL || recentlyVisitedAppURL
+        if (!base) return null
+        return `${base}/traces`
+    }, [appURL, recentlyVisitedAppURL])
+
+    const waitForTraceRow = useCallback(() => {
+        if (typeof window === "undefined") return Promise.resolve(false)
+
+        const MAX_ATTEMPTS = 12
+        const DELAY_MS = 250
+        let attempts = 0
+
+        return new Promise<boolean>((resolve) => {
+            const intervalId = window.setInterval(() => {
+                const traceRow = document.querySelector('[data-tour="trace-row"]')
+                if (traceRow) {
+                    window.clearInterval(intervalId)
+                    resolve(true)
+                    return
+                }
+                attempts += 1
+                if (attempts >= MAX_ATTEMPTS) {
+                    window.clearInterval(intervalId)
+                    resolve(false)
+                }
+            }, DELAY_MS)
+        })
+    }, [])
 
     const allItems = useMemo(
         () => config.sections.flatMap((section) => section.items),
@@ -158,6 +188,31 @@ const OnboardingWidget = () => {
             } else if (item.activationHint === "deploy-variant") {
                 startTour(item.tourId || DEPLOY_PROMPT_TOUR_ID)
                 return
+            } else if (item.activationHint === "tracing-snippet" && baseAppURL) {
+                try {
+                    await router.push(baseAppURL)
+                } catch (error) {
+                    console.error("Failed to navigate to tracing setup", error)
+                    return
+                }
+            } else if (item.activationHint === "trace-annotations") {
+                try {
+                    if (observabilityUrl) {
+                        await router.push(observabilityUrl)
+                    }
+                    const hasTraces = await waitForTraceRow()
+                    if (!hasTraces) {
+                        message.info(
+                            "No traces yet. Set up tracing first, then return here to annotate your first trace.",
+                        )
+                        return
+                    }
+                    startTour(item.tourId || ANNOTATE_TRACES_TOUR_ID)
+                    return
+                } catch (error) {
+                    console.error("Failed to navigate to observability", error)
+                    return
+                }
             } else if (item.href) {
                 try {
                     await router.push(item.href)
@@ -176,9 +231,11 @@ const OnboardingWidget = () => {
         [
             recordWidgetEvent,
             baseAppURL,
+            observabilityUrl,
             registryUrl,
             router,
             startTour,
+            waitForTraceRow,
             openDeploymentsDrawer,
             setWidgetActivation,
             goToPlayground,
@@ -230,6 +287,7 @@ const OnboardingWidget = () => {
     useEffect(() => {
         registerWidgetClosedTour()
         registerDeployPromptTour()
+        registerAnnotateTracesTour()
     }, [])
 
     useEffect(() => {

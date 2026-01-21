@@ -122,6 +122,12 @@ const AppManagement: React.FC = () => {
         setOnboardingWidgetActivation(null)
     }, [onboardingWidgetActivation, setOnboardingWidgetActivation])
 
+    useEffect(() => {
+        if (onboardingWidgetActivation !== "tracing-snippet") return
+        setIsSetupTracingModal(true)
+        setOnboardingWidgetActivation(null)
+    }, [onboardingWidgetActivation, setOnboardingWidgetActivation])
+
     const onErrorRetry = async () => {
         if (statusData.appId) {
             setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))

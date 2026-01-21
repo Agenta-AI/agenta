@@ -262,6 +262,7 @@ const ObservabilityTable = () => {
                                 setSpanParam(undefined)
                             }
                         },
+                        "data-tour": "trace-row",
                     })}
                     components={{
                         header: {

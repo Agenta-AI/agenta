@@ -120,6 +120,7 @@ export const defaultWidgetConfig: OnboardingWidgetConfig = {
                     title: "Annotate traces",
                     description: "Navigate to traces and annotate.",
                     activationHint: "trace-annotations",
+                    tourId: "annotate-traces",
                     completionEventIds: ["trace_annotated"],
                     completionMode: "any",
                 },
