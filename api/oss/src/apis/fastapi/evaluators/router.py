@@ -1102,16 +1102,6 @@ class SimpleEvaluatorsRouter:
             response_model_exclude_none=True,
         )
 
-        self.router.add_api_route(
-            "/{evaluator_id}/transfer",
-            self.transfer_simple_evaluator,
-            methods=["POST"],
-            operation_id="transfer_simple_evaluator",
-            status_code=status.HTTP_200_OK,
-            response_model=SimpleEvaluatorResponse,
-            response_model_exclude_none=True,
-        )
-
     # SIMPLE EVALUATORS --------------------------------------------------------
 
     @intercept_exceptions()

@@ -12,6 +12,10 @@ from oss.src.core.shared.dtos import (
     Metadata,
 )
 from oss.src.core.workflows.dtos import (
+    ArtifactFork,
+    VariantFork,
+    RevisionFork,
+    #
     WorkflowFlags,
     WorkflowQueryFlags,
     #
@@ -19,11 +23,13 @@ from oss.src.core.workflows.dtos import (
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
+    WorkflowFork,
     #
     WorkflowVariant,
     WorkflowVariantCreate,
     WorkflowVariantEdit,
     WorkflowVariantQuery,
+    WorkflowVariantFork,
     #
     WorkflowRevisionData,
     #
@@ -31,6 +37,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionCreate,
     WorkflowRevisionEdit,
     WorkflowRevisionQuery,
+    WorkflowRevisionFork,
     WorkflowRevisionCommit,
     WorkflowRevisionsLog,
 )
@@ -70,13 +77,26 @@ class ApplicationRevisionIdAlias(AliasConfig):
 
 
 class ApplicationFlags(WorkflowFlags):
+    """Application flags - is_evaluator=False means it's an application."""
+
     def __init__(self, **data):
-        data["is_evaluator"] = True
+        # Applications have is_evaluator=False (forced)
+        data["is_evaluator"] = False
 
         super().__init__(**data)
 
 
-# applications -------------------------------------------------------------------
+class ApplicationQueryFlags(WorkflowQueryFlags):
+    """Application query flags - filter for is_evaluator=False."""
+
+    def __init__(self, **data):
+        # Query for non-evaluators (applications) (forced)
+        data["is_evaluator"] = False
+
+        super().__init__(**data)
+
+
+# applications -----------------------------------------------------------------
 
 
 class Application(Workflow):
@@ -92,10 +112,10 @@ class ApplicationEdit(WorkflowEdit):
 
 
 class ApplicationQuery(WorkflowQuery):
-    flags: Optional[ApplicationFlags] = None
+    flags: Optional[ApplicationQueryFlags] = None
 
 
-# application variants -----------------------------------------------------------
+# application variants ---------------------------------------------------------
 
 
 class ApplicationVariant(
@@ -123,10 +143,10 @@ class ApplicationVariantEdit(WorkflowVariantEdit):
 
 
 class ApplicationVariantQuery(WorkflowVariantQuery):
-    flags: Optional[ApplicationFlags] = None
+    flags: Optional[ApplicationQueryFlags] = None
 
 
-# application revisions -----------------------------------------------------
+# application revisions --------------------------------------------------------
 
 
 class ApplicationRevisionData(WorkflowRevisionData):
@@ -164,7 +184,7 @@ class ApplicationRevisionEdit(WorkflowRevisionEdit):
 
 
 class ApplicationRevisionQuery(WorkflowRevisionQuery):
-    flags: Optional[ApplicationFlags] = None
+    flags: Optional[ApplicationQueryFlags] = None
 
 
 class ApplicationRevisionCommit(
@@ -193,7 +213,93 @@ class ApplicationRevisionsLog(
         sync_alias("application_revision_id", "workflow_revision_id", self)
 
 
-# simple applications ------------------------------------------------------------
+# forks ------------------------------------------------------------------------
+
+
+class ApplicationRevisionFork(WorkflowRevisionFork):
+    flags: Optional[ApplicationFlags] = None
+
+    data: Optional[ApplicationRevisionData] = None
+
+
+class ApplicationVariantFork(WorkflowVariantFork):
+    flags: Optional[ApplicationFlags] = None
+
+
+class ApplicationRevisionForkAlias(AliasConfig):
+    application_revision: Optional[ApplicationRevisionFork] = None
+
+    revision: Optional[RevisionFork] = Field(
+        default=None,
+        exclude=True,
+        alias="application_revision",
+    )
+
+
+class ApplicationVariantForkAlias(AliasConfig):
+    application_variant: Optional[ApplicationVariantFork] = None
+
+    variant: Optional[VariantFork] = Field(
+        default=None,
+        exclude=True,
+        alias="application_variant",
+    )
+
+
+class ApplicationFork(
+    WorkflowFork,
+    ApplicationIdAlias,
+    ApplicationVariantIdAlias,
+    ApplicationVariantForkAlias,
+    ApplicationRevisionIdAlias,
+    ApplicationRevisionForkAlias,
+):
+    def model_post_init(self, __context) -> None:
+        sync_alias("application_id", "artifact_id", self)
+        sync_alias("application_variant_id", "variant_id", self)
+        sync_alias("application_variant", "variant", self)
+        sync_alias("application_revision_id", "revision_id", self)
+        sync_alias("application_revision", "revision", self)
+
+
+# simple applications ----------------------------------------------------------
+
+
+class SimpleApplicationFlags(ApplicationFlags):
+    pass
+
+
+class SimpleApplicationQueryFlags(ApplicationQueryFlags):
+    pass
+
+
+class SimpleApplicationData(ApplicationRevisionData):
+    pass
+
+
+class SimpleApplication(Identifier, Slug, Lifecycle, Header, Metadata):
+    flags: Optional[SimpleApplicationFlags] = None
+
+    data: Optional[SimpleApplicationData] = None
+
+
+class SimpleApplicationCreate(Slug, Header, Metadata):
+    flags: Optional[SimpleApplicationFlags] = None
+
+    data: Optional[SimpleApplicationData] = None
+
+
+class SimpleApplicationEdit(Identifier, Header, Metadata):
+    flags: Optional[SimpleApplicationFlags] = None
+
+    data: Optional[SimpleApplicationData] = None
+
+
+class SimpleApplicationQuery(Metadata):
+    flags: Optional[SimpleApplicationQueryFlags] = None
+
+
+# legacy applications (for backward compatibility) -----------------------------
 
 
 class LegacyApplicationFlags(WorkflowFlags):

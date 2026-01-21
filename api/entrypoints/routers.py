@@ -65,6 +65,8 @@ from oss.src.core.testsets.service import SimpleTestsetsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.queries.service import SimpleQueriesService
 from oss.src.core.applications.service import LegacyApplicationsService
+from oss.src.core.applications.services import ApplicationsService
+from oss.src.core.applications.services import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
@@ -84,7 +86,9 @@ from oss.src.apis.fastapi.testsets.router import TestsetsRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
 from oss.src.apis.fastapi.queries.router import QueriesRouter
 from oss.src.apis.fastapi.queries.router import SimpleQueriesRouter
+from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.apis.fastapi.applications.router import LegacyApplicationsRouter
+from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
@@ -265,12 +269,21 @@ simple_queries_service = SimpleQueriesService(
 )
 
 legacy_applications_service = LegacyApplicationsService()
+
 folders_service = FoldersService(
     folders_dao=folders_dao,
 )
 
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
+)
+
+applications_service = ApplicationsService(
+    workflows_service=workflows_service,
+)
+
+simple_applications_service = SimpleApplicationsService(
+    applications_service=applications_service,
 )
 
 evaluators_service = EvaluatorsService(
@@ -336,8 +349,16 @@ simple_queries = SimpleQueriesRouter(
     simple_queries_service=simple_queries_service,
 )
 
+applications = ApplicationsRouter(
+    applications_service=applications_service,
+)
+
 legacy_applications = LegacyApplicationsRouter(
     legacy_applications_service=legacy_applications_service,
+)
+
+simple_applications = SimpleApplicationsRouter(
+    simple_applications_service=simple_applications_service,
 )
 
 folders = FoldersRouter(
@@ -468,8 +489,20 @@ app.include_router(
 )
 
 app.include_router(
+    router=applications.router,
+    prefix="/preview/applications",
+    tags=["Applications"],
+)
+
+app.include_router(
     router=legacy_applications.router,
     prefix="/preview/legacy/applications",
+    tags=["Applications"],
+)
+
+app.include_router(
+    router=simple_applications.router,
+    prefix="/preview/simple/applications",
     tags=["Applications"],
 )
 

@@ -11,6 +11,8 @@ from oss.src.core.applications.dtos import (
     ApplicationCreate,
     ApplicationEdit,
     ApplicationQuery,
+    ApplicationFork,
+    ApplicationRevisionsLog,
     #
     ApplicationVariant,
     ApplicationVariantCreate,
@@ -22,6 +24,11 @@ from oss.src.core.applications.dtos import (
     ApplicationRevisionEdit,
     ApplicationRevisionQuery,
     ApplicationRevisionCommit,
+    #
+    SimpleApplication,
+    SimpleApplicationCreate,
+    SimpleApplicationEdit,
+    SimpleApplicationQuery,
     #
     LegacyApplication,
     LegacyApplicationCreate,
@@ -57,6 +64,14 @@ class ApplicationResponse(BaseModel):
 class ApplicationsResponse(BaseModel):
     count: int = 0
     applications: List[Application] = []
+
+
+class ApplicationForkRequest(BaseModel):
+    application: ApplicationFork
+
+
+class ApplicationRevisionsLogRequest(BaseModel):
+    application: ApplicationRevisionsLog
 
 
 # APPLICATION VARIANTS ---------------------------------------------------------
@@ -132,6 +147,37 @@ class ApplicationRevisionResponse(BaseModel):
 class ApplicationRevisionsResponse(BaseModel):
     count: int = 0
     application_revisions: List[ApplicationRevision] = []
+
+
+# SIMPLE APPLICATIONS ----------------------------------------------------------
+
+
+class SimpleApplicationCreateRequest(BaseModel):
+    application: SimpleApplicationCreate
+
+
+class SimpleApplicationEditRequest(BaseModel):
+    application: SimpleApplicationEdit
+
+
+class SimpleApplicationQueryRequest(BaseModel):
+    application: Optional[SimpleApplicationQuery] = None
+    #
+    application_refs: Optional[List[Reference]] = None
+    #
+    include_archived: Optional[bool] = False
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleApplicationResponse(BaseModel):
+    count: int = 0
+    application: Optional[SimpleApplication] = None
+
+
+class SimpleApplicationsResponse(BaseModel):
+    count: int = 0
+    applications: List[SimpleApplication] = []
 
 
 # LEGACY APPLICATIONS ----------------------------------------------------------
