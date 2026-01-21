@@ -1,6 +1,6 @@
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 /**
  * Playground Exploration Tour

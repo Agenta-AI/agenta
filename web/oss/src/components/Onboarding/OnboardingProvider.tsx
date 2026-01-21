@@ -5,9 +5,14 @@ import {useCallback, useEffect, useState} from "react"
 import {NextStep, NextStepProvider} from "@agentaai/nextstepjs"
 import {useSetAtom} from "jotai"
 
-import {tourRegistry, activeTourIdAtom, markTourSeenAtom, recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import type {InternalTour} from "@/oss/lib/onboarding/types"
 import {EXPLORE_PLAYGROUND_TOUR_ID} from "@/oss/components/Onboarding/tours/explorePlaygroundTour"
+import {
+    tourRegistry,
+    activeTourIdAtom,
+    markTourSeenAtom,
+    recordWidgetEventAtom,
+} from "@/oss/lib/onboarding"
+import type {InternalTour} from "@/oss/lib/onboarding/types"
 
 import OnboardingCard from "./OnboardingCard"
 
