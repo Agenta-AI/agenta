@@ -131,6 +131,7 @@ const SelectVariant = ({
                         className="absolute top-0 left-0 z-10"
                         onClick={() => setIsOpenCompareSelect((prev) => !prev)}
                         size="small"
+                        data-tour="compare-toggle"
                     />
                 </div>
             ) : (

@@ -9,3 +9,8 @@ export {
     unregisterEvaluationResultsTour,
     EVALUATION_RESULTS_TOUR_ID,
 } from "./tours/evaluationResultsTour"
+export {
+    registerExplorePlaygroundTour,
+    unregisterExplorePlaygroundTour,
+    EXPLORE_PLAYGROUND_TOUR_ID,
+} from "./tours/explorePlaygroundTour"

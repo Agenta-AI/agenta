@@ -5,8 +5,9 @@ import {useCallback, useEffect, useState} from "react"
 import {NextStep, NextStepProvider} from "@agentaai/nextstepjs"
 import {useSetAtom} from "jotai"
 
-import {tourRegistry, activeTourIdAtom, markTourSeenAtom} from "@/oss/lib/onboarding"
+import {tourRegistry, activeTourIdAtom, markTourSeenAtom, recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import type {InternalTour} from "@/oss/lib/onboarding/types"
+import {EXPLORE_PLAYGROUND_TOUR_ID} from "@/oss/components/Onboarding/tours/explorePlaygroundTour"
 
 import OnboardingCard from "./OnboardingCard"
 
@@ -31,16 +32,20 @@ const OnboardingInner = ({children}: {children: React.ReactNode}) => {
     }, [])
 
     const markTourSeen = useSetAtom(markTourSeenAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const setActiveTourId = useSetAtom(activeTourIdAtom)
 
     const handleComplete = useCallback(
         (tourName: string | null) => {
             if (tourName) {
                 markTourSeen(tourName)
+                if (tourName === EXPLORE_PLAYGROUND_TOUR_ID) {
+                    recordWidgetEvent("playground_explored")
+                }
             }
             setActiveTourId(null)
         },
-        [markTourSeen, setActiveTourId],
+        [markTourSeen, recordWidgetEvent, setActiveTourId],
     )
 
     const handleSkip = useCallback(

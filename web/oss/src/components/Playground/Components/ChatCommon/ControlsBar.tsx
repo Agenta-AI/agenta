@@ -14,7 +14,7 @@ const ControlsBar: React.FC<Props> = ({isRunning, onRun, onCancel, onAddMessage}
     return (
         <div className="flex items-center gap-2">
             {!isRunning ? (
-                <RunButton onClick={onRun} size="small" />
+                <RunButton onClick={onRun} size="small" data-tour="run-button" />
             ) : (
                 <RunButton isCancel onClick={onCancel} size="small" />
             )}
