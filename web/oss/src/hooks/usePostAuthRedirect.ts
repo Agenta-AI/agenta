@@ -95,14 +95,22 @@ const usePostAuthRedirect = () => {
                 if (isInvitedUser) {
                     console.log("[post-auth] redirect invited new user -> /workspaces/accept")
                     await router.push("/workspaces/accept?survey=true")
-                } else {
+                } else if (isEE()) {
+                    // EE: Show post-signup survey/onboarding form
                     console.log("[post-auth] redirect new user -> /post-signup")
                     writePostSignupPending()
                     await resetAuthState()
                     setIsNewUser(true)
                     await router.push("/post-signup")
+                } else {
+                    // OSS: Skip post-signup, go directly to workspace
+                    console.log("[post-auth] OSS new user, skipping post-signup")
+                    setIsNewUser(true)
+                    // Fall through to normal workspace redirect logic below
                 }
-                return
+                if (isInvitedUser || isEE()) {
+                    return
+                }
             }
 
             if (isInvitedUser) {
