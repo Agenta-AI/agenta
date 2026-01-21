@@ -719,35 +719,40 @@ class ApplicationRevisionsResponse(BaseModel):
 # simple applications ------------------------------------------------------------
 
 
-class LegacyApplicationFlags(WorkflowFlags):
+class SimpleApplicationFlags(ApplicationFlags):
     pass
 
 
-class LegacyApplicationData(WorkflowRevisionData):
+class SimpleApplicationData(ApplicationRevisionData):
     pass
 
 
-class LegacyApplication(Identifier, Slug, Lifecycle, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
+class SimpleApplication(Identifier, Slug, Lifecycle, Header, Metadata):
+    flags: Optional[SimpleApplicationFlags] = None
 
-    data: Optional[LegacyApplicationData] = None
-
-
-class LegacyApplicationCreate(Slug, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
-
-    data: Optional[LegacyApplicationData] = None
+    data: Optional[SimpleApplicationData] = None
 
 
-class LegacyApplicationEdit(Identifier, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
+class SimpleApplicationCreate(Slug, Header, Metadata):
+    flags: Optional[SimpleApplicationFlags] = None
 
-    data: Optional[LegacyApplicationData] = None
+    data: Optional[SimpleApplicationData] = None
 
 
-class LegacyApplicationResponse(BaseModel):
+class SimpleApplicationEdit(Identifier, Header, Metadata):
+    flags: Optional[SimpleApplicationFlags] = None
+
+    data: Optional[SimpleApplicationData] = None
+
+
+class SimpleApplicationResponse(BaseModel):
     count: int = 0
-    application: Optional[LegacyApplication] = None
+    application: Optional[SimpleApplication] = None
+
+
+class SimpleApplicationsResponse(BaseModel):
+    count: int = 0
+    applications: List[SimpleApplication] = []
 
 
 # end of oss.src.core.applications.dtos

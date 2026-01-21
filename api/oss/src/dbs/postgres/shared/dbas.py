@@ -31,6 +31,15 @@ class ProjectScopeDBA:
     )
 
 
+class FolderScopeDBA:
+    __abstract__ = True
+
+    folder_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+
+
 class LegacyLifecycleDBA:
     __abstract__ = True
 

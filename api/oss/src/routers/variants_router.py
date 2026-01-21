@@ -12,6 +12,7 @@ from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 from oss.src.models import converters
 from oss.src.utils.common import APIRouter
 from oss.src.services import app_manager, db_manager
+from oss.src.services.legacy_adapter import get_legacy_adapter
 
 if is_ee():
     from ee.src.utils.permissions import (
@@ -58,7 +59,14 @@ async def add_variant_from_base_and_config(
         Union[AppVariantResponse, Any]: New variant details or exception.
     """
 
+    # Use old base table to get project_id for permission check
     base_db = await db_manager.fetch_base_by_id(payload.base_id)
+
+    if not base_db:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Base with ID '{payload.base_id}' not found",
+        )
 
     if is_ee():
         has_permission = await check_action_access(
@@ -74,7 +82,7 @@ async def add_variant_from_base_and_config(
                 status_code=403,
             )
 
-    # Find the previous variant in the database
+    # Determine new variant name
     new_variant_name = (
         payload.new_variant_name
         if payload.new_variant_name
@@ -82,31 +90,28 @@ async def add_variant_from_base_and_config(
         if payload.new_config_name
         else base_db.base_name
     )
-    db_app_variant = await db_manager.add_variant_from_base_and_config(
-        base_db=base_db,
-        new_config_name=new_variant_name,
+
+    adapter = get_legacy_adapter()
+    app_variant = await adapter.create_variant_from_base_id(
+        project_id=UUID(str(base_db.project_id)),
+        user_id=UUID(request.state.user_id),
+        base_id=UUID(payload.base_id),
+        variant_name=new_variant_name,
         parameters=payload.parameters,
-        user_uid=request.state.user_id,
-        project_id=str(base_db.project_id),
         commit_message=payload.commit_message,
     )
 
-    # Update last_modified_by app information
-    await app_manager.update_last_modified_by(
-        user_uid=request.state.user_id,
-        object_id=str(db_app_variant.app_id),
-        object_type="app",
-        project_id=str(base_db.project_id),
-    )
+    if app_variant is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create variant from base",
+        )
 
-    app_variant_db = await db_manager.get_app_variant_instance_by_id(
-        str(db_app_variant.id), str(db_app_variant.project_id)
-    )
     await invalidate_cache(
         project_id=request.state.project_id,
     )
 
-    return await converters.app_variant_db_to_output(app_variant_db)
+    return app_variant
 
 
 @router.delete("/{variant_id}/", operation_id="mark_variant_as_hidden")
@@ -124,11 +129,10 @@ async def remove_variant(
     """
 
     try:
-        variant = await db_manager.fetch_app_variant_by_id(variant_id)
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=str(variant.project_id),
+                project_id=request.state.project_id,
                 permission=Permission.EDIT_APPLICATIONS_VARIANT,
             )
             if not has_permission:
@@ -139,18 +143,24 @@ async def remove_variant(
                     status_code=403,
                 )
 
-        # Update last_modified_by app information
-        await app_manager.update_last_modified_by(
-            user_uid=request.state.user_id,
-            object_id=variant_id,
-            object_type="variant",
-            project_id=str(variant.project_id),
+        adapter = get_legacy_adapter()
+        success = await adapter.mark_variant_hidden(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            variant_id=UUID(variant_id),
         )
 
-        await db_manager.mark_app_variant_as_hidden(app_variant_id=variant_id)
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Variant with ID '{variant_id}' not found",
+            )
+
         await invalidate_cache(
             project_id=request.state.project_id,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         detail = f"Error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -181,11 +191,10 @@ async def update_variant_parameters(
     """
 
     try:
-        variant_db = await db_manager.fetch_app_variant_by_id(variant_id)
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=str(variant_db.project_id),
+                project_id=request.state.project_id,
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -196,36 +205,29 @@ async def update_variant_parameters(
                     status_code=403,
                 )
 
-        await app_manager.update_variant_parameters(
-            app_variant_id=variant_id,
+        adapter = get_legacy_adapter()
+        revision = await adapter.update_variant_parameters(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            variant_id=UUID(variant_id),
             parameters=payload.parameters,
-            user_uid=request.state.user_id,
-            project_id=str(variant_db.project_id),
             commit_message=payload.commit_message,
         )
 
-        # Update last_modified_by app information
-        await app_manager.update_last_modified_by(
-            user_uid=request.state.user_id,
-            object_id=variant_id,
-            object_type="variant",
-            project_id=str(variant_db.project_id),
-        )
+        if revision is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Variant with ID '{variant_id}' not found",
+            )
+
         await invalidate_cache(
             project_id=request.state.project_id,
         )
 
-        variant = await get_variant(
-            variant_id=variant_id,
-            request=request,
-        )
+        return revision
 
-        return await get_variant_revision(
-            variant_id=variant_id,
-            revision_number=variant.revision,  # type: ignore
-            request=request,
-        )
-
+    except HTTPException:
+        raise
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -248,14 +250,10 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
     """
 
     try:
-        db_app_variant = await db_manager.fetch_app_variant_by_id(
-            app_variant_id=payload.variant_id
-        )
-
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=str(db_app_variant.project_id),
+                project_id=request.state.project_id,
                 permission=Permission.EDIT_APPLICATIONS,
             )
             if not has_permission:
@@ -266,25 +264,27 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
                     status_code=403,
                 )
 
-        await app_manager.update_variant_url(
-            app_variant_db=db_app_variant,
-            project_id=str(db_app_variant.project_id),
+        adapter = get_legacy_adapter()
+        app_variant = await adapter.update_variant_url(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            variant_id=UUID(payload.variant_id),
             url=payload.url,
-            user_uid=request.state.user_id,
             commit_message=payload.commit_message,
         )
 
-        # Update last_modified_by app information
-        await app_manager.update_last_modified_by(
-            user_uid=request.state.user_id,
-            object_id=str(db_app_variant.app_id),
-            object_type="app",
-            project_id=str(db_app_variant.project_id),
-        )
+        if app_variant is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Variant with ID '{payload.variant_id}' not found",
+            )
+
         await invalidate_cache(
             project_id=request.state.project_id,
         )
 
+    except HTTPException:
+        raise
     except ValueError as e:
         import traceback
 
@@ -308,12 +308,22 @@ async def get_variant(
     variant_id: str,
     request: Request,
 ):
-    app_variant = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
+    adapter = get_legacy_adapter()
+    app_variant = await adapter.fetch_variant(
+        project_id=UUID(request.state.project_id),
+        variant_id=UUID(variant_id),
+    )
+
+    if app_variant is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Variant with ID '{variant_id}' not found",
+        )
 
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app_variant.project_id),
+            project_id=request.state.project_id,
             permission=Permission.VIEW_APPLICATIONS,
         )
         if not has_permission:
@@ -324,7 +334,7 @@ async def get_variant(
                 status_code=403,
             )
 
-    return await converters.app_variant_db_to_output(app_variant)
+    return app_variant
 
 
 @router.get(
@@ -365,12 +375,10 @@ async def get_variant_revisions(
                 status_code=403,
             )
 
-    app_variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
-        variant_id=variant_id, project_id=request.state.project_id
-    )
-
-    app_variant_revisions = await converters.app_variant_db_revisions_to_output(
-        app_variant_revisions
+    adapter = get_legacy_adapter()
+    app_variant_revisions = await adapter.list_variant_revisions(
+        project_id=UUID(request.state.project_id),
+        variant_id=UUID(variant_id),
     )
 
     await set_cache(
@@ -396,12 +404,11 @@ async def get_variant_revision(
     assert variant_id != "undefined", (
         "Variant id is required to retrieve variant revision"
     )
-    app_variant = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
 
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app_variant.project_id),
+            project_id=request.state.project_id,
             permission=Permission.VIEW_APPLICATIONS,
         )
         if not has_permission:
@@ -412,16 +419,20 @@ async def get_variant_revision(
                 status_code=403,
             )
 
-    app_variant_revision = await db_manager.fetch_app_variant_revision(
-        variant_id, revision_number
+    adapter = get_legacy_adapter()
+    app_variant_revision = await adapter.fetch_variant_revision(
+        project_id=UUID(request.state.project_id),
+        variant_id=UUID(variant_id),
+        revision_number=revision_number,
     )
+
     if not app_variant_revision:
         raise HTTPException(
             404,
-            detail=f"Revision {revision_number} does not exist for variant '{app_variant.variant_name}'. Please check the available revisions and try again.",
+            detail=f"Revision {revision_number} does not exist for variant. Please check the available revisions and try again.",
         )
 
-    return await converters.app_variant_db_revision_to_output(app_variant_revision)
+    return app_variant_revision
 
 
 @router.delete(
@@ -444,11 +455,10 @@ async def remove_variant_revision(
     """
 
     try:
-        variant = await db_manager.fetch_app_variant_by_id(variant_id)
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=str(variant.project_id),
+                project_id=request.state.project_id,
                 permission=Permission.EDIT_APPLICATIONS_VARIANT,
             )
             if not has_permission:
@@ -459,20 +469,24 @@ async def remove_variant_revision(
                     status_code=403,
                 )
 
-        # Update last_modified_by app information
-        await app_manager.update_last_modified_by(
-            user_uid=request.state.user_id,
-            object_id=variant_id,
-            object_type="variant",
-            project_id=str(variant.project_id),
+        adapter = get_legacy_adapter()
+        success = await adapter.archive_variant_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            revision_id=UUID(revision_id),
         )
 
-        await db_manager.mark_app_variant_revision_as_hidden(
-            variant_revision_id=revision_id
-        )
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Revision with ID '{revision_id}' not found",
+            )
+
         await invalidate_cache(
             project_id=request.state.project_id,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         detail = f"Error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)

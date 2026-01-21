@@ -8,12 +8,12 @@ from agenta.sdk.models.workflows import (
     #
     ApplicationRevisionResponse,
     #
-    LegacyApplicationFlags,
-    LegacyApplicationData,
-    LegacyApplicationCreate,
-    LegacyApplicationEdit,
+    SimpleApplicationFlags,
+    SimpleApplicationData,
+    SimpleApplicationCreate,
+    SimpleApplicationEdit,
     #
-    LegacyApplicationResponse,
+    SimpleApplicationResponse,
     #
     Reference,
 )
@@ -52,7 +52,7 @@ async def _retrieve_application(
 
     response = authed_api()(
         method="POST",
-        endpoint=f"/preview/legacy/applications/revisions/retrieve",
+        endpoint="/preview/applications/revisions/retrieve",
         json=payload,
     )
     response.raise_for_status()
@@ -109,9 +109,9 @@ async def aupsert(
 
         req = await application_workflow.inspect()
 
-        legacy_application_flags = LegacyApplicationFlags(**req.flags)
+        simple_application_flags = SimpleApplicationFlags(**req.flags)
 
-        legacy_application_data = LegacyApplicationData(
+        simple_application_data = SimpleApplicationData(
             **(
                 req.interface.model_dump(mode="json", exclude_none=True)
                 if req and req.interface
@@ -217,22 +217,22 @@ async def aupsert(
     if retrieve_response and retrieve_response.id and retrieve_response.application_id:
         application_id = retrieve_response.application_id
         # print(" --- Updating application...", application_id)
-        application_edit_request = LegacyApplicationEdit(
+        application_edit_request = SimpleApplicationEdit(
             id=application_id,
             #
             name=name,
             description=description,
             #
-            flags=legacy_application_flags,
+            flags=simple_application_flags,
             #
-            data=legacy_application_data,
+            data=simple_application_data,
         )
 
         # print(" --- application_edit_request:", application_edit_request)
 
         response = authed_api()(
             method="PUT",
-            endpoint=f"/preview/legacy/applications/{application_id}",
+            endpoint=f"/preview/simple/applications/{application_id}",
             json={
                 "application": application_edit_request.model_dump(
                     mode="json",
@@ -251,22 +251,22 @@ async def aupsert(
 
     else:
         # print(" --- Creating application...")
-        application_create_request = LegacyApplicationCreate(
+        application_create_request = SimpleApplicationCreate(
             slug=application_slug or uuid4().hex[-12:],
             #
             name=name,
             description=description,
             #
-            flags=legacy_application_flags,
+            flags=simple_application_flags,
             #
-            data=legacy_application_data,
+            data=simple_application_data,
         )
 
         # print(" --- application_create_request:", application_create_request)
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/legacy/applications/",
+            endpoint="/preview/simple/applications/",
             json={
                 "application": application_create_request.model_dump(
                     mode="json",
@@ -283,7 +283,7 @@ async def aupsert(
             print("[ERROR]: Failed to create application:", e)
             return None
 
-    application_response = LegacyApplicationResponse(**response.json())
+    application_response = SimpleApplicationResponse(**response.json())
 
     application = application_response.application
 
