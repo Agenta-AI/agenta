@@ -1941,54 +1941,6 @@ class SimpleEvaluationsService:
                     for testset_revision_id in testset_steps
                 }
 
-            # JIT MIGRATION ================================================== #
-            if jit and jit.get("testsets"):
-                _testset_steps = deepcopy(testset_steps or {})
-                testset_steps = dict()
-
-                for testset_id, origin in _testset_steps.items():
-                    testset_ref = Reference(id=testset_id)
-
-                    simple_testset = await self.simple_testsets_service.transfer(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        testset_id=testset_id,
-                    )
-
-                    if (
-                        not simple_testset
-                        or not simple_testset.id
-                        or not simple_testset.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not transfer simple testset",
-                            id=testset_ref.id,
-                        )
-                        return None
-
-                    testset_revision = (
-                        await self.testsets_service.fetch_testset_revision(
-                            project_id=project_id,
-                            #
-                            testset_ref=testset_ref,
-                        )
-                    )
-
-                    if (
-                        not testset_revision
-                        or not testset_revision.id
-                        or not testset_revision.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not find testset revision",
-                            id=testset_ref.id,
-                        )
-                        return None
-
-                    testset_steps[testset_revision.id] = origin
-            # ================================================================ #
-
             for testset_revision_id, origin in (testset_steps or {}).items():
                 testset_revision_ref = Reference(id=testset_revision_id)
 
@@ -2173,54 +2125,6 @@ class SimpleEvaluationsService:
                     evaluator_revision_id: DEFAULT_ORIGIN_EVALUATORS
                     for evaluator_revision_id in evaluator_steps
                 }
-
-            # JIT MIGRATION ================================================== #
-            if jit and jit.get("evaluators"):
-                _evaluator_steps = deepcopy(evaluator_steps or {})
-                evaluator_steps = dict()
-
-                for evaluator_id, origin in _evaluator_steps.items():
-                    evaluator_ref = Reference(id=evaluator_id)
-
-                    simple_evaluator = await self.simple_evaluators_service.transfer(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        evaluator_id=evaluator_id,
-                    )
-
-                    if (
-                        not simple_evaluator
-                        or not simple_evaluator.id
-                        or not simple_evaluator.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not transfer simple evaluator",
-                            id=evaluator_ref.id,
-                        )
-                        return None
-
-                    evaluator_revision = (
-                        await self.evaluators_service.fetch_evaluator_revision(
-                            project_id=project_id,
-                            #
-                            evaluator_ref=evaluator_ref,
-                        )
-                    )
-
-                    if (
-                        not evaluator_revision
-                        or not evaluator_revision.id
-                        or not evaluator_revision.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not find evaluator revision",
-                            id=evaluator_ref.id,
-                        )
-                        return None
-
-                    evaluator_steps[evaluator_revision.id] = origin
-            # ================================================================ #
 
             for evaluator_revision_id, origin in (evaluator_steps or {}).items():
                 evaluator_revision_ref = Reference(id=evaluator_revision_id)

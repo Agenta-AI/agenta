@@ -64,7 +64,6 @@ from oss.src.core.annotations.service import AnnotationsService
 # from oss.src.apis.fastapi.tracing.utils import make_hash_id
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
-from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
@@ -220,10 +219,6 @@ tracing_router = TracingRouter(
 
 simple_testsets_router = SimpleTestsetsRouter(
     simple_testsets_service=simple_testsets_service,
-)  # TODO: REMOVE/REPLACE ONCE TRANSFER IS MOVED TO 'core'
-
-simple_evaluators_router = SimpleEvaluatorsRouter(
-    simple_evaluators_service=simple_evaluators_service,
 )  # TODO: REMOVE/REPLACE ONCE TRANSFER IS MOVED TO 'core'
 
 annotations_service = AnnotationsService(
