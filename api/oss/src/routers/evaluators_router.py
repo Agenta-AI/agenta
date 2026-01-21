@@ -1,40 +1,43 @@
+import inspect
 from typing import List, Optional
 from uuid import UUID
+
 from fastapi import HTTPException, Request
-from oss.src.utils.logging import get_module_logger
-from oss.src.utils.common import APIRouter
-from oss.src.services import evaluators_service
 
-from oss.src.models.api.evaluation_model import (
-    LegacyEvaluator,
-    EvaluatorConfig,
-    NewEvaluatorConfig,
-    UpdateEvaluatorConfig,
-    EvaluatorInputInterface,
-    EvaluatorOutputInterface,
-    EvaluatorMappingInputInterface,
-    EvaluatorMappingOutputInterface,
-)
-from oss.src.core.secrets.utils import get_llm_providers_secrets
-
-from oss.src.services.auth_service import sign_secret_token
 from agenta.sdk.contexts.running import RunningContext, running_context_manager
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
+from agenta.sdk.workflows.utils import retrieve_handler
 
-# New system imports for adapters
-from oss.src.core.evaluators.dtos import (
-    SimpleEvaluator,
-    SimpleEvaluatorCreate,
-    SimpleEvaluatorEdit,
-    SimpleEvaluatorData,
-    SimpleEvaluatorFlags,
-)
 from oss.src.apis.fastapi.evaluators.models import (
     SimpleEvaluatorCreateRequest,
     SimpleEvaluatorEditRequest,
     SimpleEvaluatorQueryRequest,
 )
+from oss.src.core.evaluators.dtos import (
+    SimpleEvaluator,
+    SimpleEvaluatorCreate,
+    SimpleEvaluatorData,
+    SimpleEvaluatorEdit,
+    SimpleEvaluatorFlags,
+)
+from oss.src.models.api.evaluation_model import (
+    EvaluatorConfig,
+    EvaluatorInputInterface,
+    EvaluatorMappingInputInterface,
+    EvaluatorMappingOutputInterface,
+    EvaluatorOutputInterface,
+    LegacyEvaluator,
+    NewEvaluatorConfig,
+    UpdateEvaluatorConfig,
+)
 from oss.src.resources.evaluators.evaluators import get_all_evaluators
+from oss.src.services.auth_service import sign_secret_token
+from oss.src.utils.common import APIRouter
+from oss.src.utils.logging import get_module_logger
+from oss.src.utils.traces import (
+    get_field_value_from_trace_tree,
+    process_distributed_trace_into_trace_tree,
+)
 
 router = APIRouter()
 
@@ -98,7 +101,7 @@ async def get_evaluators_endpoint():
     return BUILTIN_EVALUATORS
 
 
-@router.post("/map/", response_model=EvaluatorMappingOutputInterface)
+@router.post("/map", response_model=EvaluatorMappingOutputInterface)
 async def evaluator_data_map(request: Request, payload: EvaluatorMappingInputInterface):
     """Endpoint to map the experiment data tree to evaluator interface.
 
@@ -109,12 +112,30 @@ async def evaluator_data_map(request: Request, payload: EvaluatorMappingInputInt
     Returns:
         EvaluatorMappingOutputInterface: the evaluator mapping output object
     """
+    mapping_outputs = {}
+    mapping_inputs = payload.inputs
+    response_version = payload.inputs.get("version")
 
-    mapped_outputs = await evaluators_service.map(mapping_input=payload)
-    return mapped_outputs
+    trace = {}
+    if response_version == "3.0":
+        trace = mapping_inputs.get("tree", {})
+    elif response_version == "2.0":
+        trace = mapping_inputs.get("trace", {})
+
+    trace = process_distributed_trace_into_trace_tree(
+        trace=trace,
+        version=payload.inputs.get("version"),
+    )
+    for to_key, from_key in payload.mapping.items():
+        mapping_outputs[to_key] = get_field_value_from_trace_tree(
+            trace,
+            from_key,
+            version=payload.inputs.get("version"),
+        )
+    return {"outputs": mapping_outputs}
 
 
-@router.post("/{evaluator_key}/run/", response_model=EvaluatorOutputInterface)
+@router.post("/{evaluator_key}/run", response_model=EvaluatorOutputInterface)
 async def evaluator_run(
     request: Request, evaluator_key: str, payload: EvaluatorInputInterface
 ):
@@ -128,13 +149,6 @@ async def evaluator_run(
     Returns:
         result: EvaluatorOutputInterface object containing the outputs.
     """
-
-    providers_keys_from_vault = await get_llm_providers_secrets(
-        project_id=request.state.project_id
-    )
-
-    payload.credentials = providers_keys_from_vault
-
     secret_token = await sign_secret_token(
         user_id=str(request.state.user_id),
         project_id=str(request.state.project_id),
@@ -152,13 +166,10 @@ async def evaluator_run(
     with tracing_context_manager(tracing_ctx):
         with running_context_manager(ctx):
             try:
-                result = await evaluators_service.run(
-                    evaluator_key=evaluator_key,
-                    evaluator_input=payload,
-                )
+                result = await _run_evaluator(evaluator_key, payload)
             except Exception as e:
                 log.warning(
-                    f"Error with evaluator /run",
+                    "Error with evaluator /run",
                     exc_info=True,
                 )
                 raise HTTPException(
@@ -171,11 +182,48 @@ async def evaluator_run(
             return result
 
 
-# -----------------------------------------------------------------------------
-# /configs/* endpoints - ADAPTERS to SimpleEvaluatorsRouter
-# These endpoints delegate to the new artifact-variant-revision system
-# by calling the SimpleEvaluatorsRouter methods directly.
-# -----------------------------------------------------------------------------
+async def _run_evaluator(
+    evaluator_key: str,
+    evaluator_input: EvaluatorInputInterface,
+) -> EvaluatorOutputInterface:
+    """Invokes an SDK evaluator workflow by key."""
+    # Build URI from evaluator_key
+    uri = f"agenta:builtin:{evaluator_key}:v0"
+
+    # Retrieve the handler from SDK registry
+    handler = retrieve_handler(uri)
+    if handler is None:
+        raise NotImplementedError(f"Evaluator {evaluator_key} not found (uri={uri})")
+
+    # Extract data from evaluator_input
+    inputs = evaluator_input.inputs or {}
+    settings = evaluator_input.settings or {}
+
+    # Get outputs/prediction from inputs
+    outputs = inputs.get("prediction", inputs.get("output"))
+
+    # Build kwargs based on handler signature
+    sig = inspect.signature(handler)
+    kwargs = {}
+    if "parameters" in sig.parameters:
+        kwargs["parameters"] = settings
+    if "inputs" in sig.parameters:
+        kwargs["inputs"] = inputs
+    if "outputs" in sig.parameters:
+        kwargs["outputs"] = outputs
+
+    # Invoke the handler (may be sync or async)
+    result = handler(**kwargs)
+
+    # Await if coroutine
+    if inspect.iscoroutine(result):
+        result = await result
+
+    # Normalize result to EvaluatorOutputInterface format
+    if isinstance(result, dict):
+        return {"outputs": result}
+
+    return {"outputs": {"result": result}}
 
 
 @router.get("/configs/", response_model=List[EvaluatorConfig])
