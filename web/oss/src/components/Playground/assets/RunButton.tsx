@@ -1,4 +1,4 @@
-import {Play, XCircle} from "@phosphor-icons/react"
+import {PlayIcon, XCircleIcon} from "@phosphor-icons/react"
 import {Button, type ButtonProps} from "antd"
 
 interface AddButtonProps extends ButtonProps {
@@ -18,7 +18,7 @@ const RunButton = ({
     return (
         <Button
             color={isCancel ? "danger" : "default"}
-            icon={isCancel ? <XCircle size={14} /> : <Play size={14} />}
+            icon={isCancel ? <XCircleIcon size={14} /> : <PlayIcon size={14} />}
             className="self-start"
             size="small"
             {...props}
