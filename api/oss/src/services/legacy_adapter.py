@@ -1007,7 +1007,10 @@ class LegacyApplicationsAdapter:
 # SINGLETON ACCESS
 # -----------------------------------------------------------------------------
 
+import threading
+
 _legacy_adapter: Optional[LegacyApplicationsAdapter] = None
+_legacy_adapter_lock = threading.Lock()
 
 
 def get_legacy_adapter() -> LegacyApplicationsAdapter:
@@ -1015,7 +1018,7 @@ def get_legacy_adapter() -> LegacyApplicationsAdapter:
     Get the legacy adapter singleton instance.
 
     Creates the adapter lazily on first access using services from
-    the workflows module.
+    the workflows module. Thread-safe via double-checked locking.
 
     Returns:
         LegacyApplicationsAdapter: The singleton adapter instance.
@@ -1023,20 +1026,25 @@ def get_legacy_adapter() -> LegacyApplicationsAdapter:
     global _legacy_adapter
 
     if _legacy_adapter is None:
-        from oss.src.core.workflows.service import WorkflowsService
-        from oss.src.core.workflows.dbs import WorkflowsDAO
-        from oss.src.dbs import engine
+        with _legacy_adapter_lock:
+            # Double-check after acquiring lock
+            if _legacy_adapter is None:
+                from oss.src.core.workflows.service import WorkflowsService
+                from oss.src.core.workflows.dbs import WorkflowsDAO
+                from oss.src.dbs import engine
 
-        workflows_dao = WorkflowsDAO(engine=engine)
-        workflows_service = WorkflowsService(workflows_dao=workflows_dao)
-        applications_service = ApplicationsService(workflows_service=workflows_service)
-        simple_applications_service = SimpleApplicationsService(
-            applications_service=applications_service
-        )
+                workflows_dao = WorkflowsDAO(engine=engine)
+                workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+                applications_service = ApplicationsService(
+                    workflows_service=workflows_service
+                )
+                simple_applications_service = SimpleApplicationsService(
+                    applications_service=applications_service
+                )
 
-        _legacy_adapter = LegacyApplicationsAdapter(
-            applications_service=applications_service,
-            simple_applications_service=simple_applications_service,
-        )
+                _legacy_adapter = LegacyApplicationsAdapter(
+                    applications_service=applications_service,
+                    simple_applications_service=simple_applications_service,
+                )
 
     return _legacy_adapter
