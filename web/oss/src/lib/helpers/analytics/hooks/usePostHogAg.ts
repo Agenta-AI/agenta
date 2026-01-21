@@ -23,6 +23,15 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const analyticsId = isDemo() && user?.email ? user.email : baseDistinctId
     const identifiedRef = useRef<string | null>(null)
     const aliasedRef = useRef(false)
+
+    const personProps = useMemo(() => {
+        if (!user?.email) return null
+        const props: Record<string, unknown> = {email: user.email}
+        if (user.username) {
+            props.username = user.username
+        }
+        return props
+    }, [user?.email, user?.username])
     const baseCapture = posthog?.capture?.bind(posthog)
     const baseIdentify = posthog?.identify?.bind(posthog)
     const capture: PostHog["capture"] = useCallback(
@@ -64,8 +73,12 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
             aliasedRef.current = true
         }
         identifiedRef.current = analyticsId
-        identify(analyticsId)
-    }, [analyticsId, baseDistinctId, identify, posthog, user?.email])
+        if (personProps) {
+            identify(analyticsId, personProps)
+        } else {
+            identify(analyticsId)
+        }
+    }, [analyticsId, baseDistinctId, identify, personProps, posthog, user?.email])
 
     if (!posthog) return null
     return Object.assign(posthog, {identify, capture}) as ExtendedPostHog
