@@ -60,7 +60,6 @@ from oss.src.core.annotations.service import AnnotationsService
 from oss.src.apis.fastapi.tracing.utils import make_hash_id
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import TestsetsRouter
-from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 
 from oss.src.core.annotations.types import (
@@ -142,7 +141,7 @@ async def setup_evaluation(
     #
     tracing_router: TracingRouter,
     testsets_service: TestsetsService,
-    simple_evaluators_router: SimpleEvaluatorsRouter,
+    simple_evaluators_service: SimpleEvaluatorsService,
     #
     queries_service: QueriesService,
     workflows_service: WorkflowsService,
@@ -360,21 +359,17 @@ async def setup_evaluation(
                 )
         # ----------------------------------------------------------------------
 
-        # just-in-time transfer of evaluators ----------------------------------
+        # fetch evaluator references -------------------------------------------
         annotation_metrics_keys = {key: {} for key in annotation_steps_keys}
         evaluator_references = dict()
 
         for jdx, autoeval_id in enumerate(autoeval_ids):
             annotation_step_key = annotation_steps_keys[jdx]
 
-            evaluator_response = (
-                await simple_evaluators_router.transfer_simple_evaluator(
-                    request=request,
-                    evaluator_id=UUID(autoeval_id),
-                )
+            evaluator = await simple_evaluators_service.fetch(
+                project_id=project_id,
+                evaluator_id=UUID(autoeval_id),
             )
-
-            evaluator = evaluator_response.evaluator
 
             assert evaluator is not None, f"Evaluator with id {autoeval_id} not found!"
 
@@ -686,7 +681,7 @@ async def evaluate_batch_testset(
     #
     tracing_router: TracingRouter,
     testsets_service: TestsetsService,
-    simple_evaluators_router: SimpleEvaluatorsRouter,
+    simple_evaluators_service: SimpleEvaluatorsService,
     #
     queries_service: QueriesService,
     workflows_service: WorkflowsService,

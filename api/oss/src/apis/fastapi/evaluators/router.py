@@ -1102,16 +1102,6 @@ class SimpleEvaluatorsRouter:
             response_model_exclude_none=True,
         )
 
-        self.router.add_api_route(
-            "/{evaluator_id}/transfer",
-            self.transfer_simple_evaluator,
-            methods=["POST"],
-            operation_id="transfer_simple_evaluator",
-            status_code=status.HTTP_200_OK,
-            response_model=SimpleEvaluatorResponse,
-            response_model_exclude_none=True,
-        )
-
     # SIMPLE EVALUATORS --------------------------------------------------------
 
     @intercept_exceptions()
@@ -1552,31 +1542,3 @@ class SimpleEvaluatorsRouter:
         )
 
         return simple_evaluators_response
-
-    @intercept_exceptions()
-    async def transfer_simple_evaluator(
-        self,
-        *,
-        request: Request,
-        evaluator_id: UUID,
-    ) -> SimpleEvaluatorResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        simple_evaluator = await self.simple_evaluators_service.transfer(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            evaluator_id=evaluator_id,
-        )
-
-        simple_evaluator_response = SimpleEvaluatorResponse(
-            count=1 if simple_evaluator else 0,
-            evaluator=simple_evaluator,
-        )
-
-        return simple_evaluator_response

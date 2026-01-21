@@ -10,6 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from oss.src.models.db_models import ProjectDB as ProjectDBE
+from oss.src.models.db_models import EvaluatorConfigDB
 from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowArtifactDBE,
     WorkflowVariantDBE,
@@ -17,11 +18,22 @@ from oss.src.dbs.postgres.workflows.dbes import (
 )
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.core.evaluators.service import SimpleEvaluatorsService, EvaluatorsService
+from oss.src.core.evaluators.dtos import (
+    EvaluatorRevisionData,
+    SimpleEvaluator,
+    SimpleEvaluatorCreate,
+    SimpleEvaluatorEdit,
+    SimpleEvaluatorData,
+    SimpleEvaluatorFlags,
+)
 from oss.src.models.deprecated_models import (
     DeprecatedAutoEvaluatorConfigDBwProject as DeprecatedEvaluatorConfigDBwProject,
     DeprecatedOrganizationDB,
 )
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.shared.dtos import Reference
+from oss.src.utils.helpers import get_slug_from_name_and_id
+from oss.src.services.db_manager import fetch_evaluator_config
 
 
 # Define constants
@@ -42,6 +54,196 @@ evaluators_service = EvaluatorsService(
 simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
 )
+
+
+def _transfer_evaluator_revision_data(
+    old_evaluator: EvaluatorConfigDB,
+) -> EvaluatorRevisionData:
+    """Convert old evaluator config to new EvaluatorRevisionData format."""
+    version = "2025.07.14"
+    uri = f"agenta:builtin:{old_evaluator.evaluator_key}:v0"
+    url = (
+        old_evaluator.settings_values.get("webhook_url", None)
+        if old_evaluator.evaluator_key == "auto_webhook_test"
+        else None
+    )
+    headers = None
+    outputs_schema = None
+    if str(old_evaluator.evaluator_key) == "auto_ai_critique":
+        json_schema = old_evaluator.settings_values.get("json_schema", None)
+        if json_schema and isinstance(json_schema, dict):
+            outputs_schema = json_schema.get("schema", None)
+    if str(old_evaluator.evaluator_key) == "json_multi_field_match":
+        fields = old_evaluator.settings_values.get("fields", [])
+        properties = {"aggregate_score": {"type": "number"}}
+        for field in fields:
+            properties[field] = {"type": "number"}
+        outputs_schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": properties,
+            "required": ["aggregate_score"],
+            "additionalProperties": False,
+        }
+    if not outputs_schema:
+        properties = (
+            {"score": {"type": "number"}, "success": {"type": "boolean"}}
+            if old_evaluator.evaluator_key
+            in (
+                "auto_levenshtein_distance",
+                "auto_semantic_similarity",
+                "auto_similarity_match",
+                "auto_json_diff",
+                "auto_webhook_test",
+                "auto_custom_code_run",
+                "auto_ai_critique",
+            )
+            else {"success": {"type": "boolean"}}
+        )
+        required = (
+            list(properties.keys())
+            if old_evaluator.evaluator_key
+            not in (
+                "auto_levenshtein_distance",
+                "auto_semantic_similarity",
+                "auto_similarity_match",
+                "auto_json_diff",
+                "auto_webhook_test",
+                "auto_custom_code_run",
+                "auto_ai_critique",
+            )
+            else []
+        )
+        outputs_schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": False,
+        }
+    schemas = {"outputs": outputs_schema}
+    script = (
+        {
+            "content": old_evaluator.settings_values.get("code", None),
+            "runtime": "python",
+        }
+        if old_evaluator.evaluator_key == "auto_custom_code_run"
+        else None
+    )
+    parameters = old_evaluator.settings_values
+    service = {
+        "agenta": "0.1.0",
+        "format": {
+            "type": "object",
+            "$schema": "http://json-schema.org/schema#",
+            "required": ["outputs"],
+            "properties": {
+                "outputs": schemas["outputs"],
+            },
+        },
+    }
+    configuration = parameters
+
+    return EvaluatorRevisionData(
+        version=version,
+        uri=uri,
+        url=url,
+        headers=headers,
+        schemas=schemas,
+        script=script,
+        parameters=parameters,  # type: ignore
+        service=service,
+        configuration=configuration,  # type: ignore
+    )
+
+
+async def _transfer_evaluator(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    evaluator_id: UUID,
+) -> Optional[SimpleEvaluator]:
+    """Transfer an old evaluator config to the new workflow-based system."""
+    old_evaluator = await fetch_evaluator_config(
+        evaluator_config_id=str(evaluator_id),
+    )
+
+    if old_evaluator is None:
+        return None
+
+    evaluator_revision_data = _transfer_evaluator_revision_data(
+        old_evaluator=old_evaluator,
+    )
+
+    evaluator_ref = Reference(id=evaluator_id)
+
+    new_evaluator = await evaluators_service.fetch_evaluator(
+        project_id=project_id,
+        evaluator_ref=evaluator_ref,
+    )
+
+    if new_evaluator is None:
+        name = str(old_evaluator.name)
+        slug = get_slug_from_name_and_id(
+            name=name,
+            id=evaluator_id,
+        )
+
+        evaluator_create = SimpleEvaluatorCreate(
+            slug=slug,
+            name=name,
+            description=None,
+            flags=SimpleEvaluatorFlags(
+                is_evaluator=True,
+            ),
+            tags=None,
+            meta=None,
+            data=SimpleEvaluatorData(
+                **evaluator_revision_data.model_dump(
+                    mode="json",
+                )
+            ),
+        )
+        simple_evaluator = await simple_evaluators_service.create(
+            project_id=project_id,
+            user_id=user_id,
+            simple_evaluator_create=evaluator_create,
+            evaluator_id=evaluator_id,
+        )
+
+        return simple_evaluator
+
+    evaluator_edit = SimpleEvaluatorEdit(
+        id=evaluator_id,
+        name=new_evaluator.name,
+        description=new_evaluator.description,
+        flags=(
+            SimpleEvaluatorFlags(
+                **new_evaluator.flags.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                )
+            )
+            if new_evaluator.flags
+            else None
+        ),
+        tags=new_evaluator.tags,
+        meta=new_evaluator.meta,
+        data=SimpleEvaluatorData(
+            **evaluator_revision_data.model_dump(
+                mode="json",
+            )
+        ),
+    )
+
+    simple_evaluator = await simple_evaluators_service.edit(
+        project_id=project_id,
+        user_id=user_id,
+        simple_evaluator_edit=evaluator_edit,
+    )
+
+    return simple_evaluator
 
 
 async def _fetch_project_owner(
@@ -121,8 +323,8 @@ async def migration_old_evaluator_configs_to_new_evaluator_configs(
                         )
                         continue
 
-                    # STEP 3: Migrate records using transfer_* util function
-                    new_evaluator = await simple_evaluators_service.transfer(
+                    # STEP 3: Migrate records using local transfer function
+                    new_evaluator = await _transfer_evaluator(
                         project_id=old_evaluator.project_id,
                         user_id=owner,
                         evaluator_id=old_evaluator.id,
