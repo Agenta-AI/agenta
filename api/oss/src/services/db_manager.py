@@ -271,7 +271,6 @@ async def add_default_simple_evaluators(
         SimpleEvaluatorData,
         SimpleEvaluatorFlags,
     )
-    from oss.src.apis.fastapi.evaluators.models import SimpleEvaluatorCreateRequest
     from oss.src.routers.evaluators_router import BUILTIN_EVALUATORS
 
     workflows_dao = GitDAO(
@@ -311,22 +310,20 @@ async def add_default_simple_evaluators(
             # Generate slug from name
             evaluator_slug = get_slug_from_name_and_id(evaluator.name, uuid.uuid4())
 
-            simple_evaluator_create_request = SimpleEvaluatorCreateRequest(
-                evaluator=SimpleEvaluatorCreate(
-                    slug=evaluator_slug,
-                    name=evaluator.name,
-                    flags=SimpleEvaluatorFlags(is_evaluator=True),
-                    data=SimpleEvaluatorData(
-                        uri=uri,
-                        parameters=settings_values if settings_values else None,
-                    ),
-                )
+            simple_evaluator_create = SimpleEvaluatorCreate(
+                slug=evaluator_slug,
+                name=evaluator.name,
+                flags=SimpleEvaluatorFlags(is_evaluator=True),
+                data=SimpleEvaluatorData(
+                    uri=uri,
+                    parameters=settings_values if settings_values else None,
+                ),
             )
 
             await simple_evaluators_service.create(
                 project_id=project_uuid,
                 user_id=user_uuid,
-                simple_evaluator_create_request=simple_evaluator_create_request,
+                simple_evaluator_create=simple_evaluator_create,
             )
         except Exception:
             log.error(
