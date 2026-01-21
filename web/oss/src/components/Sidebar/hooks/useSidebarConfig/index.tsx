@@ -116,6 +116,7 @@ export const useSidebarConfig = () => {
             isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <Lightning size={16} />,
             disabled: !hasProjectURL,
+            dataTour: "registry-nav",
         },
         {
             key: "app-evaluations-link",

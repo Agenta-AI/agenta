@@ -45,6 +45,15 @@ export const onboardingWidgetConfigAtom = atom<OnboardingWidgetConfig>({
     sections: [],
 })
 
+export const onboardingWidgetActivationAtom = atom<string | null>(null)
+
+export const setOnboardingWidgetActivationAtom = atom(
+    null,
+    (_get, set, activationHint: string | null) => {
+        set(onboardingWidgetActivationAtom, activationHint)
+    },
+)
+
 export const onboardingWidgetEventsAtom = atomWithStorage<Record<string, number>>(
     STORAGE_KEYS.COMPLETED_TASKS,
     {},

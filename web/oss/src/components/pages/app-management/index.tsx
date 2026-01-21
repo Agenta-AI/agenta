@@ -4,7 +4,6 @@ import {Typography} from "antd"
 import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-import {useRouter} from "next/router"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
@@ -12,6 +11,11 @@ import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {type LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {
+    onboardingWidgetActivationAtom,
+    recordWidgetEventAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@/oss/lib/onboarding"
 import {Template, GenericObject, StyleProps} from "@/oss/lib/Types"
 import {waitForAppToStart} from "@/oss/services/api"
 import {createAndStartTemplate, deleteApp, ServiceType} from "@/oss/services/app-selector/api"
@@ -62,6 +66,9 @@ const AppManagement: React.FC = () => {
         setFetchingTemplate: setFetchingCustomWorkflow,
         appId: "",
     })
+    const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
+    const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
     const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
@@ -101,6 +108,7 @@ const AppManagement: React.FC = () => {
                                 deployed_by: user?.id,
                             },
                         })
+                        recordWidgetEvent("prompt_created")
                     }
 
                 setStatusData((prev) => ({...prev, status, details, appId: appId || prev.appId}))
@@ -108,14 +116,11 @@ const AppManagement: React.FC = () => {
         })
     }
 
-    const {query: routerQuery, isReady} = useRouter()
-
     useEffect(() => {
-        if (!isReady) return
-        if (routerQuery.create_prompt === "true") {
-            setIsAddAppFromTemplatedModal(true)
-        }
-    }, [isReady, routerQuery.create_prompt])
+        if (onboardingWidgetActivation !== "open-create-prompt") return
+        setIsAddAppFromTemplatedModal(true)
+        setOnboardingWidgetActivation(null)
+    }, [onboardingWidgetActivation, setOnboardingWidgetActivation])
 
     const onErrorRetry = async () => {
         if (statusData.appId) {

@@ -14,3 +14,8 @@ export {
     unregisterExplorePlaygroundTour,
     EXPLORE_PLAYGROUND_TOUR_ID,
 } from "./tours/explorePlaygroundTour"
+export {
+    registerDeployPromptTour,
+    unregisterDeployPromptTour,
+    DEPLOY_PROMPT_TOUR_ID,
+} from "./tours/deployPromptTour"

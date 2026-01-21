@@ -9,7 +9,10 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {openDeploymentsDrawerAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useSession} from "@/oss/hooks/useSession"
+import useURL from "@/oss/hooks/useURL"
 import {
     activeTourIdAtom,
     hasSeenCloseTooltipAtom,
@@ -21,12 +24,14 @@ import {
     onboardingWidgetStatusAtom,
     onboardingWidgetUIStateAtom,
     recordWidgetEventAtom,
+    setOnboardingWidgetActivationAtom,
     setOnboardingWidgetConfigAtom,
     setWidgetSectionExpandedAtom,
     tourRegistry,
     type OnboardingWidgetItem,
 } from "@/oss/lib/onboarding"
 
+import {DEPLOY_PROMPT_TOUR_ID, registerDeployPromptTour} from "../tours/deployPromptTour"
 import {registerWidgetClosedTour} from "../tours/widgetClosedTour"
 
 import {
@@ -44,23 +49,34 @@ const {Text} = Typography
 const OnboardingWidget = () => {
     const router = useRouter()
     const {doesSessionExist} = useSession()
+    const {appURL, recentlyVisitedAppURL, baseAppURL} = useURL()
     const config = useAtomValue(onboardingWidgetConfigAtom)
     const widgetStatus = useAtomValue(onboardingWidgetStatusAtom)
     const setWidgetStatus = useSetAtom(onboardingWidgetStatusAtom)
     const widgetUIState = useAtomValue(onboardingWidgetUIStateAtom)
     const setWidgetConfig = useSetAtom(setOnboardingWidgetConfigAtom)
     const setWidgetUIState = useSetAtom(onboardingWidgetUIStateAtom)
+    const setWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
     const expandedSections = useAtomValue(onboardingWidgetExpandedSectionsAtom)
     const setSectionExpanded = useSetAtom(setWidgetSectionExpandedAtom)
     const completionMap = useAtomValue(onboardingWidgetCompletionAtom)
     const widgetEvents = useAtomValue(onboardingWidgetEventsAtom)
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
+    const openDeploymentsDrawer = useSetAtom(openDeploymentsDrawerAtom)
     const isNewUser = useAtomValue(isNewUserAtom)
     const hasSeenCloseTooltip = useAtomValue(hasSeenCloseTooltipAtom)
     const setHasSeenCloseTooltip = useSetAtom(hasSeenCloseTooltipAtom)
     const activeTourId = useAtomValue(activeTourIdAtom)
     const setActiveTourId = useSetAtom(activeTourIdAtom)
     const {startNextStep, isNextStepVisible} = useNextStep()
+    const {goToPlayground} = usePlaygroundNavigation()
+
+    const registryUrl = useMemo(() => {
+        const base = appURL || recentlyVisitedAppURL || baseAppURL
+        if (!base) return null
+        return `${base}/variants`
+    }, [appURL, recentlyVisitedAppURL, baseAppURL])
+
 
     const allItems = useMemo(
         () => config.sections.flatMap((section) => section.items),
@@ -86,8 +102,8 @@ const OnboardingWidget = () => {
 
     const startTour = useCallback(
         (tourId: string) => {
-            if (!tourRegistry.has(tourId)) {
-                console.warn(`[Onboarding] Tour "${tourId}" not found in registry`)
+            if (!tourRegistry.get(tourId)) {
+                console.warn(`[Onboarding] Tour "${tourId}" not found or disabled`)
                 return
             }
 
@@ -110,22 +126,63 @@ const OnboardingWidget = () => {
 
             if (item.activationHint) {
                 recordWidgetEvent(`activation:${item.activationHint}`)
+                setWidgetActivation(item.activationHint)
             }
 
-            if (item.href) {
+            if (item.activationHint === "open-create-prompt" && baseAppURL) {
+                try {
+                    await router.push(baseAppURL)
+                } catch (error) {
+                    console.error("Failed to navigate to onboarding target", error)
+                    return
+                }
+            } else if (item.activationHint === "open-registry" && registryUrl) {
+                try {
+                    await router.push(registryUrl)
+                    recordWidgetEvent("registry_page_viewed")
+                } catch (error) {
+                    console.error("Failed to navigate to onboarding target", error)
+                    return
+                }
+            } else if (item.activationHint === "integration-snippet") {
+                try {
+                    if (registryUrl) {
+                        await router.push(registryUrl)
+                    }
+                    openDeploymentsDrawer({initialWidth: 1200, mode: "variant"})
+                    recordWidgetEvent("integration_snippet_viewed")
+                } catch (error) {
+                    console.error("Failed to open integration snippet", error)
+                    return
+                }
+            } else if (item.activationHint === "deploy-variant") {
+                startTour(item.tourId || DEPLOY_PROMPT_TOUR_ID)
+                return
+            } else if (item.href) {
                 try {
                     await router.push(item.href)
                 } catch (error) {
                     console.error("Failed to navigate to onboarding target", error)
                     return
                 }
+            } else if (item.activationHint === "playground-walkthrough") {
+                goToPlayground()
             }
 
             if (item.tourId) {
                 startTour(item.tourId)
             }
         },
-        [recordWidgetEvent, router, startTour],
+        [
+            recordWidgetEvent,
+            baseAppURL,
+            registryUrl,
+            router,
+            startTour,
+            openDeploymentsDrawer,
+            setWidgetActivation,
+            goToPlayground,
+        ],
     )
 
     const toggleSection = useCallback(
@@ -172,6 +229,7 @@ const OnboardingWidget = () => {
     // Register the widget closed tour
     useEffect(() => {
         registerWidgetClosedTour()
+        registerDeployPromptTour()
     }, [])
 
     useEffect(() => {
@@ -201,10 +259,10 @@ const OnboardingWidget = () => {
 
     useEffect(() => {
         const shouldComplete = totalTasks > 0 && completedTasks >= totalTasks
-        if (!shouldComplete) return
+        if (!shouldComplete || widgetStatus === "completed") return
         setWidgetStatus("completed")
         trackWidgetTaskCompleted({totalTasks, completedTasks})
-    }, [totalTasks, completedTasks, setWidgetStatus])
+    }, [totalTasks, completedTasks, widgetStatus, setWidgetStatus])
 
     if (!shouldRender) {
         return null
