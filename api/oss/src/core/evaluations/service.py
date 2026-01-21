@@ -1361,9 +1361,6 @@ class SimpleEvaluationsService:
                 log.info("[EVAL] [failure] invalid simple evaluation flags")
                 return None
 
-            # Default: expect callers to provide testset revision ids; keep evaluator JIT as-is
-            evaluation_jit = evaluation.jit or {"testsets": False, "evaluators": True}
-
             run_data = await self._make_evaluation_run_data(
                 project_id=project_id,
                 user_id=user_id,
@@ -1374,8 +1371,6 @@ class SimpleEvaluationsService:
                 evaluator_steps=evaluation.data.evaluator_steps,
                 #
                 repeats=evaluation.data.repeats,
-                #
-                jit=evaluation_jit,
             )
 
             if not run_data:
@@ -1836,8 +1831,6 @@ class SimpleEvaluationsService:
         evaluator_steps: Optional[Target] = None,
         #
         repeats: Optional[int] = None,
-        #
-        jit: Optional[Dict[str, bool]] = None,
     ) -> Optional[EvaluationRunData]:
         # IMPLICIT FLAG: is_multivariate=False
         # IMPLICIT FLAG: all_inputs=True
