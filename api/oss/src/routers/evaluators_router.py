@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import HTTPException, Request
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import APIRouter
-from oss.src.services import evaluator_manager, evaluators_service
+from oss.src.services import evaluators_service
 
 from oss.src.models.api.evaluation_model import (
     LegacyEvaluator,
@@ -34,10 +34,16 @@ from oss.src.apis.fastapi.evaluators.models import (
     SimpleEvaluatorEditRequest,
     SimpleEvaluatorQueryRequest,
 )
+from oss.src.resources.evaluators.evaluators import get_all_evaluators
 
 router = APIRouter()
 
 log = get_module_logger(__name__)
+
+# Load builtin evaluators once at module load
+BUILTIN_EVALUATORS: List[LegacyEvaluator] = [
+    LegacyEvaluator(**evaluator_dict) for evaluator_dict in get_all_evaluators()
+]
 
 # Lazy import to avoid circular dependency
 _simple_evaluators_router = None
@@ -89,22 +95,7 @@ def _simple_evaluator_to_evaluator_config(
 
 @router.get("/", response_model=List[LegacyEvaluator])
 async def get_evaluators_endpoint():
-    """
-    Endpoint to fetch a list of evaluators.
-
-    Returns:
-        List[Evaluator]: A list of evaluator objects.
-    """
-
-    evaluators = evaluator_manager.get_evaluators()
-
-    if evaluators is None:
-        raise HTTPException(status_code=500, detail="Error processing evaluators file")
-
-    if not evaluators:
-        raise HTTPException(status_code=404, detail="No evaluators found")
-
-    return evaluators
+    return BUILTIN_EVALUATORS
 
 
 @router.post("/map/", response_model=EvaluatorMappingOutputInterface)

@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.shared.engine import engine
-from oss.src.services import db_manager, evaluator_manager
+from oss.src.services import db_manager
 from ee.src.models.api.workspace_models import (
     UserRole,
     UpdateWorkspace,
@@ -554,8 +554,9 @@ async def create_workspace_db_object(
         project_id=str(project_db.id),
         user_id=str(user.id),
     )
-    await evaluator_manager.create_ready_to_use_evaluators(
-        project_id=str(project_db.id)
+    await db_manager.add_default_simple_evaluators(
+        project_id=str(project_db.id),
+        user_id=str(user.id),
     )
 
     if return_wrk_prj:

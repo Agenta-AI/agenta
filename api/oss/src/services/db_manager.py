@@ -32,6 +32,11 @@ from oss.src.dbs.postgres.testsets.dbes import (
     TestsetVariantDBE,
     TestsetRevisionDBE,
 )
+from oss.src.dbs.postgres.workflows.dbes import (
+    WorkflowArtifactDBE,
+    WorkflowVariantDBE,
+    WorkflowRevisionDBE,
+)
 
 from oss.src.models.db_models import (
     WorkspaceDB,
@@ -246,6 +251,87 @@ async def add_default_simple_testsets(
             log.error(
                 "An error occurred in adding a default simple testset",
                 template_file=filename,
+                exc_info=True,
+            )
+
+
+async def add_default_simple_evaluators(
+    *,
+    project_id: str,
+    user_id: str,
+) -> None:
+    """Create default simple evaluators for direct-use evaluator types."""
+    from oss.src.core.workflows.service import WorkflowsService
+    from oss.src.core.evaluators.service import (
+        EvaluatorsService,
+        SimpleEvaluatorsService,
+    )
+    from oss.src.core.evaluators.dtos import (
+        SimpleEvaluatorCreate,
+        SimpleEvaluatorData,
+        SimpleEvaluatorFlags,
+    )
+    from oss.src.apis.fastapi.evaluators.models import SimpleEvaluatorCreateRequest
+    from oss.src.routers.evaluators_router import BUILTIN_EVALUATORS
+
+    workflows_dao = GitDAO(
+        ArtifactDBE=WorkflowArtifactDBE,
+        VariantDBE=WorkflowVariantDBE,
+        RevisionDBE=WorkflowRevisionDBE,
+    )
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+    )
+    evaluators_service = EvaluatorsService(
+        workflows_service=workflows_service,
+    )
+    simple_evaluators_service = SimpleEvaluatorsService(
+        evaluators_service=evaluators_service,
+    )
+
+    project_uuid = uuid.UUID(project_id)
+    user_uuid = uuid.UUID(user_id)
+
+    # Get builtin evaluators that are marked for direct use
+    direct_use_evaluators = [e for e in BUILTIN_EVALUATORS if e.direct_use]
+
+    for evaluator in direct_use_evaluators:
+        try:
+            # Extract default settings for ground truth keys
+            settings_values = {
+                setting_name: setting.get("default")
+                for setting_name, setting in evaluator.settings_template.items()
+                if setting.get("ground_truth_key") is True
+                and setting.get("default", "")
+            }
+
+            # Build URI from evaluator key
+            uri = f"agenta:builtin:{evaluator.key}:v0"
+
+            # Generate slug from name
+            evaluator_slug = get_slug_from_name_and_id(evaluator.name, uuid.uuid4())
+
+            simple_evaluator_create_request = SimpleEvaluatorCreateRequest(
+                evaluator=SimpleEvaluatorCreate(
+                    slug=evaluator_slug,
+                    name=evaluator.name,
+                    flags=SimpleEvaluatorFlags(is_evaluator=True),
+                    data=SimpleEvaluatorData(
+                        uri=uri,
+                        parameters=settings_values if settings_values else None,
+                    ),
+                )
+            )
+
+            await simple_evaluators_service.create(
+                project_id=project_uuid,
+                user_id=user_uuid,
+                simple_evaluator_create_request=simple_evaluator_create_request,
+            )
+        except Exception:
+            log.error(
+                "An error occurred in adding a default simple evaluator",
+                evaluator_name=evaluator.name,
                 exc_info=True,
             )
 
