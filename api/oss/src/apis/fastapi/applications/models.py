@@ -29,10 +29,6 @@ from oss.src.core.applications.dtos import (
     SimpleApplicationCreate,
     SimpleApplicationEdit,
     SimpleApplicationQuery,
-    #
-    LegacyApplication,
-    LegacyApplicationCreate,
-    LegacyApplicationEdit,
 )
 
 # APPLICATIONS -----------------------------------------------------------------
@@ -178,24 +174,3 @@ class SimpleApplicationResponse(BaseModel):
 class SimpleApplicationsResponse(BaseModel):
     count: int = 0
     applications: List[SimpleApplication] = []
-
-
-# LEGACY APPLICATIONS ----------------------------------------------------------
-
-
-class LegacyApplicationCreateRequest(BaseModel):
-    application: LegacyApplicationCreate
-
-
-class LegacyApplicationEditRequest(BaseModel):
-    application: LegacyApplicationEdit
-
-
-class LegacyApplicationResponse(BaseModel):
-    count: int = 0
-    application: Optional[LegacyApplication] = None
-
-
-class LegacyApplicationsResponse(BaseModel):
-    count: int = 0
-    applications: List[LegacyApplication] = []

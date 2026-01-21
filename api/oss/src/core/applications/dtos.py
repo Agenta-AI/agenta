@@ -299,42 +299,4 @@ class SimpleApplicationQuery(Metadata):
     flags: Optional[SimpleApplicationQueryFlags] = None
 
 
-# legacy applications (for backward compatibility) -----------------------------
-
-
-class LegacyApplicationFlags(WorkflowFlags):
-    pass
-
-
-class LegacyApplicationData(WorkflowRevisionData):
-    pass
-
-
-class LegacyApplication(Identifier, Slug, Lifecycle, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
-
-    data: Optional[LegacyApplicationData] = None
-
-
-class LegacyApplicationCreate(Slug, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
-
-    data: Optional[LegacyApplicationData] = None
-
-
-class LegacyApplicationEdit(Identifier, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
-
-    data: Optional[LegacyApplicationData] = None
-
-
-class LegacyApplicationQuery(
-    Identifier,
-    Slug,
-    Lifecycle,
-    ApplicationQuery,
-):
-    data: Optional[LegacyApplicationData] = None
-
-
 # ------------------------------------------------------------------------------
