@@ -77,7 +77,6 @@ const OnboardingWidget = () => {
         return `${base}/variants`
     }, [appURL, recentlyVisitedAppURL, baseAppURL])
 
-
     const allItems = useMemo(
         () => config.sections.flatMap((section) => section.items),
         [config.sections],
