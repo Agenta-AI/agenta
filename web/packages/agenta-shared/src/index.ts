@@ -150,3 +150,6 @@ export {
     createFormatter,
 } from "./utils"
 export type {FormatterOptions, Formatter} from "./utils"
+
+// Pluralization utilities
+export {pluralize, formatCount} from "./utils"
