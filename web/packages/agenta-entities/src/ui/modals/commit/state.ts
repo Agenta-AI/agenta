@@ -94,6 +94,9 @@ export const commitModalCanProceedAtom = atom((get): boolean => {
 /**
  * Commit context from adapter (version info, changes summary, diff data)
  * Returns null if adapter doesn't provide commit context
+ *
+ * Passes entity.metadata to the adapter for context-specific information
+ * (e.g., loadableId for playground-derived column changes)
  */
 export const commitModalContextAtom = atom((get): CommitContext | null => {
     const entity = get(commitModalEntityAtom)
@@ -102,7 +105,7 @@ export const commitModalContextAtom = atom((get): CommitContext | null => {
     const adapter = getEntityAdapter(entity.type)
     if (!adapter?.commitContextAtom) return null
 
-    return get(adapter.commitContextAtom(entity.id))
+    return get(adapter.commitContextAtom(entity.id, entity.metadata))
 })
 
 // ============================================================================
