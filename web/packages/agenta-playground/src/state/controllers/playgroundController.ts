@@ -23,6 +23,7 @@
  * ```
  */
 
+import {loadableController} from "@agenta/entities/runnable"
 import {atom} from "jotai"
 
 import {
@@ -40,7 +41,6 @@ import {
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
 
 // Import loadable state from entities (stays there due to entity dependencies)
-import {loadableStateAtomFamily} from "@agenta/entities/runnable"
 
 // ============================================================================
 // COMPOUND ACTIONS
@@ -69,7 +69,8 @@ function generateLocalTestsetName(entityLabel?: string): string {
  * This compound action:
  * 1. Creates the playground node
  * 2. Links the loadable to the runnable (columns are then derived reactively)
- * 3. Sets up a local testset with a generated name
+ * 3. Creates an initial empty row for testcases
+ * 4. Sets up a local testset with a generated name
  */
 const addPrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => {
     const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -92,23 +93,17 @@ const addPrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => {
         name: localTestsetName,
     })
 
-    // Link the loadable to the runnable
+    // Link the loadable to the runnable and create initial row
     // This triggers reactive column derivation from runnable's inputSchema
     const loadableId = `testset:${entity.type}:${entity.id}`
-    const loadableState = get(loadableStateAtomFamily(loadableId))
 
-    console.log("[addPrimaryNode] Linking loadable to runnable", {
+    // Use loadableController action which handles row creation via testcaseMolecule
+    set(
+        loadableController.testset.actions.linkToRunnable,
         loadableId,
-        runnableType: entity.type,
-        runnableId: entity.id,
-        localTestsetName,
-    })
-
-    set(loadableStateAtomFamily(loadableId), {
-        ...loadableState,
-        linkedRunnableType: entity.type as RunnableType,
-        linkedRunnableId: entity.id,
-    })
+        entity.type as RunnableType,
+        entity.id,
+    )
 
     return nodeId
 })
@@ -213,23 +208,45 @@ const changePrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => 
         })
     }
 
-    // Link the loadable to the new runnable
+    // Link the loadable to the new runnable via controller API
     const loadableId = `testset:${entity.type}:${entity.id}`
-    const loadableState = get(loadableStateAtomFamily(loadableId))
-
-    console.log("[changePrimaryNode] Linking loadable to new runnable", {
+    set(
+        loadableController.testset.actions.linkToRunnable,
         loadableId,
-        runnableType: entity.type,
-        runnableId: entity.id,
-    })
-
-    set(loadableStateAtomFamily(loadableId), {
-        ...loadableState,
-        linkedRunnableType: entity.type as RunnableType,
-        linkedRunnableId: entity.id,
-    })
+        entity.type as RunnableType,
+        entity.id,
+    )
 
     return nodeId
+})
+
+/**
+ * Disconnect from testset and reset to local mode
+ *
+ * This compound action:
+ * 1. Calls loadable disconnect (clears connectedSourceId, testcase IDs)
+ * 2. Regenerates a local testset name from the primary node's label
+ * 3. Creates an initial empty row for testcases
+ *
+ * This ensures the playground returns to the same state as initial setup.
+ */
+const disconnectAndResetToLocalAtom = atom(null, (get, set, loadableId: string) => {
+    // Get primary node for generating the local testset name
+    const primaryNode = get(primaryNodeAtom)
+    if (!primaryNode) return
+
+    // 1. Call loadable disconnect action
+    set(loadableController.testset.actions.disconnect, loadableId)
+
+    // 2. Generate and set local testset name
+    const localTestsetName = generateLocalTestsetName(primaryNode.label)
+    set(connectedTestsetAtom, {
+        id: null, // null id indicates it's a local (unsaved) testset
+        name: localTestsetName,
+    })
+
+    // 3. Create an initial empty row via loadableController (uses testcaseMolecule)
+    set(loadableController.testset.actions.addRow, loadableId, {})
 })
 
 // ============================================================================
@@ -286,6 +303,9 @@ export const playgroundController = {
 
         /** Change the primary node */
         changePrimaryNode: changePrimaryNodeAtom,
+
+        /** Disconnect from testset and reset to local mode */
+        disconnectAndResetToLocal: disconnectAndResetToLocalAtom,
     },
 
     /**

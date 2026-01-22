@@ -6,12 +6,7 @@
 
 import {atom, type PrimitiveAtom} from "jotai"
 
-import type {
-    PlaygroundNode,
-    PlaygroundAction,
-    ConnectedTestset,
-    ExtraColumn,
-} from "../types"
+import type {PlaygroundNode, PlaygroundAction, ConnectedTestset, ExtraColumn} from "../types"
 
 // ============================================================================
 // DEFAULT VALUES
