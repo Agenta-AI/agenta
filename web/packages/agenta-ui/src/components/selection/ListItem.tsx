@@ -24,6 +24,8 @@ import React from "react"
 
 import {ChevronRight} from "lucide-react"
 
+import {cn} from "../../utils/styles"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -66,6 +68,11 @@ export interface ListItemProps {
     isSelected?: boolean
 
     /**
+     * Whether the item is currently hovered/active (e.g., popover is open)
+     */
+    isHovered?: boolean
+
+    /**
      * Whether the item is disabled
      */
     isDisabled?: boolean
@@ -101,6 +108,7 @@ export function ListItem({
     hasChildren = false,
     isSelectable = false,
     isSelected = false,
+    isHovered = false,
     isDisabled = false,
     onClick,
     onSelect,
@@ -116,27 +124,32 @@ export function ListItem({
         }
     }
 
-    const handleKeyPress = (e: React.KeyboardEvent) => {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" || e.key === " ") {
             e.preventDefault()
             handleClick()
         }
     }
 
-    // Build class names for different states
-    const baseClasses = "flex items-center justify-between p-3 rounded-md transition-colors"
+    // Build class names for different states based on design tokens
+    // Default: no bg, text-zinc-7 (colorTextSecondary)
+    // Hover: bg-zinc-1, text-zinc-9 (colorText)
+    // Selected: bg-zinc-1, text-zinc-9, border-r-2 border-primary
+    const baseClasses = "flex items-center justify-between px-2 py-2 transition-colors text-zinc-7"
     const stateClasses = isDisabled
         ? "opacity-50 cursor-not-allowed"
         : isSelected
-          ? "bg-blue-1 cursor-pointer hover:bg-blue-2" // Selected: light blue bg, darker on hover
-          : "cursor-pointer hover:bg-zinc-1" // Default: zinc hover
+          ? "bg-zinc-1 cursor-pointer hover:bg-zinc-2 text-zinc-9 border-r-2 border-primary"
+          : isHovered
+            ? "bg-zinc-1 cursor-pointer text-zinc-9"
+            : "cursor-pointer hover:bg-zinc-1 hover:text-zinc-9"
 
     return (
         <div
-            className={`${baseClasses} ${stateClasses} ${className}`}
+            className={cn(baseClasses, stateClasses, className)}
             onClick={handleClick}
-            onKeyPress={handleKeyPress}
-            role="button"
+            onKeyDown={handleKeyDown}
+            role="option"
             tabIndex={isDisabled ? -1 : 0}
             aria-disabled={isDisabled}
             aria-selected={isSelected}
@@ -151,8 +164,8 @@ export function ListItem({
                 </div>
             </div>
 
-            {/* Only show chevron for navigable items, no checkmark for selected */}
-            {hasChildren && !isSelectable && (
+            {/* Show chevron for items with children (indicates popover/drill-down available) */}
+            {hasChildren && (
                 <div className="flex-shrink-0 ml-2">
                     <ChevronRight className="w-3 h-3 text-zinc-4" />
                 </div>
