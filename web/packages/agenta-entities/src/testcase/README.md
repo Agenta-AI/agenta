@@ -241,6 +241,52 @@ testcaseIsDirtyAtomFamily
 - **Cache redirect**: Single fetches check paginated cache first
 - **Debounced batching**: 10ms window to combine concurrent requests
 
+## Selection Draft (for Modal Selection)
+
+The testcase molecule provides selection draft APIs for modal-based testcase selection.
+This allows users to select/deselect testcases in a modal without affecting the main state
+until they confirm their selection.
+
+```typescript
+import { testcaseMolecule } from '@agenta/entities/testcase'
+import { useSetAtom, useAtomValue } from 'jotai'
+
+// Initialize draft when opening selection modal
+// Optionally pass initial IDs (e.g., from loadable controller's filtered view)
+const initSelectionDraft = useSetAtom(testcaseMolecule.actions.initSelectionDraft)
+initSelectionDraft(revisionId)
+// Or with initial IDs:
+initSelectionDraft(revisionId, ['tc-1', 'tc-2'])
+
+// Read current selection (draft if exists, else all displayRowIds)
+const currentSelection = useAtomValue(
+    testcaseMolecule.atoms.currentSelection(revisionId)
+)
+
+// Update selection during editing
+const setSelectionDraft = useSetAtom(testcaseMolecule.actions.setSelectionDraft)
+setSelectionDraft(revisionId, ['tc-1', 'tc-3', 'tc-5'])
+
+// Commit selection on confirm (updates testcaseIdsAtom)
+const commitSelectionDraft = useSetAtom(testcaseMolecule.actions.commitSelectionDraft)
+commitSelectionDraft(revisionId)
+
+// Discard selection on cancel (removes draft, no state change)
+const discardSelectionDraft = useSetAtom(testcaseMolecule.actions.discardSelectionDraft)
+discardSelectionDraft(revisionId)
+```
+
+### Selection Draft API
+
+| API | Description |
+| --- | ----------- |
+| `testcaseMolecule.actions.initSelectionDraft` | Initialize draft from displayRowIds or provided IDs |
+| `testcaseMolecule.actions.setSelectionDraft` | Update draft selection |
+| `testcaseMolecule.actions.commitSelectionDraft` | Commit draft to actual selection |
+| `testcaseMolecule.actions.discardSelectionDraft` | Discard draft without changes |
+| `testcaseMolecule.atoms.selectionDraft(revisionId)` | Raw draft atom (null if no draft) |
+| `testcaseMolecule.atoms.currentSelection(revisionId)` | Draft if exists, else displayRowIds |
+
 ## System Fields
 
 These fields are excluded from dirty comparison and data operations:
