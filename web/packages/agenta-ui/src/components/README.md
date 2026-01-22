@@ -109,6 +109,60 @@ Pure display components with no data fetching or business logic.
 | `ModalContent` | Standardized modal content layout with gap options |
 | `ModalFooter` | Standardized footer with cancel/confirm buttons |
 
+### Modal Pattern: Content Extraction
+
+For optimal performance, extract modal content into a separate component so data layer logic
+only runs when the modal is displayed:
+
+```tsx
+// ❌ Bad: Data logic runs even when modal is closed
+function MyModal({ open, onClose }) {
+  // These hooks run on every render, even when open=false
+  const data = useAtomValue(someDataAtom)
+  const items = useAtomValue(someListAtom)
+  
+  return (
+    <EnhancedModal open={open} onCancel={onClose}>
+      <MyContent data={data} items={items} />
+    </EnhancedModal>
+  )
+}
+
+// ✅ Good: Data logic only runs when modal is open
+function MyModal({ open, onClose, ...props }) {
+  return (
+    <EnhancedModal open={open} onCancel={onClose}>
+      <MyModalContent {...props} onClose={onClose} />
+    </EnhancedModal>
+  )
+}
+
+// Content component - only rendered when modal is open
+function MyModalContent({ onClose, ...props }) {
+  // These hooks only run when the modal is actually visible
+  const data = useAtomValue(someDataAtom)
+  const items = useAtomValue(someListAtom)
+  
+  return (
+    <div>
+      {/* Modal content using data */}
+    </div>
+  )
+}
+```
+
+**Benefits:**
+- Data subscriptions only active when modal is visible
+- No wasted processing when modal is closed
+- Cleaner separation of concerns (modal chrome vs content)
+- Better performance for pages with many modals
+
+**EnhancedModal features:**
+- `lazyRender` (default: true): Content only mounts after first open
+- `destroyOnHidden` (default: true): Content unmounts when closed
+- Auto-contained height with internal scrolling (default: 90vh max)
+- Smart style merging for container/body/footer
+
 ## Action Components
 
 | Component | Description |
