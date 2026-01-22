@@ -61,7 +61,9 @@ export {
     tryParseAsObject,
     tryParseAsArray,
     canExpandAsJson,
+    tryParseJsonValue,
 } from "./jsonDetection"
+export type {JsonParseResult} from "./jsonDetection"
 
 // Editor language detection utilities
 export {
