@@ -127,6 +127,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             }
             editorType={editorType}
             initialValue={text}
+            value={text}
             handleChange={(v: string) => onChangeText?.(v)}
             editorClassName={editorClassName}
             placeholder={placeholder}

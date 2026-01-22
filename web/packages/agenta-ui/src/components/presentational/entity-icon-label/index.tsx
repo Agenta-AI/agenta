@@ -32,8 +32,8 @@ import type {ReactNode} from "react"
 import {Typography} from "antd"
 
 import {cn} from "../../../utils/styles"
-import {VersionBadge} from "../version"
 import {StatusTag, type QueryStatus, type ExecutionStatus} from "../status"
+import {VersionBadge} from "../version"
 
 const {Text} = Typography
 
