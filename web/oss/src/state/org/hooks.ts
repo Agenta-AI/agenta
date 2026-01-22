@@ -148,7 +148,17 @@ export const useOrgData = () => {
                 // Extract the current page path to preserve navigation context
                 const projectId = lastUsedProjectId ?? preferredProject?.project_id
                 const currentPathMatch = router.asPath.match(/\/p\/[^/]+\/(.*)/)
-                const currentPagePath = currentPathMatch?.[1]?.split("?")[0] ?? "apps"
+                let currentPagePath = currentPathMatch?.[1]?.split("?")[0] ?? "apps"
+
+                // Redirect to apps list if on app-specific pages (playground, variants, etc.)
+                // These pages reference app IDs that may not exist in the new organization
+                const isAppSpecificPage =
+                    /^apps\/[^/]+\/(playground|overview|evaluations|traces|variants)/.test(
+                        currentPagePath,
+                    )
+                if (isAppSpecificPage) {
+                    currentPagePath = "apps"
+                }
 
                 let href: string
                 if (projectId) {
