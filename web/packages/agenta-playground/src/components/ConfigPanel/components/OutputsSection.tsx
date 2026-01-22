@@ -8,7 +8,15 @@
  */
 
 import {useRunnable, type RunnableType, type OutputConnection} from "@agenta/entities/runnable"
-import {ArrowRight, ArrowSquareOut, Flask, Lightning, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
+import {
+    ArrowRight,
+    ArrowSquareOut,
+    Flask,
+    Lightning,
+    PencilSimple,
+    Plus,
+    Trash,
+} from "@phosphor-icons/react"
 import {Button, Space, Tag, Tooltip, Typography} from "antd"
 
 import type {EntitySelection} from "../../EntitySelector"
@@ -149,7 +157,9 @@ export function OutputsSection({
                                         {/* Value display */}
                                         <div className="flex-1 min-w-0 text-right">
                                             {isExecuting ? (
-                                                <span className="text-gray-400 italic">Running...</span>
+                                                <span className="text-gray-400 italic">
+                                                    Running...
+                                                </span>
                                             ) : hasValue ? (
                                                 <span className="text-gray-900 font-mono bg-gray-50 px-2 py-0.5 rounded break-all">
                                                     {formatValue(value)}
@@ -184,10 +194,7 @@ export function OutputsSection({
 
                 {/* Output Receivers */}
                 <div className="px-3 py-2">
-                    <Text
-                        type="secondary"
-                        className="text-xs uppercase tracking-wide block mb-1.5"
-                    >
+                    <Text type="secondary" className="text-xs uppercase tracking-wide block mb-1.5">
                         Receivers
                     </Text>
                     {hasOutputReceivers ? (
@@ -196,8 +203,7 @@ export function OutputsSection({
                                 // Skip receivers with missing entity (defensive check)
                                 if (!receiver.entity) return null
 
-                                const isComplete =
-                                    receiver.validMappings >= receiver.requiredInputs
+                                const isComplete = receiver.validMappings >= receiver.requiredInputs
                                 const isEvaluator = receiver.entity.type === "evaluatorRevision"
 
                                 return (
@@ -259,7 +265,9 @@ export function OutputsSection({
                                                     size="small"
                                                     icon={<PencilSimple size={12} />}
                                                     onClick={() =>
-                                                        onEditOutputReceiver?.(receiver.connection.id)
+                                                        onEditOutputReceiver?.(
+                                                            receiver.connection.id,
+                                                        )
                                                     }
                                                 />
                                             </Tooltip>

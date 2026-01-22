@@ -12,6 +12,8 @@ export interface ChainExecutionResult {
     status: "idle" | "pending" | "running" | "success" | "error" | "cancelled"
     output?: unknown
     error?: {message: string; code?: string}
+    /** Trace ID for fetching structured span data */
+    traceId?: string | null
     /** Chain execution progress (while running) */
     chainProgress?: ChainExecutionProgress | null
     /** Results from all nodes keyed by nodeId */

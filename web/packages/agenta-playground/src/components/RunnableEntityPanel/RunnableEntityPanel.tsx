@@ -68,10 +68,11 @@ export function RunnableEntityPanel({
     // Generate a stable loadable ID for this entity's testcases
     const loadableId = useMemo(() => `testset:${type}:${entity.id}`, [type, entity.id])
 
-    // Get loadable - columns and rows are derived reactively from linked runnable
+    // Get loadable - columns are derived reactively from linked runnable's inputPorts
+    // via loadableColumnsFromRunnableAtomFamily (updates when prompt template changes)
     const loadable = useLoadable(loadableId)
 
-    // Columns are derived from runnable's inputPorts via loadableColumnsAtomFamily
+    // Columns come from loadable - derived reactively from the linked runnable
     const columns = loadable.columns
 
     // Execute a single row

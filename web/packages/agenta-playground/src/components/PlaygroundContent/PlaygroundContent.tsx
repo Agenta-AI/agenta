@@ -22,24 +22,21 @@
  * - Compound actions for atomic multi-step operations
  */
 
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     type RunnableType,
-    type TestsetRow,
     type InputMapping,
     type OutputConnection,
 } from "@agenta/entities/runnable"
-// Controller API (now in playground package)
-import {playgroundController, outputConnectionController} from "../../state"
-import {useChainExecution} from "../../hooks"
 import {revisionMolecule} from "@agenta/entities/testset"
 import {EntityCommitModal, useBoundCommit} from "@agenta/entities/ui"
 import {Splitter} from "antd"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {usePlaygroundUI, type LoadTestsetSelectionPayload} from "../../context"
+import {useChainExecution} from "../../hooks"
+import {playgroundController, outputConnectionController} from "../../state"
 import {ConfigPanel, type OutputReceiverInfo} from "../ConfigPanel"
 import {EmptyState} from "../EmptyState"
 import type {EntitySelection} from "../EntitySelector"
@@ -48,6 +45,12 @@ import {InputMappingModalWrapper, type EntityInfo} from "../InputMappingModal"
 import {useLoadable} from "../LoadableEntityPanel"
 import {RunnableColumnsLayout, type RunnableNode} from "../RunnableColumnsLayout"
 import {TestcasePanel} from "../TestcasePanel"
+import {
+    TestsetSelectionModal,
+    type TestsetSelectionMode,
+    type TestsetSelectionPayload,
+    type TestsetSavePayload,
+} from "../TestsetSelectionModal"
 import type {ChainExecutionResult} from "../types"
 
 const SplitterPanel = Splitter.Panel
@@ -56,8 +59,8 @@ export function PlaygroundContent() {
     const router = useRouter()
     const {open} = useEntitySelector()
 
-    // Get injectable components from context
-    const {LoadTestsetModal, initializeSaveMode} = usePlaygroundUI()
+    // State for testset selection modal mode
+    const [selectionModalMode, setSelectionModalMode] = useState<TestsetSelectionMode | null>(null)
 
     // ========================================================================
     // CONTROLLER STATE (using controller API pattern)
@@ -83,7 +86,7 @@ export function PlaygroundContent() {
     )
 
     // Modal state via playgroundController.selectors
-    const isTestsetModalOpen = useAtomValue(
+    const _isTestsetModalOpen = useAtomValue(
         useMemo(() => playgroundController.selectors.testsetModalOpen(), []),
     )
     const isMappingModalOpen = useAtomValue(
@@ -103,6 +106,9 @@ export function PlaygroundContent() {
     const addDownstreamNode = useSetAtom(playgroundController.actions.addDownstreamNode)
     const removeNode = useSetAtom(playgroundController.actions.removeNode)
     const changePrimaryNode = useSetAtom(playgroundController.actions.changePrimaryNode)
+    const disconnectAndResetToLocal = useSetAtom(
+        playgroundController.actions.disconnectAndResetToLocal,
+    )
 
     // Connection actions via outputConnectionController.actions
     const addConnectionAction = useSetAtom(outputConnectionController.actions.addConnection)
@@ -145,6 +151,9 @@ export function PlaygroundContent() {
     )
 
     // Get the loadable instance to manage testcases
+    // NOTE: Columns are derived reactively from the linked runnable's inputPorts
+    // via loadableColumnsFromRunnableAtomFamily. Initial row is created in the
+    // addPrimaryNodeAtom action. No React effects needed for initialization.
     const loadable = useLoadable(loadableId)
 
     // Get the connected revision version (for commit modal)
@@ -236,6 +245,8 @@ export function PlaygroundContent() {
                 status: rowExecState.status,
                 output: rowExecState.output,
                 error: rowExecState.error,
+                // Trace ID for metrics display
+                traceId: rowExecState.traceId,
                 // Chain execution fields
                 chainProgress: rowExecState.chainProgress,
                 chainResults: rowExecState.chainResults,
@@ -404,70 +415,9 @@ export function PlaygroundContent() {
     // ========================================================================
 
     const handleConnectTestset = useCallback(() => {
-        dispatch({type: "openModal", modal: "testset"})
-    }, [dispatch])
-
-    const handleCloseTestsetModal = useCallback(() => {
-        dispatch({type: "closeModal", modal: "testset"})
-    }, [dispatch])
-
-    const handleTestsetSelected = useCallback(
-        (payload: LoadTestsetSelectionPayload | null) => {
-            if (!payload) {
-                handleCloseTestsetModal()
-                return
-            }
-
-            // If a revision was selected, connect to it with testcase data
-            if (payload.revisionId) {
-                // Use payload data directly (from extended LoadTestsetSelectionPayload)
-                const displayName = payload.testsetName
-                    ? payload.revisionVersion != null
-                        ? `${payload.testsetName} v${payload.revisionVersion}`
-                        : payload.testsetName
-                    : null
-
-                // Convert testset data to testcases with IDs
-                // The testcase IDs should come from the payload if available (server data)
-                // Otherwise generate unique IDs
-                const timestamp = Date.now()
-                const testcasesWithIds = payload.testcases.map((data, index) => {
-                    // If data has an id property, use it; otherwise generate one
-                    const id = (data as {id?: string}).id ?? `testcase-${timestamp}-${index}`
-                    return {
-                        id,
-                        ...data,
-                    }
-                })
-
-                // Connect loadable to the source with testcase data
-                // This will set currentRevisionIdAtom and initialize testcase molecule
-                loadable.connectToSource(
-                    payload.revisionId,
-                    displayName ?? undefined,
-                    testcasesWithIds,
-                )
-
-                // Update playground state with connected testset info
-                dispatch({
-                    type: "setConnectedTestset",
-                    name: displayName,
-                    id: payload.testsetId || null,
-                })
-            } else {
-                // No revision selected - load as local testset
-                const timestamp = Date.now()
-                const newRows: TestsetRow[] = payload.testcases.map((data, index) => ({
-                    id: `row-${timestamp}-${index}`,
-                    data,
-                }))
-                loadable.setRows(newRows)
-            }
-
-            handleCloseTestsetModal()
-        },
-        [loadable, dispatch, handleCloseTestsetModal],
-    )
+        // Use TestsetSelectionModal in "load" mode instead of old LoadTestsetModal
+        setSelectionModalMode("load")
+    }, [])
 
     const handleNavigateToTestset = useCallback(() => {
         if (connectedTestset?.id) {
@@ -477,15 +427,83 @@ export function PlaygroundContent() {
     }, [connectedTestset, router])
 
     const handleDisconnectTestset = useCallback(() => {
-        dispatch({type: "clearConnectedTestset"})
-    }, [dispatch])
+        // Use compound action that:
+        // 1. Clears loadable state (connectedSourceId, testcase IDs)
+        // 2. Regenerates local testset name from primary node label
+        // 3. Creates an initial empty row
+        disconnectAndResetToLocal(loadableId)
+    }, [disconnectAndResetToLocal, loadableId])
+
+    // Open edit selection modal (for modifying which testcases are included)
+    const handleEditSelection = useCallback(() => {
+        setSelectionModalMode("edit")
+    }, [])
+
+    // Handle TestsetSelectionModal confirm (load/edit modes)
+    const handleSelectionConfirm = useCallback(
+        (payload: TestsetSelectionPayload) => {
+            if (selectionModalMode === "edit") {
+                // Edit mode - update selection without reconnecting
+                loadable.updateTestcaseSelection(payload.selectedTestcaseIds)
+            } else if (selectionModalMode === "load") {
+                // Load mode - check import mode
+                if (payload.importMode === "import" && payload.testcases) {
+                    // Import mode: Add selected testcases as new local rows
+                    // This keeps the current connection state unchanged
+                    loadable.importRows(payload.testcases)
+                } else {
+                    // Replace mode: Connect to testset and replace current data
+                    const displayName = payload.testsetName
+                        ? payload.revisionVersion != null
+                            ? `${payload.testsetName} v${payload.revisionVersion}`
+                            : payload.testsetName
+                        : undefined
+
+                    // Get testcase data for connection
+                    const testcasesWithIds =
+                        payload.testcases?.map((tc, index) => {
+                            const id = (tc as {id?: string}).id ?? `testcase-${Date.now()}-${index}`
+                            return {id, ...tc}
+                        }) ?? []
+
+                    loadable.connectToSource(payload.revisionId, displayName, testcasesWithIds)
+
+                    // Update playground state with connected testset info
+                    dispatch({
+                        type: "setConnectedTestset",
+                        name: displayName ?? null,
+                        id: payload.testsetId || null,
+                    })
+                }
+            }
+            setSelectionModalMode(null)
+        },
+        [selectionModalMode, loadable, dispatch],
+    )
+
+    // Handle TestsetSelectionModal save confirm (save mode)
+    const handleSaveConfirm = useCallback(
+        (payload: TestsetSavePayload) => {
+            // After saving, connect to the new testset
+            loadable.connectToSource(payload.revisionId, payload.testsetName)
+            setSelectionModalMode(null)
+        },
+        [loadable],
+    )
+
+    // Handle TestsetSelectionModal cancel
+    const handleSelectionCancel = useCallback(() => {
+        setSelectionModalMode(null)
+    }, [])
 
     // Bound commit hook - handles validation internally, returns null action when not available
-    const {commit: handleOpenCommitModal} = useBoundCommit({
+    // Passes loadableId via metadata for reactive column change detection in commit modal
+    const {commit: openCommitModal} = useBoundCommit({
         type: "revision",
         id: loadable.connectedSourceId,
         name: connectedRevisionData?.name ?? "Testset",
         canCommit: loadable.hasLocalChanges,
+        metadata: {loadableId: loadable.loadableId},
     })
 
     // Discard local changes
@@ -494,24 +512,11 @@ export function PlaygroundContent() {
     }, [loadable])
 
     // Open save testset modal with current local testcases
+    // Uses TestsetSelectionModal in "save" mode - reads directly from loadable entity
     const handleOpenSaveTestsetModal = useCallback(() => {
         if (rows.length === 0) return
-
-        // Convert rows to testcases format (just the data, not the row wrapper)
-        const testcases = rows.map((row) => row.data as Record<string, unknown>)
-
-        // Use the connected testset name (set by reducer when local testset was created)
-        const defaultName = connectedTestset?.name || undefined
-
-        // Initialize save mode with the testcases and default name
-        // This is provided via context from the OSS/EE app
-        if (initializeSaveMode) {
-            initializeSaveMode({testcases, defaultName})
-        }
-
-        // Open the testset modal (it will show save mode UI)
-        dispatch({type: "openModal", modal: "testset"})
-    }, [rows, connectedTestset?.name, initializeSaveMode, dispatch])
+        setSelectionModalMode("save")
+    }, [rows.length])
 
     // ========================================================================
     // EXTRA COLUMN HANDLERS
@@ -545,6 +550,28 @@ export function PlaygroundContent() {
             loadable.removeColumn(key)
         },
         [dispatch, loadable],
+    )
+
+    // Handler for output mapping columns - only adds to testcase data, NOT to extraColumnsAtom
+    // This ensures output-mapped columns appear as "extra" in the execution display
+    // rather than as "expected" variables
+    const handleAddOutputMappingColumn = useCallback(
+        (name: string) => {
+            // Generate key from name (lowercase, no spaces)
+            const key = name.toLowerCase().replace(/\s+/g, "_")
+            // Check if column already exists
+            const existingKeys = new Set([
+                ...runnableColumns.map((c) => c.key),
+                ...extraColumns.map((c) => c.key),
+            ])
+            if (existingKeys.has(key)) {
+                return // Don't add duplicates
+            }
+            // Only add to testcase data - NOT to extraColumnsAtom
+            // This way the column appears in suppliedColumns but not in expected columns
+            loadable.addColumn({key, name, type: "string"})
+        },
+        [runnableColumns, extraColumns, loadable],
     )
 
     // ========================================================================
@@ -602,8 +629,11 @@ export function PlaygroundContent() {
     // CHAIN EXECUTION (via hook)
     // ========================================================================
 
-    const {executeRow: handleExecuteRow, executeAll: handleExecuteAll, isExecuting} =
-        useChainExecution(loadableId)
+    const {
+        executeRow: handleExecuteRow,
+        executeAll: handleExecuteAll,
+        isExecuting,
+    } = useChainExecution(loadableId)
 
     // ========================================================================
     // RENDER
@@ -644,9 +674,10 @@ export function PlaygroundContent() {
                                 localTestcaseCount={rows.length}
                                 onSaveAsTestset={handleOpenSaveTestsetModal}
                                 hasLocalChanges={loadable.hasLocalChanges}
-                                onCommitChanges={handleOpenCommitModal}
+                                onCommitChanges={openCommitModal}
                                 isCommitting={false}
                                 onDiscardChanges={handleDiscardChanges}
+                                onEditSelection={handleEditSelection}
                                 outputReceivers={outputReceivers}
                                 onAddOutputReceiver={() => handleAddOutputReceiver()}
                                 onEditOutputReceiver={handleOpenMappingModal}
@@ -654,9 +685,13 @@ export function PlaygroundContent() {
                                 onNavigateToReceiver={handleNavigateToReceiver}
                                 extraColumns={extraColumns}
                                 onAddExtraColumn={handleAddExtraColumn}
+                                onAddOutputMappingColumn={handleAddOutputMappingColumn}
                                 onRemoveExtraColumn={handleRemoveExtraColumn}
+                                newColumnKeys={loadable.newColumnKeys}
                                 testcaseColumns={columns}
                                 testcaseData={loadable.activeRow?.data}
+                                loadableId={loadableId}
+                                showOutputMappings={true}
                             />
                         ) : (
                             <ConfigPanel
@@ -675,9 +710,10 @@ export function PlaygroundContent() {
                                 localTestcaseCount={rows.length}
                                 onSaveAsTestset={handleOpenSaveTestsetModal}
                                 hasLocalChanges={loadable.hasLocalChanges}
-                                onCommitChanges={handleOpenCommitModal}
+                                onCommitChanges={openCommitModal}
                                 isCommitting={false}
                                 onDiscardChanges={handleDiscardChanges}
+                                onEditSelection={handleEditSelection}
                                 outputReceivers={outputReceivers}
                                 onAddOutputReceiver={() => handleAddOutputReceiver()}
                                 onEditOutputReceiver={handleOpenMappingModal}
@@ -685,7 +721,11 @@ export function PlaygroundContent() {
                                 onNavigateToReceiver={handleNavigateToReceiver}
                                 extraColumns={extraColumns}
                                 onAddExtraColumn={handleAddExtraColumn}
+                                onAddOutputMappingColumn={handleAddOutputMappingColumn}
                                 onRemoveExtraColumn={handleRemoveExtraColumn}
+                                newColumnKeys={loadable.newColumnKeys}
+                                loadableId={loadableId}
+                                showOutputMappings={true}
                             />
                         )}
                     </SplitterPanel>
@@ -705,17 +745,11 @@ export function PlaygroundContent() {
                             onExecuteRow={handleExecuteRow}
                             onExecuteAll={handleExecuteAll}
                             isExecuting={isExecuting}
+                            onRevertOverrides={loadable.revertOutputMappingOverrides}
                         />
                     </SplitterPanel>
                 </Splitter>
             )}
-
-            {/* Load Testset Modal */}
-            <LoadTestsetModal
-                open={isTestsetModalOpen}
-                onCancel={handleCloseTestsetModal}
-                setTestsetData={handleTestsetSelected}
-            />
 
             {/* Input Mapping Modal */}
             <InputMappingModalWrapper
@@ -731,6 +765,19 @@ export function PlaygroundContent() {
 
             {/* Entity Commit Modal - unified commit modal for revisions */}
             <EntityCommitModal />
+
+            {/* Testset Selection Modal - for editing selection or saving new testset */}
+            <TestsetSelectionModal
+                open={selectionModalMode !== null}
+                mode={selectionModalMode || "edit"}
+                loadableId={loadableId}
+                connectedRevisionId={loadable.connectedSourceId || undefined}
+                connectedTestsetId={connectedTestset?.id || undefined}
+                onConfirm={handleSelectionConfirm}
+                onSave={handleSaveConfirm}
+                onCancel={handleSelectionCancel}
+                defaultTestsetName={connectedTestset?.name}
+            />
         </div>
     )
 }

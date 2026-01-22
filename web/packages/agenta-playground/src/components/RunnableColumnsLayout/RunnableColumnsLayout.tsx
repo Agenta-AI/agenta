@@ -26,12 +26,11 @@ import type {
     RunnableOutputPort,
     TestsetColumn,
 } from "@agenta/entities/runnable"
-// Controller API (now in playground package)
-import {playgroundController, outputConnectionController} from "../../state"
 import {Flask, Lightning, Plus} from "@phosphor-icons/react"
 import {Button, Tabs, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {playgroundController, outputConnectionController} from "../../state"
 import {ConfigPanel, type OutputReceiverInfo} from "../ConfigPanel"
 import type {EntitySelection} from "../EntitySelector"
 import {useEntitySelector} from "../EntitySelector"
@@ -78,6 +77,8 @@ export interface RunnableColumnsLayoutProps {
     isCommitting?: boolean
     /** Callback to discard local changes */
     onDiscardChanges?: () => void
+    /** Callback to edit testcase selection */
+    onEditSelection?: () => void
     /** Output receivers info for primary node */
     outputReceivers?: import("../ConfigPanel").OutputReceiverInfo[]
     /** Handler to add output receiver */
@@ -94,10 +95,18 @@ export interface RunnableColumnsLayoutProps {
     onAddExtraColumn?: (name: string) => void
     /** Callback to remove an extra column */
     onRemoveExtraColumn?: (key: string) => void
+    /** Column keys that are newly added (from prompt template but not in original testcase data) */
+    newColumnKeys?: string[]
     /** All testcase columns for mapping (includes runnable columns + extra columns) */
     testcaseColumns?: TestsetColumn[]
     /** Active testcase data for test runs in mapping modal */
     testcaseData?: Record<string, unknown>
+    /** Loadable ID for output mapping (primary node only) */
+    loadableId?: string
+    /** Whether to show the output mappings section (primary node only) */
+    showOutputMappings?: boolean
+    /** Callback to add output mapping column (only adds to testcase data, not to extraColumns) */
+    onAddOutputMappingColumn?: (name: string) => void
 }
 
 /**
@@ -158,6 +167,7 @@ export function RunnableColumnsLayout({
     onCommitChanges,
     isCommitting,
     onDiscardChanges,
+    onEditSelection,
     outputReceivers,
     onAddOutputReceiver,
     onEditOutputReceiver,
@@ -165,9 +175,13 @@ export function RunnableColumnsLayout({
     onNavigateToReceiver,
     extraColumns,
     onAddExtraColumn,
+    onAddOutputMappingColumn,
     onRemoveExtraColumn,
+    newColumnKeys,
     testcaseColumns,
     testcaseData,
+    loadableId,
+    showOutputMappings = false,
 }: RunnableColumnsLayoutProps) {
     const {open} = useEntitySelector()
 
@@ -435,6 +449,7 @@ export function RunnableColumnsLayout({
                         onCommitChanges={activeNode.depth === 0 ? onCommitChanges : undefined}
                         isCommitting={activeNode.depth === 0 ? isCommitting : false}
                         onDiscardChanges={activeNode.depth === 0 ? onDiscardChanges : undefined}
+                        onEditSelection={activeNode.depth === 0 ? onEditSelection : undefined}
                         outputReceivers={activeNodeOutputReceivers}
                         onAddOutputReceiver={() => handleAddOutputReceiver(activeNode.id)}
                         onEditOutputReceiver={handleOpenMappingModal}
@@ -450,9 +465,13 @@ export function RunnableColumnsLayout({
                         isDownstream={activeNode.depth > 0}
                         extraColumns={activeNode.depth === 0 ? extraColumns : []}
                         onAddExtraColumn={activeNode.depth === 0 ? onAddExtraColumn : undefined}
+                        onAddOutputMappingColumn={
+                            activeNode.depth === 0 ? onAddOutputMappingColumn : undefined
+                        }
                         onRemoveExtraColumn={
                             activeNode.depth === 0 ? onRemoveExtraColumn : undefined
                         }
+                        newColumnKeys={activeNode.depth === 0 ? newColumnKeys : []}
                         incomingMappings={
                             activeNode.depth > 0
                                 ? activeIncomingConnection?.inputMappings
@@ -466,6 +485,8 @@ export function RunnableColumnsLayout({
                                 ? () => handleOpenMappingModal(activeIncomingConnection.id)
                                 : undefined
                         }
+                        loadableId={activeNode.depth === 0 ? loadableId : undefined}
+                        showOutputMappings={activeNode.depth === 0 ? showOutputMappings : false}
                     />
                 )}
             </div>
