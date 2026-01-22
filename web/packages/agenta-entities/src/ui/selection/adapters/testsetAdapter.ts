@@ -7,7 +7,7 @@
  * Uses the testsetMolecule and revisionMolecule from @agenta/entities/testset
  */
 
-import {atom, type Atom} from "jotai"
+import {atom, getDefaultStore, type Atom, type WritableAtom} from "jotai"
 
 import type {EntitySelectionResult, SelectionPathItem, ListQueryState} from "../types"
 
@@ -39,7 +39,12 @@ interface TestsetAtomConfig {
     enableRevisionsQuery?: (testsetId: string) => void
 }
 
-let atomConfig: TestsetAtomConfig | null = null
+// Use a primitive atom to store config so derived atoms re-evaluate when it changes
+const atomConfigAtom = atom<TestsetAtomConfig | null>(null) as WritableAtom<
+    TestsetAtomConfig | null,
+    [TestsetAtomConfig | null],
+    void
+>
 
 /**
  * Configure the adapter with actual atoms from the app.
@@ -56,7 +61,9 @@ let atomConfig: TestsetAtomConfig | null = null
  * ```
  */
 export function setTestsetAtoms(config: TestsetAtomConfig): void {
-    atomConfig = config
+    // Set in the default store so derived atoms re-evaluate
+    const store = getDefaultStore()
+    store.set(atomConfigAtom, config)
 }
 
 /**
@@ -99,6 +106,8 @@ function extractLoading(queryState: unknown): boolean {
  * Testsets list atom wrapped for selection
  */
 const testsetsListAtom = atom((get): ListQueryState<unknown> => {
+    // Read config from atom so this re-evaluates when config changes
+    const atomConfig = get(atomConfigAtom)
     if (!atomConfig) {
         return {data: [], isPending: false, isError: false, error: null}
     }
@@ -117,6 +126,8 @@ const testsetsListAtom = atom((get): ListQueryState<unknown> => {
  */
 function revisionsByTestsetListAtom(testsetId: string): Atom<ListQueryState<unknown>> {
     return atom((get) => {
+        // Read config from atom so this re-evaluates when config changes
+        const atomConfig = get(atomConfigAtom)
         if (!atomConfig) {
             return {data: [], isPending: false, isError: false, error: null}
         }
@@ -173,7 +184,9 @@ export const testsetAdapter = createAdapter<TestsetSelectionResult>({
             listAtomFamily: revisionsByTestsetListAtom,
             onBeforeLoad: (testsetId: string) => {
                 // Enable the revisions query for this testset
-                atomConfig?.enableRevisionsQuery?.(testsetId)
+                const store = getDefaultStore()
+                const config = store.get(atomConfigAtom)
+                config?.enableRevisionsQuery?.(testsetId)
             },
         }),
     ],

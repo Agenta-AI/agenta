@@ -230,3 +230,42 @@ The system is used in:
 - **AddToTestsetDrawer**: `EntityCascader` for testset/revision selection
 - **LoadTestsetModal**: `EntityPicker` for hierarchical testset browsing
 - **PlaygroundTest EntitySelector**: `EntityPicker` for app/evaluator revision selection
+
+## Related: Cascading Selection Pattern
+
+For cascading dropdown UIs (e.g., App dropdown → Variant dropdown → Revision dropdown), the `@agenta/playground` package provides the `cascadingSelection` module. This uses pure Jotai atoms with auto-selection derivation instead of navigation hooks.
+
+### When to Use Which
+
+| Pattern                    | Use Case                                      | Location                   |
+| -------------------------- | --------------------------------------------- | -------------------------- |
+| `useHierarchicalSelection` | List-based drill-down UI (EntityPicker)       | `@agenta/entities/ui`      |
+| `EntityCascader`           | Ant Design cascader dropdown                  | `@agenta/entities/ui`      |
+| `cascadingSelection`       | Multiple cascading dropdowns with auto-select | `@agenta/playground/state` |
+
+### Example: Cascading Dropdowns
+
+```tsx
+import { cascadingSelection } from '@agenta/playground/state'
+
+function AppRevisionSelector({ onSelect }) {
+  const effectiveVariantId = useAtomValue(cascadingSelection.selectors.effectiveVariantId)
+  const autoCompletedSelection = useAtomValue(cascadingSelection.selectors.autoCompletedSelection)
+  const setAppId = useSetAtom(cascadingSelection.actions.setAppId)
+
+  // Auto-complete triggers onSelect when all levels are determined
+  useEffect(() => {
+    if (autoCompletedSelection) onSelect(autoCompletedSelection)
+  }, [autoCompletedSelection, onSelect])
+
+  return (
+    <>
+      <Select onChange={setAppId} ... />      {/* App dropdown */}
+      <Select value={effectiveVariantId} ... /> {/* Variant (may auto-select) */}
+      <Select ... />                          {/* Revision */}
+    </>
+  )
+}
+```
+
+For full documentation, see: `@agenta/playground/src/state/README.md`

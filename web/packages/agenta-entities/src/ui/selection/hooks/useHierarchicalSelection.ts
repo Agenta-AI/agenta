@@ -112,6 +112,11 @@ export interface UseHierarchicalSelectionResult<TSelection = EntitySelectionResu
     isAtLeaf: boolean
 
     /**
+     * Whether auto-selection is about to occur (single item found, waiting for delay)
+     */
+    isAutoSelecting: boolean
+
+    /**
      * Current level configuration
      */
     currentLevelConfig: HierarchyLevel<unknown> | null
@@ -700,22 +705,39 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
     )
 
     // ========================================================================
-    // AUTO-SELECT
+    // AUTO-SELECT (immediate when single item)
     // ========================================================================
+
+    // Track if we're in auto-selection flow (for UI feedback if needed)
+    const [isAutoSelecting, setIsAutoSelecting] = useState(false)
+
+    // Reset auto-selecting state when items change
+    useEffect(() => {
+        if (items.length !== 1 || isLoading) {
+            setIsAutoSelecting(false)
+        }
+    }, [items.length, isLoading])
 
     useEffect(() => {
         if (!autoSelectSingle || isLoading || items.length !== 1) return
 
         const singleItem = items[0]
+        const canAutoSelect = canSelect(singleItem) && !isDisabledFn(singleItem)
+        const canAutoNavigate = canNavigateDown(singleItem) && !isDisabledFn(singleItem)
 
-        if (canSelect(singleItem) && !isDisabledFn(singleItem)) {
+        if (!canAutoSelect && !canAutoNavigate) return
+
+        // Set state for UI feedback
+        setIsAutoSelecting(true)
+
+        // Auto-select/navigate immediately
+        if (canAutoSelect) {
             select(singleItem)
-            return
-        }
-
-        if (canNavigateDown(singleItem) && !isDisabledFn(singleItem)) {
+        } else if (canAutoNavigate) {
             navigateDown(singleItem)
         }
+
+        setIsAutoSelecting(false)
     }, [
         autoSelectSingle,
         isLoading,
@@ -740,6 +762,7 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
         error,
         isAtRoot,
         isAtLeaf,
+        isAutoSelecting,
         currentLevelConfig,
         searchTerm,
         setSearchTerm,
