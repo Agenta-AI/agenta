@@ -39,7 +39,7 @@ import {
 import type {Column, FlattenedTestcase} from "../core"
 import {createLocalTestcase} from "../core"
 
-import {testcasesRevisionIdAtom} from "./paginatedStore"
+import {testcasesRevisionIdAtom, initializeEmptyRevisionAtom} from "./paginatedStore"
 import {
     // Query and entity atoms
     testcaseQueryAtomFamily,
@@ -57,6 +57,7 @@ import {
     removeNewEntityIdAtom,
     // Context
     currentRevisionIdAtom,
+    setCurrentRevisionIdAtom,
     // Mutations
     updateTestcaseAtom,
     discardDraftAtom,
@@ -195,11 +196,6 @@ const localColumnsAtom = atom(
 )
 
 /**
- * Tracks which revision currently has local entities - prevents cleanup from clearing them
- */
-const localEntitiesRevisionAtom = atom<string | null>(null)
-
-/**
  * Derive current columns from all testcases
  * This is used by components to know what columns exist
  */
@@ -334,11 +330,8 @@ const initSelectionDraftAtom = atom(null, (get, set, revisionId: string, initial
  * @returns {id: string, data: FlattenedTestcase} | null if validation fails
  */
 const addTestcaseAtom = atom(null, (_get, set, initialData?: Partial<FlattenedTestcase>) => {
-    console.log("[addTestcaseAtom] Input:", initialData)
-
     // createLocalTestcase accepts flat input directly and returns flattened output
     const result = createLocalTestcase(initialData)
-    console.log("[addTestcaseAtom] createLocalTestcase result:", result)
 
     if (result.success === false) {
         console.error("[testcase] Invalid data for new testcase:", result.errors)
@@ -346,7 +339,6 @@ const addTestcaseAtom = atom(null, (_get, set, initialData?: Partial<FlattenedTe
     }
 
     const flattened = result.data
-    console.log("[addTestcaseAtom] Created testcase:", flattened)
 
     // Add to new IDs tracking
     set(addNewEntityIdAtom, flattened.id)
@@ -415,11 +407,9 @@ const appendTestcasesAtom = atom(null, (_get, set, rows: Record<string, unknown>
  */
 const setRevisionContextAtom = atom(null, (_get, set, revisionId: string | null) => {
     // Set the context atom for entity operations
-
-    set(currentRevisionIdAtom as any, revisionId)
+    set(setCurrentRevisionIdAtom, revisionId)
     // Set the paginated store's revision ID for data fetching
-
-    set(testcasesRevisionIdAtom as any, revisionId)
+    set(testcasesRevisionIdAtom, revisionId)
 })
 
 // ============================================================================
@@ -508,8 +498,6 @@ const extendedMolecule = extendMolecule(baseMolecule, {
         localColumns: localColumnsAtom,
         /** Local columns family (per revision) */
         localColumnsFamily: localColumnsAtomFamily,
-        /** Track which revision has local entities */
-        localEntitiesRevision: localEntitiesRevisionAtom,
         /** Selection draft per revision (for TestsetSelectionModal) */
         selectionDraft: testcaseSelectionDraftAtomFamily,
         /** Current selection (draft if exists, else displayRowIds) */
@@ -634,8 +622,6 @@ export const testcaseMolecule = {
         newEntityIds: newEntityIdsAtom,
         /** Local columns per revision (writable) */
         localColumnsFamily: localColumnsAtomFamily,
-        /** Track which revision has local entities */
-        localEntitiesRevision: localEntitiesRevisionAtom,
         /** Selection draft per revision (for TestsetSelectionModal) */
         selectionDraft: testcaseSelectionDraftAtomFamily,
         /** Current selection (draft if exists, else displayRowIds) */
@@ -686,6 +672,8 @@ export const testcaseMolecule = {
         commitSelectionDraft: commitSelectionDraftAtom,
         /** Discard selection draft */
         discardSelectionDraft: discardSelectionDraftAtom,
+        /** Initialize empty revision with default testcase (for "create from scratch" flow) */
+        initializeEmptyRevision: initializeEmptyRevisionAtom,
     },
 
     // DrillIn utilities for path-based navigation and editing
