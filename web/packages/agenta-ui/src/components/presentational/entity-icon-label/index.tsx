@@ -31,7 +31,17 @@ import type {ReactNode} from "react"
 
 import {Typography} from "antd"
 
-import {cn} from "../../../utils/styles"
+import {
+    bgColors,
+    borderColors,
+    cn,
+    entityIconColors,
+    flexLayouts,
+    gapClasses,
+    justifyClasses,
+    spacingClasses,
+    textSizes,
+} from "../../../utils/styles"
 import {StatusTag, type QueryStatus, type ExecutionStatus} from "../status"
 import {VersionBadge} from "../version"
 
@@ -48,12 +58,12 @@ export interface EntityIconLabelProps {
     icon: ReactNode
     /**
      * Background color class for the icon container
-     * @default "bg-blue-100"
+     * @default entityIconColors.primaryBg
      */
     iconBgColor?: string
     /**
      * Text color class for the icon
-     * @default "text-blue-600"
+     * @default entityIconColors.primary
      */
     iconColor?: string
     /**
@@ -94,12 +104,12 @@ export interface PanelHeaderProps {
     icon: ReactNode
     /**
      * Background color class for the icon container
-     * @default "bg-blue-100"
+     * @default entityIconColors.primaryBg
      */
     iconBgColor?: string
     /**
      * Text color class for the icon
-     * @default "text-blue-600"
+     * @default entityIconColors.primary
      */
     iconColor?: string
     /**
@@ -142,8 +152,8 @@ export interface PanelHeaderProps {
  */
 export function EntityIconLabel({
     icon,
-    iconBgColor = "bg-blue-100",
-    iconColor = "text-blue-600",
+    iconBgColor = entityIconColors.primaryBg,
+    iconColor = entityIconColors.primary,
     iconSize = "md",
     label,
     version,
@@ -155,19 +165,21 @@ export function EntityIconLabel({
     const sizeClasses = iconSize === "sm" ? "w-6 h-6" : "w-8 h-8"
 
     return (
-        <div className={cn("flex items-center gap-3", className)}>
+        <div className={cn(flexLayouts.rowCenter, gapClasses.md, className)}>
             <div
                 className={cn(
                     sizeClasses,
-                    "rounded-lg flex items-center justify-center flex-shrink-0",
+                    flexLayouts.rowCenter,
+                    justifyClasses.center,
+                    "rounded-lg flex-shrink-0",
                     iconBgColor,
                 )}
             >
                 <span className={iconColor}>{icon}</span>
             </div>
             <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                    <Text strong className={iconSize === "sm" ? "text-sm" : "text-base"}>
+                <div className={cn(flexLayouts.rowCenter, gapClasses.sm, "flex-wrap")}>
+                    <Text strong className={iconSize === "sm" ? textSizes.sm : textSizes.base}>
                         {label}
                     </Text>
                     {version !== undefined && <VersionBadge version={version} variant="chip" />}
@@ -175,7 +187,7 @@ export function EntityIconLabel({
                     {extra}
                 </div>
                 {subtitle && (
-                    <Text type="secondary" className="text-xs capitalize">
+                    <Text type="secondary" className={cn(textSizes.xs, "capitalize")}>
                         {subtitle}
                     </Text>
                 )}
@@ -190,8 +202,8 @@ export function EntityIconLabel({
  */
 export function PanelHeader({
     icon,
-    iconBgColor = "bg-blue-100",
-    iconColor = "text-blue-600",
+    iconBgColor = entityIconColors.primaryBg,
+    iconColor = entityIconColors.primary,
     label,
     version,
     subtitle,
@@ -203,12 +215,15 @@ export function PanelHeader({
     return (
         <div
             className={cn(
-                "px-4 py-3 border-b border-gray-200 bg-white",
+                spacingClasses.card,
+                "border-b",
+                borderColors.secondary,
+                bgColors.container,
                 sticky && "sticky top-0 z-10",
                 className,
             )}
         >
-            <div className="flex items-center justify-between">
+            <div className={cn(flexLayouts.rowCenter, justifyClasses.between)}>
                 <EntityIconLabel
                     icon={icon}
                     iconBgColor={iconBgColor}
@@ -218,7 +233,9 @@ export function PanelHeader({
                     subtitle={subtitle}
                     status={status}
                 />
-                {actions && <div className="flex items-center gap-2">{actions}</div>}
+                {actions && (
+                    <div className={cn(flexLayouts.rowCenter, gapClasses.sm)}>{actions}</div>
+                )}
             </div>
         </div>
     )

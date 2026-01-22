@@ -23,7 +23,16 @@ import React from "react"
 import {FileArchive, X} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 
-import {cn} from "../../../utils/styles"
+import {
+    bgColors,
+    borderColors,
+    cn,
+    dangerColors,
+    flexLayouts,
+    gapClasses,
+    textColors,
+    textSizes,
+} from "../../../utils/styles"
 
 // ============================================================================
 // TYPES
@@ -75,12 +84,20 @@ export function FileAttachment({
     return (
         <div
             className={cn(
-                "relative group flex items-center gap-2 px-2 py-1 rounded-md border border-gray-200 bg-gray-50",
+                "relative group px-2 py-1 rounded-md border",
+                borderColors.secondary,
+                bgColors.subtle,
+                flexLayouts.rowCenter,
+                gapClasses.sm,
                 className,
             )}
         >
-            {icon ?? <FileArchive size={16} className="text-gray-500" />}
-            <span className="text-xs text-gray-600 truncate" style={{maxWidth}} title={filename}>
+            {icon ?? <FileArchive size={16} className={textColors.icon} />}
+            <span
+                className={cn(textSizes.xs, textColors.secondary, "truncate")}
+                style={{maxWidth}}
+                title={filename}
+            >
                 {filename}
             </span>
             {!disabled && onRemove && (
@@ -90,7 +107,11 @@ export function FileAttachment({
                         size="small"
                         icon={<X size={12} />}
                         onClick={onRemove}
-                        className="!p-0 !h-auto !min-w-0 text-gray-400 hover:!text-red-500"
+                        className={cn(
+                            "!p-0 !h-auto !min-w-0",
+                            textColors.tertiary,
+                            dangerColors.hover,
+                        )}
                     />
                 </Tooltip>
             )}

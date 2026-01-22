@@ -111,7 +111,16 @@ export {
     borderColors,
     interactiveStyles,
     statusColors,
+    entityIconColors,
     shadows,
+    textSizes,
+    justifyClasses,
+    focusStyles,
+    layoutSizes,
+    spacingClasses,
+    gapClasses,
+    linkColors,
+    dangerColors,
     type SizeVariant,
 } from "./utils/styles"
 

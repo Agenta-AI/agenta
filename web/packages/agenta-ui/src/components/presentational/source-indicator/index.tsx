@@ -21,7 +21,7 @@ import type {ReactNode} from "react"
 
 import {Tag} from "antd"
 
-import {cn} from "../../../utils/styles"
+import {cn, entityIconColors, flexLayouts, gapClasses} from "../../../utils/styles"
 
 // ============================================================================
 // TYPES
@@ -34,7 +34,7 @@ export interface SourceIndicatorProps {
     icon: ReactNode
     /**
      * Icon color class
-     * @default "text-green-600"
+     * @default entityIconColors.connected
      */
     iconColor?: string
     /**
@@ -74,7 +74,7 @@ export interface SourceIndicatorProps {
  */
 export function SourceIndicator({
     icon,
-    iconColor = "text-green-600",
+    iconColor = entityIconColors.connected,
     name,
     connected = true,
     modified = false,
@@ -87,7 +87,7 @@ export function SourceIndicator({
     const displayName = modified ? `${name} (modified)` : name
 
     return (
-        <div className={cn("flex items-center gap-2", className)}>
+        <div className={cn(flexLayouts.rowCenter, gapClasses.sm, className)}>
             <span className={cn("flex-shrink-0", iconColor)}>{icon}</span>
             <Tag
                 color={tagColor}
