@@ -45,6 +45,7 @@ export type {
     ConnectedSource,
     LinkedRunnable,
     LoadableState,
+    OutputMapping,
     // Re-exported shared types (from runnable/types)
     TestsetRow,
     TestsetColumn,
@@ -80,8 +81,16 @@ export {createLoadableBridge} from "../shared"
 // LEGACY API: CONTROLLER & HOOK (Backwards Compatible)
 // ============================================================================
 
-// Legacy controller exports (deprecated, use loadableBridge)
-export {loadableController, testsetLoadable} from "./bridge"
+// Controller exports (full API with all selectors including derivedColumnChanges)
+export {
+    loadableController,
+    testsetLoadable,
+    derivedColumnChangesAtomFamily,
+    // Single source of truth for trace-derived data (paths + metrics)
+    traceDataSummaryAtomFamily,
+    type TraceDataSummary,
+    type TraceMetrics,
+} from "./controller"
 
 // Hook (works with both old and new API)
 export {useLoadable} from "./useLoadable"
@@ -106,7 +115,27 @@ export {
     loadableDataAtomFamily,
     loadableConnectedSourceAtomFamily,
     loadableLinkedRunnableAtomFamily,
+    loadableOutputMappingsAtomFamily,
 } from "./store"
+
+// ============================================================================
+// UTILS
+// ============================================================================
+
+export {extractPaths, getValueAtPath, createOutputMappingId} from "./utils"
 
 // New shared state family (from bridge factory)
 export {loadableStateFamily} from "../shared"
+
+// ============================================================================
+// PAGINATED STORE (for InfiniteVirtualTable integration)
+// ============================================================================
+
+export {
+    loadablePaginatedStore,
+    loadablePaginatedMetaAtom,
+    loadableIdAtom,
+    loadableFilters,
+    type LoadableTableRow,
+    type LoadablePaginatedMeta,
+} from "./state"

@@ -32,7 +32,7 @@
 
 import {useCallback, useMemo, useState} from "react"
 
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {appRevisionMolecule} from "../appRevision"
 import {evaluatorRevisionMolecule} from "../evaluatorRevision"
@@ -47,7 +47,7 @@ import type {
     AppRevisionData,
     PathItem,
 } from "./types"
-import {executeRunnable} from "./utils"
+import {executeRunnable, extractVariablesFromAgConfig, extractVariablesFromPrompts} from "./utils"
 
 // ============================================================================
 // DEFAULT PROVIDERS (using package molecules directly)
@@ -67,6 +67,8 @@ const defaultProviders = {
             data: appRevisionMolecule.selectors.data,
             query: appRevisionMolecule.selectors.query,
             isDirty: appRevisionMolecule.selectors.isDirty,
+            // Schema selectors for deriving input/output ports
+            inputsSchema: appRevisionMolecule.selectors.inputsSchema,
         },
     },
     evaluatorRevision: {
@@ -146,25 +148,91 @@ export function createRunnableSelectors(providers: PlaygroundEntityProviders) {
 
                     if (!revisionData) return null
 
-                    // Extract input ports from inputSchema
+                    // Extract input ports - prioritize dynamic extraction from prompt content
+                    // This allows the UI to react to template variable changes in real-time
                     const inputPorts: RunnableInputPort[] = []
-                    const inputSchema = revisionData.schemas?.inputs as
+                    let inputSchema: Record<string, unknown> | undefined = undefined
+
+                    // Get agConfig for dynamic extraction and static input_keys
+                    const agConfig = (revisionData as any).agConfig as
                         | Record<string, unknown>
                         | undefined
-                    if (inputSchema?.properties) {
-                        const props = inputSchema.properties as Record<
-                            string,
-                            {type?: string; description?: string}
-                        >
-                        const required = (inputSchema.required as string[]) || []
-                        for (const [key, prop] of Object.entries(props)) {
+                    const promptConfig = agConfig?.prompt as Record<string, unknown> | undefined
+
+                    // PRIORITY 1: Dynamically extract variables from prompt messages
+                    // This reacts to edits - when user adds {{test}}, it immediately appears
+                    const dynamicInputKeys = extractVariablesFromAgConfig(agConfig)
+
+                    // PRIORITY 2: Static input_keys from config (original saved values)
+                    const configInputKeys = (promptConfig?.input_keys ||
+                        promptConfig?.inputKeys) as string[] | undefined
+
+                    // PRIORITY 3: Check prompts array for inputKeys (transformed format)
+                    const prompts = (revisionData as any).prompts as
+                        | {messages?: unknown; inputKeys?: string[]}[]
+                        | undefined
+                    const promptsInputKeys = prompts?.[0]?.inputKeys
+
+                    // PRIORITY 4: Extract from prompts array messages if agConfig doesn't have messages
+                    const promptsMessageVars = prompts ? extractVariablesFromPrompts(prompts) : []
+
+                    // Use dynamic extraction first (reacts to edits), then static, then prompts array
+                    const inputKeys =
+                        dynamicInputKeys.length > 0
+                            ? dynamicInputKeys
+                            : promptsMessageVars.length > 0
+                              ? promptsMessageVars
+                              : configInputKeys || promptsInputKeys
+
+                    if (inputKeys && inputKeys.length > 0) {
+                        // Create input ports from extracted input_keys
+                        for (const key of inputKeys) {
                             inputPorts.push({
                                 key,
                                 name: key,
-                                type: prop.type || "string",
-                                required: required.includes(key),
-                                description: prop.description,
+                                type: "string",
+                                required: true,
                             })
+                        }
+                        // Build inputSchema from input_keys for compatibility
+                        inputSchema = {
+                            type: "object",
+                            properties: Object.fromEntries(
+                                inputKeys.map((key) => [key, {type: "string"}]),
+                            ),
+                            required: inputKeys,
+                        }
+                    } else {
+                        // Fall back to OpenAPI schema if no input_keys in config
+                        const inputsSchemaSelector = (providers.appRevision.selectors as any)
+                            .inputsSchema
+
+                        // Note: molecule's selector expects { revisionId, endpoint }
+                        const inputsSchemaAtom = inputsSchemaSelector?.({
+                            revisionId: id,
+                            endpoint: "/test",
+                        })
+
+                        const schemaResult = inputsSchemaAtom
+                            ? (get(inputsSchemaAtom) as {
+                                  properties?: Record<string, {type?: string; description?: string}>
+                                  required?: string[]
+                              } | null)
+                            : null
+
+                        if (schemaResult?.properties) {
+                            inputSchema = schemaResult as Record<string, unknown>
+                            const props = schemaResult.properties
+                            const required = schemaResult.required || []
+                            for (const [key, prop] of Object.entries(props)) {
+                                inputPorts.push({
+                                    key,
+                                    name: key,
+                                    type: prop.type || "string",
+                                    required: required.includes(key),
+                                    description: prop.description,
+                                })
+                            }
                         }
                     }
 
@@ -207,6 +275,10 @@ export function createRunnableSelectors(providers: PlaygroundEntityProviders) {
                     const configuration =
                         actualData.agConfig || revisionData.configuration || undefined
 
+                    // Get invocation URL from molecule's runnable atoms (computed from schema query)
+                    const invocationUrlAtom = appRevisionMolecule.atoms.invocationUrl(id)
+                    const invocationUrl = get(invocationUrlAtom)
+
                     const runnableData: AppRevisionData = {
                         id,
                         type: "appRevision",
@@ -214,12 +286,12 @@ export function createRunnableSelectors(providers: PlaygroundEntityProviders) {
                         label: revisionData.variantSlug
                             ? `${revisionData.variantSlug} v${revisionData.version || 1}`
                             : `Revision ${id.slice(0, 8)}`,
-                        inputSchema: inputSchema,
+                        inputSchema: inputSchema as Record<string, unknown> | undefined,
                         outputSchema: outputSchema,
                         inputPorts,
                         outputPorts,
                         configuration,
-                        invocationUrl: revisionData.invocationUrl,
+                        invocationUrl: invocationUrl ?? undefined,
                         appId: revisionData.appId,
                         variantId: revisionData.variantId,
                         variantSlug: revisionData.variantSlug,
@@ -493,11 +565,17 @@ export function useRunnable(type: RunnableType | undefined, id: string) {
     )
     const config = data?.configuration || {}
 
+    // Discard atom for appRevision
+    const discardAppRevision = useSetAtom(appRevisionMolecule.actions.discard)
+
     // Discard function (resets to server state)
     const discard = useCallback(() => {
-        // No-op for now - would need to integrate with entity controller
-        // The actual discard should be called via the entity controller
-    }, [])
+        if (!type || !id) return
+        if (type === "appRevision") {
+            discardAppRevision(id)
+        }
+        // Note: evaluatorRevision is a stub without discard support
+    }, [type, id, discardAppRevision])
 
     return {
         data,

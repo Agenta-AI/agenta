@@ -24,12 +24,12 @@ import type {
     LoadableBridgeSelectors,
     LoadableColumn,
     LoadableRow,
-    LoadableSourceConfig,
+    LoadableSourceConfig as _LoadableSourceConfig,
     RunnableBridge,
     RunnableBridgeSelectors,
     RunnableData,
-    RunnablePort,
-    RunnableTypeConfig,
+    RunnablePort as _RunnablePort,
+    RunnableTypeConfig as _RunnableTypeConfig,
     BridgeQueryState,
 } from "./entityBridge"
 
@@ -426,21 +426,6 @@ export function createLoadableBridge(config: CreateLoadableBridgeConfig): Loadab
  */
 export function createRunnableBridge(config: CreateRunnableBridgeConfig): RunnableBridge {
     const {runnables} = config
-
-    // Registry to track which runnable type each ID belongs to
-    const runnableTypeRegistry = atomFamily((_runnableId: string) =>
-        atom<string | null>(null),
-    )
-
-    // Helper to get runnable config for an ID
-    const getRunnableConfig = (
-        runnableId: string,
-        get: <T>(atom: Atom<T>) => T,
-    ): RunnableTypeConfig | null => {
-        const runnableType = get(runnableTypeRegistry(runnableId))
-        if (!runnableType) return null
-        return runnables[runnableType] ?? null
-    }
 
     // Create selectors
     const selectors: RunnableBridgeSelectors = {

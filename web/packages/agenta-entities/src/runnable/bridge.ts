@@ -19,16 +19,14 @@
  */
 
 import {atom} from "jotai"
+import {atomFamily} from "jotai-family"
 
-import {
-    createRunnableBridge,
-    type RunnableData,
-    type RunnablePort,
-} from "../shared"
 import {appRevisionMolecule} from "../appRevision"
 import {evaluatorRevisionMolecule} from "../evaluatorRevision"
+import {loadableStateAtomFamily, loadableColumnsAtomFamily} from "../loadable/store"
+import {createRunnableBridge, type RunnableData, type RunnablePort} from "../shared"
 
-import type {PathItem} from "./types"
+import type {TestsetColumn} from "./types"
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -238,6 +236,73 @@ export const runnableBridge = createRunnableBridge({
         },
     },
 })
+
+// ============================================================================
+// LOADABLE-RUNNABLE INTEGRATION
+// ============================================================================
+
+/**
+ * Derived columns atom that reads from the linked runnable's inputPorts.
+ *
+ * When a loadable is linked to a runnable, this atom:
+ * 1. Gets the linked runnable info from loadable state
+ * 2. Reads the runnable's inputPorts (single source of truth)
+ * 3. Returns columns derived from inputPorts
+ *
+ * This enables reactive updates - when user edits {{newVar}} in prompt,
+ * the columns automatically update without any React effects.
+ *
+ * For appRevision: Uses appRevisionMolecule.selectors.inputPorts (consolidated)
+ * For evaluatorRevision: Reads from evaluator schema directly
+ */
+export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: string) =>
+    atom<TestsetColumn[]>((get) => {
+        const loadableState = get(loadableStateAtomFamily(loadableId))
+        const {linkedRunnableType, linkedRunnableId} = loadableState
+
+        // If not linked to a runnable, return stored columns
+        if (!linkedRunnableType || !linkedRunnableId) {
+            return get(loadableColumnsAtomFamily(loadableId))
+        }
+
+        // Get columns from linked runnable's inputPorts
+        if (linkedRunnableType === "appRevision") {
+            // Use inputPorts selector - single source of truth for revision inputs
+            // This selector already handles extraction from agConfig prompt messages
+            const inputPorts = get(appRevisionMolecule.selectors.inputPorts(linkedRunnableId))
+
+            if (inputPorts.length > 0) {
+                return inputPorts.map((port) => ({
+                    key: port.key,
+                    name: port.name,
+                    type: port.type,
+                }))
+            }
+        } else if (linkedRunnableType === "evaluatorRevision") {
+            // Read from evaluator entity's schema
+            const entityData = get(
+                evaluatorRevisionMolecule.selectors.data(linkedRunnableId),
+            ) as Record<string, unknown> | null
+            if (entityData) {
+                const schemas = entityData.schemas as Record<string, unknown> | undefined
+                const inputSchema = schemas?.inputs as Record<string, unknown> | undefined
+                if (inputSchema?.properties) {
+                    const inputKeys = Object.keys(inputSchema.properties as Record<string, unknown>)
+                    if (inputKeys.length > 0) {
+                        return inputKeys.map((key) => ({
+                            key,
+                            name: key,
+                            type: "string" as const,
+                        }))
+                    }
+                }
+            }
+        }
+
+        // Fall back to stored columns if no inputPorts found
+        return get(loadableColumnsAtomFamily(loadableId))
+    }),
+)
 
 // ============================================================================
 // UTILITY EXPORTS

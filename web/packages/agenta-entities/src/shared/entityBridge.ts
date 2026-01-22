@@ -76,7 +76,7 @@ export interface BaseMoleculeSelectors {
  */
 export interface BaseMolecule {
     selectors: BaseMoleculeSelectors
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     actions?: Record<string, WritableAtom<any, any[], any>>
 }
 
@@ -159,7 +159,11 @@ export interface LoadableBridgeActions {
     /** Add a row to the loadable */
     addRow: WritableAtom<null, [loadableId: string, data?: Record<string, unknown>], void>
     /** Update a row */
-    updateRow: WritableAtom<null, [loadableId: string, rowId: string, data: Record<string, unknown>], void>
+    updateRow: WritableAtom<
+        null,
+        [loadableId: string, rowId: string, data: Record<string, unknown>],
+        void
+    >
     /** Remove a row */
     removeRow: WritableAtom<null, [loadableId: string, rowId: string], void>
     /** Set the active row */
@@ -169,15 +173,27 @@ export interface LoadableBridgeActions {
     /** Set columns */
     setColumns: WritableAtom<null, [loadableId: string, columns: LoadableColumn[]], void>
     /** Connect to a data source */
-    connectToSource: WritableAtom<null, [loadableId: string, sourceId: string, sourceName: string, sourceType: string], void>
+    connectToSource: WritableAtom<
+        null,
+        [loadableId: string, sourceId: string, sourceName: string, sourceType: string],
+        void
+    >
     /** Disconnect from source (switch to local mode) */
     disconnect: WritableAtom<null, [loadableId: string], void>
     /** Link to a runnable (for column derivation) */
-    linkToRunnable: WritableAtom<null, [loadableId: string, runnableType: string, runnableId: string], void>
+    linkToRunnable: WritableAtom<
+        null,
+        [loadableId: string, runnableType: string, runnableId: string],
+        void
+    >
     /** Unlink from runnable */
     unlinkRunnable: WritableAtom<null, [loadableId: string], void>
     /** Set execution result for a row */
-    setExecutionResult: WritableAtom<null, [loadableId: string, rowId: string, result: unknown], void>
+    setExecutionResult: WritableAtom<
+        null,
+        [loadableId: string, rowId: string, result: unknown],
+        void
+    >
     /** Clear execution results */
     clearExecutionResults: WritableAtom<null, [loadableId: string], void>
     /** Save changes (when connected) */
@@ -193,7 +209,9 @@ export interface LoadableBridge {
     selectors: LoadableBridgeSelectors
     actions: LoadableBridgeActions
     /** Get source-specific controller for a source type */
-    source: <T extends string>(sourceType: T) => {
+    source: <T extends string>(
+        sourceType: T,
+    ) => {
         selectors: LoadableBridgeSelectors
         actions: LoadableBridgeActions
     }
@@ -245,7 +263,7 @@ export interface RunnableTypeConfig<T = unknown> {
     /** Additional selectors specific to this runnable type */
     extraSelectors?: Record<string, (id: string) => Atom<unknown>>
     /** Additional actions specific to this runnable type */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     extraActions?: Record<string, WritableAtom<any, any[], any>>
 }
 
@@ -284,9 +302,11 @@ export interface RunnableBridgeSelectors {
 export interface RunnableBridge {
     selectors: RunnableBridgeSelectors
     /** Get runnable-type-specific controller */
-    runnable: <T extends string>(runnableType: T) => {
+    runnable: <T extends string>(
+        runnableType: T,
+    ) => {
         selectors: RunnableBridgeSelectors & Record<string, (id: string) => Atom<unknown>>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         actions?: Record<string, WritableAtom<any, any[], any>>
     }
 }
@@ -295,7 +315,4 @@ export interface RunnableBridge {
 // EXPORTS
 // ============================================================================
 
-export type {
-    LoadableSourceConfig as SourceConfig,
-    RunnableTypeConfig as RunnableConfig,
-}
+export type {LoadableSourceConfig as SourceConfig, RunnableTypeConfig as RunnableConfig}

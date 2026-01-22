@@ -62,6 +62,8 @@ export interface UseLoadableReturn {
     columns: TestsetColumn[]
     /** ALL columns from testset data (not filtered by linked runnable) - use for input mapping */
     allColumns: TestsetColumn[]
+    /** Column keys that are new (added from prompt template but not in original testcase data) */
+    newColumnKeys: string[]
     activeRow: TestsetRow | null
     activeRowId: string | null
     rowCount: number
@@ -110,6 +112,10 @@ export interface UseLoadableReturn {
     discardChanges: () => void
     /** Commit local changes to create a new revision (only in connected mode) */
     commitChanges: (message?: string) => Promise<{revisionId: string; version: number}>
+    /** Update testcase selection (for editing which testcases are included after connection) */
+    updateTestcaseSelection: (selectedIds: string[]) => void
+    /** Import testcases as new local rows (without changing connection state) */
+    importRows: (testcases: Record<string, unknown>[]) => string[]
 
     // Runnable linking actions
     /** Link to a runnable - columns will be derived from runnable's inputSchema */
@@ -129,6 +135,22 @@ export interface UseLoadableReturn {
     setRowExecutionResult: (result: RowExecutionResult) => void
     /** Clear execution result for a row */
     clearRowExecutionResult: (rowId: string) => void
+
+    // Row state selectors (for UI indicators)
+    /** Get row ready state selector (for useAtomValue) */
+    getRowReadyStateAtom: (
+        rowId: string,
+    ) => ReturnType<typeof loadableController.testset.selectors.rowReadyState>
+    /** Get row execution stale state selector (for useAtomValue) */
+    getRowExecutionStaleStateAtom: (
+        rowId: string,
+    ) => ReturnType<typeof loadableController.testset.selectors.rowExecutionStaleState>
+    /** Get row output mapping override state selector (for useAtomValue) */
+    getRowOutputMappingOverrideStateAtom: (
+        rowId: string,
+    ) => ReturnType<typeof loadableController.testset.selectors.rowOutputMappingOverrideState>
+    /** Revert output mapping overrides for a row (restore original values) */
+    revertOutputMappingOverrides: (rowId: string) => boolean
 }
 
 /**
@@ -187,13 +209,25 @@ export function useLoadable(loadableId: string): UseLoadableReturn {
         () => loadableController.testset.selectors.supportsDynamicInputs(loadableId),
         [loadableId],
     )
+    const newColumnKeysAtom = useMemo(
+        () => loadableController.testset.selectors.newColumnKeys(loadableId),
+        [loadableId],
+    )
 
     // Subscribe to state
     const rows = useAtomValue(rowsAtom)
-    const activeRow = useAtomValue(activeRowAtom)
+    const activeRowIdFromAtom = useAtomValue(activeRowAtom) // Now returns ID, not row
     const columns = useAtomValue(columnsAtom)
     const allColumns = useAtomValue(allColumnsAtom)
     const rowCount = useAtomValue(rowCountAtom)
+
+    // Derive activeRow from rows using activeRowId
+    const activeRow = useMemo(() => {
+        if (!activeRowIdFromAtom && rows.length > 0) {
+            return rows[0] // Default to first row if no explicit selection
+        }
+        return rows.find((r) => r.id === activeRowIdFromAtom) ?? null
+    }, [activeRowIdFromAtom, rows])
     const mode = useAtomValue(modeAtom)
     const isDirty = useAtomValue(isDirtyAtom)
     const hasLocalChanges = useAtomValue(hasLocalChangesAtom)
@@ -201,6 +235,7 @@ export function useLoadable(loadableId: string): UseLoadableReturn {
     const _data = useAtomValue(dataAtom)
     const connectedSource = useAtomValue(connectedSourceAtom)
     const supportsDynamicInputs = useAtomValue(supportsDynamicInputsAtom)
+    const newColumnKeys = useAtomValue(newColumnKeysAtom)
 
     // Get action setters
     // Note: activeRow selector already returns first row if no explicit selection (derived atom)
@@ -222,13 +257,16 @@ export function useLoadable(loadableId: string): UseLoadableReturn {
     const setCommitChanges = useSetAtom(loadableController.testset.actions.commitChanges)
     const setLinkToRunnable = useSetAtom(loadableController.testset.actions.linkToRunnable)
     const setUnlinkFromRunnable = useSetAtom(loadableController.testset.actions.unlinkFromRunnable)
+    const setUpdateTestcaseSelection = useSetAtom(
+        loadableController.testset.actions.updateTestcaseSelection,
+    )
+    const setImportRows = useSetAtom(loadableController.testset.actions.importRows)
     const setRowExecutionResultAction = useSetAtom(
         loadableController.testset.actions.setRowExecutionResult,
     )
     const clearRowExecutionResultAction = useSetAtom(
         loadableController.testset.actions.clearRowExecutionResult,
     )
-
     // Row actions
     const addRow = useCallback(
         (rowData?: Record<string, unknown>) => {
@@ -325,6 +363,20 @@ export function useLoadable(loadableId: string): UseLoadableReturn {
         [loadableId, setCommitChanges],
     )
 
+    const updateTestcaseSelection = useCallback(
+        (selectedIds: string[]) => {
+            setUpdateTestcaseSelection(loadableId, selectedIds)
+        },
+        [loadableId, setUpdateTestcaseSelection],
+    )
+
+    const importRows = useCallback(
+        (testcases: Record<string, unknown>[]) => {
+            return setImportRows(loadableId, testcases)
+        },
+        [loadableId, setImportRows],
+    )
+
     // Runnable linking actions
     const linkToRunnable = useCallback(
         (runnableType: RunnableType, runnableId: string) => {
@@ -360,6 +412,33 @@ export function useLoadable(loadableId: string): UseLoadableReturn {
         [loadableId, clearRowExecutionResultAction],
     )
 
+    // Row state selector getters (return atoms for use with useAtomValue)
+    const getRowReadyStateAtom = useCallback(
+        (rowId: string) => loadableController.testset.selectors.rowReadyState(loadableId, rowId),
+        [loadableId],
+    )
+
+    const getRowExecutionStaleStateAtom = useCallback(
+        (rowId: string) =>
+            loadableController.testset.selectors.rowExecutionStaleState(loadableId, rowId),
+        [loadableId],
+    )
+
+    const getRowOutputMappingOverrideStateAtom = useCallback(
+        (rowId: string) =>
+            loadableController.testset.selectors.rowOutputMappingOverrideState(loadableId, rowId),
+        [loadableId],
+    )
+
+    // Revert output mapping overrides action
+    const setRevertOutputMappingOverrides = useSetAtom(
+        loadableController.testset.actions.revertOutputMappingOverrides,
+    )
+    const revertOutputMappingOverrides = useCallback(
+        (rowId: string) => setRevertOutputMappingOverrides(loadableId, rowId),
+        [loadableId, setRevertOutputMappingOverrides],
+    )
+
     return {
         // Identity
         loadableId,
@@ -368,6 +447,7 @@ export function useLoadable(loadableId: string): UseLoadableReturn {
         rows,
         columns,
         allColumns,
+        newColumnKeys,
         activeRow,
         activeRowId: activeRow?.id ?? null,
         rowCount,
@@ -398,6 +478,8 @@ export function useLoadable(loadableId: string): UseLoadableReturn {
         disconnect,
         discardChanges,
         commitChanges,
+        updateTestcaseSelection,
+        importRows,
 
         // Runnable linking actions
         linkToRunnable,
@@ -408,5 +490,11 @@ export function useLoadable(loadableId: string): UseLoadableReturn {
         getRowExecutionState,
         setRowExecutionResult,
         clearRowExecutionResult,
+
+        // Row state selectors (for UI indicators)
+        getRowReadyStateAtom,
+        getRowExecutionStaleStateAtom,
+        getRowOutputMappingOverrideStateAtom,
+        revertOutputMappingOverrides,
     }
 }
