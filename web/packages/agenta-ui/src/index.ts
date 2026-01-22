@@ -117,6 +117,7 @@ export {
     justifyClasses,
     focusStyles,
     layoutSizes,
+    modalSizes,
     spacingClasses,
     gapClasses,
     linkColors,
