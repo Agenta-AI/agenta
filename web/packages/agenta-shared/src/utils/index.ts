@@ -70,3 +70,21 @@ export {
     looksLikeJson,
     type EditorLanguage,
 } from "./editorLanguage"
+
+// OpenAPI schema utilities
+export {dereferenceSchema, type DereferencedSchemaResult} from "./openapi"
+
+// Formatting utilities
+export {
+    formatNumber,
+    formatCompact,
+    formatCompactNumber, // deprecated alias
+    formatCurrency,
+    formatLatency,
+    formatTokens,
+    formatTokenUsage, // deprecated alias
+    formatPercent,
+    formatSignificant,
+    createFormatter,
+} from "./formatters/index"
+export type {FormatterOptions, Formatter} from "./formatters/index"
