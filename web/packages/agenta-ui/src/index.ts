@@ -254,3 +254,33 @@ export {
     type ChatMessageListProps,
     type SimpleDropdownSelectProps,
 } from "./ChatMessage"
+
+// ============================================================================
+// CELL RENDERERS - Smart cell content rendering for tables
+// ============================================================================
+
+export {
+    // Components
+    CellContentPopover,
+    JsonCellContent,
+    TextCellContent,
+    ChatMessagesCellContent,
+    SmartCellContent,
+    // Utilities
+    truncateToLines,
+    truncateToChars,
+    truncateContent,
+    safeJsonStringify,
+    tryParseJson,
+    normalizeValue,
+    isChatMessagesArray,
+    extractChatMessages,
+    normalizeChatMessages,
+    // Constants
+    DEFAULT_MAX_LINES,
+    MAX_CELL_CHARS,
+    JSON_HIGHLIGHT_COLOR,
+    ROLE_COLORS,
+    // Types
+    type NormalizedChatMessage,
+} from "./CellRenderers"
