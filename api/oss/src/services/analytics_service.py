@@ -83,8 +83,9 @@ async def _set_activation_property(
 
     try:
         # Set the property using PostHog's $set_once (idempotent)
-        posthog.identify(
+        posthog.capture(
             distinct_id=distinct_id,
+            event="$identify",
             properties={
                 "$set_once": {
                     property_name: True,

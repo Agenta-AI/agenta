@@ -1448,7 +1448,7 @@ class SimpleTestsetsRouter:
         return simple_testset_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetResponse())
+    @suppress_exceptions(default=SimpleTestsetResponse(), exclude=[HTTPException])
     async def fetch_simple_testset(
         self,
         request: Request,
@@ -1665,7 +1665,7 @@ class SimpleTestsetsRouter:
         return simple_testset_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetsResponse())
+    @suppress_exceptions(default=SimpleTestsetsResponse(), exclude=[HTTPException])
     async def list_simple_testsets(
         self,
         request: Request,
@@ -1679,7 +1679,7 @@ class SimpleTestsetsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetsResponse())
+    @suppress_exceptions(default=SimpleTestsetsResponse(), exclude=[HTTPException])
     async def query_simple_testsets(
         self,
         request: Request,
@@ -2113,7 +2113,7 @@ class SimpleTestsetsRouter:
             )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetResponse())
+    @suppress_exceptions(default=SimpleTestsetResponse(), exclude=[HTTPException])
     async def transfer_simple_testset(
         self,
         request: Request,

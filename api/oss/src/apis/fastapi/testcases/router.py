@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request, status, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -67,7 +67,7 @@ class TestcasesRouter:
     # TESTCASES ----------------------------------------------------------------
 
     @intercept_exceptions()
-    @suppress_exceptions(default=TestcaseResponse())
+    @suppress_exceptions(default=TestcaseResponse(), exclude=[HTTPException])
     async def fetch_testcase(
         self,
         request: Request,
@@ -98,7 +98,7 @@ class TestcasesRouter:
         return testcase_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=TestcasesResponse())
+    @suppress_exceptions(default=TestcasesResponse(), exclude=[HTTPException])
     async def list_testcases(
         self,
         request: Request,
@@ -112,7 +112,7 @@ class TestcasesRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=TestcasesResponse())
+    @suppress_exceptions(default=TestcasesResponse(), exclude=[HTTPException])
     async def query_testcases(
         self,
         request: Request,
