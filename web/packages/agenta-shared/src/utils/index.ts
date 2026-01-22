@@ -89,6 +89,7 @@ export {
     formatTokenUsage, // deprecated alias
     formatPercent,
     formatSignificant,
+    formatPreviewValue,
     createFormatter,
 } from "./formatters/index"
 export type {FormatterOptions, Formatter} from "./formatters/index"

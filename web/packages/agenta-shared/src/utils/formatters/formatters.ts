@@ -335,6 +335,55 @@ export const createFormatter = (options: FormatterOptions = {}): Formatter => {
 }
 
 // ============================================================================
+// VALUE PREVIEW FORMATTERS
+// ============================================================================
+
+/**
+ * Formats an unknown value for display preview.
+ * Truncates long strings and provides type-aware formatting for objects/arrays.
+ *
+ * @param value - Any value to format for preview
+ * @param maxLength - Maximum length for string values (default: 50)
+ * @returns Formatted preview string
+ *
+ * @example
+ * ```typescript
+ * formatPreviewValue("hello")                    // '"hello"'
+ * formatPreviewValue("very long string...", 10) // '"very long..."'
+ * formatPreviewValue(123)                        // "123"
+ * formatPreviewValue(true)                       // "true"
+ * formatPreviewValue([1, 2, 3])                  // "[Array(3)]"
+ * formatPreviewValue({a: 1, b: 2})               // "{a, b}"
+ * formatPreviewValue(null)                       // "(null)"
+ * formatPreviewValue(undefined)                  // "(undefined)"
+ * ```
+ */
+export const formatPreviewValue = (value: unknown, maxLength = 50): string => {
+    if (value === undefined) return "(undefined)"
+    if (value === null) return "(null)"
+    if (typeof value === "string") {
+        if (value.length > maxLength) {
+            return `"${value.slice(0, maxLength)}..."`
+        }
+        return `"${value}"`
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+        return String(value)
+    }
+    if (Array.isArray(value)) {
+        return `[Array(${value.length})]`
+    }
+    if (typeof value === "object") {
+        const keys = Object.keys(value)
+        if (keys.length <= 3) {
+            return `{${keys.join(", ")}}`
+        }
+        return `{${keys.slice(0, 3).join(", ")}...}`
+    }
+    return String(value)
+}
+
+// ============================================================================
 // LEGACY ALIASES (for backward compatibility)
 // ============================================================================
 
