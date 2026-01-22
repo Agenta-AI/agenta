@@ -90,3 +90,6 @@ export {
     createFormatter,
 } from "./formatters/index"
 export type {FormatterOptions, Formatter} from "./formatters/index"
+
+// Pluralization utilities
+export {pluralize, formatCount} from "./pluralize"
