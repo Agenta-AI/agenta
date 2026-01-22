@@ -70,6 +70,26 @@ import {
 } from "./store"
 
 // ============================================================================
+// NULL-SAFE QUERY UTILITIES
+// ============================================================================
+
+/**
+ * Null query result for use when no ID is provided.
+ * Prevents unnecessary network requests for empty/null IDs.
+ */
+const nullQueryResultAtom = atom<QueryResult<Revision>>(() => ({
+    data: null,
+    isPending: false,
+    isError: false,
+    error: null,
+}))
+
+/**
+ * Null data atom for use when no ID is provided.
+ */
+const nullDataAtom = atom<Revision | null>(() => null)
+
+// ============================================================================
 // BASE MOLECULE
 // ============================================================================
 
@@ -743,8 +763,23 @@ export const revisionMolecule = {
     selectors: {
         /** Query atom for revision data with loading/error states */
         query: revisionQueryAtomFamily as AtomFamily<QueryState<Revision>>,
+        /**
+         * Null-safe query selector. Returns null query result when id is null/undefined.
+         * Prevents unnecessary network requests for empty IDs.
+         * @example const query = useAtomValue(revisionMolecule.selectors.queryOptional(id))
+         */
+        queryOptional: (id: string | null | undefined) =>
+            id
+                ? (revisionQueryAtomFamily(id) as unknown as typeof nullQueryResultAtom)
+                : nullQueryResultAtom,
         /** Merged data atom (server + draft) */
         data: extendedRevisionMolecule.atoms.data,
+        /**
+         * Null-safe data selector. Returns null when id is null/undefined.
+         * @example const data = useAtomValue(revisionMolecule.selectors.dataOptional(id))
+         */
+        dataOptional: (id: string | null | undefined) =>
+            id ? extendedRevisionMolecule.atoms.data(id) : nullDataAtom,
         /** Raw server data (without draft) */
         serverData: extendedRevisionMolecule.atoms.serverData,
         /** Draft data atom */
