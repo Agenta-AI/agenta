@@ -114,6 +114,9 @@ export {
 // Editor language detection utilities
 export {detectEditorLanguage, getContentLanguage, looksLikeJson, type EditorLanguage} from "./utils"
 
+// OpenAPI schema utilities
+export {dereferenceSchema, type DereferencedSchemaResult} from "./utils"
+
 // Chat message types
 export type {
     TextContentPart,
@@ -130,3 +133,18 @@ export {MESSAGE_CONTENT_SCHEMA, CHAT_MESSAGE_SCHEMA, CHAT_MESSAGES_ARRAY_SCHEMA}
 
 // Hooks
 export {useDebounceInput} from "./hooks"
+
+// Formatting utilities
+export {
+    formatNumber,
+    formatCompact,
+    formatCompactNumber, // deprecated alias
+    formatCurrency,
+    formatLatency,
+    formatTokens,
+    formatTokenUsage, // deprecated alias
+    formatPercent,
+    formatSignificant,
+    createFormatter,
+} from "./utils"
+export type {FormatterOptions, Formatter} from "./utils"
