@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.80.5",
+    "version": "0.80.8",
     "workspaces": [
         "ee",
         "oss",
