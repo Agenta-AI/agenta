@@ -487,6 +487,70 @@ const configAdapter = createMoleculeDrillInAdapter(configMolecule, {
 />
 ```
 
+## Schema Controls
+
+Schema-driven UI controls for rendering form fields based on JSON Schema. These controls use base components from `@agenta/ui` for consistent styling.
+
+### Available Controls
+
+| Control | Description | Base Component |
+|---------|-------------|----------------|
+| `NumberSliderControl` | Numeric input with slider | `SliderInput`, `LabeledField` |
+| `BooleanToggleControl` | Toggle switch for booleans | `LabeledField`, `Switch` |
+| `TextInputControl` | Single/multi-line text input | `LabeledField`, `Input` |
+| `EnumSelectControl` | Dropdown for enum values | `LabeledField`, `SimpleDropdownSelect` |
+| `GroupedChoiceControl` | Grouped select (e.g., model selection) | `LabeledField`, `Select` |
+| `PromptSchemaControl` | Full prompt editor with messages | `ChatMessageList` |
+| `ResponseFormatControl` | Output format selector | Modal-based |
+| `SchemaPropertyRenderer` | Universal field router | Routes to appropriate control |
+
+### Usage
+
+```tsx
+import {
+  NumberSliderControl,
+  BooleanToggleControl,
+  TextInputControl,
+  EnumSelectControl,
+  SchemaPropertyRenderer,
+} from '@agenta/entities/ui'
+
+// Individual control
+<NumberSliderControl
+  schema={temperatureSchema}
+  label="Temperature"
+  value={0.7}
+  onChange={(v) => setTemperature(v)}
+/>
+
+// Universal renderer (routes based on schema type)
+<SchemaPropertyRenderer
+  schema={propertySchema}
+  label="My Field"
+  value={value}
+  onChange={handleChange}
+/>
+```
+
+### Schema Detection
+
+Controls automatically extract configuration from JSON Schema:
+
+- **NumberSliderControl**: `minimum`, `maximum`, `type: "integer"` for step
+- **EnumSelectControl**: `enum` array for options
+- **TextInputControl**: `maxLength`, `x-parameters.multiline`
+- **GroupedChoiceControl**: `x-parameter: "grouped_choice"`, `choices` object
+
+### Base Components from @agenta/ui
+
+The schema controls use these presentational components:
+
+- **`SliderInput`**: Slider + number input combination
+- **`LabeledField`**: Label + tooltip wrapper for form fields
+- **`ListItemSkeleton`**: Skeleton loader for lists
+- **`SimpleDropdownSelect`**: Compact dropdown button
+- **`ChatMessageList`**: Message editor with role dropdowns
+
 ## File Structure
 
 ```
@@ -501,7 +565,18 @@ DrillInView/
 ├── MoleculeDrillInContext.tsx     # React context provider
 ├── MoleculeDrillInBreadcrumb.tsx  # Breadcrumb component
 ├── MoleculeDrillInFieldList.tsx   # Field list container
-└── MoleculeDrillInFieldItem.tsx   # Individual field renderer
+├── MoleculeDrillInFieldItem.tsx   # Individual field renderer
+└── SchemaControls/                # Schema-driven UI controls
+    ├── index.ts                   # Control exports
+    ├── schemaUtils.ts             # Schema utilities
+    ├── NumberSliderControl.tsx    # Numeric slider
+    ├── BooleanToggleControl.tsx   # Boolean toggle
+    ├── TextInputControl.tsx       # Text input
+    ├── EnumSelectControl.tsx      # Enum dropdown
+    ├── GroupedChoiceControl.tsx   # Grouped select
+    ├── PromptSchemaControl.tsx    # Prompt editor
+    ├── ResponseFormatControl.tsx  # Output format
+    └── SchemaPropertyRenderer.tsx # Universal router
 ```
 
 ## Integration with Molecules

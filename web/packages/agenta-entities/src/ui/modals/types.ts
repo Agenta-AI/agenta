@@ -68,6 +68,12 @@ export interface CommitChangesSummary {
     addedCount?: number
     /** Number of deleted items */
     deletedCount?: number
+    /** Number of added columns */
+    addedColumns?: number
+    /** Number of renamed columns */
+    renamedColumns?: number
+    /** Number of deleted columns */
+    deletedColumns?: number
     /** Custom description text */
     description?: string
 }
@@ -193,8 +199,14 @@ export interface EntityModalAdapter<TEntity = unknown> {
     /**
      * Get commit context atom for an entity ID
      * Returns version info, changes summary, and diff data for commit modal display
+     *
+     * @param id - Entity ID
+     * @param metadata - Optional metadata from EntityReference (e.g., loadableId for playground context)
      */
-    commitContextAtom?: (id: string) => Atom<CommitContext | null>
+    commitContextAtom?: (
+        id: string,
+        metadata?: Record<string, unknown>,
+    ) => Atom<CommitContext | null>
 }
 
 // ============================================================================

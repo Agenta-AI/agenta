@@ -24,6 +24,7 @@ import {useAtom} from "jotai"
 import {TOGGLE_MARKDOWN_VIEW} from "../../../Editor/plugins/markdown/commands"
 import {markdownViewAtom} from "../../../Editor/state/assets/atoms"
 import {copyToClipboard} from "../../../utils/copyToClipboard"
+import {cn, flexLayouts, gapClasses, justifyClasses} from "../../../utils/styles"
 
 export interface FieldHeaderProps {
     /** Unique identifier for the field, used for markdown state tracking */
@@ -64,14 +65,14 @@ const FieldHeader = ({id, value = "", hideMarkdownToggle = false}: FieldHeaderPr
     }, [editor])
 
     return (
-        <div className="flex items-center justify-end gap-1 w-full">
+        <div className={cn(flexLayouts.rowCenter, justifyClasses.end, gapClasses.xs, "w-full")}>
             <Tooltip title={isCopied ? "Copied" : "Copy"}>
                 <Button
                     type="text"
                     size="small"
                     icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
                     onClick={onCopyText}
-                    className="flex items-center justify-center"
+                    className={cn(flexLayouts.rowCenter, justifyClasses.center)}
                 />
             </Tooltip>
 
@@ -82,7 +83,7 @@ const FieldHeader = ({id, value = "", hideMarkdownToggle = false}: FieldHeaderPr
                         size="small"
                         icon={markdownView ? <TextAa size={14} /> : <MarkdownLogoIcon size={14} />}
                         onClick={onToggleMarkdown}
-                        className="flex items-center justify-center"
+                        className={cn(flexLayouts.rowCenter, justifyClasses.center)}
                     />
                 </Tooltip>
             )}

@@ -58,9 +58,10 @@ const usePostAuthRedirect = () => {
     const derivedIsInvitedUser = hasInviteFromQuery || hasInviteFromStorage
 
     const resetAuthState = useCallback(async () => {
-        await resetProfileData()
+        const profileResult = await resetProfileData()
         await resetOrganizationData()
         await resetProjectData()
+        return profileResult
     }, [resetProfileData, resetOrganizationData, resetProjectData])
 
     const handleAuthSuccess = useCallback(
@@ -94,14 +95,22 @@ const usePostAuthRedirect = () => {
                 if (isInvitedUser) {
                     console.log("[post-auth] redirect invited new user -> /workspaces/accept")
                     await router.push("/workspaces/accept?survey=true")
-                } else {
+                } else if (isEE()) {
+                    // EE: Show post-signup survey/onboarding form
                     console.log("[post-auth] redirect new user -> /post-signup")
                     writePostSignupPending()
                     await resetAuthState()
                     setIsNewUser(true)
                     await router.push("/post-signup")
+                } else {
+                    // OSS: Skip post-signup, go directly to workspace
+                    console.log("[post-auth] OSS new user, skipping post-signup")
+                    setIsNewUser(true)
+                    // Fall through to normal workspace redirect logic below
                 }
-                return
+                if (isInvitedUser || isEE()) {
+                    return
+                }
             }
 
             if (isInvitedUser) {
@@ -151,17 +160,18 @@ const usePostAuthRedirect = () => {
                 }
             }
 
-            await resetAuthState()
-
+            const profileResult = await resetAuthState()
+            const refreshedUser = profileResult?.data ?? null
             const store = getDefaultStore()
-            const userId = (store.get(userAtom) as {id?: string} | null)?.id ?? null
+            const userId = refreshedUser?.id ?? (store.get(userAtom) as {id?: string} | null)?.id
+            const resolvedUserId = userId ?? null
 
             // Store compatible orgs outside try-catch so fallback can use them
             let compatibleOrgs: typeof orgsAtom extends Atom<infer T> ? T : never = []
 
             try {
                 const freshOrgs = await queryClient.fetchQuery({
-                    queryKey: ["orgs", userId || ""],
+                    queryKey: ["orgs", resolvedUserId || ""],
                     queryFn: () => fetchAllOrgsList(),
                     staleTime: 60_000,
                 })
@@ -239,7 +249,10 @@ const usePostAuthRedirect = () => {
                 }
 
                 // Use preferred workspace resolution with ONLY compatible orgs
-                const preferredWorkspaceId = resolvePreferredWorkspaceId(userId, compatibleOrgs)
+                const preferredWorkspaceId = resolvePreferredWorkspaceId(
+                    resolvedUserId,
+                    compatibleOrgs,
+                )
                 if (preferredWorkspaceId) {
                     await router.replace(`/w/${encodeURIComponent(preferredWorkspaceId)}`)
                     return
@@ -273,7 +286,7 @@ const usePostAuthRedirect = () => {
             if (!context.workspaceId) {
                 // Use compatible orgs if available, otherwise fall back to all orgs
                 const orgsToUse = compatibleOrgs.length > 0 ? compatibleOrgs : store.get(orgsAtom)
-                const fallbackWorkspace = resolvePreferredWorkspaceId(userId, orgsToUse)
+                const fallbackWorkspace = resolvePreferredWorkspaceId(resolvedUserId, orgsToUse)
                 if (fallbackWorkspace) {
                     context = {workspaceId: fallbackWorkspace, projectId: null}
                 }

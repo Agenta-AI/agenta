@@ -31,6 +31,15 @@ export interface OpenAPISpec {
                         }
                     }
                 }
+                responses?: {
+                    "200"?: {
+                        content?: {
+                            "application/json"?: {
+                                schema?: Record<string, unknown>
+                            }
+                        }
+                    }
+                }
             }
         }
     >
@@ -75,6 +84,114 @@ export function constructEndpointPath(routePath: string | undefined, endpoint: s
 // ============================================================================
 
 /**
+ * Resolve a $ref reference in an OpenAPI schema.
+ * Handles references like "#/components/schemas/SchemaName"
+ *
+ * Merges the resolved schema with any sibling properties from the original.
+ * In OpenAPI 3.1, $ref can have sibling properties that should be preserved.
+ */
+function resolveSchemaRef(
+    spec: OpenAPISpec,
+    schema: Record<string, unknown>,
+): Record<string, unknown> {
+    const ref = schema.$ref as string | undefined
+    if (!ref || typeof ref !== "string") {
+        return schema
+    }
+
+    // Parse the $ref path (e.g., "#/components/schemas/Body_completion_test_post")
+    const refPath = ref.replace(/^#\//, "").split("/")
+
+    // Navigate to the referenced schema
+    let resolved: unknown = spec
+    for (const segment of refPath) {
+        if (resolved && typeof resolved === "object") {
+            resolved = (resolved as Record<string, unknown>)[segment]
+        } else {
+            return schema // Could not resolve, return original
+        }
+    }
+
+    if (resolved && typeof resolved === "object") {
+        // Merge sibling properties from original schema (excluding $ref)
+        // This preserves properties like 'choices', 'title', 'description' that may be on the parent
+        const {$ref: _discard, ...siblings} = schema
+        return {...(resolved as Record<string, unknown>), ...siblings}
+    }
+
+    return schema
+}
+
+/**
+ * Recursively resolve all $ref references in a schema and its nested properties.
+ * This ensures that all levels of the schema tree have their references resolved.
+ */
+function resolveSchemaDeep(
+    spec: OpenAPISpec,
+    schema: Record<string, unknown>,
+    visited = new Set<string>(),
+    depth = 0,
+): Record<string, unknown> {
+    // First resolve any $ref at this level
+    const ref = schema.$ref as string | undefined
+    let resolved = schema
+
+    if (ref && typeof ref === "string") {
+        // Prevent infinite recursion
+        if (visited.has(ref)) {
+            return schema
+        }
+        visited.add(ref)
+        resolved = resolveSchemaRef(spec, schema)
+    }
+
+    // If this schema has properties, resolve $refs in each property
+    const properties = resolved.properties as Record<string, unknown> | undefined
+    if (properties && typeof properties === "object") {
+        const resolvedProperties: Record<string, unknown> = {}
+        for (const [key, value] of Object.entries(properties)) {
+            if (value && typeof value === "object") {
+                resolvedProperties[key] = resolveSchemaDeep(
+                    spec,
+                    value as Record<string, unknown>,
+                    new Set(visited),
+                    depth + 1,
+                )
+            } else {
+                resolvedProperties[key] = value
+            }
+        }
+        resolved = {...resolved, properties: resolvedProperties}
+    }
+
+    // If this schema has items (array), resolve $refs in items
+    const items = resolved.items as Record<string, unknown> | undefined
+    if (items && typeof items === "object") {
+        resolved = {
+            ...resolved,
+            items: resolveSchemaDeep(spec, items, new Set(visited), depth + 1),
+        }
+    }
+
+    // If this schema has allOf/anyOf/oneOf, resolve $refs in each
+    for (const combiner of ["allOf", "anyOf", "oneOf"] as const) {
+        const combined = resolved[combiner] as Record<string, unknown>[] | undefined
+        if (combined && Array.isArray(combined)) {
+            resolved = {
+                ...resolved,
+                [combiner]: combined.map((item) =>
+                    item && typeof item === "object"
+                        ? resolveSchemaDeep(spec, item, new Set(visited), depth + 1)
+                        : item,
+                ),
+            }
+        }
+    }
+
+    return resolved
+}
+
+/**
  * Extract schema for a specific endpoint from OpenAPI spec
  */
 export function extractEndpointSchema(
@@ -82,35 +199,30 @@ export function extractEndpointSchema(
     endpoint: string,
     routePath?: string,
 ): EndpointSchema | null {
-    const path = constructEndpointPath(routePath, endpoint)
-    const requestSchema =
+    // Try with routePath first, then fall back to endpoint only
+    const pathWithRoute = constructEndpointPath(routePath, endpoint)
+    const pathWithoutRoute = constructEndpointPath(undefined, endpoint)
+
+    // Try the path with routePath first
+    let path = pathWithRoute
+    let requestSchema =
         spec?.paths?.[path]?.post?.requestBody?.content?.["application/json"]?.schema
 
-    console.log("[extractEndpointSchema] Extracting", {
-        endpoint,
-        routePath,
-        constructedPath: path,
-        availablePaths: spec?.paths ? Object.keys(spec.paths) : [],
-        hasRequestSchema: !!requestSchema,
-        requestSchemaKeys: requestSchema && typeof requestSchema === "object" ? Object.keys(requestSchema) : [],
-    })
+    // If not found and routePath was provided, try without it
+    if ((!requestSchema || typeof requestSchema !== "object") && routePath) {
+        path = pathWithoutRoute
+        requestSchema =
+            spec?.paths?.[path]?.post?.requestBody?.content?.["application/json"]?.schema
+    }
 
     if (!requestSchema || typeof requestSchema !== "object") {
         return null
     }
 
-    const properties = (requestSchema as Record<string, unknown>)?.properties as
-        | Record<string, unknown>
-        | undefined
+    // Resolve all $ref references recursively (deep resolution)
+    const resolvedSchema = resolveSchemaDeep(spec, requestSchema as Record<string, unknown>)
 
-    console.log("[extractEndpointSchema] Schema structure", {
-        path,
-        hasProperties: !!properties,
-        propertyKeys: properties ? Object.keys(properties) : [],
-        schemaType: (requestSchema as Record<string, unknown>)?.type,
-        hasAllOf: !!(requestSchema as Record<string, unknown>)?.allOf,
-        hasOneOf: !!(requestSchema as Record<string, unknown>)?.oneOf,
-    })
+    const properties = resolvedSchema?.properties as Record<string, unknown> | undefined
 
     if (!properties) {
         return {
@@ -125,14 +237,15 @@ export function extractEndpointSchema(
 
     const requestProperties = Object.keys(properties)
 
-    // Extract ag_config schema
-    const agConfigRaw = properties.ag_config as Record<string, unknown> | undefined
+    // Extract ag_config schema (already resolved by resolveSchemaDeep)
+    const agConfigResolved = properties.ag_config as Record<string, unknown> | undefined
+
     let agConfigSchema: EntitySchema | null = null
-    if (agConfigRaw && typeof agConfigRaw === "object") {
+    if (agConfigResolved && typeof agConfigResolved === "object") {
         agConfigSchema = {
             type: "object",
-            properties: (agConfigRaw.properties || {}) as Record<string, EntitySchemaProperty>,
-            required: agConfigRaw.required as string[] | undefined,
+            properties: (agConfigResolved.properties || {}) as Record<string, EntitySchemaProperty>,
+            required: agConfigResolved.required as string[] | undefined,
         }
     }
 
@@ -140,14 +253,6 @@ export function extractEndpointSchema(
     // First, check if there's a dedicated "inputs" property
     const inputsRaw = properties.inputs as Record<string, unknown> | undefined
     let inputsSchema: EntitySchema | null = null
-
-    console.log("[extractEndpointSchema] Inputs extraction", {
-        path,
-        hasInputsProperty: !!inputsRaw,
-        inputsRawKeys: inputsRaw && typeof inputsRaw === "object" ? Object.keys(inputsRaw) : [],
-        inputsRawType: inputsRaw?.type,
-        inputsRawProperties: inputsRaw?.properties ? Object.keys(inputsRaw.properties as object) : [],
-    })
 
     if (inputsRaw && typeof inputsRaw === "object") {
         inputsSchema = {
@@ -157,10 +262,6 @@ export function extractEndpointSchema(
             // Preserve additionalProperties for dynamic inputs
             additionalProperties: inputsRaw.additionalProperties,
         } as EntitySchema
-        console.log("[extractEndpointSchema] Created inputsSchema from inputs property", {
-            path,
-            inputsSchemaPropertyCount: Object.keys(inputsSchema.properties || {}).length,
-        })
     } else {
         // Fallback: If no "inputs" property, collect top-level properties that are likely inputs
         // (i.e., not ag_config, messages, or other known system properties)
@@ -180,18 +281,13 @@ export function extractEndpointSchema(
             }
         }
 
-        console.log("[extractEndpointSchema] Fallback input extraction", {
-            path,
-            allPropertyKeys: Object.keys(properties),
-            systemProperties,
-            extractedInputKeys: Object.keys(inputProperties),
-        })
-
         if (Object.keys(inputProperties).length > 0) {
             inputsSchema = {
                 type: "object",
                 properties: inputProperties,
-                required: (requestSchema as Record<string, unknown>).required as string[] | undefined,
+                required: (requestSchema as Record<string, unknown>).required as
+                    | string[]
+                    | undefined,
             }
         }
     }
@@ -206,11 +302,39 @@ export function extractEndpointSchema(
         } as EntitySchemaProperty
     }
 
+    // Extract outputs schema from response (200 OK)
+    let outputsSchema: EntitySchema | null = null
+    const responseSchema =
+        spec?.paths?.[path]?.post?.responses?.["200"]?.content?.["application/json"]?.schema
+
+    if (responseSchema && typeof responseSchema === "object") {
+        const resolvedResponse = resolveSchemaDeep(spec, responseSchema as Record<string, unknown>)
+        if (resolvedResponse) {
+            // Check if it's an object with properties
+            if (resolvedResponse.properties) {
+                outputsSchema = {
+                    type: "object",
+                    properties: resolvedResponse.properties as Record<string, EntitySchemaProperty>,
+                    required: resolvedResponse.required as string[] | undefined,
+                }
+            } else if (resolvedResponse.type === "string" || resolvedResponse.type === "number") {
+                // Simple type response - wrap in a standard "output" property
+                outputsSchema = {
+                    type: "object",
+                    properties: {
+                        output: resolvedResponse as EntitySchemaProperty,
+                    },
+                }
+            }
+        }
+    }
+
     return {
         path,
         requestSchema,
         agConfigSchema,
         inputsSchema,
+        outputsSchema,
         messagesSchema,
         requestProperties,
     }
@@ -227,6 +351,7 @@ export function extractAllEndpointSchemas(
     availableEndpoints: string[]
     isChatVariant: boolean
     primaryAgConfigSchema: EntitySchema | null
+    primaryOutputsSchema: EntitySchema | null
 } {
     const endpointNames = ["/test", "/run", "/generate", "/generate_deployed"] as const
 
@@ -256,7 +381,21 @@ export function extractAllEndpointSchemas(
         endpoints.generateDeployed?.agConfigSchema ||
         null
 
-    return {endpoints, availableEndpoints, isChatVariant, primaryAgConfigSchema}
+    // Get primary outputs schema (prefer /test, then /run, then others)
+    const primaryOutputsSchema =
+        endpoints.test?.outputsSchema ||
+        endpoints.run?.outputsSchema ||
+        endpoints.generate?.outputsSchema ||
+        endpoints.generateDeployed?.outputsSchema ||
+        null
+
+    return {
+        endpoints,
+        availableEndpoints,
+        isChatVariant,
+        primaryAgConfigSchema,
+        primaryOutputsSchema,
+    }
 }
 
 /**
@@ -293,12 +432,18 @@ export function buildRevisionSchemaState(
         }
     }
 
-    const {endpoints, availableEndpoints, isChatVariant, primaryAgConfigSchema} =
-        extractAllEndpointSchemas(schema, routePath)
+    const {
+        endpoints,
+        availableEndpoints,
+        isChatVariant,
+        primaryAgConfigSchema,
+        primaryOutputsSchema,
+    } = extractAllEndpointSchemas(schema, routePath)
 
     return {
         openApiSchema: schema,
         agConfigSchema: primaryAgConfigSchema,
+        outputsSchema: primaryOutputsSchema,
         endpoints,
         availableEndpoints,
         isChatVariant,

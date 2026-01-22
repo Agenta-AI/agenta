@@ -24,6 +24,8 @@ import React from "react"
 
 import {ChevronRight} from "lucide-react"
 
+import {bgColors, cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -66,6 +68,11 @@ export interface ListItemProps {
     isSelected?: boolean
 
     /**
+     * Whether the item is currently hovered/active (e.g., popover is open)
+     */
+    isHovered?: boolean
+
+    /**
      * Whether the item is disabled
      */
     isDisabled?: boolean
@@ -101,6 +108,7 @@ export function ListItem({
     hasChildren = false,
     isSelectable = false,
     isSelected = false,
+    isHovered = false,
     isDisabled = false,
     onClick,
     onSelect,
@@ -116,45 +124,63 @@ export function ListItem({
         }
     }
 
-    const handleKeyPress = (e: React.KeyboardEvent) => {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" || e.key === " ") {
             e.preventDefault()
             handleClick()
         }
     }
 
-    // Build class names for different states
-    const baseClasses = "flex items-center justify-between p-3 rounded-md transition-colors"
+    // Build class names for different states based on design tokens
+    // Default: no bg, textColors.secondary (colorTextSecondary)
+    // Hover: bgColors.subtle, textColors.primary (colorText)
+    // Selected: bgColors.subtle, textColors.primary, border-r-2 border-primary
+    const baseClasses = cn(
+        flexLayouts.rowCenter,
+        justifyClasses.between,
+        "px-2 py-2 transition-colors",
+        textColors.secondary,
+    )
     const stateClasses = isDisabled
         ? "opacity-50 cursor-not-allowed"
         : isSelected
-          ? "bg-blue-1 cursor-pointer hover:bg-blue-2" // Selected: light blue bg, darker on hover
-          : "cursor-pointer hover:bg-zinc-1" // Default: zinc hover
+          ? cn(
+                bgColors.subtle,
+                "cursor-pointer",
+                bgColors.hoverState,
+                textColors.primary,
+                "border-r-2 border-primary",
+            )
+          : isHovered
+            ? cn(bgColors.subtle, "cursor-pointer", textColors.primary)
+            : cn("cursor-pointer", bgColors.hoverSubtle, textColors.iconHover)
 
     return (
         <div
-            className={`${baseClasses} ${stateClasses} ${className}`}
+            className={cn(baseClasses, stateClasses, className)}
             onClick={handleClick}
-            onKeyPress={handleKeyPress}
-            role="button"
+            onKeyDown={handleKeyDown}
+            role="option"
             tabIndex={isDisabled ? -1 : 0}
             aria-disabled={isDisabled}
             aria-selected={isSelected}
         >
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-                {icon && <span className="flex-shrink-0 text-zinc-6">{icon}</span>}
+            <div className={cn(flexLayouts.rowCenter, gapClasses.md, "flex-1 min-w-0")}>
+                {icon && <span className={cn("flex-shrink-0", textColors.tertiary)}>{icon}</span>}
                 <div className="flex-1 min-w-0">
                     <div className="truncate" title={label}>
                         {labelNode ?? label}
                     </div>
-                    {description && <div className="text-zinc-6 truncate">{description}</div>}
+                    {description && (
+                        <div className={cn(textColors.tertiary, "truncate")}>{description}</div>
+                    )}
                 </div>
             </div>
 
-            {/* Only show chevron for navigable items, no checkmark for selected */}
-            {hasChildren && !isSelectable && (
+            {/* Show chevron for items with children (indicates popover/drill-down available) */}
+            {hasChildren && (
                 <div className="flex-shrink-0 ml-2">
-                    <ChevronRight className="w-3 h-3 text-zinc-4" />
+                    <ChevronRight className={cn("w-3 h-3", textColors.quaternary)} />
                 </div>
             )}
         </div>

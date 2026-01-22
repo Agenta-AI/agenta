@@ -16,6 +16,7 @@ import {
     type TestsetColumn,
     type InputMapping,
 } from "@agenta/entities/runnable"
+import {cn, entityIconColors, statusColors, textColors} from "@agenta/ui"
 import {ArrowRight, Lightning, MagicWand, Table, X} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 
@@ -68,11 +69,11 @@ export function DownstreamMappingsSection({
                     <Text type="secondary" className="text-xs">
                         Receives output from
                     </Text>
-                    <Lightning size={12} weight="fill" className="text-blue-500" />
+                    <Lightning size={12} weight="fill" className={entityIconColors.primary} />
                     <Text strong className="text-xs">
                         {sourceEntityLabel}
                     </Text>
-                    <ArrowRight size={12} className="text-gray-400" />
+                    <ArrowRight size={12} className={textColors.quaternary} />
                     <Text type="secondary" className="text-xs">
                         this
                     </Text>
@@ -85,7 +86,12 @@ export function DownstreamMappingsSection({
                 </Text>
                 {/* Only show Edit button when there are mappings configured */}
                 {onEditMappings && incomingMappings.length > 0 && (
-                    <Button type="link" size="small" onClick={onEditMappings} className="p-0 h-auto">
+                    <Button
+                        type="link"
+                        size="small"
+                        onClick={onEditMappings}
+                        className="p-0 h-auto"
+                    >
                         Edit
                     </Button>
                 )}
@@ -109,7 +115,9 @@ export function DownstreamMappingsSection({
                                 >
                                     {/* Object header */}
                                     <div className="flex items-center gap-2 text-sm mb-1">
-                                        <span className="font-medium text-gray-900">{col.name}</span>
+                                        <span className={cn("font-medium", textColors.primary)}>
+                                            {col.name}
+                                        </span>
                                         <Text type="secondary" className="text-xs">
                                             dict · {objectMappings.length} key
                                             {objectMappings.length !== 1 ? "s" : ""}
@@ -123,7 +131,8 @@ export function DownstreamMappingsSection({
                                                 const sourcePathArr = Array.isArray(sourcePath)
                                                     ? sourcePath
                                                     : [sourcePath]
-                                                const isFromTestcase = sourcePathArr[0] === "testcase"
+                                                const isFromTestcase =
+                                                    sourcePathArr[0] === "testcase"
                                                 const sourceDisplay = isFromTestcase
                                                     ? sourcePathArr[1] || "—"
                                                     : sourcePathArr.join(".") || "—"
@@ -136,22 +145,41 @@ export function DownstreamMappingsSection({
                                                         {isFromTestcase ? (
                                                             <Table
                                                                 size={10}
-                                                                className="text-green-600 flex-shrink-0"
+                                                                className={cn(
+                                                                    statusColors.successIcon,
+                                                                    "flex-shrink-0",
+                                                                )}
                                                             />
                                                         ) : (
                                                             <Lightning
                                                                 size={10}
-                                                                className="text-blue-500 flex-shrink-0"
+                                                                className={cn(
+                                                                    entityIconColors.primary,
+                                                                    "flex-shrink-0",
+                                                                )}
                                                             />
                                                         )}
-                                                        <span className="text-gray-600 truncate">
+                                                        <span
+                                                            className={cn(
+                                                                "truncate",
+                                                                textColors.secondary,
+                                                            )}
+                                                        >
                                                             {sourceDisplay}
                                                         </span>
                                                         <ArrowRight
                                                             size={10}
-                                                            className="text-gray-300 flex-shrink-0"
+                                                            className={cn(
+                                                                textColors.quaternary,
+                                                                "flex-shrink-0",
+                                                            )}
                                                         />
-                                                        <span className="text-gray-700 font-mono">
+                                                        <span
+                                                            className={cn(
+                                                                "font-mono",
+                                                                textColors.secondary,
+                                                            )}
+                                                        >
                                                             .{objMapping.keyInObject}
                                                         </span>
                                                     </div>
@@ -187,21 +215,41 @@ export function DownstreamMappingsSection({
                             >
                                 {/* Section header - matches object input style */}
                                 <div className="flex items-center gap-2 text-sm mb-1">
-                                    <span className="font-medium text-gray-900">{col.name}</span>
+                                    <span className={cn("font-medium", textColors.primary)}>
+                                        {col.name}
+                                    </span>
                                 </div>
                                 {/* Mapping row */}
                                 <div className="ml-4 flex items-center gap-1.5 text-xs">
                                     {isMissing ? (
-                                        <X size={10} className="text-red-400 flex-shrink-0" />
+                                        <X
+                                            size={10}
+                                            className={cn(statusColors.error, "flex-shrink-0")}
+                                        />
                                     ) : isFromTestcase ? (
-                                        <Table size={10} className="text-green-600 flex-shrink-0" />
+                                        <Table
+                                            size={10}
+                                            className={cn(
+                                                statusColors.successIcon,
+                                                "flex-shrink-0",
+                                            )}
+                                        />
                                     ) : (
-                                        <Lightning size={10} className="text-blue-500 flex-shrink-0" />
+                                        <Lightning
+                                            size={10}
+                                            className={cn(
+                                                entityIconColors.primary,
+                                                "flex-shrink-0",
+                                            )}
+                                        />
                                     )}
                                     <span
-                                        className={`truncate ${
-                                            isMissing ? "text-red-500 italic" : "text-gray-600"
-                                        }`}
+                                        className={cn(
+                                            "truncate",
+                                            isMissing
+                                                ? cn(statusColors.error, "italic")
+                                                : textColors.secondary,
+                                        )}
                                     >
                                         {isMissing ? "Not mapped" : sourceDisplay}
                                     </span>
@@ -212,7 +260,10 @@ export function DownstreamMappingsSection({
                                             {isAutoMapped ? (
                                                 <MagicWand
                                                     size={10}
-                                                    className="text-blue-400 flex-shrink-0"
+                                                    className={cn(
+                                                        entityIconColors.primary,
+                                                        "flex-shrink-0",
+                                                    )}
                                                 />
                                             ) : (
                                                 <Tag
@@ -232,10 +283,16 @@ export function DownstreamMappingsSection({
                     {sourceEntityLabel && (
                         <div className="mt-2 pt-2 border-t border-gray-100">
                             <Text type="secondary" className="text-xs">
-                                <Lightning size={10} className="text-blue-500 inline mr-1" />
+                                <Lightning
+                                    size={10}
+                                    className={cn(entityIconColors.primary, "inline mr-1")}
+                                />
                                 = from {sourceEntityLabel} output
                                 <span className="mx-2">|</span>
-                                <Table size={10} className="text-green-600 inline mr-1" />
+                                <Table
+                                    size={10}
+                                    className={cn(statusColors.successIcon, "inline mr-1")}
+                                />
                                 = from testcase
                             </Text>
                         </div>

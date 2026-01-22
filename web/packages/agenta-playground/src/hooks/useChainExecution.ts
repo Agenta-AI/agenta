@@ -18,15 +18,15 @@ import {
     type RunnableData,
     type ExecutionResult,
     type StageExecutionResult,
+    type EntitySelection,
     computeTopologicalOrder,
     resolveChainInputs,
     executeRunnable,
 } from "@agenta/entities/runnable"
 import {getDefaultStore, useAtomValue} from "jotai"
 
-import {playgroundController, outputConnectionController} from "../state"
-import type {EntitySelection} from "../components/EntitySelector"
 import {useLoadable} from "../components/LoadableEntityPanel"
+import {playgroundController, outputConnectionController} from "../state"
 import type {OutputConnection} from "../state"
 
 export interface RunnableNode {
@@ -34,6 +34,129 @@ export interface RunnableNode {
     entity: EntitySelection
     depth: number
 }
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+interface ResolveNodeInputsParams {
+    nodeId: string
+    primaryNodeId: string
+    data: Record<string, unknown>
+    expectedInputKeys: Set<string>
+    allConnections: OutputConnection[]
+    nodeResults: Record<string, ExecutionResult>
+}
+
+/**
+ * Resolve inputs for a node based on whether it's primary or downstream
+ */
+function resolveNodeInputs({
+    nodeId,
+    primaryNodeId,
+    data,
+    expectedInputKeys,
+    allConnections,
+    nodeResults,
+}: ResolveNodeInputsParams): Record<string, unknown> {
+    if (nodeId === primaryNodeId) {
+        // Primary node uses testcase data, filtered to only expected inputs
+        // This prevents extra columns (like output mapping targets) from being sent
+        return Object.fromEntries(
+            Object.entries(data).filter(([key]) => expectedInputKeys.has(key)),
+        )
+    }
+    // Downstream nodes resolve inputs from upstream results
+    // Pass testcase data for testcase.* mappings
+    return resolveChainInputs(allConnections, nodeId, nodeResults, data)
+}
+
+interface ExecuteNodeParams {
+    nodeId: string
+    primaryNodeId: string
+    node: RunnableNode
+    nodeInputs: Record<string, unknown>
+    primaryRunnableExecute: (inputs: Record<string, unknown>) => Promise<ExecutionResult | null>
+    runnableSelectors: ReturnType<typeof useRunnableSelectors>
+}
+
+/**
+ * Execute a single node (primary or downstream)
+ */
+async function executeNode({
+    nodeId,
+    primaryNodeId,
+    node,
+    nodeInputs,
+    primaryRunnableExecute,
+    runnableSelectors,
+}: ExecuteNodeParams): Promise<ExecutionResult> {
+    let result: ExecutionResult | null
+
+    if (nodeId === primaryNodeId) {
+        // Use the hook for primary node (has proper state management)
+        result = await primaryRunnableExecute(nodeInputs)
+    } else {
+        // Get runnable data from store for downstream nodes
+        const store = getDefaultStore()
+        const dataAtom = runnableSelectors.data(node.entity.type as RunnableType, node.entity.id)
+        const runnableData = store.get(dataAtom) as RunnableData | null
+
+        if (!runnableData) {
+            throw new Error(`No runnable data for ${node.entity.type}:${node.entity.id}`)
+        }
+
+        // Use executeRunnable directly for downstream nodes
+        result = await executeRunnable(node.entity.type as RunnableType, runnableData, {
+            inputs: nodeInputs,
+        })
+    }
+
+    if (!result) {
+        throw new Error(`Execution returned null for node ${nodeId}`)
+    }
+
+    return result
+}
+
+interface BuildStageResultParams {
+    result: ExecutionResult
+    nodeId: string
+    nodeLabel: string
+    nodeType: string
+    stageIndex: number
+}
+
+/**
+ * Build a stage execution result from an execution result
+ */
+function buildStageResult({
+    result,
+    nodeId,
+    nodeLabel,
+    nodeType,
+    stageIndex,
+}: BuildStageResultParams): StageExecutionResult {
+    return {
+        executionId: result.executionId,
+        nodeId,
+        nodeLabel,
+        nodeType,
+        stageIndex,
+        status: result.status,
+        startedAt: result.startedAt,
+        completedAt: result.completedAt,
+        output: result.output,
+        structuredOutput: result.structuredOutput,
+        error: result.error,
+        traceId: result.trace?.id || null,
+        metrics: result.metrics,
+    }
+}
+
+// ============================================================================
+// HOOK TYPES
+// ============================================================================
 
 export interface UseChainExecutionReturn {
     /** Execute a single testcase row */
@@ -176,6 +299,8 @@ export function useChainExecution(loadableId: string): UseChainExecutionReturn {
                         continue
                     }
 
+                    const nodeLabel = node.entity.label || `Stage ${stageIndex + 1}`
+
                     // Update progress
                     loadable.setRowExecutionResult({
                         rowId,
@@ -188,77 +313,46 @@ export function useChainExecution(loadableId: string): UseChainExecutionReturn {
                             currentStage: stageIndex + 1,
                             totalStages,
                             currentNodeId: nodeId,
-                            currentNodeLabel: node.entity.label || `Stage ${stageIndex + 1}`,
+                            currentNodeLabel: nodeLabel,
                             currentNodeType: node.entity.type,
                         },
                         chainResults,
                     })
 
-                    // Determine inputs for this node
-                    let nodeInputs: Record<string, unknown>
-
-                    if (nodeId === primaryNode.id) {
-                        // Primary node uses testcase data
-                        nodeInputs = data
-                    } else {
-                        // Downstream nodes resolve inputs from upstream results
-                        // Pass testcase data for testcase.* mappings
-                        nodeInputs = resolveChainInputs(allConnections, nodeId, nodeResults, data)
-                    }
+                    // Resolve inputs for this node
+                    const expectedInputKeys = new Set(
+                        primaryRunnableHook.inputs.map((input) => input.key),
+                    )
+                    const nodeInputs = resolveNodeInputs({
+                        nodeId,
+                        primaryNodeId: primaryNode.id,
+                        data,
+                        expectedInputKeys,
+                        allConnections,
+                        nodeResults,
+                    })
 
                     // Execute the node
-                    let result: ExecutionResult | null
-
-                    if (nodeId === primaryNode.id) {
-                        // Use the hook for primary node (has proper state management)
-                        result = await primaryRunnableHook.execute(nodeInputs)
-                    } else {
-                        // Get runnable data from store for downstream nodes
-                        const store = getDefaultStore()
-                        const dataAtom = runnableSelectors.data(
-                            node.entity.type as RunnableType,
-                            node.entity.id,
-                        )
-                        const runnableData = store.get(dataAtom) as RunnableData | null
-
-                        if (!runnableData) {
-                            throw new Error(
-                                `No runnable data for ${node.entity.type}:${node.entity.id}`,
-                            )
-                        }
-
-                        // Use executeRunnable directly for downstream nodes
-                        result = await executeRunnable(
-                            node.entity.type as RunnableType,
-                            runnableData,
-                            {inputs: nodeInputs},
-                        )
-                    }
-
-                    // Handle null result
-                    if (!result) {
-                        throw new Error(`Execution returned null for node ${nodeId}`)
-                    }
+                    const result = await executeNode({
+                        nodeId,
+                        primaryNodeId: primaryNode.id,
+                        node,
+                        nodeInputs,
+                        primaryRunnableExecute: primaryRunnableHook.execute,
+                        runnableSelectors,
+                    })
 
                     // Store result for input resolution
                     nodeResults[nodeId] = result
 
-                    // Build stage result with trace ID
-                    const stageResult: StageExecutionResult = {
-                        executionId: result.executionId,
+                    // Build stage result
+                    const stageResult = buildStageResult({
+                        result,
                         nodeId,
-                        nodeLabel: node.entity.label || `Stage ${stageIndex + 1}`,
+                        nodeLabel,
                         nodeType: node.entity.type,
                         stageIndex,
-                        status: result.status,
-                        startedAt: result.startedAt,
-                        completedAt: result.completedAt,
-                        output: result.output,
-                        structuredOutput: result.structuredOutput,
-                        error: result.error,
-                        traceId: result.trace?.id || null,
-                        metrics: result.metrics,
-                    }
+                    })
 
                     chainResults[nodeId] = stageResult
 
@@ -274,7 +368,7 @@ export function useChainExecution(loadableId: string): UseChainExecutionReturn {
                             currentStage: stageIndex + 1,
                             totalStages,
                             currentNodeId: nodeId,
-                            currentNodeLabel: node.entity.label || `Stage ${stageIndex + 1}`,
+                            currentNodeLabel: nodeLabel,
                             currentNodeType: node.entity.type,
                         },
                         chainResults,
@@ -302,7 +396,7 @@ export function useChainExecution(loadableId: string): UseChainExecutionReturn {
                 // Get primary node result for final output
                 const primaryResult = nodeResults[primaryNode.id]
 
-                // Set final success state
+                // Set final success state with trace ID for output mapping
                 loadable.setRowExecutionResult({
                     rowId,
                     executionId: primaryResult?.executionId || executionId,
@@ -311,6 +405,7 @@ export function useChainExecution(loadableId: string): UseChainExecutionReturn {
                     status: "success",
                     output: primaryResult?.output,
                     metrics: primaryResult?.metrics,
+                    traceId: primaryResult?.trace?.id || null,
                     isChain,
                     totalStages,
                     chainProgress: null,

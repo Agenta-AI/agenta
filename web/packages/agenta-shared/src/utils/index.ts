@@ -13,6 +13,7 @@ export {normalizeTimestamps, normalizeEntityTimestamps, parseEntityDate} from ".
 // Path utilities for nested data navigation
 export {
     getValueAtPath,
+    getValueAtStringPath,
     setValueAtPath,
     deleteValueAtPath,
     hasValueAtPath,
@@ -54,6 +55,7 @@ export {keyToString, stringToKeyPath} from "./keyUtils"
 
 // JSON detection utilities
 export {
+    isPlainObject,
     isJsonString,
     isJsonObject,
     isJsonArray,
@@ -61,7 +63,9 @@ export {
     tryParseAsObject,
     tryParseAsArray,
     canExpandAsJson,
+    tryParseJsonValue,
 } from "./jsonDetection"
+export type {JsonParseResult} from "./jsonDetection"
 
 // Editor language detection utilities
 export {
@@ -70,3 +74,25 @@ export {
     looksLikeJson,
     type EditorLanguage,
 } from "./editorLanguage"
+
+// OpenAPI schema utilities
+export {dereferenceSchema, type DereferencedSchemaResult} from "./openapi"
+
+// Formatting utilities
+export {
+    formatNumber,
+    formatCompact,
+    formatCompactNumber, // deprecated alias
+    formatCurrency,
+    formatLatency,
+    formatTokens,
+    formatTokenUsage, // deprecated alias
+    formatPercent,
+    formatSignificant,
+    formatPreviewValue,
+    createFormatter,
+} from "./formatters/index"
+export type {FormatterOptions, Formatter} from "./formatters/index"
+
+// Pluralization utilities
+export {pluralize, formatCount} from "./pluralize"

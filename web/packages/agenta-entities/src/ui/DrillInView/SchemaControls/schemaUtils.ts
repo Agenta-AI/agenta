@@ -68,12 +68,15 @@ export function resolveAnyOfSchema(
 
 /**
  * Check if schema has grouped choices (e.g., model selection)
+ * Also returns true for model fields with enum values (flat list of models)
  */
 export function hasGroupedChoices(schema: SchemaProperty | null | undefined): boolean {
     if (!schema) return false
 
     const xParam = (schema as any)?.["x-parameter"]
     const choices = (schema as any)?.choices
+    const enumValues = (schema as any)?.enum
+    const title = ((schema as any)?.title || "").toLowerCase()
 
     // Check for x-parameter: "grouped_choice" or "choice" with choices object
     if (xParam === "grouped_choice" || xParam === "choice") {
@@ -82,6 +85,11 @@ export function hasGroupedChoices(schema: SchemaProperty | null | undefined): bo
 
     // Also check if choices exists as a grouped object (provider -> models)
     if (choices && typeof choices === "object" && !Array.isArray(choices)) {
+        return true
+    }
+
+    // For model fields with enum values, treat as grouped choice
+    if (title === "model" && enumValues && Array.isArray(enumValues) && enumValues.length > 0) {
         return true
     }
 
@@ -169,7 +177,9 @@ export function getModelSchema(schema: SchemaProperty | null | undefined): Schem
     const llmConfigSchema = getLLMConfigSchema(schema)
     if (llmConfigSchema?.properties) {
         const llmProps = llmConfigSchema.properties as Record<string, SchemaProperty>
-        if (llmProps.model) return llmProps.model
+        if (llmProps.model) {
+            return llmProps.model
+        }
     }
 
     // Fall back to root level
@@ -310,4 +320,60 @@ export function denormalizeMessages(messages: SimpleChatMessage[]): Record<strin
         if (msg.function_call) result.function_call = msg.function_call
         return result
     })
+}
+
+// ============================================================================
+// Options Extraction
+// ============================================================================
+
+/**
+ * Options format for select components
+ */
+export interface OptionGroup {
+    label: string
+    options: {label: string; value: string}[]
+}
+
+/**
+ * Extract options from schema - handles both grouped (choices) and flat (enum) formats.
+ * Returns null if no options found.
+ *
+ * Used by SelectLLMProvider to get the grouped model options from schema.
+ */
+export function getOptionsFromSchema(
+    schema: SchemaProperty | null | undefined,
+): {grouped: Record<string, string[]>; options: OptionGroup[]} | null {
+    if (!schema) return null
+
+    // Check for choices property (grouped options - provider: [model1, model2])
+    const choices = (schema as any)?.choices
+    if (choices && typeof choices === "object" && !Array.isArray(choices)) {
+        const grouped = choices as Record<string, string[]>
+        const options = Object.entries(grouped).map(([group, models]) => ({
+            label: group.charAt(0).toUpperCase() + group.slice(1).replace(/_/g, " "),
+            options: (models as string[]).map((model) => ({
+                label: model,
+                value: model,
+            })),
+        }))
+        return {grouped, options}
+    }
+
+    // Check for enum property (flat list)
+    const enumValues = (schema as any)?.enum
+    if (enumValues && Array.isArray(enumValues) && enumValues.length > 0) {
+        // Convert flat list to single group format
+        const options: OptionGroup[] = [
+            {
+                label: "Models",
+                options: enumValues.map((value: string) => ({
+                    label: value,
+                    value: value,
+                })),
+            },
+        ]
+        return {grouped: {Models: enumValues}, options}
+    }
+
+    return null
 }

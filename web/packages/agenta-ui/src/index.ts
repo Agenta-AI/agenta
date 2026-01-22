@@ -75,6 +75,22 @@ export * from "./components"
 export {copyToClipboard} from "./utils/copyToClipboard"
 
 /**
+ * Column grouping utilities for tables:
+ * - groupColumns: Transform flat columns into grouped/nested columns for Ant Design tables
+ * - isGroupedColumnKey: Check if a column key contains a group separator
+ * - parseGroupedColumnKey: Parse a grouped key into group name and column name
+ * - getLeafColumnName: Get the leaf name from a nested column key
+ */
+export {
+    groupColumns,
+    isGroupedColumnKey,
+    parseGroupedColumnKey,
+    getLeafColumnName,
+    type GroupableColumn,
+    type GroupColumnsOptions,
+} from "./utils/groupColumns"
+
+/**
  * Styling utilities:
  * - cn: Class name concatenation utility
  * - sizeClasses: Text size class mappings
@@ -95,7 +111,17 @@ export {
     borderColors,
     interactiveStyles,
     statusColors,
+    entityIconColors,
     shadows,
+    textSizes,
+    justifyClasses,
+    focusStyles,
+    layoutSizes,
+    modalSizes,
+    spacingClasses,
+    gapClasses,
+    linkColors,
+    dangerColors,
     type SizeVariant,
 } from "./utils/styles"
 
@@ -254,3 +280,39 @@ export {
     type ChatMessageListProps,
     type SimpleDropdownSelectProps,
 } from "./ChatMessage"
+
+// ============================================================================
+// HOOKS - Shared React hooks
+// ============================================================================
+
+export {useSelectionState, type UseSelectionStateResult} from "./hooks"
+
+// ============================================================================
+// CELL RENDERERS - Smart cell content rendering for tables
+// ============================================================================
+
+export {
+    // Components
+    CellContentPopover,
+    JsonCellContent,
+    TextCellContent,
+    ChatMessagesCellContent,
+    SmartCellContent,
+    // Utilities
+    truncateToLines,
+    truncateToChars,
+    truncateContent,
+    safeJsonStringify,
+    tryParseJson,
+    normalizeValue,
+    isChatMessagesArray,
+    extractChatMessages,
+    normalizeChatMessages,
+    // Constants
+    DEFAULT_MAX_LINES,
+    MAX_CELL_CHARS,
+    JSON_HIGHLIGHT_COLOR,
+    ROLE_COLORS,
+    // Types
+    type NormalizedChatMessage,
+} from "./CellRenderers"

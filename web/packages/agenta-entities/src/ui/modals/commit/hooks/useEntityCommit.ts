@@ -76,6 +76,8 @@ export interface UseBoundCommitOptions {
     name?: string
     /** Whether commit is allowed (e.g., hasChanges) - if false, commit action will be null */
     canCommit?: boolean
+    /** Optional metadata to pass to the commit context (e.g., loadableId for playground) */
+    metadata?: Record<string, unknown>
 }
 
 /**
@@ -243,17 +245,18 @@ export function useVariantCommit() {
  * ```
  */
 export function useBoundCommit(options: UseBoundCommitOptions): UseBoundCommitReturn {
-    const {type, id, name, canCommit: canCommitOption = true} = options
-    const {commitEntity, isCommitting, isOpen} = useEntityCommit()
+    const {type, id, name, canCommit: canCommitOption = true, metadata} = options
+    const {commitEntityRef, isCommitting, isOpen} = useEntityCommit()
 
     // Determine if commit is available
     const canCommit = Boolean(id) && canCommitOption
 
     // Create bound commit action (null if not available)
+    // Uses commitEntityRef to pass metadata through to the adapter's commitContextAtom
     const commit = useMemo(() => {
         if (!canCommit || !id) return null
-        return () => commitEntity(type, id, name)
-    }, [canCommit, id, type, name, commitEntity])
+        return () => commitEntityRef({type, id, name, metadata})
+    }, [canCommit, id, type, name, metadata, commitEntityRef])
 
     return {
         commit,

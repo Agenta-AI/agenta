@@ -89,6 +89,26 @@ const revisionsListExtension = createListExtension<
 })
 
 // ============================================================================
+// NULL-SAFE QUERY UTILITIES
+// ============================================================================
+
+/**
+ * Null query result for use when no ID is provided.
+ * Prevents unnecessary network requests for empty/null IDs.
+ */
+const nullQueryResultAtom = atom<QueryState<Testset>>(() => ({
+    data: null,
+    isPending: false,
+    isError: false,
+    error: null,
+}))
+
+/**
+ * Null data atom for use when no ID is provided.
+ */
+const nullDataAtom = atom<Testset | null>(() => null)
+
+// ============================================================================
 // BASE MOLECULE
 // ============================================================================
 
@@ -205,8 +225,23 @@ export const testsetMolecule = {
     selectors: {
         /** Query atom for testset data with loading/error states */
         query: testsetQueryAtomFamily as AtomFamily<QueryState<Testset>>,
+        /**
+         * Null-safe query selector. Returns null query result when id is null/undefined.
+         * Prevents unnecessary network requests for empty IDs.
+         * @example const query = useAtomValue(testsetMolecule.selectors.queryOptional(id))
+         */
+        queryOptional: (id: string | null | undefined) =>
+            id
+                ? (testsetQueryAtomFamily(id) as unknown as typeof nullQueryResultAtom)
+                : nullQueryResultAtom,
         /** Merged data atom (server + draft) */
         data: extendedMolecule.atoms.data,
+        /**
+         * Null-safe data selector. Returns null when id is null/undefined.
+         * @example const data = useAtomValue(testsetMolecule.selectors.dataOptional(id))
+         */
+        dataOptional: (id: string | null | undefined) =>
+            id ? extendedMolecule.atoms.data(id) : nullDataAtom,
         /** Raw server data (without draft) */
         serverData: extendedMolecule.atoms.serverData,
         /** Draft data atom */

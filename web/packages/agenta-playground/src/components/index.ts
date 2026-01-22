@@ -75,3 +75,22 @@ export {
 
 // Main orchestrator
 export {PlaygroundContent} from "./PlaygroundContent"
+
+// Testset selection modal (entity-based)
+export {
+    TestsetSelectionModal,
+    type TestsetSelectionModalProps,
+    type TestsetSelectionMode,
+    type TestsetSelectionPayload,
+    type TestsetPickerProps,
+    type TestcaseTableProps,
+    type SelectionSummaryProps,
+    useTestsetSelection,
+    // Sub-components
+    TestsetPicker,
+    TestcaseTable,
+    SelectionSummary,
+} from "./TestsetSelectionModal"
+
+// Execution metrics display
+export {ExecutionMetrics, type ExecutionMetricsProps, type InlineTreeData} from "./ExecutionMetrics"

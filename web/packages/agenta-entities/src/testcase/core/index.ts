@@ -27,6 +27,11 @@ export {
     // Transformation utilities
     flattenTestcase,
     unflattenTestcase,
+    // Local testcase factory (accepts flat input)
+    createLocalTestcase,
+    type CreateLocalTestcaseResult,
+    type CreateLocalTestcaseSuccess,
+    type CreateLocalTestcaseFailure,
     // Constants
     SYSTEM_FIELDS,
     isSystemField,
@@ -52,3 +57,17 @@ export type {
     BatchUpdateEntry,
     ColumnRenameOperation,
 } from "./types"
+
+// Column extraction utilities
+export {
+    // Constants
+    COLUMN_EXTRACTION_MAX_DEPTH,
+    DEFAULT_SAMPLE_SIZE,
+    // Path collection
+    collectColumnPaths,
+    type ColumnPathInfo,
+    // Column extraction
+    extractColumnsFromData,
+    extractColumnsWithAccessor,
+    type ExtractColumnsOptions,
+} from "./columnExtraction"

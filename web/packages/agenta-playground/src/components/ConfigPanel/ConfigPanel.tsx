@@ -16,16 +16,21 @@
  * - Props are passed for testset-related state (from PlaygroundContent's loadable)
  */
 
-import {useRunnable, type TestsetColumn, type InputMapping, type RunnableType} from "@agenta/entities/runnable"
+import {
+    useRunnable,
+    type TestsetColumn,
+    type InputMapping,
+    type RunnableType,
+} from "@agenta/entities/runnable"
 
 import {ConfigurationSection} from "../ConfigurationSection"
 import type {EntitySelection} from "../EntitySelector"
+
 import {
     ConfigPanelHeader,
     InputsDataSection,
     DataSourceSection,
     DownstreamMappingsSection,
-    OutputsSection,
     type OutputReceiverInfo,
 } from "./components"
 
@@ -65,6 +70,8 @@ export interface ConfigPanelProps {
     isCommitting?: boolean
     /** Callback to discard local changes */
     onDiscardChanges?: () => void
+    /** Callback to edit testcase selection (modify which testcases are included) */
+    onEditSelection?: () => void
     /** Connected output receivers (downstream runnables) */
     outputReceivers?: OutputReceiverInfo[]
     /** Callback to add a new output receiver */
@@ -83,12 +90,20 @@ export interface ConfigPanelProps {
     onAddExtraColumn?: (name: string) => void
     /** Callback to remove an extra column */
     onRemoveExtraColumn?: (key: string) => void
+    /** Column keys that are newly added (from prompt template but not in original testcase data) */
+    newColumnKeys?: string[]
     /** Input mappings for downstream nodes (shows where inputs come from) */
     incomingMappings?: InputMapping[]
     /** Source entity label for downstream nodes */
     sourceEntityLabel?: string
     /** Callback to open the mapping editor */
     onEditMappings?: () => void
+    /** Loadable ID for output mapping (primary node only) */
+    loadableId?: string
+    /** Whether to show the output mappings section (primary node only) */
+    showOutputMappings?: boolean
+    /** Callback to add output mapping column (only adds to testcase data, not to extraColumns) */
+    onAddOutputMappingColumn?: (name: string) => void
 }
 
 /**
@@ -119,6 +134,7 @@ export function ConfigPanel({
     onCommitChanges,
     isCommitting = false,
     onDiscardChanges,
+    onEditSelection,
     outputReceivers = [],
     onAddOutputReceiver,
     onEditOutputReceiver,
@@ -128,9 +144,13 @@ export function ConfigPanel({
     extraColumns = [],
     onAddExtraColumn,
     onRemoveExtraColumn,
+    newColumnKeys = [],
     incomingMappings = [],
     sourceEntityLabel,
     onEditMappings,
+    loadableId,
+    showOutputMappings = false,
+    onAddOutputMappingColumn,
 }: ConfigPanelProps) {
     const type = entity.type as RunnableType
     const runnable = useRunnable(type, entity.id)
@@ -154,8 +174,12 @@ export function ConfigPanel({
                     suppliedColumns={suppliedColumns}
                     isDownstream={isDownstream}
                     extraColumns={extraColumns}
+                    newColumnKeys={newColumnKeys}
                     onAddExtraColumn={onAddExtraColumn}
+                    onAddOutputMappingColumn={onAddOutputMappingColumn}
                     onRemoveExtraColumn={onRemoveExtraColumn}
+                    loadableId={loadableId}
+                    showOutputMappings={showOutputMappings}
                 >
                     {/* Data Source - Only shown for primary nodes (not downstream) */}
                     {!isDownstream && (
@@ -171,6 +195,7 @@ export function ConfigPanel({
                             onCommitChanges={onCommitChanges}
                             isCommitting={isCommitting}
                             onDiscardChanges={onDiscardChanges}
+                            onEditSelection={onEditSelection}
                         />
                     )}
 
@@ -186,15 +211,10 @@ export function ConfigPanel({
                     )}
                 </InputsDataSection>
 
-                {/* Outputs Section */}
-                <OutputsSection
-                    entity={entity}
-                    outputReceivers={outputReceivers}
-                    onAddOutputReceiver={onAddOutputReceiver}
-                    onEditOutputReceiver={onEditOutputReceiver}
-                    onRemoveOutputReceiver={onRemoveOutputReceiver}
-                    onNavigateToReceiver={onNavigateToReceiver}
-                />
+                {/* NOTE: OutputsSection is disabled - output receiver management is now
+                   handled via DownstreamMappingsSection for downstream nodes and
+                   the RunnableColumnsLayout for multi-node chains. The output mapping
+                   functionality has been moved to OutputMappingSection within InputsDataSection. */}
             </div>
         </div>
     )

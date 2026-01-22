@@ -8,10 +8,6 @@
  * - Dirty state atom
  *
  * NOTE: Execution mode atoms are now in ./runnableSetup.ts
- *
- * NOTE: This module defines the atom factories but doesn't connect to the API.
- * The actual query implementation that connects to services is in OSS layer.
- * This allows the package to be used without OSS-specific dependencies.
  */
 
 import {projectIdAtom} from "@agenta/shared"
@@ -21,62 +17,97 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {extractVariablesFromAgConfig} from "../../runnable/utils"
 import type {QueryState} from "../../shared"
 import {
     fetchVariantsList,
     fetchRevisionsList,
+    fetchRevisionConfig,
     type AppListItem,
     type VariantListItem,
     type RevisionListItem,
+    fetchAppsList,
 } from "../api"
 import type {AppRevisionData, PromptConfig, MessageConfig} from "../core"
 
 // ============================================================================
-// QUERY ATOM FAMILY (ABSTRACT)
+// INPUT PORTS TYPE
 // ============================================================================
 
 /**
- * Query atom family type - to be set by OSS layer
- *
- * This is a placeholder that will be populated by the OSS layer with the
- * actual atomWithQuery implementation that connects to the API.
+ * Input port type for appRevision
+ * Represents a variable expected by the prompt template
  */
-type QueryAtomFamilyType = (
-    revisionId: string,
-) => ReturnType<typeof atom<QueryState<AppRevisionData>>>
-
-// Store reference for query atom family (set by OSS layer)
-let _queryAtomFamily: QueryAtomFamilyType | null = null
-
-/**
- * Set the query atom family implementation.
- * Called by OSS layer to inject the actual query atoms.
- */
-export function setQueryAtomFamily(family: QueryAtomFamilyType): void {
-    _queryAtomFamily = family
+export interface AppRevisionInputPort {
+    /** Unique key for the input (variable name) */
+    key: string
+    /** Display name */
+    name: string
+    /** Data type */
+    type: "string"
+    /** Whether this input is required */
+    required: boolean
 }
 
+// ============================================================================
+// QUERY ATOM FAMILY
+// ============================================================================
+
 /**
- * Fallback query atom family for when OSS layer hasn't initialized
+ * Direct query atom family that fetches revision data from API.
+ *
+ * This uses @agenta/shared axios which works in both OSS and EE.
+ * No injection or initialization required.
  */
-const fallbackQueryAtomFamily = atomFamily((_revisionId: string) =>
-    atom<QueryState<AppRevisionData>>({
-        data: undefined,
-        isPending: false,
-        isError: true,
-        error: new Error("Query atom family not initialized. Call setQueryAtomFamily first."),
+const directQueryAtomFamily = atomFamily((revisionId: string) =>
+    atomWithQuery<AppRevisionData | null>((get) => {
+        const projectId = get(projectIdAtom)
+        const enabled = !!revisionId && !!projectId
+
+        return {
+            queryKey: ["appRevision", revisionId, projectId],
+            queryFn: () => fetchRevisionConfig(revisionId, projectId!),
+            staleTime: 1000 * 60, // 1 minute
+            refetchOnWindowFocus: false,
+            enabled,
+        }
     }),
 )
 
 /**
  * Query atom family - returns server data for a revision
+ *
+ * Uses direct API query via @agenta/shared axios.
+ * Returns QueryState format for consistency with entity patterns.
  */
 export const appRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
     atom<QueryState<AppRevisionData>>((get) => {
-        if (_queryAtomFamily) {
-            return get(_queryAtomFamily(revisionId))
+        const query = get(directQueryAtomFamily(revisionId))
+
+        if (query.isPending) {
+            return {
+                data: undefined,
+                isPending: true,
+                isError: false,
+                error: null,
+            }
         }
-        return get(fallbackQueryAtomFamily(revisionId))
+
+        if (query.isError || !query.data) {
+            return {
+                data: undefined,
+                isPending: false,
+                isError: query.isError,
+                error: query.error ?? null,
+            }
+        }
+
+        return {
+            data: query.data,
+            isPending: false,
+            isError: false,
+            error: null,
+        }
     }),
 )
 
@@ -114,7 +145,9 @@ function getDraftAtom(
 export const appRevisionEntityAtomFamily = atomFamily((revisionId: string) =>
     atom<AppRevisionData | null>((get) => {
         const draft = get(appRevisionDraftAtomFamily(revisionId))
-        if (draft) return draft
+        if (draft) {
+            return draft
+        }
 
         const query = get(appRevisionQueryAtomFamily(revisionId))
         return query.data ?? null
@@ -138,6 +171,43 @@ export const appRevisionIsDirtyAtomFamily = atomFamily((revisionId: string) =>
 
         // Compare draft with server data
         return JSON.stringify(draft) !== JSON.stringify(query.data)
+    }),
+)
+
+// ============================================================================
+// INPUT PORTS (derived from agConfig prompt template)
+// ============================================================================
+
+/**
+ * Derives input ports from the revision's agConfig prompt template.
+ *
+ * Extracts template variables ({{variableName}}) from prompt messages
+ * and returns them as input port definitions. This is the single source
+ * of truth for "what inputs does this revision expect".
+ *
+ * Uses the merged entity data (draft + server) so it reacts to local edits.
+ *
+ * @example
+ * ```typescript
+ * const inputPorts = useAtomValue(appRevisionInputPortsAtomFamily(revisionId))
+ * // Returns: [{ key: 'user_input', name: 'user_input', type: 'string', required: true }]
+ * ```
+ */
+export const appRevisionInputPortsAtomFamily = atomFamily((revisionId: string) =>
+    atom<AppRevisionInputPort[]>((get) => {
+        // Use merged entity (draft + server) for reactive updates
+        const data = get(appRevisionEntityAtomFamily(revisionId))
+        if (!data) return []
+
+        const agConfig = data.agConfig as Record<string, unknown> | undefined
+        const dynamicKeys = extractVariablesFromAgConfig(agConfig)
+
+        return dynamicKeys.map((key) => ({
+            key,
+            name: key,
+            type: "string" as const,
+            required: true,
+        }))
     }),
 )
 
@@ -236,7 +306,6 @@ export const appsQueryAtom = atomWithQuery<AppListItem[]>((get) => {
     return {
         queryKey: ["apps-for-selection", projectId],
         queryFn: async () => {
-            const {fetchAppsList} = await import("../api")
             return fetchAppsList(projectId!)
         },
         staleTime: 1000 * 60, // 1 minute
@@ -361,7 +430,9 @@ export const updateAppRevisionAtom = atom(
         const query = get(appRevisionQueryAtomFamily(revisionId))
         const base = currentDraft || query.data
 
-        if (!base) return
+        if (!base) {
+            return
+        }
 
         const updated = produce(base, (draft) => {
             Object.assign(draft, changes)

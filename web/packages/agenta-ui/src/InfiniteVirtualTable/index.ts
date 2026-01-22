@@ -95,6 +95,10 @@ export type {
     RowHeightConfig,
     UseRowHeightResult,
 } from "./hooks/useRowHeight"
+export {useRowHeightFeature} from "./hooks/useRowHeightFeature"
+export type {RowHeightFeatureConfig, UseRowHeightFeatureResult} from "./hooks/useRowHeightFeature"
+export {RowHeightContext, useRowHeightContext} from "./context/RowHeightContext"
+export type {RowHeightContextValue} from "./context/RowHeightContext"
 export * from "./types"
 export type {ExpandableRowConfig, ExpandIconRenderProps} from "./types"
 export type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"

@@ -8,9 +8,7 @@ import {message} from "@/oss/components/AppMessageContext"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
-import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
-import {Plan} from "@/oss/lib/Types"
 import {inviteToWorkspace} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
@@ -18,10 +16,6 @@ import {useWorkspaceRoles} from "@/oss/state/workspace"
 import {InviteFormProps, InviteUsersModalProps} from "./assets/types"
 
 const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoading}) => {
-    const {subscription}: {subscription?: any} = useSubscriptionDataWrapper() ?? {
-        subscription: undefined,
-    }
-
     const {selectedOrg, refetch} = useOrgData()
     const {roles} = useWorkspaceRoles()
     const {hasRBAC} = useEntitlements()
@@ -152,7 +146,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                                 value: role.role_name,
                                 desc: role.role_description,
                             }))}
-                            disabled={subscription?.plan !== Plan.Business}
+                            disabled={!hasRBAC}
                             optionRender={(option) => (
                                 <Space orientation="vertical" size="small">
                                     <Typography.Text>{option.label}</Typography.Text>
@@ -164,12 +158,13 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                             optionLabelProp="label"
                         />
                     </Form.Item>
-                    {subscription?.plan !== Plan.Business ? (
+                    {!hasRBAC ? (
                         <Alert
                             message={
                                 <div className="flex flex-col">
                                     <Typography.Text>
-                                        Role selection is only available for Business Plans.
+                                        Role selection is only available for Business and Enterprise
+                                        plans.
                                     </Typography.Text>
 
                                     <Link

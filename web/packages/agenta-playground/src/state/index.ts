@@ -99,6 +99,8 @@ export {
     entitySelectorOpenAtom,
     entitySelectorConfigAtom,
     entitySelectorResolverAtom,
+    // Cascading selection atoms
+    cascadingSelection,
 } from "./atoms"
 
 // ============================================================================

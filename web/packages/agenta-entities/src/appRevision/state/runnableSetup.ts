@@ -8,13 +8,12 @@
  */
 
 import {atom} from "jotai"
-import {atomFamily} from "jotai-family"
 import {getDefaultStore} from "jotai/vanilla"
+import {atomFamily} from "jotai-family"
 
 import type {StoreOptions, EntitySchema} from "../../shared"
 import type {ExecutionMode} from "../core"
 
-import {appRevisionEntityAtomFamily} from "./store"
 import {appRevisionSchemaQueryAtomFamily, revisionAgConfigSchemaAtomFamily} from "./schemaAtoms"
 
 // ============================================================================
@@ -47,17 +46,21 @@ export const endpointAtomFamily = atomFamily((revisionId: string) =>
 )
 
 /**
- * Full invocation URL based on revision data and execution mode
+ * Full invocation URL based on schema data and execution mode
+ *
+ * runtimePrefix and routePath come from the OpenAPI schema fetch,
+ * not the entity data, since they're extracted from the URI's openapi.json.
  */
 export const invocationUrlAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const data = get(appRevisionEntityAtomFamily(revisionId))
+        const schemaQuery = get(appRevisionSchemaQueryAtomFamily(revisionId))
         const endpoint = get(endpointAtomFamily(revisionId))
 
-        if (!data?.runtimePrefix) return null
+        const runtimePrefix = schemaQuery.data?.runtimePrefix
+        if (!runtimePrefix) return null
 
-        const prefix = data.runtimePrefix.replace(/\/$/, "")
-        const routePath = data.routePath || ""
+        const prefix = runtimePrefix.replace(/\/$/, "")
+        const routePath = schemaQuery.data?.routePath || ""
         const cleanRoutePath = routePath.replace(/^\//, "").replace(/\/$/, "")
         const cleanEndpoint = endpoint.replace(/^\//, "")
 
@@ -134,12 +137,14 @@ export const inputsSchemaAtomFamily = atomFamily(
         atom((get): EntitySchema | null => {
             const query = get(appRevisionSchemaQueryAtomFamily(params.id))
             const schemaState = query.data
+
             if (!schemaState?.endpoints) return null
 
             const endpointKey = params.endpoint || "/test"
             const endpoint = schemaState.endpoints[endpointKey] as
                 | {inputsSchema?: EntitySchema}
                 | undefined
+
             return endpoint?.inputsSchema || null
         }),
     (a, b) => a.id === b.id && a.endpoint === b.endpoint,
@@ -165,22 +170,22 @@ export const messagesSchemaAtomFamily = atomFamily(
 )
 
 /**
- * Runtime prefix from entity data
+ * Runtime prefix from schema query (comes from OpenAPI spec fetch)
  */
 export const runtimePrefixAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const data = get(appRevisionEntityAtomFamily(revisionId))
-        return data?.runtimePrefix
+        const schemaQuery = get(appRevisionSchemaQueryAtomFamily(revisionId))
+        return schemaQuery.data?.runtimePrefix
     }),
 )
 
 /**
- * Route path from entity data
+ * Route path from schema query (comes from OpenAPI spec fetch)
  */
 export const routePathAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const data = get(appRevisionEntityAtomFamily(revisionId))
-        return data?.routePath
+        const schemaQuery = get(appRevisionSchemaQueryAtomFamily(revisionId))
+        return schemaQuery.data?.routePath
     }),
 )
 

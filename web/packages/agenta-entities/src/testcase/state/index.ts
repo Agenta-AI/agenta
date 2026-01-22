@@ -12,6 +12,7 @@ export {testcaseMolecule, type TestcaseMolecule, type CreateTestcasesOptions} fr
 export {
     // Context
     currentRevisionIdAtom,
+    setCurrentRevisionIdAtom,
     // ID tracking
     testcaseIdsAtom,
     setTestcaseIdsAtom,
@@ -44,20 +45,28 @@ export {
     discardDraftAtom,
     discardAllDraftsAtom,
     batchUpdateTestcasesSyncAtom,
-    // Column operations
-    renameColumnInTestcasesAtom,
-    deleteColumnFromTestcasesAtom,
-    addColumnToTestcasesAtom,
 } from "./store"
+
+// Data controller (unified data source abstraction)
+export {
+    testcaseDataController,
+    testcaseSelectionAtomFamily,
+    setTestcaseSelectionAtom,
+    toggleTestcaseSelectionAtom,
+    selectAllTestcasesAtom,
+    clearTestcaseSelectionAtom,
+    resetTestcaseSelectionAtom,
+    type TestcaseDataConfig,
+} from "./dataController"
 
 // Paginated store for InfiniteVirtualTable
 export {
     testcasePaginatedStore,
-    testcasesPaginatedMetaAtom,
+    testcaseFilters,
     testcasesRevisionIdAtom,
     testcasesSearchTermAtom,
     setDebouncedSearchTermAtom,
-    testcaseFilters,
+    testcasesPaginatedMetaAtom,
     initializeEmptyRevisionAtom,
     type TestcaseTableRow,
     type TestcasePaginatedMeta,

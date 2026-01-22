@@ -23,7 +23,9 @@
  */
 
 import type {Atom} from "jotai"
+import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
+import {atomFamily} from "jotai-family"
 
 import type {EntitySchema, EntitySchemaProperty, PathItem, StoreOptions} from "../../shared"
 import {getValueAtPath as getValueAtPathUtil, setValueAtPath, type DataPath} from "../../ui"
@@ -51,6 +53,8 @@ import {
     appRevisionDraftAtomFamily,
     appRevisionEntityAtomFamily,
     appRevisionIsDirtyAtomFamily,
+    appRevisionInputPortsAtomFamily,
+    type AppRevisionInputPort,
     // List atoms
     appsListAtom,
     variantsListAtomFamily,
@@ -58,6 +62,10 @@ import {
     type AppListItem,
     type VariantListItem,
     type RevisionListItem,
+    // Query atoms (for loading/error states)
+    appsQueryAtom,
+    variantsQueryAtomFamily,
+    revisionsQueryAtomFamily,
     // Mutations
     updateAppRevisionAtom,
     discardAppRevisionDraftAtom,
@@ -171,6 +179,54 @@ function formatKeyAsName(key: string): string {
 }
 
 // ============================================================================
+// OUTPUT PORTS
+// ============================================================================
+
+/**
+ * Output port type for app revisions
+ */
+export interface AppRevisionOutputPort {
+    key: string
+    name: string
+    type: string
+    description?: string
+}
+
+/**
+ * Output ports derived from the revision's OpenAPI schema response.
+ * This is the single source of truth for "what outputs does this revision produce".
+ */
+const appRevisionOutputPortsAtomFamily = atomFamily((revisionId: string) =>
+    atom<AppRevisionOutputPort[]>((get) => {
+        const schemaQuery = get(appRevisionSchemaQueryAtomFamily(revisionId))
+
+        const outputsSchema = schemaQuery.data?.outputsSchema
+        if (!outputsSchema?.properties) {
+            // Default output port if no schema defined
+            return [
+                {
+                    key: "output",
+                    name: "Output",
+                    type: "string",
+                },
+            ]
+        }
+
+        const props = outputsSchema.properties as Record<
+            string,
+            {type?: string; description?: string}
+        >
+
+        return Object.entries(props).map(([key, prop]) => ({
+            key,
+            name: key,
+            type: prop.type || "string",
+            description: prop.description,
+        }))
+    }),
+)
+
+// ============================================================================
 // MOLECULE EXPORT
 // ============================================================================
 
@@ -194,6 +250,8 @@ export const appRevisionMolecule = {
         data: appRevisionEntityAtomFamily,
         /** Dirty state */
         isDirty: appRevisionIsDirtyAtomFamily,
+        /** Input ports derived from agConfig prompt template */
+        inputPorts: appRevisionInputPortsAtomFamily,
 
         // Execution mode atoms (from runnable extension)
         /** Execution mode (draft/deployed) */
@@ -241,6 +299,22 @@ export const appRevisionMolecule = {
         draft: appRevisionDraftAtomFamily,
         isDirty: appRevisionIsDirtyAtomFamily,
         query: appRevisionQueryAtomFamily,
+
+        /**
+         * Input ports derived from the revision's agConfig prompt template.
+         * Returns an array of input port definitions extracted from template variables.
+         * This is the single source of truth for "what inputs does this revision expect".
+         */
+        inputPorts: (revisionId: string): Atom<AppRevisionInputPort[]> =>
+            appRevisionInputPortsAtomFamily(revisionId),
+
+        /**
+         * Output ports derived from the revision's OpenAPI schema response.
+         * Returns an array of output port definitions extracted from the response schema.
+         * This is the single source of truth for "what outputs does this revision produce".
+         */
+        outputPorts: (revisionId: string): Atom<AppRevisionOutputPort[]> =>
+            appRevisionOutputPortsAtomFamily(revisionId),
 
         // Execution mode (from runnable)
         executionMode: (revisionId: string): Atom<ExecutionMode> =>
@@ -301,6 +375,28 @@ export const appRevisionMolecule = {
          */
         revisions: (variantId: string): Atom<RevisionListItem[]> =>
             revisionsListAtomFamily(variantId) as Atom<RevisionListItem[]>,
+
+        // ========================================================================
+        // QUERY STATE SELECTORS (for loading/error states)
+        // ========================================================================
+
+        /**
+         * Apps query state (loading, error, data).
+         * Use for deriving loading/error states in cascading selection.
+         */
+        appsQuery: appsQueryAtom,
+
+        /**
+         * Variants query state for a specific app.
+         * Use for deriving loading/error states in cascading selection.
+         */
+        variantsQuery: variantsQueryAtomFamily,
+
+        /**
+         * Revisions query state for a specific variant.
+         * Use for deriving loading/error states in cascading selection.
+         */
+        revisionsQuery: revisionsQueryAtomFamily,
     },
 
     // ========================================================================
@@ -375,6 +471,9 @@ export const appRevisionMolecule = {
             getStore(options).get(appRevisionDraftAtomFamily(revisionId)),
         isDirty: (revisionId: string, options?: StoreOptions) =>
             getStore(options).get(appRevisionIsDirtyAtomFamily(revisionId)),
+        /** Get input ports derived from agConfig prompt template */
+        inputPorts: (revisionId: string, options?: StoreOptions) =>
+            getStore(options).get(appRevisionInputPortsAtomFamily(revisionId)),
         // Execution mode (from runnable)
         executionMode: (revisionId: string, options?: StoreOptions) =>
             runnableGet.executionMode(revisionId, options),

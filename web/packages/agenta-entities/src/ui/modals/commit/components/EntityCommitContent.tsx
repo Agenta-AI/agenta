@@ -5,7 +5,8 @@
  * Supports version info, changes summary, and diff view via adapter.
  */
 
-import {DiffView} from "@agenta/ui"
+import {formatCount} from "@agenta/shared"
+import {cn, DiffView, textColors, VersionBadge} from "@agenta/ui"
 import {Input, Alert, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -50,49 +51,76 @@ export function EntityCommitContent() {
     // Build changes description from context
     const changesDescription: string[] = []
     if (context?.changesSummary) {
-        const {modifiedCount, addedCount, deletedCount, description} = context.changesSummary
-        if (modifiedCount) changesDescription.push(`${modifiedCount} modified`)
-        if (addedCount) changesDescription.push(`${addedCount} added`)
-        if (deletedCount) changesDescription.push(`${deletedCount} deleted`)
+        const {
+            modifiedCount,
+            addedCount,
+            deletedCount,
+            addedColumns,
+            renamedColumns,
+            deletedColumns,
+            description,
+        } = context.changesSummary
+        // Testcase changes
+        if (modifiedCount)
+            changesDescription.push(`${formatCount(modifiedCount, "testcase")} modified`)
+        if (addedCount) changesDescription.push(`${formatCount(addedCount, "testcase")} added`)
+        if (deletedCount)
+            changesDescription.push(`${formatCount(deletedCount, "testcase")} deleted`)
+        // Column changes
+        if (addedColumns) changesDescription.push(`${formatCount(addedColumns, "column")} added`)
+        if (renamedColumns)
+            changesDescription.push(`${formatCount(renamedColumns, "column")} renamed`)
+        if (deletedColumns)
+            changesDescription.push(`${formatCount(deletedColumns, "column")} deleted`)
         if (description) changesDescription.push(description)
     }
 
     // Check if diff data is available
     const hasDiffData = context?.diffData?.original && context?.diffData?.modified
 
-    // Calculate total changes for diff header
+    // Calculate total changes for diff header (testcases + columns)
     const totalChanges =
         (context?.changesSummary?.modifiedCount ?? 0) +
         (context?.changesSummary?.addedCount ?? 0) +
-        (context?.changesSummary?.deletedCount ?? 0)
+        (context?.changesSummary?.deletedCount ?? 0) +
+        (context?.changesSummary?.addedColumns ?? 0) +
+        (context?.changesSummary?.renamedColumns ?? 0) +
+        (context?.changesSummary?.deletedColumns ?? 0)
 
     return (
         <div
-            className={`flex ${hasDiffData ? "flex-row" : "flex-col"} gap-4 overflow-hidden h-full`}
+            className={cn(
+                "flex gap-4 overflow-hidden h-full",
+                hasDiffData ? "flex-row" : "flex-col",
+            )}
         >
             {/* Form section */}
             <div
-                className={`flex flex-col gap-4 ${hasDiffData ? "w-[320px] shrink-0" : "w-full"} overflow-y-auto`}
+                className={cn(
+                    "flex flex-col gap-4 overflow-y-auto",
+                    hasDiffData ? "w-[320px] shrink-0" : "w-full",
+                )}
             >
                 {/* Version info panel (if provided) */}
                 {context?.versionInfo && (
-                    <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                        <Text className="text-[#475569]">
+                    <div className="rounded-lg border border-zinc-2 bg-zinc-1 p-3">
+                        <Text className={textColors.secondary}>
                             This will create a new revision of{" "}
                             <span className="font-medium">{entityName}</span>.
                         </Text>
                         <div className="mt-2 flex items-center gap-2 text-sm">
                             <Text className="font-medium">Version</Text>
-                            <span className="rounded bg-[#E2E8F0] px-1.5 py-0.5 text-xs font-medium">
-                                v{context.versionInfo.currentVersion}
-                            </span>
-                            <span className="text-[#64748B]">→</span>
-                            <span className="rounded bg-[#DBEAFE] px-1.5 py-0.5 text-xs font-medium text-[#1D4ED8]">
+                            <VersionBadge
+                                version={context.versionInfo.currentVersion}
+                                variant="chip"
+                            />
+                            <span className={textColors.tertiary}>→</span>
+                            <span className="rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
                                 v{context.versionInfo.targetVersion}
                             </span>
                         </div>
                         {changesDescription.length > 0 && (
-                            <div className="mt-2 text-xs text-[#64748B]">
+                            <div className={cn("mt-2 text-xs", textColors.tertiary)}>
                                 Changes: {changesDescription.join(", ")}
                             </div>
                         )}
@@ -146,13 +174,18 @@ export function EntityCommitContent() {
 
             {/* Diff view section (if diff data available) */}
             {hasDiffData && (
-                <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#FAFBFC]">
-                    <div className="flex items-center justify-between border-b border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 shrink-0">
-                        <Text className="text-xs font-semibold text-[#475569] uppercase tracking-wide">
+                <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-2 bg-zinc-1">
+                    <div className="flex items-center justify-between border-b border-zinc-2 bg-zinc-1 px-3 py-2 shrink-0">
+                        <Text
+                            className={cn(
+                                "text-xs font-semibold uppercase tracking-wide",
+                                textColors.secondary,
+                            )}
+                        >
                             Changes preview
                         </Text>
-                        <Text className="text-xs text-[#94A3B8]">
-                            {totalChanges} change{totalChanges !== 1 ? "s" : ""}
+                        <Text className={cn("text-xs", textColors.quaternary)}>
+                            {formatCount(totalChanges, "change")}
                         </Text>
                     </div>
                     <div className="flex-1 overflow-auto">

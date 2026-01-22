@@ -125,9 +125,17 @@ export type {SettingsPreset} from "@agenta/entities/runnable"
 
 /**
  * Config for initializing testset save mode
+ *
+ * Supports two modes:
+ * 1. Entity-based (preferred): Pass loadableId to read directly from loadable entity
+ * 2. Data-based (legacy): Pass testcases array to copy into modal state
  */
 export interface SaveModeConfig {
-    testcases: Record<string, unknown>[]
+    /** Loadable ID to read rows from (entity-based, preferred) */
+    loadableId?: string
+    /** Testcases data to copy (legacy, used when no loadableId) */
+    testcases?: Record<string, unknown>[]
+    /** Default name for the new testset */
     defaultName?: string
 }
 

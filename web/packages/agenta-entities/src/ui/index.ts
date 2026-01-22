@@ -211,6 +211,8 @@ export {
     hasNestedLLMConfig,
     normalizeMessages,
     denormalizeMessages,
+    getOptionsFromSchema,
+    type OptionGroup,
     // Schema Control Types
     type NumberSliderControlProps,
     type BooleanToggleControlProps,
@@ -346,6 +348,17 @@ export {
     type SaveOrCommitOptions,
     type UseSaveOrCommitReturn,
 } from "./modals"
+
+// ============================================================================
+// TESTCASE UI COMPONENTS
+// ============================================================================
+
+export {
+    TestcaseTable,
+    type TestcaseTableProps,
+    TestsetPicker,
+    type TestsetPickerProps,
+} from "./testcase"
 
 // ============================================================================
 // ENTITY SELECTION

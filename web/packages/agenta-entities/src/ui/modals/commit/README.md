@@ -64,7 +64,33 @@ const { commitVariant } = useVariantCommit()
 commitVariant(variantId, variantName)
 ```
 
-## Hook Return Type
+### Bound Commit Hook
+
+For components that need a pre-bound commit action based on entity state:
+
+```tsx
+import { useBoundCommit } from '@agenta/entities/ui'
+
+function CommitButton({ revisionId, hasChanges }: Props) {
+  const { commit, canCommit, isCommitting } = useBoundCommit({
+    type: 'revision',
+    id: revisionId,
+    name: 'My Revision',
+    canCommit: hasChanges,
+    metadata: { loadableId: 'playground-123' }, // Optional context for adapter
+  })
+
+  return (
+    <Button onClick={commit ?? undefined} disabled={!canCommit} loading={isCommitting}>
+      Commit
+    </Button>
+  )
+}
+```
+
+The `metadata` field passes context-specific information to the adapter's `commitContextAtom`, useful for scenarios like playground-derived column changes.
+
+## Hook Return Types
 
 ```typescript
 interface UseEntityCommitReturn {
@@ -72,6 +98,21 @@ interface UseEntityCommitReturn {
   commitEntityRef: (entity: EntityReference, initialMessage?: string) => void
   isCommitting: boolean
   isOpen: boolean
+}
+
+interface UseBoundCommitOptions {
+  type: EntityType
+  id: string | null | undefined
+  name?: string
+  canCommit?: boolean  // If false, commit action will be null
+  metadata?: Record<string, unknown>  // Passed to adapter's commitContextAtom
+}
+
+interface UseBoundCommitReturn {
+  commit: (() => void) | null  // null if id missing or canCommit is false
+  isCommitting: boolean
+  isOpen: boolean
+  canCommit: boolean
 }
 ```
 
@@ -123,6 +164,7 @@ For the commit modal to work with an entity type, the adapter must provide:
 
 1. `commitAtom` - Atom that performs the commit operation
 2. `canCommit` (optional) - Validation function
+3. `commitContextAtom` (optional) - Atom that provides version info, changes summary, and diff data
 
 ```typescript
 createAndRegisterEntityAdapter({
@@ -130,5 +172,36 @@ createAndRegisterEntityAdapter({
   // ... other config
   commitAtom: testsetMolecule.reducers.commit,
   canCommit: (testset) => testset?.isDirty ?? false,
+  commitContextAtom: (id, metadata) => testsetMolecule.selectors.commitContext(id, metadata),
 })
 ```
+
+## Commit Context
+
+The `commitContextAtom` provides rich context for the commit modal display:
+
+```typescript
+interface CommitContext {
+  versionInfo?: {
+    currentVersion: number
+    targetVersion: number
+    latestVersion?: number
+  }
+  changesSummary?: {
+    modifiedCount?: number   // Modified testcases
+    addedCount?: number      // Added testcases
+    deletedCount?: number    // Deleted testcases
+    addedColumns?: number    // Added columns
+    renamedColumns?: number  // Renamed columns
+    deletedColumns?: number  // Deleted columns
+    description?: string     // Custom description
+  }
+  diffData?: {
+    original: string         // JSON string of original state
+    modified: string         // JSON string of modified state
+    language?: string        // 'json' or 'yaml'
+  }
+}
+```
+
+The `metadata` parameter passed to `commitContextAtom` allows callers to provide context-specific information (e.g., `loadableId` for playground-derived changes).

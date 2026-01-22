@@ -95,6 +95,12 @@ export {
     // Loadable panel
     LoadableEntityPanel,
     LoadableRowCard,
+    // Testset selection modal (entity-based)
+    TestsetSelectionModal,
+    useTestsetSelection,
+    TestsetPicker,
+    TestcaseTable,
+    SelectionSummary,
     // Types
     type ConfigPanelProps,
     type OutputReceiverInfo,
@@ -113,6 +119,13 @@ export {
     type EntitySelectorConfig as EntitySelectorConfigUI,
     type EntityType,
     type LoadEvaluatorPresetModalProps,
+    // Testset selection modal types
+    type TestsetSelectionModalProps,
+    type TestsetSelectionMode,
+    type TestsetSelectionPayload,
+    type TestsetPickerProps,
+    type TestcaseTableProps,
+    type SelectionSummaryProps,
 } from "./components"
 
 // ============================================================================
@@ -120,11 +133,7 @@ export {
 // ============================================================================
 
 // Controllers (now in this package)
-export {
-    playgroundController,
-    outputConnectionController,
-    entitySelectorController,
-} from "./state"
+export {playgroundController, outputConnectionController, entitySelectorController} from "./state"
 
 // Context (entity injection)
 export {

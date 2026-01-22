@@ -6,17 +6,18 @@
  * Supports optional infinite scroll with virtual list rendering.
  */
 
-import React, {useCallback, useId, useMemo} from "react"
+import {useCallback, useId, useMemo} from "react"
 
 import {
     EntityBreadcrumb,
     EntityListItem,
+    ListItemSkeleton,
     LoadAllButton,
     LoadMoreButton,
     SearchInput,
     VirtualEntityList,
 } from "@agenta/ui"
-import {Spin, Empty, Button} from "antd"
+import {Empty, Button, Spin} from "antd"
 import {ArrowLeft} from "lucide-react"
 
 import {useHierarchicalSelection} from "../hooks/useHierarchicalSelection"
@@ -222,9 +223,12 @@ export function EntityPicker<TSelection = EntitySelectionResult>({
         pageSize,
     })
 
-    // Get display messages
-    const displayEmptyMessage = emptyMessage ?? resolvedAdapter.emptyMessage ?? "No items found"
-    const displayLoadingMessage = loadingMessage ?? resolvedAdapter.loadingMessage ?? "Loading..."
+    // Get display messages with contextual level type
+    const levelTypeLabel = currentLevelConfig?.type ?? "items"
+    const displayEmptyMessage =
+        emptyMessage ?? resolvedAdapter.emptyMessage ?? `No ${levelTypeLabel} found`
+    const displayLoadingMessage =
+        loadingMessage ?? resolvedAdapter.loadingMessage ?? `Loading ${levelTypeLabel}...`
     const displayRootLabel = rootLabel ?? "Select"
 
     // Handle item click
@@ -249,7 +253,7 @@ export function EntityPicker<TSelection = EntitySelectionResult>({
 
     // Render list item
     const renderItem = useCallback(
-        (item: unknown, index: number) => {
+        (item: unknown, _index: number) => {
             if (!currentLevelConfig) return null
 
             const id = currentLevelConfig.getId(item)
@@ -354,9 +358,9 @@ export function EntityPicker<TSelection = EntitySelectionResult>({
 
             {/* Items list */}
             {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                    <Spin size="default" />
-                    <span className="ml-2 text-gray-500">{displayLoadingMessage}</span>
+                <div className="py-2">
+                    <div className="text-xs text-zinc-4 mb-2">{displayLoadingMessage}</div>
+                    <ListItemSkeleton count={4} />
                 </div>
             ) : items.length === 0 ? (
                 <Empty description={displayEmptyMessage} image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -410,7 +414,7 @@ export function EntityPicker<TSelection = EntitySelectionResult>({
                                 isFetchingNextPage && (
                                     <div className="flex items-center justify-center py-4">
                                         <Spin size="small" />
-                                        <span className="ml-2 text-gray-500">Loading more...</span>
+                                        <span className="ml-2 text-zinc-6">Loading more...</span>
                                     </div>
                                 )
                             )}

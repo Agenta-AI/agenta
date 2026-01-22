@@ -21,7 +21,6 @@ export {
 
 export {
     // Initialization
-    setQueryAtomFamily,
     setAppsListAtom,
     setVariantsListAtomFamily,
     setRevisionsListAtomFamily,
@@ -30,6 +29,9 @@ export {
     appRevisionDraftAtomFamily,
     appRevisionEntityAtomFamily,
     appRevisionIsDirtyAtomFamily,
+    // Input ports (derived from agConfig)
+    appRevisionInputPortsAtomFamily,
+    type AppRevisionInputPort,
     // List query atoms (self-contained in package)
     appsQueryAtom,
     appsListDataAtom,
@@ -56,8 +58,6 @@ export {
 // ============================================================================
 
 export {
-    // Initialization
-    setSchemaQueryAtomFamily,
     // Schema query
     appRevisionSchemaQueryAtomFamily,
     // Schema selectors (appRevision-specific)

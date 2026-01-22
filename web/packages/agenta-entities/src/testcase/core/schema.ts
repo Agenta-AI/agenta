@@ -265,6 +265,105 @@ export function unflattenTestcase(flattened: FlattenedTestcase): Testcase {
 }
 
 // ============================================================================
+// LOCAL TESTCASE FACTORY (FLAT INPUT)
+// ============================================================================
+
+/**
+ * Result type for createLocalTestcase - success case
+ */
+export interface CreateLocalTestcaseSuccess {
+    success: true
+    data: FlattenedTestcase
+}
+
+/**
+ * Result type for createLocalTestcase - failure case
+ */
+export interface CreateLocalTestcaseFailure {
+    success: false
+    errors: string[]
+}
+
+/**
+ * Result type for createLocalTestcase
+ */
+export type CreateLocalTestcaseResult = CreateLocalTestcaseSuccess | CreateLocalTestcaseFailure
+
+/**
+ * Create a local testcase from FLAT input.
+ *
+ * This is the primary way to create local testcases. It accepts flat data
+ * (like `{ country: 'USA', value: 123 }`) which is what UI components naturally
+ * work with, and handles the conversion to the nested API format internally.
+ *
+ * The result is a FlattenedTestcase ready for storage.
+ *
+ * @example
+ * ```typescript
+ * // Create from flat UI data
+ * const result = createLocalTestcase({ country: 'USA', value: 123 })
+ * if (result.success) {
+ *   console.log(result.data) // FlattenedTestcase with id, country, value, etc.
+ * }
+ *
+ * // Create empty testcase
+ * const empty = createLocalTestcase()
+ * ```
+ */
+export function createLocalTestcase(
+    flatInput?: Partial<FlattenedTestcase>,
+): CreateLocalTestcaseResult {
+    // Extract system fields from flat input, rest goes into data
+    const {
+        id,
+        created_at,
+        updated_at,
+        deleted_at,
+        created_by_id,
+        updated_by_id,
+        deleted_by_id,
+        flags,
+        tags,
+        meta,
+        testset_id,
+        set_id,
+        ...dataFields
+    } = flatInput ?? {}
+
+    // Build nested input for schema validation
+    const nestedInput: Partial<Testcase> = {
+        flags: flags ?? {},
+        tags: tags ?? {},
+        meta: meta ?? {},
+        testset_id: testset_id ?? null,
+        // Put user data fields into the nested 'data' object
+        data: Object.keys(dataFields).length > 0 ? dataFields : {},
+    }
+
+    // Include optional system fields if provided
+    if (id !== undefined) nestedInput.id = id
+    if (created_at !== undefined) nestedInput.created_at = created_at
+    if (updated_at !== undefined) nestedInput.updated_at = updated_at
+    if (deleted_at !== undefined) nestedInput.deleted_at = deleted_at
+    if (created_by_id !== undefined) nestedInput.created_by_id = created_by_id
+    if (updated_by_id !== undefined) nestedInput.updated_by_id = updated_by_id
+    if (deleted_by_id !== undefined) nestedInput.deleted_by_id = deleted_by_id
+    if (set_id !== undefined) nestedInput.set_id = set_id
+
+    // Parse with local schema (generates ID, applies defaults)
+    const result = testcaseSchemas.local.safeParse(nestedInput)
+
+    if (!result.success) {
+        const errors = result.error.issues.map((e) => `${e.path.join(".")}: ${e.message}`)
+        return {success: false, errors}
+    }
+
+    // Flatten for storage (spreads data fields back to top level)
+    const flattened = flattenTestcase(result.data)
+    return {success: true, data: flattened}
+}
+
+// ============================================================================
 // TESTSET METADATA SCHEMA
 // ============================================================================
 

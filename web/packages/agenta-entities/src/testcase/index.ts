@@ -56,6 +56,14 @@ export {
     unflattenTestcase,
     SYSTEM_FIELDS,
     isSystemField,
+    // Column extraction utilities
+    COLUMN_EXTRACTION_MAX_DEPTH,
+    DEFAULT_SAMPLE_SIZE,
+    collectColumnPaths,
+    type ColumnPathInfo,
+    extractColumnsFromData,
+    extractColumnsWithAccessor,
+    type ExtractColumnsOptions,
 } from "./core"
 
 export type {
@@ -120,6 +128,7 @@ export {testcaseMolecule, type TestcaseMolecule, type CreateTestcasesOptions} fr
 export {
     // Context
     currentRevisionIdAtom,
+    setCurrentRevisionIdAtom,
     // ID tracking
     testcaseIdsAtom,
     setTestcaseIdsAtom,
@@ -155,6 +164,19 @@ export {
     setDebouncedSearchTermAtom,
     testcaseFilters,
     initializeEmptyRevisionAtom,
+    // Data controller (unified data source abstraction)
+    testcaseDataController,
+    testcaseSelectionAtomFamily,
+    setTestcaseSelectionAtom,
+    toggleTestcaseSelectionAtom,
+    selectAllTestcasesAtom,
+    clearTestcaseSelectionAtom,
+    resetTestcaseSelectionAtom,
 } from "./state"
 
-export type {TestcaseTableRow, TestcasePaginatedMeta, InitializeEmptyRevisionParams} from "./state"
+export type {
+    TestcaseTableRow,
+    TestcasePaginatedMeta,
+    InitializeEmptyRevisionParams,
+    TestcaseDataConfig,
+} from "./state"

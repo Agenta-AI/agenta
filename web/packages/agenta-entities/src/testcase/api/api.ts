@@ -2,9 +2,12 @@
  * Testcase API Functions
  *
  * HTTP functions for fetching testcase data.
+ * Also populates the query cache so testcaseMolecule.get.data(id) works.
  */
 
 import {axios, getAgentaApiUrl} from "@agenta/shared"
+import {getDefaultStore} from "jotai/vanilla"
+import {queryClientAtom} from "jotai-tanstack-query"
 
 import {safeParseWithLogging} from "../../shared"
 import {
@@ -197,6 +200,18 @@ export async function fetchTestcasesPage(params: TestcaseListParams): Promise<Te
         }
 
         const flattenedTestcases = validated.testcases.map(flattenTestcase)
+
+        // Populate the query cache so testcaseMolecule.get.data(id) works
+        // This ensures the entity layer has access to testcases fetched by the paginated store
+        try {
+            const store = getDefaultStore()
+            const queryClient = store.get(queryClientAtom)
+            for (const tc of flattenedTestcases) {
+                queryClient.setQueryData(["testcase", projectId, tc.id], tc)
+            }
+        } catch {
+            // Silently ignore if query client not available (e.g., during SSR)
+        }
 
         return {
             testcases: flattenedTestcases,

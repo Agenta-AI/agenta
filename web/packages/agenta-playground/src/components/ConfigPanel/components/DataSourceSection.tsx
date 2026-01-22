@@ -4,17 +4,24 @@
  * Displays the "Data Source" section for primary nodes showing:
  * - Remote testset connection (with commit/discard/disconnect buttons)
  * - Local testset mode (with save/change buttons)
+ *
+ * UI Design:
+ * - Primary action (Save/Commit) shown as button when there are changes
+ * - Secondary actions in dropdown menu (Edit selection, Change, Discard)
+ * - Visual indicator (dot) on dropdown when there are changes
  */
 
+import {cn, statusColors, textColors, entityIconColors} from "@agenta/ui"
 import {
     ArrowCounterClockwise,
+    DotsThreeVertical,
     FloppyDisk,
-    GitCommit,
     Link,
-    LinkBreak,
+    PencilSimple,
     Table,
 } from "@phosphor-icons/react"
-import {Button, Tag, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Tag, Tooltip, Typography} from "antd"
+import type {MenuProps} from "antd"
 
 const {Text} = Typography
 
@@ -41,6 +48,8 @@ export interface DataSourceSectionProps {
     isCommitting?: boolean
     /** Callback to discard local changes */
     onDiscardChanges?: () => void
+    /** Callback to edit testcase selection (modify which testcases are included) */
+    onEditSelection?: () => void
 }
 
 export function DataSourceSection({
@@ -48,16 +57,70 @@ export function DataSourceSection({
     connectedTestsetId,
     onConnectTestset,
     onNavigateToTestset,
-    onDisconnectTestset,
     localTestcaseCount = 0,
     onSaveAsTestset,
     hasLocalChanges = false,
     onCommitChanges,
     isCommitting = false,
     onDiscardChanges,
+    onEditSelection,
 }: DataSourceSectionProps) {
     // Remote testset = has name AND id (connected to a saved testset)
     const isRemoteTestset = !!connectedTestsetName && !!connectedTestsetId
+
+    // Build dropdown menu items
+    const menuItems: MenuProps["items"] = []
+
+    if (isRemoteTestset) {
+        // Connected testset actions
+        if (onEditSelection) {
+            menuItems.push({
+                key: "edit",
+                label: "Edit selection",
+                icon: <PencilSimple size={14} />,
+                onClick: onEditSelection,
+                disabled: isCommitting,
+            })
+        }
+        if (onConnectTestset) {
+            menuItems.push({
+                key: "change",
+                label: "Load different testset",
+                icon: <Link size={14} />,
+                onClick: onConnectTestset,
+                disabled: isCommitting,
+            })
+        }
+        if (hasLocalChanges && onDiscardChanges) {
+            menuItems.push({type: "divider"})
+            menuItems.push({
+                key: "discard",
+                label: "Discard changes",
+                icon: <ArrowCounterClockwise size={14} />,
+                onClick: onDiscardChanges,
+                disabled: isCommitting,
+                danger: true,
+            })
+        }
+    } else {
+        // Local testset actions
+        if (onEditSelection) {
+            menuItems.push({
+                key: "edit",
+                label: "Edit selection",
+                icon: <PencilSimple size={14} />,
+                onClick: onEditSelection,
+            })
+        }
+        if (onConnectTestset) {
+            menuItems.push({
+                key: "load",
+                label: "Load from testset",
+                icon: <Link size={14} />,
+                onClick: onConnectTestset,
+            })
+        }
+    }
 
     return (
         <div className="px-3 py-2">
@@ -65,102 +128,86 @@ export function DataSourceSection({
                 Data Source
             </Text>
 
-            {isRemoteTestset ? (
-                /* Connected to Remote Testset */
-                <div className="mt-2">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Link size={14} className="text-green-600" />
-                            <Tag
-                                color={hasLocalChanges ? "orange" : "green"}
-                                className="cursor-pointer m-0"
-                                onClick={onNavigateToTestset}
-                            >
-                                {connectedTestsetName}
-                                {hasLocalChanges && " (modified)"}
-                            </Tag>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            {/* Commit button - only when there are local changes */}
-                            {hasLocalChanges && onCommitChanges && (
-                                <Tooltip title="Commit changes as new revision">
-                                    <Button
-                                        type="primary"
-                                        size="small"
-                                        icon={<GitCommit size={14} />}
-                                        onClick={onCommitChanges}
-                                        loading={isCommitting}
-                                    >
-                                        Commit
-                                    </Button>
-                                </Tooltip>
-                            )}
-                            {/* Discard button - only when there are local changes */}
-                            {hasLocalChanges && onDiscardChanges && (
-                                <Tooltip title="Discard local changes">
-                                    <Button
-                                        type="text"
-                                        size="small"
-                                        icon={<ArrowCounterClockwise size={14} />}
-                                        onClick={onDiscardChanges}
-                                        disabled={isCommitting}
-                                        className="text-gray-400 hover:text-gray-600"
-                                    />
-                                </Tooltip>
-                            )}
-                            <Tooltip title="Disconnect and use local testset">
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<LinkBreak size={14} />}
-                                    onClick={onDisconnectTestset}
-                                    disabled={isCommitting}
-                                    className="text-gray-400 hover:text-gray-600"
-                                />
-                            </Tooltip>
-                        </div>
-                    </div>
-                </div>
-            ) : (
-                /* Local Testset Mode - Single row layout */
-                <div className="mt-2 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <Table size={14} className="text-blue-500 flex-shrink-0" />
-                        <Tag color="blue" className="m-0 max-w-[180px] truncate">
-                            {connectedTestsetName || "Local"}
-                        </Tag>
-                        <span className="text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
-                            {localTestcaseCount} row
-                            {localTestcaseCount !== 1 ? "s" : ""}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                        {onSaveAsTestset && (
-                            <Tooltip title="Save local testset to project">
-                                <Button
-                                    type="default"
-                                    size="small"
-                                    icon={<FloppyDisk size={12} />}
-                                    onClick={onSaveAsTestset}
-                                    disabled={localTestcaseCount === 0}
-                                >
-                                    Save
-                                </Button>
-                            </Tooltip>
+            {/* Unified layout for both local and connected testsets */}
+            <div className="mt-2 flex items-center justify-between gap-2">
+                {/* Left side: Icon + Name + Row count */}
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {isRemoteTestset ? (
+                        <Link size={14} className={cn(statusColors.successIcon, "flex-shrink-0")} />
+                    ) : (
+                        <Table
+                            size={14}
+                            className={cn(entityIconColors.primary, "flex-shrink-0")}
+                        />
+                    )}
+                    <Tag
+                        color={isRemoteTestset ? (hasLocalChanges ? "orange" : "green") : "blue"}
+                        className={`m-0 max-w-[180px] truncate ${isRemoteTestset ? "cursor-pointer" : ""}`}
+                        onClick={isRemoteTestset ? onNavigateToTestset : undefined}
+                    >
+                        {connectedTestsetName || "Local"}
+                    </Tag>
+                    <span
+                        className={cn(
+                            "text-xs flex-shrink-0 whitespace-nowrap",
+                            textColors.secondary,
                         )}
-                        <Tooltip title="Replace with existing testset">
-                            <Button
-                                type="default"
-                                size="small"
-                                icon={<Link size={12} />}
-                                onClick={onConnectTestset}
-                            >
-                                Change
-                            </Button>
-                        </Tooltip>
-                    </div>
+                    >
+                        {localTestcaseCount} row{localTestcaseCount !== 1 ? "s" : ""}
+                    </span>
                 </div>
-            )}
+
+                {/* Right side: Primary action + Dropdown menu */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Primary action: Save/Commit button - always visible when applicable */}
+                    {isRemoteTestset
+                        ? // Connected: Show commit button when there are changes
+                          hasLocalChanges &&
+                          onCommitChanges && (
+                              <Tooltip title="Commit changes as new revision">
+                                  <Button
+                                      type="primary"
+                                      size="small"
+                                      icon={<FloppyDisk size={12} />}
+                                      onClick={onCommitChanges}
+                                      loading={isCommitting}
+                                  >
+                                      Save
+                                  </Button>
+                              </Tooltip>
+                          )
+                        : // Local: Show save button when there's data
+                          onSaveAsTestset &&
+                          localTestcaseCount > 0 && (
+                              <Tooltip title="Save as new testset">
+                                  <Button
+                                      type="primary"
+                                      size="small"
+                                      icon={<FloppyDisk size={12} />}
+                                      onClick={onSaveAsTestset}
+                                  >
+                                      Save
+                                  </Button>
+                              </Tooltip>
+                          )}
+
+                    {/* Dropdown menu for secondary actions */}
+                    {menuItems.length > 0 && (
+                        <Dropdown
+                            menu={{items: menuItems}}
+                            trigger={["click"]}
+                            placement="bottomRight"
+                        >
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={<DotsThreeVertical size={16} weight="bold" />}
+                                className={cn(textColors.secondary, textColors.iconHover)}
+                            />
+                        </Dropdown>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }
