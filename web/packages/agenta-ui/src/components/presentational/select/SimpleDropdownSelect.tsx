@@ -28,7 +28,7 @@ import {CaretUpDown} from "@phosphor-icons/react"
 import {Button, Dropdown} from "antd"
 import type {MenuProps} from "antd"
 
-import {cn} from "../../../utils/styles"
+import {bgColors, cn, flexLayouts} from "../../../utils/styles"
 
 // ============================================================================
 // TYPES
@@ -117,7 +117,9 @@ export function SimpleDropdownSelect({
         >
             <Button
                 className={cn(
-                    "capitalize flex items-center px-[7px] hover:!bg-[rgba(5,23,41,0.15)]",
+                    flexLayouts.rowCenter,
+                    "capitalize px-2",
+                    bgColors.hoverState,
                     className,
                 )}
                 type="text"

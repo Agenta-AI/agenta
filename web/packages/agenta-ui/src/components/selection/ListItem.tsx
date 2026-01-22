@@ -24,7 +24,7 @@ import React from "react"
 
 import {ChevronRight} from "lucide-react"
 
-import {cn} from "../../utils/styles"
+import {bgColors, cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
 
 // ============================================================================
 // TYPES
@@ -132,17 +132,28 @@ export function ListItem({
     }
 
     // Build class names for different states based on design tokens
-    // Default: no bg, text-zinc-7 (colorTextSecondary)
-    // Hover: bg-zinc-1, text-zinc-9 (colorText)
-    // Selected: bg-zinc-1, text-zinc-9, border-r-2 border-primary
-    const baseClasses = "flex items-center justify-between px-2 py-2 transition-colors text-zinc-7"
+    // Default: no bg, textColors.secondary (colorTextSecondary)
+    // Hover: bgColors.subtle, textColors.primary (colorText)
+    // Selected: bgColors.subtle, textColors.primary, border-r-2 border-primary
+    const baseClasses = cn(
+        flexLayouts.rowCenter,
+        justifyClasses.between,
+        "px-2 py-2 transition-colors",
+        textColors.secondary,
+    )
     const stateClasses = isDisabled
         ? "opacity-50 cursor-not-allowed"
         : isSelected
-          ? "bg-zinc-1 cursor-pointer hover:bg-zinc-2 text-zinc-9 border-r-2 border-primary"
+          ? cn(
+                bgColors.subtle,
+                "cursor-pointer",
+                bgColors.hoverState,
+                textColors.primary,
+                "border-r-2 border-primary",
+            )
           : isHovered
-            ? "bg-zinc-1 cursor-pointer text-zinc-9"
-            : "cursor-pointer hover:bg-zinc-1 hover:text-zinc-9"
+            ? cn(bgColors.subtle, "cursor-pointer", textColors.primary)
+            : cn("cursor-pointer", bgColors.hoverSubtle, textColors.iconHover)
 
     return (
         <div
@@ -154,20 +165,22 @@ export function ListItem({
             aria-disabled={isDisabled}
             aria-selected={isSelected}
         >
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-                {icon && <span className="flex-shrink-0 text-zinc-6">{icon}</span>}
+            <div className={cn(flexLayouts.rowCenter, gapClasses.md, "flex-1 min-w-0")}>
+                {icon && <span className={cn("flex-shrink-0", textColors.tertiary)}>{icon}</span>}
                 <div className="flex-1 min-w-0">
                     <div className="truncate" title={label}>
                         {labelNode ?? label}
                     </div>
-                    {description && <div className="text-zinc-6 truncate">{description}</div>}
+                    {description && (
+                        <div className={cn(textColors.tertiary, "truncate")}>{description}</div>
+                    )}
                 </div>
             </div>
 
             {/* Show chevron for items with children (indicates popover/drill-down available) */}
             {hasChildren && (
                 <div className="flex-shrink-0 ml-2">
-                    <ChevronRight className="w-3 h-3 text-zinc-4" />
+                    <ChevronRight className={cn("w-3 h-3", textColors.quaternary)} />
                 </div>
             )}
         </div>

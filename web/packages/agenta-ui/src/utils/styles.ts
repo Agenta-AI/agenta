@@ -5,7 +5,7 @@
  * Uses Ant Design theme tokens from antd-tailwind.json for design system consistency.
  *
  * Token Reference (from antd-tailwind.json):
- * - zinc-1 to zinc-10: Gray scale (zinc-6 = #758391, zinc-7 = #586673, zinc-9 = #1c2c3d)
+ * - zinc-1 to zinc-10: Gray scale (zinc-5 = #97a4b0, zinc-6 = #758391, zinc-7 = #586673, zinc-9 = #1c2c3d)
  * - colorText: #1c2c3d (primary text)
  * - colorTextSecondary: #586673 (secondary text)
  * - colorTextTertiary: #758391 (tertiary/muted text)
@@ -106,8 +106,12 @@ export type SizeVariant = keyof typeof sizeClasses
 export const flexLayouts = {
     /** Inline flex with centered items - for inline badges and labels */
     inlineCenter: "inline-flex items-center",
+    /** Flex row - basic horizontal layout */
+    row: "flex",
     /** Flex row with centered items - for rows and headers */
     rowCenter: "flex items-center",
+    /** Flex row that grows to fill available space */
+    rowGrow: "flex grow",
     /** Flex column layout - for stacked content */
     column: "flex flex-col",
 } as const
@@ -162,12 +166,16 @@ export const bgColors = {
     subtle: "bg-zinc-1",
     /** Hover background - colorFillSecondary - zinc-2 (#eaeff5) */
     hover: "bg-zinc-2",
+    /** Hover state background - for hover pseudo-class */
+    hoverState: "hover:bg-zinc-2",
     /** Active/selected background - controlItemBgActive - zinc-1 (#f5f7fa) */
     active: "bg-zinc-1",
     /** Container background - colorBgContainer (#ffffff) */
     container: "bg-white",
     /** Elevated background - colorBgElevated (#ffffff) */
     elevated: "bg-white",
+    /** Hover subtle - for hover states on subtle backgrounds */
+    hoverSubtle: "hover:bg-zinc-1",
 } as const
 
 /**
@@ -218,6 +226,8 @@ export const statusColors = {
     success: "text-green-7",
     /** Success background - colorSuccessBg (#f6ffed) - green-1 */
     successBg: "bg-green-1",
+    /** Success icon - green-6 */
+    successIcon: "text-green-6",
     /** Warning text - colorWarningText (#faad14) - gold-6 */
     warning: "text-gold-6",
     /** Warning background - colorWarningBg (#fffbe6) - gold-1 */
@@ -233,6 +243,24 @@ export const statusColors = {
 } as const
 
 /**
+ * Entity icon color classes for consistent icon styling
+ * Used in entity headers, panels, and list items
+ *
+ * @example
+ * <EntityIconLabel iconBgColor={entityIconColors.primaryBg} iconColor={entityIconColors.primary} />
+ */
+export const entityIconColors = {
+    /** Primary icon color - blue-6 */
+    primary: "text-blue-6",
+    /** Primary icon background - blue-1 */
+    primaryBg: "bg-blue-1",
+    /** Connected/success icon color - green-6 */
+    connected: "text-green-6",
+    /** Connected/success icon background - green-1 */
+    connectedBg: "bg-green-1",
+} as const
+
+/**
  * Common shadow classes
  *
  * @example
@@ -245,4 +273,135 @@ export const shadows = {
     elevated: "shadow-md",
     /** Strong shadow for modals */
     modal: "shadow-lg",
+} as const
+
+/**
+ * Text size classes for consistent typography
+ * Use these instead of hardcoded Tailwind text size classes
+ *
+ * @example
+ * <span className={textSizes.xs}>Small text</span>
+ * <span className={textSizes.sm}>Default text</span>
+ */
+export const textSizes = {
+    /** Extra small text - 12px */
+    xs: "text-xs",
+    /** Small text - 14px (default body) */
+    sm: "text-sm",
+    /** Base text - 16px */
+    base: "text-base",
+    /** Large text - 18px */
+    lg: "text-lg",
+} as const
+
+/**
+ * Justify content classes for flex layouts
+ *
+ * @example
+ * <div className={cn("flex", justifyClasses.between)}>...</div>
+ */
+export const justifyClasses = {
+    start: "justify-start",
+    center: "justify-center",
+    end: "justify-end",
+    between: "justify-between",
+} as const
+
+/**
+ * Focus ring styles for accessibility
+ * Uses zinc-5 for consistent focus indication across components
+ *
+ * @example
+ * <button className={cn("rounded", focusStyles.ring)}>Click me</button>
+ */
+export const focusStyles = {
+    /** Standard focus ring - 2px zinc-5 */
+    ring: "outline-none focus:ring-2 focus:ring-zinc-5",
+    /** Focus ring with offset for elements with backgrounds */
+    ringOffset: "outline-none focus:ring-2 focus:ring-zinc-5 focus:ring-offset-2",
+    /** Focus-visible variant for keyboard-only focus */
+    ringVisible: "outline-none focus-visible:ring-2 focus-visible:ring-zinc-5",
+} as const
+
+/**
+ * Common layout size values in pixels
+ * Used for consistent panel widths across modal and split layouts
+ *
+ * @example
+ * <SplitPanelLayout leftWidth={layoutSizes.sidebarNarrow} ... />
+ */
+export const layoutSizes = {
+    /** Narrow sidebar/panel width - 280px */
+    sidebarNarrow: 280,
+    /** Wide sidebar/panel width - 320px */
+    sidebarWide: 320,
+} as const
+
+/**
+ * Common spacing/padding classes
+ * Used for consistent padding across panels and containers
+ *
+ * @example
+ * <div className={spacingClasses.panel}>Content</div>
+ */
+export const spacingClasses = {
+    /** Standard panel padding - p-4 (16px) */
+    panel: "p-4",
+    /** Compact padding - p-3 (12px) */
+    compact: "p-3",
+    /** Large padding - p-6 (24px) */
+    large: "p-6",
+    /** Card padding - px-4 py-3 (16px horizontal, 12px vertical) */
+    card: "px-4 py-3",
+} as const
+
+/**
+ * Gap classes for flex/grid layouts
+ * Use these instead of hardcoded Tailwind gap classes
+ *
+ * @example
+ * <div className={cn("flex", gapClasses.md)}>...</div>
+ */
+export const gapClasses = {
+    /** No gap - 0px */
+    none: "gap-0",
+    /** Extra small gap - 4px */
+    xs: "gap-1",
+    /** Small gap - 8px */
+    sm: "gap-2",
+    /** Medium gap - 12px */
+    md: "gap-3",
+    /** Large gap - 16px */
+    lg: "gap-4",
+    /** Extra large gap - 24px */
+    xl: "gap-6",
+} as const
+
+/**
+ * Link color classes for consistent link styling
+ * Uses Ant Design primary color tokens
+ *
+ * @example
+ * <a className={linkColors.default}>Link text</a>
+ * <button className={cn(linkColors.default, linkColors.hover)}>Click</button>
+ */
+export const linkColors = {
+    /** Default link color - primary blue */
+    default: "text-primary",
+    /** Link hover state */
+    hover: "hover:text-primary-6 hover:underline",
+} as const
+
+/**
+ * Danger/destructive action colors
+ * Uses Ant Design error color tokens
+ *
+ * @example
+ * <button className={cn(dangerColors.text, dangerColors.hover)}>Delete</button>
+ */
+export const dangerColors = {
+    /** Danger text color */
+    text: "text-red-6",
+    /** Danger hover state */
+    hover: "hover:text-red-7",
 } as const

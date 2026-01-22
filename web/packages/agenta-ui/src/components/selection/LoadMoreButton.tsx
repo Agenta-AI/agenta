@@ -24,6 +24,15 @@ import React from "react"
 import {Button, Spin} from "antd"
 import {ChevronDown} from "lucide-react"
 
+import {
+    cn,
+    flexLayouts,
+    gapClasses,
+    justifyClasses,
+    linkColors,
+    textColors,
+} from "../../utils/styles"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -124,7 +133,7 @@ export function LoadMoreButton({
               : ""
 
     return (
-        <div className={`py-2 ${className}`}>
+        <div className={cn("py-2", className)}>
             <Button
                 type="default"
                 size={size}
@@ -166,9 +175,16 @@ export function LoadMoreInline({
     }
 
     return (
-        <div className={`py-2 text-center ${className}`}>
+        <div className={cn("py-2 text-center", className)}>
             {isLoading ? (
-                <span className="text-zinc-500 flex items-center justify-center gap-2">
+                <span
+                    className={cn(
+                        textColors.tertiary,
+                        flexLayouts.rowCenter,
+                        justifyClasses.center,
+                        gapClasses.sm,
+                    )}
+                >
                     <Spin size="small" />
                     Loading...
                 </span>
@@ -176,7 +192,7 @@ export function LoadMoreInline({
                 <button
                     type="button"
                     onClick={onClick}
-                    className="text-blue-600 hover:text-blue-800 hover:underline"
+                    className={cn(linkColors.default, linkColors.hover)}
                 >
                     {label}
                 </button>
@@ -217,5 +233,9 @@ export function EndOfList({
 }: EndOfListProps) {
     const displayMessage = totalCount ? `${message} (${totalCount} total)` : message
 
-    return <div className={`py-3 text-center text-zinc-400 ${className}`}>{displayMessage}</div>
+    return (
+        <div className={cn("py-3 text-center", textColors.quaternary, className)}>
+            {displayMessage}
+        </div>
+    )
 }

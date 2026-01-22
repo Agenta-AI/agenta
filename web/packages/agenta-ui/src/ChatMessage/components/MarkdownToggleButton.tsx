@@ -7,6 +7,7 @@ import {useAtom} from "jotai"
 
 import {TOGGLE_MARKDOWN_VIEW} from "../../Editor/plugins/markdown/commands"
 import {markdownViewAtom} from "../../Editor/state/assets/atoms"
+import {cn, flexLayouts, justifyClasses} from "../../utils/styles"
 
 interface MarkdownToggleButtonProps {
     id: string
@@ -27,7 +28,7 @@ const MarkdownToggleButton = ({id}: MarkdownToggleButtonProps) => {
                 size="small"
                 icon={markdownView ? <TextAa size={14} /> : <MarkdownLogoIcon size={14} />}
                 onClick={onToggleMarkdown}
-                className="flex items-center justify-center"
+                className={cn(flexLayouts.rowCenter, justifyClasses.center)}
             />
         </Tooltip>
     )

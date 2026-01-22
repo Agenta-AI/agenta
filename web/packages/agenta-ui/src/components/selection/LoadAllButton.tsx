@@ -23,6 +23,8 @@ import React from "react"
 import {Button, Spin, Progress} from "antd"
 import {Download} from "lucide-react"
 
+import {cn, flexLayouts, gapClasses, linkColors, textColors} from "../../utils/styles"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -121,7 +123,7 @@ export function LoadAllButton({
     }
 
     return (
-        <div className={`flex items-center gap-2 ${className}`}>
+        <div className={cn(flexLayouts.rowCenter, gapClasses.sm, className)}>
             <Button
                 type="text"
                 size={size}
@@ -146,7 +148,7 @@ export function LoadAllButton({
 
             {/* Count display */}
             {!isLoading && totalCount && loadedCount && loadedCount < totalCount && (
-                <span className="text-zinc-400">
+                <span className={textColors.quaternary}>
                     {loadedCount} / {totalCount}
                 </span>
             )}
@@ -191,7 +193,7 @@ export function LoadAllInline({
     return (
         <span className={className}>
             {isLoading ? (
-                <span className="text-zinc-500 flex items-center gap-1">
+                <span className={cn(textColors.tertiary, flexLayouts.rowCenter, gapClasses.xs)}>
                     <Spin size="small" />
                     Loading...
                 </span>
@@ -199,7 +201,7 @@ export function LoadAllInline({
                 <button
                     type="button"
                     onClick={handleClick}
-                    className="text-blue-600 hover:text-blue-800 hover:underline"
+                    className={cn(linkColors.default, linkColors.hover)}
                 >
                     {label}
                 </button>

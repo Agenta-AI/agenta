@@ -18,7 +18,7 @@ import type {ReactNode} from "react"
 
 import {Tooltip, Typography} from "antd"
 
-import {cn} from "../../../utils/styles"
+import {cn, flexLayouts, gapClasses, textColors, textSizes} from "../../../utils/styles"
 
 const {Text} = Typography
 
@@ -63,21 +63,25 @@ export function LabeledField({
     children,
     className,
 }: LabeledFieldProps) {
-    const sizeClasses = {
-        xs: "text-xs",
-        sm: "text-sm",
-        md: "text-base",
+    const sizeClassMap = {
+        xs: textSizes.xs,
+        sm: textSizes.sm,
+        md: textSizes.base,
     }
 
     const content = (
         <div
             className={cn(
-                direction === "vertical" ? "flex flex-col gap-1" : "flex items-center gap-2",
+                direction === "vertical"
+                    ? cn(flexLayouts.column, gapClasses.xs)
+                    : cn(flexLayouts.rowCenter, gapClasses.sm),
                 className,
             )}
         >
             {label && (
-                <Text className={cn("font-medium text-zinc-9", sizeClasses[size])}>{label}</Text>
+                <Text className={cn("font-medium", textColors.primary, sizeClassMap[size])}>
+                    {label}
+                </Text>
             )}
             {children}
         </div>

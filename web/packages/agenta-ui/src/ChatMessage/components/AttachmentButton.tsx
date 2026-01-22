@@ -3,6 +3,8 @@ import React, {useCallback, useRef} from "react"
 import {FileArchive, Image as ImageIcon, Paperclip} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 
+import {cn, flexLayouts, gapClasses, textColors} from "../../utils/styles"
+
 interface AttachmentButtonProps {
     onAddImage: (imageUrl: string) => void
     onAddFile: (fileData: string, filename: string, format: string) => void
@@ -56,7 +58,7 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
         {
             key: "image",
             label: (
-                <span className="flex items-center gap-2">
+                <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
                     <ImageIcon size={14} />
                     <span>Upload image</span>
                 </span>
@@ -66,7 +68,7 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
         {
             key: "file",
             label: (
-                <span className="flex items-center gap-2">
+                <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
                     <FileArchive size={14} />
                     <span>Attach document</span>
                 </span>
@@ -96,7 +98,7 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
                     type="text"
                     size="small"
                     icon={<Paperclip size={14} />}
-                    className="text-gray-400 hover:text-gray-600"
+                    className={cn(textColors.icon, textColors.iconHover)}
                     title="Add attachment"
                 />
             </Dropdown>

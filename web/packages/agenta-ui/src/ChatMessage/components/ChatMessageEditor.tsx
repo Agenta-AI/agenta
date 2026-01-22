@@ -1,12 +1,11 @@
 import React, {useMemo} from "react"
 
 import {MESSAGE_CONTENT_SCHEMA} from "@agenta/shared"
-import clsx from "clsx"
 
+import {SimpleDropdownSelect} from "../../components/presentational/select"
 import {EditorProvider} from "../../Editor/Editor"
 import {SharedEditor} from "../../SharedEditor"
-
-import SimpleDropdownSelect from "./SimpleDropdownSelect"
+import {cn, flexLayouts, gapClasses, justifyClasses} from "../../utils/styles"
 
 export interface ChatMessageEditorProps {
     /** Unique ID for the editor instance */
@@ -106,10 +105,12 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
         <SharedEditor
             id={id}
             header={
-                <div className={clsx("w-full flex flex-col", headerClassName)}>
+                <div className={cn("w-full", flexLayouts.column, headerClassName)}>
                     <div
-                        className={clsx(
-                            "w-full flex items-center justify-between",
+                        className={cn(
+                            "w-full",
+                            flexLayouts.rowCenter,
+                            justifyClasses.between,
                             headerClassName,
                         )}
                     >
@@ -133,7 +134,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             placeholder={placeholder}
             disabled={disabled}
             state={state}
-            className={clsx("relative flex flex-col gap-1 rounded-[theme(spacing.2)]", className)}
+            className={cn("relative", flexLayouts.column, gapClasses.xs, "rounded-md", className)}
             footer={footer}
             {...props}
             editorProps={{

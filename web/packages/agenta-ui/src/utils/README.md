@@ -35,12 +35,12 @@ import { cn, sizeClasses, flexLayouts, textColors, bgColors } from '@agenta/ui'
 cn("base", isActive && "active", {"disabled": false})
 // => "base active"
 
-// Size classes
-sizeClasses.small  // "text-xs"
-sizeClasses.default // "text-sm"
+// Size classes (empty - text size inherits from parent context)
+sizeClasses.small  // ""
+sizeClasses.default // ""
 
 // Flex layouts
-flexLayouts.rowCenter  // "flex flex-row items-center"
+flexLayouts.rowCenter  // "flex items-center"
 flexLayouts.column     // "flex flex-col"
 
 // Semantic colors (using Ant Design zinc scale)
@@ -49,7 +49,61 @@ textColors.secondary  // "text-zinc-7"
 textColors.muted      // "text-zinc-6"
 
 bgColors.chip         // "bg-zinc-1"
+
+// Border colors
+borderColors.default   // "border-zinc-4"
+borderColors.secondary // "border-zinc-2"
+
+// Justify classes for flex layouts
+justifyClasses.start   // "justify-start"
+justifyClasses.center  // "justify-center"
+justifyClasses.end     // "justify-end"
+justifyClasses.between // "justify-between"
+
+// Focus styles for accessibility
+focusStyles.ring        // "outline-none focus:ring-2 focus:ring-zinc-5"
+focusStyles.ringOffset  // "outline-none focus:ring-2 focus:ring-zinc-5 focus:ring-offset-2"
+focusStyles.ringVisible // "outline-none focus-visible:ring-2 focus-visible:ring-zinc-5"
+
+// Layout sizes (pixel values for panel widths)
+layoutSizes.sidebarNarrow // 280
+layoutSizes.sidebarWide   // 320
+
+// Spacing classes for consistent padding
+spacingClasses.panel   // "p-4" (16px)
+spacingClasses.compact // "p-3" (12px)
+spacingClasses.large   // "p-6" (24px)
+
+// Text size classes for consistent typography
+textSizes.xs   // "text-xs" (12px)
+textSizes.sm   // "text-sm" (14px)
+textSizes.base // "text-base" (16px)
+textSizes.lg   // "text-lg" (18px)
+
+// Gap classes for flex/grid layouts
+gapClasses.none // "gap-0" (0px)
+gapClasses.xs   // "gap-1" (4px)
+gapClasses.sm   // "gap-2" (8px)
+gapClasses.md   // "gap-3" (12px)
+gapClasses.lg   // "gap-4" (16px)
+gapClasses.xl   // "gap-6" (24px)
 ```
+
+#### Border Direction Pattern
+
+When applying borders to specific sides (top, right, bottom, left), combine Tailwind's
+border direction classes with the token color utilities:
+
+```typescript
+// ✅ Correct - combine direction with token color
+<div className={`border-t ${borderColors.secondary} p-4`}>
+<div className={`border-r ${borderColors.default}`}>
+
+// ❌ Avoid - hardcoded colors
+<div className="border-t border-zinc-200">
+```
+
+This pattern ensures consistent theming while allowing flexible border placement.
 
 ### AppMessageContext
 
@@ -76,7 +130,7 @@ notification.info({ message: 'Update available' })
 
 ## File Structure
 
-```
+```text
 utils/
 ├── copyToClipboard.ts    # Clipboard utility
 ├── styles.ts             # Styling utilities (cn, colors, layouts)
