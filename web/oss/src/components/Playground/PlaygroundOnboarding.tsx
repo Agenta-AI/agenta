@@ -10,7 +10,6 @@ import {
     EXPLORE_PLAYGROUND_TOUR_ID,
     registerExplorePlaygroundTour,
 } from "@/oss/components/Onboarding/tours/explorePlaygroundTour"
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {
     onboardingWidgetActivationAtom,
     setOnboardingWidgetActivationAtom,
@@ -18,8 +17,6 @@ import {
 
 registerExplorePlaygroundTour()
 registerDeployPromptTour()
-
-const isWalkthroughsEnabled = () => getEnv("NEXT_PUBLIC_ENABLE_WALKTHROUGHS") === "true"
 
 export const PlaygroundOnboarding = () => {
     const activationHint = useAtomValue(onboardingWidgetActivationAtom)
@@ -30,7 +27,6 @@ export const PlaygroundOnboarding = () => {
     })
 
     useEffect(() => {
-        if (!isWalkthroughsEnabled()) return
         if (activationHint !== "playground-walkthrough") return
         startTour({force: true})
         setActivationHint(null)

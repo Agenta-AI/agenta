@@ -77,7 +77,6 @@ const OnboardingWidget = () => {
         if (!base) return null
         return `${base}/variants`
     }, [appURL, recentlyVisitedAppURL, baseAppURL])
-
     const observabilityUrl = useMemo(() => {
         const base = appURL || recentlyVisitedAppURL
         if (!base) return null
@@ -120,13 +119,9 @@ const OnboardingWidget = () => {
 
     const completedEventCount = useMemo(() => Object.keys(widgetEvents).length, [widgetEvents])
 
-    // Widget only renders for authenticated new users who haven't dismissed it
+    // Widget renders for authenticated users when opened and not dismissed
     const shouldRender =
-        doesSessionExist &&
-        isNewUser &&
-        widgetStatus !== "dismissed" &&
-        widgetUIState.isOpen &&
-        totalTasks > 0
+        doesSessionExist && widgetStatus !== "dismissed" && widgetUIState.isOpen && totalTasks > 0
 
     const hasTrackedOpenRef = useRef(false)
 

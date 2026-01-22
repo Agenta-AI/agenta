@@ -181,6 +181,7 @@ const AppManagement: React.FC = () => {
                     <>
                         <WelcomeCardsSection
                             onCreatePrompt={() => setIsAddAppFromTemplatedModal(true)}
+                            onSetupTracing={() => setIsSetupTracingModal(true)}
                         />
 
                         {/* <div className="flex items-center justify-between">
