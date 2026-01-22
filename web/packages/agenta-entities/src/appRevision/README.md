@@ -89,6 +89,9 @@ appRevisionMolecule.set.discard(revisionId)
 | `.selectors.apps` | Apps list for selection |
 | `.selectors.variantsByApp(appId)` | Variants for an app |
 | `.selectors.revisions(variantId)` | Revisions for a variant |
+| `.selectors.appsQuery` | Apps query state (isPending, isError, data) |
+| `.selectors.variantsQuery(appId)` | Variants query state for an app |
+| `.selectors.revisionsQuery(variantId)` | Revisions query state for a variant |
 
 ### Reducers
 
