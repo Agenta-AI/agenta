@@ -146,9 +146,6 @@ export {
  * ```
  */
 export {
-    // Initialization (for OSS layer)
-    setQueryAtomFamily,
-    setSchemaQueryAtomFamily,
     // List atoms initialization (for OSS layer - apps only required, variants/revisions optional)
     setAppsListAtom,
     setVariantsListAtomFamily,

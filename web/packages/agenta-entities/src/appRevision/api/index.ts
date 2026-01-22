@@ -22,6 +22,9 @@ export {
     fetchAppsList,
     fetchVariantsList,
     fetchRevisionsList,
+    // Single revision fetch
+    fetchRevisionConfig,
+    fetchRevisionSchema,
     // Types
     type ApiRevision,
     type ApiVariant,

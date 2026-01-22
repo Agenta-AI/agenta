@@ -5,7 +5,7 @@
  * Includes batch fetching and cache redirect patterns.
  */
 
-import {axios, getAgentaApiUrl} from "@agenta/shared"
+import {axios, getAgentaApiUrl, dereferenceSchema} from "@agenta/shared"
 
 import type {AppRevisionData, PromptConfig, RawAgConfig} from "../core"
 
@@ -500,5 +500,136 @@ export async function fetchAppsList(projectId: string): Promise<AppListItem[]> {
     } catch (error) {
         console.error("[fetchAppsList] Failed to fetch apps:", error)
         return []
+    }
+}
+
+// ============================================================================
+// REVISION CONFIG API
+// ============================================================================
+
+/**
+ * Raw API response from /variants/configs/fetch
+ */
+interface ApiConfigResponse {
+    params?: Record<string, unknown>
+    variant_ref?: {
+        id?: string
+        version?: number
+    }
+    application_ref?: {
+        id?: string
+    }
+    url?: string
+}
+
+/**
+ * Fetch a single revision's configuration by ID
+ *
+ * Uses the /variants/configs/fetch endpoint which can look up by revision ID.
+ *
+ * @param revisionId - The revision ID to fetch
+ * @param projectId - The project ID
+ * @returns AppRevisionData or null if not found
+ */
+export async function fetchRevisionConfig(
+    revisionId: string,
+    projectId: string,
+): Promise<AppRevisionData | null> {
+    if (!revisionId || !projectId) return null
+
+    try {
+        const response = await axios.post<ApiConfigResponse>(
+            `${getAgentaApiUrl()}/variants/configs/fetch?project_id=${projectId}`,
+            {
+                variant_ref: {id: revisionId},
+            },
+        )
+
+        const data = response?.data
+        if (!data) return null
+
+        // Transform API response to AppRevisionData format
+        const params = data.params || {}
+        const variantRef = data.variant_ref || {}
+        const uri = data.url || undefined
+
+        const appRevisionData: AppRevisionData = {
+            id: variantRef.id || revisionId,
+            variantId: variantRef.id || "",
+            appId: data.application_ref?.id || "",
+            revision: variantRef.version || 1,
+            prompts: [], // Will be populated from agConfig
+            agConfig: params,
+            parameters: params,
+            uri,
+        }
+
+        return appRevisionData
+    } catch (error) {
+        console.error("[fetchRevisionConfig] Failed to fetch revision", {
+            revisionId,
+            error,
+        })
+        return null
+    }
+}
+
+// ============================================================================
+// SCHEMA FETCH API
+// ============================================================================
+
+/**
+ * Fetch OpenAPI schema from a revision's URI
+ *
+ * Fetches the OpenAPI spec and dereferences all $ref pointers to produce
+ * a fully resolved schema that can be traversed without encountering any refs.
+ *
+ * @param uri - The base URI of the revision endpoint
+ * @returns The dereferenced OpenAPI spec or null if not found
+ */
+export async function fetchRevisionSchema(uri: string | undefined): Promise<{
+    schema: Record<string, unknown> | null
+    runtimePrefix: string
+    routePath?: string
+} | null> {
+    if (!uri) return null
+
+    try {
+        // Extract runtime prefix and route path from URI
+        // URI format: https://runtime.example.com/app-slug/v1
+        const url = new URL(uri)
+        const runtimePrefix = `${url.protocol}//${url.host}`
+        const routePath = url.pathname.replace(/^\//, "").replace(/\/$/, "") || undefined
+
+        // Fetch OpenAPI spec
+        const openApiUrl = uri.endsWith("/") ? `${uri}openapi.json` : `${uri}/openapi.json`
+
+        const response = await axios.get<Record<string, unknown>>(openApiUrl)
+        const rawSchema = response.data
+
+        if (!rawSchema) {
+            return {
+                schema: null,
+                runtimePrefix,
+                routePath,
+            }
+        }
+
+        // Dereference all $ref pointers in the schema
+        // This ensures we have a fully resolved schema without any refs
+        const {schema: dereferencedSchema, errors} = await dereferenceSchema(rawSchema)
+
+        if (errors && errors.length > 0) {
+            console.warn("[fetchRevisionSchema] Schema dereference warnings:", errors)
+        }
+
+        return {
+            schema: dereferencedSchema,
+            runtimePrefix,
+            routePath,
+        }
+    } catch (error) {
+        console.error("[fetchRevisionSchema] Failed to fetch schema", {uri, error})
+        return null
     }
 }

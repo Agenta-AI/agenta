@@ -4,45 +4,22 @@
  * Entity-scoped schema atoms for OpenAPI schema fetching and selectors.
  * Each revision fetches its own openapi.json based on the revision's URI.
  *
- * NOTE: Schema fetching query is implemented in OSS layer.
- * This module provides the derived selectors that work with the schema data.
+ * Schema is fetched directly from the revision's URI endpoint.
  */
 
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
+import {atomWithQuery} from "jotai-tanstack-query"
 
 import type {EntitySchema, EntitySchemaProperty} from "../../shared"
+import {fetchRevisionSchema, buildRevisionSchemaState, type OpenAPISpec} from "../api"
 import type {RevisionSchemaState} from "../core"
 
+import {appRevisionEntityAtomFamily} from "./store"
+
 // ============================================================================
-// SCHEMA QUERY (ABSTRACT)
+// SCHEMA QUERY (DIRECT)
 // ============================================================================
-
-/**
- * Schema query atom family type - to be set by OSS layer
- */
-type SchemaQueryAtomFamilyType = (revisionId: string) => ReturnType<
-    typeof atom<{
-        data?: RevisionSchemaState
-        isPending: boolean
-        isError: boolean
-        error: Error | null
-    }>
->
-
-// Store reference for schema query atom family (set by OSS layer)
-let _schemaQueryAtomFamily: SchemaQueryAtomFamilyType | null = null
-
-/**
- * Set the schema query atom family implementation.
- * Called by OSS layer to inject the actual schema query atoms.
- */
-export function setSchemaQueryAtomFamily(family: SchemaQueryAtomFamilyType): void {
-    console.log("[schemaAtoms] setSchemaQueryAtomFamily called", {
-        wasAlreadySet: !!_schemaQueryAtomFamily,
-    })
-    _schemaQueryAtomFamily = family
-}
 
 /**
  * Empty schema state for fallback
@@ -61,37 +38,77 @@ const emptySchemaState: RevisionSchemaState = {
 }
 
 /**
- * Fallback schema query atom family for when OSS layer hasn't initialized
+ * Direct schema query that fetches OpenAPI from revision URI.
+ *
+ * This depends on entity data to get the URI, then fetches and transforms
+ * the OpenAPI spec into RevisionSchemaState.
  */
-const fallbackSchemaQueryAtomFamily = atomFamily((_revisionId: string) =>
-    atom({
-        data: emptySchemaState,
-        isPending: false,
-        isError: false,
-        error: null,
+const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
+    atomWithQuery<RevisionSchemaState>((get) => {
+        const entityData = get(appRevisionEntityAtomFamily(revisionId))
+        const uri = entityData?.uri
+        const enabled = !!revisionId && !!uri
+
+        return {
+            queryKey: ["appRevisionSchema", revisionId, uri],
+            queryFn: async (): Promise<RevisionSchemaState> => {
+                if (!uri) return emptySchemaState
+
+                const result = await fetchRevisionSchema(uri)
+                if (!result || !result.schema) {
+                    return {
+                        ...emptySchemaState,
+                        runtimePrefix: result?.runtimePrefix,
+                        routePath: result?.routePath,
+                    }
+                }
+
+                return buildRevisionSchemaState(
+                    result.schema as OpenAPISpec,
+                    result.runtimePrefix,
+                    result.routePath,
+                )
+            },
+            staleTime: 1000 * 60 * 5, // 5 minutes - schemas change less often
+            refetchOnWindowFocus: false,
+            enabled,
+        }
     }),
 )
 
 /**
  * Schema query atom family - returns schema state for a revision
+ *
+ * Uses direct API query. Returns QueryState format for consistency.
  */
 export const appRevisionSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        console.log("[schemaAtoms] appRevisionSchemaQueryAtomFamily called", {
-            revisionId,
-            hasSchemaQueryFamily: !!_schemaQueryAtomFamily,
-        })
-        if (_schemaQueryAtomFamily) {
-            const result = get(_schemaQueryAtomFamily(revisionId))
-            console.log("[schemaAtoms] Got schema from OSS family", {
-                revisionId,
-                hasData: !!result?.data,
-                isPending: result?.isPending,
-            })
-            return result
+        const query = get(directSchemaQueryAtomFamily(revisionId))
+
+        if (query.isPending) {
+            return {
+                data: emptySchemaState,
+                isPending: true,
+                isError: false,
+                error: null,
+            }
         }
-        console.log("[schemaAtoms] Using fallback schema family", {revisionId})
-        return get(fallbackSchemaQueryAtomFamily(revisionId))
+
+        if (query.isError) {
+            return {
+                data: emptySchemaState,
+                isPending: false,
+                isError: true,
+                error: query.error ?? null,
+            }
+        }
+
+        return {
+            data: query.data ?? emptySchemaState,
+            isPending: false,
+            isError: false,
+            error: null,
+        }
     }),
 )
 
