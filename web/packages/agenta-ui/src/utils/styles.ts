@@ -338,6 +338,22 @@ export const layoutSizes = {
 } as const
 
 /**
+ * Common modal size presets
+ * Used for consistent modal dimensions across the application
+ *
+ * @example
+ * <Modal width={modalSizes.medium.width} styles={{ body: { height: modalSizes.medium.height } }} />
+ */
+export const modalSizes = {
+    /** Small modal - for simple confirmations and inputs */
+    small: {width: 480, height: 320},
+    /** Medium modal - for forms and selections */
+    medium: {width: 800, height: 520},
+    /** Large modal - for complex content with sidebars */
+    large: {width: 1150, height: 560},
+} as const
+
+/**
  * Common spacing/padding classes
  * Used for consistent padding across panels and containers
  *
