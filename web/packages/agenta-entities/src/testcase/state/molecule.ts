@@ -39,6 +39,7 @@ import {
 import type {Column, FlattenedTestcase} from "../core"
 import {createLocalTestcase} from "../core"
 
+import {testcasesRevisionIdAtom} from "./paginatedStore"
 import {
     // Query and entity atoms
     testcaseQueryAtomFamily,
@@ -402,6 +403,26 @@ const appendTestcasesAtom = atom(null, (_get, set, rows: Record<string, unknown>
 })
 
 // ============================================================================
+// REVISION CONTEXT ACTION
+// ============================================================================
+
+/**
+ * Set the revision context for testcase operations.
+ * This sets both the context atom (for entity operations) and the paginated store's
+ * revision ID (for data fetching).
+ *
+ * Use this instead of directly setting internal atoms.
+ */
+const setRevisionContextAtom = atom(null, (_get, set, revisionId: string | null) => {
+    // Set the context atom for entity operations
+
+    set(currentRevisionIdAtom as any, revisionId)
+    // Set the paginated store's revision ID for data fetching
+
+    set(testcasesRevisionIdAtom as any, revisionId)
+})
+
+// ============================================================================
 // CREATE ACTION (WITH OPTIONS)
 // ============================================================================
 
@@ -655,6 +676,8 @@ export const testcaseMolecule = {
         append: appendTestcasesAtom,
         /** Create multiple testcases with options - returns {ids, count} */
         create: createTestcasesAtom,
+        /** Set revision context for testcase operations (sets both context and paginated store) */
+        setRevisionContext: setRevisionContextAtom,
         /** Initialize selection draft from current displayRowIds */
         initSelectionDraft: initSelectionDraftAtom,
         /** Set selection draft */
