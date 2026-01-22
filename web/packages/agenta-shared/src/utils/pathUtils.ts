@@ -366,6 +366,23 @@ export function parsePath(path: string | DataPath): DataPath {
 }
 
 /**
+ * Get a value at a string path (convenience wrapper for getValueAtPath + parsePath)
+ *
+ * This is a common pattern when working with dot-notation paths like "user.profile.name"
+ * instead of array paths like ['user', 'profile', 'name'].
+ *
+ * @example
+ * ```typescript
+ * const data = { user: { profile: { name: 'Alice' } } }
+ * getValueAtStringPath(data, 'user.profile.name') // 'Alice'
+ * getValueAtStringPath(data, 'user.profile') // { name: 'Alice' }
+ * ```
+ */
+export function getValueAtStringPath(data: unknown, path: string): unknown {
+    return getValueAtPath(data, parsePath(path))
+}
+
+/**
  * Convert path segments to a string
  */
 export function pathToString(path: DataPath): string {

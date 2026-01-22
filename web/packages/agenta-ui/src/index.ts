@@ -75,6 +75,22 @@ export * from "./components"
 export {copyToClipboard} from "./utils/copyToClipboard"
 
 /**
+ * Column grouping utilities for tables:
+ * - groupColumns: Transform flat columns into grouped/nested columns for Ant Design tables
+ * - isGroupedColumnKey: Check if a column key contains a group separator
+ * - parseGroupedColumnKey: Parse a grouped key into group name and column name
+ * - getLeafColumnName: Get the leaf name from a nested column key
+ */
+export {
+    groupColumns,
+    isGroupedColumnKey,
+    parseGroupedColumnKey,
+    getLeafColumnName,
+    type GroupableColumn,
+    type GroupColumnsOptions,
+} from "./utils/groupColumns"
+
+/**
  * Styling utilities:
  * - cn: Class name concatenation utility
  * - sizeClasses: Text size class mappings
@@ -254,6 +270,12 @@ export {
     type ChatMessageListProps,
     type SimpleDropdownSelectProps,
 } from "./ChatMessage"
+
+// ============================================================================
+// HOOKS - Shared React hooks
+// ============================================================================
+
+export {useSelectionState, type UseSelectionStateResult} from "./hooks"
 
 // ============================================================================
 // CELL RENDERERS - Smart cell content rendering for tables

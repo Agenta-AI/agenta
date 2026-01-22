@@ -13,6 +13,7 @@ export {normalizeTimestamps, normalizeEntityTimestamps, parseEntityDate} from ".
 // Path utilities for nested data navigation
 export {
     getValueAtPath,
+    getValueAtStringPath,
     setValueAtPath,
     deleteValueAtPath,
     hasValueAtPath,
@@ -54,6 +55,7 @@ export {keyToString, stringToKeyPath} from "./keyUtils"
 
 // JSON detection utilities
 export {
+    isPlainObject,
     isJsonString,
     isJsonObject,
     isJsonArray,
