@@ -93,7 +93,11 @@ export interface TableExportConfig {
 export type {RowHeightFeatureConfig} from "../hooks/useRowHeightFeature"
 
 export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBase> {
-    datasetStore: InfiniteDatasetStore<Row, any, any>
+    /**
+     * Dataset store for pagination. Required when pagination prop is not provided.
+     * When pagination is provided directly, datasetStore is optional (not used for pagination).
+     */
+    datasetStore?: InfiniteDatasetStore<Row, any, any> | null
     tableScope: TableScopeConfig
     columns: InfiniteVirtualTableProps<Row>["columns"]
     rowKey: InfiniteVirtualTableProps<Row>["rowKey"]
@@ -638,6 +642,11 @@ const InfiniteVirtualTableFeatureShellWithStore = <Row extends InfiniteTableRowB
     props: InfiniteVirtualTableFeatureProps<Row>,
 ) => {
     const {datasetStore, tableScope} = props
+    if (!datasetStore) {
+        throw new Error(
+            "InfiniteVirtualTableFeatureShell: datasetStore is required when pagination is not provided",
+        )
+    }
     const pagination = datasetStore.hooks.usePagination({
         scopeId: tableScope.scopeId,
         pageSize: tableScope.pageSize,
