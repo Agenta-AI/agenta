@@ -1,5 +1,6 @@
 import {FC, Fragment, useState, useEffect, useCallback} from "react"
 
+import {isPlainObject} from "@agenta/shared"
 import {Form} from "antd"
 import merge from "lodash/merge"
 
@@ -11,9 +12,6 @@ export interface FormViewProps {
     onChange: (v: Record<string, unknown>) => void
     customRender?: CustomRenderFn
 }
-
-const isPlainObject = (obj: unknown): obj is Record<string, unknown> =>
-    typeof obj === "object" && obj !== null && !Array.isArray(obj)
 
 const prepareInitialValues = (obj: unknown): unknown => {
     if (Array.isArray(obj)) {
