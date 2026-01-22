@@ -13,13 +13,35 @@
  * not here. This panel only consumes the loaded data.
  */
 
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
+import {loadableController} from "@agenta/entities/loadable"
 import type {TestsetColumn, TestsetRow, StageExecutionResult} from "@agenta/entities/runnable"
 import {detectEditorLanguage} from "@agenta/shared"
+import {
+    cn,
+    entityIconColors,
+    statusColors,
+    textColors,
+    bgColors,
+    borderColors,
+    interactiveStyles,
+} from "@agenta/ui"
 import {SharedEditor} from "@agenta/ui"
-import {CaretDown, CaretRight, Flask, Lightning, Plus, Spinner, Trash} from "@phosphor-icons/react"
-import {Button, Empty, Input, Progress, Tag, Typography} from "antd"
+import {
+    ArrowCounterClockwise,
+    ArrowsClockwise,
+    CaretDown,
+    CaretRight,
+    Flask,
+    Lightning,
+    Plus,
+    Spinner,
+    Trash,
+    Warning,
+} from "@phosphor-icons/react"
+import {Button, Empty, Input, Progress, Tag, Tooltip, Typography} from "antd"
+import {useAtomValue} from "jotai"
 
 import {usePlaygroundUI} from "../../context"
 import type {ChainExecutionResult, ChainNodeInfo} from "../types"
@@ -66,6 +88,8 @@ export interface TestcasePanelProps {
     isExecuting?: boolean
     /** Chain node info for displaying downstream results */
     chainNodes?: ChainNodeInfo[]
+    /** Revert output mapping overrides for a row */
+    onRevertOverrides?: (rowId: string) => void
 }
 
 /**
@@ -124,14 +148,14 @@ function ChainResultItem({
     const showStageNumber = stageIndex !== undefined && totalStages !== undefined && totalStages > 1
 
     return (
-        <div className="bg-gray-50 rounded p-3 border border-gray-100">
+        <div className={cn("rounded p-3 border", bgColors.subtle, "border-zinc-2")}>
             {/* Header with stage info and status */}
             <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                     {isEvaluator ? (
-                        <Flask size={14} weight="fill" className="text-purple-500" />
+                        <Flask size={14} weight="fill" className="text-purple-6" />
                     ) : (
-                        <Lightning size={14} weight="fill" className="text-blue-500" />
+                        <Lightning size={14} weight="fill" className={entityIconColors.primary} />
                     )}
                     <div className="flex items-center gap-1.5">
                         {showStageNumber && (
@@ -160,7 +184,7 @@ function ChainResultItem({
 
             {/* Running state */}
             {result.status === "running" && (
-                <div className="flex items-center gap-2 text-blue-500">
+                <div className={cn("flex items-center gap-2", entityIconColors.primary)}>
                     <Spinner size={14} className="animate-spin" />
                     <Text type="secondary" className="text-sm">
                         Running...
@@ -189,7 +213,9 @@ function ChainResultItem({
 
             {/* Error state */}
             {result.status === "error" && result.error && (
-                <div className="mt-1 p-2 bg-red-50 rounded border border-red-100">
+                <div
+                    className={cn("mt-1 p-2 rounded border", statusColors.errorBg, "border-red-2")}
+                >
                     <Text type="danger" className="text-xs">
                         {result.error.message}
                     </Text>
@@ -203,6 +229,7 @@ function ChainResultItem({
  * Single testcase row with input fields, run button, and output display
  */
 function TestcaseRow({
+    loadableId,
     row,
     columns,
     extraColumns,
@@ -213,8 +240,10 @@ function TestcaseRow({
     onUpdate,
     onRemove,
     onExecute,
+    onRevertOverrides,
     SharedGenerationResultUtils,
 }: {
+    loadableId: string
     row: TestsetRow
     columns: TestsetColumn[]
     /** Extra columns from testset that aren't in expected inputs */
@@ -228,6 +257,8 @@ function TestcaseRow({
     onUpdate: (data: Record<string, unknown>) => void
     onRemove: () => void
     onExecute: () => void
+    /** Revert output mapping overrides for this row */
+    onRevertOverrides?: () => void
     SharedGenerationResultUtils: React.ComponentType<{
         traceId?: string | null
         showStatus?: boolean
@@ -236,12 +267,26 @@ function TestcaseRow({
 }) {
     const [isChainExpanded, setIsChainExpanded] = useState(false)
     // Local override for this row (null = follow global)
+    // Reset when global toggle changes by using globalToggleKey in the key
     const [localShowExtras, setLocalShowExtras] = useState<boolean | null>(null)
 
-    // Reset local override when global toggle changes
-    useEffect(() => {
-        setLocalShowExtras(null)
-    }, [globalToggleKey])
+    // Row state indicators from controller selectors
+    const rowReadyStateAtom = useMemo(
+        () => loadableController.testset.selectors.rowReadyState(loadableId, row.id),
+        [loadableId, row.id],
+    )
+    const rowStaleStateAtom = useMemo(
+        () => loadableController.testset.selectors.rowExecutionStaleState(loadableId, row.id),
+        [loadableId, row.id],
+    )
+    const rowOverrideStateAtom = useMemo(
+        () =>
+            loadableController.testset.selectors.rowOutputMappingOverrideState(loadableId, row.id),
+        [loadableId, row.id],
+    )
+    const rowReadyState = useAtomValue(rowReadyStateAtom)
+    const rowStaleState = useAtomValue(rowStaleStateAtom)
+    const rowOverrideState = useAtomValue(rowOverrideStateAtom)
 
     // Effective value: local override takes precedence over global
     const showExtras = localShowExtras ?? globalShowExtras
@@ -249,6 +294,7 @@ function TestcaseRow({
 
     const status = executionResult?.status || "idle"
     const isRunning = status === "running" || status === "pending"
+    const hasExecutionResult = executionResult && status !== "idle"
 
     // Memoize output formatting (for single-stage results)
     const outputLanguage = useMemo(
@@ -268,13 +314,51 @@ function TestcaseRow({
     )
 
     return (
-        <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+        <div
+            className={cn(
+                "border rounded-lg overflow-hidden",
+                borderColors.secondary,
+                bgColors.container,
+            )}
+        >
             {/* Input Fields */}
             <div className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                    <Text type="secondary" className="text-xs uppercase tracking-wide">
-                        Variables
-                    </Text>
+                    <div className="flex items-center gap-2">
+                        <Text type="secondary" className="text-xs uppercase tracking-wide">
+                            Variables
+                        </Text>
+                        {/* Row state indicators */}
+                        {!rowReadyState.isReady && (
+                            <Tooltip title={`Missing: ${rowReadyState.missingKeys.join(", ")}`}>
+                                <Warning size={14} className={statusColors.warning} />
+                            </Tooltip>
+                        )}
+                        {hasExecutionResult && rowStaleState?.isStale && (
+                            <Tooltip
+                                title={`Inputs changed since last run: ${rowStaleState.changedKeys.join(", ")}`}
+                            >
+                                <ArrowsClockwise size={14} className={entityIconColors.primary} />
+                            </Tooltip>
+                        )}
+                        {/* Output mapping override indicator with revert action */}
+                        {/* Only show when there are overrides AND output mapping is not disabled */}
+                        {rowOverrideState?.hasOverrides &&
+                            !rowOverrideState.isDisabled &&
+                            onRevertOverrides && (
+                                <Tooltip
+                                    title={`Auto-mapped values overwrote: ${rowOverrideState.overriddenColumns.join(", ")}. Click to revert.`}
+                                >
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<ArrowCounterClockwise size={14} />}
+                                        onClick={onRevertOverrides}
+                                        className="text-purple-6 hover:text-purple-7 p-0 h-auto"
+                                    />
+                                </Tooltip>
+                            )}
+                    </div>
                     <div className="flex items-center gap-1">
                         {/* Per-row toggle for extra data */}
                         {hasExtras && (
@@ -311,7 +395,9 @@ function TestcaseRow({
                 ) : (
                     columns.map((col) => (
                         <div key={col.key} className="space-y-1">
-                            <Text className="text-sm font-medium text-blue-600">{col.name}</Text>
+                            <Text className={cn("text-sm font-medium", entityIconColors.primary)}>
+                                {col.name}
+                            </Text>
                             <Input.TextArea
                                 value={(row.data[col.key] as string) ?? ""}
                                 onChange={(e) => handleFieldChange(col.key, e.target.value)}
@@ -325,13 +411,13 @@ function TestcaseRow({
 
                 {/* Extra Variables - shown when toggle is on */}
                 {showExtras && extraColumns.length > 0 && (
-                    <div className="pt-2 border-t border-gray-100 space-y-2">
+                    <div className={cn("pt-2 border-t space-y-2", borderColors.divider)}>
                         <Text type="secondary" className="text-xs uppercase tracking-wide">
                             Other Data
                         </Text>
                         {extraColumns.map((col) => (
                             <div key={col.key} className="space-y-1">
-                                <Text className="text-sm font-medium text-gray-500">
+                                <Text className={cn("text-sm font-medium", textColors.secondary)}>
                                     {col.name}
                                 </Text>
                                 <Input.TextArea
@@ -348,7 +434,7 @@ function TestcaseRow({
             </div>
 
             {/* Run Button */}
-            <div className="px-4 py-2 bg-gray-50 border-t border-gray-200">
+            <div className={cn("px-4 py-2 border-t", bgColors.subtle, borderColors.strong)}>
                 <Button
                     type="primary"
                     icon={<CaretRight size={14} weight="fill" />}
@@ -363,22 +449,27 @@ function TestcaseRow({
 
             {/* Output Section */}
             {executionResult && status !== "idle" && (
-                <div className="border-t border-gray-200">
+                <div className={cn("border-t", borderColors.secondary)}>
                     {/* Chain Progress Header (when running multi-stage) */}
                     {(status === "running" || status === "pending") &&
                         executionResult.isChain &&
                         executionResult.chainProgress && (
-                            <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
+                            <div className="px-4 py-3 bg-blue-1 border-b border-blue-2">
                                 <div className="flex items-center gap-3">
-                                    <Spinner size={16} className="animate-spin text-blue-500" />
+                                    <Spinner
+                                        size={16}
+                                        className={cn("animate-spin", entityIconColors.primary)}
+                                    />
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <Text strong className="text-sm text-blue-700">
+                                            <Text strong className="text-sm text-blue-7">
                                                 Running Stage{" "}
                                                 {executionResult.chainProgress.currentStage}/
                                                 {executionResult.chainProgress.totalStages}
                                             </Text>
-                                            <Text className="text-sm text-blue-600">
+                                            <Text
+                                                className={cn("text-sm", entityIconColors.primary)}
+                                            >
                                                 {executionResult.chainProgress.currentNodeLabel}
                                             </Text>
                                         </div>
@@ -400,9 +491,12 @@ function TestcaseRow({
                     {/* Simple running state (single stage or no progress info) */}
                     {(status === "running" || status === "pending") &&
                         (!executionResult.isChain || !executionResult.chainProgress) && (
-                            <div className="px-4 py-3 bg-gray-50">
+                            <div className={cn("px-4 py-3", bgColors.subtle)}>
                                 <div className="flex items-center gap-2">
-                                    <Spinner size={14} className="animate-spin text-blue-500" />
+                                    <Spinner
+                                        size={14}
+                                        className={cn("animate-spin", entityIconColors.primary)}
+                                    />
                                     <Text type="secondary" className="text-sm">
                                         Running...
                                     </Text>
@@ -414,7 +508,7 @@ function TestcaseRow({
                     {executionResult.isChain &&
                         executionResult.chainResults &&
                         Object.keys(executionResult.chainResults).length > 0 && (
-                            <div className="px-4 py-3 bg-gray-50">
+                            <div className={cn("px-4 py-3", bgColors.subtle)}>
                                 <div className="flex items-center justify-between mb-2">
                                     <Text
                                         type="secondary"
@@ -426,7 +520,10 @@ function TestcaseRow({
                                     <button
                                         type="button"
                                         onClick={() => setIsChainExpanded(!isChainExpanded)}
-                                        className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 bg-transparent border-none cursor-pointer"
+                                        className={cn(
+                                            "flex items-center gap-1 text-xs bg-transparent border-none cursor-pointer",
+                                            interactiveStyles.clickableText,
+                                        )}
                                     >
                                         {isChainExpanded ? (
                                             <>
@@ -463,20 +560,24 @@ function TestcaseRow({
                                                 /* Collapsed view - just show stage status summaries */
                                                 <div
                                                     key={nodeId}
-                                                    className="flex items-center justify-between py-1 px-2 bg-white rounded border border-gray-100"
+                                                    className={cn(
+                                                        "flex items-center justify-between py-1 px-2 rounded border",
+                                                        bgColors.container,
+                                                        borderColors.divider,
+                                                    )}
                                                 >
                                                     <div className="flex items-center gap-2">
                                                         {result.nodeType === "evaluatorRevision" ? (
                                                             <Flask
                                                                 size={12}
                                                                 weight="fill"
-                                                                className="text-purple-500"
+                                                                className="text-purple-6"
                                                             />
                                                         ) : (
                                                             <Lightning
                                                                 size={12}
                                                                 weight="fill"
-                                                                className="text-blue-500"
+                                                                className={entityIconColors.primary}
                                                             />
                                                         )}
                                                         <Text className="text-xs">
@@ -505,17 +606,15 @@ function TestcaseRow({
 
                     {/* Single stage result (non-chain execution) */}
                     {!executionResult.isChain && (status === "success" || status === "error") && (
-                        <div className="px-4 py-3 bg-gray-50">
+                        <div className={cn("px-4 py-3", bgColors.subtle)}>
                             <div className="flex items-center justify-between mb-1">
                                 <Text type="secondary" className="text-xs uppercase tracking-wide">
                                     Output
                                 </Text>
-                                {/* Trace utilities for single execution */}
-                                {executionResult.chainResults && (
+                                {/* Trace utilities for single execution - use top-level traceId */}
+                                {executionResult.traceId && (
                                     <SharedGenerationResultUtils
-                                        traceId={
-                                            Object.values(executionResult.chainResults)[0]?.traceId
-                                        }
+                                        traceId={executionResult.traceId}
                                     />
                                 )}
                             </div>
@@ -559,6 +658,7 @@ function TestcaseRow({
  * are managed in the ConfigPanel.
  */
 export function TestcasePanel({
+    loadableId,
     columns,
     suppliedColumns = [],
     rows,
@@ -571,6 +671,7 @@ export function TestcasePanel({
     onExecuteAll,
     isExecuting,
     chainNodes,
+    onRevertOverrides,
 }: TestcasePanelProps) {
     // Get injectable components from context
     const {SharedGenerationResultUtils} = usePlaygroundUI()
@@ -601,7 +702,13 @@ export function TestcasePanel({
     return (
         <div className="h-full flex flex-col bg-white">
             {/* Header - Execution controls only */}
-            <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-2 bg-white sticky top-0 z-10">
+            <div
+                className={cn(
+                    "px-4 py-3 border-b flex items-center gap-2 sticky top-0 z-10",
+                    borderColors.secondary,
+                    bgColors.container,
+                )}
+            >
                 <Text strong className="text-base">
                     Generations
                 </Text>
@@ -652,7 +759,7 @@ export function TestcasePanel({
                     <div className="h-full flex items-center justify-center">
                         <Empty
                             description={
-                                <span className="text-gray-500">
+                                <span className={textColors.tertiary}>
                                     No testcases yet.
                                     <br />
                                     Connect a testset or add testcases manually.
@@ -673,6 +780,7 @@ export function TestcasePanel({
                         {rows.map((row) => (
                             <TestcaseRow
                                 key={row.id}
+                                loadableId={loadableId}
                                 row={row}
                                 columns={columns}
                                 extraColumns={extraColumns}
@@ -683,6 +791,9 @@ export function TestcasePanel({
                                 onUpdate={(data) => onUpdateRow(row.id, data)}
                                 onRemove={() => onRemoveRow(row.id)}
                                 onExecute={() => onExecuteRow(row.id, row.data)}
+                                onRevertOverrides={
+                                    onRevertOverrides ? () => onRevertOverrides(row.id) : undefined
+                                }
                                 SharedGenerationResultUtils={SharedGenerationResultUtils}
                             />
                         ))}

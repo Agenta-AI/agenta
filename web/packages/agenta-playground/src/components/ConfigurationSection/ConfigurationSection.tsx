@@ -1,18 +1,18 @@
 /**
  * ConfigurationSection Component
  *
- * Displays the configuration for a runnable entity using EntityDrillInView.
+ * Displays the configuration for a runnable entity using schema-aware rendering.
  * Supports both app revisions and evaluators.
  * Renders the DrillIn breadcrumb integrated into the collapse header.
  *
  * Uses the unified useRunnable hook for state management.
- * Uses context injection for EntityDrillInView component.
+ * Uses SchemaPropertyRenderer for schema-driven field rendering.
  */
 
 import {useState, useMemo, useCallback} from "react"
 
+import {type SchemaProperty} from "@agenta/entities"
 import {appRevisionMolecule} from "@agenta/entities/appRevision"
-import {evaluatorRevisionMolecule} from "@agenta/entities/evaluatorRevision"
 import {
     getRunnableRootItems,
     useRunnableSelectors,
@@ -23,20 +23,39 @@ import {
     type SettingsPreset,
 } from "@agenta/entities/runnable"
 import {
+    SchemaPropertyRenderer,
+    useDrillInUI,
+    getModelSchema,
+    getOptionsFromSchema,
+    getLLMConfigValue,
+} from "@agenta/entities/ui"
+import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
+import {
     GearSix,
     CaretDown,
     CaretUp,
-    CaretRight,
     ArrowCounterClockwise,
     ListBullets,
 } from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Tooltip, Typography, Collapse} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {usePlaygroundUI} from "../../context"
 import {LoadEvaluatorPresetModal} from "../LoadEvaluatorPresetModal"
 
 const {Text} = Typography
+
+/**
+ * Helper to safely extract a property schema from the agConfig schema
+ */
+function getPropertySchema(schema: unknown, key: string): SchemaProperty | null {
+    if (!schema || typeof schema !== "object") return null
+    const schemaObj = schema as Record<string, unknown>
+    if (!schemaObj.properties || typeof schemaObj.properties !== "object") return null
+    const properties = schemaObj.properties as Record<string, unknown>
+    const prop = properties[key]
+    if (!prop || typeof prop !== "object") return null
+    return prop as SchemaProperty
+}
 
 export interface ConfigurationSectionProps {
     type: RunnableType
@@ -45,14 +64,11 @@ export interface ConfigurationSectionProps {
 }
 
 export function ConfigurationSection({type, entityId, data}: ConfigurationSectionProps) {
-    // Get injectable components from context
-    const {EntityDrillInView} = usePlaygroundUI()
-
     const [isExpanded, setIsExpanded] = useState(false)
     const [isPresetModalOpen, setIsPresetModalOpen] = useState(false)
 
-    // Controlled path state for the DrillIn view
-    const [currentPath, setCurrentPath] = useState<string[]>([])
+    // Get injected SelectLLMProvider from context
+    const {SelectLLMProvider} = useDrillInUI()
 
     // Use the unified runnable hook for state management
     const runnable = useRunnable(type, entityId)
@@ -66,15 +82,100 @@ export function ConfigurationSection({type, entityId, data}: ConfigurationSectio
         return getRunnableRootItems(type, data)
     }, [type, data])
 
-    // Get the appropriate entity controller based on type (needed for DrillInView)
-    const entityController = useMemo(() => {
+    // Get the schema for the entity's configuration
+    const schemaAtom = useMemo(() => {
         if (type === "appRevision") {
-            return appRevisionMolecule
-        } else if (type === "evaluatorRevision") {
-            return evaluatorRevisionMolecule
+            return appRevisionMolecule.atoms.agConfigSchema(entityId)
         }
+        // For evaluators, we'd use evaluatorRevisionMolecule.atoms.schema if available
         return null
-    }, [type])
+    }, [type, entityId])
+
+    const schema = useAtomValue(schemaAtom ?? (() => null as any)())
+
+    // Get update action based on entity type
+    const updateAppRevision = useSetAtom(appRevisionMolecule.reducers.update)
+
+    // Wrapper to update entity based on type
+    const updateEntity = useCallback(
+        (id: string, changes: Record<string, unknown>) => {
+            if (type === "appRevision") {
+                updateAppRevision(id, changes)
+            }
+            // Note: evaluatorRevision updates can be added when needed
+        },
+        [type, updateAppRevision],
+    )
+
+    // Whether updates are allowed
+    const canUpdate = !runnable.isLoading && !!data
+
+    // Extract model info from prompt data for the header dropdown
+    const promptModelInfo = useMemo(() => {
+        // Find the prompt item in rootItems
+        const promptItem = rootItems.find((item) => item.key === "prompt")
+        if (!promptItem) return null
+
+        const promptValue = promptItem.value as Record<string, unknown> | null
+        if (!promptValue) return null
+
+        // Get the prompt schema
+        const promptSchema = getPropertySchema(schema, "prompt") as SchemaProperty | null
+
+        // Extract model schema and options
+        const modelSchema = getModelSchema(promptSchema)
+        const optionsResult = getOptionsFromSchema(modelSchema)
+        const modelOptions = optionsResult?.options ?? []
+
+        // Get current model value from prompt data
+        const llmConfigValue = getLLMConfigValue(promptValue)
+        const currentModel = llmConfigValue?.model as string | undefined
+
+        return {
+            modelSchema,
+            modelOptions,
+            currentModel,
+            promptValue,
+        }
+    }, [rootItems, schema])
+
+    // Handle model change
+    const handleModelChange = useCallback(
+        (newModel: string | undefined) => {
+            if (!canUpdate || !data || !promptModelInfo) return
+
+            const currentAgConfig = (data as any).agConfig || {}
+            const currentPrompt = currentAgConfig.prompt || {}
+
+            // Check if prompt has nested llm_config
+            const hasNestedLLMConfig = currentPrompt.llm_config || currentPrompt.llmConfig
+
+            let updatedPrompt
+            if (hasNestedLLMConfig) {
+                const llmConfigKey = currentPrompt.llm_config ? "llm_config" : "llmConfig"
+                updatedPrompt = {
+                    ...currentPrompt,
+                    [llmConfigKey]: {
+                        ...(currentPrompt[llmConfigKey] || {}),
+                        model: newModel,
+                    },
+                }
+            } else {
+                updatedPrompt = {
+                    ...currentPrompt,
+                    model: newModel,
+                }
+            }
+
+            updateEntity(entityId, {
+                agConfig: {
+                    ...currentAgConfig,
+                    prompt: updatedPrompt,
+                },
+            })
+        },
+        [canUpdate, data, promptModelInfo, updateEntity, entityId],
+    )
 
     // Get available presets via unified runnable API
     // Returns empty array for appRevisions, presets for evaluators (if available)
@@ -102,69 +203,60 @@ export function ConfigurationSection({type, entityId, data}: ConfigurationSectio
         [runnable],
     )
 
-    // Navigation callback for breadcrumb
-    const navigateToIndex = useCallback((index: number) => {
-        setCurrentPath((prev) => prev.slice(0, index))
-    }, [])
+    // Handle property value changes
+    const handlePropertyChange = useCallback(
+        (propertyKey: string, value: unknown) => {
+            if (!canUpdate || !data) return
+
+            // Get current agConfig and update the specific property
+            const currentAgConfig = (data as any).agConfig || {}
+            const updatedAgConfig = {
+                ...currentAgConfig,
+                [propertyKey]: value,
+            }
+
+            updateEntity(entityId, {agConfig: updatedAgConfig})
+        },
+        [canUpdate, updateEntity, entityId, data],
+    )
 
     if (!data) {
         return null
     }
 
     const rootTitle = "Configuration"
-    const isAtRoot = currentPath.length === 0
 
     return (
-        <div className="border border-gray-200 rounded-lg bg-gray-50 overflow-hidden">
-            {/* Header with collapse toggle - integrates breadcrumb when navigated */}
+        <div
+            className={cn(
+                "border rounded-lg overflow-hidden",
+                borderColors.secondary,
+                bgColors.subtle,
+            )}
+        >
+            {/* Header with collapse toggle */}
             <div
-                className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-white cursor-pointer"
+                className={cn(
+                    "flex items-center justify-between px-3 py-2 border-b cursor-pointer",
+                    borderColors.secondary,
+                    bgColors.container,
+                )}
                 onClick={() => setIsExpanded(!isExpanded)}
             >
                 <div className="flex items-center gap-1 flex-1 min-w-0">
-                    <GearSix size={14} className="flex-shrink-0 text-gray-500" />
+                    <GearSix size={14} className={cn("flex-shrink-0", textColors.secondary)} />
 
-                    {/* Always show Configuration as clickable root */}
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            navigateToIndex(0)
-                        }}
-                        className={`px-1 py-0.5 rounded hover:bg-gray-100 transition-colors bg-transparent border-none cursor-pointer whitespace-nowrap flex-shrink-0 text-sm ${isAtRoot ? "font-semibold text-gray-900" : "text-gray-500"}`}
-                    >
+                    <span className={cn("px-1 py-0.5 font-semibold text-sm", textColors.primary)}>
                         {rootTitle}
-                    </button>
+                    </span>
 
-                    {/* Show section count only at root */}
-                    {isAtRoot && (
-                        <span className="text-gray-400 text-xs">({rootItems.length} sections)</span>
-                    )}
+                    <span className={cn("text-xs", textColors.quaternary)}>
+                        ({rootItems.length} sections)
+                    </span>
 
-                    {/* Show path segments when navigated */}
-                    {!isAtRoot && (
-                        <div
-                            className="flex items-center gap-1 flex-1 min-w-0"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {currentPath.map((segment, index) => (
-                                <div key={index} className="flex items-center flex-shrink-0">
-                                    <CaretRight size={12} className="text-gray-400" />
-                                    <button
-                                        type="button"
-                                        onClick={() => navigateToIndex(index + 1)}
-                                        className={`px-1 py-0.5 rounded hover:bg-gray-100 transition-colors bg-transparent border-none cursor-pointer whitespace-nowrap text-sm ${index === currentPath.length - 1 ? "font-semibold text-gray-900" : "text-gray-500"}`}
-                                    >
-                                        {segment}
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Dirty badge - inline with breadcrumbs */}
+                    {/* Dirty badge */}
                     {runnable.isDirty && (
-                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium ml-2 flex-shrink-0">
+                        <span className="text-[10px] bg-blue-1 text-blue-7 px-1.5 py-0.5 rounded font-medium ml-2 flex-shrink-0">
                             edited
                         </span>
                     )}
@@ -202,22 +294,105 @@ export function ConfigurationSection({type, entityId, data}: ConfigurationSectio
 
             {isExpanded && (
                 <div className="px-3 py-2">
-                    {!entityController ? (
+                    {rootItems.length === 0 ? (
                         <Text type="secondary" italic>
                             No configuration available
                         </Text>
                     ) : (
-                        <EntityDrillInView
-                            entityId={entityId}
-                            entity={entityController as any}
-                            editable={true}
-                            showAddControls={false}
-                            showDeleteControls={false}
-                            rootTitle={rootTitle}
-                            showCollapse={false}
-                            hideBreadcrumb={true}
-                            currentPath={currentPath}
-                            onPathChange={setCurrentPath}
+                        <Collapse
+                            defaultActiveKey={rootItems.map((item) => item.key)}
+                            ghost
+                            className="config-section-collapse"
+                            items={rootItems.map((item) => {
+                                const isPromptWithHeaderModel =
+                                    item.key === "prompt" &&
+                                    !!promptModelInfo &&
+                                    !!SelectLLMProvider
+
+                                // For prompt with header model, filter out the model from content schema
+                                let contentSchema = getPropertySchema(schema, item.key)
+                                if (isPromptWithHeaderModel && contentSchema?.properties) {
+                                    const props = contentSchema.properties as Record<
+                                        string,
+                                        SchemaProperty
+                                    >
+                                    const {model, ...restProps} = props
+                                    // Also check llm_config for nested model
+                                    const llmConfig = (restProps.llm_config ||
+                                        restProps.llmConfig) as SchemaProperty | undefined
+                                    if (llmConfig?.properties) {
+                                        const llmProps = llmConfig.properties as Record<
+                                            string,
+                                            SchemaProperty
+                                        >
+                                        const {model: nestedModel, ...restLlmProps} = llmProps
+                                        const llmConfigKey = restProps.llm_config
+                                            ? "llm_config"
+                                            : "llmConfig"
+                                        contentSchema = {
+                                            ...contentSchema,
+                                            properties: {
+                                                ...restProps,
+                                                [llmConfigKey]: {
+                                                    ...llmConfig,
+                                                    properties: restLlmProps as Record<
+                                                        string,
+                                                        SchemaProperty
+                                                    >,
+                                                },
+                                            } as Record<string, SchemaProperty>,
+                                        }
+                                    } else {
+                                        contentSchema = {
+                                            ...contentSchema,
+                                            properties: restProps as Record<string, SchemaProperty>,
+                                        }
+                                    }
+                                }
+
+                                return {
+                                    key: item.key,
+                                    label: isPromptWithHeaderModel ? (
+                                        <div className="flex items-center justify-between w-full">
+                                            <span
+                                                className={cn("font-medium", textColors.secondary)}
+                                            >
+                                                {item.name}
+                                            </span>
+                                            <div
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="flex-shrink-0"
+                                            >
+                                                <SelectLLMProvider
+                                                    showGroup
+                                                    options={promptModelInfo.modelOptions}
+                                                    value={promptModelInfo.currentModel}
+                                                    onChange={handleModelChange}
+                                                    size="small"
+                                                    className="min-w-[180px]"
+                                                />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <span className={cn("font-medium", textColors.secondary)}>
+                                            {item.name}
+                                        </span>
+                                    ),
+                                    children: (
+                                        <SchemaPropertyRenderer
+                                            schema={contentSchema}
+                                            label=""
+                                            value={item.value}
+                                            onChange={(newValue) =>
+                                                handlePropertyChange(item.key, newValue)
+                                            }
+                                            disabled={false}
+                                            path={[item.key]}
+                                            hideModelSelector={isPromptWithHeaderModel}
+                                        />
+                                    ),
+                                }
+                            })}
                         />
                     )}
                 </div>
