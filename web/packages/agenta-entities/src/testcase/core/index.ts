@@ -58,11 +58,16 @@ export type {
     ColumnRenameOperation,
 } from "./types"
 
-// Column grouping utilities
+// Column extraction utilities
 export {
-    groupColumns,
-    isGroupedColumnKey,
-    parseGroupedColumnKey,
-    getLeafColumnName,
-    type GroupColumnsOptions,
-} from "./groupColumns"
+    // Constants
+    COLUMN_EXTRACTION_MAX_DEPTH,
+    DEFAULT_SAMPLE_SIZE,
+    // Path collection
+    collectColumnPaths,
+    type ColumnPathInfo,
+    // Column extraction
+    extractColumnsFromData,
+    extractColumnsWithAccessor,
+    type ExtractColumnsOptions,
+} from "./columnExtraction"
