@@ -24,7 +24,7 @@ export const onboardingWidgetStatusAtom = atomWithStorage<OnboardingWidgetStatus
 export const onboardingWidgetUIStateAtom = atomWithStorage<OnboardingWidgetUIState>(
     STORAGE_KEYS.WIDGET_UI,
     {
-        isOpen: true,
+        isOpen: false,
         isMinimized: false,
     },
 )
