@@ -1,0 +1,31 @@
+---
+title: "Does Agenta work with TypeScript?"
+description: "How to use Agenta from TypeScript and other languages"
+slug: /faq/integrations/typescript
+---
+
+:::info
+The same described here applies to other languages like JavaScript, Java, and Go. Agenta's API first approach enables integration with virtually any programming language.
+:::
+
+Yes, Agenta can be used with TypeScript, though with varying levels of native support.
+
+## Prompt management
+
+We do not currently provide a native TypeScript SDK for prompt management. You can use the API directly. See the [API Reference](/reference/api/variants).
+
+## Observability
+
+Agenta is OpenTelemetry compliant. You can auto instrument your TypeScript application using OpenTelemetry integrations such as [OpenLLMetry](https://github.com/traceloop/openllmetry-js).
+
+See [setting up OpenTelemetry](/observability/trace-with-opentelemetry/distributed-tracing#opentelemetry-tracing-without-agenta-sdk).
+
+## Evaluation
+
+You can evaluate prompts created in the UI. For custom workflows (agentic applications), we currently support Python in the playground.
+
+A practical workaround is to create a small Python wrapper that calls your TypeScript endpoint and then run evaluations against that wrapper from Agenta.
+
+:::tip
+If you need help integrating, [create an issue on GitHub](https://github.com/agenta-ai/agenta/issues).
+:::
