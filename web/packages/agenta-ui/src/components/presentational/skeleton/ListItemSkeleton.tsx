@@ -20,7 +20,7 @@ import {memo} from "react"
 
 import {Skeleton} from "antd"
 
-import {cn} from "../../../utils/styles"
+import {bgColors, cn, flexLayouts, spacingClasses} from "../../../utils/styles"
 
 // ============================================================================
 // TYPES
@@ -54,7 +54,15 @@ export const ListItemSkeleton = memo(function ListItemSkeleton({
     return (
         <div className={cn("space-y-2", className)}>
             {Array.from({length: count}).map((_, index) => (
-                <div key={index} className="flex items-center p-3 rounded-md bg-zinc-1">
+                <div
+                    key={index}
+                    className={cn(
+                        flexLayouts.rowCenter,
+                        spacingClasses.compact,
+                        "rounded-md",
+                        bgColors.subtle,
+                    )}
+                >
                     {showAvatar && (
                         <Skeleton.Avatar active size="small" shape={avatarShape} className="mr-3" />
                     )}

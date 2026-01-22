@@ -30,6 +30,8 @@ import React, {useRef, useEffect} from "react"
 import {useVirtualizer} from "@tanstack/react-virtual"
 import {Spin} from "antd"
 
+import {cn, flexLayouts, gapClasses, justifyClasses, textColors} from "../../utils/styles"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -188,11 +190,11 @@ export function VirtualList<T>({
     if (isLoading) {
         return (
             <div
-                className={`flex items-center justify-center py-8 ${className}`}
+                className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-8", className)}
                 style={containerStyle}
             >
                 <Spin size="default" />
-                <span className="ml-2 text-zinc-6">{loadingMessage}</span>
+                <span className={cn("ml-2", textColors.tertiary)}>{loadingMessage}</span>
             </div>
         )
     }
@@ -234,9 +236,9 @@ export function VirtualList<T>({
 
             {/* Loading indicator for fetching more */}
             {isFetchingMore && (
-                <div className="flex items-center justify-center py-4">
+                <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-4")}>
                     <Spin size="small" />
-                    <span className="ml-2 text-zinc-6">Loading more...</span>
+                    <span className={cn("ml-2", textColors.tertiary)}>Loading more...</span>
                 </div>
             )}
         </div>
@@ -278,27 +280,27 @@ export function SimpleList<T>({
     if (isLoading) {
         return (
             <div
-                className={`flex items-center justify-center py-8 ${className}`}
+                className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-8", className)}
                 style={containerStyle}
             >
                 <Spin size="default" />
-                <span className="ml-2 text-zinc-6">{loadingMessage}</span>
+                <span className={cn("ml-2", textColors.tertiary)}>{loadingMessage}</span>
             </div>
         )
     }
 
     return (
         <div className={className} style={containerStyle}>
-            <div className="space-y-1">
+            <div className={cn(flexLayouts.column, gapClasses.xs)}>
                 {items.map((item, index) => (
                     <React.Fragment key={index}>{renderItem(item, index)}</React.Fragment>
                 ))}
             </div>
 
             {isFetchingMore && (
-                <div className="flex items-center justify-center py-4">
+                <div className={cn(flexLayouts.rowCenter, justifyClasses.center, "py-4")}>
                     <Spin size="small" />
-                    <span className="ml-2 text-zinc-6">Loading more...</span>
+                    <span className={cn("ml-2", textColors.tertiary)}>Loading more...</span>
                 </div>
             )}
         </div>
