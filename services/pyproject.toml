@@ -30,6 +30,9 @@ newrelic = "^11"
 boto3 = "^1"
 google-cloud-aiplatform = "^1"
 
+# Serialization (required by litellm for OpenAI responses)
+orjson = "^3"
+
 [tool.poetry.group.dev.dependencies]
 watchdog = { extras = ["watchmedo"], version = "^3" }
 pytest = "^8"
