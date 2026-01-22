@@ -1,6 +1,7 @@
 // Editor.tsx
 import {Fragment, type ComponentProps, type FC, memo, useEffect, useRef} from "react"
 
+import {tryParsePartialJson, safeJson5Parse, createLogger} from "@agenta/shared"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {mergeRegister} from "@lexical/utils"
 import isEqual from "fast-deep-equal"
@@ -38,9 +39,6 @@ import PropertyClickPlugin from "./plugins/PropertyClickPlugin"
 import {$getEditorCodeAsString} from "./plugins/RealTimeValidationPlugin"
 import {SyntaxHighlightPlugin} from "./plugins/SyntaxHighlightPlugin"
 import VerticalNavigationPlugin from "./plugins/VerticalNavigationPlugin"
-
-import {tryParsePartialJson, safeJson5Parse, createLogger} from "@agenta/shared"
-
 import {tokenizeCodeLine} from "./utils/tokenizer"
 
 export {PropertyClickPlugin}
