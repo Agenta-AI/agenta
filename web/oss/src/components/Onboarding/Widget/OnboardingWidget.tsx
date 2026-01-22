@@ -34,6 +34,10 @@ import {traceCountAtom, tracesQueryAtom} from "@/oss/state/newObservability/atom
 
 import {ANNOTATE_TRACES_TOUR_ID, registerAnnotateTracesTour} from "../tours/annotateTracesTour"
 import {DEPLOY_PROMPT_TOUR_ID, registerDeployPromptTour} from "../tours/deployPromptTour"
+import {
+    registerTestsetFromTracesTour,
+    TESTSET_FROM_TRACES_TOUR_ID,
+} from "../tours/testsetFromTracesTour"
 import {registerWidgetClosedTour} from "../tours/widgetClosedTour"
 
 import {
@@ -133,7 +137,7 @@ const OnboardingWidget = () => {
         }
 
         message.info(
-            "No traces yet. Set up tracing first, then return here to annotate your first trace.",
+            "No traces yet. Set up tracing first, then return here to start the walkthrough.",
         )
         setPendingTraceTourId(null)
     }, [
@@ -202,6 +206,17 @@ const OnboardingWidget = () => {
                         await router.push(observabilityUrl)
                     }
                     setPendingTraceTourId(item.tourId || ANNOTATE_TRACES_TOUR_ID)
+                    return
+                } catch (error) {
+                    console.error("Failed to navigate to observability", error)
+                    return
+                }
+            } else if (item.activationHint === "trace-to-testset") {
+                try {
+                    if (observabilityUrl) {
+                        await router.push(observabilityUrl)
+                    }
+                    setPendingTraceTourId(item.tourId || TESTSET_FROM_TRACES_TOUR_ID)
                     return
                 } catch (error) {
                     console.error("Failed to navigate to observability", error)
@@ -282,6 +297,7 @@ const OnboardingWidget = () => {
         registerWidgetClosedTour()
         registerDeployPromptTour()
         registerAnnotateTracesTour()
+        registerTestsetFromTracesTour()
     }, [])
 
     useEffect(() => {

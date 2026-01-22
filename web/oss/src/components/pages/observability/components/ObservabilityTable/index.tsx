@@ -173,6 +173,9 @@ const ObservabilityTable = () => {
             setSelectedRowKeys(keys)
         },
         columnWidth: 48,
+        getCheckboxProps: () => ({
+            "data-tour": "trace-checkbox",
+        }),
     }
 
     const showTableLoading = isLoading && traces.length === 0
