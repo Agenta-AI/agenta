@@ -13,9 +13,10 @@ import {welcomeCardsDismissedAtom} from "./assets/store/welcomeCards"
 
 interface WelcomeCardsSectionProps {
     onCreatePrompt: () => void
+    onSetupTracing: () => void
 }
 
-const WelcomeCardsSection = ({onCreatePrompt}: WelcomeCardsSectionProps) => {
+const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSectionProps) => {
     const onboardingWidgetStatus = useAtomValue(onboardingWidgetStatusAtom)
     const welcomeCardsDismissed = useAtomValue(welcomeCardsDismissedAtom)
     const setWelcomeCardsDismissed = useSetAtom(welcomeCardsDismissedAtom)
@@ -47,10 +48,7 @@ const WelcomeCardsSection = ({onCreatePrompt}: WelcomeCardsSectionProps) => {
             {
                 title: "Set up tracing",
                 subtitle: "Send traces from your AI app to debug and improve reliability",
-                onClick: () =>
-                    handleNavigate(
-                        "https://agenta.ai/docs/observability/trace-with-python-sdk/setup-tracing",
-                    ),
+                onClick: onSetupTracing,
             },
             {
                 title: "Explore demo project",
