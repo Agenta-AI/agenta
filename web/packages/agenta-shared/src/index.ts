@@ -109,7 +109,9 @@ export {
     tryParseAsObject,
     tryParseAsArray,
     canExpandAsJson,
+    tryParseJsonValue,
 } from "./utils"
+export type {JsonParseResult} from "./utils"
 
 // Editor language detection utilities
 export {detectEditorLanguage, getContentLanguage, looksLikeJson, type EditorLanguage} from "./utils"
