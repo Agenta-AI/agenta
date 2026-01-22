@@ -20,6 +20,8 @@
 
 import {Button} from "antd"
 
+import {cn, flexLayouts, gapClasses, justifyClasses} from "../../utils/styles"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -66,7 +68,15 @@ export function ModalFooter({
     className,
 }: ModalFooterProps) {
     return (
-        <div className={className ?? "flex items-center gap-2 w-full justify-end"}>
+        <div
+            className={cn(
+                flexLayouts.rowCenter,
+                gapClasses.sm,
+                "w-full",
+                justifyClasses.end,
+                className,
+            )}
+        >
             <Button onClick={onCancel} disabled={isLoading}>
                 {cancelLabel}
             </Button>

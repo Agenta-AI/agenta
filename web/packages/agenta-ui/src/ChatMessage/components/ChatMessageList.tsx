@@ -12,7 +12,8 @@ import {
 } from "@agenta/shared"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
-import clsx from "clsx"
+
+import {cn, flexLayouts, gapClasses} from "../../utils/styles"
 
 import AttachmentButton from "./AttachmentButton"
 import ChatMessageEditor from "./ChatMessageEditor"
@@ -125,7 +126,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     }
 
     return (
-        <div className={clsx("flex flex-col gap-2", className)}>
+        <div className={cn(flexLayouts.column, gapClasses.sm, className)}>
             {messages.map((msg, index) => {
                 // Check message type
                 const isToolResponse = msg.role === "tool"
@@ -140,7 +141,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                 const hasAttachmentsFlag = attachments.length > 0
 
                 return (
-                    <div key={msg.id || `msg-${index}`} className="flex flex-col">
+                    <div key={msg.id || `msg-${index}`} className={cn(flexLayouts.column)}>
                         <ChatMessageEditor
                             id={`chat-msg-${index}`}
                             role={msg.role}
@@ -163,7 +164,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                                 ) : undefined
                             }
                             headerRight={
-                                <div className="flex items-center gap-1">
+                                <div className={cn(flexLayouts.rowCenter, gapClasses.xs)}>
                                     <MarkdownToggleButton id={`chat-msg-${index}`} />
                                     {allowFileUpload && !disabled && (
                                         <AttachmentButton

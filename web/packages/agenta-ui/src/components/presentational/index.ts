@@ -155,10 +155,12 @@ export {
     NumberedStep,
     StepContainer,
     PanelFooter,
+    ModalContentLayout,
     type SplitPanelLayoutProps,
     type NumberedStepProps,
     type StepContainerProps,
     type PanelFooterProps,
+    type ModalContentLayoutProps,
 } from "./layout"
 
 // ============================================================================

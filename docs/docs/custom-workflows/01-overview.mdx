@@ -1,6 +1,6 @@
 ---
 title: "Overview"
-description: "Learn about custom workflows with Agenta"
+description: "Build playgrounds for complex LLM applications"
 ---
 
 ```mdx-code-block
@@ -15,45 +15,83 @@ import Image from "@theme/IdealImage";
   loading="lazy"
 />
 
+## Prompt playgrounds are too simple
 
-Custom workflows let you build a playground for any custom LLM workflow, such as RAG or agents. This playground replicates the logic of your real application, enabling subject matter experts to easily iterate on its parameters and evaluate it end-to-end from the web UI
+Prompt playgrounds work for single prompts. You edit text, test it, deploy it.
 
-## The problem with traditional prompt playgrounds
+Real applications are not single prompts. A RAG pipeline retrieves documents, ranks them, generates a response. An agent picks tools and chains steps. A classifier runs multiple prompts in parallel and combines results.
 
-Traditional prompt playgrounds suffer from a major limitation: their output doesn't accurately represent the output of LLM applications. The reason is that LLM applications are more than single prompts—they involve workflows with multiple LLM calls, pre- and post-processing steps, and retrieval steps.
+These applications have many parameters: retrieval settings, model choices, thresholds, aggregation rules. A prompt playground cannot represent them.
 
-As a result, subject matter experts find it hard to trust the outputs of the playground and make the collaboration with developers hard since they don't share the same context.
+## The problem
 
-## Custom workflows to the rescue
+When subject matter experts want to improve prompts, they need engineers. Every change requires editing code, deploying, testing. The back-and-forth is slow.
 
-Custom workflows solve this problem by allowing you to create custom playground for the workflow in your LLM application. This way you can accurately represent the output of the LLM applications and make the collaboration easy.
+Evaluations run on isolated prompts. But a prompt that scores well alone might fail when combined with retrieval or aggregation. You do not know until production.
 
-With Agenta's Custom Workflows, you can:
+When something finally works, someone copies the configuration to production code. There is no shared source of truth. Things drift.
 
-- **Collaborate with Subject Matter Experts**: Allow product teams to experiment with the real production workflow using the same codebase and logic as the live application.
-- **Evaluate the Entire Workflow**: Evaluate your workflow end-to-end directly from the web UI.
-- **Simplify Debugging**: View detailed traces of your calls directly in the playground, making debugging easier.
-- **Track Versions**: Keep version control of the entire application configuration, not just individual prompts.
+## Custom workflows
 
-## How to get started
+Custom workflows let you build a playground for your actual application.
 
-You can get started quickly using our code templates—often in just a few minutes—or in under an hour when integrating with your existing codebase.
+You wrap your existing code with a thin interface. Agenta calls your code and shows a UI for the configuration. Subject matter experts edit prompts and parameters. They see real outputs. Engineers own the business logic.
 
-To create a custom workflow, add a few lines to your existing codebase to define the workflow configuration and expose the entry points to Agenta.
+This gives you:
 
-Refer to our quick start guide to begin.
+- SMEs iterate on the real workflow, not an approximation
+- Evaluations test the complete pipeline
+- Configuration is versioned
+- Production uses the same configuration that was tested
 
-## How custom workflows work
+## How it works
 
-Custom workflows create an API endpoint between your code and Agenta, allowing Agenta to run the workflow. Agenta provides an SDK that makes creating the API endpoint as simple as adding a decorator to your existing code. 
+You run your own server with the Agenta SDK. Agenta calls your server with the current configuration. Your code runs and returns the result.
+
+<Image
+  style={{ display: "block", margin: "10 auto", marginBottom: "20px" }}
+  img={require("/images/custom-workflows/architecture-dev.png")}
+  alt="Development Architecture"
+  loading="lazy"
+/>
+
+In development, you run the service on your infrastructure and expose it (using ngrok or similar) so that the PM can use the playground. Agenta sends requests to your service with the configuration. Your service runs the business logic and calls your LLM gateway.
+
+In production, you fetch the configuration from Agenta and run independently. Agenta is not in your request path. See [Integration](/custom-workflows/integration) for details.
+
+## What you can configure
+
+The SDK provides types for common parameters:
+
+- **PromptTemplate**: Messages, model, temperature, and other LLM settings
+- **Floats and integers**: Thresholds, limits, with validation
+- **Booleans**: Flags and toggles
+- **Choices**: Dropdowns for model selection or algorithm variants
+
+You define configuration as a Pydantic model. Agenta renders UI controls for each field.
 
 ## FAQ
 
-- **How long does it take to set up?**  
-  You can usually get started in about an hour by integrating your existing code—less if you are starting from scratch or using a template.
+**What languages are supported?**
 
-- **Do I need to host production application in Agenta?**  
-  No, you can keep your production application hosted on your premises and use Agenta for prompt engineering and evaluation. Your application will integrate with Agenta to fetch the latest configuration.
+Python only for now.
 
-- **Can I use Agenta with my existing framework / model?**  
-  Yes, Agenta works with any framework (e.g., Langchain, Llama Index, Haystack) and any model. The only current requirement is that the code for the workflow needs to be written in Python.
+**Does my function need to return a specific type?**
+
+Yes. The entry point function must return a `str`.
+
+**Does Agenta host my workflow?**
+
+No. You run your own server. Agenta connects to it via the URL you provide.
+
+**How long does setup take?**
+
+About an hour with existing code. Less with a template.
+
+**Can I use my existing framework?**
+
+Yes. Langchain, LlamaIndex, Haystack, or plain Python. Any model provider.
+
+**What about my LLM gateway?**
+
+Your code calls your gateway directly. Agenta manages configuration. It does not proxy LLM calls.

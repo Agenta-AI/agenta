@@ -1,0 +1,210 @@
+---
+title: "Configuration Types for Custom Workflows"
+sidebar_label: "Configuration Types"
+description: "Reference for PromptTemplate, Message, ModelConfig, and other SDK types"
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+Custom workflows let you define configuration for your AI application and then iterate on it in the playground and version it.
+
+This page documents the types you use to define configuration in custom workflows. Each type is a Pydantic model. The playground shows each type as a control (for instance, it shows numeric fields as sliders). You must provide a default value for each field when defining your configuration.
+
+## PromptTemplate
+
+`PromptTemplate` defines a prompt with messages, model settings, and variable substitution.
+
+```python
+from agenta.sdk.types import PromptTemplate, Message, ModelConfig
+
+prompt = PromptTemplate(
+    messages=[
+        Message(role="system", content="You are a helpful assistant."),
+        Message(role="user", content="Summarize this: {{text}}")
+    ],
+    template_format="curly",
+    input_keys=["text"],
+    llm_config=ModelConfig(
+        model="gpt-4o-mini",
+        temperature=0.7,
+        max_tokens=500
+    )
+)
+```
+
+### Fields
+
+| Field             | Type            | Description                                                       |
+| ----------------- | --------------- | ----------------------------------------------------------------- |
+| `messages`        | `List[Message]` | List of messages (system, user, assistant)                        |
+| `template_format` | `str`           | Variable syntax: `"curly"` for `{{var}}`, `"fstring"` for `{var}` |
+| `input_keys`      | `List[str]`     | Variables the template expects (for validation)                   |
+| `llm_config`      | `ModelConfig`   | Model and parameters                                              |
+
+### Methods
+
+**`format(**kwargs)`** substitutes variables and returns a new `PromptTemplate`:
+
+```python
+formatted = prompt.format(text="Hello world")
+# formatted.messages[1].content == "Summarize this: Hello world"
+```
+
+**`to_openai_kwargs()`** converts to arguments for the OpenAI client:
+
+```python
+kwargs = formatted.to_openai_kwargs()
+response = client.chat.completions.create(**kwargs)
+```
+
+## Message
+
+`Message` represents a single message in a conversation.
+
+```python
+from agenta.sdk.types import Message
+
+message = Message(
+    role="system",
+    content="You are a helpful assistant."
+)
+```
+
+### Fields
+
+| Field     | Type  | Description                                 |
+| --------- | ----- | ------------------------------------------- |
+| `role`    | `str` | One of: `"system"`, `"user"`, `"assistant"` |
+| `content` | `str` | The message text                            |
+
+## ModelConfig
+
+`ModelConfig` defines model selection and parameters.
+
+```python
+from agenta.sdk.types import ModelConfig
+
+config = ModelConfig(
+    model="gpt-4o-mini",
+    temperature=0.7,
+    max_tokens=500,
+    top_p=1.0,
+    frequency_penalty=0.0,
+    presence_penalty=0.0,
+    response_format={"type": "json_object"}
+)
+```
+
+### Fields
+
+| Field               | Type        | Default           | Description                                       |
+| ------------------- | ----------- | ----------------- | ------------------------------------------------- |
+| `model`             | `str`       | `"gpt-3.5-turbo"` | Model name                                        |
+| `temperature`       | `float`     | `1.0`             | Sampling temperature (0-2)                        |
+| `max_tokens`        | `int`       | `None`            | Maximum tokens in response                        |
+| `top_p`             | `float`     | `None`            | Nucleus sampling                                  |
+| `frequency_penalty` | `float`     | `None`            | Frequency penalty (-2 to 2)                       |
+| `presence_penalty`  | `float`     | `None`            | Presence penalty (-2 to 2)                        |
+| `response_format`   | `dict`      | `None`            | Response format (e.g., `{"type": "json_object"}`) |
+| `stop`              | `List[str]` | `None`            | Stop sequences                                    |
+
+## Model selection dropdown
+
+Use `MultipleChoice` to create a dropdown in the UI.
+
+```python
+from typing import Annotated
+from pydantic import BaseModel, Field
+import agenta as ag
+
+class Config(BaseModel):
+    model: Annotated[str, ag.MultipleChoice(choices=["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"])] = Field(
+        default="gpt-4o-mini"
+    )
+```
+
+For all supported models, use `supported_llm_models`:
+
+```python
+from agenta.sdk.assets import supported_llm_models
+
+class Config(BaseModel):
+    model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
+        default="gpt-4o-mini"
+    )
+```
+
+## Numeric parameters
+
+Use `Field` with `ge` (greater or equal) and `le` (less or equal) for validation. The UI shows these as sliders.
+
+```python
+class Config(BaseModel):
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=500, ge=1, le=4000)
+    threshold: float = Field(default=0.8, ge=0.0, le=1.0)
+```
+
+## Boolean parameters
+
+Booleans show as checkboxes.
+
+```python
+class Config(BaseModel):
+    use_cache: bool = Field(default=True)
+    verbose: bool = Field(default=False)
+```
+
+## Text parameters
+
+Plain strings show as text areas.
+
+```python
+class Config(BaseModel):
+    system_prompt: str = Field(default="You are a helpful assistant.")
+```
+
+For long text, use `PromptTemplate` instead. It gives you the prompt editor UI with model selection.
+
+## Complete example
+
+```python
+from typing import Annotated
+from pydantic import BaseModel, Field
+
+import agenta as ag
+from agenta.sdk.types import PromptTemplate, Message, ModelConfig
+from agenta.sdk.assets import supported_llm_models
+
+
+class ClassifierConfig(BaseModel):
+    # Prompt with full editor UI
+    prompt: PromptTemplate = Field(
+        default=PromptTemplate(
+            messages=[
+                Message(role="system", content="Classify the sentiment of the text."),
+                Message(role="user", content="Text: {{text}}\n\nSentiment:")
+            ],
+            template_format="curly",
+            input_keys=["text"],
+            llm_config=ModelConfig(model="gpt-4o-mini", temperature=0.0)
+        )
+    )
+
+    # Model dropdown
+    model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
+        default="gpt-4o-mini"
+    )
+
+    # Numeric with slider
+    confidence_threshold: float = Field(default=0.8, ge=0.0, le=1.0)
+
+    # Boolean checkbox
+    include_reasoning: bool = Field(default=False)
+```
+
+```
+
+```

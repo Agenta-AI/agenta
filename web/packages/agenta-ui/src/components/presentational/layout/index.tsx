@@ -25,56 +25,25 @@
  * ```
  */
 
-import type {CSSProperties, ReactNode} from "react"
+import type {ReactNode} from "react"
 
-import {Divider, Typography} from "antd"
+import {Typography} from "antd"
 
-import {borderColors, textColors} from "../../../utils/styles"
+import {
+    borderColors,
+    cn,
+    flexLayouts,
+    gapClasses,
+    spacingClasses,
+    textColors,
+    textSizes,
+} from "../../../utils/styles"
 
 const {Text} = Typography
 
 // ============================================================================
 // TYPES
 // ============================================================================
-
-export interface SplitPanelLayoutProps {
-    /**
-     * Left panel content
-     */
-    left: ReactNode
-    /**
-     * Right panel content
-     */
-    right: ReactNode
-    /**
-     * Width of the left panel in pixels
-     * @default 280
-     */
-    leftWidth?: number
-    /**
-     * Whether to show a divider between panels
-     * @default true
-     */
-    showDivider?: boolean
-    /**
-     * Additional CSS class for the container
-     */
-    className?: string
-    /**
-     * Inline styles for the container
-     */
-    style?: CSSProperties
-    /**
-     * Padding for the left panel
-     * @default "p-4"
-     */
-    leftPadding?: string
-    /**
-     * Padding for the right panel
-     * @default "p-4"
-     */
-    rightPadding?: string
-}
 
 export interface NumberedStepProps {
     /**
@@ -106,25 +75,9 @@ export interface StepContainerProps {
     children: ReactNode
     /**
      * Gap between steps
-     * @default "gap-4"
+     * @default gapClasses.md
      */
     gap?: string
-    /**
-     * Additional CSS class
-     */
-    className?: string
-}
-
-export interface PanelFooterProps {
-    /**
-     * Footer content (typically buttons)
-     */
-    children: ReactNode
-    /**
-     * Alignment of footer content
-     * @default "end"
-     */
-    align?: "start" | "center" | "end" | "between"
     /**
      * Additional CSS class
      */
@@ -136,61 +89,25 @@ export interface PanelFooterProps {
 // ============================================================================
 
 /**
- * A two-column split panel layout with optional divider.
- * Commonly used in modals for picker + preview or form + preview layouts.
- */
-export function SplitPanelLayout({
-    left,
-    right,
-    leftWidth = 280,
-    showDivider = true,
-    className,
-    style,
-    leftPadding = "p-4",
-    rightPadding = "p-4",
-}: SplitPanelLayoutProps) {
-    return (
-        <section
-            className={`flex grow gap-0 min-h-0 overflow-hidden ${className ?? ""}`}
-            style={style}
-        >
-            {/* Left Panel */}
-            <div
-                className={`flex flex-col gap-4 min-h-0 h-full overflow-hidden ${leftPadding}`}
-                style={{
-                    width: leftWidth,
-                    minWidth: leftWidth,
-                    maxWidth: leftWidth,
-                }}
-            >
-                {left}
-            </div>
-
-            {showDivider && <Divider type="vertical" className="m-0 h-full" />}
-
-            {/* Right Panel */}
-            <div
-                className={`w-full h-full flex flex-col gap-4 grow min-h-0 overflow-hidden ${rightPadding}`}
-            >
-                {right}
-            </div>
-        </section>
-    )
-}
-
-/**
  * A numbered step component for wizard-style UIs.
  * Displays a step number, title, optional subtitle, and content in a bordered card.
  */
 export function NumberedStep({number, title, subtitle, children, className}: NumberedStepProps) {
     return (
         <div
-            className={`flex flex-col gap-3 rounded-lg border ${borderColors.secondary} px-4 py-3 ${className ?? ""}`}
+            className={cn(
+                flexLayouts.column,
+                "rounded-lg border",
+                spacingClasses.card,
+                gapClasses.md,
+                borderColors.secondary,
+                className,
+            )}
         >
-            <div className="flex items-center gap-2">
-                <span className={`text-xs font-medium ${textColors.tertiary}`}>{number}.</span>
-                <Text className={`font-medium text-sm ${textColors.primary}`}>{title}</Text>
-                {subtitle && <Text className={`text-xs ${textColors.tertiary}`}>{subtitle}</Text>}
+            <div className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
+                <span className={cn("font-medium", textColors.tertiary)}>{number}.</span>
+                <Text className={cn("font-medium", textSizes.sm, textColors.primary)}>{title}</Text>
+                {subtitle && <Text className={textColors.tertiary}>{subtitle}</Text>}
             </div>
             {children}
         </div>
@@ -200,26 +117,14 @@ export function NumberedStep({number, title, subtitle, children, className}: Num
 /**
  * A container for numbered steps with consistent spacing.
  */
-export function StepContainer({children, gap = "gap-3", className}: StepContainerProps) {
-    return <div className={`flex flex-col ${gap} grow ${className ?? ""}`}>{children}</div>
+export function StepContainer({children, gap = gapClasses.md, className}: StepContainerProps) {
+    return <div className={cn(flexLayouts.column, "grow", gap, className)}>{children}</div>
 }
 
-/**
- * A footer component for panels/modals with consistent border and alignment.
- */
-export function PanelFooter({children, align = "end", className}: PanelFooterProps) {
-    const alignClass = {
-        start: "justify-start",
-        center: "justify-center",
-        end: "justify-end",
-        between: "justify-between",
-    }[align]
+// ============================================================================
+// RE-EXPORTS
+// ============================================================================
 
-    return (
-        <div
-            className={`border-t ${borderColors.secondary} p-4 flex items-center gap-2 ${alignClass} ${className ?? ""}`}
-        >
-            {children}
-        </div>
-    )
-}
+export {SplitPanelLayout, type SplitPanelLayoutProps} from "./SplitPanelLayout"
+export {ModalContentLayout, type ModalContentLayoutProps} from "./ModalContentLayout"
+export {PanelFooter, type PanelFooterProps} from "./PanelFooter"
