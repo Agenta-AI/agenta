@@ -221,6 +221,10 @@ export const runnableBridge = createRunnableBridge({
             toRunnable: appRevisionToRunnable,
             getInputPorts: getAppRevisionInputPorts,
             getOutputPorts: getAppRevisionOutputPorts,
+            // Use molecule selectors for reactive derivation (preferred over extraction functions)
+            inputPortsSelector: (id: string) => appRevisionMolecule.selectors.inputPorts(id),
+            outputPortsSelector: (id: string) => appRevisionMolecule.selectors.outputPorts(id),
+            invocationUrlSelector: (id: string) => appRevisionMolecule.atoms.invocationUrl(id),
         },
         evaluatorRevision: {
             molecule: evaluatorRevisionMolecule,

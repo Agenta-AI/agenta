@@ -256,14 +256,28 @@ export interface RunnableTypeConfig<T = unknown> {
     molecule: BaseMolecule
     /** Transform molecule data to runnable format */
     toRunnable: (entity: T) => RunnableData
-    /** Extract input ports from entity */
+    /** Extract input ports from entity (fallback if inputPortsSelector not provided) */
     getInputPorts: (entity: T) => RunnablePort[]
-    /** Extract output ports from entity */
+    /** Extract output ports from entity (fallback if outputPortsSelector not provided) */
     getOutputPorts: (entity: T) => RunnablePort[]
+    /**
+     * Selector atom for input ports (preferred over getInputPorts).
+     * Use this when input ports are derived reactively from entity state.
+     */
+    inputPortsSelector?: (id: string) => Atom<RunnablePort[]>
+    /**
+     * Selector atom for output ports (preferred over getOutputPorts).
+     * Use this when output ports are derived reactively from entity state.
+     */
+    outputPortsSelector?: (id: string) => Atom<RunnablePort[]>
+    /**
+     * Selector atom for invocation URL (preferred over toRunnable.invocationUrl).
+     * Use this when invocation URL is computed from schema/other atoms.
+     */
+    invocationUrlSelector?: (id: string) => Atom<string | null>
     /** Additional selectors specific to this runnable type */
     extraSelectors?: Record<string, (id: string) => Atom<unknown>>
     /** Additional actions specific to this runnable type */
-
     extraActions?: Record<string, WritableAtom<any, any[], any>>
 }
 
