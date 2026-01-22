@@ -11,42 +11,17 @@ import {useCallback, useId, useMemo} from "react"
 import {
     EntityBreadcrumb,
     EntityListItem,
+    ListItemSkeleton,
     LoadAllButton,
     LoadMoreButton,
     SearchInput,
     VirtualEntityList,
 } from "@agenta/ui"
-import {Skeleton, Empty, Button, Spin} from "antd"
+import {Empty, Button, Spin} from "antd"
 import {ArrowLeft} from "lucide-react"
 
 import {useHierarchicalSelection} from "../hooks/useHierarchicalSelection"
 import type {EntitySelectionAdapter, EntitySelectionResult} from "../types"
-
-// ============================================================================
-// SKELETON LOADER
-// ============================================================================
-
-interface ListItemSkeletonProps {
-    count?: number
-}
-
-/**
- * Skeleton loader for list items during loading state
- */
-function ListItemSkeleton({count = 4}: ListItemSkeletonProps) {
-    return (
-        <div className="space-y-2">
-            {Array.from({length: count}).map((_, index) => (
-                <div key={index} className="flex items-center p-3 rounded-md bg-zinc-1">
-                    <Skeleton.Avatar active size="small" shape="square" className="mr-3" />
-                    <div className="flex-1">
-                        <Skeleton.Input active size="small" block className="!w-3/4 mb-1" />
-                    </div>
-                </div>
-            ))}
-        </div>
-    )
-}
 
 // ============================================================================
 // TYPES
