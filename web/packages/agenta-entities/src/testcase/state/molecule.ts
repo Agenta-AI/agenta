@@ -28,12 +28,7 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
-import {
-    createMolecule,
-    extendMolecule,
-    createControllerAtomFamily,
-    createLocalEntityFactory,
-} from "../../shared"
+import {createMolecule, extendMolecule, createControllerAtomFamily} from "../../shared"
 import type {StoreOptions, PathItem} from "../../shared"
 import {
     getValueAtPath as getValueAtPathUtil,
@@ -42,7 +37,7 @@ import {
     type DataPath,
 } from "../../ui"
 import type {Column, FlattenedTestcase} from "../core"
-import {testcaseSchemas} from "../core"
+import {createLocalTestcase} from "../core"
 
 import {
     // Query and entity atoms
@@ -66,6 +61,11 @@ import {
     discardDraftAtom,
     batchUpdateTestcasesSyncAtom,
     discardAllDraftsAtom,
+    // Selection draft (for TestsetSelectionModal)
+    testcaseSelectionDraftAtomFamily,
+    setSelectionDraftAtom,
+    commitSelectionDraftAtom,
+    discardSelectionDraftAtom,
 } from "./store"
 
 // ============================================================================
@@ -80,25 +80,10 @@ function getStore(options?: StoreOptions) {
 // LOCAL ENTITY FACTORY
 // ============================================================================
 
-/**
- * Factory for creating validated local testcase entities.
- *
- * Uses testcaseSchemas.local which:
- * - Generates a unique ID if not provided
- * - Applies default values for data, flags, tags, meta
- * - Validates against the testcase schema
- *
- * @example
- * ```typescript
- * const result = createTestcase({ country: 'USA', value: 123 })
- * if (result.success) {
- *   console.log(result.data) // Full testcase with ID and defaults
- * } else {
- *   console.error(result.errors) // Validation errors
- * }
- * ```
- */
-const createTestcase = createLocalEntityFactory(testcaseSchemas.local)
+// Note: Local testcase creation now uses createLocalTestcase from ../core
+// which accepts flat input directly (e.g., { country: 'USA' }) and handles
+// the conversion to nested format internally. This is cleaner than the old
+// approach which required callers to wrap data in { data: {...} }.
 
 // ============================================================================
 // DRILL-IN HELPERS
@@ -305,32 +290,70 @@ const displayRowIdsAtom = atom((get) => {
     return [...newIds, ...activeServerIds]
 })
 
+/**
+ * Current selection for a revision (draft if exists, else displayRowIds)
+ *
+ * This provides a unified view of "what is currently selected":
+ * - If a selection draft exists (user is editing), returns the draft
+ * - Otherwise returns all displayRowIds (all currently loaded testcases)
+ *
+ * Used by TestsetSelectionModal to show the current selection state.
+ */
+const currentSelectionAtomFamily = atomFamily((revisionId: string) =>
+    atom((get) => {
+        const draft = get(testcaseSelectionDraftAtomFamily(revisionId))
+        if (draft !== null) return [...draft]
+        return get(displayRowIdsAtom)
+    }),
+)
+
+/**
+ * Initialize selection draft from current displayRowIds or provided IDs
+ *
+ * Called when opening the selection modal to populate the draft
+ * with the current selection (all loaded testcases).
+ *
+ * @param revisionId - The revision ID to initialize draft for
+ * @param initialIds - Optional array of IDs to use instead of displayRowIds.
+ *                     Use this when the caller has a filtered view (e.g., loadable controller
+ *                     filters out hidden testcases).
+ */
+const initSelectionDraftAtom = atom(null, (get, set, revisionId: string, initialIds?: string[]) => {
+    const currentIds = initialIds ?? get(displayRowIdsAtom)
+    set(setSelectionDraftAtom, revisionId, currentIds)
+})
+
 // ============================================================================
 // ACTION ATOMS
 // ============================================================================
 
 /**
  * Add a new testcase action
- * Creates a validated local testcase using the schema factory
+ * Creates a validated local testcase from flat input (e.g., { country: 'USA' })
  * @returns {id: string, data: FlattenedTestcase} | null if validation fails
  */
 const addTestcaseAtom = atom(null, (_get, set, initialData?: Partial<FlattenedTestcase>) => {
-    const result = createTestcase(initialData)
+    console.log("[addTestcaseAtom] Input:", initialData)
 
-    if (!result.success) {
+    // createLocalTestcase accepts flat input directly and returns flattened output
+    const result = createLocalTestcase(initialData)
+    console.log("[addTestcaseAtom] createLocalTestcase result:", result)
+
+    if (result.success === false) {
         console.error("[testcase] Invalid data for new testcase:", result.errors)
         return null
     }
 
-    const data = result.data as FlattenedTestcase
+    const flattened = result.data
+    console.log("[addTestcaseAtom] Created testcase:", flattened)
 
     // Add to new IDs tracking
-    set(addNewEntityIdAtom, data.id)
+    set(addNewEntityIdAtom, flattened.id)
 
-    // Initialize draft with data
-    set(testcaseDraftAtomFamily(data.id), data)
+    // Initialize draft with flattened data
+    set(testcaseDraftAtomFamily(flattened.id), flattened)
 
-    return {id: data.id, data}
+    return {id: flattened.id, data: flattened}
 })
 
 /**
@@ -353,26 +376,25 @@ const deleteTestcasesAtom = atom(null, (_get, set, ids: string | string[]) => {
 
 /**
  * Append multiple testcases action
- * Creates multiple validated testcases from row data using the schema factory
+ * Creates multiple validated testcases from flat row data
  * @returns Number of testcases successfully added
  */
 const appendTestcasesAtom = atom(null, (_get, set, rows: Record<string, unknown>[]) => {
     let count = 0
     for (const row of rows) {
-        const result = createTestcase(row as Partial<FlattenedTestcase>)
+        // createLocalTestcase accepts flat input directly
+        const result = createLocalTestcase(row as Partial<FlattenedTestcase>)
 
-        if (!result.success) {
+        if (result.success === false) {
             console.error("[testcase] Skipping invalid row:", result.errors)
             continue
         }
 
-        const data = result.data as FlattenedTestcase
-
         // Add to new IDs tracking
-        set(addNewEntityIdAtom, data.id)
+        set(addNewEntityIdAtom, result.data.id)
 
-        // Initialize draft with data
-        set(testcaseDraftAtomFamily(data.id), data)
+        // Initialize draft with flattened data
+        set(testcaseDraftAtomFamily(result.data.id), result.data)
 
         count++
     }
@@ -395,7 +417,7 @@ interface CreateTestcasesOptions {
 }
 
 /**
- * Create multiple validated testcases with options using the schema factory
+ * Create multiple validated testcases with options from flat row data
  * @returns {ids: string[], count: number, errors: number}
  */
 const createTestcasesAtom = atom(
@@ -410,23 +432,24 @@ const createTestcasesAtom = atom(
         let errors = 0
 
         for (const row of rows) {
-            const result = createTestcase(row as Partial<FlattenedTestcase>)
+            // createLocalTestcase accepts flat input directly
+            const result = createLocalTestcase(row as Partial<FlattenedTestcase>)
 
-            if (!result.success) {
+            if (result.success === false) {
                 console.error("[testcase] Skipping invalid row:", result.errors)
                 errors++
                 continue
             }
 
-            const data = result.data as FlattenedTestcase
+            const flattened = result.data
 
             // Add to new IDs tracking
-            set(addNewEntityIdAtom, data.id)
+            set(addNewEntityIdAtom, flattened.id)
 
-            // Initialize draft with data
-            set(testcaseDraftAtomFamily(data.id), data)
+            // Initialize draft with flattened data
+            set(testcaseDraftAtomFamily(flattened.id), flattened)
 
-            ids.push(data.id)
+            ids.push(flattened.id)
         }
 
         return {ids, count: ids.length, errors}
@@ -466,6 +489,10 @@ const extendedMolecule = extendMolecule(baseMolecule, {
         localColumnsFamily: localColumnsAtomFamily,
         /** Track which revision has local entities */
         localEntitiesRevision: localEntitiesRevisionAtom,
+        /** Selection draft per revision (for TestsetSelectionModal) */
+        selectionDraft: testcaseSelectionDraftAtomFamily,
+        /** Current selection (draft if exists, else displayRowIds) */
+        currentSelection: currentSelectionAtomFamily,
     },
     reducers: {
         /** Discard all drafts */
@@ -480,6 +507,14 @@ const extendedMolecule = extendMolecule(baseMolecule, {
         append: appendTestcasesAtom,
         /** Create multiple testcases with options - returns {ids, count} */
         create: createTestcasesAtom,
+        /** Initialize selection draft from current displayRowIds */
+        initSelectionDraft: initSelectionDraftAtom,
+        /** Set selection draft */
+        setSelectionDraft: setSelectionDraftAtom,
+        /** Commit selection draft to actual selection */
+        commitSelectionDraft: commitSelectionDraftAtom,
+        /** Discard selection draft */
+        discardSelectionDraft: discardSelectionDraftAtom,
     },
     get: {
         /** Get cell value */
@@ -580,6 +615,10 @@ export const testcaseMolecule = {
         localColumnsFamily: localColumnsAtomFamily,
         /** Track which revision has local entities */
         localEntitiesRevision: localEntitiesRevisionAtom,
+        /** Selection draft per revision (for TestsetSelectionModal) */
+        selectionDraft: testcaseSelectionDraftAtomFamily,
+        /** Current selection (draft if exists, else displayRowIds) */
+        currentSelection: currentSelectionAtomFamily,
     },
 
     // Atoms from extended molecule
@@ -616,6 +655,14 @@ export const testcaseMolecule = {
         append: appendTestcasesAtom,
         /** Create multiple testcases with options - returns {ids, count} */
         create: createTestcasesAtom,
+        /** Initialize selection draft from current displayRowIds */
+        initSelectionDraft: initSelectionDraftAtom,
+        /** Set selection draft */
+        setSelectionDraft: setSelectionDraftAtom,
+        /** Commit selection draft to actual selection */
+        commitSelectionDraft: commitSelectionDraftAtom,
+        /** Discard selection draft */
+        discardSelectionDraft: discardSelectionDraftAtom,
     },
 
     // DrillIn utilities for path-based navigation and editing

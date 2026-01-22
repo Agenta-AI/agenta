@@ -9,6 +9,7 @@
 import {projectIdAtom} from "@agenta/shared"
 import {atom} from "jotai"
 
+import {derivedColumnChangesAtomFamily} from "../../loadable"
 import {testcaseMolecule} from "../../testcase"
 import type {FlattenedTestcase} from "../../testcase/core"
 import {
@@ -130,17 +131,17 @@ function extractDataFields(testcase: FlattenedTestcase | null): Record<string, u
 
 /**
  * Build diff-friendly structure from testcases
- * Groups testcases by ID with only their data fields
+ * Groups testcases by index with only their data fields
  */
 function buildDiffStructure(
-    testcases: Array<{id: string; data: Record<string, unknown>}>,
+    testcases: {id: string; data: Record<string, unknown>}[],
 ): Record<string, Record<string, unknown>> {
     const structure: Record<string, Record<string, unknown>> = {}
 
-    for (const tc of testcases) {
-        // Use a short ID prefix for readability in diff
-        const shortId = tc.id.slice(0, 8)
-        structure[shortId] = tc.data
+    for (let i = 0; i < testcases.length; i++) {
+        // Use index-based key for consistent ordering and no collisions
+        const key = `row_${i + 1}`
+        structure[key] = testcases[i].data
     }
 
     return structure
@@ -149,8 +150,11 @@ function buildDiffStructure(
 /**
  * Commit context atom factory for revision
  * Provides version info, changes summary, and diff data for the commit modal
+ *
+ * @param revisionId - The revision ID
+ * @param metadata - Optional metadata from EntityReference (may contain loadableId)
  */
-const revisionCommitContextAtom = (revisionId: string) =>
+const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string, unknown>) =>
     atom((get): CommitContext | null => {
         const revisionData = get(revisionDataAtom(revisionId))
         if (!revisionData) return null
@@ -170,8 +174,32 @@ const revisionCommitContextAtom = (revisionId: string) =>
         // Target version is always latest + 1
         const targetVersion = latestVersion + 1
 
-        // Get changes summary from testcase state
-        const changesSummary = get(changesSummaryAtom)
+        // Get core changes summary from testcase state (manual ops only)
+        const coreChangesSummary = get(changesSummaryAtom)
+
+        // Get loadable-derived column changes (optional - only when loadableId provided)
+        // This allows reactive column change detection without explicit sync
+        const loadableId = metadata?.loadableId as string | undefined
+        const derivedChanges = loadableId
+            ? get(derivedColumnChangesAtomFamily(loadableId))
+            : {added: [], removed: []}
+
+        // Combine core + derived column changes (avoid double-counting)
+        const coreAddedColumns = coreChangesSummary?.addedColumns ?? 0
+        const derivedAddedColumns = derivedChanges.added.length
+        const totalAddedColumns = coreAddedColumns + derivedAddedColumns
+
+        // Build combined changes summary
+        const changesSummary = coreChangesSummary
+            ? {
+                  updatedTestcases: coreChangesSummary.updatedTestcases,
+                  newTestcases: coreChangesSummary.newTestcases,
+                  deletedTestcases: coreChangesSummary.deletedTestcases,
+                  addedColumns: totalAddedColumns,
+                  renamedColumns: coreChangesSummary.renamedColumns,
+                  deletedColumns: coreChangesSummary.deletedColumns,
+              }
+            : null
 
         // Compute diff data from testcase molecule state
         const serverIds = get(testcaseMolecule.atoms.ids)
@@ -179,7 +207,7 @@ const revisionCommitContextAtom = (revisionId: string) =>
         const deletedIds = get(testcaseMolecule.atoms.deletedIds)
 
         // Build original (server) state - only non-deleted server entities
-        const originalTestcases: Array<{id: string; data: Record<string, unknown>}> = []
+        const originalTestcases: {id: string; data: Record<string, unknown>}[] = []
         for (const id of serverIds) {
             if (deletedIds.has(id)) continue // Skip deleted
 
@@ -194,7 +222,7 @@ const revisionCommitContextAtom = (revisionId: string) =>
         }
 
         // Build modified state - server entities with drafts + new entities
-        const modifiedTestcases: Array<{id: string; data: Record<string, unknown>}> = []
+        const modifiedTestcases: {id: string; data: Record<string, unknown>}[] = []
 
         // Add server entities (with drafts applied, excluding deleted)
         for (const id of serverIds) {
@@ -229,12 +257,15 @@ const revisionCommitContextAtom = (revisionId: string) =>
         const original = JSON.stringify(originalStructure, null, 2)
         const modified = JSON.stringify(modifiedStructure, null, 2)
 
-        // Only include diff data if there are actual changes
+        // Only include diff data if there are actual changes (testcases OR columns)
         const hasChanges =
             changesSummary &&
             (changesSummary.updatedTestcases > 0 ||
                 changesSummary.newTestcases > 0 ||
-                changesSummary.deletedTestcases > 0)
+                changesSummary.deletedTestcases > 0 ||
+                changesSummary.renamedColumns > 0 ||
+                changesSummary.addedColumns > 0 ||
+                changesSummary.deletedColumns > 0)
 
         return {
             versionInfo: {
@@ -247,6 +278,10 @@ const revisionCommitContextAtom = (revisionId: string) =>
                       modifiedCount: changesSummary.updatedTestcases,
                       addedCount: changesSummary.newTestcases,
                       deletedCount: changesSummary.deletedTestcases,
+                      // Include column changes
+                      addedColumns: changesSummary.addedColumns,
+                      renamedColumns: changesSummary.renamedColumns,
+                      deletedColumns: changesSummary.deletedColumns,
                   }
                 : undefined,
             // Include diff data when there are changes
