@@ -7,8 +7,8 @@
 
 import {memo} from "react"
 
-import {Switch, Tooltip, Typography} from "antd"
-import clsx from "clsx"
+import {cn, LabeledField} from "@agenta/ui"
+import {Switch} from "antd"
 
 import type {SchemaProperty} from "../../../shared"
 
@@ -54,20 +54,15 @@ export const BooleanToggleControl = memo(function BooleanToggleControl({
     // Normalize value (treat null/undefined as false)
     const checked = value ?? false
 
-    const content = (
-        <div className={clsx("flex items-center justify-between gap-2", className)}>
-            <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
+    return (
+        <LabeledField
+            label={label}
+            description={tooltipText}
+            withTooltip={withTooltip}
+            direction="horizontal"
+            className={cn("justify-between", className)}
+        >
             <Switch disabled={disabled} checked={checked} onChange={onChange} size="small" />
-        </div>
+        </LabeledField>
     )
-
-    if (withTooltip && tooltipText) {
-        return (
-            <Tooltip title={tooltipText} placement="right">
-                {content}
-            </Tooltip>
-        )
-    }
-
-    return content
 })

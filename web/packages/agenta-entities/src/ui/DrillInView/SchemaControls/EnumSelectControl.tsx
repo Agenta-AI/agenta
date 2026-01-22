@@ -7,9 +7,8 @@
 
 import {memo, useMemo} from "react"
 
-import {CaretUpDown} from "@phosphor-icons/react"
-import {Button, Dropdown, Select, Tooltip, Typography} from "antd"
-import clsx from "clsx"
+import {cn, LabeledField, SimpleDropdownSelect} from "@agenta/ui"
+import {Select} from "antd"
 
 import type {SchemaProperty} from "../../../shared"
 
@@ -107,38 +106,30 @@ export const EnumSelectControl = memo(function EnumSelectControl({
     // Get description from schema or prop
     const tooltipText = description ?? (schema as any)?.description ?? ""
 
-    // Dropdown variant (compact button)
+    // Dropdown variant (compact button) - use SimpleDropdownSelect from @agenta/ui
     if (variant === "dropdown") {
-        const menuItems = options.map((item) => ({
-            key: item.value,
-            label: item.label,
-            className: "capitalize",
-            onClick: () => onChange(item.value),
-        }))
-
-        const button = (
-            <Dropdown disabled={disabled} menu={{items: menuItems}} trigger={["click"]}>
-                <Button
-                    className={clsx("capitalize flex items-center gap-1 px-2", className)}
-                    type="text"
-                    size="small"
-                >
-                    {value ? formatEnumLabel(value) : placeholder}
-                    <CaretUpDown size={14} />
-                </Button>
-            </Dropdown>
+        return (
+            <SimpleDropdownSelect
+                value={value ?? ""}
+                options={options}
+                onChange={(val) => onChange(val || null)}
+                disabled={disabled}
+                placeholder={placeholder}
+                className={cn("capitalize", className)}
+                description={tooltipText}
+                withTooltip={withTooltip}
+            />
         )
-
-        if (withTooltip && tooltipText) {
-            return <Tooltip title={tooltipText}>{button}</Tooltip>
-        }
-        return button
     }
 
     // Select variant (full select)
-    const selectContent = (
-        <div className={clsx("flex flex-col gap-1", className)}>
-            {label && <Typography.Text className="text-sm font-medium">{label}</Typography.Text>}
+    return (
+        <LabeledField
+            label={label}
+            description={tooltipText}
+            withTooltip={withTooltip && !!label}
+            className={cn(className)}
+        >
             <Select
                 value={value ?? undefined}
                 onChange={(val) => onChange(val ?? null)}
@@ -153,16 +144,6 @@ export const EnumSelectControl = memo(function EnumSelectControl({
                     (option?.label?.toString() ?? "").toLowerCase().includes(input.toLowerCase())
                 }
             />
-        </div>
+        </LabeledField>
     )
-
-    if (withTooltip && tooltipText && label) {
-        return (
-            <Tooltip title={tooltipText} placement="right">
-                {selectContent}
-            </Tooltip>
-        )
-    }
-
-    return selectContent
 })

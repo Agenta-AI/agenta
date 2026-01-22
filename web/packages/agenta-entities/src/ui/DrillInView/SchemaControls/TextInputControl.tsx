@@ -5,10 +5,10 @@
  * Supports both single-line input and multi-line textarea.
  */
 
-import {memo, useCallback, useState, useEffect} from "react"
+import {memo, useCallback, useEffect, useState} from "react"
 
-import {Input, Tooltip, Typography} from "antd"
-import clsx from "clsx"
+import {cn, LabeledField} from "@agenta/ui"
+import {Input, Typography} from "antd"
 
 import type {SchemaProperty} from "../../../shared"
 
@@ -125,9 +125,13 @@ export const TextInputControl = memo(function TextInputControl({
         />
     )
 
-    const content = (
-        <div className={clsx("flex flex-col gap-1", className)}>
-            {label && <Typography.Text className="text-sm font-medium">{label}</Typography.Text>}
+    return (
+        <LabeledField
+            label={label}
+            description={tooltipText}
+            withTooltip={withTooltip && !!label}
+            className={cn(className)}
+        >
             {inputContent}
             {(maxLength || minLength) && (
                 <Typography.Text type="secondary" className="text-xs">
@@ -136,16 +140,6 @@ export const TextInputControl = memo(function TextInputControl({
                     {maxLength && `Max: ${maxLength}`}
                 </Typography.Text>
             )}
-        </div>
+        </LabeledField>
     )
-
-    if (withTooltip && tooltipText && label) {
-        return (
-            <Tooltip title={tooltipText} placement="right">
-                {content}
-            </Tooltip>
-        )
-    }
-
-    return content
 })

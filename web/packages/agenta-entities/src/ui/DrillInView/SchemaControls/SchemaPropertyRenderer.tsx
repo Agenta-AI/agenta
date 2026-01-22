@@ -26,7 +26,7 @@ import {GroupedChoiceControl} from "./GroupedChoiceControl"
 import {MessagesSchemaControl, isMessagesSchema} from "./MessagesSchemaControl"
 import {NumberSliderControl} from "./NumberSliderControl"
 import {ObjectSchemaControl} from "./ObjectSchemaControl"
-import {PromptSchemaControl, isPromptSchema} from "./PromptSchemaControl"
+import {PromptSchemaControl, isPromptSchema, isPromptValue} from "./PromptSchemaControl"
 import {hasGroupedChoices, resolveAnyOfSchema, shouldRenderObjectInline} from "./schemaUtils"
 import {TextInputControl} from "./TextInputControl"
 
@@ -56,13 +56,17 @@ export interface SchemaPropertyRendererProps {
      * Useful when schema type is ambiguous or for custom rendering.
      */
     as?: "number" | "text" | "enum" | "boolean" | "textarea"
+    /** Hide the model selector in prompt controls (when shown elsewhere) */
+    hideModelSelector?: boolean
 }
 
 /**
- * Determine the best control type for a schema property
+ * Determine the best control type for a schema property.
+ * Falls back to value-based detection when schema is not available.
  */
 function getControlType(
     schema: SchemaProperty | null | undefined,
+    value: unknown,
     forceType?: SchemaPropertyRendererProps["as"],
 ):
     | "number"
@@ -79,7 +83,22 @@ function getControlType(
     | "unknown" {
     if (forceType) return forceType
 
-    if (!schema) return "text"
+    // When schema is null, fall back to value-based detection
+    if (!schema) {
+        // Check for prompt object by value
+        if (isPromptValue(value)) {
+            return "prompt"
+        }
+        // For other objects without schema, render as object
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+            return "object"
+        }
+        // For arrays without schema
+        if (Array.isArray(value)) {
+            return "array"
+        }
+        return "text"
+    }
 
     // Resolve anyOf/oneOf schemas to get the actual type (handles nullable types)
     const resolvedSchema = resolveAnyOfSchema(schema)
@@ -197,10 +216,11 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
     className,
     path,
     as,
+    hideModelSelector = false,
 }: SchemaPropertyRendererProps) {
     // Resolve anyOf/oneOf schemas for rendering
     const resolvedSchema = useMemo(() => resolveAnyOfSchema(schema), [schema])
-    const controlType = useMemo(() => getControlType(schema, as), [schema, as])
+    const controlType = useMemo(() => getControlType(schema, value, as), [schema, value, as])
 
     // Format label from path if not provided
     // Use ?? to respect empty string (label="") vs undefined/null
@@ -343,6 +363,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     description={tooltipDesc}
                     disabled={disabled}
                     className={className}
+                    hideModelSelector={hideModelSelector}
                 />
             )
 
