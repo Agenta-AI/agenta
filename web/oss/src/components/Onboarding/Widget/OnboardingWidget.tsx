@@ -1,6 +1,6 @@
 "use client"
 
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useNextStep} from "@agentaai/nextstepjs"
 import {CaretDown, CaretUp, RocketLaunch, X} from "@phosphor-icons/react"
@@ -30,6 +30,7 @@ import {
     tourRegistry,
     type OnboardingWidgetItem,
 } from "@/oss/lib/onboarding"
+import {traceCountAtom, tracesQueryAtom} from "@/oss/state/newObservability/atoms/queries"
 
 import {ANNOTATE_TRACES_TOUR_ID, registerAnnotateTracesTour} from "../tours/annotateTracesTour"
 import {DEPLOY_PROMPT_TOUR_ID, registerDeployPromptTour} from "../tours/deployPromptTour"
@@ -71,6 +72,9 @@ const OnboardingWidget = () => {
     const setActiveTourId = useSetAtom(activeTourIdAtom)
     const {startNextStep, isNextStepVisible} = useNextStep()
     const {goToPlayground} = usePlaygroundNavigation()
+    const traceCount = useAtomValue(traceCountAtom)
+    const tracesQuery = useAtomValue(tracesQueryAtom)
+    const [pendingTraceTourId, setPendingTraceTourId] = useState<string | null>(null)
 
     const registryUrl = useMemo(() => {
         const base = appURL || recentlyVisitedAppURL || baseAppURL
@@ -82,30 +86,7 @@ const OnboardingWidget = () => {
         if (!base) return null
         return `${base}/traces`
     }, [appURL, recentlyVisitedAppURL])
-
-    const waitForTraceRow = useCallback(() => {
-        if (typeof window === "undefined") return Promise.resolve(false)
-
-        const MAX_ATTEMPTS = 12
-        const DELAY_MS = 250
-        let attempts = 0
-
-        return new Promise<boolean>((resolve) => {
-            const intervalId = window.setInterval(() => {
-                const traceRow = document.querySelector('[data-tour="trace-row"]')
-                if (traceRow) {
-                    window.clearInterval(intervalId)
-                    resolve(true)
-                    return
-                }
-                attempts += 1
-                if (attempts >= MAX_ATTEMPTS) {
-                    window.clearInterval(intervalId)
-                    resolve(false)
-                }
-            }, DELAY_MS)
-        })
-    }, [])
+    const isOnTracesRoute = useMemo(() => router.asPath.includes("/traces"), [router.asPath])
 
     const allItems = useMemo(
         () => config.sections.flatMap((section) => section.items),
@@ -122,8 +103,6 @@ const OnboardingWidget = () => {
     // Widget renders for authenticated users when opened and not dismissed
     const shouldRender =
         doesSessionExist && widgetStatus !== "dismissed" && widgetUIState.isOpen && totalTasks > 0
-
-    const hasTrackedOpenRef = useRef(false)
 
     const startTour = useCallback(
         (tourId: string) => {
@@ -142,6 +121,33 @@ const OnboardingWidget = () => {
         },
         [activeTourId, isNextStepVisible, setActiveTourId, startNextStep],
     )
+
+    useEffect(() => {
+        if (!pendingTraceTourId || !router.isReady || !isOnTracesRoute) return
+        if (tracesQuery.isPending || tracesQuery.isLoading || tracesQuery.isFetching) return
+
+        if (traceCount > 0) {
+            startTour(pendingTraceTourId)
+            setPendingTraceTourId(null)
+            return
+        }
+
+        message.info(
+            "No traces yet. Set up tracing first, then return here to annotate your first trace.",
+        )
+        setPendingTraceTourId(null)
+    }, [
+        isOnTracesRoute,
+        pendingTraceTourId,
+        router.isReady,
+        startTour,
+        traceCount,
+        tracesQuery.isFetching,
+        tracesQuery.isPending,
+        tracesQuery.isLoading,
+    ])
+
+    const hasTrackedOpenRef = useRef(false)
 
     const handleItemClick = useCallback(
         async (item: OnboardingWidgetItem) => {
@@ -195,14 +201,7 @@ const OnboardingWidget = () => {
                     if (observabilityUrl) {
                         await router.push(observabilityUrl)
                     }
-                    const hasTraces = await waitForTraceRow()
-                    if (!hasTraces) {
-                        message.info(
-                            "No traces yet. Set up tracing first, then return here to annotate your first trace.",
-                        )
-                        return
-                    }
-                    startTour(item.tourId || ANNOTATE_TRACES_TOUR_ID)
+                    setPendingTraceTourId(item.tourId || ANNOTATE_TRACES_TOUR_ID)
                     return
                 } catch (error) {
                     console.error("Failed to navigate to observability", error)
@@ -230,10 +229,10 @@ const OnboardingWidget = () => {
             registryUrl,
             router,
             startTour,
-            waitForTraceRow,
             openDeploymentsDrawer,
             setWidgetActivation,
             goToPlayground,
+            setPendingTraceTourId,
         ],
     )
 
