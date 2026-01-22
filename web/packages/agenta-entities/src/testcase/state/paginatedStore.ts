@@ -10,8 +10,7 @@ import {
     type InfiniteTableFetchResult,
     type PaginatedEntityStore,
 } from "@agenta/ui"
-import {atom} from "jotai"
-import type {Atom} from "jotai"
+import {atom, type Atom, type PrimitiveAtom} from "jotai"
 
 import {isNewTestsetId} from "../../testset/core"
 import {fetchTestcasesPage} from "../api"
@@ -55,7 +54,7 @@ export interface TestcasePaginatedMeta {
 /**
  * Current revision ID for testcases queries
  */
-export const testcasesRevisionIdAtom = atom<string | null>(null)
+export const testcasesRevisionIdAtom = atom<string | null>(null) as PrimitiveAtom<string | null>
 
 /**
  * Search term for filtering testcases (immediate value for UI)
