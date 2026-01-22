@@ -61,6 +61,7 @@ export {dayjs, normalizeTimestamps, normalizeEntityTimestamps, parseEntityDate} 
 // Path utilities for nested data navigation
 export {
     getValueAtPath,
+    getValueAtStringPath,
     setValueAtPath,
     deleteValueAtPath,
     hasValueAtPath,
@@ -102,6 +103,7 @@ export {keyToString, stringToKeyPath} from "./utils"
 
 // JSON detection utilities
 export {
+    isPlainObject,
     isJsonString,
     isJsonObject,
     isJsonArray,

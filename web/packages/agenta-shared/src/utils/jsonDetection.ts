@@ -5,7 +5,33 @@
  * - Detecting if a string looks like JSON (fast, heuristic-based)
  * - Validating if a string is valid JSON (slower, parse-based)
  * - Determining JSON structure (object vs array)
+ * - Type guards for plain objects
  */
+
+// ============================================================================
+// TYPE GUARDS
+// ============================================================================
+
+/**
+ * Check if a value is a plain object (not array, null, or primitive).
+ * This is a fundamental type guard used throughout the codebase.
+ *
+ * @param value - The value to check
+ * @returns true if value is a plain object
+ *
+ * @example
+ * isPlainObject({a: 1}) // true
+ * isPlainObject([1, 2]) // false (is array)
+ * isPlainObject(null) // false
+ * isPlainObject('string') // false
+ */
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+// ============================================================================
+// JSON STRING DETECTION
+// ============================================================================
 
 /**
  * Checks if a string looks like JSON (starts and ends with { } or [ ]).
