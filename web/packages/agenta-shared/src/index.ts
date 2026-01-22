@@ -149,6 +149,7 @@ export {
     formatTokenUsage, // deprecated alias
     formatPercent,
     formatSignificant,
+    formatPreviewValue,
     createFormatter,
 } from "./utils"
 export type {FormatterOptions, Formatter} from "./utils"
