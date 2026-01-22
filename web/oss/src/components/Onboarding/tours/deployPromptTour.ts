@@ -1,7 +1,6 @@
 import {getDefaultStore} from "jotai"
 
 import {openDeploymentsDrawerAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {recordWidgetEventAtom, tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
 import {variantTableSelectionAtomFamily} from "@/oss/state/variant/atoms/selection"
@@ -99,8 +98,6 @@ const deployPromptTour: OnboardingTour = {
     ],
 }
 
-const isWalkthroughsEnabled = () => getEnv("NEXT_PUBLIC_ENABLE_WALKTHROUGHS") === "true"
-
 /**
  * Register the tour
  *
@@ -109,7 +106,7 @@ const isWalkthroughsEnabled = () => getEnv("NEXT_PUBLIC_ENABLE_WALKTHROUGHS") ==
  */
 export function registerDeployPromptTour(): void {
     tourRegistry.register(deployPromptTour, {
-        condition: isWalkthroughsEnabled,
+        condition: () => true,
     })
 }
 
