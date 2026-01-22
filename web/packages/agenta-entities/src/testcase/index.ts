@@ -56,6 +56,12 @@ export {
     unflattenTestcase,
     SYSTEM_FIELDS,
     isSystemField,
+    // Column grouping utilities
+    groupColumns,
+    isGroupedColumnKey,
+    parseGroupedColumnKey,
+    getLeafColumnName,
+    type GroupColumnsOptions,
 } from "./core"
 
 export type {
@@ -120,6 +126,7 @@ export {testcaseMolecule, type TestcaseMolecule, type CreateTestcasesOptions} fr
 export {
     // Context
     currentRevisionIdAtom,
+    setCurrentRevisionIdAtom,
     // ID tracking
     testcaseIdsAtom,
     setTestcaseIdsAtom,

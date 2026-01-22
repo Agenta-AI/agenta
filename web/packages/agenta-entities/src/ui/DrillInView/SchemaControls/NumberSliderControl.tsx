@@ -5,11 +5,9 @@
  * Used for temperature, max tokens, top P, penalties, etc.
  */
 
-import {memo, useCallback, useState, useEffect} from "react"
+import {memo} from "react"
 
-import {XCircle} from "@phosphor-icons/react"
-import {Slider, InputNumber, Typography, Tooltip, Button} from "antd"
-import clsx from "clsx"
+import {LabeledField, SliderInput} from "@agenta/ui"
 
 import type {SchemaProperty} from "../../../shared"
 
@@ -99,73 +97,24 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     // Get description from schema or prop
     const tooltipText = description ?? (schema as any)?.description ?? ""
 
-    // Local state for immediate UI feedback (debounce handled externally)
-    const [localValue, setLocalValue] = useState<number | null>(value ?? null)
-
-    // Sync local state with external value
-    useEffect(() => {
-        setLocalValue(value ?? null)
-    }, [value])
-
-    // Handle value changes with immediate local update
-    const handleValueChange = useCallback(
-        (newValue: number | null | undefined) => {
-            const processedValue = newValue === undefined ? null : newValue
-            setLocalValue(processedValue)
-            onChange(processedValue)
-        },
-        [onChange],
-    )
-
-    const content = (
-        <div className={clsx("flex flex-col gap-1", className)}>
-            <div className="flex items-center gap-2 justify-between">
-                <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-
-                <div className="flex items-center gap-1">
-                    <InputNumber
-                        min={min}
-                        max={max}
-                        step={step}
-                        value={localValue}
-                        onChange={handleValueChange}
-                        disabled={disabled}
-                        className="w-[70px] [&_input]:!text-center"
-                        placeholder={placeholder}
-                        size="small"
-                    />
-
-                    {allowClear && (localValue !== null || localValue === 0) && (
-                        <Button
-                            icon={<XCircle size={14} />}
-                            type="text"
-                            size="small"
-                            onClick={() => handleValueChange(null)}
-                            disabled={disabled}
-                        />
-                    )}
-                </div>
-            </div>
-
-            <Slider
+    return (
+        <LabeledField
+            label={label}
+            description={tooltipText}
+            withTooltip={withTooltip}
+            direction="horizontal"
+            className={className}
+        >
+            <SliderInput
+                value={value}
+                onChange={onChange}
                 min={min}
                 max={max}
                 step={step}
-                value={localValue ?? min}
                 disabled={disabled}
-                onChange={handleValueChange}
-                className="mt-0"
+                allowClear={allowClear}
+                placeholder={placeholder}
             />
-        </div>
+        </LabeledField>
     )
-
-    if (withTooltip && tooltipText) {
-        return (
-            <Tooltip title={tooltipText} placement="right">
-                {content}
-            </Tooltip>
-        )
-    }
-
-    return content
 })

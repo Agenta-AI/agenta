@@ -24,12 +24,12 @@ import type {
     LoadableBridgeSelectors,
     LoadableColumn,
     LoadableRow,
-    LoadableSourceConfig,
+    LoadableSourceConfig as _LoadableSourceConfig,
     RunnableBridge,
     RunnableBridgeSelectors,
     RunnableData,
-    RunnablePort,
-    RunnableTypeConfig,
+    RunnablePort as _RunnablePort,
+    RunnableTypeConfig as _RunnableTypeConfig,
     BridgeQueryState,
 } from "./entityBridge"
 
@@ -427,21 +427,6 @@ export function createLoadableBridge(config: CreateLoadableBridgeConfig): Loadab
 export function createRunnableBridge(config: CreateRunnableBridgeConfig): RunnableBridge {
     const {runnables} = config
 
-    // Registry to track which runnable type each ID belongs to
-    const runnableTypeRegistry = atomFamily((_runnableId: string) =>
-        atom<string | null>(null),
-    )
-
-    // Helper to get runnable config for an ID
-    const getRunnableConfig = (
-        runnableId: string,
-        get: <T>(atom: Atom<T>) => T,
-    ): RunnableTypeConfig | null => {
-        const runnableType = get(runnableTypeRegistry(runnableId))
-        if (!runnableType) return null
-        return runnables[runnableType] ?? null
-    }
-
     // Create selectors
     const selectors: RunnableBridgeSelectors = {
         data: (runnableId: string) =>
@@ -487,6 +472,11 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                 for (const [_type, config] of Object.entries(runnables)) {
                     const entity = get(config.molecule.selectors.data(runnableId))
                     if (entity) {
+                        // Prefer selector atom if provided (reactive derivation)
+                        if (config.inputPortsSelector) {
+                            return get(config.inputPortsSelector(runnableId))
+                        }
+                        // Fallback to extraction function
                         return config.getInputPorts(entity)
                     }
                 }
@@ -498,6 +488,11 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                 for (const [_type, config] of Object.entries(runnables)) {
                     const entity = get(config.molecule.selectors.data(runnableId))
                     if (entity) {
+                        // Prefer selector atom if provided (reactive derivation)
+                        if (config.outputPortsSelector) {
+                            return get(config.outputPortsSelector(runnableId))
+                        }
+                        // Fallback to extraction function
                         return config.getOutputPorts(entity)
                     }
                 }
@@ -512,8 +507,20 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
 
         invocationUrl: (runnableId: string) =>
             atom((get) => {
-                const data = get(selectors.data(runnableId))
-                return data?.invocationUrl ?? null
+                // Try each runnable type to find invocation URL
+                for (const [_type, config] of Object.entries(runnables)) {
+                    const entity = get(config.molecule.selectors.data(runnableId))
+                    if (entity) {
+                        // Prefer selector atom if provided (computed from schema)
+                        if (config.invocationUrlSelector) {
+                            return get(config.invocationUrlSelector(runnableId))
+                        }
+                        // Fallback to toRunnable extraction
+                        const data = config.toRunnable(entity)
+                        return data?.invocationUrl ?? null
+                    }
+                }
+                return null
             }),
 
         schemas: (runnableId: string) =>

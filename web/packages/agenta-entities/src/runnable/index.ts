@@ -108,7 +108,7 @@ export {
 // NEW API: RUNNABLE BRIDGE (Recommended)
 // ============================================================================
 
-export {runnableBridge} from "./bridge"
+export {runnableBridge, loadableColumnsFromRunnableAtomFamily} from "./bridge"
 export {extractInputPortsFromSchema, extractOutputPortsFromSchema, formatKeyAsName} from "./bridge"
 
 // Re-export loadable bridge for convenience
@@ -150,6 +150,11 @@ export {
     resolveInputsFromMappings,
     autoMapInputs,
     executeRunnable,
+    // Template variable extraction
+    extractTemplateVariables,
+    extractTemplateVariablesFromJson,
+    extractVariablesFromPrompts,
+    extractVariablesFromAgConfig,
 } from "./utils"
 export type {PathSource, ExecuteRunnableOptions} from "./utils"
 

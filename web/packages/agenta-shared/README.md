@@ -143,6 +143,54 @@ const testcase = { messages: '{"content": "hello"}' }
 getValueAtPath(testcase, ['messages', 'content']) // 'hello'
 ```
 
+### Formatting Utilities
+
+Format numbers, currency, latency, and more for display:
+
+```typescript
+import {
+  formatNumber,
+  formatCurrency,
+  formatLatency,
+  formatSignificant,
+  formatPercent,
+  createFormatter,
+} from '@agenta/shared'
+
+// Preset formatters
+formatNumber(1234.567)      // "1,234.57"
+formatCurrency(0.00123)     // "$0.001230"
+formatLatency(0.5)          // "500ms"
+formatSignificant(0.00456)  // "0.00456"
+formatPercent(0.856)        // "85.60%"
+
+// Custom formatter factory
+const formatScore = createFormatter({
+  multiplier: 100,
+  suffix: '%',
+  decimals: 1,
+})
+formatScore(0.856)  // "85.6%"
+```
+
+See [formatters/README.md](./src/utils/formatters/README.md) for full documentation.
+
+### OpenAPI Utilities
+
+Dereference OpenAPI specifications:
+
+```typescript
+import { dereferenceSchema } from '@agenta/shared'
+
+const rawSpec = await fetchOpenApiSpec(uri)
+const { schema, errors } = await dereferenceSchema(rawSpec)
+
+if (schema) {
+  // Use the fully resolved schema (no $ref pointers)
+  const properties = schema.paths['/test'].post.requestBody
+}
+```
+
 ## Subpath Exports
 
 Import from specific subpaths for tree-shaking:

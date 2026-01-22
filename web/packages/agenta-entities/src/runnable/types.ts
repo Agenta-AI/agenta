@@ -245,6 +245,8 @@ export interface RowExecutionResult {
         code?: string
     }
     metrics?: ExecutionMetrics
+    /** Trace ID for fetching structured span data */
+    traceId?: string | null
     /** Chain execution progress (while running) */
     chainProgress?: ChainProgress | null
     /** Results from all nodes keyed by nodeId */

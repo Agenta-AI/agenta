@@ -27,10 +27,42 @@ const presets = useAtomValue(evalController.selectors.presets(evaluatorId))
 
 ## Architecture
 
-The runnable system uses a **bridge pattern** that separates:
+The runnable system uses a **bridge pattern** with clear abstraction layers:
 
-1. **Types** (`types.ts`): Shared type definitions
-2. **Bridge** (`bridge.ts`): Connects molecule APIs to unified selectors
+### Abstraction Layers
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                     UI Components                                │
+│         (read selectors, dispatch actions via hooks)            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      runnableBridge                              │
+│    High-level API: data, inputPorts, outputPorts, schemas...   │
+│    (Entity-agnostic interface for UI consumption)               │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      Entity Molecules                            │
+│       appRevisionMolecule, evaluatorRevisionMolecule...         │
+│   (Entity-specific data access, schema parsing, dirty tracking) │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key principle:** UI components should use the highest-level API available (`runnableBridge`), not reach down to molecules directly. This enables:
+
+- **Unified API** across different runnable types (app revisions, evaluators, future types)
+- **Decoupled data layer** - UI doesn't know about entity implementation details
+- **Easy customization** - behavior differences handled at molecule level (e.g., evaluator presets)
+- **Reduced boilerplate** - common patterns like port extraction implemented once
+
+### Layer Responsibilities
+
+1. **Types** (`types.ts`): Shared type definitions for execution, ports, mappings
+2. **Bridge** (`bridge.ts`): Connects molecule APIs to unified selectors with transformations
 3. **Factory** (`shared/createEntityBridge.ts`): Creates bridges with configurable runnable types
 
 ```text
@@ -166,6 +198,98 @@ interface ExecutionResult {
     metrics?: ExecutionMetrics
 }
 ```
+
+## Best Practices
+
+### Invocation URL Resolution
+
+The invocation URL is **computed from the schema query**, not stored directly on entity data. This is because:
+
+- The URL depends on runtime prefix and route path from OpenAPI spec
+- The schema query fetches the OpenAPI spec and extracts URL components
+
+```typescript
+// ❌ WRONG - Don't read invocationUrl directly from entity data
+const data = useAtomValue(appRevisionMolecule.selectors.data(revisionId))
+const url = data?.invocationUrl // This doesn't exist on AppRevisionData!
+
+// ✅ CORRECT - Use the computed atom from molecule
+const url = useAtomValue(appRevisionMolecule.atoms.invocationUrl(revisionId))
+```
+
+The computation flow:
+
+```text
+schemaQuery (fetches OpenAPI spec)
+    → extracts runtimePrefix + routePath
+    → invocationUrlAtomFamily computes full URL
+    → molecule.atoms.invocationUrl exposes it
+```
+
+### API Payload Format
+
+When invoking runnables, the API expects a specific payload structure:
+
+```typescript
+// ❌ WRONG - Don't send inputs directly
+fetch(url, {
+    body: JSON.stringify(inputs) // { prompt: "hello" }
+})
+
+// ✅ CORRECT - Wrap inputs in object
+fetch(url, {
+    body: JSON.stringify({ inputs }) // { inputs: { prompt: "hello" } }
+})
+```
+
+For the `/test` endpoint (draft testing), include the ag_config:
+
+```typescript
+const requestBody: Record<string, unknown> = { inputs }
+
+if (url.endsWith("/test")) {
+    // Include draft config for testing uncommitted changes
+    requestBody.ag_config = configuration
+}
+
+fetch(url, {
+    body: JSON.stringify(requestBody)
+})
+```
+
+### Response Data Extraction
+
+API responses have a structured format:
+
+```typescript
+// API returns:
+{
+    version: "1.0",
+    data: "The actual output",
+    content_type: "text/plain",
+    tree: { ... }
+}
+
+// Extract the main output
+const responseData = await response.json()
+const output = responseData?.data !== undefined
+    ? responseData.data
+    : responseData
+```
+
+### Input Ports Derivation
+
+Input ports are derived reactively from the revision's `agConfig`:
+
+```typescript
+// The molecule computes inputPorts from agConfig template variables
+const inputPorts = useAtomValue(appRevisionMolecule.selectors.inputPorts(revisionId))
+
+// This extracts variables like {{topic}} from prompt templates
+// Returns: [{ key: "topic", name: "topic", type: "string", required: true }]
+```
+
+This is the single source of truth for "what inputs does this revision expect".
 
 ## Utilities
 

@@ -1,0 +1,10 @@
+{
+  "label": "Platform",
+  "position": 1,
+  "link": {
+    "type": "generated-index",
+    "title": "Platform",
+    "description": "Questions about rate limits, data retention, and platform behavior.",
+    "slug": "/faq/platform"
+  }
+}

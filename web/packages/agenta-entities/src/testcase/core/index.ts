@@ -27,6 +27,11 @@ export {
     // Transformation utilities
     flattenTestcase,
     unflattenTestcase,
+    // Local testcase factory (accepts flat input)
+    createLocalTestcase,
+    type CreateLocalTestcaseResult,
+    type CreateLocalTestcaseSuccess,
+    type CreateLocalTestcaseFailure,
     // Constants
     SYSTEM_FIELDS,
     isSystemField,
@@ -52,3 +57,12 @@ export type {
     BatchUpdateEntry,
     ColumnRenameOperation,
 } from "./types"
+
+// Column grouping utilities
+export {
+    groupColumns,
+    isGroupedColumnKey,
+    parseGroupedColumnKey,
+    getLeafColumnName,
+    type GroupColumnsOptions,
+} from "./groupColumns"

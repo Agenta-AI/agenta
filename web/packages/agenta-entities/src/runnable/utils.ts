@@ -26,7 +26,7 @@ import type {
  * @returns Array of node IDs in execution order
  */
 export function computeTopologicalOrder(
-    nodes: Array<{nodeId: string}> | PlaygroundNode[],
+    nodes: {nodeId: string}[] | PlaygroundNode[],
     connections: OutputConnection[],
     startNodeId?: string,
 ): string[] {
@@ -278,6 +278,141 @@ export function autoMapInputs(
 }
 
 // ============================================================================
+// TEMPLATE VARIABLE EXTRACTION
+// ============================================================================
+
+/**
+ * Extract variables from a template string using double curly brace syntax {{variableName}}
+ * @param input - Template string to extract variables from
+ * @returns Array of unique variable names found in the string
+ */
+export function extractTemplateVariables(input: string): string[] {
+    const variablePattern = /\{\{((?:\\.|[^\}\\])*)\}\}/g
+    const variables: string[] = []
+
+    let match: RegExpExecArray | null
+    while ((match = variablePattern.exec(input)) !== null) {
+        const variable = match[1].replaceAll(/\\(.)/g, "$1").trim()
+        if (variable && !variables.includes(variable)) {
+            variables.push(variable)
+        }
+    }
+
+    return variables
+}
+
+/**
+ * Extract template variables from a JSON object recursively
+ * @param obj - Object to extract variables from
+ * @returns Array of unique variable names
+ */
+export function extractTemplateVariablesFromJson(obj: unknown): string[] {
+    const variables: string[] = []
+
+    if (typeof obj === "string") {
+        return extractTemplateVariables(obj)
+    }
+
+    if (Array.isArray(obj)) {
+        for (const item of obj) {
+            const itemVars = extractTemplateVariablesFromJson(item)
+            for (const v of itemVars) {
+                if (!variables.includes(v)) variables.push(v)
+            }
+        }
+    } else if (obj && typeof obj === "object") {
+        for (const [key, value] of Object.entries(obj)) {
+            // Extract from keys
+            const keyVars = typeof key === "string" ? extractTemplateVariables(key) : []
+            for (const v of keyVars) {
+                if (!variables.includes(v)) variables.push(v)
+            }
+            // Extract from values
+            const valueVars = extractTemplateVariablesFromJson(value)
+            for (const v of valueVars) {
+                if (!variables.includes(v)) variables.push(v)
+            }
+        }
+    }
+
+    return variables
+}
+
+/**
+ * Extract template variables from prompt messages
+ * Handles both simple string content and complex message arrays
+ *
+ * @param prompts - Array of prompt objects with messages
+ * @returns Array of unique variable names found in all messages
+ */
+export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | undefined): string[] {
+    if (!prompts || prompts.length === 0) return []
+
+    const variables: string[] = []
+
+    for (const prompt of prompts) {
+        const messages = prompt.messages
+        if (!Array.isArray(messages)) continue
+
+        for (const message of messages) {
+            if (!message || typeof message !== "object") continue
+
+            const msg = message as Record<string, unknown>
+            const content = msg.content
+
+            // Handle string content
+            if (typeof content === "string") {
+                const contentVars = extractTemplateVariables(content)
+                for (const v of contentVars) {
+                    if (!variables.includes(v)) variables.push(v)
+                }
+            }
+            // Handle array content (multi-part messages)
+            else if (Array.isArray(content)) {
+                for (const part of content) {
+                    if (typeof part === "string") {
+                        const partVars = extractTemplateVariables(part)
+                        for (const v of partVars) {
+                            if (!variables.includes(v)) variables.push(v)
+                        }
+                    } else if (part && typeof part === "object") {
+                        const partObj = part as Record<string, unknown>
+                        // Check text field in content parts
+                        if (typeof partObj.text === "string") {
+                            const textVars = extractTemplateVariables(partObj.text)
+                            for (const v of textVars) {
+                                if (!variables.includes(v)) variables.push(v)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return variables
+}
+
+/**
+ * Extract template variables from agConfig prompt object
+ * @param agConfig - The agConfig object containing prompt with messages
+ * @returns Array of unique variable names
+ */
+export function extractVariablesFromAgConfig(
+    agConfig: Record<string, unknown> | undefined,
+): string[] {
+    if (!agConfig) return []
+
+    const prompt = agConfig.prompt as Record<string, unknown> | undefined
+    if (!prompt) return []
+
+    const messages = prompt.messages
+    if (!Array.isArray(messages)) return []
+
+    return extractVariablesFromPrompts([{messages}])
+}
+
+// ============================================================================
 // EXECUTION
 // ============================================================================
 
@@ -321,13 +456,23 @@ export async function executeRunnable(
     }
 
     try {
-        // Make request to invocation URL
+        // Build request body
+        // The API expects { inputs: { ... } } format
+        // For /test endpoint, also include ag_config to test draft changes
+        const isTestEndpoint = data.invocationUrl.endsWith("/test")
+        const requestBody: Record<string, unknown> = {inputs}
+
+        if (isTestEndpoint && data.configuration) {
+            // Include the draft ag_config for testing uncommitted changes
+            requestBody.ag_config = data.configuration
+        }
+
         const response = await fetch(data.invocationUrl, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify(inputs),
+            body: JSON.stringify(requestBody),
             signal: abortSignal,
         })
 
@@ -344,7 +489,23 @@ export async function executeRunnable(
             }
         }
 
-        const output = await response.json()
+        const responseData = await response.json()
+
+        // Extract the main output from the response
+        // API returns { version, data, content_type, tree, trace_id, span_id } - we want "data" as the output
+        const output = responseData?.data !== undefined ? responseData.data : responseData
+
+        // Extract trace ID from response.trace_id (at root level, not inside tree)
+        const traceId = responseData?.trace_id
+
+        // Debug logging for trace ID extraction
+        console.log("[executeRunnable] API response:", {
+            executionId,
+            hasTree: !!responseData?.tree,
+            traceId,
+            spanId: responseData?.span_id,
+            responseKeys: Object.keys(responseData || {}),
+        })
 
         return {
             executionId,
@@ -352,6 +513,10 @@ export async function executeRunnable(
             startedAt,
             completedAt: new Date().toISOString(),
             output,
+            // Store full response for detailed inspection
+            structuredOutput: responseData,
+            // Include trace info if available
+            trace: traceId ? {id: traceId} : undefined,
         }
     } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {

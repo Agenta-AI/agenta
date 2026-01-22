@@ -127,6 +127,8 @@ export interface EndpointSchema {
     agConfigSchema?: EntitySchema | null
     /** inputs schema for dynamic inputs */
     inputsSchema?: EntitySchema | null
+    /** outputs schema extracted from response */
+    outputsSchema?: EntitySchema | null
     /** messages schema for chat variants */
     messagesSchema?: SchemaProperty | null
     /** List of all request property names */
@@ -142,6 +144,7 @@ export const endpointSchemaSchema = z.object({
     requestSchema: z.unknown().optional(),
     agConfigSchema: z.unknown().optional(),
     inputsSchema: z.unknown().optional(),
+    outputsSchema: z.unknown().optional(),
     messagesSchema: z.unknown().optional(),
     requestProperties: z.array(z.string()).optional(),
     schema: z.unknown().optional(),
@@ -175,6 +178,8 @@ export interface RevisionSchemaState {
     promptSchema?: EntitySchema | null
     /** Custom properties schema (non-prompt properties) */
     customPropertiesSchema?: EntitySchema | null
+    /** Primary outputs schema (from /test or /run response) */
+    outputsSchema?: EntitySchema | null
     /** Per-endpoint schemas */
     endpoints?: {
         test?: EndpointSchema | null
@@ -228,6 +233,13 @@ export const appRevisionDataSchema = z.object({
     uri: z.string().optional(),
     runtimePrefix: z.string().optional(),
     routePath: z.string().optional(),
+    /** Input/output schemas extracted from OpenAPI spec */
+    schemas: z
+        .object({
+            inputs: z.record(z.string(), z.unknown()).optional(),
+            outputs: z.record(z.string(), z.unknown()).optional(),
+        })
+        .optional(),
 })
 export type AppRevisionData = z.infer<typeof appRevisionDataSchema>
 
@@ -251,7 +263,7 @@ export interface AppRevisionSelectionResult {
     type: "appRevision"
     id: string
     label: string
-    path: Array<{id: string; label: string; type: string}>
+    path: {id: string; label: string; type: string}[]
     metadata: {
         revisionId: string
         variantId: string

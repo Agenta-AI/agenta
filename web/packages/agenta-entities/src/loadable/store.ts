@@ -18,14 +18,17 @@ import type {LoadableState} from "./types"
 // ============================================================================
 
 const defaultLoadableState: LoadableState = {
-    rows: [],
     columns: [],
     activeRowId: null,
+    name: null,
     connectedSourceId: null,
     connectedSourceName: null,
     linkedRunnableType: null,
     linkedRunnableId: null,
     executionResults: {},
+    outputMappings: [],
+    hiddenTestcaseIds: new Set<string>(),
+    disabledOutputMappingRowIds: new Set<string>(),
 }
 
 // ============================================================================
@@ -45,13 +48,13 @@ export const loadableStateAtomFamily = atomFamily((_loadableId: string) =>
 
 /**
  * Rows for a loadable
- * Returns rows from the loadable state - no entity integration here.
- * The controller is responsible for syncing entity data to this state.
+ * @deprecated Use loadableController.testset.selectors.rows instead - rows now live in testcaseMolecule
  */
-export const loadableRowsAtomFamily = atomFamily((loadableId: string) =>
-    atom((get) => {
-        const state = get(loadableStateAtomFamily(loadableId))
-        return state.rows
+export const loadableRowsAtomFamily = atomFamily((_loadableId: string) =>
+    atom(() => {
+        // Rows now live in testcaseMolecule, not in loadable state
+        // Use loadableController.testset.selectors.rows(loadableId) instead
+        return []
     }),
 )
 
@@ -69,47 +72,37 @@ export const loadableColumnsAtomFamily = atomFamily((loadableId: string) =>
 
 /**
  * All columns for a loadable (derived from row data)
+ * @deprecated Use loadableController.testset.selectors.columns instead
  */
 export const loadableAllColumnsAtomFamily = atomFamily((loadableId: string) =>
     atom((get) => {
         const state = get(loadableStateAtomFamily(loadableId))
-        if (state.rows.length === 0) return state.columns
-
-        const keySet = new Set<string>()
-        state.rows.forEach((row) => {
-            Object.keys(row.data).forEach((key) => keySet.add(key))
-        })
-        return Array.from(keySet).map((key) => ({
-            key,
-            name: key,
-            type: "string" as const,
-        }))
+        // Return columns from state - actual column derivation happens in controller
+        return state.columns
     }),
 )
 
 /**
- * Active row for a loadable
+ * Active row ID for a loadable
+ * @deprecated Use loadableController.testset.selectors.activeRow instead
  */
 export const loadableActiveRowAtomFamily = atomFamily((loadableId: string) =>
     atom((get) => {
         const state = get(loadableStateAtomFamily(loadableId))
-        const rows = state.rows
-
-        // If no active row ID set, return the first row
-        if (!state.activeRowId && rows.length > 0) {
-            return rows[0]
-        }
-
-        // Find the active row by ID
-        return rows.find((r) => r.id === state.activeRowId) ?? null
+        // Just return the active row ID - actual row data comes from testcaseMolecule
+        return state.activeRowId
     }),
 )
 
 /**
  * Row count for a loadable
+ * @deprecated Use testcaseMolecule.atoms.displayRowIds.length instead
  */
-export const loadableRowCountAtomFamily = atomFamily((loadableId: string) =>
-    atom((get) => get(loadableStateAtomFamily(loadableId)).rows.length),
+export const loadableRowCountAtomFamily = atomFamily((_loadableId: string) =>
+    atom(() => {
+        // Row count now comes from testcaseMolecule.atoms.displayRowIds
+        return 0
+    }),
 )
 
 /**
@@ -174,4 +167,11 @@ export const loadableLinkedRunnableAtomFamily = atomFamily((loadableId: string) 
             id: state.linkedRunnableId,
         }
     }),
+)
+
+/**
+ * Output mappings for a loadable
+ */
+export const loadableOutputMappingsAtomFamily = atomFamily((loadableId: string) =>
+    atom((get) => get(loadableStateAtomFamily(loadableId)).outputMappings ?? []),
 )

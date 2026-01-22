@@ -9,7 +9,9 @@ import {cn} from "../../utils/styles"
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
 import TableSettingsDropdown from "../components/columnVisibility/TableSettingsDropdown"
 import TableShell from "../components/TableShell"
+import {RowHeightContext} from "../context/RowHeightContext"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
+import {useRowHeightFeature, type RowHeightFeatureConfig} from "../hooks/useRowHeightFeature"
 import useTableExport, {type TableExportOptions} from "../hooks/useTableExport"
 import InfiniteVirtualTable from "../InfiniteVirtualTable"
 import type {
@@ -86,6 +88,9 @@ export interface TableExportConfig {
     /** Button label (default: "Export CSV") */
     label?: string
 }
+
+// Re-export RowHeightFeatureConfig for convenience
+export type {RowHeightFeatureConfig} from "../hooks/useRowHeightFeature"
 
 export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBase> {
     datasetStore: InfiniteDatasetStore<Row, any, any>
@@ -178,6 +183,24 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * Useful for programmatic scrolling via `tableRef.current?.scrollTo({ index })`.
      */
     tableRef?: InfiniteVirtualTableProps<Row>["tableRef"]
+    /**
+     * Built-in row height feature configuration.
+     * When provided, the shell manages row height state internally and:
+     * - Persists the preference to localStorage using the storageKey
+     * - Adds row height menu items to the settings dropdown
+     * - Provides RowHeightContext for cells to access maxLines
+     *
+     * @example
+     * ```tsx
+     * <InfiniteVirtualTableFeatureShell
+     *     rowHeightConfig={{
+     *         storageKey: "agenta:my-table:row-height",
+     *         defaultSize: "medium", // optional
+     *     }}
+     * />
+     * ```
+     */
+    rowHeightConfig?: RowHeightFeatureConfig
 }
 
 const DEFAULT_ROW_HEIGHT = 48
@@ -230,7 +253,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         containerClassName,
         tableClassName,
         autoHeight = true,
-        rowHeight = DEFAULT_ROW_HEIGHT,
+        rowHeight: rowHeightProp = DEFAULT_ROW_HEIGHT,
         fallbackControlsHeight = DEFAULT_CONTROLS_HEIGHT,
         fallbackHeaderHeight = DEFAULT_TABLE_HEADER_HEIGHT,
         resizableColumns = true,
@@ -255,8 +278,23 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         dataSource,
         tableRef,
         store,
+        rowHeightConfig,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
+
+    // Built-in row height feature (when rowHeightConfig is provided)
+    const rowHeightFeature = rowHeightConfig ? useRowHeightFeature(rowHeightConfig) : null
+
+    // Resolve row height: use feature if configured, otherwise use prop
+    const rowHeight = rowHeightFeature?.heightPx ?? rowHeightProp
+
+    // Combine settings dropdown menu items with row height menu items
+    const combinedSettingsDropdownMenuItems = useMemo<MenuProps["items"]>(() => {
+        if (!rowHeightFeature) return settingsDropdownMenuItems
+        const rowHeightItems = rowHeightFeature.menuItems ?? []
+        if (!settingsDropdownMenuItems) return rowHeightItems
+        return [...rowHeightItems, {type: "divider" as const}, ...settingsDropdownMenuItems]
+    }, [rowHeightFeature, settingsDropdownMenuItems])
 
     // Responsive breakpoints for built-in action buttons
     const screens = Grid.useBreakpoint()
@@ -469,7 +507,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                 onDelete={resolvedSettingsDropdownDelete?.onDelete}
                 deleteDisabled={resolvedSettingsDropdownDelete?.disabled}
                 deleteLabel={resolvedSettingsDropdownDelete?.label}
-                additionalMenuItems={settingsDropdownMenuItems}
+                additionalMenuItems={combinedSettingsDropdownMenuItems}
                 renderColumnVisibilityContent={(ctrls, close) =>
                     columnVisibilityRenderer(ctrls, close, {
                         scopeId,
@@ -486,7 +524,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             isExporting,
             scopeId,
             resolvedSettingsDropdownDelete,
-            settingsDropdownMenuItems,
+            combinedSettingsDropdownMenuItems,
         ],
     )
 
@@ -543,7 +581,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
 
     const effectiveDataSource = dataSource ?? pagination.rows
 
-    return (
+    // Content to render (may be wrapped with RowHeightContext.Provider)
+    const tableContent = (
         <div
             className={cn("flex flex-col", autoHeight ? "h-full min-h-0" : "min-h-0", className)}
             style={fixedHeight ? {height: fixedHeight} : undefined}
@@ -582,6 +621,17 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             </TableShell>
         </div>
     )
+
+    // Wrap with RowHeightContext.Provider if row height feature is enabled
+    if (rowHeightFeature) {
+        return (
+            <RowHeightContext.Provider value={rowHeightFeature.contextValue}>
+                {tableContent}
+            </RowHeightContext.Provider>
+        )
+    }
+
+    return tableContent
 }
 
 const InfiniteVirtualTableFeatureShellWithStore = <Row extends InfiniteTableRowBase>(

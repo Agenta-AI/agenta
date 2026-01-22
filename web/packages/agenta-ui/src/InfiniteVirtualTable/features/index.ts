@@ -8,5 +8,6 @@ export type {
     TableTabsConfig,
     TableDeleteConfig,
     TableExportConfig,
+    RowHeightFeatureConfig,
 } from "./InfiniteVirtualTableFeatureShell"
 export {default as useInfiniteTableFeaturePagination} from "./useInfiniteTableFeaturePagination"

@@ -69,4 +69,7 @@ export {
     // Message utilities
     normalizeMessages,
     denormalizeMessages,
+    // Options utilities
+    getOptionsFromSchema,
+    type OptionGroup,
 } from "./schemaUtils"

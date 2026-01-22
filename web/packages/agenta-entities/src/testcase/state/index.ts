@@ -12,6 +12,7 @@ export {testcaseMolecule, type TestcaseMolecule, type CreateTestcasesOptions} fr
 export {
     // Context
     currentRevisionIdAtom,
+    setCurrentRevisionIdAtom,
     // ID tracking
     testcaseIdsAtom,
     setTestcaseIdsAtom,

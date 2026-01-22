@@ -57,7 +57,6 @@ export interface StubMoleculeSelectors {
  */
 export interface CreateStubMoleculeConfig<
     ExtraSelectors extends Record<string, (id: string) => Atom<unknown>> = Record<string, never>,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ExtraActions extends Record<string, WritableAtom<any, any[], any>> = Record<string, never>,
 > {
     /** Name of the entity (for logging/debugging) */
@@ -75,11 +74,10 @@ export interface CreateStubMoleculeConfig<
 /**
  * Return type of createStubMolecule
  */
-export type StubMolecule<
+export interface StubMolecule<
     ExtraSelectors extends Record<string, (id: string) => Atom<unknown>> = Record<string, never>,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ExtraActions extends Record<string, WritableAtom<any, any[], any>> = Record<string, never>,
-> = {
+> {
     selectors: StubMoleculeSelectors & ExtraSelectors
     actions: ExtraActions
     /** Indicates this is a stub implementation */
@@ -129,12 +127,15 @@ const defaultQueryState: StubQueryState = {
  */
 export function createStubMolecule<
     ExtraSelectors extends Record<string, (id: string) => Atom<unknown>> = Record<string, never>,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ExtraActions extends Record<string, WritableAtom<any, any[], any>> = Record<string, never>,
 >(
     config: CreateStubMoleculeConfig<ExtraSelectors, ExtraActions>,
 ): StubMolecule<ExtraSelectors, ExtraActions> {
-    const {name, extraSelectors = {} as ExtraSelectors, extraActions = {} as ExtraActions} = config
+    const {
+        name: _name,
+        extraSelectors = {} as ExtraSelectors,
+        extraActions = {} as ExtraActions,
+    } = config
 
     // Base selectors that every molecule should have
     const baseSelectors: StubMoleculeSelectors = {

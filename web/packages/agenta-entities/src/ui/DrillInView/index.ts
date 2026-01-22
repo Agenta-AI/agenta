@@ -247,6 +247,8 @@ export {
     hasNestedLLMConfig,
     normalizeMessages,
     denormalizeMessages,
+    getOptionsFromSchema,
+    type OptionGroup,
 } from "./SchemaControls"
 
 export type {

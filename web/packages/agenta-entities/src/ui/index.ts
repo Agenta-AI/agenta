@@ -211,6 +211,8 @@ export {
     hasNestedLLMConfig,
     normalizeMessages,
     denormalizeMessages,
+    getOptionsFromSchema,
+    type OptionGroup,
     // Schema Control Types
     type NumberSliderControlProps,
     type BooleanToggleControlProps,

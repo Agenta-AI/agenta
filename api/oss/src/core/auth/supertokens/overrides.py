@@ -55,8 +55,10 @@ from oss.src.core.auth.service import AuthService
 from oss.src.services.exceptions import UnauthorizedException
 from oss.src.services.db_manager import (
     get_user_with_email,
-    check_if_user_exists_and_create_organization,
     check_if_user_invitation_exists,
+    is_first_user_signup,
+    get_oss_organization,
+    setup_oss_organization_for_first_user,
 )
 
 log = get_module_logger(__name__)
@@ -236,28 +238,66 @@ async def _create_account(email: str, uid: str) -> bool:
         "email": email,
     }
 
-    # For OSS: compute organization before calling create_accounts
     # For EE: organization is created inside create_accounts
+    # For OSS: we need to handle first user specially to avoid FK violation
     if is_ee():
         await create_accounts(payload)
     else:
-        # OSS: Compute or get the single organization
-        organization_db = await check_if_user_exists_and_create_organization(
-            user_email=email
-        )
+        # OSS: Check if this is the first user signup
+        first_user = await is_first_user_signup()
 
-        # Verify user can join (invitation check)
-        user_invitation_exists = await check_if_user_invitation_exists(
-            email=email,
-            organization_id=str(organization_db.id),
-        )
-        if not user_invitation_exists:
-            raise UnauthorizedException(
-                detail="You need to be invited by the organization owner to gain access."
+        if first_user:
+            # First user: Create user first, then organization
+            # This avoids the FK violation where org.owner_id references non-existent user
+            user_db = await create_accounts(payload)
+
+            # Now create organization with the real user ID
+            organization_db = await setup_oss_organization_for_first_user(
+                user_id=user_db.id,
+                user_email=email,
             )
 
-        payload["organization_id"] = str(organization_db.id)
-        await create_accounts(payload)
+            # Assign user to organization
+            from oss.src.services.db_manager import _assign_user_to_organization_oss
+
+            await _assign_user_to_organization_oss(
+                user_db=user_db,
+                organization_id=str(organization_db.id),
+                email=email,
+            )
+        else:
+            # Not first user: Get existing organization and check invitation
+            organization_db = await get_oss_organization()
+            if not organization_db:
+                raise UnauthorizedException(
+                    detail="No organization found. Please contact the administrator."
+                )
+
+            # Verify user can join (invitation check)
+            user_invitation_exists = await check_if_user_invitation_exists(
+                email=email,
+                organization_id=str(organization_db.id),
+            )
+            if not user_invitation_exists:
+                raise UnauthorizedException(
+                    detail="You need to be invited by the organization owner to gain access."
+                )
+
+            payload["organization_id"] = str(organization_db.id)
+            await create_accounts(payload)
+
+    if env.posthog.enabled and env.posthog.api_key:
+        try:
+            posthog.capture(
+                distinct_id=email,
+                event="user_signed_up_v1",
+                properties={
+                    "source": "auth",
+                    "is_ee": is_ee(),
+                },
+            )
+        except Exception:
+            log.error("[AUTH] Failed to capture PostHog signup event", exc_info=True)
     log.info("[AUTH] _create_account done", email=email, uid=uid)
     return True
 

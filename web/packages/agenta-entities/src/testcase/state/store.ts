@@ -23,7 +23,7 @@ import {
     isValidUUID,
     projectIdAtom,
 } from "@agenta/shared"
-import {atom} from "jotai"
+import {atom, type PrimitiveAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -48,16 +48,13 @@ export const currentRevisionIdAtom = atom<string | null>(null)
  * Set the current revision ID
  * Use this to change the revision context for testcase operations
  */
-export const setCurrentRevisionIdAtom = atom(
-    null,
-    (_get, set, revisionId: string | null) => {
-        // Direct primitive atom set - type assertion needed for generic atom
-        ;(set as (atom: typeof currentRevisionIdAtom, value: string | null) => void)(
-            currentRevisionIdAtom,
-            revisionId,
-        )
-    },
-)
+export const setCurrentRevisionIdAtom = atom(null, (_get, set, revisionId: string | null) => {
+    // Direct primitive atom set - type assertion needed for generic atom
+    ;(set as (atom: typeof currentRevisionIdAtom, value: string | null) => void)(
+        currentRevisionIdAtom,
+        revisionId,
+    )
+})
 
 // ============================================================================
 // ID TRACKING ATOMS
@@ -143,6 +140,66 @@ export const unmarkDeletedAtom = atom(null, (get, set, id: string) => {
 
 export const clearDeletedIdsAtom = atom(null, (_get, set) => {
     set(deletedEntityIdsBaseAtom, new Set())
+})
+
+// ============================================================================
+// SELECTION DRAFT STATE (FOR TESTSET SELECTION MODAL)
+// ============================================================================
+
+/**
+ * Draft selection state per revision (separate from committed testcaseIdsAtom)
+ *
+ * This is used by TestsetSelectionModal to track pending selection changes
+ * before they are committed. The draft is:
+ * - null: No draft exists, use displayRowIds as current selection
+ * - Set<string>: User has made selection changes, these are the selected IDs
+ *
+ * Workflow:
+ * 1. User opens modal → draft initialized from displayRowIds
+ * 2. User toggles rows → draft updated via setSelectionDraft
+ * 3. User confirms → draft committed via commitSelectionDraft
+ * 4. User cancels → draft discarded via discardSelectionDraft
+ */
+export const testcaseSelectionDraftAtomFamily = atomFamily(
+    (_revisionId: string) => atom<Set<string> | null>(null) as PrimitiveAtom<Set<string> | null>,
+)
+
+/**
+ * Set the selection draft for a revision
+ *
+ * @param revisionId - The revision to set draft for
+ * @param selectedIds - Array of testcase IDs that are selected
+ */
+export const setSelectionDraftAtom = atom(
+    null,
+    (_get, set, revisionId: string, selectedIds: string[]) => {
+        set(testcaseSelectionDraftAtomFamily(revisionId), new Set(selectedIds))
+    },
+)
+
+/**
+ * Commit the selection draft to actual testcase selection
+ *
+ * This updates testcaseIdsAtom to only include the selected IDs.
+ * After commit, the draft is cleared.
+ */
+export const commitSelectionDraftAtom = atom(null, (get, set, revisionId: string) => {
+    const draft = get(testcaseSelectionDraftAtomFamily(revisionId))
+    if (draft !== null) {
+        // Update the testcase IDs to match the selection
+        set(testcaseIdsAtom, [...draft])
+        // Clear the draft
+        set(testcaseSelectionDraftAtomFamily(revisionId), null)
+    }
+})
+
+/**
+ * Discard the selection draft without committing
+ *
+ * Clears the draft, leaving the current selection unchanged.
+ */
+export const discardSelectionDraftAtom = atom(null, (_get, set, revisionId: string) => {
+    set(testcaseSelectionDraftAtomFamily(revisionId), null)
 })
 
 // ============================================================================
