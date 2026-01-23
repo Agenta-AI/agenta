@@ -98,7 +98,8 @@ const nullDataAtom = atom<Revision | null>(() => null)
  */
 const baseRevisionMolecule = createMolecule<Revision, Partial<Revision>>({
     name: "revision",
-    queryAtomFamily: revisionQueryAtomFamily as unknown as AtomFamily<QueryState<Revision>>,
+    // Type assertion: jotai-family's atomFamily type is structurally compatible but needs cast
+    queryAtomFamily: revisionQueryAtomFamily as AtomFamily<QueryState<Revision>>,
     draftAtomFamily: revisionDraftAtomFamily,
     transform: normalizeRevision,
     // Revisions are immutable - if draft exists, it's dirty
@@ -769,9 +770,8 @@ export const revisionMolecule = {
          * @example const query = useAtomValue(revisionMolecule.selectors.queryOptional(id))
          */
         queryOptional: (id: string | null | undefined) =>
-            id
-                ? (revisionQueryAtomFamily(id) as unknown as typeof nullQueryResultAtom)
-                : nullQueryResultAtom,
+            // Cast needed: return type must match nullQueryResultAtom for union compatibility
+            id ? (revisionQueryAtomFamily(id) as typeof nullQueryResultAtom) : nullQueryResultAtom,
         /** Merged data atom (server + draft) */
         data: extendedRevisionMolecule.atoms.data,
         /**
