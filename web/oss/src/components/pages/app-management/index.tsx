@@ -1,6 +1,5 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {Typography} from "antd"
 import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -30,11 +29,8 @@ import PageLayout from "../../PageLayout/PageLayout"
 import {getTemplateKey, timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
-import GetStartedSection from "./components/GetStartedSection"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
-import ProjectHeaderActions from "./components/ProjectHeaderActions"
 import WelcomeCardsSection from "./components/WelcomeCardsSection"
-import useCustomWorkflowConfig from "./modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -53,19 +49,12 @@ const SetupTracingModal: any = dynamic(
 const ObservabilityDashboardSection: any = dynamic(
     () => import("@/oss/components/pages/app-management/components/ObservabilityDashboardSection"),
 )
-const {Title} = Typography
 
 const AppManagement: React.FC = () => {
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
     const resetAppCreation = useSetAtom(resetAppCreationAtom)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
-    const [fetchingCustomWorkflow, setFetchingCustomWorkflow] = useState(false)
-    const {openModal} = useCustomWorkflowConfig({
-        setStatusModalOpen,
-        setFetchingTemplate: setFetchingCustomWorkflow,
-        appId: "",
-    })
     const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
@@ -184,25 +173,6 @@ const AppManagement: React.FC = () => {
                             onSetupTracing={() => setIsSetupTracingModal(true)}
                         />
 
-                        {/* <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <Title level={2} className="!m-0">
-                                    Home
-                                </Title>
-
-                                <ProjectHeaderActions />
-                            </div>
-                        </div> */}
-
-                        {/* <GetStartedSection
-                            selectedOrg={selectedOrg}
-                            apps={apps}
-                            setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
-                            setIsMaxAppModalOpen={setIsMaxAppModalOpen}
-                            setIsWriteOwnAppModal={openModal}
-                            setIsSetupTracingModal={setIsSetupTracingModal}
-                        /> */}
-
                         <ObservabilityDashboardSection />
 
                         <ApplicationManagementSection
@@ -258,7 +228,7 @@ const AppManagement: React.FC = () => {
 
             <CreateAppStatusModal
                 open={statusModalOpen}
-                loading={fetchingTemplate || fetchingCustomWorkflow}
+                loading={fetchingTemplate}
                 onErrorRetry={onErrorRetry}
                 onTimeoutRetry={onTimeoutRetry}
                 onCancel={() => {
