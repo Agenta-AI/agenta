@@ -82,12 +82,10 @@ export {
     type TestsetSelectionModalProps,
     type TestsetSelectionMode,
     type TestsetSelectionPayload,
-    type TestsetPickerProps,
     type TestcaseTableProps,
     type SelectionSummaryProps,
     useTestsetSelection,
     // Sub-components
-    TestsetPicker,
     TestcaseTable,
     SelectionSummary,
 } from "./TestsetSelectionModal"

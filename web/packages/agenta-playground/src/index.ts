@@ -98,7 +98,6 @@ export {
     // Testset selection modal (entity-based)
     TestsetSelectionModal,
     useTestsetSelection,
-    TestsetPicker,
     TestcaseTable,
     SelectionSummary,
     // Types
@@ -123,7 +122,6 @@ export {
     type TestsetSelectionModalProps,
     type TestsetSelectionMode,
     type TestsetSelectionPayload,
-    type TestsetPickerProps,
     type TestcaseTableProps,
     type SelectionSummaryProps,
 } from "./components"
