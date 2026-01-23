@@ -226,9 +226,6 @@ export {
     // Change tracking
     changesSummaryAtom,
     hasUnsavedChangesAtom,
-    // Modal adapters (auto-registered on import)
-    testsetModalAdapter,
-    revisionModalAdapter,
 } from "./state"
 
 export type {
