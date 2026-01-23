@@ -311,8 +311,9 @@ export {
     // Constants
     DEFAULT_MAX_LINES,
     MAX_CELL_CHARS,
-    JSON_HIGHLIGHT_COLOR,
-    ROLE_COLORS,
+    JSON_HIGHLIGHT_CLASS,
+    ROLE_COLOR_CLASSES,
+    DEFAULT_ROLE_COLOR_CLASS,
     // Types
     type NormalizedChatMessage,
 } from "./CellRenderers"
