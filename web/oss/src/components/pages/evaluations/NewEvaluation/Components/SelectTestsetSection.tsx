@@ -136,7 +136,7 @@ const SelectTestsetSection = ({
                     <span className="font-mono">{expectedVariables.join(", ")}</span>
                 </div>
             )}
-            <div className="flex flex-col grow min-h-0">
+            <div className="flex flex-col grow min-h-0" data-tour="testset-select">
                 <TestsetsTable
                     mode="select"
                     className="flex-1 min-h-0"
