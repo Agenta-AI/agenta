@@ -1,5 +1,6 @@
 import {useCallback, memo, useState} from "react"
 
+import {CloseOutlined} from "@ant-design/icons"
 import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
@@ -50,6 +51,11 @@ const NewEvaluationModal = <Preview extends boolean = true>({
             className={classes.modalContainer}
             confirmLoading={submitLoading}
             okButtonProps={{"data-tour": "run-eval-confirm"}}
+            closeIcon={
+                <span data-tour="new-eval-modal-close">
+                    <CloseOutlined />
+                </span>
+            }
             styles={{
                 container: {
                     height: 700,

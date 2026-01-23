@@ -1,5 +1,6 @@
 import {getDefaultStore} from "jotai"
 
+import {newEvaluationActivePanelAtom} from "@/oss/components/pages/evaluations/NewEvaluation/state/panel"
 import {recordWidgetEventAtom, tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
 
@@ -9,6 +10,30 @@ import type {OnboardingTour} from "@/oss/lib/onboarding"
  * Guides users through running their first evaluation from the Playground.
  */
 export const FIRST_EVALUATION_TOUR_ID = "first-evaluation"
+
+const waitForSelectorVisible = (
+    selector: string,
+    timeoutMs = 2000,
+    pollInterval = 100,
+): Promise<boolean> => {
+    const start = Date.now()
+
+    return new Promise((resolve) => {
+        const check = () => {
+            const element = document.querySelector(selector)
+            if (element && element.getClientRects().length > 0) {
+                resolve(true)
+                return
+            }
+            if (Date.now() - start >= timeoutMs) {
+                resolve(false)
+                return
+            }
+            window.setTimeout(check, pollInterval)
+        }
+        check()
+    })
+}
 
 const firstEvaluationTour: OnboardingTour = {
     id: FIRST_EVALUATION_TOUR_ID,
@@ -32,6 +57,12 @@ const firstEvaluationTour: OnboardingTour = {
             side: "bottom",
             showControls: true,
             showSkip: true,
+            nextAction: {
+                selector: '[data-tour="run-evaluation-button"]',
+                type: "click",
+                waitForSelector: '[data-tour="testset-select"]',
+                waitTimeoutMs: 3000,
+            },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
         },
@@ -43,6 +74,13 @@ const firstEvaluationTour: OnboardingTour = {
             side: "right",
             showControls: true,
             showSkip: true,
+            panelKey: "testsetPanel",
+            prevAction: {
+                selector: '[data-tour="new-eval-modal-close"]',
+                type: "click",
+                waitForHiddenSelector: '[data-tour="testset-select"]',
+                waitTimeoutMs: 2000,
+            },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
         },
@@ -55,6 +93,12 @@ const firstEvaluationTour: OnboardingTour = {
             side: "right",
             showControls: true,
             showSkip: true,
+            panelKey: "evaluatorPanel",
+            onPrev: async () => {
+                const store = getDefaultStore()
+                store.set(newEvaluationActivePanelAtom, "testsetPanel")
+                await waitForSelectorVisible('[data-tour="testset-select"]')
+            },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
         },

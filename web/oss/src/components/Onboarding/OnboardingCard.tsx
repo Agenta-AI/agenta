@@ -233,8 +233,169 @@ const OnboardingCard = ({
         skipTour?.()
     }, [skipTour, step])
 
+    const isElementVisible = (element: Element | null) => {
+        if (!element || !(element instanceof HTMLElement)) return false
+        const style = window.getComputedStyle(element)
+        if (style.display === "none" || style.visibility === "hidden") return false
+        return element.getClientRects().length > 0
+    }
+
+    const waitForSelectorReady = async (
+        selector: string,
+        requireVisible: boolean,
+        timeoutMs = 2000,
+        pollInterval = 100,
+    ): Promise<boolean> => {
+        const start = Date.now()
+
+        return new Promise((resolve) => {
+            const check = () => {
+                try {
+                    const element = document.querySelector(selector)
+                    const isReady = requireVisible ? isElementVisible(element) : Boolean(element)
+                    if (isReady) {
+                        resolve(true)
+                        return
+                    }
+                } catch (error) {
+                    console.warn("[Onboarding] Invalid waitForSelector:", selector, error)
+                    resolve(false)
+                    return
+                }
+
+                if (Date.now() - start >= timeoutMs) {
+                    resolve(false)
+                    return
+                }
+
+                window.setTimeout(check, pollInterval)
+            }
+
+            check()
+        })
+    }
+
+    const waitForSelectorHidden = async (
+        selector: string,
+        timeoutMs = 2000,
+        pollInterval = 100,
+    ): Promise<boolean> => {
+        const start = Date.now()
+
+        return new Promise((resolve) => {
+            const check = () => {
+                try {
+                    const element = document.querySelector(selector)
+                    if (!isElementVisible(element)) {
+                        resolve(true)
+                        return
+                    }
+                } catch (error) {
+                    console.warn("[Onboarding] Invalid waitForHiddenSelector:", selector, error)
+                    resolve(false)
+                    return
+                }
+
+                if (Date.now() - start >= timeoutMs) {
+                    resolve(false)
+                    return
+                }
+
+                window.setTimeout(check, pollInterval)
+            }
+
+            check()
+        })
+    }
+
+    const performStepAction = useCallback(
+        async (
+            action:
+                | {
+                      selector: string
+                      type?: "click"
+                      waitForSelector?: string
+                      waitTimeoutMs?: number
+                      waitPollInterval?: number
+                  }
+                | undefined,
+        ) => {
+            if (!action) return true
+
+            const {
+                selector,
+                type = "click",
+                waitForSelector,
+                waitForSelectorVisible = true,
+                waitForHiddenSelector,
+                waitTimeoutMs,
+                waitPollInterval,
+            } = action
+
+            let target: HTMLElement | null = null
+            try {
+                target = document.querySelector(selector) as HTMLElement | null
+            } catch (error) {
+                console.warn("[Onboarding] Invalid step action selector:", selector, error)
+                return false
+            }
+
+            if (!target) {
+                console.warn("[Onboarding] Step action target not found:", selector)
+                return false
+            }
+
+            if (target instanceof HTMLButtonElement && target.disabled) {
+                console.warn("[Onboarding] Step action target is disabled:", selector)
+                return false
+            }
+
+            if (type === "click") {
+                target.click()
+            }
+
+            if (waitForSelector) {
+                return waitForSelectorReady(
+                    waitForSelector,
+                    waitForSelectorVisible,
+                    waitTimeoutMs ?? 2000,
+                    waitPollInterval ?? 100,
+                )
+            }
+
+            if (waitForHiddenSelector) {
+                return waitForSelectorHidden(
+                    waitForHiddenSelector,
+                    waitTimeoutMs ?? 2000,
+                    waitPollInterval ?? 100,
+                )
+            }
+
+            return true
+        },
+        [],
+    )
+
+    const handlePrev = useCallback(async () => {
+        try {
+            await step?.onPrev?.()
+        } catch (error) {
+            console.error("[Onboarding] onPrev handler error:", error)
+            return
+        }
+        const actionReady = await performStepAction(step?.prevAction)
+        if (!actionReady) {
+            return
+        }
+        prevStep()
+    }, [performStepAction, prevStep, step])
+
     // Handle next step
     const handleNext = useCallback(async () => {
+        const actionReady = await performStepAction(step?.nextAction)
+        if (!actionReady) {
+            return
+        }
         try {
             await step?.onNext?.()
         } catch (error) {
@@ -248,7 +409,7 @@ const OnboardingCard = ({
         } else {
             nextStep()
         }
-    }, [step, currentStep, totalSteps, nextStep, skipTour])
+    }, [step, currentStep, totalSteps, nextStep, skipTour, performStepAction])
 
     // UI Helpers
     const labels = step?.controlLabels ?? {}
@@ -329,7 +490,7 @@ const OnboardingCard = ({
 
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <Button
-                                    onClick={prevStep}
+                                    onClick={handlePrev}
                                     icon={<ArrowLeft size={14} className="mt-0.5" />}
                                     disabled={currentStep === 0}
                                     className="!text-xs !h-[26px] rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"

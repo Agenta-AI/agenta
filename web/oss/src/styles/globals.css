@@ -123,6 +123,21 @@ body {
     z-index: 100;
 }
 
+/* Ensure onboarding overlay stays above modals */
+[data-name="nextstep-overlay"],
+[data-name="nextstep-overlay2"] {
+    z-index: 2000 !important;
+}
+
+[data-name="nextstep-prevent-click-overlay"] {
+    z-index: 2001 !important;
+}
+
+[data-name="nextstep-pointer"],
+[data-name="nextstep-card"] {
+    z-index: 2002 !important;
+}
+
 .agenta-rich-text-editor {
     &.disabled {
         cursor: not-allowed;

@@ -102,6 +102,7 @@ const SelectTestsetSection = ({
     handlePanelChange,
     selectedVariantRevisionIds,
     selectedVariants,
+    allowAutoAdvance = true,
     className,
 }: SelectTestsetSectionProps) => {
     // Stable flag for whether any revision is selected
@@ -164,7 +165,9 @@ const SelectTestsetSection = ({
                             if (setSelectedTestsetName && testsetName) {
                                 setSelectedTestsetName(testsetName)
                             }
-                            handlePanelChange("evaluatorPanel")
+                            if (allowAutoAdvance) {
+                                handlePanelChange("evaluatorPanel")
+                            }
                         }
                     }}
                 />
