@@ -4,11 +4,11 @@ A unified, adapter-based system for hierarchical entity selection across the Age
 
 ## Overview
 
-The Entity Selection System provides reusable components and hooks for navigating and selecting entities through multi-level hierarchies (e.g., App → Variant → Revision). It eliminates code duplication across different selection UIs by providing:
+The Entity Selection System provides a **single `EntityPicker` component** with multiple display variants for navigating and selecting entities through multi-level hierarchies (e.g., App → Variant → Revision). It eliminates code duplication by providing:
 
 - **Adapters**: Entity-specific configurations that define hierarchies
-- **Hooks**: Primitive hooks for custom implementations
-- **Components**: Ready-to-use UI components (EntityPicker, EntityCascader, EntitySelectorModal)
+- **Unified Hooks**: Mode-specific hooks (`useCascadingMode`, `useBreadcrumbMode`, `useListPopoverMode`)
+- **Single Component**: `EntityPicker` with `variant` prop for different UIs
 - **State Management**: Jotai-based navigation and selection state
 
 ## Architecture
@@ -37,99 +37,95 @@ The Entity Selection System provides reusable components and hooks for navigatin
 │  Pre-built: testsetAdapter, appRevisionAdapter, evaluatorRevisionAdapter│
 │                                    │                                     │
 │                                    ▼                                     │
-│  PRIMITIVE HOOKS (Building Blocks)                                       │
+│  UNIFIED HOOKS (Mode-Specific)                                          │
 │  ┌────────────────┐ ┌────────────────────┐ ┌─────────────────────────┐  │
-│  │useEntityList   │ │useHierarchical     │ │useMultiSelect           │  │
-│  │- items         │ │Selection           │ │- selections             │  │
-│  │- isLoading     │ │- currentLevel      │ │- toggle/selectAll       │  │
-│  │- filter        │ │- navigateDown/Up   │ │- canSelectMore          │  │
+│  │useCascadingMode│ │useBreadcrumbMode   │ │useListPopoverMode       │  │
+│  │- levels[]      │ │- breadcrumb        │ │- parents                │  │
+│  │- autoSelect    │ │- items             │ │- children               │  │
+│  │- onSelect      │ │- navigateDown/Up   │ │- popoverState           │  │
 │  └────────────────┘ └────────────────────┘ └─────────────────────────┘  │
 │                                    │                                     │
 │                                    ▼                                     │
-│  UI COMPONENTS (Ready-to-Use)                                           │
-│  ┌────────────────┐ ┌────────────────┐ ┌─────────────────────────────┐  │
-│  │EntityCascader  │ │EntityPicker    │ │EntitySelectorModal          │  │
-│  │(Ant Cascader)  │ │(Inline List)   │ │(Modal + Tabs)               │  │
-│  └────────────────┘ └────────────────┘ └─────────────────────────────┘  │
+│  UI COMPONENT (Single Component, Multiple Variants)                     │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │ EntityPicker<TSelection>                                            ││
+│  │ - variant="cascading"    → Cascading dropdowns                      ││
+│  │ - variant="breadcrumb"   → Breadcrumb navigation + list             ││
+│  │ - variant="list-popover" → List with hover popovers                 ││
+│  └─────────────────────────────────────────────────────────────────────┘│
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Quick Start
 
-### Using EntityPicker (Recommended)
+### Using EntityPicker (Unified Component)
 
 ```tsx
 import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entities/ui'
 
-function MyComponent() {
-  const handleSelect = (selection: AppRevisionSelectionResult) => {
-    console.log('Selected:', selection.metadata.appName, selection.metadata.variantName)
-  }
+// Cascading dropdowns (App → Variant → Revision)
+<EntityPicker<AppRevisionSelectionResult>
+  variant="cascading"
+  adapter="appRevision"
+  onSelect={handleSelect}
+/>
 
-  return (
-    <EntityPicker<AppRevisionSelectionResult>
-      adapter="appRevision"
-      onSelect={handleSelect}
-      showSearch
-      showBreadcrumb
-      rootLabel="All Apps"
-    />
-  )
-}
+// Breadcrumb navigation with drill-down list
+<EntityPicker<AppRevisionSelectionResult>
+  variant="breadcrumb"
+  adapter="appRevision"
+  onSelect={handleSelect}
+  showSearch
+  showBreadcrumb
+  rootLabel="All Apps"
+/>
+
+// List with hover popovers (for 2-level hierarchies)
+<EntityPicker<TestsetSelectionResult>
+  variant="list-popover"
+  adapter="testset"
+  onSelect={handleSelect}
+  autoSelectLatest
+  selectLatestOnParentClick
+/>
 ```
 
-### Using EntityCascader
+### Variant Selection Guide
+
+| Variant | Use Case | Hierarchy Depth |
+|---------|----------|-----------------|
+| `cascading` | Inline dropdowns, compact space | Any (typically 2-3) |
+| `breadcrumb` | Modal/drawer, full-page selection | Any (typically 3+) |
+| `list-popover` | Sidebar lists with hover details | Exactly 2 levels |
+
+### Using Unified Hooks
+
+For custom UIs, use the mode-specific hooks directly:
 
 ```tsx
-import { EntityCascader, type TestsetSelectionResult } from '@agenta/entities/ui'
+import { useCascadingMode, useBreadcrumbMode, useListPopoverMode } from '@agenta/entities/ui'
 
-function TestsetSelector() {
-  const [value, setValue] = useState<string[]>([])
+// Cascading mode
+const { levels, isComplete } = useCascadingMode({
+  adapter: 'appRevision',
+  instanceId: 'my-cascading',
+  onSelect: handleSelect,
+})
 
-  return (
-    <EntityCascader<TestsetSelectionResult>
-      adapter="testset"
-      value={value}
-      onChange={(path, selection) => {
-        setValue(path)
-        console.log('Selected revision:', selection?.metadata.revisionId)
-      }}
-      placeholder="Select testset and revision"
-      showSearch
-      allowClear
-    />
-  )
-}
-```
+// Breadcrumb mode
+const { breadcrumb, items, navigateDown, navigateUp, select } = useBreadcrumbMode({
+  adapter: 'appRevision',
+  instanceId: 'my-breadcrumb',
+  onSelect: handleSelect,
+})
 
-### Using Primitive Hooks
-
-```tsx
-import { useHierarchicalSelection, appRevisionAdapter } from '@agenta/entities/ui'
-
-function CustomSelector() {
-  const {
-    breadcrumb,
-    items,
-    isLoading,
-    navigateDown,
-    navigateUp,
-    select,
-    canSelect,
-  } = useHierarchicalSelection({
-    adapter: appRevisionAdapter,
-    instanceId: 'my-custom-selector',
-    onSelect: (selection) => console.log('Selected:', selection),
-    autoSelectSingle: true,
-  })
-
-  return (
-    <div>
-      {/* Custom UI implementation */}
-    </div>
-  )
-}
+// List-popover mode
+const { parents, handleParentHover, handleChildSelect } = useListPopoverMode({
+  adapter: 'testset',
+  instanceId: 'my-list',
+  onSelect: handleSelect,
+})
 ```
 
 ## Initialization
@@ -137,10 +133,25 @@ function CustomSelector() {
 Before using the selection components, adapters must be initialized with actual atoms from the application. This is done in `Providers.tsx`:
 
 ```typescript
-import { initializeSelectionAdapters } from '@/oss/state/entities/selection'
+import { initializeSelectionSystem } from '@agenta/entities/ui'
 
 // Called once during app initialization
-initializeSelectionAdapters()
+initializeSelectionSystem({
+  appRevision: {
+    appsAtom: appRevisionMolecule.selectors.apps,
+    variantsByAppFamily: (appId) => appRevisionMolecule.selectors.variantsByApp(appId),
+    revisionsByVariantFamily: (variantId) => appRevisionMolecule.selectors.revisions(variantId),
+  },
+  evaluatorRevision: {
+    evaluatorsAtom: evaluatorRevisionMolecule.selectors.evaluators,
+    variantsAtomFamily: (evaluatorId) => evaluatorRevisionMolecule.selectors.variantsByEvaluator(evaluatorId),
+    revisionsAtomFamily: (variantId) => evaluatorRevisionMolecule.selectors.revisions(variantId),
+  },
+  testset: {
+    testsetsListAtom: testsetMolecule.atoms.list(null),
+    revisionsListFamily: (testsetId) => revisionMolecule.atoms.list(testsetId),
+  },
+})
 ```
 
 ## Directory Structure
@@ -150,11 +161,12 @@ selection/
 ├── index.ts                  # Public exports
 ├── types.ts                  # Core TypeScript types
 ├── README.md                 # This file
+├── initializeSelection.ts    # Initialization function
 │
 ├── adapters/                 # Entity adapters
 │   ├── README.md
 │   ├── index.ts
-│   ├── createAdapter.ts      # Factory function
+│   ├── createAdapter.ts      # Factory function & registry
 │   ├── appRevisionAdapter.ts # App → Variant → Revision
 │   ├── evaluatorRevisionAdapter.ts
 │   └── testsetAdapter.ts     # Testset → Revision
@@ -162,28 +174,40 @@ selection/
 ├── state/                    # Jotai state atoms
 │   ├── README.md
 │   ├── index.ts
-│   ├── selectionState.ts     # Navigation state
+│   ├── selectionState.ts     # Navigation state (molecule pattern)
 │   └── modalState.ts         # Modal controller state
 │
-├── hooks/                    # Primitive hooks
+├── hooks/                    # Unified hooks
 │   ├── README.md
 │   ├── index.ts
-│   ├── useEntityList.ts
-│   ├── useHierarchicalSelection.ts
-│   ├── useMultiSelect.ts
-│   └── useLazyChildren.ts
+│   ├── useEntitySelection.ts # Unified hook entry point
+│   ├── useEntitySelectionCore.ts # Core hook logic
+│   ├── modes/                # Mode-specific hooks
+│   │   ├── useCascadingMode.ts
+│   │   ├── useBreadcrumbMode.ts
+│   │   └── useListPopoverMode.ts
+│   └── utilities/            # Helper hooks
+│       ├── useChildrenData.ts
+│       └── useAutoSelectLatestChild.ts
 │
 └── components/               # UI components
     ├── README.md
     ├── index.ts
-    ├── EntityPicker.tsx      # Inline hierarchical picker
-    ├── EntityCascader.tsx    # Ant Cascader wrapper
+    ├── UnifiedEntityPicker/  # Main component with variants
+    │   ├── index.ts
+    │   ├── UnifiedEntityPicker.tsx
+    │   ├── types.ts
+    │   ├── variants/
+    │   │   ├── CascadingVariant.tsx
+    │   │   ├── BreadcrumbVariant.tsx
+    │   │   └── ListPopoverVariant.tsx
+    │   └── shared/
+    │       ├── LevelSelect.tsx
+    │       ├── ChildPopoverContent.tsx
+    │       └── AutoSelectHandler.tsx
     ├── EntitySelectorModal.tsx
-    ├── useEntitySelector.ts  # Modal hook
-    └── primitives/           # Building block components
-        ├── EntityBreadcrumb.tsx
-        ├── EntityListItem.tsx
-        └── SearchInput.tsx
+    └── hooks/
+        └── useEntitySelector.ts
 ```
 
 ## Pre-built Adapters
@@ -227,45 +251,99 @@ interface EntitySelectionResult<TMeta> {
 ## Usage in the Codebase
 
 The system is used in:
-- **AddToTestsetDrawer**: `EntityCascader` for testset/revision selection
-- **LoadTestsetModal**: `EntityPicker` for hierarchical testset browsing
-- **PlaygroundTest EntitySelector**: `EntityPicker` for app/evaluator revision selection
+- **TestsetPicker**: `EntityPicker variant="list-popover"` for testset/revision selection
+- **EntitySelectorModal**: `EntityPicker variant="breadcrumb"` for modal-based selection
+- **Playground EntitySelector**: `EntityPicker variant="cascading"` for app revision selection
 
-## Related: Cascading Selection Pattern
+## Variant Details
 
-For cascading dropdown UIs (e.g., App dropdown → Variant dropdown → Revision dropdown), the `@agenta/playground` package provides the `cascadingSelection` module. This uses pure Jotai atoms with auto-selection derivation instead of navigation hooks.
+### Cascading Variant
 
-### When to Use Which
-
-| Pattern                    | Use Case                                      | Location                   |
-| -------------------------- | --------------------------------------------- | -------------------------- |
-| `useHierarchicalSelection` | List-based drill-down UI (EntityPicker)       | `@agenta/entities/ui`      |
-| `EntityCascader`           | Ant Design cascader dropdown                  | `@agenta/entities/ui`      |
-| `cascadingSelection`       | Multiple cascading dropdowns with auto-select | `@agenta/playground/state` |
-
-### Example: Cascading Dropdowns
+Renders cascading `Select` dropdowns for each hierarchy level:
 
 ```tsx
-import { cascadingSelection } from '@agenta/playground/state'
+<EntityPicker<AppRevisionSelectionResult>
+  variant="cascading"
+  adapter="appRevision"
+  onSelect={handleSelect}
+  showLabels            // Show label above each select
+  layout="horizontal"   // or "vertical"
+  gap={12}              // Gap between selects
+  size="middle"         // Ant Design size
+/>
+```
 
-function AppRevisionSelector({ onSelect }) {
-  const effectiveVariantId = useAtomValue(cascadingSelection.selectors.effectiveVariantId)
-  const autoCompletedSelection = useAtomValue(cascadingSelection.selectors.autoCompletedSelection)
-  const setAppId = useSetAtom(cascadingSelection.actions.setAppId)
+### Breadcrumb Variant
 
-  // Auto-complete triggers onSelect when all levels are determined
-  useEffect(() => {
-    if (autoCompletedSelection) onSelect(autoCompletedSelection)
-  }, [autoCompletedSelection, onSelect])
+Shows one level at a time with breadcrumb navigation:
 
-  return (
-    <>
-      <Select onChange={setAppId} ... />      {/* App dropdown */}
-      <Select value={effectiveVariantId} ... /> {/* Variant (may auto-select) */}
-      <Select ... />                          {/* Revision */}
-    </>
-  )
+```tsx
+<EntityPicker<AppRevisionSelectionResult>
+  variant="breadcrumb"
+  adapter="appRevision"
+  onSelect={handleSelect}
+  showSearch            // Search input
+  showBreadcrumb        // Breadcrumb trail
+  showBackButton        // Back arrow button
+  rootLabel="All Apps"  // Root breadcrumb label
+  maxHeight={400}       // List max height
+  autoSelectSingle      // Auto-select when only 1 option
+  infiniteScroll        // Enable virtual scrolling
+  pageSize={50}         // Page size for pagination
+/>
+```
+
+### List-Popover Variant
+
+Displays parent list with hover popovers for children (2-level hierarchies only):
+
+```tsx
+<EntityPicker<TestsetSelectionResult>
+  variant="list-popover"
+  adapter="testset"
+  onSelect={handleSelect}
+  selectedParentId={currentTestsetId}
+  selectedChildId={currentRevisionId}
+  autoSelectLatest      // Auto-select latest child on mount
+  selectLatestOnParentClick // Select latest when clicking parent
+  popoverPlacement="rightTop"
+  popoverTrigger="hover"
+  disabledParentIds={disabledSet}
+  disabledChildIds={disabledChildSet}
+/>
+```
+
+## EntitySelectorModal
+
+A modal for entity selection with tab support for multiple entity types:
+
+```tsx
+import { useEntitySelector } from '@agenta/entities/ui'
+
+function MyComponent() {
+  const { open } = useEntitySelector()
+
+  const handleAdd = async () => {
+    const selection = await open({
+      title: 'Select Entity',
+      allowedTypes: ['appRevision', 'evaluatorRevision'],
+    })
+
+    if (selection) {
+      console.log('Selected:', selection.type, selection.id)
+    }
+  }
+
+  return <button onClick={handleAdd}>Add Entity</button>
 }
 ```
 
-For full documentation, see: `@agenta/playground/src/state/README.md`
+## State Isolation
+
+Components support `instanceId` for state isolation:
+
+```tsx
+// Two pickers with independent state
+<EntityPicker adapter="appRevision" instanceId="picker-1" variant="cascading" />
+<EntityPicker adapter="appRevision" instanceId="picker-2" variant="cascading" />
+```

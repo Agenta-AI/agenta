@@ -2,7 +2,7 @@
  * TestsetPicker Component
  *
  * A reusable component for browsing and selecting testsets and their revisions.
- * Uses EntityListWithPopover with testsetAdapter for hierarchical navigation.
+ * Uses EntityPicker with list-popover variant for hierarchical navigation.
  *
  * **Prerequisites:** The selection system must be initialized before using this component.
  * Call `initializeSelectionSystem({ testset: testsetSelectionConfig })` in your app's
@@ -29,7 +29,7 @@
 
 import {useCallback} from "react"
 
-import {EntityListWithPopover, testsetAdapter, type TestsetSelectionResult} from "../selection"
+import {EntityPicker, testsetAdapter, type TestsetSelectionResult} from "../selection"
 
 // ============================================================================
 // TYPES
@@ -59,20 +59,21 @@ export function TestsetPicker({
     disabledRevisionIds,
     disabledRevisionTooltip,
 }: TestsetPickerProps) {
-    // Handle selection from EntityListWithPopover
+    // Handle selection from EntityPicker
     const handleSelect = useCallback(
         (selection: TestsetSelectionResult) => {
-            // EntityListWithPopover returns the full selection result with metadata
+            // EntityPicker returns the full selection result with metadata
             // We extract the revision ID and testset ID
             onSelect(selection.metadata.revisionId, selection.metadata.testsetId)
         },
         [onSelect],
     )
 
-    // Wrapper ensures full height layout since EntityListWithPopover doesn't provide its own container
+    // Wrapper ensures full height layout
     return (
         <div className="flex flex-col h-full">
-            <EntityListWithPopover<TestsetSelectionResult>
+            <EntityPicker<TestsetSelectionResult>
+                variant="list-popover"
                 adapter={testsetAdapter}
                 onSelect={handleSelect}
                 selectedParentId={selectedTestsetId}

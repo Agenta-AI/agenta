@@ -72,6 +72,9 @@ export function createAdapter<TSelection>(
 
         return {
             type: level.type,
+            // Display configuration
+            label: level.label,
+            autoSelectSingle: level.autoSelectSingle,
             // Non-paginated atoms
             listAtom: level.listAtom,
             listAtomFamily: level.listAtomFamily,
@@ -84,6 +87,7 @@ export function createAdapter<TSelection>(
             getId: level.getId,
             getLabel: level.getLabel,
             getLabelNode: level.getLabelNode,
+            getPlaceholderNode: level.getPlaceholderNode,
             getIcon: level.getIcon,
             hasChildren: level.hasChildren ?? (() => !isLastLevel),
             isSelectable: level.isSelectable ?? (() => index >= resolvedSelectableLevel),

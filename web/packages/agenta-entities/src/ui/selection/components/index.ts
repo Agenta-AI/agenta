@@ -33,15 +33,49 @@ export type {
     LoadAllInlineProps,
 } from "@agenta/ui"
 
-// Main components
-export {EntityPicker} from "./EntityPicker"
-export type {EntityPickerProps} from "./EntityPicker"
+// ============================================================================
+// UNIFIED ENTITY PICKER
+// ============================================================================
 
-export {EntityCascader} from "./EntityCascader"
-export type {EntityCascaderProps} from "./EntityCascader"
+/**
+ * Unified EntityPicker with variant support.
+ *
+ * @example
+ * ```tsx
+ * import { EntityPicker } from '@agenta/entities/ui'
+ *
+ * <EntityPicker variant="cascading" adapter="appRevision" onSelect={handleSelect} />
+ * <EntityPicker variant="breadcrumb" adapter="appRevision" onSelect={handleSelect} />
+ * <EntityPicker variant="list-popover" adapter="testset" onSelect={handleSelect} />
+ * ```
+ */
+export {
+    EntityPicker,
+    // Variant components (for advanced usage)
+    CascadingVariant,
+    BreadcrumbVariant,
+    ListPopoverVariant,
+    // Shared components (for customization)
+    LevelSelect,
+    ChildPopoverContent,
+    AutoSelectHandler,
+} from "./UnifiedEntityPicker"
 
-export {EntityListWithPopover} from "./EntityListWithPopover"
-export type {EntityListWithPopoverProps} from "./EntityListWithPopover"
+export type {
+    EntityPickerVariant,
+    EntityPickerProps,
+    EntityPickerBaseProps,
+    CascadingVariantProps,
+    BreadcrumbVariantProps,
+    ListPopoverVariantProps,
+    LevelSelectProps,
+    ChildPopoverContentProps,
+    AutoSelectHandlerProps,
+} from "./UnifiedEntityPicker"
+
+// ============================================================================
+// MODAL
+// ============================================================================
 
 export {EntitySelectorModal} from "./EntitySelectorModal"
 export type {EntitySelectorModalProps} from "./EntitySelectorModal"

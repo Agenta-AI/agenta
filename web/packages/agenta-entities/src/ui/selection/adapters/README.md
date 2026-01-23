@@ -6,7 +6,7 @@ Adapters define how to navigate and select entities within specific hierarchies.
 
 An adapter is the bridge between:
 - **Data Layer**: Jotai atoms from entity molecules (e.g., `appRevision.selectors.apps`)
-- **Selection UI**: Components like `EntityPicker` and `EntityCascader`
+- **Selection UI**: The `EntityPicker` component with its variants (`cascading`, `breadcrumb`, `list-popover`)
 
 ## Pre-built Adapters
 
@@ -17,7 +17,9 @@ Navigates the App → Variant → Revision hierarchy.
 ```typescript
 import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entities/ui'
 
+// Cascading dropdowns
 <EntityPicker<AppRevisionSelectionResult>
+  variant="cascading"
   adapter="appRevision"
   onSelect={(selection) => {
     // selection.metadata.appId
@@ -26,6 +28,15 @@ import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entities/
     // selection.metadata.variantName
     // selection.metadata.revision
   }}
+/>
+
+// Or breadcrumb navigation
+<EntityPicker<AppRevisionSelectionResult>
+  variant="breadcrumb"
+  adapter="appRevision"
+  onSelect={handleSelect}
+  showSearch
+  showBreadcrumb
 />
 ```
 
@@ -37,6 +48,7 @@ Navigates the Evaluator → Variant → Revision hierarchy.
 import { EntityPicker, type EvaluatorRevisionSelectionResult } from '@agenta/entities/ui'
 
 <EntityPicker<EvaluatorRevisionSelectionResult>
+  variant="breadcrumb"
   adapter="evaluatorRevision"
   onSelect={(selection) => {
     // selection.metadata.evaluatorId
@@ -44,17 +56,22 @@ import { EntityPicker, type EvaluatorRevisionSelectionResult } from '@agenta/ent
     // selection.metadata.variantId
     // selection.metadata.variantName
   }}
+  showSearch
+  showBreadcrumb
+  rootLabel="All Evaluators"
 />
 ```
 
 ### testsetAdapter
 
-Navigates the Testset → Revision hierarchy.
+Navigates the Testset → Revision hierarchy (2 levels).
 
 ```typescript
 import { EntityPicker, type TestsetSelectionResult } from '@agenta/entities/ui'
 
+// List-popover variant (ideal for 2-level hierarchies)
 <EntityPicker<TestsetSelectionResult>
+  variant="list-popover"
   adapter="testset"
   onSelect={(selection) => {
     // selection.metadata.testsetId
@@ -63,6 +80,8 @@ import { EntityPicker, type TestsetSelectionResult } from '@agenta/entities/ui'
     // selection.metadata.version
     // selection.metadata.commitMessage
   }}
+  autoSelectLatest
+  selectLatestOnParentClick
 />
 ```
 
@@ -167,7 +186,7 @@ registerSelectionAdapter('myEntity', myAdapter)
 const adapter = getSelectionAdapter('myEntity')
 
 // Components accept string names
-<EntityPicker adapter="myEntity" onSelect={handleSelect} />
+<EntityPicker variant="breadcrumb" adapter="myEntity" onSelect={handleSelect} />
 ```
 
 ## HierarchyLevel Configuration

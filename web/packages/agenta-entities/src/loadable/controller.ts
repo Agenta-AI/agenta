@@ -275,6 +275,17 @@ const displayRowIdsAtomFamily = atomFamily((loadableId: string) =>
 )
 
 /**
+ * Total row count for a loadable (including hidden testcases).
+ * Used to display "displayed / total" in the UI when some testcases are hidden.
+ */
+const totalRowCountAtomFamily = atomFamily((_loadableId: string) =>
+    atom((get) => {
+        const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        return allDisplayRowIds.length
+    }),
+)
+
+/**
  * All rows for a loadable INCLUDING hidden ones.
  * Used by Edit Testcase Selection modal to show all testcases for re-selection.
  *
@@ -330,6 +341,7 @@ const allRowsIncludingHiddenAtomFamily = atomFamily((loadableId: string) =>
  * Returns true if:
  * - There are changes to RELEVANT columns (expected by runnable OR in server data)
  * - OR expected columns from runnable don't exist in original row data (new variables added)
+ * - OR there are applied output mapping values that differ from server data
  *
  * This is reactive - when a variable is added then removed, changes to that column
  * no longer count as "local changes" since the column is no longer relevant.
@@ -384,6 +396,38 @@ const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
                 // If values differ, there are local changes
                 if (serverValue !== mergedValue) {
                     return true
+                }
+            }
+        }
+
+        // Also check for applied output mapping values that differ from server data.
+        // This handles the case where output mappings have been applied (via the Apply button)
+        // but the draft comparison above didn't catch the change (e.g., due to trace data
+        // timing or value normalization issues).
+        const mappings = state.outputMappings ?? []
+        if (mappings.length > 0) {
+            for (const id of displayRowIds) {
+                // Skip if output mapping is disabled for this row
+                if (state.disabledOutputMappingRowIds.has(id)) continue
+
+                const serverData = get(testcaseMolecule.selectors.serverData(id))
+                if (!serverData) continue
+
+                // Get derived output values for this row
+                const derivedValues = get(derivedOutputValuesAtomFamily({loadableId, rowId: id}))
+                if (!derivedValues) continue
+
+                // Check if any derived output value differs from server data
+                for (const [key, derivedValue] of Object.entries(derivedValues)) {
+                    // Only check relevant columns (expected by runnable OR in server data)
+                    if (!relevantKeys.has(key)) continue
+
+                    const serverValue = serverData[key as keyof typeof serverData]
+
+                    // Compare values - if they differ, there are local changes to commit
+                    if (serverValue !== derivedValue) {
+                        return true
+                    }
                 }
             }
         }
@@ -927,6 +971,8 @@ const updateTestcaseSelectionAtom = atom(
         // For local testsets, the IDs are already in newEntityIdsAtom and
         // displayRowIds combines both. Calling setTestcaseIdsAtom would cause duplicates.
         if (state.connectedSourceId) {
+            // Reset first, then set - setTestcaseIdsAtom appends, so we need to clear first
+            set(resetTestcaseIdsAtom)
             set(setTestcaseIdsAtom, selectedIds)
         }
     },
@@ -954,6 +1000,9 @@ const discardChangesAtom = atom(null, (get, set, loadableId: string) => {
 /**
  * Commit local changes to create a new revision
  * Delegates to saveTestsetAtom which reads from testcaseMolecule
+ *
+ * Before committing, applies any pending output mappings to ensure derived
+ * output values are included in the commit.
  */
 const commitChangesAtom = atom(
     null,
@@ -972,6 +1021,16 @@ const commitChangesAtom = atom(
 
         if (!projectId) {
             throw new Error("No project ID available")
+        }
+
+        // Apply any pending output mappings before committing.
+        // This ensures derived output values (from execution results) are included
+        // in the testcase drafts and will be saved. This handles the case where
+        // the user didn't explicitly click "Apply" or where trace data wasn't
+        // available when Apply was clicked.
+        const mappings = state.outputMappings ?? []
+        if (mappings.length > 0) {
+            set(applyOutputMappingsToAllAtom, loadableId)
         }
 
         // Get testset ID from revision
@@ -2198,6 +2257,9 @@ export const testsetLoadable = {
 
         /** Display row IDs for a loadable (filters out hidden testcases) */
         displayRowIds: (loadableId: string) => displayRowIdsAtomFamily(loadableId),
+
+        /** Total row count including hidden testcases */
+        totalRowCount: (loadableId: string) => totalRowCountAtomFamily(loadableId),
 
         /** All rows including hidden ones (for Edit Testcase Selection modal) */
         allRowsIncludingHidden: (loadableId: string) =>

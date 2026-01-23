@@ -71,6 +71,20 @@ export interface CreateRevisionLevelOptions {
     /** Entity type for this revision level */
     type: SelectableEntityType
 
+    /**
+     * Human-readable label for this level (e.g., "Revision").
+     * Used in UI components for labels above selects.
+     * @default "Revision"
+     */
+    label?: string
+
+    /**
+     * Auto-select behavior when this level has exactly one item.
+     * When true and only one revision exists, it's automatically selected.
+     * @default true
+     */
+    autoSelectSingle?: boolean
+
     /** Atom family for fetching revisions by parent ID */
     listAtomFamily?: (parentId: string) => Atom<ListQueryState<unknown>>
 
@@ -203,6 +217,8 @@ export function createRevisionLevel(
 ): CreateHierarchyLevelOptions<unknown> {
     const {
         type,
+        label = "Revision",
+        autoSelectSingle = true,
         listAtom,
         listAtomFamily,
         onBeforeLoad,
@@ -224,6 +240,8 @@ export function createRevisionLevel(
 
     return {
         type,
+        label,
+        autoSelectSingle,
         listAtom,
         listAtomFamily,
         onBeforeLoad,
@@ -260,6 +278,24 @@ export function createRevisionLevel(
                 renderAuthor: effectiveRenderAuthor,
                 maxMessageWidth,
             })
+        },
+
+        getPlaceholderNode: (placeholderText: string) => {
+            if (compact) {
+                // For compact mode, just return text
+                return placeholderText
+            }
+
+            // Create a placeholder structure that matches RevisionLabel's 2-row height
+            // (consistent with App and Variant selects which also have 2 rows)
+            return React.createElement(
+                "div",
+                {className: "flex flex-col gap-0.5"},
+                // First row - placeholder text
+                React.createElement("span", {className: "text-zinc-400"}, placeholderText),
+                // Second row - invisible spacer for subtitle
+                React.createElement("span", {className: "invisible"}, "\u00A0"),
+            )
         },
 
         hasChildren: () => hasChildren,

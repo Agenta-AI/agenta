@@ -67,6 +67,8 @@ export interface UseLoadableReturn {
     activeRow: TestsetRow | null
     activeRowId: string | null
     rowCount: number
+    /** Total row count including hidden testcases */
+    totalRowCount: number
     isDirty: boolean
     /** Whether there are local changes in connected mode (draft exists) */
     hasLocalChanges: boolean
@@ -181,6 +183,10 @@ export function useLoadable(loadableId: string): UseLoadableReturn {
         () => loadableController.testset.selectors.rowCount(loadableId),
         [loadableId],
     )
+    const totalRowCountAtom = useMemo(
+        () => loadableController.testset.selectors.totalRowCount(loadableId),
+        [loadableId],
+    )
     const modeAtom = useMemo(
         () => loadableController.testset.selectors.mode(loadableId),
         [loadableId],
@@ -220,6 +226,7 @@ export function useLoadable(loadableId: string): UseLoadableReturn {
     const columns = useAtomValue(columnsAtom)
     const allColumns = useAtomValue(allColumnsAtom)
     const rowCount = useAtomValue(rowCountAtom)
+    const totalRowCount = useAtomValue(totalRowCountAtom)
 
     // Derive activeRow from rows using activeRowId
     const activeRow = useMemo(() => {
@@ -451,6 +458,7 @@ export function useLoadable(loadableId: string): UseLoadableReturn {
         activeRow,
         activeRowId: activeRow?.id ?? null,
         rowCount,
+        totalRowCount,
         isDirty,
         hasLocalChanges,
         supportsDynamicInputs,

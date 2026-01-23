@@ -168,6 +168,8 @@ export const testsetAdapter = createAdapter<TestsetSelectionResult>({
     levels: [
         {
             type: "testset",
+            label: "Testset",
+            autoSelectSingle: false,
             listAtom: testsetsListAtom,
             getId: (testset: unknown) => (testset as {id: string}).id,
             getLabel: (testset: unknown) => (testset as {name: string}).name,
@@ -181,6 +183,8 @@ export const testsetAdapter = createAdapter<TestsetSelectionResult>({
         // Use shared revision level factory for git-based entity display
         createRevisionLevel({
             type: "revision",
+            label: "Revision",
+            autoSelectSingle: true,
             listAtomFamily: revisionsByTestsetListAtom,
             onBeforeLoad: (testsetId: string) => {
                 // Enable the revisions query for this testset
