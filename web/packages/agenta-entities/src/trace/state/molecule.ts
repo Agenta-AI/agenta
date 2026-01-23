@@ -47,7 +47,7 @@ import {
     createControllerAtomFamily,
     type AtomFamily,
     type StoreOptions,
-    type WritableAtomFamily,
+    type FlexibleWritableAtomFamily,
 } from "../../shared"
 import {
     getValueAtPath as getValueAtPathUtil,
@@ -79,18 +79,23 @@ type TraceSpanAttributes = TraceSpan["attributes"]
  * Stores local changes to span attributes (the draftable portion).
  *
  * This is self-contained - not wrapping legacy atoms.
+ *
+ * Type assertion needed: jotai-family's atomFamily returns a structurally compatible
+ * but not assignably compatible type with FlexibleWritableAtomFamily.
  */
 const draftAtomFamily = atomFamily((_spanId: string) =>
     atom<TraceSpanAttributes | null>(null),
-) as unknown as WritableAtomFamily<TraceSpanAttributes | null, [TraceSpanAttributes | null]>
+) as FlexibleWritableAtomFamily<TraceSpanAttributes | null>
 
 /**
  * Local data atom family for inline span data (e.g., playground spans that aren't persisted).
  * When set, this data is used instead of fetching from the server.
+ *
+ * Type assertion needed: same reason as draftAtomFamily above.
  */
 const localDataAtomFamily = atomFamily((_spanId: string) =>
     atom<TraceSpan | null>(null),
-) as unknown as WritableAtomFamily<TraceSpan | null, [TraceSpan | null]>
+) as FlexibleWritableAtomFamily<TraceSpan | null>
 
 // ============================================================================
 // COMBINED QUERY ATOM (LOCAL + SERVER)
@@ -135,7 +140,8 @@ const baseMolecule = createMolecule<TraceSpan, TraceSpanAttributes>({
 
     // Combined query atom family - checks local data first, then server
     // This allows playground spans to work without API fetching
-    queryAtomFamily: combinedQueryAtomFamily as unknown as AtomFamily<{
+    // Type assertion: jotai-family's atomFamily type is structurally compatible but needs cast
+    queryAtomFamily: combinedQueryAtomFamily as AtomFamily<{
         data: TraceSpan | undefined
         isPending: boolean
         isError: boolean

@@ -117,7 +117,8 @@ const nullDataAtom = atom<Testset | null>(() => null)
  */
 const baseTestsetMolecule = createMolecule<Testset, Partial<Testset>>({
     name: "testset",
-    queryAtomFamily: testsetQueryAtomFamily as unknown as AtomFamily<QueryState<Testset>>,
+    // Type assertion: jotai-family's atomFamily type is structurally compatible but needs cast
+    queryAtomFamily: testsetQueryAtomFamily as AtomFamily<QueryState<Testset>>,
     draftAtomFamily: testsetDraftAtomFamily,
     // Simple dirty check - draft exists means dirty
     isDirty: (_serverData, draft) => draft !== null,
@@ -231,9 +232,8 @@ export const testsetMolecule = {
          * @example const query = useAtomValue(testsetMolecule.selectors.queryOptional(id))
          */
         queryOptional: (id: string | null | undefined) =>
-            id
-                ? (testsetQueryAtomFamily(id) as unknown as typeof nullQueryResultAtom)
-                : nullQueryResultAtom,
+            // Cast needed: return type must match nullQueryResultAtom for union compatibility
+            id ? (testsetQueryAtomFamily(id) as typeof nullQueryResultAtom) : nullQueryResultAtom,
         /** Merged data atom (server + draft) */
         data: extendedMolecule.atoms.data,
         /**
