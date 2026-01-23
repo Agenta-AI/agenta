@@ -46,8 +46,8 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
         (type: "primitive" | "object" | "array") => {
             const currentRoot = form.getFieldsValue(true) as Record<string, unknown>
             const objTarget = path.reduce<Record<string, unknown> | undefined>(
-                (acc: any, key) => (acc ? acc[key] : undefined),
-                currentRoot,
+                (acc, key) => (acc ? (acc[key] as Record<string, unknown> | undefined) : undefined),
+                currentRoot as Record<string, unknown> | undefined,
             )
             if (!objTarget || typeof objTarget !== "object") return
             const newKey = genUniqueKey(objTarget)
@@ -66,8 +66,8 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
         (keyToRemove: string) => {
             const currentRoot = form.getFieldsValue(true) as Record<string, unknown>
             const objTarget = path.reduce<Record<string, unknown> | undefined>(
-                (acc: any, key) => (acc ? acc[key] : undefined),
-                currentRoot,
+                (acc, key) => (acc ? (acc[key] as Record<string, unknown> | undefined) : undefined),
+                currentRoot as Record<string, unknown> | undefined,
             )
             if (!objTarget || typeof objTarget !== "object") return
             delete objTarget[keyToRemove]
@@ -81,8 +81,8 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
         (before: string) => {
             const currentRoot = form.getFieldsValue(true) as Record<string, unknown>
             const objTarget = path.reduce<Record<string, unknown> | undefined>(
-                (acc: any, key) => (acc ? acc[key] : undefined),
-                currentRoot,
+                (acc, key) => (acc ? (acc[key] as Record<string, unknown> | undefined) : undefined),
+                currentRoot as Record<string, unknown> | undefined,
             )
             if (!objTarget || typeof objTarget !== "object") return
             const entries = Object.entries(objTarget)
@@ -105,15 +105,17 @@ const ObjectNodeComponent: FC<ObjectNodeProps> = (props) => {
             } else {
                 const parent = path
                     .slice(0, -1)
-                    .reduce<Record<string, unknown>>((acc: any, key) => acc[key], currentRoot)
+                    .reduce<
+                        Record<string, unknown>
+                    >((acc, key) => acc[key] as Record<string, unknown>, currentRoot)
                 parent[path[path.length - 1]] = newObj
             }
             // simpler set by path: assign
-            path.reduce((acc: any, key, idx, arr) => {
+            path.reduce<Record<string, unknown>>((acc, key, idx, arr) => {
                 if (idx === arr.length - 1) {
                     acc[key] = newObj
                 }
-                return acc[key]
+                return acc[key] as Record<string, unknown>
             }, currentRoot)
             form.setFieldsValue(currentRoot)
             onChange(path, newObj)

@@ -1,5 +1,7 @@
+import type {FormInstance} from "antd"
+
 export interface CustomRenderHelpers {
-    setValue: (newValue: any) => void
+    setValue: (newValue: unknown) => void
     renameKey: (newKey: string) => void
     renderDefault: () => React.ReactNode
 }
@@ -12,7 +14,7 @@ export type CustomRenderFn = (
 ) => React.ReactNode | null | undefined
 
 export interface BaseNodeProps {
-    form: any
+    form: FormInstance
     path: (string | number)[]
     /** key being rendered (string for object, number for array index) */
     k: string | number
