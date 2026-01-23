@@ -35,7 +35,7 @@ ChatMessage/
 ### Single Message Editor
 
 ```tsx
-import {ChatMessageEditor, extractTextFromContent} from '@agenta/entities/ui'
+import {ChatMessageEditor, extractTextFromContent} from '@agenta/ui'
 
 function MessageEditor({message, onChange}) {
   return (
@@ -54,7 +54,7 @@ function MessageEditor({message, onChange}) {
 ### Message List
 
 ```tsx
-import {ChatMessageList, SimpleChatMessage} from '@agenta/entities/ui'
+import {ChatMessageList, SimpleChatMessage} from '@agenta/ui'
 
 function ChatEditor() {
   const [messages, setMessages] = useState<SimpleChatMessage[]>([

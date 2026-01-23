@@ -9,7 +9,7 @@ This module provides React components for LLM provider logos. Each icon is a pur
 ## Quick Start
 
 ```tsx
-import {LLMIconMap, OpenAi, Anthropic} from '@agenta/entities/ui'
+import {LLMIconMap, OpenAi, Anthropic} from '@agenta/ui'
 
 // Using the map
 function ProviderIcon({provider}: {provider: string}) {

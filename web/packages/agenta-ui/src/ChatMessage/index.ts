@@ -7,7 +7,7 @@
  *
  * @example Basic Usage
  * ```tsx
- * import {ChatMessageEditor, SimpleChatMessage} from '@agenta/entities/ui'
+ * import {ChatMessageEditor, SimpleChatMessage} from '@agenta/ui'
  *
  * const message: SimpleChatMessage = {role: 'user', content: 'Hello!'}
  *
@@ -22,7 +22,7 @@
  *
  * @example Message List
  * ```tsx
- * import {ChatMessageList} from '@agenta/entities/ui'
+ * import {ChatMessageList} from '@agenta/ui'
  *
  * <ChatMessageList
  *   messages={messages}
