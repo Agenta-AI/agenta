@@ -1,11 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// Note: This file uses 'any' for Ant Design column type compatibility
-
 import type {ComponentType, ReactNode} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, DownloadSimple} from "@phosphor-icons/react"
 import {Button, Dropdown, Tooltip, Typography} from "antd"
+import type {MenuProps} from "antd"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 
 import {copyToClipboard} from "../../utils/copyToClipboard"
@@ -45,12 +43,12 @@ const UserReference = (props: {userId: string | null | undefined}) => (
     <UserReferenceComponent {...props} />
 )
 
-export interface TextColumnDef {
+export interface TextColumnDef<T = unknown> {
     type: "text"
     key: string
     title: string
     width?: number
-    render?: (value: any, record: any) => ReactNode
+    render?: (value: unknown, record: T) => ReactNode
     /** Pin column to left or right */
     fixed?: "left" | "right"
     /** Lock column from being hidden in visibility menu (defaults to true if fixed is set) */
@@ -66,7 +64,7 @@ export interface DateColumnDef {
     format?: (date: string) => string
 }
 
-export interface UserColumnDef<T = any> {
+export interface UserColumnDef<T = unknown> {
     type: "user"
     /** The key in the record that contains the user ID */
     key: string
@@ -81,7 +79,7 @@ export interface ActionItem<T> {
     label: string
     icon?: ReactNode
     danger?: boolean
-    onClick: (record: T, event?: any) => void
+    onClick: (record: T, event?: {domEvent: React.MouseEvent | React.KeyboardEvent}) => void
     /** Hide this action conditionally */
     hidden?: (record: T) => boolean
 }
@@ -107,8 +105,8 @@ export interface ActionsColumnDef<T> {
     isExporting?: boolean
 }
 
-export type StandardColumnDef<T = any> =
-    | TextColumnDef
+export type StandardColumnDef<T = unknown> =
+    | TextColumnDef<T>
     | DateColumnDef
     | UserColumnDef<T>
     | ActionsColumnDef<T>
@@ -149,20 +147,23 @@ export function createStandardColumns<T extends InfiniteTableRowBase>(
                 return createUserColumn(def)
             case "actions":
                 return createActionsColumn(def)
-            default:
-                throw new Error(`Unknown column type: ${(def as any).type}`)
+            default: {
+                // Exhaustive check - this should never be reached if all types are handled
+                const exhaustiveCheck: never = def
+                throw new Error(`Unknown column type: ${(exhaustiveCheck as {type: string}).type}`)
+            }
         }
     })
 }
 
-function createTextColumn<T>(def: TextColumnDef): ColumnType<T> {
+function createTextColumn<T>(def: TextColumnDef<T>): ColumnType<T> {
     return {
         title: def.title,
         dataIndex: def.key,
         key: def.key,
         width: def.width,
         fixed: def.fixed,
-        render: def.render,
+        render: def.render as ColumnType<T>["render"],
         // Lock column from being toggled in visibility menu (explicit or derived from fixed)
         columnVisibilityLocked: def.columnVisibilityLocked ?? Boolean(def.fixed),
         onHeaderCell: () => ({
@@ -217,7 +218,8 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
 
     const defaultGetId = (record: T): string => {
         if (getRecordId) return getRecordId(record)
-        const id = (record as any).id || (record as any)._id || (record as any).key
+        // InfiniteTableRowBase has index signature [key: string]: unknown
+        const id = record.id ?? record._id ?? record.key
         if (typeof id === "string") return id
         return ""
     }
@@ -235,7 +237,11 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
             if (record.__isSkeleton) return null
 
             // Build menu items from config
-            const menuItems: any[] = []
+            // MenuInfo interface from antd/rc-menu
+            interface MenuInfo {
+                domEvent: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
+            }
+            const menuItems: NonNullable<MenuProps["items"]> = []
 
             items.forEach((item) => {
                 if ("type" in item && item.type === "divider") {
@@ -260,7 +266,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                     label: actionItem.label,
                     icon: actionItem.icon,
                     danger: actionItem.danger,
-                    onClick: (e: any) => {
+                    onClick: (e: MenuInfo) => {
                         e.domEvent.stopPropagation()
                         actionItem.onClick(record, e)
                     },
@@ -274,7 +280,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                     label: "Export row",
                     icon: <DownloadSimple size={16} />,
                     disabled: isExporting,
-                    onClick: (e: any) => {
+                    onClick: (e: MenuInfo) => {
                         e.domEvent.stopPropagation()
                         if (!isExporting) {
                             onExportRow(record)
@@ -287,9 +293,12 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
             if (showCopyId) {
                 const recordId = defaultGetId(record)
                 if (recordId) {
+                    const lastItem = menuItems[menuItems.length - 1]
                     if (
                         menuItems.length > 0 &&
-                        menuItems[menuItems.length - 1].type !== "divider"
+                        lastItem &&
+                        "type" in lastItem &&
+                        lastItem.type !== "divider"
                     ) {
                         menuItems.push({type: "divider"})
                     }
@@ -297,7 +306,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                         key: "copy-id",
                         label: "Copy ID",
                         icon: <Copy size={16} />,
-                        onClick: (e: any) => {
+                        onClick: (e: MenuInfo) => {
                             e.domEvent.stopPropagation()
                             copyToClipboard(recordId)
                         },
