@@ -470,14 +470,14 @@ const presets = useAtomValue(evalController.selectors.presets(evaluatorId))
 
 ### Entity Selection System
 
-For hierarchical entity selection (App → Variant → Revision), use the unified `EntityPicker` component from `@agenta/entities/ui`.
+For hierarchical entity selection (App → Variant → Revision), use the unified `EntityPicker` component from `@agenta/entity-ui`.
 
-**Full documentation:** `web/packages/agenta-entities/src/ui/selection/README.md`
+**Full documentation:** `web/packages/agenta-entity-ui/src/selection/README.md`
 
 **EntityPicker with Variants:**
 
 ```typescript
-import { EntityPicker, type AppRevisionSelectionResult, type TestsetSelectionResult } from '@agenta/entities/ui'
+import { EntityPicker, type AppRevisionSelectionResult, type TestsetSelectionResult } from '@agenta/entity-ui'
 
 // Cascading dropdowns (inline forms, compact space)
 <EntityPicker<AppRevisionSelectionResult>
@@ -509,7 +509,7 @@ import { EntityPicker, type AppRevisionSelectionResult, type TestsetSelectionRes
 **Mode-Specific Hooks:**
 
 ```typescript
-import { useCascadingMode, useBreadcrumbMode, useListPopoverMode } from '@agenta/entities/ui'
+import { useCascadingMode, useBreadcrumbMode, useListPopoverMode } from '@agenta/entity-ui'
 
 // For cascading dropdowns
 const { levels, isComplete, selection } = useCascadingMode({
@@ -975,7 +975,7 @@ import { ... } from '@agenta/entities/testset'   // Testset/revision molecules
 import { ... } from '@agenta/entities/testcase'  // Testcase molecule
 import { ... } from '@agenta/entities/loadable'  // Loadable bridge
 import { ... } from '@agenta/entities/runnable'  // Runnable bridge
-import { ... } from '@agenta/entities/ui'        // UI components (modals, pickers)
+import { ... } from '@agenta/entity-ui'        // UI components (modals, pickers)
 ```
 
 #### EnhancedModal (Required for All New Modals)
@@ -1074,7 +1074,7 @@ Need entity state management (molecules)?
 └─ Use: *Molecule from @agenta/entities/{entity}
 
 Need entity selection UI?
-└─ Use: EntityPicker, EntityCascader from @agenta/entities/ui
+└─ Use: EntityPicker, EntityCascader from @agenta/entity-ui
 
 Need loadable/runnable bridges?
 └─ Use: loadableBridge, runnableBridge from @agenta/entities/{type}
