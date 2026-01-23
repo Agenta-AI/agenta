@@ -265,6 +265,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 isAuthRoute:
                     pathname.includes("/auth") ||
                     pathname.includes("/post-signup") ||
+                    pathname.includes("/get-started") ||
                     pathname.includes("/workspaces"),
                 isAppRoute: baseAppURL ? asPath.startsWith(baseAppURL) : false,
                 isPlayground: pathname.includes("/playground"),

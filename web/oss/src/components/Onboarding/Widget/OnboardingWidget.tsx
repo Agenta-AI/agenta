@@ -75,9 +75,17 @@ const OnboardingWidget = () => {
     const completedEventCount = useMemo(() => Object.keys(widgetEvents).length, [widgetEvents])
 
     // Widget only renders for authenticated new users who haven't dismissed it
+    // and only on app pages (not on auth/onboarding routes)
+    const isOnboardingRoute =
+        router.pathname.includes("/auth") ||
+        router.pathname.includes("/post-signup") ||
+        router.pathname.includes("/get-started") ||
+        router.pathname.includes("/workspaces")
+
     const shouldRender =
         doesSessionExist &&
         isNewUser &&
+        !isOnboardingRoute &&
         widgetStatus !== "dismissed" &&
         widgetUIState.isOpen &&
         totalTasks > 0
