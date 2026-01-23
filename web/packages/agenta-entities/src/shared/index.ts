@@ -69,6 +69,7 @@ export {
     type MoleculeQueryState,
     type AtomFamily,
     type WritableAtomFamily,
+    type FlexibleWritableAtomFamily,
     type MoleculeAtoms,
     type MoleculeReducers,
     type Reducer,
