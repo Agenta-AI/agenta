@@ -674,7 +674,7 @@ export function PlaygroundContent() {
                                 localTestcaseCount={rows.length}
                                 onSaveAsTestset={handleOpenSaveTestsetModal}
                                 hasLocalChanges={loadable.hasLocalChanges}
-                                onCommitChanges={openCommitModal}
+                                onCommitChanges={openCommitModal ?? undefined}
                                 isCommitting={false}
                                 onDiscardChanges={handleDiscardChanges}
                                 onEditSelection={handleEditSelection}
@@ -710,7 +710,7 @@ export function PlaygroundContent() {
                                 localTestcaseCount={rows.length}
                                 onSaveAsTestset={handleOpenSaveTestsetModal}
                                 hasLocalChanges={loadable.hasLocalChanges}
-                                onCommitChanges={openCommitModal}
+                                onCommitChanges={openCommitModal ?? undefined}
                                 isCommitting={false}
                                 onDiscardChanges={handleDiscardChanges}
                                 onEditSelection={handleEditSelection}
@@ -772,11 +772,10 @@ export function PlaygroundContent() {
                 mode={selectionModalMode || "edit"}
                 loadableId={loadableId}
                 connectedRevisionId={loadable.connectedSourceId || undefined}
-                connectedTestsetId={connectedTestset?.id || undefined}
                 onConfirm={handleSelectionConfirm}
                 onSave={handleSaveConfirm}
                 onCancel={handleSelectionCancel}
-                defaultTestsetName={connectedTestset?.name}
+                defaultTestsetName={connectedTestset?.name ?? undefined}
             />
         </div>
     )

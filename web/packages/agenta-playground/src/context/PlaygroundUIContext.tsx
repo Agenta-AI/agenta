@@ -145,17 +145,12 @@ export interface SaveModeConfig {
 
 /**
  * Injectable components provided by the consuming app
- *
- * Note: Some components use relaxed typing (ComponentType<any>) to allow
- * generic components (like EntityDrillInView<TEntity>) to be passed in.
  */
 export interface PlaygroundUIProviders {
     /**
      * EntityDrillInView component for config editing
-     * Uses ComponentType<any> to allow generic implementations
      */
-
-    EntityDrillInView: ComponentType<any>
+    EntityDrillInView: ComponentType<EntityDrillInViewProps>
 
     /** SharedGenerationResultUtils for trace info display */
     SharedGenerationResultUtils: ComponentType<SharedGenerationResultUtilsProps>

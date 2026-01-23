@@ -104,9 +104,12 @@ export function RunnableEntityPanel({
                         <div className="flex items-center gap-1">
                             <Text strong>{entity.label}</Text>
                             {type === "appRevision" &&
-                                (runnable.data as AppRevisionData)?.revision !== undefined && (
+                                typeof (runnable.data as AppRevisionData)?.revision ===
+                                    "number" && (
                                     <VersionBadge
-                                        version={(runnable.data as AppRevisionData).revision}
+                                        version={
+                                            (runnable.data as AppRevisionData).revision as number
+                                        }
                                         variant="chip"
                                     />
                                 )}

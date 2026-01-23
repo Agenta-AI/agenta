@@ -34,7 +34,7 @@ import {
     type RevisionListItem,
 } from "@agenta/entities/appRevision"
 import {atom, type PrimitiveAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {EntitySelection} from "../types"
 

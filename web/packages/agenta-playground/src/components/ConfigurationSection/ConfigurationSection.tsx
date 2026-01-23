@@ -38,11 +38,28 @@ import {
     ListBullets,
 } from "@phosphor-icons/react"
 import {Button, Tooltip, Typography, Collapse} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {LoadEvaluatorPresetModal} from "../LoadEvaluatorPresetModal"
 
 const {Text} = Typography
+
+/** Constant null atom for fallback when schemaAtom is null */
+const nullSchemaAtom = atom<SchemaProperty | null>(null)
+
+/** Type for data with agConfig property */
+interface DataWithAgConfig {
+    agConfig?: Record<string, unknown>
+}
+
+/**
+ * Safely get agConfig from RunnableData
+ * The agConfig property exists on app revision data but isn't in the base RunnableData type
+ */
+function getAgConfig(data: RunnableData | null): Record<string, unknown> {
+    if (!data) return {}
+    return (data as DataWithAgConfig).agConfig ?? {}
+}
 
 /**
  * Helper to safely extract a property schema from the agConfig schema
@@ -91,7 +108,7 @@ export function ConfigurationSection({type, entityId, data}: ConfigurationSectio
         return null
     }, [type, entityId])
 
-    const schema = useAtomValue(schemaAtom ?? (() => null as any)())
+    const schema = useAtomValue(schemaAtom ?? nullSchemaAtom)
 
     // Get update action based on entity type
     const updateAppRevision = useSetAtom(appRevisionMolecule.reducers.update)
@@ -144,8 +161,8 @@ export function ConfigurationSection({type, entityId, data}: ConfigurationSectio
         (newModel: string | undefined) => {
             if (!canUpdate || !data || !promptModelInfo) return
 
-            const currentAgConfig = (data as any).agConfig || {}
-            const currentPrompt = currentAgConfig.prompt || {}
+            const currentAgConfig = getAgConfig(data)
+            const currentPrompt = (currentAgConfig.prompt as Record<string, unknown>) || {}
 
             // Check if prompt has nested llm_config
             const hasNestedLLMConfig = currentPrompt.llm_config || currentPrompt.llmConfig
@@ -209,7 +226,7 @@ export function ConfigurationSection({type, entityId, data}: ConfigurationSectio
             if (!canUpdate || !data) return
 
             // Get current agConfig and update the specific property
-            const currentAgConfig = (data as any).agConfig || {}
+            const currentAgConfig = getAgConfig(data)
             const updatedAgConfig = {
                 ...currentAgConfig,
                 [propertyKey]: value,
