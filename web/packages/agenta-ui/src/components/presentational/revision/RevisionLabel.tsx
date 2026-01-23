@@ -82,6 +82,13 @@ export interface RevisionLabelProps {
     maxMessageWidth?: number
 
     /**
+     * Reserve space for subtitle rows (message/author) even when not present.
+     * Used for consistent height in select components.
+     * @default false
+     */
+    reserveSubtitleSpace?: boolean
+
+    /**
      * Additional CSS class
      */
     className?: string
@@ -103,6 +110,7 @@ export function RevisionLabel({
     compact = false,
     showDateInline = true,
     maxMessageWidth = 220,
+    reserveSubtitleSpace = false,
     className,
 }: RevisionLabelProps) {
     // Format date
@@ -119,33 +127,45 @@ export function RevisionLabel({
         return <VersionBadge version={version} variant="bold" className={className} />
     }
 
+    // Message element - show actual message or invisible spacer for consistent height
+    const messageElement = message ? (
+        <span
+            className={cn("truncate", textColors.muted)}
+            style={{maxWidth: maxMessageWidth}}
+            title={message}
+        >
+            {message}
+        </span>
+    ) : reserveSubtitleSpace ? (
+        <span className={cn("invisible", textColors.muted)}>&nbsp;</span>
+    ) : null
+
+    // Author element - show actual author or invisible spacer for consistent height
+    const authorElement = author ? (
+        <div className={textColors.muted}>
+            {renderAuthor ? renderAuthor(author) : <span>by {author}</span>}
+        </div>
+    ) : reserveSubtitleSpace ? (
+        <div className={cn("invisible", textColors.muted)}>&nbsp;</div>
+    ) : null
+
     return (
         <div className={cn(flexLayouts.column, "gap-0.5", className)}>
             {/* Version and date row */}
             <div className={cn(flexLayouts.rowCenter, "gap-2")}>
                 <VersionBadge version={version} variant="bold" />
-                {showDateInline && formattedDate && (
-                    <span className={textColors.muted}>{formattedDate}</span>
+                {showDateInline && (formattedDate || reserveSubtitleSpace) && (
+                    <span className={cn(textColors.muted, !formattedDate && "invisible")}>
+                        {formattedDate || "Jan 1, 2024"}
+                    </span>
                 )}
             </div>
 
             {/* Message */}
-            {message && (
-                <span
-                    className={cn("truncate", textColors.muted)}
-                    style={{maxWidth: maxMessageWidth}}
-                    title={message}
-                >
-                    {message}
-                </span>
-            )}
+            {messageElement}
 
             {/* Author */}
-            {author && (
-                <div className={textColors.muted}>
-                    {renderAuthor ? renderAuthor(author) : <span>by {author}</span>}
-                </div>
-            )}
+            {authorElement}
         </div>
     )
 }
