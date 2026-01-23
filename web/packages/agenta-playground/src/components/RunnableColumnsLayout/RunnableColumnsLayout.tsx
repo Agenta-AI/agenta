@@ -68,6 +68,8 @@ export interface RunnableColumnsLayoutProps {
     onDisconnectTestset?: () => void
     /** Local testcase info */
     localTestcaseCount?: number
+    /** Total testcase count including hidden */
+    totalTestcaseCount?: number
     onSaveAsTestset?: () => void
     /** Whether there are uncommitted local changes to the connected testset */
     hasLocalChanges?: boolean
@@ -162,6 +164,7 @@ export function RunnableColumnsLayout({
     onNavigateToTestset,
     onDisconnectTestset,
     localTestcaseCount,
+    totalTestcaseCount,
     onSaveAsTestset,
     hasLocalChanges,
     onCommitChanges,
@@ -444,6 +447,7 @@ export function RunnableColumnsLayout({
                             activeNode.depth === 0 ? onDisconnectTestset : undefined
                         }
                         localTestcaseCount={activeNode.depth === 0 ? localTestcaseCount : 0}
+                        totalTestcaseCount={activeNode.depth === 0 ? totalTestcaseCount : 0}
                         onSaveAsTestset={activeNode.depth === 0 ? onSaveAsTestset : undefined}
                         hasLocalChanges={activeNode.depth === 0 ? hasLocalChanges : false}
                         onCommitChanges={activeNode.depth === 0 ? onCommitChanges : undefined}

@@ -672,6 +672,7 @@ export function PlaygroundContent() {
                                 }
                                 onDisconnectTestset={handleDisconnectTestset}
                                 localTestcaseCount={rows.length}
+                                totalTestcaseCount={loadable.totalRowCount}
                                 onSaveAsTestset={handleOpenSaveTestsetModal}
                                 hasLocalChanges={loadable.hasLocalChanges}
                                 onCommitChanges={openCommitModal ?? undefined}
@@ -708,6 +709,7 @@ export function PlaygroundContent() {
                                 }
                                 onDisconnectTestset={handleDisconnectTestset}
                                 localTestcaseCount={rows.length}
+                                totalTestcaseCount={loadable.totalRowCount}
                                 onSaveAsTestset={handleOpenSaveTestsetModal}
                                 hasLocalChanges={loadable.hasLocalChanges}
                                 onCommitChanges={openCommitModal ?? undefined}

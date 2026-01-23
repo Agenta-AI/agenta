@@ -58,8 +58,10 @@ export interface ConfigPanelProps {
     onNavigateToTestset?: () => void
     /** Disconnect from testset */
     onDisconnectTestset?: () => void
-    /** Number of testcases (local or loaded) */
+    /** Number of displayed testcases (visible rows) */
     localTestcaseCount?: number
+    /** Total number of testcases (including hidden) */
+    totalTestcaseCount?: number
     /** Callback to save local testcases as a new testset */
     onSaveAsTestset?: () => void
     /** Whether there are uncommitted local changes to the connected testset */
@@ -129,6 +131,7 @@ export function ConfigPanel({
     onNavigateToTestset,
     onDisconnectTestset,
     localTestcaseCount = 0,
+    totalTestcaseCount,
     onSaveAsTestset,
     hasLocalChanges = false,
     onCommitChanges,
@@ -190,6 +193,7 @@ export function ConfigPanel({
                             onNavigateToTestset={onNavigateToTestset}
                             onDisconnectTestset={onDisconnectTestset}
                             localTestcaseCount={localTestcaseCount}
+                            totalTestcaseCount={totalTestcaseCount}
                             onSaveAsTestset={onSaveAsTestset}
                             hasLocalChanges={hasLocalChanges}
                             onCommitChanges={onCommitChanges}

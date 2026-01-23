@@ -36,8 +36,10 @@ export interface DataSourceSectionProps {
     onNavigateToTestset?: () => void
     /** Disconnect from testset */
     onDisconnectTestset?: () => void
-    /** Number of testcases (local or loaded) */
+    /** Number of displayed testcases (visible rows) */
     localTestcaseCount?: number
+    /** Total number of testcases (including hidden) - when different from localTestcaseCount, shows "displayed / total" */
+    totalTestcaseCount?: number
     /** Callback to save local testcases as a new testset */
     onSaveAsTestset?: () => void
     /** Whether there are uncommitted local changes to the connected testset */
@@ -58,6 +60,7 @@ export function DataSourceSection({
     onConnectTestset,
     onNavigateToTestset,
     localTestcaseCount = 0,
+    totalTestcaseCount,
     onSaveAsTestset,
     hasLocalChanges = false,
     onCommitChanges,
@@ -153,7 +156,9 @@ export function DataSourceSection({
                             textColors.secondary,
                         )}
                     >
-                        {localTestcaseCount} row{localTestcaseCount !== 1 ? "s" : ""}
+                        {totalTestcaseCount && totalTestcaseCount !== localTestcaseCount
+                            ? `${localTestcaseCount} / ${totalTestcaseCount} rows`
+                            : `${localTestcaseCount} row${localTestcaseCount !== 1 ? "s" : ""}`}
                     </span>
                 </div>
 
