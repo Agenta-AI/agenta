@@ -15,7 +15,12 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule, testcasePaginatedStore} from "@agenta/entities/testcase"
-import {TestcaseTable, TestsetPicker} from "@agenta/entities/ui"
+import {
+    EntityPicker,
+    TestcaseTable,
+    testsetAdapter,
+    type TestsetSelectionResult,
+} from "@agenta/entity-ui"
 import {layoutSizes, PanelFooter, spacingClasses} from "@agenta/ui"
 import {Divider} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -364,14 +369,26 @@ function LoadModeContent({
                         flexShrink: 0,
                     }}
                 >
-                    <TestsetPicker
-                        selectedRevisionId={selectedRevisionId}
-                        selectedTestsetId={selectedTestsetId}
-                        onSelect={setSelection}
-                        disabledRevisionIds={
+                    <EntityPicker<TestsetSelectionResult>
+                        variant="list-popover"
+                        adapter={testsetAdapter}
+                        onSelect={(selection) =>
+                            setSelection(
+                                selection.metadata.revisionId,
+                                selection.metadata.testsetId,
+                            )
+                        }
+                        selectedParentId={selectedTestsetId}
+                        selectedChildId={selectedRevisionId}
+                        showSearch
+                        emptyMessage="No testsets found"
+                        popoverPlacement="rightTop"
+                        autoSelectLatest
+                        selectLatestOnParentClick
+                        disabledChildIds={
                             connectedRevisionId ? new Set([connectedRevisionId]) : undefined
                         }
-                        disabledRevisionTooltip="Already connected"
+                        disabledChildTooltip="Already connected"
                     />
                 </div>
 
