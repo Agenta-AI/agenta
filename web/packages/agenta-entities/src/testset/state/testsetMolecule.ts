@@ -36,6 +36,12 @@
  * ```
  */
 
+import {
+    getValueAtPath as getValueAtPathUtil,
+    setValueAtPath,
+    getItemsAtPath,
+    type DataPath,
+} from "@agenta/shared"
 import {atom, getDefaultStore} from "jotai"
 
 import {
@@ -46,12 +52,6 @@ import {
 } from "../../shared"
 import type {AtomFamily, QueryState, PathItem} from "../../shared"
 import {testcaseMolecule} from "../../testcase/state/molecule"
-import {
-    getValueAtPath as getValueAtPathUtil,
-    setValueAtPath,
-    getItemsAtPath,
-    type DataPath,
-} from "../../ui"
 import {isNewTestsetId, type Testset, type Revision, type RevisionListItem} from "../core"
 
 import {saveNewTestsetAtom} from "./mutations"
