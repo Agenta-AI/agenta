@@ -2,13 +2,15 @@ import {useEffect, useState} from "react"
 import {ComponentProps} from "react"
 
 import {LexicalComposer, InitialConfigType} from "@lexical/react/LexicalComposer"
-import {KlassConstructor, LexicalNode} from "lexical"
 
 import {theme} from "../../assets/theme"
 import {TokenInputNode} from "../../plugins/token/TokenInputNode"
 import {TokenNode} from "../../plugins/token/TokenNode"
 import type {EditorProps} from "../../types"
 type LexicalComposerProps = ComponentProps<typeof LexicalComposer>
+
+// Use Lexical's own expected type for nodes array to avoid casts on dynamic imports
+type LexicalNodes = NonNullable<InitialConfigType["nodes"]>
 
 // Cache built configs keyed by variant so subsequent editors receive the
 // configuration synchronously without triggering the loading placeholder.
@@ -40,7 +42,7 @@ const useEditorConfig = ({
         if (CONFIG_CACHE.has(cacheKey)) return // already cached
 
         const loadConfig = async (): Promise<InitialConfigType> => {
-            const initialNodes: (KlassConstructor<typeof LexicalNode> | typeof LexicalNode)[] = []
+            const initialNodes: LexicalNodes[number][] = []
 
             if (codeOnly) {
                 const initialNodesPromises = await Promise.all([
@@ -66,10 +68,7 @@ const useEditorConfig = ({
                 )
             } else {
                 const codeNodeModule = await import("@lexical/code")
-                initialNodes.push(
-                    codeNodeModule.CodeNode as unknown as typeof LexicalNode,
-                    codeNodeModule.CodeHighlightNode as unknown as typeof LexicalNode,
-                )
+                initialNodes.push(codeNodeModule.CodeNode, codeNodeModule.CodeHighlightNode)
             }
 
             const [
@@ -95,19 +94,19 @@ const useEditorConfig = ({
             ])
 
             initialNodes.push(
-                richTextModule.HeadingNode as unknown as typeof LexicalNode,
-                listModule.ListNode as unknown as typeof LexicalNode,
-                listModule.ListItemNode as unknown as typeof LexicalNode,
-                richTextModule.QuoteNode as unknown as typeof LexicalNode,
-                tableModule.TableNode as unknown as typeof LexicalNode,
-                tableModule.TableCellNode as unknown as typeof LexicalNode,
-                tableModule.TableRowNode as unknown as typeof LexicalNode,
-                hashtagModule.HashtagNode as unknown as typeof LexicalNode,
-                linkModule.AutoLinkNode as unknown as typeof LexicalNode,
-                linkModule.LinkNode as unknown as typeof LexicalNode,
-                overflowModule.OverflowNode as unknown as typeof LexicalNode,
-                horizontalRuleModule.HorizontalRuleNode as unknown as typeof LexicalNode,
-                markModule.MarkNode as unknown as typeof LexicalNode,
+                richTextModule.HeadingNode,
+                listModule.ListNode,
+                listModule.ListItemNode,
+                richTextModule.QuoteNode,
+                tableModule.TableNode,
+                tableModule.TableCellNode,
+                tableModule.TableRowNode,
+                hashtagModule.HashtagNode,
+                linkModule.AutoLinkNode,
+                linkModule.LinkNode,
+                overflowModule.OverflowNode,
+                horizontalRuleModule.HorizontalRuleNode,
+                markModule.MarkNode,
             )
 
             // lazy import and load initial nodes

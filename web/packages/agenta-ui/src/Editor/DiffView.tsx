@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// Note: This file uses 'any' for diff library compatibility
-
 /**
  * @fileoverview DiffView - Reusable diff visualization component
  *
@@ -127,10 +124,13 @@ function detectLanguage(content: string): "json" | "yaml" {
     return detected === "text" ? "json" : detected
 }
 
+/** Content type for DiffView - either a string or a JSON-serializable object */
+type DiffContent = string | Record<string, unknown> | unknown[] | null
+
 /**
  * Normalize content to string format
  */
-function normalizeContent(content: string | any, targetLanguage: "json" | "yaml"): string {
+function normalizeContent(content: DiffContent, targetLanguage: "json" | "yaml"): string {
     // If already a string, return as-is
     if (typeof content === "string") {
         return content
@@ -180,9 +180,9 @@ export interface DiffViewProps {
     /** Language for diff display - if not provided, will be inferred from content */
     language?: "json" | "yaml"
     /** Original content - can be string (JSON/YAML) or JavaScript object */
-    original: string | any
+    original: DiffContent
     /** Modified content - can be string (JSON/YAML) or JavaScript object */
-    modified: string | any
+    modified: DiffContent
     /** Additional CSS classes */
     className?: string
     /** Debounce delay for diff computation in milliseconds */
