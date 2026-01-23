@@ -9,13 +9,33 @@
  * - Truncation for cell preview (lines + characters)
  * - Full content in popover on hover
  * - Memoization for performance
+ *
+ * NOTE: These are re-exported from @agenta/ui for backward compatibility.
+ * New code should import directly from @agenta/ui.
  */
 
-export {default as CellContentPopover} from "./CellContentPopover"
-export {default as JsonCellContent} from "./JsonCellContent"
-export {default as TextCellContent} from "./TextCellContent"
-export {default as ChatMessagesCellContent} from "./ChatMessagesCellContent"
-export {default as SmartCellContent} from "./SmartCellContent"
-
-export * from "./utils"
-export * from "./constants"
+export {
+    // Components
+    CellContentPopover,
+    JsonCellContent,
+    TextCellContent,
+    ChatMessagesCellContent,
+    SmartCellContent,
+    // Utilities
+    truncateToLines,
+    truncateToChars,
+    truncateContent,
+    safeJsonStringify,
+    tryParseJson,
+    normalizeValue,
+    isChatMessagesArray,
+    extractChatMessages,
+    normalizeChatMessages,
+    // Constants
+    DEFAULT_MAX_LINES,
+    MAX_CELL_CHARS,
+    JSON_HIGHLIGHT_COLOR,
+    ROLE_COLORS,
+    // Types
+    type NormalizedChatMessage,
+} from "@agenta/ui"
