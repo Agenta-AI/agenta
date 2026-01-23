@@ -1,4 +1,3 @@
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
 
@@ -71,8 +70,6 @@ const explorePlaygroundTour: OnboardingTour = {
     ],
 }
 
-const isWalkthroughsEnabled = () => getEnv("NEXT_PUBLIC_ENABLE_WALKTHROUGHS") === "true"
-
 /**
  * Register the tour
  *
@@ -81,7 +78,7 @@ const isWalkthroughsEnabled = () => getEnv("NEXT_PUBLIC_ENABLE_WALKTHROUGHS") ==
  */
 export function registerExplorePlaygroundTour(): void {
     tourRegistry.register(explorePlaygroundTour, {
-        condition: isWalkthroughsEnabled,
+        condition: () => true,
     })
 }
 

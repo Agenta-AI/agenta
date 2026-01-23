@@ -5,6 +5,8 @@ import {useCallback, useEffect, useState} from "react"
 import {NextStep, NextStepProvider} from "@agentaai/nextstepjs"
 import {useSetAtom} from "jotai"
 
+import {ANNOTATE_TRACES_TOUR_ID} from "@/oss/components/Onboarding/tours/annotateTracesTour"
+import {DEPLOY_PROMPT_TOUR_ID} from "@/oss/components/Onboarding/tours/deployPromptTour"
 import {EXPLORE_PLAYGROUND_TOUR_ID} from "@/oss/components/Onboarding/tours/explorePlaygroundTour"
 import {
     tourRegistry,
@@ -47,6 +49,12 @@ const OnboardingInner = ({children}: {children: React.ReactNode}) => {
                 if (tourName === EXPLORE_PLAYGROUND_TOUR_ID) {
                     recordWidgetEvent("playground_explored")
                 }
+                if (tourName === DEPLOY_PROMPT_TOUR_ID) {
+                    recordWidgetEvent("variant_deployed")
+                }
+                if (tourName === ANNOTATE_TRACES_TOUR_ID) {
+                    recordWidgetEvent("trace_annotated")
+                }
             }
             setActiveTourId(null)
         },
@@ -57,10 +65,19 @@ const OnboardingInner = ({children}: {children: React.ReactNode}) => {
         (_step: number, tourName: string | null) => {
             if (tourName) {
                 markTourSeen(tourName)
+                if (tourName === EXPLORE_PLAYGROUND_TOUR_ID) {
+                    recordWidgetEvent("playground_explored")
+                }
+                if (tourName === DEPLOY_PROMPT_TOUR_ID) {
+                    recordWidgetEvent("variant_deployed")
+                }
+                if (tourName === ANNOTATE_TRACES_TOUR_ID) {
+                    recordWidgetEvent("trace_annotated")
+                }
             }
             setActiveTourId(null)
         },
-        [markTourSeen, setActiveTourId],
+        [markTourSeen, recordWidgetEvent, setActiveTourId],
     )
 
     return (

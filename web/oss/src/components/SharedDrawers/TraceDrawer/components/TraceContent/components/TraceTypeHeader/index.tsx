@@ -76,6 +76,7 @@ const TraceTypeHeader = ({
                         spanId: activeTrace?.span_id,
                     }}
                     queryKey="trace-drawer-annotations"
+                    data-tour="annotate-button"
                 />
 
                 <Button

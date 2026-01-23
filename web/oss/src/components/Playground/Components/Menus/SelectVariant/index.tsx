@@ -3,10 +3,11 @@ import {useCallback, useMemo, useState} from "react"
 import {ArrowsLeftRight} from "@phosphor-icons/react"
 import {TreeSelect, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 import AddButton from "../../../assets/AddButton"
 import {variantOptionsAtomFamily} from "../../../state/atoms/optionsSelectors"
@@ -66,6 +67,7 @@ const SelectVariant = ({
 
     const [isOpenCompareSelect, setIsOpenCompareSelect] = useState(false)
     const [isOpenSelect, setIsOpenSelect] = useState(false)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
 
     const handleClose = useCallback(() => {
         setIsOpenSelect(false)
@@ -129,7 +131,10 @@ const SelectVariant = ({
                         icon={<ArrowsLeftRight size={14} />}
                         label="Compare"
                         className="absolute top-0 left-0 z-10"
-                        onClick={() => setIsOpenCompareSelect((prev) => !prev)}
+                        onClick={() => {
+                            recordWidgetEvent("playground_compared_side_by_side")
+                            setIsOpenCompareSelect((prev) => !prev)
+                        }}
                         size="small"
                         data-tour="compare-toggle"
                     />
