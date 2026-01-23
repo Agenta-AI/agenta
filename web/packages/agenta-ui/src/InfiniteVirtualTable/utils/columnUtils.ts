@@ -11,7 +11,9 @@ export const collectFixedColumnKeys = <RecordType extends object>(
     const keys = new Set<string>()
     const visit = (cols: ColumnsType<RecordType>) => {
         cols.forEach((column) => {
-            const typedColumn = column as any
+            const typedColumn = column as ColumnsType<RecordType>[number] & {
+                children?: ColumnsType<RecordType>
+            }
             if (!typedColumn) return
             const columnKey = typedColumn.key
             const isFixed = Boolean(typedColumn.fixed)
@@ -19,7 +21,7 @@ export const collectFixedColumnKeys = <RecordType extends object>(
                 keys.add(String(columnKey))
             }
             if (typedColumn.children && typedColumn.children.length) {
-                visit(typedColumn.children as ColumnsType<RecordType>)
+                visit(typedColumn.children)
             }
         })
     }
@@ -41,12 +43,12 @@ export const buildColumnDescendantMap = <RecordType extends object>(
 ): Map<string, string[]> => {
     const map = new Map<string, string[]>()
     const gatherDescendants = (column: ColumnsType<RecordType>[number]): string[] => {
-        const typedColumn = column as any
+        const typedColumn = column as ColumnsType<RecordType>[number] & {
+            children?: ColumnsType<RecordType>
+        }
         if (!typedColumn) return []
         const key = toColumnKey(typedColumn.key)
-        const childColumns = Array.isArray(typedColumn.children)
-            ? (typedColumn.children as ColumnsType<RecordType>)
-            : null
+        const childColumns = Array.isArray(typedColumn.children) ? typedColumn.children : null
         if (!childColumns || childColumns.length === 0) {
             return key ? [key] : []
         }
@@ -61,38 +63,36 @@ export const buildColumnDescendantMap = <RecordType extends object>(
 }
 
 /**
- * Merges two optional event handlers into one
+ * Merges two optional event handlers into one.
+ * Note: Uses 'any' for args because event handlers have varying signatures
+ * (MouseEvent, KeyboardEvent, etc.) that cannot be unified with unknown[].
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const mergeHandlers = <
-    T extends (...args: any[]) => void | undefined,
-    U extends (...args: any[]) => void | undefined,
+    T extends (...args: any[]) => void,
+    U extends (...args: any[]) => void,
 >(
     first?: T,
     second?: U,
-): ((...args: Parameters<T>) => void) | ((...args: Parameters<U>) => void) | undefined => {
-    if (!first && !second) {
-        return undefined
+): ((...args: Parameters<T>) => void) | undefined => {
+    if (!first && !second) return undefined
+    if (!first) return second as ((...args: Parameters<T>) => void) | undefined
+    if (!second) return first
+    return (...args: any[]) => {
+        first(...args)
+        second(...args)
     }
-    if (!first) {
-        return second as any
-    }
-    if (!second) {
-        return first as any
-    }
-    return ((...args: any[]) => {
-        first(...(args as Parameters<T>))
-        second(...(args as Parameters<U>))
-    }) as any
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Shallow equality check for objects
  */
-export const shallowEqual = (a: Record<string, any> | null, b: Record<string, any>): boolean => {
+export const shallowEqual = <T extends object>(a: T | null, b: T): boolean => {
     if (a === b) return true
     if (!a || !b) return false
-    const keysA = Object.keys(a)
-    const keysB = Object.keys(b)
+    const keysA = Object.keys(a) as (keyof T)[]
+    const keysB = Object.keys(b) as (keyof T)[]
     if (keysA.length !== keysB.length) return false
     for (const key of keysA) {
         if (a[key] !== b[key]) return false
