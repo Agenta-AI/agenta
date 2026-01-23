@@ -4,31 +4,52 @@ import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$isCodeLineNode} from "../nodes/CodeLineNode"
 
+/** Simplified JSON Schema type for constructJsonFromSchema */
+interface JsonSchemaProperty {
+    type?: "string" | "number" | "boolean" | "object" | "array" | "null"
+    properties?: Record<string, JsonSchemaProperty>
+    required?: string[]
+    items?: JsonSchemaProperty
+    anyOf?: JsonSchemaProperty[]
+}
+
+/** JSON primitive types */
+type JsonPrimitive = string | number | boolean | null
+
+/** JSON value - recursive type for JSON data structures */
+interface JsonObject {
+    [key: string]: JsonPrimitive | JsonObject | JsonArray
+}
+interface JsonArray extends Array<JsonPrimitive | JsonObject | JsonArray> {}
+
+type JsonValue = JsonPrimitive | JsonObject | JsonArray
+
 /**
  * Constructs a JSON object from a JSON Schema definition.
- * Note: Uses 'any' for schema and return type because JSON Schema structures
- * are inherently dynamic and recursive, making strict typing impractical.
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export function constructJsonFromSchema(schema: any, valueMap: Record<string, string>): any {
+export function constructJsonFromSchema(
+    schema: JsonSchemaProperty | null | undefined,
+    valueMap: Record<string, string>,
+): JsonValue {
     if (!schema) return null
 
     if (schema.type === "object") {
-        const obj: any = {}
-        /* eslint-enable @typescript-eslint/no-explicit-any */
+        const obj: JsonObject = {}
+        const properties = schema.properties ?? {}
         // Use Object.keys to preserve property order instead of for...in
-        const propertyKeys = Object.keys(schema.properties || {})
+        const propertyKeys = Object.keys(properties)
         for (const key of propertyKeys) {
-            const propertySchema = schema.properties[key]
+            const propertySchema = properties[key]
             const isRequired = schema.required && schema.required.includes(key)
-            let initialValue = constructJsonFromSchema(propertySchema, valueMap) || valueMap[key]
+            let initialValue: JsonValue =
+                constructJsonFromSchema(propertySchema, valueMap) ?? valueMap[key] ?? null
 
-            if (initialValue === null || initialValue === undefined) {
+            if (initialValue === null) {
                 if (propertySchema.type === "string") {
                     initialValue = valueMap[key] || (isRequired ? key : "") // Use map value if available, else field name or empty string
                 } else if (
                     propertySchema.anyOf &&
-                    propertySchema.anyOf.some((item: {type?: string}) => item.type === "string")
+                    propertySchema.anyOf.some((item) => item.type === "string")
                 ) {
                     initialValue = valueMap[key] || (isRequired ? key : "") // Use map value if available, else field name or empty string
                 } else if (propertySchema.type === "number") {
@@ -37,7 +58,7 @@ export function constructJsonFromSchema(schema: any, valueMap: Record<string, st
                     initialValue = false
                 } else if (
                     propertySchema.type === "object" ||
-                    propertySchema.anyOf?.[0].type === "object"
+                    propertySchema.anyOf?.[0]?.type === "object"
                 ) {
                     initialValue = {} // Provide an empty object
                 } else if (propertySchema.type === "array") {
@@ -52,7 +73,7 @@ export function constructJsonFromSchema(schema: any, valueMap: Record<string, st
             } else if (
                 initialValue === "" &&
                 propertySchema.anyOf &&
-                propertySchema.anyOf.some((item: {type?: string}) => item.type === "null")
+                propertySchema.anyOf.some((item) => item.type === "null")
             ) {
                 initialValue = null
             }

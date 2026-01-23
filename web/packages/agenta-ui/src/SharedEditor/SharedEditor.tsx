@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// Note: This file uses 'any' for Editor component compatibility
-
 import {ChangeEvent, useCallback, useRef, useState} from "react"
 
 import {useDebounceInput} from "@agenta/shared"
@@ -154,7 +151,8 @@ const SharedEditor = ({
 
             {useAntdInput ? (
                 (() => {
-                    const {className: antdClassName, textarea, ...antdRest} = antdInputProps ?? {}
+                    // Check textarea before destructuring to preserve discriminated union narrowing
+                    const inputProps = antdInputProps ?? {}
                     const commonProps = {
                         placeholder,
                         value: localValue,
@@ -163,18 +161,18 @@ const SharedEditor = ({
                             "!bg-transparent",
                             "!text-inherit",
                             editorClassName,
-                            antdClassName,
+                            inputProps.className,
                         ),
                         disabled,
                     }
 
-                    if (textarea) {
-                        // Type assertion needed due to antd prop type incompatibility
-                        return <Input.TextArea {...commonProps} {...(antdRest as any)} />
+                    if ("textarea" in inputProps && inputProps.textarea) {
+                        const {textarea: _, className: __, ...textAreaRest} = inputProps
+                        return <Input.TextArea {...commonProps} {...textAreaRest} />
                     }
 
-                    // Type assertion needed due to antd prop type incompatibility
-                    return <Input {...commonProps} {...(antdRest as any)} />
+                    const {textarea: _, className: __, ...inputRest} = inputProps
+                    return <Input {...commonProps} {...inputRest} />
                 })()
             ) : (
                 <Editor
@@ -186,7 +184,7 @@ const SharedEditor = ({
                     // Pass controlled value for undo/redo support - this triggers re-hydration when value changes
                     value={value}
                     className={editorClassName}
-                    onChange={(val: any) => {
+                    onChange={(val) => {
                         handleLocalValueChange(val.textContent)
                     }}
                     debug={debug}

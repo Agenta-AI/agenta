@@ -49,6 +49,8 @@ const ColumnVisibilityContext = createContext<ColumnVisibilityContextValue>(
     defaultColumnVisibilityContextValue,
 )
 
+// Generic context pattern: Double cast needed because React Context doesn't support generics.
+// The context is created with base type but consumed with specific RecordType.
 export const useColumnVisibilityContext = <
     RecordType extends object = InfiniteTableRowBase,
 >(): ColumnVisibilityContextValue<RecordType> =>
