@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Note: This file uses 'any' for Ant Design column type compatibility
+
 import type {ComponentType, ReactNode} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
