@@ -2,7 +2,7 @@
  * Entity Selector Modal
  *
  * Configurable modal for selecting playground entities.
- * Uses EntityPicker from @agenta/entities/ui for hierarchical selection.
+ * Uses EntityPicker from @agenta/entity-ui for hierarchical selection.
  *
  * Cascade levels:
  * - App Revision: App -> Variant -> Revision (via EntityPicker)
@@ -38,7 +38,7 @@ import {
     EntityPicker,
     type EvaluatorRevisionSelectionResult,
     type AppRevisionSelectionResult,
-} from "@agenta/entities/ui"
+} from "@agenta/entity-ui"
 import {EnhancedModal} from "@agenta/ui"
 import {CaretRight} from "@phosphor-icons/react"
 import {Input, Button, Tabs, Space, Typography} from "antd"
@@ -58,7 +58,7 @@ interface EntitySelectorContextType {
 
 // ============================================================================
 // APP REVISION SELECTOR (Cascading Selects: App -> Variant -> Revision)
-// Uses AppRevisionSelectGroup from @agenta/entities/ui for unified selection
+// Uses AppRevisionSelectGroup from @agenta/entity-ui for unified selection
 // ============================================================================
 
 function AppRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection) => void}) {

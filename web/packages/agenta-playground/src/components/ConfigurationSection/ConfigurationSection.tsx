@@ -28,7 +28,7 @@ import {
     getModelSchema,
     getOptionsFromSchema,
     getLLMConfigValue,
-} from "@agenta/entities/ui"
+} from "@agenta/entity-ui"
 import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
 import {
     GearSix,

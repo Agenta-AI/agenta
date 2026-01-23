@@ -30,7 +30,7 @@ import {
     type OutputConnection,
 } from "@agenta/entities/runnable"
 import {revisionMolecule} from "@agenta/entities/testset"
-import {EntityCommitModal, useBoundCommit} from "@agenta/entities/ui"
+import {EntityCommitModal, useBoundCommit} from "@agenta/entity-ui"
 import {Splitter} from "antd"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
