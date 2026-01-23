@@ -18,8 +18,7 @@
         "./runnable": "./src/runnable/index.ts",
         "./trace": "./src/trace/index.ts",
         "./testset": "./src/testset/index.ts",
-        "./testcase": "./src/testcase/index.ts",
-        "./ui": "./src/ui/index.ts"
+        "./testcase": "./src/testcase/index.ts"
     },
     "dependencies": {
         "@agenta/shared": "workspace:../agenta-shared",

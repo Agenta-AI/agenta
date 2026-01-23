@@ -85,5 +85,5 @@ export {
 // Entity-agnostic UI utilities for building drill-in views and path navigation.
 // These work with any molecule and don't depend on specific entity types.
 //
-// Import from the ui subpath:
-//   import { getValueAtPath, type DrillInMoleculeConfig, ... } from '@agenta/entities/ui'
+// Import from the @agenta/entity-ui package:
+//   import { getValueAtPath, type DrillInMoleculeConfig, ... } from '@agenta/entity-ui'

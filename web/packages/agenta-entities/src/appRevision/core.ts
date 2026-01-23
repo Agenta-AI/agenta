@@ -217,29 +217,157 @@ export const revisionSchemaStateSchema = z.object({
 })
 
 // ============================================================================
+// WORKFLOW SERVICE CONFIGURATION (from backend WorkflowRevisionData)
+// ============================================================================
+
+/**
+ * Reference schema for secrets or hardcoded values in headers
+ * Maps to backend: Union[Reference, str]
+ */
+export const headerValueSchema = z.union([
+    z.string(),
+    z.object({
+        id: z.string().optional(),
+        slug: z.string().optional(),
+        version: z.number().optional(),
+    }),
+])
+export type HeaderValue = z.infer<typeof headerValueSchema>
+
+/**
+ * Workflow service configuration schema
+ * Maps to backend: WorkflowServiceConfiguration (workflows/dtos.py)
+ *
+ * This represents the full configuration available for workflow revisions,
+ * including script-based workflows and runtime configuration.
+ */
+export const workflowServiceConfigSchema = z.object({
+    /** Service version identifier */
+    version: z.string().nullable().optional(),
+    /** Base URI for the service */
+    uri: z.string().nullable().optional(),
+    /** Full URL for the service endpoint */
+    url: z.string().nullable().optional(),
+    /** Request headers - can be hardcoded strings or secret references */
+    headers: z.record(z.string(), headerValueSchema).nullable().optional(),
+    /** JSON schemas for inputs/outputs */
+    schemas: z.record(z.string(), z.unknown()).nullable().optional(),
+    /** Script content for custom workflows */
+    script: z.record(z.string(), z.unknown()).nullable().optional(),
+    /** Configuration parameters (ag_config) */
+    parameters: z.record(z.string(), z.unknown()).nullable().optional(),
+    /** Runtime environment: python, javascript, typescript (null = python) */
+    runtime: z.string().nullable().optional(),
+})
+export type WorkflowServiceConfig = z.infer<typeof workflowServiceConfigSchema>
+
+/**
+ * Legacy service configuration (for backward compatibility)
+ * Maps to backend: WorkflowRevisionData.service
+ */
+export const legacyServiceConfigSchema = z.object({
+    agenta: z.boolean().optional(),
+    format: z.record(z.string(), z.unknown()).optional(),
+    url: z.string().optional(),
+    kind: z.string().optional(),
+})
+export type LegacyServiceConfig = z.infer<typeof legacyServiceConfigSchema>
+
+// ============================================================================
 // APP REVISION DATA
 // ============================================================================
 
+/**
+ * App revision data schema
+ *
+ * This is the frontend representation of ApplicationRevisionData from the backend.
+ * It extends WorkflowRevisionData with application-specific transformations.
+ *
+ * Backend source: core/applications/dtos.py -> ApplicationRevisionData
+ * Parent: core/workflows/dtos.py -> WorkflowRevisionData -> WorkflowServiceConfiguration
+ *
+ * Key fields from WorkflowServiceConfiguration:
+ * - uri: Base URI for the service
+ * - url: Full URL for the service endpoint
+ * - headers: Request headers (can include secret references)
+ * - schemas: JSON schemas for inputs/outputs
+ * - script: Script content for custom workflows
+ * - parameters: Configuration parameters (ag_config)
+ * - runtime: Runtime environment (python, javascript, typescript)
+ */
 export const appRevisionDataSchema = z.object({
+    // Identifier fields
     id: z.string(),
     variantId: z.string().optional(),
     appId: z.string().optional(),
+
+    /**
+     * Revision number
+     * Note: Backend returns this as Optional[str] in Version mixin,
+     * but we transform it to number for easier comparison and display.
+     */
     revision: z.number(),
+
+    // Extracted prompt configuration (frontend convenience)
     prompts: z.array(promptConfigSchema).optional(),
+
+    // Raw ag_config from backend parameters
     agConfig: z.record(z.string(), z.unknown()).optional(),
+
+    // Full parameters object from backend
     parameters: z.record(z.string(), z.unknown()).optional(),
+
+    // Lifecycle timestamps
     createdAt: z.string().optional(),
     updatedAt: z.string().optional(),
+
+    // === WorkflowServiceConfiguration fields ===
+
+    /** Base URI for the service endpoint */
     uri: z.string().optional(),
+
+    /** Full URL for the service endpoint (from backend url field) */
+    url: z.string().optional(),
+
+    /** Extracted runtime prefix from URI */
     runtimePrefix: z.string().optional(),
+
+    /** Extracted route path from URI */
     routePath: z.string().optional(),
-    /** Input/output schemas extracted from OpenAPI spec */
+
+    /**
+     * Request headers - can be hardcoded strings or secret references
+     * Maps to backend: Dict[str, Union[Reference, str]]
+     */
+    headers: z.record(z.string(), headerValueSchema).optional(),
+
+    /**
+     * Script content for custom workflows
+     * Maps to backend: Data (Dict[str, FullJson])
+     */
+    script: z.record(z.string(), z.unknown()).optional(),
+
+    /**
+     * Runtime environment: "python", "javascript", "typescript"
+     * null/undefined defaults to "python"
+     */
+    runtime: z.string().nullable().optional(),
+
+    /** Input/output schemas extracted from OpenAPI spec or backend schemas field */
     schemas: z
         .object({
             inputs: z.record(z.string(), z.unknown()).optional(),
             outputs: z.record(z.string(), z.unknown()).optional(),
         })
         .optional(),
+
+    // === Legacy fields for backward compatibility ===
+
+    /** Legacy service configuration */
+    service: legacyServiceConfigSchema.optional(),
+
+    /** Legacy configuration object */
+    configuration: z.record(z.string(), z.unknown()).optional(),
 })
 export type AppRevisionData = z.infer<typeof appRevisionDataSchema>
 
