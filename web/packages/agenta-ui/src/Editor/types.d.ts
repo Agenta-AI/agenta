@@ -4,7 +4,7 @@ import {CustomRenderFn} from "./form/nodes/NodeTypes"
 
 export interface EditorContextType {
     editor: LexicalEditor | null
-    config: any
+    config: Record<string, unknown> | null
 }
 
 export interface EditorProviderProps extends React.HTMLProps<HTMLDivElement> {
@@ -48,7 +48,7 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
         height: number | string
     }
     showBorder?: boolean
-    validationSchema?: unknown
+    validationSchema?: Record<string, unknown>
     /** Additional plugins to include in code editor */
     additionalCodePlugins?: React.ReactNode[]
     /** Callback when a JSON property key is Cmd/Meta+clicked (for drill-in navigation) */
@@ -71,7 +71,7 @@ export interface EditorPluginsProps {
     initialValue: string
     /** Controlled value - when provided, editor re-hydrates when this changes (for undo/redo support) */
     value?: string
-    validationSchema?: unknown
+    validationSchema?: Record<string, unknown>
     tokens?: string[]
     templateFormat?: "curly" | "fstring" | "jinja2"
     handleUpdate: (editorState: EditorState, editor: LexicalEditor) => void
