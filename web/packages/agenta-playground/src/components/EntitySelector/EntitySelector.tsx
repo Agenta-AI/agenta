@@ -46,6 +46,13 @@ import {entitySelectorController, cascadingSelection} from "../../state"
 
 const {Text} = Typography
 
+/** Custom option type for revision select with searchLabel */
+interface RevisionSelectOption {
+    value: string
+    label: ReactNode
+    searchLabel: string
+}
+
 // Re-export types from controller for convenience
 export type {EntityType, EntitySelection, EntitySelectorConfig}
 
@@ -251,9 +258,9 @@ function AppRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection)
                     }
                     showSearch
                     filterOption={(input, option) =>
-                        ((option as any)?.searchLabel as string)
+                        (option as RevisionSelectOption | undefined)?.searchLabel
                             ?.toLowerCase()
-                            .includes(input.toLowerCase())
+                            .includes(input.toLowerCase()) ?? false
                     }
                     notFoundContent={getRevisionsNotFoundContent()}
                 />

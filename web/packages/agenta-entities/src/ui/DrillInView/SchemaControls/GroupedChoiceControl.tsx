@@ -46,8 +46,8 @@ export interface GroupedChoiceControlProps {
 function isModelField(schema: SchemaProperty | null | undefined): boolean {
     if (!schema) return false
 
-    const title = (schema as any)?.title?.toLowerCase() || ""
-    const xParam = (schema as any)?.["x-parameter"]
+    const title = ((schema.title as string | undefined) || "").toLowerCase()
+    const xParam = schema["x-parameter"] as string | undefined
 
     return title === "model" || xParam === "grouped_choice"
 }
@@ -83,7 +83,7 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
     const isModel = useMemo(() => isModelField(schema), [schema])
 
     // Get description from schema or prop
-    const tooltipText = description ?? (schema as any)?.description ?? ""
+    const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
     // Options are already in the correct format from getOptionsFromSchema (may be null)
     const selectOptions = schemaOptions?.options ?? []

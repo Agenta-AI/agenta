@@ -370,7 +370,7 @@ export function extractAllEndpointSchemas(
 
     // Check if this is a chat variant (has messages in any endpoint)
     const isChatVariant = Object.values(endpoints).some(
-        (ep) => ep?.messagesSchema !== null || ep?.requestProperties.includes("messages"),
+        (ep) => ep?.messagesSchema !== null || ep?.requestProperties?.includes("messages"),
     )
 
     // Get primary ag_config schema (prefer /test, then /run, then others)

@@ -183,6 +183,7 @@ export interface EntityControllerConfig<T, TDraft = Partial<T>> {
      * Optional: Drill-in configuration for path-based navigation and editing
      * If provided, enables drillIn capability on the returned API
      */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DrillIn root data type varies by entity
     drillIn?: DrillInConfig<T, any>
 }
 
@@ -732,6 +733,7 @@ export function createEntityController<T, TDraft = Partial<T>>(
                             const updatedRootData = deleteAtPath(rootData, action.path)
                             const updates = drillInConfig.setRootData(
                                 entity,
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- deleteAtPath returns unknown, setRootData expects specific type
                                 updatedRootData as any,
                                 action.path,
                             )

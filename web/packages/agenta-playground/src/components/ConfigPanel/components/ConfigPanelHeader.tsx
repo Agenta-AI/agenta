@@ -57,9 +57,12 @@ export function ConfigPanelHeader({entity, onRemove, onChange}: ConfigPanelHeade
                                 {entity.label}
                             </Text>
                             {type === "appRevision" &&
-                                (runnable.data as AppRevisionData)?.revision !== undefined && (
+                                typeof (runnable.data as AppRevisionData)?.revision ===
+                                    "number" && (
                                     <VersionBadge
-                                        version={(runnable.data as AppRevisionData).revision}
+                                        version={
+                                            (runnable.data as AppRevisionData).revision as number
+                                        }
                                         variant="chip"
                                     />
                                 )}

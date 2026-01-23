@@ -32,7 +32,7 @@
 
 import {useCallback, useMemo, useState} from "react"
 
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom, type Atom} from "jotai"
 
 import {appRevisionMolecule} from "../appRevision"
 import {evaluatorRevisionMolecule} from "../evaluatorRevision"
@@ -154,9 +154,8 @@ export function createRunnableSelectors(providers: PlaygroundEntityProviders) {
                     let inputSchema: Record<string, unknown> | undefined = undefined
 
                     // Get agConfig for dynamic extraction and static input_keys
-                    const agConfig = (revisionData as any).agConfig as
-                        | Record<string, unknown>
-                        | undefined
+                    // Type assertion needed: revisionData structure varies by provider
+                    const agConfig = (revisionData as {agConfig?: Record<string, unknown>}).agConfig
                     const promptConfig = agConfig?.prompt as Record<string, unknown> | undefined
 
                     // PRIORITY 1: Dynamically extract variables from prompt messages
@@ -168,9 +167,10 @@ export function createRunnableSelectors(providers: PlaygroundEntityProviders) {
                         promptConfig?.inputKeys) as string[] | undefined
 
                     // PRIORITY 3: Check prompts array for inputKeys (transformed format)
-                    const prompts = (revisionData as any).prompts as
-                        | {messages?: unknown; inputKeys?: string[]}[]
-                        | undefined
+                    // Type assertion needed: revisionData structure varies by provider
+                    const prompts = (
+                        revisionData as {prompts?: {messages?: unknown; inputKeys?: string[]}[]}
+                    ).prompts
                     const promptsInputKeys = prompts?.[0]?.inputKeys
 
                     // PRIORITY 4: Extract from prompts array messages if agConfig doesn't have messages
@@ -204,8 +204,14 @@ export function createRunnableSelectors(providers: PlaygroundEntityProviders) {
                         }
                     } else {
                         // Fall back to OpenAPI schema if no input_keys in config
-                        const inputsSchemaSelector = (providers.appRevision.selectors as any)
-                            .inputsSchema
+                        // Type assertion needed: provider selectors are dynamically typed
+                        type InputsSchemaSelector = (params: {
+                            revisionId: string
+                            endpoint: string
+                        }) => unknown
+                        const inputsSchemaSelector = (
+                            providers.appRevision.selectors as {inputsSchema?: InputsSchemaSelector}
+                        ).inputsSchema
 
                         // Note: molecule's selector expects { revisionId, endpoint }
                         const inputsSchemaAtom = inputsSchemaSelector?.({
@@ -214,7 +220,15 @@ export function createRunnableSelectors(providers: PlaygroundEntityProviders) {
                         })
 
                         const schemaResult = inputsSchemaAtom
-                            ? (get(inputsSchemaAtom) as {
+                            ? (get(
+                                  inputsSchemaAtom as Atom<{
+                                      properties?: Record<
+                                          string,
+                                          {type?: string; description?: string}
+                                      >
+                                      required?: string[]
+                                  } | null>,
+                              ) as {
                                   properties?: Record<string, {type?: string; description?: string}>
                                   required?: string[]
                               } | null)

@@ -139,7 +139,7 @@ function toRunnableNode(node: {
             id: node.entityId,
             label: node.label,
         },
-        depth: (node as any).depth ?? 0,
+        depth: node.depth ?? 0,
     }
 }
 
@@ -232,7 +232,7 @@ export function RunnableColumnsLayout({
                     entityType: n.entityType,
                     entityId: n.entityId,
                     label: n.label,
-                    depth: (n as any).depth,
+                    depth: n.depth,
                 }),
             ),
         [playgroundNodes],

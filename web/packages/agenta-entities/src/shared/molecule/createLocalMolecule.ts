@@ -48,7 +48,7 @@
  * ```
  */
 
-import {atom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
@@ -351,9 +351,6 @@ export function createLocalMolecule<T>(config: CreateLocalMoleculeConfig<T>): Lo
     // ========================================================================
 
     function useController(id: string): UseControllerResult<T, Partial<T>> {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const {useAtomValue, useSetAtom} = require("jotai")
-
         const data = useAtomValue(dataAtomFamily(id))
         const isDirty = useAtomValue(isDirtyAtomFamily(id))
         const isNew = useAtomValue(isNewAtomFamily(id))

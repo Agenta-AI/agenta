@@ -558,7 +558,8 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
     ])
 
     const isAtRoot = state.currentLevel === 0
-    const isAtLeaf = state.currentLevel >= adapter.hierarchy.selectableLevel
+    const selectableLevel = adapter.hierarchy.selectableLevel ?? adapter.hierarchy.levels.length - 1
+    const isAtLeaf = state.currentLevel >= selectableLevel
     const hasNextPage = pagination.hasNextPage
     const isFetchingNextPage = pagination.isFetchingNextPage
     const totalCount = pagination.totalCount

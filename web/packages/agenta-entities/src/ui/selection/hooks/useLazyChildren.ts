@@ -128,7 +128,9 @@ export function useLazyChildren(options: UseLazyChildrenOptions): UseLazyChildre
             if (!levelConfig) return []
 
             const isLastLevel = level >= adapter.hierarchy.levels.length - 1
-            const isSelectableLevel = level >= adapter.hierarchy.selectableLevel
+            const selectableLevel =
+                adapter.hierarchy.selectableLevel ?? adapter.hierarchy.levels.length - 1
+            const isSelectableLevel = level >= selectableLevel
 
             return entities.map((entity) => {
                 const id = levelConfig.getId(entity)

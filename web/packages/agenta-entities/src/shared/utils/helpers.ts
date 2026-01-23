@@ -49,7 +49,8 @@ export function createCacheConfig<T>(options: {
     /** Extract ID from entity */
     getId?: (entity: T) => string
 }): CacheConfig<T> {
-    const {queryClient, queryKeyPrefix, getId = (e: any) => e.id} = options
+    // Default getId assumes entity has an 'id' field (common pattern)
+    const {queryClient, queryKeyPrefix, getId = (e: T) => (e as {id: string}).id} = options
 
     return {
         keys: {
@@ -100,7 +101,7 @@ export function populateChildCache<TParent, TChild>(options: {
     /** Path to child data array in parent */
     childDataPath: (parent: TParent) => TChild[] | undefined
     /** Child molecule (server or local) */
-    childMolecule: Molecule<TChild, any> | LocalMolecule<TChild>
+    childMolecule: Molecule<TChild, unknown> | LocalMolecule<TChild>
     /** Field name for child ID */
     childIdField?: keyof TChild
     /** Store options */
@@ -166,11 +167,12 @@ export function getChildIds<TParent, TChild>(
         return relation.childIdsPath(parent)
     }
 
-    // Dot-path navigation
+    // Dot-path navigation - traverse unknown object structure
     const path = relation.childIdsPath.split(".")
-    let value: any = parent
+    let value: unknown = parent
     for (const key of path) {
-        value = value?.[key]
+        if (typeof value !== "object" || value === null) return []
+        value = (value as Record<string, unknown>)[key]
         if (value === undefined) return []
     }
 
@@ -190,11 +192,12 @@ export function getChildData<TParent, TChild>(
         return relation.childDataPath(parent) ?? []
     }
 
-    // Dot-path navigation
+    // Dot-path navigation - traverse unknown object structure
     const path = relation.childDataPath.split(".")
-    let value: any = parent
+    let value: unknown = parent
     for (const key of path) {
-        value = value?.[key]
+        if (typeof value !== "object" || value === null) return []
+        value = (value as Record<string, unknown>)[key]
         if (value === undefined) return []
     }
 
@@ -217,7 +220,7 @@ export function getChildData<TParent, TChild>(
  * ```
  */
 export function createChildIdsAtom<TParent, TChild>(
-    parentMolecule: Molecule<TParent, any>,
+    parentMolecule: Molecule<TParent, unknown>,
     parentId: string,
     relation: MoleculeRelation<TParent, TChild>,
 ): Atom<string[]> {
@@ -246,9 +249,9 @@ export function createChildIdsAtom<TParent, TChild>(
  * ```
  */
 export function createChildrenAtom<TParent, TChild>(
-    parentMolecule: Molecule<TParent, any>,
+    parentMolecule: Molecule<TParent, unknown>,
     parentId: string,
-    childMolecule: Molecule<TChild, any> | LocalMolecule<TChild>,
+    childMolecule: Molecule<TChild, unknown> | LocalMolecule<TChild>,
     relation: MoleculeRelation<TParent, TChild>,
 ): Atom<(TChild | null)[]> {
     return atom((get) => {
@@ -320,7 +323,9 @@ export function assertSchema<T>(data: unknown, schema: {parse: (data: unknown) =
  */
 export function safeParseSchema<T>(
     data: unknown,
-    schema: {safeParse: (data: unknown) => {success: true; data: T} | {success: false; error: any}},
+    schema: {
+        safeParse: (data: unknown) => {success: true; data: T} | {success: false; error: unknown}
+    },
 ): T | null {
     const result = schema.safeParse(data)
     return result.success ? result.data : null

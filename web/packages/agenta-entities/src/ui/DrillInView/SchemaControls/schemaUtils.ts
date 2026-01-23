@@ -22,7 +22,7 @@ export function resolveAnyOfSchema(
     if (!schema) return schema
 
     // Check for anyOf (most common for nullable types)
-    const anyOf = (schema as any)?.anyOf as SchemaProperty[] | undefined
+    const anyOf = schema.anyOf
     if (anyOf && Array.isArray(anyOf)) {
         // Filter out null type schemas
         const nonNullSchemas = anyOf.filter((s) => s.type !== "null")
@@ -31,7 +31,7 @@ export function resolveAnyOfSchema(
             return {
                 ...nonNullSchemas[0],
                 title: schema.title ?? nonNullSchemas[0].title,
-                description: (schema as any).description ?? (nonNullSchemas[0] as any).description,
+                description: schema.description ?? nonNullSchemas[0].description,
                 // Preserve enum from parent if not in child
                 enum: schema.enum ?? nonNullSchemas[0].enum,
             }
@@ -43,14 +43,14 @@ export function resolveAnyOfSchema(
     }
 
     // Check for oneOf (similar pattern)
-    const oneOf = (schema as any)?.oneOf as SchemaProperty[] | undefined
+    const oneOf = schema.oneOf
     if (oneOf && Array.isArray(oneOf)) {
         const nonNullSchemas = oneOf.filter((s) => s.type !== "null")
         if (nonNullSchemas.length === 1) {
             return {
                 ...nonNullSchemas[0],
                 title: schema.title ?? nonNullSchemas[0].title,
-                description: (schema as any).description ?? (nonNullSchemas[0] as any).description,
+                description: schema.description ?? nonNullSchemas[0].description,
                 enum: schema.enum ?? nonNullSchemas[0].enum,
             }
         }
@@ -73,14 +73,14 @@ export function resolveAnyOfSchema(
 export function hasGroupedChoices(schema: SchemaProperty | null | undefined): boolean {
     if (!schema) return false
 
-    const xParam = (schema as any)?.["x-parameter"]
-    const choices = (schema as any)?.choices
-    const enumValues = (schema as any)?.enum
-    const title = ((schema as any)?.title || "").toLowerCase()
+    const xParam = schema["x-parameter"] as string | undefined
+    const choices = schema.choices as Record<string, string[]> | undefined
+    const enumValues = schema.enum as unknown[] | undefined
+    const title = ((schema.title as string | undefined) || "").toLowerCase()
 
     // Check for x-parameter: "grouped_choice" or "choice" with choices object
     if (xParam === "grouped_choice" || xParam === "choice") {
-        return choices && typeof choices === "object" && !Array.isArray(choices)
+        return !!(choices && typeof choices === "object" && !Array.isArray(choices))
     }
 
     // Also check if choices exists as a grouped object (provider -> models)
@@ -128,8 +128,8 @@ export function shouldRenderObjectInline(schema: SchemaProperty | null | undefin
     if (!schema || schema.type !== "object") return false
 
     // Check for x-parameters.inline or x-parameter: "inline"
-    const xParams = (schema as any)?.["x-parameters"]
-    const xParam = (schema as any)?.["x-parameter"]
+    const xParams = schema["x-parameters"] as SchemaProperty["x-parameters"]
+    const xParam = schema["x-parameter"] as string | undefined
     if (xParams?.inline === true || xParam === "inline") {
         return true
     }
@@ -140,7 +140,11 @@ export function shouldRenderObjectInline(schema: SchemaProperty | null | undefin
     }
 
     // Check for known object names that should be inline
-    const name = ((schema as any)?.name || (schema as any)?.title || "").toLowerCase()
+    const name = (
+        (schema.name as string | undefined) ||
+        (schema.title as string | undefined) ||
+        ""
+    ).toLowerCase()
     const inlineNames = ["llm_config", "llmconfig", "model_config", "modelconfig"]
     if (inlineNames.includes(name)) {
         return true
@@ -346,12 +350,12 @@ export function getOptionsFromSchema(
     if (!schema) return null
 
     // Check for choices property (grouped options - provider: [model1, model2])
-    const choices = (schema as any)?.choices
+    const choices = schema.choices as Record<string, string[]> | undefined
     if (choices && typeof choices === "object" && !Array.isArray(choices)) {
-        const grouped = choices as Record<string, string[]>
+        const grouped = choices
         const options = Object.entries(grouped).map(([group, models]) => ({
             label: group.charAt(0).toUpperCase() + group.slice(1).replace(/_/g, " "),
-            options: (models as string[]).map((model) => ({
+            options: models.map((model) => ({
                 label: model,
                 value: model,
             })),
@@ -360,7 +364,7 @@ export function getOptionsFromSchema(
     }
 
     // Check for enum property (flat list)
-    const enumValues = (schema as any)?.enum
+    const enumValues = schema.enum as string[] | undefined
     if (enumValues && Array.isArray(enumValues) && enumValues.length > 0) {
         // Convert flat list to single group format
         const options: OptionGroup[] = [

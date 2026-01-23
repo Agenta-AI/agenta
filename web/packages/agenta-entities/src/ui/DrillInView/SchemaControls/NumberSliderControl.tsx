@@ -95,7 +95,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     const step = overrideStep ?? constraints.step
 
     // Get description from schema or prop
-    const tooltipText = description ?? (schema as any)?.description ?? ""
+    const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
     return (
         <LabeledField

@@ -101,7 +101,12 @@ export function OutputsSection({
         ? Object.entries(resultOutput.schema.properties)
         : []
     const hasTypedSchema = schemaProperties.length > 0
-    const structuredOutput = runnable.lastResult?.structuredOutput
+    const rawStructuredOutput = runnable.lastResult?.structuredOutput
+    // Type as Record for safe property access
+    const structuredOutput =
+        rawStructuredOutput && typeof rawStructuredOutput === "object"
+            ? (rawStructuredOutput as Record<string, unknown>)
+            : null
     const hasOutput = structuredOutput && Object.keys(structuredOutput).length > 0
     const isExecuting = runnable.isExecuting
     const executionStatus = runnable.lastResult?.status

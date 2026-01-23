@@ -163,7 +163,7 @@ export function TestRunPreview({
                             <Text className="text-sm font-medium text-red-700">
                                 {error?.message || "Unknown error"}
                             </Text>
-                            {error?.details && (
+                            {error?.details !== undefined && (
                                 <pre className="mt-2 text-xs font-mono text-red-600 whitespace-pre-wrap">
                                     {JSON.stringify(error.details, null, 2)}
                                 </pre>

@@ -55,8 +55,10 @@ export interface StubMoleculeSelectors {
 /**
  * Configuration for creating a stub molecule
  */
+
 export interface CreateStubMoleculeConfig<
     ExtraSelectors extends Record<string, (id: string) => Atom<unknown>> = Record<string, never>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai needs flexible types
     ExtraActions extends Record<string, WritableAtom<any, any[], any>> = Record<string, never>,
 > {
     /** Name of the entity (for logging/debugging) */
@@ -74,8 +76,10 @@ export interface CreateStubMoleculeConfig<
 /**
  * Return type of createStubMolecule
  */
+
 export interface StubMolecule<
     ExtraSelectors extends Record<string, (id: string) => Atom<unknown>> = Record<string, never>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai needs flexible types
     ExtraActions extends Record<string, WritableAtom<any, any[], any>> = Record<string, never>,
 > {
     selectors: StubMoleculeSelectors & ExtraSelectors
@@ -125,8 +129,10 @@ const defaultQueryState: StubQueryState = {
  * })
  * ```
  */
+
 export function createStubMolecule<
     ExtraSelectors extends Record<string, (id: string) => Atom<unknown>> = Record<string, never>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai needs flexible types
     ExtraActions extends Record<string, WritableAtom<any, any[], any>> = Record<string, never>,
 >(
     config: CreateStubMoleculeConfig<ExtraSelectors, ExtraActions>,
