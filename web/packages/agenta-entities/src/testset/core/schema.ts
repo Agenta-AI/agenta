@@ -49,7 +49,16 @@ export const revisionSchema = z.object({
     description: z.string().nullable().optional(),
     slug: z.string().nullable().optional(),
 
-    // Version number (0 = draft, 1+ = committed)
+    /**
+     * Version number (0 = draft, 1+ = committed)
+     *
+     * **Backend type:** `Optional[str]` (from Version mixin in shared/dtos.py)
+     * **Frontend type:** `number`
+     *
+     * The backend returns version as a string (e.g., "1", "2"), but we transform
+     * it to a number for easier comparison, sorting, and display operations.
+     * This transformation is applied during parsing via Zod's transform().
+     */
     version: z.union([z.number(), z.string()]).transform((v) => {
         return typeof v === "string" ? parseInt(v, 10) : v
     }),
@@ -118,6 +127,10 @@ export type LocalRevision = typeof revisionSchemas.types.Local
  */
 export const revisionListItemSchema = z.object({
     id: z.string(),
+    /**
+     * Version number - transformed from backend string to frontend number.
+     * @see revisionSchema.version for detailed documentation.
+     */
     version: z.union([z.number(), z.string()]).transform((v) => {
         return typeof v === "string" ? parseInt(v, 10) : v
     }),

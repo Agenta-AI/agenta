@@ -24,18 +24,18 @@
  * ```
  */
 
+import {
+    getValueAtPath as getValueAtPathUtil,
+    setValueAtPath,
+    getItemsAtPath,
+    type DataPath,
+} from "@agenta/shared"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
 import {createMolecule, extendMolecule, createControllerAtomFamily} from "../../shared"
 import type {StoreOptions, PathItem} from "../../shared"
-import {
-    getValueAtPath as getValueAtPathUtil,
-    setValueAtPath,
-    getItemsAtPath,
-    type DataPath,
-} from "../../ui"
 import type {Column, FlattenedTestcase} from "../core"
 import {createLocalTestcase} from "../core"
 

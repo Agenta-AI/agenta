@@ -22,13 +22,13 @@
  * ```
  */
 
+import {getValueAtPath as getValueAtPathUtil, setValueAtPath, type DataPath} from "@agenta/shared"
 import type {Atom} from "jotai"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
 import type {EntitySchema, EntitySchemaProperty, PathItem, StoreOptions} from "../../shared"
-import {getValueAtPath as getValueAtPathUtil, setValueAtPath, type DataPath} from "../../ui"
 import type {AppRevisionData, RevisionSchemaState, ExecutionMode} from "../core"
 
 import {

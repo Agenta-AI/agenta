@@ -23,6 +23,12 @@
  */
 
 import {isValidUUID, axios, getAgentaApiUrl} from "@agenta/shared"
+import {
+    getValueAtPath as getValueAtPathUtil,
+    setValueAtPath,
+    getItemsAtPath,
+    type DataPath,
+} from "@agenta/shared"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
@@ -31,12 +37,6 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {createMolecule, extendMolecule, createControllerAtomFamily} from "../../shared"
 import type {AtomFamily, QueryState, PathItem} from "../../shared"
 import {testcaseMolecule} from "../../testcase/state/molecule"
-import {
-    getValueAtPath as getValueAtPathUtil,
-    setValueAtPath,
-    getItemsAtPath,
-    type DataPath,
-} from "../../ui"
 import {normalizeRevision, type Revision, type QueryResult} from "../core"
 
 // Import testcase molecule for compound actions

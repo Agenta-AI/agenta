@@ -36,6 +36,13 @@
  * ```
  */
 
+import {
+    getValueAtPath as getValueAtPathUtil,
+    setValueAtPath,
+    getItemsAtPath,
+    type PathItem,
+    type DataPath,
+} from "@agenta/shared"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
@@ -49,13 +56,6 @@ import {
     type StoreOptions,
     type FlexibleWritableAtomFamily,
 } from "../../shared"
-import {
-    getValueAtPath as getValueAtPathUtil,
-    setValueAtPath,
-    getItemsAtPath,
-    type PathItem,
-    type DataPath,
-} from "../../ui"
 import type {TraceSpan} from "../core"
 import {extractAgData, extractInputs, extractOutputs} from "../utils"
 

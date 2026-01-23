@@ -106,9 +106,6 @@ export {
     type SaveParams,
 } from "./mutations"
 
-// Modal adapters (auto-registered on import)
-export {testsetModalAdapter, revisionModalAdapter} from "./adapters"
-
 // ============================================================================
 // SELECTION CONFIG
 // ============================================================================

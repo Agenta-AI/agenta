@@ -1,6 +1,8 @@
 # @agenta/entities
 
-Entity state management package for the Agenta web application. Provides molecules, schemas, API functions, and UI components for managing domain entities.
+Entity state management package for the Agenta web application. Provides molecules, schemas, and API functions for managing domain entities.
+
+> **Note:** UI components (modals, pickers, drill-in views) have been moved to [`@agenta/entity-ui`](../agenta-entity-ui/README.md) for better data/UI separation.
 
 ## Installation
 
@@ -12,7 +14,9 @@ import { ... } from '@agenta/entities/shared'
 import { ... } from '@agenta/entities/trace'
 import { ... } from '@agenta/entities/testset'
 import { ... } from '@agenta/entities/testcase'
-import { ... } from '@agenta/entities/ui'
+
+// UI components are now in @agenta/entity-ui
+import { EntityPicker, MoleculeDrillInView } from '@agenta/entity-ui'
 ```
 
 ## Package Structure
@@ -33,14 +37,12 @@ src/
 │   ├── core/             # Schemas & types
 │   ├── api/              # HTTP functions & mutations
 │   └── state/            # Molecules & table state
-├── testcase/             # Testcase entity
-│   ├── core/             # Schemas & types
-│   ├── api/              # HTTP functions
-│   └── state/            # Molecule & paginated store
-└── ui/                   # Entity-agnostic UI components
-    ├── DrillInView/      # Hierarchical data navigation
-    ├── modals/           # Delete, commit, save modals
-    └── selection/        # Entity picker components
+└── testcase/             # Testcase entity
+    ├── core/             # Schemas & types
+    ├── api/              # HTTP functions
+    └── state/            # Molecule & paginated store
+
+# UI components moved to @agenta/entity-ui
 ```
 
 ## Quick Start
@@ -66,12 +68,14 @@ testcaseMolecule.set.update(id, { name: 'Updated' })
 
 ### Using UI Components
 
+UI components have been moved to `@agenta/entity-ui` for better data/UI separation:
+
 ```typescript
 import {
   EntityDeleteModal,
   EntityPicker,
   MoleculeDrillInView,
-} from '@agenta/entities/ui'
+} from '@agenta/entity-ui'
 
 // Delete modal (register adapters first)
 <EntityDeleteModal />
@@ -99,7 +103,8 @@ import {
 | `@agenta/entities/trace` | Trace/span molecule, schemas, API |
 | `@agenta/entities/testset` | Testset/revision molecules, schemas, API |
 | `@agenta/entities/testcase` | Testcase molecule, schemas, API |
-| `@agenta/entities/ui` | UI components (modals, pickers, drill-in) |
+
+> **UI components** are now in `@agenta/entity-ui` (modals, pickers, drill-in views)
 
 ## Architecture
 
@@ -128,23 +133,6 @@ Server → TanStack Query → atoms.serverData
                          useController → Component
 ```
 
-### Adapter Pattern
-
-UI components use adapters to work with any entity type:
-
-```typescript
-// Create adapter for your entity
-const myAdapter = createEntityAdapter({
-  type: 'myEntity',
-  getDisplayName: (entity) => entity?.name ?? 'Untitled',
-  deleteAtom: myMolecule.reducers.delete,
-  dataAtom: (id) => myMolecule.atoms.data(id),
-})
-
-// Register for use in modals
-registerEntityAdapter(myAdapter)
-```
-
 ## Dependencies
 
 ### Peer Dependencies
@@ -158,7 +146,6 @@ registerEntityAdapter(myAdapter)
 ### Workspace Dependencies
 
 - `@agenta/shared` - Path utilities, common types
-- `@agenta/ui` - Presentational components
 
 ## Documentation
 
@@ -168,4 +155,5 @@ Each submodule has its own README with detailed documentation:
 - [`src/trace/README.md`](./src/trace/README.md) - Trace entity
 - [`src/testset/README.md`](./src/testset/README.md) - Testset entity
 - [`src/testcase/README.md`](./src/testcase/README.md) - Testcase entity
-- [`src/ui/README.md`](./src/ui/README.md) - UI components
+
+For UI components documentation, see [`@agenta/entity-ui`](../agenta-entity-ui/README.md).
