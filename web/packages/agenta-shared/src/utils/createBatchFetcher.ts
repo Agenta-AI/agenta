@@ -49,17 +49,22 @@ const defaultResolveResult = <K, V, R = BatchFnResponse<K, V>>(
 ): V | undefined => {
     if (!response) return undefined
     if (response instanceof Map) {
-        if (response.has(serializedKey as unknown as K)) {
-            return response.get(serializedKey as unknown as K)
+        // Try both original key type and serialized string key
+        // Cast needed: Map<K,V>.has() doesn't accept different key types
+        if (response.has(serializedKey as K)) {
+            return response.get(serializedKey as K)
         }
-        if (response.has(serializedKey)) {
-            return response.get(serializedKey)
+        // Also try string key for Map<string, V>
+        const stringMap = response as Map<string, V>
+        if (stringMap.has(serializedKey)) {
+            return stringMap.get(serializedKey)
         }
     }
     if (typeof (response as Record<string, V>)[serializedKey] !== "undefined") {
         return (response as Record<string, V>)[serializedKey]
     }
-    const maybeMapLike = response as unknown as {
+    // Handle map-like objects with has/get methods
+    const maybeMapLike = response as {
         has?: (key: string) => boolean
         get?: (key: string) => V | undefined
     }
