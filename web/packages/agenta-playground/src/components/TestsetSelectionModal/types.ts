@@ -103,8 +103,7 @@ export interface TestsetSelectionModalContentProps {
     defaultTestsetName?: string
 }
 
-// Note: TestsetPickerProps and TestcaseTableProps are now provided by @agenta/entities/ui
-// They are re-exported from the main index.ts for backwards compatibility
+// Note: TestcaseTableProps is provided by @agenta/entity-ui and re-exported from index.ts
 
 /**
  * Props for the SelectionSummary component (footer)
