@@ -32,16 +32,16 @@ const WidgetSectionItem = memo(function WidgetSectionItem({
                     "flex items-center gap-3 rounded-[10px] border border-solid border-colorBorderSecondary p-3",
                     "shadow-[0px_1px_2px_0px_rgba(0,0,0,0.03),0px_1px_6px_-1px_rgba(0,0,0,0.02),0px_2px_4px_0px_rgba(0,0,0,0.02)]",
                     {
-                        "bg-colorFillTertiary": isCompleted,
+                        "bg-colorFillTertiary cursor-pointer": isCompleted,
                         "cursor-pointer bg-white hover:bg-gray-50": !isCompleted && !item.disabled,
                         "bg-colorFillTertiary opacity-60": item.disabled,
                     },
                 )}
-                onClick={() => !isCompleted && onItemClick(item)}
+                onClick={() => !item.disabled && onItemClick(item)}
                 role="button"
-                tabIndex={isCompleted ? -1 : 0}
+                tabIndex={item.disabled ? -1 : 0}
                 onKeyDown={(event) => {
-                    if (event.key !== "Enter" || item.disabled || isCompleted) return
+                    if (event.key !== "Enter" || item.disabled) return
                     onItemClick(item)
                 }}
             >
