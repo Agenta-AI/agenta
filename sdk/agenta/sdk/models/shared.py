@@ -100,6 +100,16 @@ class Reference(Identifier, Slug, Version):
     pass
 
 
+class ReferenceWithLimit(Reference):
+    """Reference with optional per-reference limit for batch queries.
+
+    When used in batch queries (e.g., fetching latest revision per testset),
+    the limit specifies how many items to return for this specific reference.
+    """
+
+    limit: Optional[int] = None
+
+
 class Header(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
