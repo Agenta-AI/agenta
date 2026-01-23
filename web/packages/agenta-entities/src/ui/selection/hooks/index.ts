@@ -1,33 +1,53 @@
 /**
  * Entity Selection Hooks
  *
- * Primitive hooks for building entity selection UI.
+ * Hooks for building entity selection UI.
  */
 
-// useEntityList
-export {useEntityList} from "./useEntityList"
-export type {UseEntityListOptions, UseEntityListResult} from "./useEntityList"
+// ============================================================================
+// UNIFIED HOOK (Recommended)
+// ============================================================================
 
-// useInfiniteList (for paginated/infinite scroll)
-export {useInfiniteList, useSimpleInfiniteList} from "./useInfiniteList"
+// useEntitySelection - Unified facade for all selection modes
+export {
+    useEntitySelection,
+    // Mode-specific hooks (for direct usage)
+    useCascadingMode,
+    useBreadcrumbMode,
+    useListPopoverMode,
+    // Core hook (for advanced usage)
+    useEntitySelectionCore,
+    getLevelLabel,
+    getLevelPlaceholder,
+} from "./useEntitySelection"
+
 export type {
-    UseInfiniteListOptions,
-    UseInfiniteListResult,
-    UseSimpleInfiniteListOptions,
-    UseSimpleInfiniteListResult,
-} from "./useInfiniteList"
+    // Unified types
+    EntitySelectionMode,
+    UseEntitySelectionOptions,
+    UseEntitySelectionResult,
+    CascadingModeOptions,
+    BreadcrumbModeOptions,
+    ListPopoverModeOptions,
+    // Mode-specific types
+    UseCascadingModeOptions,
+    UseCascadingModeResult,
+    UseBreadcrumbModeOptions,
+    UseBreadcrumbModeResult,
+    UseListPopoverModeOptions,
+    UseListPopoverModeResult,
+    // Level state types
+    CascadingLevelState,
+    ListPopoverParentState,
+    ListPopoverChildrenState,
+    // Core types
+    EntitySelectionCoreOptions,
+    EntitySelectionCoreResult,
+} from "./useEntitySelection"
 
-// useHierarchicalSelection (supports both paginated and non-paginated modes)
-export {useHierarchicalSelection} from "./useHierarchicalSelection"
-export type {
-    UseHierarchicalSelectionOptions,
-    UseHierarchicalSelectionResult,
-} from "./useHierarchicalSelection"
+// Utilities (re-exported from useEntitySelection for convenience)
+export * from "./utilities"
 
-// useMultiSelect
-export {useMultiSelect} from "./useMultiSelect"
-export type {UseMultiSelectOptions, UseMultiSelectResult} from "./useMultiSelect"
-
-// useLazyChildren
-export {useLazyChildren} from "./useLazyChildren"
-export type {UseLazyChildrenOptions, UseLazyChildrenResult, CascaderOption} from "./useLazyChildren"
+// Modes (re-exported from useEntitySelection for convenience)
+export {useChildrenData, useAutoSelectLatestChild} from "./modes"
+export type {UseAutoSelectLatestChildOptions} from "./modes"
