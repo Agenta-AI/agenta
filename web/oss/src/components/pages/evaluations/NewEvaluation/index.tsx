@@ -49,6 +49,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
             width={1200}
             className={classes.modalContainer}
             confirmLoading={submitLoading}
+            okButtonProps={{"data-tour": "run-eval-confirm"}}
             styles={{
                 container: {
                     height: 700,

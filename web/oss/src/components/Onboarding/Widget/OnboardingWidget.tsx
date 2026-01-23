@@ -222,6 +222,8 @@ const OnboardingWidget = () => {
                     console.error("Failed to navigate to observability", error)
                     return
                 }
+            } else if (item.activationHint === "run-first-evaluation") {
+                goToPlayground()
             } else if (item.href) {
                 try {
                     await router.push(item.href)
