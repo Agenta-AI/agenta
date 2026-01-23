@@ -2,7 +2,7 @@ import {PropsWithChildren} from "react"
 
 import {appRevisionSelectionConfig} from "@agenta/entities/appRevision"
 import {testsetSelectionConfig} from "@agenta/entities/testset"
-import {initializeSelectionSystem} from "@agenta/entities/ui"
+import {initializeSelectionSystem} from "@agenta/entity-ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {Provider, getDefaultStore} from "jotai"
 import {useHydrateAtoms} from "jotai/react/utils"
