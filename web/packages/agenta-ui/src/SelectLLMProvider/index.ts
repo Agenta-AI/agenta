@@ -8,7 +8,7 @@
  *
  * @example Basic Usage
  * ```tsx
- * import {SelectLLMProviderBase} from '@agenta/entities/ui'
+ * import {SelectLLMProviderBase} from '@agenta/ui'
  *
  * <SelectLLMProviderBase
  *   value={provider}

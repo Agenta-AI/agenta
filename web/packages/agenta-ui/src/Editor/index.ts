@@ -10,7 +10,7 @@
  *
  * @example Basic Usage
  * ```tsx
- * import {Editor} from '@agenta/entities/editor'
+ * import {Editor} from '@agenta/ui'
  *
  * <Editor
  *   initialValue='{"key": "value"}'
@@ -22,7 +22,7 @@
  *
  * @example With Diff View
  * ```tsx
- * import {DiffView} from '@agenta/entities/editor'
+ * import {DiffView} from '@agenta/ui'
  *
  * <DiffView
  *   language="json"
