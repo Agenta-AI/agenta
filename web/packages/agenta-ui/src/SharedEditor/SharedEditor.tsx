@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Note: This file uses 'any' for Editor component compatibility
+
 import {ChangeEvent, useCallback, useRef, useState} from "react"
 
 import {useDebounceInput} from "@agenta/shared"
