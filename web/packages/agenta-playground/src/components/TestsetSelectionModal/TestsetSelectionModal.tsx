@@ -32,7 +32,7 @@ import type {TestsetSelectionModalProps} from "./types"
 const MODAL_SIZES = {
     save: {width: 900, height: modalSizes.medium.height},
     edit: {width: modalSizes.medium.width, height: modalSizes.large.height},
-    load: modalSizes.large,
+    load: {width: modalSizes.large.width, height: "70dvh"},
 } as const
 
 // ============================================================================
@@ -70,8 +70,10 @@ export function TestsetSelectionModal({
             styles={{
                 body: {
                     height,
+                    maxHeight: height,
                     padding: 0,
                     overflow: "hidden",
+                    flex: "none",
                 },
             }}
         >

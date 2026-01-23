@@ -16,7 +16,8 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule, testcasePaginatedStore} from "@agenta/entities/testcase"
 import {TestcaseTable, TestsetPicker} from "@agenta/entities/ui"
-import {layoutSizes, ModalContentLayout, PanelFooter, spacingClasses} from "@agenta/ui"
+import {layoutSizes, PanelFooter, spacingClasses} from "@agenta/ui"
+import {Divider} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useSaveTestset} from "../hooks/useSaveTestset"
@@ -123,9 +124,9 @@ function EditModeContent({
     const localColumnKeys = useMemo(() => loadableColumns.map((col) => col.key), [loadableColumns])
 
     // Selection draft actions
+    // Note: We don't use commitSelectionDraft in edit mode - see handleConfirm comment
     const initSelectionDraft = useSetAtom(testcaseMolecule.actions.initSelectionDraft)
     const setSelectionDraft = useSetAtom(testcaseMolecule.actions.setSelectionDraft)
-    const commitSelectionDraft = useSetAtom(testcaseMolecule.actions.commitSelectionDraft)
     const discardSelectionDraft = useSetAtom(testcaseMolecule.actions.discardSelectionDraft)
 
     // Get current selection from entity layer
@@ -168,7 +169,13 @@ function EditModeContent({
     )
 
     const handleConfirm = useCallback(() => {
-        commitSelectionDraft(draftKey)
+        // NOTE: Do NOT call commitSelectionDraft here!
+        // commitSelectionDraft sets testcaseIdsAtom directly, which causes duplicates
+        // for local testsets (IDs end up in both newEntityIdsAtom AND testcaseIdsAtom).
+        // The updateTestcaseSelection action (called by onConfirm) handles the update
+        // correctly via hiddenTestcaseIds for local testsets.
+        // We only need to discard the draft after getting the current selection.
+        discardSelectionDraft(draftKey)
 
         const payload: TestsetSelectionPayload = {
             revisionId: draftKey,
@@ -177,7 +184,7 @@ function EditModeContent({
         }
 
         onConfirm(payload)
-    }, [draftKey, currentSelection, commitSelectionDraft, onConfirm])
+    }, [draftKey, currentSelection, discardSelectionDraft, onConfirm])
 
     const handleCancel = useCallback(() => {
         discardSelectionDraft(draftKey)
@@ -346,32 +353,50 @@ function LoadModeContent({
     }, [selectedRevisionId, discardSelectionDraft, onCancel])
 
     return (
-        <ModalContentLayout
-            pickerWidth={layoutSizes.sidebarWide}
-            picker={
-                <TestsetPicker
-                    selectedRevisionId={selectedRevisionId}
-                    selectedTestsetId={selectedTestsetId}
-                    onSelect={setSelection}
-                    disabledRevisionIds={
-                        connectedRevisionId ? new Set([connectedRevisionId]) : undefined
-                    }
-                    disabledRevisionTooltip="Already connected"
-                />
-            }
-            content={
-                <TestcaseTable
-                    config={{
-                        scopeId: `load-mode-${selectedRevisionId ?? "none"}`,
-                        revisionId: selectedRevisionId,
+        <div className="flex flex-col" style={{height: "100%"}}>
+            {/* Content area - fills available space */}
+            <div className="flex flex-1 overflow-hidden" style={{minHeight: 0}}>
+                {/* Left panel - Testset picker (fixed width) */}
+                <div
+                    className={`flex flex-col overflow-auto ${spacingClasses.panel}`}
+                    style={{
+                        width: layoutSizes.sidebarWide,
+                        flexShrink: 0,
                     }}
-                    selectable
-                    selectedIds={currentSelection}
-                    onSelectionChange={handleSelectionChange}
-                    selectionDisabled={selectedRevisionId === connectedRevisionId}
-                />
-            }
-            footer={
+                >
+                    <TestsetPicker
+                        selectedRevisionId={selectedRevisionId}
+                        selectedTestsetId={selectedTestsetId}
+                        onSelect={setSelection}
+                        disabledRevisionIds={
+                            connectedRevisionId ? new Set([connectedRevisionId]) : undefined
+                        }
+                        disabledRevisionTooltip="Already connected"
+                    />
+                </div>
+
+                <Divider type="vertical" className="m-0 h-auto self-stretch" />
+
+                {/* Right panel - Testcase table (fills remaining width and height) */}
+                <div
+                    className={`flex flex-col flex-1 overflow-hidden ${spacingClasses.panel}`}
+                    style={{minWidth: 0, minHeight: 0}}
+                >
+                    <TestcaseTable
+                        config={{
+                            scopeId: `load-mode-${selectedRevisionId ?? "none"}`,
+                            revisionId: selectedRevisionId,
+                        }}
+                        selectable
+                        selectedIds={currentSelection}
+                        onSelectionChange={handleSelectionChange}
+                        selectionDisabled={selectedRevisionId === connectedRevisionId}
+                    />
+                </div>
+            </div>
+
+            {/* Footer - fixed at bottom */}
+            <div className={`border-t flex-shrink-0 ${spacingClasses.panel}`}>
                 <SelectionSummary
                     selectedCount={currentSelection.length}
                     totalCount={paginatedRows.length}
@@ -384,8 +409,8 @@ function LoadModeContent({
                     showImportModeSelector={hasExistingData}
                     disabled={selectedRevisionId === connectedRevisionId}
                 />
-            }
-        />
+            </div>
+        </div>
     )
 }
 
