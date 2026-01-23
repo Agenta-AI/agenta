@@ -115,6 +115,14 @@ body {
     margin: 0 auto;
 }
 
+.playground-splitter .ant-splitter-bar,
+.playground-splitter .ant-splitter-trigger,
+.playground-splitter .ant-splitter-bar-dragger,
+.playground-splitter .ant-splitter-bar::before,
+.playground-splitter .ant-splitter-bar::after {
+    z-index: 100;
+}
+
 .agenta-rich-text-editor {
     &.disabled {
         cursor: not-allowed;
