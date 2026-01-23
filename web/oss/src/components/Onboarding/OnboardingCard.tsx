@@ -6,6 +6,7 @@ import {
     isValidElement,
     useCallback,
     useEffect,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -53,9 +54,14 @@ const OnboardingCard = ({
     const cardRef = useRef<HTMLDivElement>(null)
 
     // Simplified Drag State
-    const [offset, setOffset] = useState({x: 0, y: 0})
+    const [userOffset, setUserOffset] = useState({x: 0, y: 0})
+    const [autoOffset, setAutoOffset] = useState({x: 0, y: 0})
     const isDraggingRef = useRef(false)
     const dragStartRef = useRef({x: 0, y: 0, offsetX: 0, offsetY: 0})
+    const clampRafRef = useRef<number | null>(null)
+    const clampTimeoutsRef = useRef<number[]>([])
+    const lastScrollStepRef = useRef<number | null>(null)
+    const viewPadding = 12
 
     // Drag Handler: Mouse Down
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -69,7 +75,7 @@ const OnboardingCard = ({
         }
 
         // Update drag start based on current React state
-        setOffset((prev) => {
+        setUserOffset((prev) => {
             dragStartRef.current.offsetX = prev.x
             dragStartRef.current.offsetY = prev.y
             return prev
@@ -77,6 +83,58 @@ const OnboardingCard = ({
     }, [])
 
     // Drag Logic: Global Listeners
+    const getTargetElement = useCallback(() => {
+        const selector = step?.selector
+        if (!selector) return null
+
+        try {
+            return document.querySelector(selector)
+        } catch (error) {
+            console.warn("[Onboarding] Invalid step selector:", selector, error)
+            return null
+        }
+    }, [step?.selector])
+
+    const adjustIntoView = useCallback(() => {
+        if (isDraggingRef.current) return
+        if (!cardRef.current || typeof window === "undefined") return
+
+        const rect = cardRef.current.getBoundingClientRect()
+        const maxX = window.innerWidth - viewPadding
+        const maxY = window.innerHeight - viewPadding
+        let dx = 0
+        let dy = 0
+
+        if (rect.left < viewPadding) {
+            dx = viewPadding - rect.left
+        } else if (rect.right > maxX) {
+            dx = maxX - rect.right
+        }
+
+        if (rect.top < viewPadding) {
+            dy = viewPadding - rect.top
+        } else if (rect.bottom > maxY) {
+            dy = maxY - rect.bottom
+        }
+
+        if (dx === 0 && dy === 0) return
+
+        if (lastScrollStepRef.current !== currentStep) {
+            const target = getTargetElement()
+            if (target) {
+                lastScrollStepRef.current = currentStep
+                target.scrollIntoView({
+                    block: "center",
+                    inline: "center",
+                    behavior: "smooth",
+                })
+                return
+            }
+        }
+
+        setAutoOffset((prev) => ({x: prev.x + dx, y: prev.y + dy}))
+    }, [currentStep, getTargetElement, viewPadding])
+
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
             if (!isDraggingRef.current) return
@@ -84,15 +142,16 @@ const OnboardingCard = ({
             const dx = e.clientX - dragStartRef.current.x
             const dy = e.clientY - dragStartRef.current.y
 
-            // Allow unrestricted movement for smoother feel, boundary check can be added if really needed
-            setOffset({
+            setUserOffset({
                 x: dragStartRef.current.offsetX + dx,
                 y: dragStartRef.current.offsetY + dy,
             })
         }
 
         const handleMouseUp = () => {
+            if (!isDraggingRef.current) return
             isDraggingRef.current = false
+            requestAnimationFrame(adjustIntoView)
         }
 
         window.addEventListener("mousemove", handleMouseMove)
@@ -102,12 +161,58 @@ const OnboardingCard = ({
             window.removeEventListener("mousemove", handleMouseMove)
             window.removeEventListener("mouseup", handleMouseUp)
         }
-    }, [])
+    }, [adjustIntoView])
 
     // Reset offset on step change
     useEffect(() => {
-        setOffset({x: 0, y: 0})
+        setUserOffset({x: 0, y: 0})
+        setAutoOffset({x: 0, y: 0})
+        lastScrollStepRef.current = null
     }, [currentStep])
+
+    const startClampPasses = useCallback(() => {
+        if (clampRafRef.current) {
+            cancelAnimationFrame(clampRafRef.current)
+            clampRafRef.current = null
+        }
+        clampTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
+        clampTimeoutsRef.current = []
+
+        clampRafRef.current = requestAnimationFrame(adjustIntoView)
+        clampTimeoutsRef.current.push(
+            window.setTimeout(() => requestAnimationFrame(adjustIntoView), 160),
+        )
+        clampTimeoutsRef.current.push(
+            window.setTimeout(() => requestAnimationFrame(adjustIntoView), 360),
+        )
+    }, [adjustIntoView])
+
+    useLayoutEffect(() => {
+        startClampPasses()
+        return () => {
+            if (clampRafRef.current) {
+                cancelAnimationFrame(clampRafRef.current)
+                clampRafRef.current = null
+            }
+            clampTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
+            clampTimeoutsRef.current = []
+        }
+    }, [currentStep, step, startClampPasses])
+
+    useEffect(() => {
+        const handleResize = () => {
+            requestAnimationFrame(adjustIntoView)
+        }
+
+        window.addEventListener("resize", handleResize)
+        window.addEventListener("scroll", adjustIntoView, true)
+        requestAnimationFrame(adjustIntoView)
+
+        return () => {
+            window.removeEventListener("resize", handleResize)
+            window.removeEventListener("scroll", adjustIntoView, true)
+        }
+    }, [adjustIntoView])
 
     // Step Lifecycle & Cleanup Management
     useEffect(() => {
@@ -170,13 +275,17 @@ const OnboardingCard = ({
 
     const showControls = step?.showControls ?? true
     const showSkip = step?.showSkip ?? true
+    const totalOffset = useMemo(
+        () => ({x: userOffset.x + autoOffset.x, y: userOffset.y + autoOffset.y}),
+        [autoOffset.x, autoOffset.y, userOffset.x, userOffset.y],
+    )
 
     return (
         <section
             ref={cardRef}
-            className="w-[340px]"
+            className="w-[340px] max-w-[calc(100vw-24px)]"
             style={{
-                transform: `translate(${offset.x}px, ${offset.y}px)`,
+                transform: `translate(${totalOffset.x}px, ${totalOffset.y}px)`,
                 // Add explicit 'will-change' for performance hint
                 willChange: "transform",
                 // Only animate when NOT dragging to avoid lag
@@ -258,7 +367,7 @@ const OnboardingCard = ({
                 )}
 
                 {/* Arrow - hide if user has moved the card */}
-                {adjustedArrow && offset.x === 0 && offset.y === 0 && (
+                {adjustedArrow && userOffset.x === 0 && userOffset.y === 0 && (
                     <div className="mt-2 flex w-full justify-center !bg-white">{adjustedArrow}</div>
                 )}
             </Card>
