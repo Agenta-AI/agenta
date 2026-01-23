@@ -7,6 +7,9 @@
  * Uses the appRevisionMolecule from @agenta/entities/appRevision
  */
 
+import React from "react"
+
+import {AppListItemLabel, VariantListItemLabel} from "@agenta/ui"
 import {atom, type Atom} from "jotai"
 
 import type {EntitySelectionResult, SelectionPathItem, ListQueryState} from "../types"
@@ -129,14 +132,31 @@ export const appRevisionAdapter = createAdapter<AppRevisionSelectionResult>({
     levels: [
         {
             type: "app",
+            label: "Application",
+            autoSelectSingle: false,
             listAtom: appsListAtom,
             getId: (app: unknown) => (app as {id: string}).id,
             getLabel: (app: unknown) => (app as {name: string}).name,
+            getLabelNode: (app: unknown) => {
+                const a = app as {name: string; appType?: string}
+                return React.createElement(AppListItemLabel, {
+                    name: a.name,
+                    appType: a.appType,
+                    reserveSubtitleSpace: true,
+                })
+            },
+            getPlaceholderNode: (text: string) =>
+                React.createElement(AppListItemLabel, {
+                    name: text,
+                    reserveSubtitleSpace: true,
+                }),
             hasChildren: () => true,
             isSelectable: () => false,
         },
         {
             type: "variant",
+            label: "Variant",
+            autoSelectSingle: true,
             listAtomFamily: variantsByAppListAtom,
             getId: (variant: unknown) => {
                 const v = variant as {variantId?: string; variant_id?: string; id?: string}
@@ -146,16 +166,39 @@ export const appRevisionAdapter = createAdapter<AppRevisionSelectionResult>({
                 const v = variant as {variantName?: string; variant_name?: string; name?: string}
                 return v.variantName ?? v.variant_name ?? v.name ?? "Unnamed"
             },
+            getLabelNode: (variant: unknown) => {
+                const v = variant as {
+                    variantName?: string
+                    variant_name?: string
+                    name?: string
+                    baseName?: string
+                    base_name?: string
+                }
+                const name = v.variantName ?? v.variant_name ?? v.name ?? "Unnamed"
+                const baseName = v.baseName ?? v.base_name
+                return React.createElement(VariantListItemLabel, {
+                    name,
+                    baseName,
+                    reserveSubtitleSpace: true,
+                })
+            },
+            getPlaceholderNode: (text: string) =>
+                React.createElement(VariantListItemLabel, {
+                    name: text,
+                    reserveSubtitleSpace: true,
+                }),
             hasChildren: () => true,
             isSelectable: () => false,
         },
         // Use shared revision level factory for git-based entity display
+        // RevisionListItem uses camelCase: version, commitMessage, author, createdAt
         createRevisionLevel({
             type: "appRevision",
+            label: "Revision",
+            autoSelectSingle: true,
             listAtomFamily: revisionsByVariantListAtom,
-            fieldMappings: {
-                version: "revision", // App revisions use 'revision' field
-            },
+            // API returns author name directly (not ID), so disable user resolution
+            resolveAuthor: false,
         }),
     ],
     selectableLevel: 2,

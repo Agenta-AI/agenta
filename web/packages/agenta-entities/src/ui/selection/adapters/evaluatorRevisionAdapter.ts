@@ -124,6 +124,8 @@ export const evaluatorRevisionAdapter = createAdapter<EvaluatorRevisionSelection
     levels: [
         {
             type: "evaluator",
+            label: "Evaluator",
+            autoSelectSingle: false,
             listAtom: evaluatorsListAtom,
             getId: (evaluator: unknown) => {
                 const e = evaluator as {id?: string; evaluator_id?: string}
@@ -138,6 +140,8 @@ export const evaluatorRevisionAdapter = createAdapter<EvaluatorRevisionSelection
         },
         {
             type: "evaluatorVariant",
+            label: "Variant",
+            autoSelectSingle: true,
             listAtomFamily: variantsByEvaluatorListAtom,
             getId: (variant: unknown) => {
                 const v = variant as {id?: string; variantId?: string; variant_id?: string}
@@ -158,6 +162,8 @@ export const evaluatorRevisionAdapter = createAdapter<EvaluatorRevisionSelection
         // Use shared revision level factory for git-based entity display
         createRevisionLevel({
             type: "evaluatorRevision",
+            label: "Revision",
+            autoSelectSingle: true,
             listAtomFamily: revisionsByVariantListAtom,
             fieldMappings: {
                 version: "revision", // Evaluator revisions use 'revision' field
