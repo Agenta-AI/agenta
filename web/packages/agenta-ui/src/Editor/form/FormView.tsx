@@ -45,10 +45,10 @@ const renameKey = (
 ): Record<string, unknown> => {
     if (path.length === 0) return root
     const cloned = deepClone(root)
-    let cursor: any = cloned
+    let cursor: Record<string, unknown> = cloned
     for (let i = 0; i < path.length - 1; i++) {
         const seg = path[i]
-        cursor = cursor[seg]
+        cursor = cursor[seg] as Record<string, unknown>
         if (cursor === undefined) return cloned // path invalid
     }
     const last = path[path.length - 1] as string
@@ -69,7 +69,7 @@ const renameKey = (
 
 // handleRename will be defined inside component to access form instance
 
-const parseMaybeJsonDeep = (val: any): any => {
+const parseMaybeJsonDeep = (val: unknown): unknown => {
     if (typeof val === "string") {
         const trimmed = val.trim()
         if (
@@ -109,14 +109,14 @@ const FormView: FC<FormViewProps> = ({value, onChange, customRender}) => {
     }, [])
 
     useEffect(() => {
-        const newValues = prepareInitialValues(value) as any
+        const newValues = prepareInitialValues(value) as Record<string, unknown>
         setFormValuesRef(newValues)
     }, [value])
 
     const handleValuesChange = useCallback(
-        (_: any, allValues: any) => {
+        (_: unknown, allValues: Record<string, unknown>) => {
             const merged = merge(formValuesRef, allValues)
-            const parsed = parseMaybeJsonDeep(merged)
+            const parsed = parseMaybeJsonDeep(merged) as Record<string, unknown>
             onChange(parsed)
         },
         [setFormValuesRef, formValuesRef],
@@ -135,14 +135,16 @@ const FormView: FC<FormViewProps> = ({value, onChange, customRender}) => {
     }, [formValuesRef])
 
     const boundHandleValuesChange = useCallback(
-        (path: (string | number)[], newValue: any) => {
+        (path: (string | number)[], newValue: unknown) => {
             const updatedRoot = structuredClone(formValuesRef)
 
             // walk to parent
-            const parent = path.slice(0, -1).reduce<any>((acc, key) => acc[key], updatedRoot)
+            const parent = path
+                .slice(0, -1)
+                .reduce<unknown>((acc, key) => (acc as Record<string, unknown>)[key], updatedRoot)
             const lastKey = path[path.length - 1]
             if (parent !== undefined) {
-                ;(parent as any)[lastKey as any] = newValue
+                ;(parent as Record<string | number, unknown>)[lastKey] = newValue
                 onChange(updatedRoot)
             }
         },
