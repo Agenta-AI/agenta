@@ -38,15 +38,6 @@ const deployPromptTour: OnboardingTour = {
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
-            onEnter: () => {
-                if (typeof window === "undefined") return
-                const registryNav = document.querySelector(
-                    '[data-tour="registry-nav"]',
-                ) as HTMLElement | null
-                if (registryNav) {
-                    registryNav.click()
-                }
-            },
         },
         {
             icon: "📄",

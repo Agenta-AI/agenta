@@ -81,16 +81,10 @@ const OnboardingWidget = () => {
     const [pendingTraceTourId, setPendingTraceTourId] = useState<string | null>(null)
 
     const registryUrl = useMemo(() => {
-        const base = appURL || recentlyVisitedAppURL || baseAppURL
-        if (!base) return null
-        return `${base}/variants`
-    }, [appURL, recentlyVisitedAppURL, baseAppURL])
-    const observabilityUrl = useMemo(() => {
         const base = appURL || recentlyVisitedAppURL
         if (!base) return null
-        return `${base}/traces`
+        return `${base}/variants`
     }, [appURL, recentlyVisitedAppURL])
-    const isOnTracesRoute = useMemo(() => router.asPath.includes("/traces"), [router.asPath])
 
     const allItems = useMemo(
         () => config.sections.flatMap((section) => section.items),
@@ -127,7 +121,7 @@ const OnboardingWidget = () => {
     )
 
     useEffect(() => {
-        if (!pendingTraceTourId || !router.isReady || !isOnTracesRoute) return
+        if (!pendingTraceTourId || !router.isReady) return
         if (tracesQuery.isPending || tracesQuery.isLoading || tracesQuery.isFetching) return
 
         if (traceCount > 0) {
@@ -141,7 +135,6 @@ const OnboardingWidget = () => {
         )
         setPendingTraceTourId(null)
     }, [
-        isOnTracesRoute,
         pendingTraceTourId,
         router.isReady,
         startTour,
@@ -171,7 +164,11 @@ const OnboardingWidget = () => {
                     console.error("Failed to navigate to onboarding target", error)
                     return
                 }
-            } else if (item.activationHint === "open-registry" && registryUrl) {
+            } else if (item.activationHint === "open-registry") {
+                if (!registryUrl) {
+                    message.info("Create or open an app to view the registry.")
+                    return
+                }
                 try {
                     await router.push(registryUrl)
                     recordWidgetEvent("registry_page_viewed")
@@ -180,10 +177,12 @@ const OnboardingWidget = () => {
                     return
                 }
             } else if (item.activationHint === "integration-snippet") {
+                if (!registryUrl) {
+                    message.info("Create or open an app to view the integration snippet.")
+                    return
+                }
                 try {
-                    if (registryUrl) {
-                        await router.push(registryUrl)
-                    }
+                    await router.push(registryUrl)
                     openDeploymentsDrawer({initialWidth: 1200, mode: "variant"})
                     recordWidgetEvent("integration_snippet_viewed")
                 } catch (error) {
@@ -191,6 +190,16 @@ const OnboardingWidget = () => {
                     return
                 }
             } else if (item.activationHint === "deploy-variant") {
+                if (!registryUrl) {
+                    message.info("Create or open an app to deploy a variant.")
+                    return
+                }
+                try {
+                    await router.push(registryUrl)
+                } catch (error) {
+                    console.error("Failed to navigate to registry", error)
+                    return
+                }
                 startTour(item.tourId || DEPLOY_PROMPT_TOUR_ID)
                 return
             } else if (item.activationHint === "tracing-snippet" && baseAppURL) {
@@ -202,9 +211,7 @@ const OnboardingWidget = () => {
                 }
             } else if (item.activationHint === "trace-annotations") {
                 try {
-                    if (observabilityUrl) {
-                        await router.push(observabilityUrl)
-                    }
+                    await router.push(`${projectURL}/observability`)
                     setPendingTraceTourId(item.tourId || ANNOTATE_TRACES_TOUR_ID)
                     return
                 } catch (error) {
@@ -213,9 +220,7 @@ const OnboardingWidget = () => {
                 }
             } else if (item.activationHint === "trace-to-testset") {
                 try {
-                    if (observabilityUrl) {
-                        await router.push(observabilityUrl)
-                    }
+                    await router.push(`${projectURL}/observability`)
                     setPendingTraceTourId(item.tourId || TESTSET_FROM_TRACES_TOUR_ID)
                     return
                 } catch (error) {
@@ -257,7 +262,6 @@ const OnboardingWidget = () => {
             recordWidgetEvent,
             baseAppURL,
             projectURL,
-            observabilityUrl,
             registryUrl,
             router,
             startTour,
