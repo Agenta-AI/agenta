@@ -1,11 +1,21 @@
 import {memo, useEffect} from "react"
 
+import {setUserAtoms} from "@agenta/entities/shared"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Router from "next/router"
 
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
+import {userAtom} from "@/oss/state/profile/selectors/user"
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
+import {workspaceMembersAtom} from "@/oss/state/workspace/atoms/selectors"
+
+// Initialize user atoms for @agenta/entities shared user resolution
+// This enables UserAuthorLabel and other user resolution features
+setUserAtoms({
+    membersAtom: workspaceMembersAtom,
+    currentUserAtom: userAtom,
+})
 
 const TraceDrawer = dynamic(
     () => import("@/oss/components/SharedDrawers/TraceDrawer/components/TraceDrawer"),
