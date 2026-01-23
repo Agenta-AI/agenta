@@ -470,63 +470,76 @@ const presets = useAtomValue(evalController.selectors.presets(evaluatorId))
 
 ### Entity Selection System
 
-For hierarchical entity selection (App → Variant → Revision), use components from `@agenta/entities/ui`.
+For hierarchical entity selection (App → Variant → Revision), use the unified `EntityPicker` component from `@agenta/entities/ui`.
 
 **Full documentation:** `web/packages/agenta-entities/src/ui/selection/README.md`
 
-**Using EntityPicker:**
+**EntityPicker with Variants:**
 
 ```typescript
-import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entities/ui'
+import { EntityPicker, type AppRevisionSelectionResult, type TestsetSelectionResult } from '@agenta/entities/ui'
 
-function MyComponent() {
-  const handleSelect = (selection: AppRevisionSelectionResult) => {
-    console.log('Selected:', selection.metadata.appName, selection.metadata.variantName)
-  }
+// Cascading dropdowns (inline forms, compact space)
+<EntityPicker<AppRevisionSelectionResult>
+  variant="cascading"
+  adapter="appRevision"
+  onSelect={handleSelect}
+/>
 
-  return (
-    <EntityPicker<AppRevisionSelectionResult>
-      adapter="appRevision"
-      onSelect={handleSelect}
-      showSearch
-      showBreadcrumb
-      rootLabel="All Apps"
-    />
-  )
-}
+// Breadcrumb navigation (modals, full selection UI)
+<EntityPicker<AppRevisionSelectionResult>
+  variant="breadcrumb"
+  adapter="appRevision"
+  onSelect={handleSelect}
+  showSearch
+  showBreadcrumb
+  rootLabel="All Apps"
+/>
+
+// List with hover popovers (sidebars, 2-level hierarchies)
+<EntityPicker<TestsetSelectionResult>
+  variant="list-popover"
+  adapter="testset"
+  onSelect={handleSelect}
+  autoSelectLatest
+  selectLatestOnParentClick
+/>
 ```
 
-**Using EntityCascader:**
+**Mode-Specific Hooks:**
 
 ```typescript
-import { EntityCascader, type TestsetSelectionResult } from '@agenta/entities/ui'
+import { useCascadingMode, useBreadcrumbMode, useListPopoverMode } from '@agenta/entities/ui'
 
-function TestsetSelector() {
-  const [value, setValue] = useState<string[]>([])
+// For cascading dropdowns
+const { levels, isComplete, selection } = useCascadingMode({
+  adapter: 'appRevision',
+  instanceId: 'my-picker',
+  onSelect: handleSelect,
+})
 
-  return (
-    <EntityCascader<TestsetSelectionResult>
-      adapter="testset"
-      value={value}
-      onChange={(path, selection) => {
-        setValue(path)
-        console.log('Selected revision:', selection?.metadata.revisionId)
-      }}
-      placeholder="Select testset and revision"
-      showSearch
-      allowClear
-    />
-  )
-}
+// For breadcrumb navigation
+const { breadcrumb, items, navigateDown, select } = useBreadcrumbMode({
+  adapter: 'appRevision',
+  instanceId: 'my-picker',
+  onSelect: handleSelect,
+})
+
+// For list with popovers
+const { parents, handleChildSelect } = useListPopoverMode({
+  adapter: 'testset',
+  instanceId: 'my-picker',
+  onSelect: handleSelect,
+})
 ```
 
 **Pre-built Adapters:**
 
 | Adapter | Hierarchy | Selection Result |
 |---------|-----------|------------------|
-| `appRevisionAdapter` | App → Variant → Revision | `AppRevisionSelectionResult` |
-| `evaluatorRevisionAdapter` | Evaluator → Variant → Revision | `EvaluatorRevisionSelectionResult` |
-| `testsetAdapter` | Testset → Revision | `TestsetSelectionResult` |
+| `"appRevision"` | App → Variant → Revision | `AppRevisionSelectionResult` |
+| `"evaluatorRevision"` | Evaluator → Variant → Revision | `EvaluatorRevisionSelectionResult` |
+| `"testset"` | Testset → Revision | `TestsetSelectionResult` |
 
 ---
 
