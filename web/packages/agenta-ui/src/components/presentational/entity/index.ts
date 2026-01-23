@@ -16,3 +16,10 @@ export {
     EntityNameVersionText,
     type EntityNameWithVersionProps,
 } from "./EntityNameWithVersion"
+
+export {
+    EntityListItemLabel,
+    AppListItemLabel,
+    VariantListItemLabel,
+    type EntityListItemLabelProps,
+} from "./EntityListItemLabel"
