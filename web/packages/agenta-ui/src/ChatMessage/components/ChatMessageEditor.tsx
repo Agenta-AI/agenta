@@ -51,7 +51,7 @@ export interface ChatMessageEditorProps {
     /** Editor type: border, borderless */
     editorType?: "border" | "borderless"
     /** Custom validation schema for JSON content */
-    validationSchema?: unknown
+    validationSchema?: Record<string, unknown>
 }
 
 /**

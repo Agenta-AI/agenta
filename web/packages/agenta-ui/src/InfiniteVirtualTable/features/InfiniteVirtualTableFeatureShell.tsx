@@ -97,7 +97,7 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * Dataset store for pagination. Required when pagination prop is not provided.
      * When pagination is provided directly, datasetStore is optional (not used for pagination).
      */
-    datasetStore?: InfiniteDatasetStore<Row, any, any> | null
+    datasetStore?: InfiniteDatasetStore<Row, unknown, unknown> | null
     tableScope: TableScopeConfig
     columns: InfiniteVirtualTableProps<Row>["columns"]
     rowKey: InfiniteVirtualTableProps<Row>["rowKey"]

@@ -3,6 +3,7 @@ import type {Atom, WritableAtom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 import type {AtomWithQueryResult} from "jotai-tanstack-query"
+import {v4 as uuidv4} from "uuid"
 
 import type {
     InfiniteTableFetchParams,
@@ -25,13 +26,7 @@ export interface TablePagesKey {
     pageSize: number
 }
 
-const createRandomId = () => {
-    const globalCrypto = typeof globalThis !== "undefined" ? (globalThis as any).crypto : undefined
-    if (globalCrypto?.randomUUID) {
-        return globalCrypto.randomUUID()
-    }
-    return `ivt-row-${Math.random().toString(36).slice(2)}`
-}
+const createRandomId = () => uuidv4()
 
 type PagesWriteArg =
     | {pages: InfiniteTablePage[]}

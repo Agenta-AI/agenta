@@ -64,7 +64,7 @@ class ValidationManager {
     // Run validation and update state - single source of truth
     validateContent(
         content: string,
-        schema?: any,
+        schema?: Record<string, unknown>,
         language: CodeLanguage = "json",
     ): ValidationState {
         // Skip if content hasn't changed

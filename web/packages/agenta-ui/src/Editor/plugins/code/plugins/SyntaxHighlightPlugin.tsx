@@ -44,14 +44,14 @@ import {getDiffRange} from "../utils/getDiffRange"
 import {isPluginLocked, lockPlugin, unlockPlugin} from "../utils/pluginLocks"
 import {tokenizeCodeLine} from "../utils/tokenizer"
 
-type ValidationError = ErrorObject<string, Record<string, any>, unknown>
+type ValidationError = ErrorObject<string, Record<string, unknown>, unknown>
 
 // Editor-specific validation contexts - keyed by editor ID
 const editorValidationContexts = new Map<
     string,
     {
         editorId?: string
-        schema?: any
+        schema?: Record<string, unknown>
         ajv?: Ajv
         errorTexts?: Set<string>
         errorList?: ValidationError[]
@@ -92,7 +92,7 @@ export function getValidationContext(editorId?: string) {
 export function setValidationContext(
     editorId: string,
     context: {
-        schema?: any
+        schema?: Record<string, unknown>
         ajv?: Ajv
         errorTexts?: Set<string>
         errorList?: ValidationError[]
@@ -203,7 +203,7 @@ function $updateAndRetainSelection(
  */
 interface SyntaxHighlightPluginProps {
     editorId: string
-    schema?: any
+    schema?: Record<string, unknown>
     debug?: boolean
     disableLongText?: boolean
 }

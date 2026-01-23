@@ -6,6 +6,7 @@ import {useAtomValue} from "jotai"
 import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
 
 import {getColumnHiddenKeysAtom} from "../atoms/columnHiddenKeys"
+import type {ExtendedColumn} from "../types"
 
 type Key = string
 
@@ -14,15 +15,7 @@ interface Options {
     defaultHiddenKeys?: Key[]
 }
 
-type ColumnLike<RecordType> = ColumnsType<RecordType>[number] & {
-    key?: React.Key
-    children?: ColumnLike<RecordType>[]
-    columnVisibilityTitle?: ReactNode
-    columnVisibilityLabel?: string
-    columnVisibilityLocked?: boolean
-}
-
-const isColumnLocked = <RecordType>(column: ColumnLike<RecordType> | null | undefined) =>
+const isColumnLocked = <RecordType>(column: ExtendedColumn<RecordType> | null | undefined) =>
     Boolean(column?.columnVisibilityLocked)
 
 export interface ColumnTreeNode {
@@ -39,30 +32,30 @@ const toKey = (key: React.Key | undefined): Key | null =>
 
 const collectKeys = <RecordType>(columns: ColumnsType<RecordType>): Key[] => {
     const result: Key[] = []
-    const visit = (cols: ColumnLike<RecordType>[]) => {
+    const visit = (cols: ExtendedColumn<RecordType>[]) => {
         cols.forEach((col) => {
             const k = toKey(col.key)
             if (k && !isColumnLocked(col)) result.push(k)
-            if (col.children && col.children.length) visit(col.children as any)
+            if (col.children && col.children.length) visit(col.children)
         })
     }
-    visit(columns as any)
+    visit(columns as ExtendedColumn<RecordType>[])
     return Array.from(new Set(result))
 }
 
 const collectLeafKeys = <RecordType>(columns: ColumnsType<RecordType>): Key[] => {
     const result: Key[] = []
-    const visit = (cols: ColumnLike<RecordType>[]) => {
+    const visit = (cols: ExtendedColumn<RecordType>[]) => {
         cols.forEach((col) => {
             if (col.children && col.children.length) {
-                visit(col.children as any)
+                visit(col.children)
             } else {
                 const k = toKey(col.key)
                 if (k && !isColumnLocked(col)) result.push(k)
             }
         })
     }
-    visit(columns as any)
+    visit(columns as ExtendedColumn<RecordType>[])
     return Array.from(new Set(result))
 }
 
@@ -70,21 +63,21 @@ const filterColumnsRecursive = <RecordType>(
     columns: ColumnsType<RecordType>,
     hidden: Set<Key>,
 ): ColumnsType<RecordType> => {
-    const map = (cols: ColumnLike<RecordType>[]): ColumnLike<RecordType>[] =>
+    const map = (cols: ExtendedColumn<RecordType>[]): ExtendedColumn<RecordType>[] =>
         cols
-            .map((col) => {
+            .map((col): ExtendedColumn<RecordType> | null => {
                 const k = toKey(col.key)
                 if (k && hidden.has(k) && !isColumnLocked(col)) return null
                 if (col.children && col.children.length) {
-                    const children = map(col.children as any)
+                    const children = map(col.children)
                     if (!children.length) return null
-                    return {...col, children} as any
+                    return {...col, children}
                 }
-                return col as any
+                return col
             })
-            .filter(Boolean) as ColumnLike<RecordType>[]
+            .filter((col): col is ExtendedColumn<RecordType> => col !== null)
 
-    return map(columns as any) as any
+    return map(columns as ExtendedColumn<RecordType>[]) as ColumnsType<RecordType>
 }
 
 export const useColumnVisibility = <RecordType>(
@@ -147,25 +140,25 @@ export const useColumnVisibility = <RecordType>(
     const collectDescendantKeys = useCallback(
         (cols: ColumnsType<RecordType>, target: Key): Key[] => {
             const keys: Key[] = []
-            const visit = (items: ColumnLike<RecordType>[]) => {
+            const visit = (items: ExtendedColumn<RecordType>[]) => {
                 items.forEach((col) => {
                     const k = toKey(col.key)
                     if (k === target) {
                         // include self and all descendants
-                        const gather = (node: ColumnLike<RecordType>) => {
+                        const gather = (node: ExtendedColumn<RecordType>) => {
                             const nk = toKey(node.key)
                             if (nk && !isColumnLocked(node)) keys.push(nk)
                             if (node.children && node.children.length) {
-                                node.children.forEach((child) => gather(child as any))
+                                node.children.forEach((child) => gather(child))
                             }
                         }
                         gather(col)
                     } else if (col.children && col.children.length) {
-                        visit(col.children as any)
+                        visit(col.children)
                     }
                 })
             }
-            visit(cols as any)
+            visit(cols as ExtendedColumn<RecordType>[])
             return Array.from(new Set(keys))
         },
         [],
@@ -192,30 +185,31 @@ export const useColumnVisibility = <RecordType>(
         [collectDescendantKeys, columns, hiddenSet, setHiddenKeys, toggleColumn],
     )
 
-    const getLabel = (col: ColumnLike<RecordType>): string => {
+    const getLabel = (col: ExtendedColumn<RecordType>): string => {
         if (typeof col.columnVisibilityLabel === "string" && col.columnVisibilityLabel.length) {
             return col.columnVisibilityLabel
         }
-        const title = (col as any)?.title
+        const title = "title" in col ? col.title : undefined
         const label = typeof title === "string" ? title : toKey(col.key)
         return label ?? ""
     }
 
     const buildTree = useCallback(
         (cols: ColumnsType<RecordType>): ColumnTreeNode[] => {
-            const map = (items: ColumnLike<RecordType>[]): ColumnTreeNode[] => {
+            const map = (items: ExtendedColumn<RecordType>[]): ColumnTreeNode[] => {
                 const nodes: ColumnTreeNode[] = []
                 items.forEach((col) => {
                     const k = toKey(col.key)
-                    const children =
-                        col.children && col.children.length ? map(col.children as any) : []
+                    const children = col.children && col.children.length ? map(col.children) : []
                     if (!k || isColumnLocked(col)) {
                         nodes.push(...children)
                         return
                     }
                     const subtreeKeys: Key[] = [
                         k,
-                        ...collectDescendantKeys([col] as any, k).filter((x) => x !== k),
+                        ...collectDescendantKeys([col] as ColumnsType<RecordType>, k).filter(
+                            (x) => x !== k,
+                        ),
                     ]
                     const hiddenCount = subtreeKeys.filter((x) => hiddenSet.has(x)).length
                     const allHidden = hiddenCount === subtreeKeys.length
@@ -231,7 +225,7 @@ export const useColumnVisibility = <RecordType>(
                 })
                 return nodes
             }
-            return map(cols as any)
+            return map(cols as ExtendedColumn<RecordType>[])
         },
         [collectDescendantKeys, hiddenSet],
     )
@@ -239,7 +233,11 @@ export const useColumnVisibility = <RecordType>(
     const columnTree = useMemo(() => buildTree(columns), [buildTree, columns])
 
     const columnTreeStructureSignature = useMemo(() => {
-        const serialize = (nodes: ColumnTreeNode[]): any =>
+        interface SerializedNode {
+            key: Key
+            children: SerializedNode[]
+        }
+        const serialize = (nodes: ColumnTreeNode[]): SerializedNode[] =>
             nodes.map((node) => ({
                 key: node.key,
                 children: serialize(node.children),

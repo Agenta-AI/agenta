@@ -190,7 +190,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                             footer={
                                 hasAttachmentsFlag ? (
                                     <MessageAttachments
-                                        content={msg.content}
+                                        content={msg.content!}
                                         onRemove={(attachmentIndex) =>
                                             handleRemoveAttachment(index, attachmentIndex)
                                         }
