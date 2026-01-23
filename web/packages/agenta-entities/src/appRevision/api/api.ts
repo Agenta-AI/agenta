@@ -57,6 +57,34 @@ export interface RevisionRequest {
 }
 
 // ============================================================================
+// TYPE GUARDS
+// ============================================================================
+
+/**
+ * Type guard to check if a value is an array
+ * Used for safely handling dynamic API response structures
+ */
+function isArray(value: unknown): value is unknown[] {
+    return Array.isArray(value)
+}
+
+/**
+ * Type guard to check if a value is a non-null object (not array)
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Safely get array from a value that might be an array or object with value property
+ */
+function toArray(value: unknown): unknown[] {
+    if (isArray(value)) return value
+    if (isRecord(value) && isArray(value.value)) return value.value
+    return []
+}
+
+// ============================================================================
 // DATA TRANSFORMATION
 // ============================================================================
 
@@ -71,9 +99,9 @@ export function transformEnhancedVariant(enhanced: EnhancedVariantLike): AppRevi
     const prompts: PromptConfig[] = []
 
     // EnhancedVariant has prompts directly at top level
-    const enhancedPrompts = (enhanced.prompts || []) as unknown[]
+    const enhancedPrompts = toArray(enhanced.prompts)
 
-    enhancedPrompts.forEach((enhancedPrompt: unknown, idx: number) => {
+    enhancedPrompts.forEach((enhancedPrompt, idx) => {
         prompts.push(transformEnhancedPrompt(enhancedPrompt, idx))
     })
 
@@ -117,10 +145,10 @@ function transformEnhancedPrompt(enhancedPrompt: unknown, index: number): Prompt
     const name = (prompt.__name as string) || `prompt_${index}`
 
     // Messages are in EnhancedArrayValue format: { value: Enhanced<Message>[], __id, __metadata }
-    const messagesContainer = prompt.messages as Record<string, unknown> | undefined
-    const messagesArray = (messagesContainer?.value || messagesContainer || []) as unknown[]
-    const messages = messagesArray.map((msg: unknown) => {
-        const m = msg as Record<string, unknown>
+    const messagesArray = toArray(prompt.messages)
+    const messages = messagesArray.map((msg) => {
+        if (!isRecord(msg)) return {role: "user" as const, content: ""}
+        const m = msg
         const roleValue = m.role as Record<string, unknown> | string
         const contentValue = m.content as Record<string, unknown> | string
         const nameValue = m.name as Record<string, unknown> | string | undefined
@@ -150,16 +178,14 @@ function transformEnhancedPrompt(enhancedPrompt: unknown, index: number): Prompt
     const llmConfig = (prompt.llmConfig || {}) as Record<string, unknown>
 
     // inputKeys is EnhancedArrayValue or array of Enhanced<string>
-    const inputKeysContainer = prompt.inputKeys as Record<string, unknown> | unknown[] | undefined
-    const inputKeysRaw = (
-        Array.isArray(inputKeysContainer)
-            ? inputKeysContainer
-            : (inputKeysContainer as Record<string, unknown>)?.value || []
-    ) as unknown[]
-    const inputKeys = inputKeysRaw.map((k: unknown) => {
-        const key = k as Record<string, unknown> | string
-        return (typeof key === "object" ? key?.value : key) as string
-    })
+    const inputKeysRaw = toArray(prompt.inputKeys)
+    const inputKeys = inputKeysRaw
+        .map((k) => {
+            if (typeof k === "string") return k
+            if (isRecord(k) && typeof k.value === "string") return k.value
+            return ""
+        })
+        .filter(Boolean)
 
     const getValue = (obj: Record<string, unknown>, ...keys: string[]): unknown => {
         for (const key of keys) {
@@ -195,16 +221,20 @@ function transformEnhancedPrompt(enhancedPrompt: unknown, index: number): Prompt
  */
 function transformPrompt(prompt: Record<string, unknown>, index: number): PromptConfig {
     // Handle both nested llm_config and flat structure
-    const llmConfig = (prompt.llm_config || prompt.llmConfig || {}) as Record<string, unknown>
+    const llmConfig = isRecord(prompt.llm_config)
+        ? prompt.llm_config
+        : isRecord(prompt.llmConfig)
+          ? prompt.llmConfig
+          : {}
 
-    const messagesRaw = (prompt.messages || []) as unknown[]
-    const messages = messagesRaw.map((msg: unknown) => {
-        const m = msg as Record<string, unknown>
+    const messagesRaw = toArray(prompt.messages)
+    const messages = messagesRaw.map((msg) => {
+        if (!isRecord(msg)) return {role: "user" as const, content: ""}
         return {
-            role: (m.role || "user") as "system" | "user" | "assistant" | "tool",
-            content: (m.content || "") as string,
-            name: m.name as string | undefined,
-            tool_call_id: (m.tool_call_id || m.toolCallId) as string | undefined,
+            role: (msg.role || "user") as "system" | "user" | "assistant" | "tool",
+            content: (msg.content || "") as string,
+            name: msg.name as string | undefined,
+            tool_call_id: (msg.tool_call_id || msg.toolCallId) as string | undefined,
         }
     })
 
@@ -248,18 +278,20 @@ export function transformApiRevision(apiRevision: ApiRevision): AppRevisionData 
 
     if (agConfig) {
         // Check for single prompt
-        if (agConfig.prompt) {
-            prompts.push(transformPrompt(agConfig.prompt as Record<string, unknown>, 0))
+        if (isRecord(agConfig.prompt)) {
+            prompts.push(transformPrompt(agConfig.prompt, 0))
         }
         // Check for prompts array
-        else if (agConfig.prompts && Array.isArray(agConfig.prompts)) {
-            ;(agConfig.prompts as unknown[]).forEach((p: unknown, idx: number) => {
-                prompts.push(transformPrompt(p as Record<string, unknown>, idx))
+        else if (isArray(agConfig.prompts)) {
+            agConfig.prompts.forEach((p, idx) => {
+                if (isRecord(p)) {
+                    prompts.push(transformPrompt(p, idx))
+                }
             })
         }
         // Check for direct messages in ag_config
         else if (agConfig.messages) {
-            prompts.push(transformPrompt(agConfig as Record<string, unknown>, 0))
+            prompts.push(transformPrompt(agConfig, 0))
         }
     }
 
@@ -303,12 +335,12 @@ export function extractAgConfigFromEnhanced(enhanced: EnhancedVariantLike): RawA
  */
 export function extractAgConfigFromApi(apiRevision: ApiRevision): RawAgConfig {
     // Try multiple paths for the parameters
-    const directParams = (apiRevision as unknown as Record<string, unknown>)?.parameters
+    // Some API responses have parameters directly on the revision object (not in ApiRevision type)
+    const revisionAsRecord = apiRevision as unknown as Record<string, unknown>
+    const directParams = isRecord(revisionAsRecord.parameters) ? revisionAsRecord.parameters : null
     const configParams = apiRevision?.config?.parameters
 
-    const parameters = (directParams as RawAgConfig) || configParams || {}
-
-    return parameters as RawAgConfig
+    return directParams || configParams || {}
 }
 
 // ============================================================================

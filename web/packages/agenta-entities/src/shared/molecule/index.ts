@@ -75,6 +75,7 @@ export {
     // Atom family types
     type AtomFamily,
     type WritableAtomFamily,
+    type FlexibleWritableAtomFamily,
     // Core molecule types
     type MoleculeAtoms,
     type MoleculeReducers,

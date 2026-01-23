@@ -446,7 +446,8 @@ export function EntityCascader<TSelection = EntitySelectionResult>({
                 .join(" ")}
             popupMenuColumnStyle={{fontWeight: 400}}
             optionRender={(option) => {
-                const cascaderOption = option as unknown as CascaderOption
+                // Cast is safe: we create all options as CascaderOption in loadRootOptions/loadData
+                const cascaderOption = option as CascaderOption
                 const isSelected = value?.includes(cascaderOption.value)
                 return (
                     <CascaderOptionItem

@@ -31,6 +31,8 @@ const ColumnVisibilityProvider = <RecordType extends object = object>({
     scopeId = null,
     children,
 }: ColumnVisibilityProviderProps<RecordType>) => {
+    // Generic context pattern: Double cast needed because React Context doesn't support generics.
+    // The context is created with base type (InfiniteTableRowBase) but consumed with specific RecordType.
     const value = useMemo<ColumnVisibilityContextValue<RecordType>>(
         () => ({
             controls:

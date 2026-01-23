@@ -8,7 +8,10 @@ import {cn} from "../../../utils/styles"
 
 type ResizeHandler = (e: React.SyntheticEvent, data: ResizeCallbackData) => void
 
-interface ResizableTitleProps extends Omit<ThHTMLAttributes<HTMLTableCellElement>, "onResize"> {
+export interface ResizableTitleProps extends Omit<
+    ThHTMLAttributes<HTMLTableCellElement>,
+    "onResize"
+> {
     onResize?: ResizeHandler
     onResizeStart?: ResizeHandler
     onResizeStop?: ResizeHandler

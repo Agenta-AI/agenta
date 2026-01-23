@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// Note: This file uses 'any' for Lexical editor node type compatibility
+// Editor.tsx - Code editor plugin with syntax highlighting
 
 // Editor.tsx
 import {Fragment, type ComponentProps, type FC, memo, useEffect, useRef} from "react"
@@ -356,6 +355,7 @@ function InsertInitialCodeBlockPlugin({
                                 try {
                                     const obj = yaml.load(objectValue)
                                     if (obj !== undefined) {
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- js-yaml types require any
                                         value = yaml.dump(obj as any, {indent: 2})
                                     } else {
                                         value = objectValue
@@ -364,6 +364,7 @@ function InsertInitialCodeBlockPlugin({
                                     // Try JSON as a fallback and then dump to YAML for consistent highlighting
                                     try {
                                         const obj = JSON5.parse(objectValue)
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- js-yaml types require any
                                         value = yaml.dump(obj as any, {indent: 2})
                                     } catch {
                                         value = objectValue
@@ -461,7 +462,7 @@ function InsertInitialCodeBlockPlugin({
                     }
                     log(" Extracted current code", {currentCode})
 
-                    let obj: any = null
+                    let obj: unknown = null
                     // Attempt to parse the existing code string
                     log(" Attempting to parse existing code", {oldLanguage})
                     try {

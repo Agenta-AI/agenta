@@ -1,10 +1,10 @@
-import {useCallback, useMemo, useRef, useState, type HTMLAttributes} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import type {ColumnsType, ColumnType} from "antd/es/table"
 import {useAtom} from "jotai"
 
 import {getColumnWidthsAtom} from "../atoms/columnWidths"
-import {ResizableTitle} from "../components/common/ResizableTitle"
+import {ResizableTitle, type ResizableTitleProps} from "../components/common/ResizableTitle"
 
 const DEFAULT_MIN_WIDTH = 150
 const DEFAULT_COLUMN_WIDTH = 200
@@ -259,14 +259,14 @@ export const useSmartResizableColumns = <RowType>({
     )
 
     const buildHeaderCellProps = useCallback(
-        (columnKey: string, width: number | undefined, minValue: number) =>
-            ({
-                width,
-                minWidth: minValue,
-                onResizeStart: handleResizeStart,
-                onResize: handleResize(columnKey),
-                onResizeStop: handleResizeStop(columnKey),
-            }) as unknown as HTMLAttributes<HTMLElement>,
+        // Cast needed: Ant Design's onHeaderCell expects HTMLAttributes but we pass ResizableTitleProps
+        (columnKey: string, width: number | undefined, minValue: number): ResizableTitleProps => ({
+            width,
+            minWidth: minValue,
+            onResizeStart: handleResizeStart,
+            onResize: handleResize(columnKey),
+            onResizeStop: handleResizeStop(columnKey),
+        }),
         [handleResize, handleResizeStart, handleResizeStop],
     )
 
