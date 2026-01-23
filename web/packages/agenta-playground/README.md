@@ -110,7 +110,7 @@ Handles testcase execution:
 
 ### ConfigurationSection
 
-Schema-driven configuration UI using `SchemaPropertyRenderer` from `@agenta/entities/ui`.
+Schema-driven configuration UI using `SchemaPropertyRenderer` from `@agenta/entity-ui`.
 
 ## Dependencies
 

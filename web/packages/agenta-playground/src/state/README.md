@@ -29,10 +29,10 @@ state/
 
 ## Entity Selection
 
-For cascading entity selection (App → Variant → Revision), use the unified selection system from `@agenta/entities/ui`:
+For cascading entity selection (App → Variant → Revision), use the unified selection system from `@agenta/entity-ui`:
 
 ```typescript
-import { AppRevisionSelectGroup } from '@agenta/entities/ui'
+import { AppRevisionSelectGroup } from '@agenta/entity-ui'
 
 function AppRevisionSelector({ onSelect }) {
     return (
