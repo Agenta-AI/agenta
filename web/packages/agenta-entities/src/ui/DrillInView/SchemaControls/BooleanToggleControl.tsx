@@ -49,7 +49,7 @@ export const BooleanToggleControl = memo(function BooleanToggleControl({
     className,
 }: BooleanToggleControlProps) {
     // Get description from schema or prop
-    const tooltipText = description ?? (schema as any)?.description ?? ""
+    const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
     // Normalize value (treat null/undefined as false)
     const checked = value ?? false

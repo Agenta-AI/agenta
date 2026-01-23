@@ -139,7 +139,7 @@ function getControlType(
 
         case "string":
             // Check for multiline hint
-            const xParams = (schema as any)?.["x-parameters"]
+            const xParams = schema?.["x-parameters"] as SchemaProperty["x-parameters"]
             if (xParams?.multiline === true || xParams?.code === true) {
                 return "textarea"
             }
@@ -227,7 +227,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
     const displayLabel = label ?? (path?.length ? formatLabel(path[path.length - 1]) : "Value")
 
     // Get description from schema or prop
-    const tooltipDesc = description ?? (schema as any)?.description
+    const tooltipDesc = description ?? (schema?.description as string | undefined)
 
     // Render based on control type (use resolvedSchema for type info like min/max)
     switch (controlType) {

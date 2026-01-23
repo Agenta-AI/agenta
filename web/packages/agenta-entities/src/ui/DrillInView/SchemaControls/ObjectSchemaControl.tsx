@@ -62,7 +62,7 @@ function getSpecialObjectType(
 ): "tool_configuration" | "messages" | null {
     if (!schema) return null
 
-    const name = (schema as any)?.name || (schema as any)?.title
+    const name = (schema.name as string | undefined) || (schema.title as string | undefined)
     if (name === "ToolConfiguration") return "tool_configuration"
 
     // Check for messages array (chat messages)
@@ -109,7 +109,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     SchemaPropertyRenderer,
 }: ObjectSchemaControlProps) {
     // Get description from schema or prop
-    const tooltipText = description ?? (schema as any)?.description ?? ""
+    const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
     // Check for special object types
     const specialType = useMemo(() => getSpecialObjectType(schema), [schema])
@@ -263,7 +263,7 @@ export const CollapsibleObjectControl = memo(function CollapsibleObjectControl({
 }: ObjectSchemaControlProps) {
     const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
 
-    const tooltipText = description ?? (schema as any)?.description ?? ""
+    const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
     // Get property count for display
     const propertyCount = schema?.properties ? Object.keys(schema.properties).length : 0

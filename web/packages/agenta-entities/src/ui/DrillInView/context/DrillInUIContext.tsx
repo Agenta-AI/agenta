@@ -53,7 +53,7 @@ export interface DrillInUIComponents {
     ChatMessageList?: ComponentType<{
         messages: unknown[]
 
-        onChange?: (messages: any[]) => void
+        onChange?: (messages: unknown[]) => void
         editable?: boolean
         showControls?: boolean
         enableTokens?: boolean

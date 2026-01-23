@@ -43,12 +43,14 @@ export interface TextInputControlProps {
  * Determine if field should be multiline based on schema
  */
 function shouldBeMultiline(schema: SchemaProperty | null | undefined): boolean {
+    if (!schema) return false
+
     // Check x-parameters for multiline hint
-    const xParams = (schema as any)?.["x-parameters"]
+    const xParams = schema["x-parameters"] as SchemaProperty["x-parameters"]
     if (xParams?.multiline === true) return true
 
     // Check if maxLength suggests long text
-    const maxLength = (schema as any)?.maxLength
+    const maxLength = schema.maxLength as number | undefined
     if (maxLength && maxLength > 200) return true
 
     return false
@@ -79,11 +81,11 @@ export const TextInputControl = memo(function TextInputControl({
     const isMultiline = forceMultiline ?? shouldBeMultiline(schema)
 
     // Get constraints from schema
-    const maxLength = (schema as any)?.maxLength
-    const minLength = (schema as any)?.minLength
+    const maxLength = schema?.maxLength as number | undefined
+    const minLength = schema?.minLength as number | undefined
 
     // Get description from schema or prop
-    const tooltipText = description ?? (schema as any)?.description ?? ""
+    const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
     // Local state for controlled input
     const [localValue, setLocalValue] = useState<string>(value ?? "")

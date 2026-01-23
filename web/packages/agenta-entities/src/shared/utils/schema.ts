@@ -30,14 +30,31 @@ export interface SchemaProperty {
     properties?: Record<string, SchemaProperty>
     required?: string[]
     additionalProperties?: boolean | SchemaProperty
+
+    // JSON Schema composition
+    anyOf?: SchemaProperty[]
+    oneOf?: SchemaProperty[]
+    allOf?: SchemaProperty[]
+
+    // OpenAPI/Custom extensions
+    /** Single extension hint (e.g., "grouped_choice", "choice", "inline") */
+    "x-parameter"?: string
     /** Custom extension for UI hints */
     "x-parameters"?: {
         prompt?: boolean
         multiline?: boolean
         code?: boolean
         hidden?: boolean
+        inline?: boolean
         [key: string]: unknown
     }
+
+    // Additional common properties
+    /** Schema name (sometimes used instead of title) */
+    name?: string
+    /** Grouped choices for model selection (provider -> models) */
+    choices?: Record<string, string[]>
+
     /** Allow additional properties */
     [key: string]: unknown
 }

@@ -8,7 +8,7 @@
 import {useMemo} from "react"
 
 import {atom, useAtomValue, type Atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 // ============================================================================
 // TYPES
