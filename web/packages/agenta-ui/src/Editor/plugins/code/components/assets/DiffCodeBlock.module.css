@@ -1,0 +1,86 @@
+.editor-code-diff-line {
+    /* Diff highlighting styles */
+    &:global(.diff-added) {
+        background-color: rgba(34, 197, 94, 0.1);
+        border-left: 3px solid #22c55e;
+        padding-left: 8px;
+        position: relative;
+    }
+
+    &:global(.diff-added::before) {
+        content: "+";
+        color: #22c55e;
+        font-weight: bold;
+        margin-right: 8px;
+        display: inline-block;
+        /* width: 16px; */
+        position: absolute;
+        /* left: -20px; */
+        /* top: 0; */
+        line-height: inherit;
+    }
+
+    &:global(.diff-removed) {
+        background-color: rgba(239, 68, 68, 0.1);
+        border-left: 3px solid #ef4444;
+        padding-left: 8px;
+        position: relative;
+    }
+
+    &:global(.diff-removed::before) {
+        content: "-";
+        color: #ef4444;
+        font-weight: bold;
+        margin-right: 8px;
+        display: inline-block;
+        /* width: 16px; */
+        position: absolute;
+        /* left: -20px; */
+        /* top: 0; */
+        line-height: inherit;
+    }
+
+    &:global(.diff-context) {
+        background-color: #f9f9fa;
+        border-left: 3px solid var(--editor-bg);
+        padding-left: 8px;
+        position: relative;
+    }
+
+    &:global(.diff-fold) {
+        background-color: rgba(99, 102, 241, 0.08);
+        border-left: 3px solid #6366f1;
+        padding-left: 8px;
+        position: relative;
+        font-style: italic;
+        color: #6366f1;
+        text-align: center;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    /* Fold lines don't show line numbers - the fold message is self-explanatory */
+    &:global(.diff-fold)::before {
+        content: "" !important;
+        display: none !important;
+    }
+
+    /* Ensure no line number display for fold lines */
+    &:global(.diff-fold[data-old-line-number])::before,
+    &:global(.diff-fold[data-new-line-number])::before {
+        content: "" !important;
+        display: none !important;
+    }
+
+    /* Fold symbol - use ::after for the ellipsis */
+    &:global(.diff-fold)::after {
+        content: "⋯" !important;
+        color: #6366f1;
+        font-weight: bold;
+        margin-right: 8px;
+        display: inline-block;
+        position: absolute;
+        left: 8px;
+        line-height: inherit;
+    }
+}

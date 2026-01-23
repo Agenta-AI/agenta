@@ -8,7 +8,7 @@ Internal workspace packages for the Agenta monorepo.
 |---------|-------------|--------|
 | `@agenta/shared` | Shared utilities, state atoms, and API helpers | ✅ Active |
 | `@agenta/entities` | Entity definitions and data fetching atoms | 🚧 Planned |
-| `@agenta/ui` | Shared UI components | 🚧 Planned |
+| `@agenta/ui` | Shared UI components (table, selection, presentational) | ✅ Active |
 
 ## Shared Configuration
 
