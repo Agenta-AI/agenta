@@ -6,12 +6,31 @@ import type {InfiniteTableRowBase} from "../types"
 
 export const EXPORT_RESOLVE_SKIP = Symbol("EXPORT_RESOLVE_SKIP")
 
+// Extended column type with custom properties used in this codebase
+interface ExtendedColumnProps {
+    visibilityHidden?: boolean
+    visibilityLocked?: boolean
+    columnProps?: {hidden?: boolean}
+    children?: ColumnsType<InfiniteTableRowBase>
+    dataIndex?: string | number | readonly (string | number)[]
+    key?: React.Key
+    title?: React.ReactNode
+    exportLabel?: string
+    exportTitle?: string
+    exportValue?: (row: unknown, column: unknown, index: number) => unknown
+    exportDataIndex?: string | number | readonly (string | number)[]
+    exportFormatter?: (value: unknown, row: unknown, column: unknown, index: number) => string
+    exportEnabled?: boolean
+}
+
+type ColumnWithExtensions<Row> = ColumnsType<Row>[number] & ExtendedColumnProps
+
 const columnIsHidden = <Row extends InfiniteTableRowBase>(
     column: ColumnsType<Row>[number],
 ): boolean => {
-    const anyColumn = column as any
-    if (anyColumn?.visibilityHidden) return true
-    if (anyColumn?.visibilityLocked === false && anyColumn?.columnProps?.hidden) return true
+    const extColumn = column as ColumnWithExtensions<Row>
+    if (extColumn?.visibilityHidden) return true
+    if (extColumn?.visibilityLocked === false && extColumn?.columnProps?.hidden) return true
     return false
 }
 
@@ -21,9 +40,9 @@ const flattenColumns = <Row extends InfiniteTableRowBase>(
     const flat: ColumnsType<Row> = []
     columns.forEach((column) => {
         if (!column) return
-        const anyColumn = column as any
-        if (anyColumn.children && anyColumn.children.length) {
-            flat.push(...flattenColumns(anyColumn.children as ColumnsType<Row>))
+        const extColumn = column as ColumnWithExtensions<Row>
+        if (extColumn.children && extColumn.children.length) {
+            flat.push(...flattenColumns(extColumn.children as ColumnsType<Row>))
         } else {
             flat.push(column)
         }
@@ -31,35 +50,44 @@ const flattenColumns = <Row extends InfiniteTableRowBase>(
     return flat
 }
 
-const getColumnIdentifier = (column: ColumnsType<any>[number], index: number) => {
-    const anyColumn = column as any
-    const dataIndex = anyColumn?.dataIndex
+const getColumnIdentifier = <Row extends InfiniteTableRowBase>(
+    column: ColumnsType<Row>[number],
+    index: number,
+) => {
+    const extColumn = column as ColumnWithExtensions<Row>
+    const dataIndex = extColumn?.dataIndex
     if (Array.isArray(dataIndex)) {
         return dataIndex.join(".")
     }
     if (dataIndex !== undefined && dataIndex !== null) {
         return String(dataIndex)
     }
-    if (anyColumn?.key !== undefined && anyColumn?.key !== null) {
-        return String(anyColumn.key)
+    if (extColumn?.key !== undefined && extColumn?.key !== null) {
+        return String(extColumn.key)
     }
     return String(index)
 }
 
-const getColumnKey = (column: ColumnsType<any>[number], index: number) => {
-    const anyColumn = column as any
-    if (anyColumn?.key !== undefined && anyColumn?.key !== null) {
-        return String(anyColumn.key)
+const getColumnKey = <Row extends InfiniteTableRowBase>(
+    column: ColumnsType<Row>[number],
+    index: number,
+) => {
+    const extColumn = column as ColumnWithExtensions<Row>
+    if (extColumn?.key !== undefined && extColumn?.key !== null) {
+        return String(extColumn.key)
     }
-    return getColumnIdentifier(column, index)
+    return getColumnIdentifier<Row>(column, index)
 }
 
-const getColumnLabel = (column: ColumnsType<any>[number], index: number) => {
-    const anyColumn = column as any
-    const title = anyColumn?.exportLabel ?? anyColumn?.exportTitle ?? anyColumn?.title
+const getColumnLabel = <Row extends InfiniteTableRowBase>(
+    column: ColumnsType<Row>[number],
+    index: number,
+) => {
+    const extColumn = column as ColumnWithExtensions<Row>
+    const title = extColumn?.exportLabel ?? extColumn?.exportTitle ?? extColumn?.title
     if (typeof title === "string") return title
     if (typeof title === "number") return String(title)
-    return getColumnIdentifier(column, index)
+    return getColumnIdentifier<Row>(column, index)
 }
 
 const getCellText = (value: unknown): string => {
@@ -85,7 +113,7 @@ const getValueFromRowDataIndex = (row: unknown, dataIndex: unknown): unknown => 
             if (acc === null || acc === undefined) {
                 return undefined
             }
-            return (acc as any)[segment]
+            return (acc as Record<string, unknown>)[segment]
         }, row)
     }
     if (
@@ -93,7 +121,7 @@ const getValueFromRowDataIndex = (row: unknown, dataIndex: unknown): unknown => 
         typeof dataIndex === "number" ||
         typeof dataIndex === "symbol"
     ) {
-        return (row as any)?.[dataIndex as any]
+        return (row as Record<string | number | symbol, unknown>)?.[dataIndex]
     }
     return undefined
 }
@@ -103,27 +131,29 @@ const getColumnValueFromMetadata = <Row extends InfiniteTableRowBase>({
     columnIndex,
     row,
 }: TableExportValueArgs<Row>): unknown => {
-    const anyColumn = column as any
+    const extColumn = column as ColumnWithExtensions<Row>
 
-    if (typeof anyColumn?.exportValue === "function") {
-        const value = anyColumn.exportValue(row, column, columnIndex)
+    if (typeof extColumn?.exportValue === "function") {
+        const value = extColumn.exportValue(row, column, columnIndex)
         if (value !== undefined) {
             return value
         }
     }
 
-    const exportDataIndex = anyColumn?.exportDataIndex ?? anyColumn?.dataIndex
+    const exportDataIndex = extColumn?.exportDataIndex ?? extColumn?.dataIndex
     const viaDataIndex = getValueFromRowDataIndex(row, exportDataIndex)
     if (viaDataIndex !== undefined) {
         return viaDataIndex
     }
 
-    if (anyColumn?.key !== undefined && (row as any)?.[anyColumn.key] !== undefined) {
-        return (row as any)[anyColumn.key]
+    const rowRecord = row as Record<string, unknown>
+    const key = extColumn?.key
+    if (key !== undefined && typeof key === "string" && rowRecord?.[key] !== undefined) {
+        return rowRecord[key]
     }
 
-    const identifier = getColumnIdentifier(column, columnIndex)
-    return (row as any)?.[identifier]
+    const identifier = getColumnIdentifier<Row>(column, columnIndex)
+    return rowRecord?.[identifier]
 }
 
 const formatExportValue = <Row extends InfiniteTableRowBase>(
@@ -131,9 +161,9 @@ const formatExportValue = <Row extends InfiniteTableRowBase>(
     args: TableExportValueArgs<Row>,
     formatValue?: TableExportOptions<Row>["formatValue"],
 ): string => {
-    const anyColumn = args.column as any
-    if (typeof anyColumn?.exportFormatter === "function") {
-        const formatted = anyColumn.exportFormatter(value, args.row, args.column, args.columnIndex)
+    const extColumn = args.column as ColumnWithExtensions<Row>
+    if (typeof extColumn?.exportFormatter === "function") {
+        const formatted = extColumn.exportFormatter(value, args.row, args.column, args.columnIndex)
         if (formatted !== undefined) {
             return formatted
         }
@@ -154,7 +184,7 @@ const filterSkeletonRows = <Row extends InfiniteTableRowBase>(
     includeSkeletonRows?: boolean,
 ) => {
     if (includeSkeletonRows) return rows
-    return rows.filter((row) => !(row as any)?.__isSkeleton)
+    return rows.filter((row) => !row.__isSkeleton)
 }
 
 export interface TableExportColumnContext<Row extends InfiniteTableRowBase> {
@@ -226,8 +256,8 @@ export const useTableExport = <Row extends InfiniteTableRowBase>() => {
 
         const flatColumns = flattenColumns(columns).filter((column, index) => {
             if (columnIsHidden<Row>(column)) return false
-            const anyColumn = column as any
-            if (anyColumn?.exportEnabled === false) return false
+            const extColumn = column as ColumnWithExtensions<Row>
+            if (extColumn?.exportEnabled === false) return false
             if (isColumnExportable) {
                 return isColumnExportable({column, columnIndex: index})
             }
