@@ -27,31 +27,26 @@ import {
     useState,
     useMemo,
     useCallback,
-    useEffect,
     createContext,
     useContext,
     useRef,
     type ReactNode,
 } from "react"
 
-import type {VariantListItem, RevisionListItem} from "@agenta/entities/appRevision"
 import type {EntitySelectorConfig, EntitySelection, EntityType} from "@agenta/entities/runnable"
-import {EntityPicker, type EvaluatorRevisionSelectionResult} from "@agenta/entities/ui"
-import {EnhancedModal, EntityNameWithVersion} from "@agenta/ui"
+import {
+    EntityPicker,
+    type EvaluatorRevisionSelectionResult,
+    type AppRevisionSelectionResult,
+} from "@agenta/entities/ui"
+import {EnhancedModal} from "@agenta/ui"
 import {CaretRight} from "@phosphor-icons/react"
-import {Input, Button, Tabs, Space, Typography, Select} from "antd"
+import {Input, Button, Tabs, Space, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {entitySelectorController, cascadingSelection} from "../../state"
+import {entitySelectorController} from "../../state"
 
 const {Text} = Typography
-
-/** Custom option type for revision select with searchLabel */
-interface RevisionSelectOption {
-    value: string
-    label: ReactNode
-    searchLabel: string
-}
 
 // Re-export types from controller for convenience
 export type {EntityType, EntitySelection, EntitySelectorConfig}
@@ -63,209 +58,34 @@ interface EntitySelectorContextType {
 
 // ============================================================================
 // APP REVISION SELECTOR (Cascading Selects: App -> Variant -> Revision)
-// Uses cascadingSelection atoms for auto-selection logic in data layer
+// Uses AppRevisionSelectGroup from @agenta/entities/ui for unified selection
 // ============================================================================
 
 function AppRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection) => void}) {
-    // Read from cascading selection atoms (derived state)
-    const userSelectedAppId = useAtomValue(cascadingSelection.atoms.userSelectedAppId)
-    const apps = useAtomValue(cascadingSelection.selectors.apps)
-    const variants = useAtomValue(cascadingSelection.selectors.variantsForSelectedApp)
-    const revisions = useAtomValue(cascadingSelection.selectors.revisionsForEffectiveVariant)
-    const effectiveVariantId = useAtomValue(cascadingSelection.selectors.effectiveVariantId)
-    const selectedApp = useAtomValue(cascadingSelection.selectors.selectedApp)
-    const selectedVariant = useAtomValue(cascadingSelection.selectors.selectedVariant)
-    const autoCompletedSelection = useAtomValue(cascadingSelection.selectors.autoCompletedSelection)
-
-    // Query states for loading indicators
-    const appsQueryState = useAtomValue(cascadingSelection.queryState.apps)
-    const variantsQueryState = useAtomValue(cascadingSelection.queryState.variants)
-    const revisionsQueryState = useAtomValue(cascadingSelection.queryState.revisions)
-
-    // Actions
-    const setAppId = useSetAtom(cascadingSelection.actions.setAppId)
-    const setVariantId = useSetAtom(cascadingSelection.atoms.userSelectedVariantId)
-    const resetSelection = useSetAtom(cascadingSelection.actions.reset)
-
-    // Reset selection when component unmounts (modal closes)
-    useEffect(() => {
-        return () => {
-            resetSelection()
-        }
-    }, [resetSelection])
-
-    // Trigger selection when auto-complete is ready (from atom layer)
-    useEffect(() => {
-        if (autoCompletedSelection) {
-            onSelect(autoCompletedSelection)
-        }
-    }, [autoCompletedSelection, onSelect])
-
-    const handleAppChange = useCallback(
-        (appId: string) => {
-            setAppId(appId)
-        },
-        [setAppId],
-    )
-
-    const handleVariantChange = useCallback(
-        (variantId: string) => {
-            setVariantId(variantId)
-        },
-        [setVariantId],
-    )
-
-    const handleRevisionSelect = useCallback(
-        (revisionId: string) => {
-            const revision = revisions.find((r) => r.id === revisionId)
-            if (!revision || !selectedApp || !selectedVariant) return
-
+    const handleSelect = useCallback(
+        (selection: AppRevisionSelectionResult) => {
             onSelect({
                 type: "appRevision",
-                id: revisionId,
-                label: `${selectedApp.name} / ${selectedVariant.name} / v${revision.version}`,
+                id: selection.id,
+                label: selection.label,
                 metadata: {
-                    appId: selectedApp.id,
-                    appName: selectedApp.name,
-                    variantId: selectedVariant.id,
-                    variantName: selectedVariant.name,
+                    appId: selection.metadata.appId,
+                    appName: selection.metadata.appName,
+                    variantId: selection.metadata.variantId,
+                    variantName: selection.metadata.variantName,
                 },
             })
         },
-        [revisions, selectedApp, selectedVariant, onSelect],
+        [onSelect],
     )
 
-    // Derive loading/error messages for better UX
-    const getAppsNotFoundContent = () => {
-        if (appsQueryState.isPending) return "Loading applications..."
-        if (appsQueryState.isError) return "Failed to load applications"
-        if (apps.length === 0) return "No applications found"
-        return "No match"
-    }
-
-    const getVariantsNotFoundContent = () => {
-        if (!userSelectedAppId) return "Select an app first"
-        if (variantsQueryState.isPending) return "Loading variants..."
-        if (variantsQueryState.isError) return "Failed to load variants"
-        if (variants.length === 0) return "No variants found"
-        return "No match"
-    }
-
-    const getRevisionsNotFoundContent = () => {
-        if (!effectiveVariantId) return "Select a variant first"
-        if (revisionsQueryState.isPending) return "Loading revisions..."
-        if (revisionsQueryState.isError) return "Failed to load revisions"
-        if (revisions.length === 0) return "No revisions found"
-        return "No match"
-    }
-
     return (
-        <div className="flex flex-col gap-3">
-            {/* App Select */}
-            <div>
-                <Text type="secondary" className="text-xs mb-1 block">
-                    Application
-                </Text>
-                <Select
-                    className="w-full"
-                    placeholder={
-                        appsQueryState.isPending ? "Loading..." : "Select an application..."
-                    }
-                    value={userSelectedAppId}
-                    onChange={handleAppChange}
-                    loading={appsQueryState.isPending}
-                    disabled={appsQueryState.isPending}
-                    status={appsQueryState.isError ? "error" : undefined}
-                    options={apps.map((app) => ({
-                        value: app.id,
-                        label: app.name,
-                    }))}
-                    showSearch
-                    filterOption={(input, option) =>
-                        (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-                    }
-                    notFoundContent={getAppsNotFoundContent()}
-                />
-            </div>
-
-            {/* Variant Select */}
-            <div>
-                <Text type="secondary" className="text-xs mb-1 block">
-                    Variant
-                </Text>
-                <Select
-                    className="w-full"
-                    placeholder={
-                        variantsQueryState.isPending
-                            ? "Loading..."
-                            : userSelectedAppId
-                              ? "Select a variant..."
-                              : "Select an app first"
-                    }
-                    value={effectiveVariantId}
-                    onChange={handleVariantChange}
-                    loading={variantsQueryState.isPending}
-                    disabled={!userSelectedAppId || variantsQueryState.isPending}
-                    status={variantsQueryState.isError ? "error" : undefined}
-                    options={
-                        userSelectedAppId
-                            ? (variants as VariantListItem[]).map((variant) => ({
-                                  value: variant.id,
-                                  label: variant.name,
-                              }))
-                            : []
-                    }
-                    showSearch
-                    filterOption={(input, option) =>
-                        (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-                    }
-                    notFoundContent={getVariantsNotFoundContent()}
-                />
-            </div>
-
-            {/* Revision Select */}
-            <div>
-                <Text type="secondary" className="text-xs mb-1 block">
-                    Revision
-                </Text>
-                <Select
-                    className="w-full"
-                    placeholder={
-                        revisionsQueryState.isPending
-                            ? "Loading..."
-                            : effectiveVariantId
-                              ? "Select a revision..."
-                              : "Select a variant first"
-                    }
-                    loading={revisionsQueryState.isPending}
-                    disabled={!effectiveVariantId || revisionsQueryState.isPending}
-                    status={revisionsQueryState.isError ? "error" : undefined}
-                    onChange={handleRevisionSelect}
-                    options={
-                        effectiveVariantId && selectedVariant
-                            ? (revisions as RevisionListItem[]).map((revision) => ({
-                                  value: revision.id,
-                                  searchLabel: `${selectedVariant.name} v${revision.version}`,
-                                  label: (
-                                      <EntityNameWithVersion
-                                          name={selectedVariant.name}
-                                          version={revision.version}
-                                          size="small"
-                                      />
-                                  ),
-                              }))
-                            : []
-                    }
-                    showSearch
-                    filterOption={(input, option) =>
-                        (option as RevisionSelectOption | undefined)?.searchLabel
-                            ?.toLowerCase()
-                            .includes(input.toLowerCase()) ?? false
-                    }
-                    notFoundContent={getRevisionsNotFoundContent()}
-                />
-            </div>
-        </div>
+        <EntityPicker<AppRevisionSelectionResult>
+            variant="cascading"
+            adapter="appRevision"
+            onSelect={handleSelect}
+            instanceId="entity-selector-app-revision"
+        />
     )
 }
 
@@ -293,6 +113,7 @@ function EvaluatorRevisionSelector({onSelect}: {onSelect: (selection: EntitySele
 
     return (
         <EntityPicker<EvaluatorRevisionSelectionResult>
+            variant="breadcrumb"
             adapter="evaluatorRevision"
             onSelect={handleSelect}
             autoSelectSingle
