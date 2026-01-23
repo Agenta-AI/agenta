@@ -26,11 +26,13 @@ import {
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-// OSS-specific components for context injection
 import {EntityDrillInView} from "@/oss/components/DrillInView"
 import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import {initializeSaveModeAtom} from "@/oss/components/Playground/Components/Modals/LoadTestsetModal/atoms/modalState"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
+
+// NOTE: appRevision entity now uses direct API query via @agenta/shared axios.
+// No initialization or injection needed - the query works out of the box.
 
 // Dynamic imports for modals (loaded on demand)
 const LoadTestsetModal = dynamic(
@@ -104,6 +106,7 @@ function PlaygroundTestInner() {
     // Create the initializeSaveMode callback that matches the expected signature
     const handleInitializeSaveMode = (config: SaveModeConfig) => {
         initializeSaveMode({
+            loadableId: config.loadableId,
             testcases: config.testcases,
             defaultName: config.defaultName,
         })
