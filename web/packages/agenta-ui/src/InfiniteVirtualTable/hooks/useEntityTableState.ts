@@ -64,6 +64,7 @@ import {useCallback, useMemo} from "react"
 import {useAtom, useAtomValue} from "jotai"
 
 import type {TableScopeConfig} from "../features/InfiniteVirtualTableFeatureShell"
+import type {BaseTableMeta} from "../helpers/createSimpleTableStore"
 import type {
     PaginatedCombinedState,
     PaginatedControllerParams,
@@ -80,7 +81,7 @@ export interface UseEntityTableStateOptions<TRow extends InfiniteTableRowBase> {
      * Paginated store from entity molecule
      * e.g., testsetMolecule.paginated
      */
-    paginatedStore: PaginatedEntityStore<TRow, any, any>
+    paginatedStore: PaginatedEntityStore<TRow, InfiniteTableRowBase, BaseTableMeta>
 
     /**
      * Unique scope identifier for this table instance

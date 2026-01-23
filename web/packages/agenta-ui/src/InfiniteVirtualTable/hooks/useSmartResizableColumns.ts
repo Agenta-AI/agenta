@@ -89,8 +89,9 @@ export const useSmartResizableColumns = <RowType>({
             return leafColumns.map((col) => {
                 const key = (col?.key ?? col?.dataIndex ?? "") as string
                 const isFixed = Boolean(col.fixed)
+                const colWithMaxWidth = col as {maxWidth?: number}
                 const hasMaxWidth =
-                    typeof (col as any).maxWidth === "number" && (col as any).maxWidth > 0
+                    typeof colWithMaxWidth.maxWidth === "number" && colWithMaxWidth.maxWidth > 0
 
                 const defaultWidth =
                     typeof col.width === "number"
@@ -101,7 +102,7 @@ export const useSmartResizableColumns = <RowType>({
 
                 const resolvedMinWidth = typeof col.minWidth === "number" ? col.minWidth : minWidth
 
-                const maxWidthValue = hasMaxWidth ? (col as any).maxWidth : undefined
+                const maxWidthValue = hasMaxWidth ? colWithMaxWidth.maxWidth : undefined
 
                 return {
                     key,
