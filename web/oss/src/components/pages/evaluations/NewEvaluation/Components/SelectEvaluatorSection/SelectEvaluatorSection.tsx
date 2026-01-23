@@ -336,7 +336,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
 
     return (
         <>
-            <div className={clsx(className)} {...props}>
+            <div className={clsx(className)} data-tour="evaluator-select" {...props}>
                 {hasEvaluatorConfigs && (
                     <div className="flex items-center justify-between mb-2">
                         <Input.Search

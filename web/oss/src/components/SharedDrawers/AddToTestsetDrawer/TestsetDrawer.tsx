@@ -134,6 +134,7 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                                     !drawer.isMapColumnExist ||
                                     drawer.hasDuplicateColumns
                                 }
+                                data-tour="testset-confirm"
                             >
                                 {drawer.isNewTestset ? "Create" : "Commit"}
                             </Button>

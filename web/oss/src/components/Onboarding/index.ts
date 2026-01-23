@@ -19,3 +19,8 @@ export {
     unregisterDeployPromptTour,
     DEPLOY_PROMPT_TOUR_ID,
 } from "./tours/deployPromptTour"
+export {
+    registerFirstEvaluationTour,
+    unregisterFirstEvaluationTour,
+    FIRST_EVALUATION_TOUR_ID,
+} from "./tours/firstEvaluationTour"
