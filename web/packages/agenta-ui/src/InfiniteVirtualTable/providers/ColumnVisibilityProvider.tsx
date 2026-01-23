@@ -11,7 +11,9 @@ import type {
     ColumnVisibilityMenuTriggerRenderer,
 } from "../types"
 
-interface ColumnVisibilityProviderProps<RecordType extends object = any> extends PropsWithChildren {
+interface ColumnVisibilityProviderProps<
+    RecordType extends object = object,
+> extends PropsWithChildren {
     controls: ColumnVisibilityState<RecordType> | null
     registerHeader?: VisibilityRegistrationHandler | null
     version?: number
@@ -20,7 +22,7 @@ interface ColumnVisibilityProviderProps<RecordType extends object = any> extends
     scopeId?: string | null
 }
 
-const ColumnVisibilityProvider = <RecordType extends object = any>({
+const ColumnVisibilityProvider = <RecordType extends object = object>({
     controls,
     registerHeader = null,
     version = 0,
@@ -33,7 +35,7 @@ const ColumnVisibilityProvider = <RecordType extends object = any>({
         () => ({
             controls:
                 controls ??
-                (defaultColumnVisibilityContextValue.controls as ColumnVisibilityState<RecordType>),
+                (defaultColumnVisibilityContextValue.controls as unknown as ColumnVisibilityState<RecordType>),
             registerHeader,
             version,
             renderMenuContent,
@@ -44,7 +46,7 @@ const ColumnVisibilityProvider = <RecordType extends object = any>({
     )
 
     return (
-        <ColumnVisibilityContext.Provider value={value}>
+        <ColumnVisibilityContext.Provider value={value as unknown as ColumnVisibilityContextValue}>
             {children}
         </ColumnVisibilityContext.Provider>
     )
