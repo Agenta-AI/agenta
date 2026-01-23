@@ -81,6 +81,10 @@ const OnlineEvaluationDrawer = dynamic(
     () => import("@/oss/components/pages/evaluations/onlineEvaluation/OnlineEvaluationDrawer"),
     {ssr: false},
 )
+const SetupEvaluationModal = dynamic(
+    () => import("@/oss/components/pages/evaluations/SetupEvaluationModal"),
+    {ssr: false},
+)
 const InactiveTablePlaceholder = ({className}: {className?: string}) => (
     <div className={clsx("flex h-full min-h-0 flex-col gap-4", className)}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -665,7 +669,9 @@ const EvaluationRunsTableActive = ({
             />
 
             {createSupported ? (
-                selectedCreateType === "online" ? (
+                selectedCreateType === "custom" ? (
+                    <SetupEvaluationModal open={isCreateModalOpen} onCancel={closeCreateModal} />
+                ) : selectedCreateType === "online" ? (
                     <OnlineEvaluationDrawer
                         open={isCreateModalOpen}
                         onClose={closeCreateModal}
