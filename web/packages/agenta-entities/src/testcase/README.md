@@ -348,7 +348,7 @@ useEffect(() => () => resetSelection(config.scopeId), [config.scopeId])
 A reusable table component for displaying testcases with optional selection support:
 
 ```typescript
-import { TestcaseTable } from '@agenta/entities/ui'
+import { TestcaseTable } from '@agenta/entity-ui'
 
 // View-only mode
 <TestcaseTable
@@ -363,17 +363,25 @@ import { TestcaseTable } from '@agenta/entities/ui'
 />
 ```
 
-### TestsetPicker
+### Testset Selection
 
-A component for browsing and selecting testsets and their revisions:
+For browsing and selecting testsets and their revisions, use `EntityPicker` with the testset adapter:
 
 ```typescript
-import { TestsetPicker } from '@agenta/entities/ui'
+import { EntityPicker, testsetAdapter, type TestsetSelectionResult } from '@agenta/entity-ui'
 
-<TestsetPicker
-  selectedRevisionId={selectedRevisionId}
-  selectedTestsetId={selectedTestsetId}
-  onSelect={(revisionId, testsetId) => handleSelect(revisionId, testsetId)}
+<EntityPicker<TestsetSelectionResult>
+  variant="list-popover"
+  adapter={testsetAdapter}
+  onSelect={(selection) => {
+    const { revisionId, testsetId } = selection.metadata
+    handleSelect(revisionId, testsetId)
+  }}
+  selectedParentId={selectedTestsetId}
+  selectedChildId={selectedRevisionId}
+  showSearch
+  autoSelectLatest
+  selectLatestOnParentClick
 />
 ```
 
@@ -427,10 +435,10 @@ const commit = useSetAtom(revisionMolecule.actions.commit)
 await commit({ revisionId, message: 'Updated testcases' })
 ```
 
-For the unified save/commit modal pattern, use `useSaveOrCommit` from `@agenta/entities/ui`:
+For the unified save/commit modal pattern, use `useSaveOrCommit` from `@agenta/entity-ui`:
 
 ```typescript
-import { useSaveOrCommit } from '@agenta/entities/ui'
+import { useSaveOrCommit } from '@agenta/entity-ui'
 
 const { save, commit, canSave, canCommit } = useSaveOrCommit({
     entityType: 'revision',
