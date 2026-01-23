@@ -5,8 +5,15 @@
  *
  * @example
  * ```typescript
- * // Use primitive hooks for custom implementations
- * import { useHierarchicalSelection, useMultiSelect } from '@agenta/entities/ui/selection'
+ * // Use the unified EntityPicker with variant prop
+ * import { EntityPicker } from '@agenta/entities/ui/selection'
+ *
+ * <EntityPicker variant="cascading" adapter="appRevision" onSelect={handleSelect} />
+ * <EntityPicker variant="breadcrumb" adapter="appRevision" onSelect={handleSelect} />
+ * <EntityPicker variant="list-popover" adapter="testset" onSelect={handleSelect} />
+ *
+ * // Use the unified hooks
+ * import { useCascadingMode, useBreadcrumbMode, useListPopoverMode } from '@agenta/entities/ui/selection'
  *
  * // Use pre-built adapters
  * import { appRevisionAdapter, testsetAdapter } from '@agenta/entities/ui/selection'
@@ -88,51 +95,65 @@ export {
 
 // Hooks
 export {
-    useEntityList,
-    useInfiniteList,
-    useSimpleInfiniteList,
-    useHierarchicalSelection,
-    useMultiSelect,
-    useLazyChildren,
+    // Unified hooks
+    useEntitySelection,
+    useCascadingMode,
+    useBreadcrumbMode,
+    useListPopoverMode,
+    useEntitySelectionCore,
+    // Utilities
+    getLevelLabel,
+    getLevelPlaceholder,
+    useChildrenData,
+    useAutoSelectLatestChild,
 } from "./hooks"
 
 export type {
-    UseEntityListOptions,
-    UseEntityListResult,
-    UseInfiniteListOptions,
-    UseInfiniteListResult,
-    UseSimpleInfiniteListOptions,
-    UseSimpleInfiniteListResult,
-    UseHierarchicalSelectionOptions,
-    UseHierarchicalSelectionResult,
-    UseMultiSelectOptions,
-    UseMultiSelectResult,
-    UseLazyChildrenOptions,
-    UseLazyChildrenResult,
-    CascaderOption,
+    // Unified hook types
+    EntitySelectionMode,
+    UseEntitySelectionOptions,
+    UseEntitySelectionResult,
+    CascadingModeOptions,
+    BreadcrumbModeOptions,
+    ListPopoverModeOptions,
+    UseCascadingModeOptions,
+    UseCascadingModeResult,
+    UseBreadcrumbModeOptions,
+    UseBreadcrumbModeResult,
+    UseListPopoverModeOptions,
+    UseListPopoverModeResult,
+    CascadingLevelState,
+    ListPopoverParentState,
+    ListPopoverChildrenState,
+    EntitySelectionCoreOptions,
+    EntitySelectionCoreResult,
+    UseAutoSelectLatestChildOptions,
 } from "./hooks"
 
 // Components
 export {
-    // Primitives
+    // Primitives (from @agenta/ui)
     EntityBreadcrumb,
     EntityListItem,
     SearchInput,
-    // Virtualized list components
     VirtualEntityList,
     SimpleEntityList,
     AdaptiveEntityList,
-    // Load more components
     LoadMoreButton,
     LoadMoreInline,
     EndOfList,
-    // Load all components
     LoadAllButton,
     LoadAllInline,
-    // Main components
+    // Unified EntityPicker with variants
     EntityPicker,
-    EntityCascader,
-    EntityListWithPopover,
+    CascadingVariant,
+    BreadcrumbVariant,
+    ListPopoverVariant,
+    // Shared components (for customization)
+    LevelSelect,
+    ChildPopoverContent,
+    AutoSelectHandler,
+    // Modal
     EntitySelectorModal,
     // Hook
     useEntitySelector,
@@ -150,9 +171,15 @@ export type {
     EndOfListProps,
     LoadAllButtonProps,
     LoadAllInlineProps,
+    EntityPickerVariant,
     EntityPickerProps,
-    EntityCascaderProps,
-    EntityListWithPopoverProps,
+    EntityPickerBaseProps,
+    CascadingVariantProps,
+    BreadcrumbVariantProps,
+    ListPopoverVariantProps,
+    LevelSelectProps,
+    ChildPopoverContentProps,
+    AutoSelectHandlerProps,
     EntitySelectorModalProps,
     UseEntitySelectorResult,
 } from "./components"

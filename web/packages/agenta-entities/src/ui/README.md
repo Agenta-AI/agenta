@@ -8,17 +8,20 @@ This module provides entity-agnostic UI utilities that work with the molecule pa
 ui/
 ├── README.md              # This documentation
 ├── index.ts               # Public exports
-├── pathUtils.ts           # Path navigation utilities
-└── DrillInView/           # Drill-in navigation components
-    ├── index.ts           # DrillInView exports
-    ├── types.ts           # Type definitions
-    ├── classNames.ts      # ClassNames API utilities
-    ├── context.ts         # React context for state
-    ├── MoleculeDrillInView.tsx
-    ├── MoleculeDrillInBreadcrumb.tsx
-    ├── MoleculeDrillInFieldList.tsx
-    ├── MoleculeDrillInFieldItem.tsx
-    └── MoleculeDrillInContext.tsx
+├── DrillInView/           # Drill-in navigation components
+│   ├── README.md
+│   └── ...
+├── modals/                # Entity modals (delete, commit, save)
+│   ├── README.md
+│   └── ...
+├── selection/             # Entity selection system
+│   ├── README.md          # Full documentation
+│   ├── adapters/          # Entity-specific adapters
+│   ├── components/        # EntityPicker, EntitySelectorModal
+│   ├── hooks/             # useCascadingMode, useBreadcrumbMode, etc.
+│   └── state/             # Jotai atoms for selection state
+└── testcase/              # Testcase-specific UI components
+    └── ...
 ```
 
 ## Quick Start
@@ -32,11 +35,49 @@ import {
   // DrillIn components
   MoleculeDrillInView,
   useDrillIn,
+  // Entity selection
+  EntityPicker,
+  useEntitySelector,
+  // Entity modals
+  useEntityDelete,
+  EntityCommitModal,
   // Types
   type DrillInMoleculeConfig,
-  type MoleculeDrillInViewProps,
+  type AppRevisionSelectionResult,
 } from '@agenta/entities/ui'
 ```
+
+### Entity Selection
+
+```tsx
+import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entities/ui'
+
+// Cascading dropdowns
+<EntityPicker<AppRevisionSelectionResult>
+  variant="cascading"
+  adapter="appRevision"
+  onSelect={handleSelect}
+/>
+
+// Breadcrumb navigation
+<EntityPicker<AppRevisionSelectionResult>
+  variant="breadcrumb"
+  adapter="appRevision"
+  onSelect={handleSelect}
+  showSearch
+  showBreadcrumb
+/>
+
+// List with hover popovers (2-level hierarchies)
+<EntityPicker<TestsetSelectionResult>
+  variant="list-popover"
+  adapter="testset"
+  onSelect={handleSelect}
+  autoSelectLatest
+/>
+```
+
+For full documentation, see: [selection/README.md](./selection/README.md)
 
 ---
 

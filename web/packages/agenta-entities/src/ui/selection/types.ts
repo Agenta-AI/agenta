@@ -124,6 +124,21 @@ export interface HierarchyLevel<T = unknown> {
     type: SelectableEntityType
 
     /**
+     * Human-readable label for this level (e.g., "Application", "Variant").
+     * Used in UI components for labels above selects.
+     * Falls back to `type` if not provided.
+     */
+    label?: string
+
+    /**
+     * Auto-select behavior when this level has exactly one item.
+     * When true and only one item exists, that item is automatically
+     * selected without user interaction.
+     * @default false
+     */
+    autoSelectSingle?: boolean
+
+    /**
      * Static atom for root-level lists (no parent dependency)
      * Use this for the first level of the hierarchy
      */
@@ -180,6 +195,15 @@ export interface HierarchyLevel<T = unknown> {
      * Falls back to getLabel if not provided
      */
     getLabelNode?: (entity: T) => ReactNode
+
+    /**
+     * Get placeholder node for empty/unselected state.
+     * Should match the structure of getLabelNode to maintain consistent height.
+     * Falls back to text placeholder if not provided.
+     *
+     * @param placeholderText - The placeholder text (e.g., "Select application...")
+     */
+    getPlaceholderNode?: (placeholderText: string) => ReactNode
 
     /**
      * Get optional icon

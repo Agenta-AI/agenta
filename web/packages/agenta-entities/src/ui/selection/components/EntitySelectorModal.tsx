@@ -22,7 +22,7 @@ import {
 } from "../state/modalState"
 import type {EntitySelectionResult, SelectableEntityType} from "../types"
 
-import {EntityPicker} from "./EntityPicker"
+import {EntityPicker} from "./UnifiedEntityPicker"
 
 // ============================================================================
 // TYPES
@@ -131,6 +131,7 @@ export function EntitySelectorModal({
                 label: formatEntityTypeLabel(adapter.entityType),
                 children: (
                     <EntityPicker
+                        variant="breadcrumb"
                         adapter={adapter}
                         onSelect={(selection) =>
                             closeWithSelection(selection as EntitySelectionResult)

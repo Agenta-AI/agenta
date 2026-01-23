@@ -89,7 +89,8 @@ For convenience, all selection state is also exposed via a molecule pattern:
 ```typescript
 import { selectionMolecule } from '@agenta/entities/ui'
 
-// In components (usually prefer useHierarchicalSelection hook instead)
+// In components (usually prefer mode-specific hooks instead)
+// e.g., useBreadcrumbMode, useCascadingMode, useListPopoverMode
 const path = useAtomValue(selectionMolecule.path('my-picker'))
 const level = useAtomValue(selectionMolecule.level('my-picker'))
 ```
@@ -185,12 +186,21 @@ interface EntitySelectorConfig {
 ### In Components (Prefer Hooks)
 
 ```tsx
-// PREFERRED: Use the hook
-import { useHierarchicalSelection } from '@agenta/entities/ui'
+// PREFERRED: Use the mode-specific hooks
+import { useBreadcrumbMode, useCascadingMode } from '@agenta/entities/ui'
 
-const { breadcrumb, items, navigateDown } = useHierarchicalSelection({
+// For breadcrumb navigation
+const { breadcrumb, items, navigateDown, select } = useBreadcrumbMode({
   adapter: 'appRevision',
   instanceId: 'my-picker',
+  onSelect: handleSelect,
+})
+
+// For cascading dropdowns
+const { levels, isComplete, selection } = useCascadingMode({
+  adapter: 'appRevision',
+  instanceId: 'my-cascading',
+  onSelect: handleSelect,
 })
 ```
 

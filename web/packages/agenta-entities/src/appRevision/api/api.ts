@@ -381,7 +381,7 @@ export interface ApiRevisionListItem {
     revision: number
     commit_message?: string
     created_at?: string
-    modified_by_id?: string
+    modified_by?: string // API returns author name, not ID
 }
 
 /**
@@ -404,7 +404,7 @@ export interface RevisionListItem {
     variantId: string
     commitMessage?: string
     createdAt?: string
-    modifiedById?: string
+    author?: string // API returns author name directly (modified_by)
 }
 
 /**
@@ -473,7 +473,7 @@ export async function fetchRevisionsList(
         variantId,
         commitMessage: rev.commit_message,
         createdAt: rev.created_at,
-        modifiedById: rev.modified_by_id,
+        author: rev.modified_by,
     }))
 }
 

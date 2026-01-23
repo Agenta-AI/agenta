@@ -1,15 +1,18 @@
 /**
- * useHierarchicalSelection Hook
+ * useBreadcrumbMode Hook
  *
- * Primitive hook for navigating hierarchical entity structures.
- * Handles breadcrumb navigation, level transitions, selection, and optional pagination.
+ * Breadcrumb navigation mode where one level is visible at a time.
+ * User navigates through hierarchy via drilling down and breadcrumb navigation.
+ *
+ * Pattern: Show Apps → Click App → Show Variants → Click Variant → Show Revisions
+ *
+ * Used by EntityPicker with breadcrumb navigation.
  */
 
-import {useMemo, useCallback, useEffect, useState, useRef} from "react"
+import {useCallback, useEffect, useMemo, useState, useRef} from "react"
 
-import {atom, useAtomValue, useSetAtom, Atom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import {resolveAdapter} from "../adapters/createAdapter"
 import {
     selectionStateFamily,
     navigateDownFamily,
@@ -19,51 +22,38 @@ import {
     setPathFamily,
     searchTermFamily,
     setSearchTermFamily,
-} from "../state/selectionState"
+} from "../../state/selectionState"
 import type {
     EntitySelectionAdapter,
     EntitySelectionResult,
-    SelectionPathItem,
     HierarchyLevel,
-    ListQueryState,
-    PaginatedListQueryState,
-    PaginationParams,
+    SelectionPathItem,
     PaginationInfo,
-} from "../types"
+} from "../../types"
+import {
+    useEntitySelectionCore,
+    getLevelLabel,
+    type EntitySelectionCoreOptions,
+} from "../useEntitySelectionCore"
+import {useLevelData, usePaginatedLevelData, filterItems, buildPathItem} from "../utilities"
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-export interface UseHierarchicalSelectionOptions<TSelection = EntitySelectionResult> {
-    /**
-     * Adapter or adapter name
-     */
-    adapter: EntitySelectionAdapter<TSelection> | string
-
-    /**
-     * Instance ID for state isolation
-     */
-    instanceId: string
-
-    /**
-     * Callback when selection is complete
-     */
-    onSelect?: (selection: TSelection) => void
-
-    /**
-     * Auto-select when only one option is available
-     * @default false
-     */
-    autoSelectSingle?: boolean
-
+/**
+ * Options for useBreadcrumbMode
+ */
+export interface UseBreadcrumbModeOptions<
+    TSelection = EntitySelectionResult,
+> extends EntitySelectionCoreOptions<TSelection> {
     /**
      * Initial path (for restoring state)
      */
     initialPath?: SelectionPathItem[]
 
     /**
-     * Enable pagination (uses paginated atoms from adapter if available)
+     * Enable pagination for large lists
      * @default false
      */
     paginated?: boolean
@@ -73,157 +63,91 @@ export interface UseHierarchicalSelectionOptions<TSelection = EntitySelectionRes
      * @default 50
      */
     pageSize?: number
+
+    /**
+     * Global auto-select setting (applies to all levels unless overridden)
+     * @default false
+     */
+    autoSelectSingle?: boolean
 }
 
-export interface UseHierarchicalSelectionResult<TSelection = EntitySelectionResult> {
-    /**
-     * Current breadcrumb path
-     */
+/**
+ * Result from useBreadcrumbMode
+ */
+export interface UseBreadcrumbModeResult<TSelection = EntitySelectionResult> {
+    // Navigation state
+    /** Current breadcrumb path */
     breadcrumb: SelectionPathItem[]
-
-    /**
-     * Current level index
-     */
+    /** Current level index */
     currentLevel: number
-
-    /**
-     * Items at current level
-     */
+    /** Items at current level */
     items: unknown[]
-
-    /**
-     * Loading state
-     */
+    /** Whether loading */
     isLoading: boolean
-
-    /**
-     * Error state
-     */
+    /** Error if any */
     error: Error | null
-
-    /**
-     * Whether at root level
-     */
+    /** Whether at root level */
     isAtRoot: boolean
-
-    /**
-     * Whether at leaf (selectable) level
-     */
+    /** Whether at leaf (selectable) level */
     isAtLeaf: boolean
-
-    /**
-     * Whether auto-selection is about to occur (single item found, waiting for delay)
-     */
+    /** Whether auto-selection is pending */
     isAutoSelecting: boolean
-
-    /**
-     * Current level configuration
-     */
+    /** Current level configuration */
     currentLevelConfig: HierarchyLevel<unknown> | null
+    /** Current level label */
+    currentLevelLabel: string
 
-    /**
-     * Search term for current level
-     */
+    // Search
+    /** Search term for filtering */
     searchTerm: string
-
-    /**
-     * Set search term
-     */
+    /** Set search term */
     setSearchTerm: (term: string) => void
 
-    /**
-     * Navigate into a child entity
-     */
+    // Navigation actions
+    /** Navigate into a child entity */
     navigateDown: (entity: unknown) => void
-
-    /**
-     * Navigate up one level
-     */
+    /** Navigate up one level */
     navigateUp: () => void
-
-    /**
-     * Navigate to a specific level by index
-     */
+    /** Navigate to a specific level by index */
     navigateToLevel: (level: number) => void
-
-    /**
-     * Select an entity (triggers onSelect callback)
-     */
+    /** Select an entity (triggers onSelect) */
     select: (entity: unknown) => void
-
-    /**
-     * Check if an entity can be navigated into
-     */
-    canNavigateDown: (entity: unknown) => boolean
-
-    /**
-     * Check if an entity can be selected
-     */
-    canSelect: (entity: unknown) => boolean
-
-    /**
-     * Check if an entity is disabled
-     */
-    isDisabled: (entity: unknown) => boolean
-
-    /**
-     * Reset to initial state
-     */
+    /** Reset to initial state */
     reset: () => void
 
-    /**
-     * The resolved adapter
-     */
-    adapter: EntitySelectionAdapter<TSelection>
+    // Item helpers
+    /** Check if entity can be navigated into */
+    canNavigateDown: (entity: unknown) => boolean
+    /** Check if entity can be selected */
+    canSelect: (entity: unknown) => boolean
+    /** Check if entity is disabled */
+    isDisabled: (entity: unknown) => boolean
 
-    // ========================================================================
-    // PAGINATION PROPERTIES
-    // ========================================================================
-
-    /**
-     * Whether current level supports pagination
-     */
+    // Pagination (when enabled)
+    /** Whether current level supports pagination */
     supportsPagination: boolean
-
-    /**
-     * Whether there are more pages
-     */
+    /** Whether there are more pages */
     hasNextPage: boolean
-
-    /**
-     * Whether currently fetching next page
-     */
+    /** Whether fetching next page */
     isFetchingNextPage: boolean
-
-    /**
-     * Whether "load all" is in progress
-     */
+    /** Whether loading all pages */
     isLoadingAll: boolean
-
-    /**
-     * Fetch next page of results
-     */
+    /** Fetch next page */
     fetchNextPage: () => void
-
-    /**
-     * Load all remaining pages
-     */
+    /** Load all remaining pages */
     loadAllPages: () => Promise<void>
-
-    /**
-     * Cancel ongoing "load all" operation
-     */
+    /** Cancel load all */
     cancelLoadAll: () => void
-
-    /**
-     * Total count (if known from server)
-     */
+    /** Total count if known */
     totalCount: number | null
-
-    /**
-     * Current pagination info
-     */
+    /** Pagination info */
     pagination: PaginationInfo
+
+    // Core
+    /** Resolved adapter */
+    adapter: EntitySelectionAdapter<TSelection>
+    /** Instance ID */
+    instanceId: string
 }
 
 // ============================================================================
@@ -242,31 +166,6 @@ const initialPaginationState: PaginationState = {
     pages: 0,
 }
 
-// ============================================================================
-// EMPTY ATOMS
-// ============================================================================
-
-const emptyListAtom = atom<ListQueryState<unknown>>({
-    data: [],
-    isPending: false,
-    isError: false,
-    error: null,
-})
-
-const emptyPaginatedAtom = atom<PaginatedListQueryState<unknown>>({
-    data: [],
-    isPending: false,
-    isError: false,
-    error: null,
-    pagination: {
-        hasNextPage: false,
-        nextCursor: null,
-        nextOffset: null,
-        totalCount: null,
-        isFetchingNextPage: false,
-    },
-})
-
 const emptyPagination: PaginationInfo = {
     hasNextPage: false,
     nextCursor: null,
@@ -276,69 +175,70 @@ const emptyPagination: PaginationInfo = {
 }
 
 // ============================================================================
-// DEFAULT FILTER
-// ============================================================================
-
-function defaultFilter<T>(items: T[], searchTerm: string): T[] {
-    if (!searchTerm.trim()) return items
-    const term = searchTerm.toLowerCase().trim()
-    return items.filter((item) => JSON.stringify(item).toLowerCase().includes(term))
-}
-
-// ============================================================================
-// HOOK
+// HOOK: useBreadcrumbMode
 // ============================================================================
 
 /**
- * Hook for navigating hierarchical entity structures with optional pagination support
+ * Hook for breadcrumb navigation mode.
+ *
+ * Shows one level at a time with breadcrumb trail for navigation.
+ * Supports pagination for large lists.
  *
  * @example
  * ```typescript
- * // Basic usage (non-paginated)
  * const {
- *   breadcrumb,
- *   items,
- *   navigateDown,
- *   select,
- *   isAtLeaf
- * } = useHierarchicalSelection({
- *   adapter: appRevisionAdapter,
- *   instanceId: 'selector-1',
- *   onSelect: (selection) => console.log('Selected:', selection),
+ *     breadcrumb,
+ *     items,
+ *     navigateDown,
+ *     navigateUp,
+ *     select,
+ *     isAtLeaf,
+ * } = useBreadcrumbMode({
+ *     adapter: "appRevision",
+ *     onSelect: handleSelect,
+ *     paginated: true,
  * })
  *
- * // With pagination
- * const {
- *   items,
- *   hasNextPage,
- *   fetchNextPage,
- *   loadAllPages,
- * } = useHierarchicalSelection({
- *   adapter: testsetAdapter,
- *   instanceId: 'selector-1',
- *   paginated: true,
- *   pageSize: 25,
- * })
+ * // Render breadcrumb
+ * <Breadcrumb>
+ *     {breadcrumb.map((item, i) => (
+ *         <Breadcrumb.Item onClick={() => navigateToLevel(i)}>
+ *             {item.label}
+ *         </Breadcrumb.Item>
+ *     ))}
+ * </Breadcrumb>
+ *
+ * // Render items
+ * {items.map(item => (
+ *     <ListItem
+ *         onClick={() => canNavigateDown(item) ? navigateDown(item) : select(item)}
+ *     />
+ * ))}
  * ```
  */
-export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
-    options: UseHierarchicalSelectionOptions<TSelection>,
-): UseHierarchicalSelectionResult<TSelection> {
+export function useBreadcrumbMode<TSelection = EntitySelectionResult>(
+    options: UseBreadcrumbModeOptions<TSelection>,
+): UseBreadcrumbModeResult<TSelection> {
     const {
-        adapter: adapterOrName,
-        instanceId,
         onSelect,
-        autoSelectSingle = false,
         initialPath,
         paginated = false,
         pageSize = 50,
+        autoSelectSingle = false,
     } = options
 
-    // Resolve adapter
-    const adapter = useMemo(() => resolveAdapter(adapterOrName), [adapterOrName])
+    // Get core utilities
+    const {
+        adapter,
+        hierarchyLevels,
+        instanceId,
+        selectableLevel,
+        shouldAutoSelectAtLevel,
+        createSelection,
+    } = useEntitySelectionCore(options)
 
     // ========================================================================
-    // NAVIGATION STATE (from molecules)
+    // NAVIGATION STATE (from selectionState atoms)
     // ========================================================================
 
     const stateAtom = useMemo(() => selectionStateFamily(instanceId), [instanceId])
@@ -349,7 +249,6 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
     const setPathAtom = useMemo(() => setPathFamily(instanceId), [instanceId])
 
     const state = useAtomValue(stateAtom)
-
     const dispatchNavigateDown = useSetAtom(navigateDownAtom)
     const dispatchNavigateUp = useSetAtom(navigateUpAtom)
     const dispatchNavigateToLevel = useSetAtom(navigateToLevelAtom)
@@ -383,12 +282,12 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
     // ========================================================================
 
     const currentLevelConfig = useMemo(() => {
-        const {levels} = adapter.hierarchy
-        if (state.currentLevel >= levels.length) return null
-        return levels[state.currentLevel]
-    }, [adapter.hierarchy, state.currentLevel])
+        if (state.currentLevel >= hierarchyLevels.length) return null
+        return hierarchyLevels[state.currentLevel]
+    }, [hierarchyLevels, state.currentLevel])
 
-    // Check if current level supports pagination
+    const currentLevelLabel = currentLevelConfig ? getLevelLabel(currentLevelConfig) : "items"
+
     const supportsPagination = useMemo(() => {
         if (!paginated || !currentLevelConfig) return false
         return !!(
@@ -402,8 +301,6 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
 
     const [paginationState, setPaginationState] = useState<PaginationState>(initialPaginationState)
     const [allItems, setAllItems] = useState<unknown[]>([])
-
-    // Load all state
     const [isLoadingAll, setIsLoadingAll] = useState(false)
     const loadAllCancelledRef = useRef(false)
 
@@ -414,87 +311,40 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
     }, [state.currentLevel, searchTerm])
 
     // ========================================================================
-    // LIST ATOMS
+    // DATA FETCHING
     // ========================================================================
 
-    // Non-paginated list atom
-    const nonPaginatedListAtom = useMemo((): Atom<ListQueryState<unknown>> => {
-        if (!currentLevelConfig) return emptyListAtom
+    const parentId =
+        state.currentPath.length > 0
+            ? (state.currentPath[state.currentPath.length - 1]?.id ?? null)
+            : null
 
-        const {listAtom, listAtomFamily} = currentLevelConfig
+    // Non-paginated data
+    const nonPaginatedData = useLevelData({
+        levelConfig: currentLevelConfig!,
+        parentId: state.currentLevel === 0 ? null : parentId,
+        isEnabled: !!currentLevelConfig,
+    })
 
-        if (state.currentLevel === 0 && listAtom) {
-            return listAtom
-        }
-
-        if (listAtomFamily && state.currentPath.length > 0) {
-            const parentId = state.currentPath[state.currentPath.length - 1]?.id
-            if (parentId) {
-                return listAtomFamily(parentId)
-            }
-        }
-
-        if (listAtom) {
-            return listAtom
-        }
-
-        return emptyListAtom
-    }, [currentLevelConfig, state.currentLevel, state.currentPath])
-
-    // Paginated list atom
-    const paginatedListAtom = useMemo((): Atom<PaginatedListQueryState<unknown>> => {
-        if (!supportsPagination || !currentLevelConfig) return emptyPaginatedAtom
-
-        const {paginatedListAtom: paginatedAtomFactory, paginatedListAtomFamily} =
-            currentLevelConfig
-
-        const params: PaginationParams = {
+    // Paginated data
+    const paginatedData = usePaginatedLevelData({
+        levelConfig: currentLevelConfig!,
+        parentId: state.currentLevel === 0 ? null : parentId,
+        isEnabled: !!currentLevelConfig && supportsPagination,
+        paginationParams: {
             pageSize,
             cursor: paginationState.cursor,
             offset: paginationState.offset,
-            searchTerm: currentLevelConfig.supportsServerSearch ? searchTerm : undefined,
-        }
-
-        if (state.currentLevel === 0 && paginatedAtomFactory) {
-            return paginatedAtomFactory(params)
-        }
-
-        if (paginatedListAtomFamily && state.currentPath.length > 0) {
-            const parentId = state.currentPath[state.currentPath.length - 1]?.id
-            if (parentId) {
-                return paginatedListAtomFamily(parentId, params)
-            }
-        }
-
-        if (paginatedAtomFactory) {
-            return paginatedAtomFactory(params)
-        }
-
-        return emptyPaginatedAtom
-    }, [
-        supportsPagination,
-        currentLevelConfig,
-        state.currentLevel,
-        state.currentPath,
-        pageSize,
-        paginationState.cursor,
-        paginationState.offset,
-        searchTerm,
-    ])
-
-    // ========================================================================
-    // QUERY RESULTS
-    // ========================================================================
-
-    const nonPaginatedQuery = useAtomValue(nonPaginatedListAtom)
-    const paginatedQuery = useAtomValue(paginatedListAtom)
+            searchTerm: currentLevelConfig?.supportsServerSearch ? searchTerm : undefined,
+        },
+    })
 
     // Accumulate paginated items
     useEffect(() => {
         if (!supportsPagination) return
 
-        const data = paginatedQuery.data
-        if (data && !paginatedQuery.isPending) {
+        const data = paginatedData.items
+        if (data.length > 0 && !paginatedData.query.isPending) {
             if (paginationState.pages === 0) {
                 setAllItems(data)
             } else {
@@ -505,7 +355,12 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
                 })
             }
         }
-    }, [supportsPagination, paginatedQuery.data, paginatedQuery.isPending, paginationState.pages])
+    }, [
+        supportsPagination,
+        paginatedData.items,
+        paginatedData.query.isPending,
+        paginationState.pages,
+    ])
 
     // ========================================================================
     // DERIVED STATE
@@ -513,36 +368,35 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
 
     const {items, isLoading, error, pagination} = useMemo(() => {
         if (supportsPagination) {
-            // Paginated mode
             const baseItems = allItems
             const filteredItems =
                 currentLevelConfig?.supportsServerSearch !== true
-                    ? defaultFilter(baseItems, searchTerm)
+                    ? filterItems(baseItems, searchTerm)
                     : baseItems
-
-            const paginationInfo = paginatedQuery.pagination ?? emptyPagination
 
             return {
                 items: filteredItems,
-                isLoading: paginatedQuery.isPending && paginationState.pages === 0,
-                error: paginatedQuery.isError
-                    ? (paginatedQuery.error ?? new Error("Unknown error"))
+                isLoading: paginatedData.query.isPending && paginationState.pages === 0,
+                error: paginatedData.query.isError
+                    ? (paginatedData.query.error ?? new Error("Unknown error"))
                     : null,
                 pagination: {
-                    ...paginationInfo,
-                    isFetchingNextPage: paginatedQuery.isPending && paginationState.pages > 0,
+                    hasNextPage: paginatedData.hasNextPage,
+                    nextCursor: paginatedData.nextCursor,
+                    nextOffset: paginatedData.nextOffset,
+                    totalCount: paginatedData.totalCount,
+                    isFetchingNextPage: paginatedData.query.isPending && paginationState.pages > 0,
                 },
             }
         } else {
-            // Non-paginated mode
-            const data = nonPaginatedQuery.data ?? []
-            const filteredItems = defaultFilter(data, searchTerm)
+            const data = nonPaginatedData.items
+            const filteredItems = filterItems(data, searchTerm)
 
             return {
                 items: filteredItems,
-                isLoading: nonPaginatedQuery.isPending,
-                error: nonPaginatedQuery.isError
-                    ? (nonPaginatedQuery.error ?? new Error("Unknown error"))
+                isLoading: nonPaginatedData.query.isPending,
+                error: nonPaginatedData.query.isError
+                    ? (nonPaginatedData.query.error ?? new Error("Unknown error"))
                     : null,
                 pagination: emptyPagination,
             }
@@ -552,13 +406,12 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
         allItems,
         searchTerm,
         currentLevelConfig?.supportsServerSearch,
-        paginatedQuery,
+        paginatedData,
         paginationState.pages,
-        nonPaginatedQuery,
+        nonPaginatedData,
     ])
 
     const isAtRoot = state.currentLevel === 0
-    const selectableLevel = adapter.hierarchy.selectableLevel ?? adapter.hierarchy.levels.length - 1
     const isAtLeaf = state.currentLevel >= selectableLevel
     const hasNextPage = pagination.hasNextPage
     const isFetchingNextPage = pagination.isFetchingNextPage
@@ -599,7 +452,7 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
                 () => {
                     clearInterval(intervalId)
                     setIsLoadingAll(false)
-                    reject(new Error("Load all timed out after 5 minutes"))
+                    reject(new Error("Load all timed out"))
                 },
                 5 * 60 * 1000,
             )
@@ -626,9 +479,9 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
         (entity: unknown): boolean => {
             if (!currentLevelConfig) return false
             const hasChildren = currentLevelConfig.hasChildren?.(entity) ?? true
-            return hasChildren && state.currentLevel < adapter.hierarchy.levels.length - 1
+            return hasChildren && state.currentLevel < hierarchyLevels.length - 1
         },
-        [currentLevelConfig, state.currentLevel, adapter.hierarchy.levels.length],
+        [currentLevelConfig, state.currentLevel, hierarchyLevels.length],
     )
 
     const canSelect = useCallback(
@@ -654,13 +507,7 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
     const navigateDown = useCallback(
         (entity: unknown) => {
             if (!currentLevelConfig || !canNavigateDown(entity)) return
-
-            const pathItem: SelectionPathItem = {
-                type: currentLevelConfig.type,
-                id: currentLevelConfig.getId(entity),
-                label: currentLevelConfig.getLabel(entity),
-            }
-
+            const pathItem = buildPathItem(entity, currentLevelConfig)
             dispatchNavigateDown(pathItem)
         },
         [currentLevelConfig, canNavigateDown, dispatchNavigateDown],
@@ -691,25 +538,19 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
         (entity: unknown) => {
             if (!currentLevelConfig || !canSelect(entity)) return
 
-            const pathItem: SelectionPathItem = {
-                type: currentLevelConfig.type,
-                id: currentLevelConfig.getId(entity),
-                label: currentLevelConfig.getLabel(entity),
-            }
-
+            const pathItem = buildPathItem(entity, currentLevelConfig)
             const fullPath = [...state.currentPath, pathItem]
-            const selection = adapter.toSelection(fullPath, entity)
+            const selection = createSelection(fullPath, entity)
 
             onSelect?.(selection)
         },
-        [currentLevelConfig, canSelect, state.currentPath, adapter, onSelect],
+        [currentLevelConfig, canSelect, state.currentPath, createSelection, onSelect],
     )
 
     // ========================================================================
-    // AUTO-SELECT (immediate when single item)
+    // AUTO-SELECT
     // ========================================================================
 
-    // Track if we're in auto-selection flow (for UI feedback if needed)
     const [isAutoSelecting, setIsAutoSelecting] = useState(false)
 
     // Reset auto-selecting state when items change
@@ -719,8 +560,11 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
         }
     }, [items.length, isLoading])
 
+    // Perform auto-select
+    const shouldAutoSelect = autoSelectSingle || shouldAutoSelectAtLevel(state.currentLevel)
+
     useEffect(() => {
-        if (!autoSelectSingle || isLoading || items.length !== 1) return
+        if (!shouldAutoSelect || isLoading || items.length !== 1) return
 
         const singleItem = items[0]
         const canAutoSelect = canSelect(singleItem) && !isDisabledFn(singleItem)
@@ -728,10 +572,8 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
 
         if (!canAutoSelect && !canAutoNavigate) return
 
-        // Set state for UI feedback
         setIsAutoSelecting(true)
 
-        // Auto-select/navigate immediately
         if (canAutoSelect) {
             select(singleItem)
         } else if (canAutoNavigate) {
@@ -740,7 +582,7 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
 
         setIsAutoSelecting(false)
     }, [
-        autoSelectSingle,
+        shouldAutoSelect,
         isLoading,
         items,
         canSelect,
@@ -765,17 +607,17 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
         isAtLeaf,
         isAutoSelecting,
         currentLevelConfig,
+        currentLevelLabel,
         searchTerm,
         setSearchTerm,
         navigateDown,
         navigateUp,
         navigateToLevel,
         select,
+        reset,
         canNavigateDown,
         canSelect,
         isDisabled: isDisabledFn,
-        reset,
-        adapter,
 
         // Pagination
         supportsPagination,
@@ -787,5 +629,9 @@ export function useHierarchicalSelection<TSelection = EntitySelectionResult>(
         cancelLoadAll,
         totalCount,
         pagination,
+
+        // Core
+        adapter,
+        instanceId,
     }
 }
