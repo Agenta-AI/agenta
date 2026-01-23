@@ -22,7 +22,7 @@ SelectLLMProvider/
 ### Basic Usage
 
 ```tsx
-import {SelectLLMProviderBase} from '@agenta/entities/ui'
+import {SelectLLMProviderBase} from '@agenta/ui'
 
 const providerOptions = [
   {
@@ -76,7 +76,7 @@ function ModelSelector() {
 In the OSS codebase, you can wrap this component with vault integration:
 
 ```tsx
-import {SelectLLMProviderBase} from '@agenta/entities/ui'
+import {SelectLLMProviderBase} from '@agenta/ui'
 import {useVaultSecret} from '@/oss/hooks/useVaultSecret'
 
 function SelectLLMProvider(props) {

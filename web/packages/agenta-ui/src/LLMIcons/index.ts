@@ -5,7 +5,7 @@
  *
  * @example Usage
  * ```tsx
- * import {LLMIconMap} from '@agenta/entities/ui'
+ * import {LLMIconMap} from '@agenta/ui'
  *
  * const Icon = LLMIconMap['OpenAI']
  * if (Icon) return <Icon className="w-4 h-4" />
