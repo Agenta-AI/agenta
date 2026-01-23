@@ -82,6 +82,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     >(new Map())
     const containerSize = useContainerResize(containerRef)
     const [tableHeaderHeight, setTableHeaderHeight] = useState<number | null>(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const lastScrollConfigRef = useRef<Record<string, any> | null>(null)
     const visibilityStorageKey = columnVisibility?.storageKey
     const visibilityDefaultHiddenKeys = columnVisibility?.defaultHiddenKeys
@@ -422,6 +423,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             x: _ignoredX,
             y: _ignoredY,
             ...restScroll
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } = (resolvedScroll ?? {}) as Record<string, any>
         const nextConfig = {
             ...restScroll,
@@ -494,12 +496,13 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     })
 
     const mergedOnRow = useCallback(
-        (record: RecordType, index: number) => {
+        (record: RecordType, index?: number) => {
             const baseOnRow = finalTableProps.onRow
             const baseProps = baseOnRow ? baseOnRow(record, index) : {}
-            const shortcutProps = getShortcutRowProps
-                ? (getShortcutRowProps(record, index) ?? {})
-                : {}
+            const shortcutProps =
+                getShortcutRowProps && index !== undefined
+                    ? (getShortcutRowProps(record, index) ?? {})
+                    : {}
             if (!shortcutProps || Object.keys(shortcutProps).length === 0) {
                 return baseProps
             }
@@ -581,6 +584,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                     {beforeTable}
                     <div ref={containerRef} className={cn(containerClassName)}>
                         <Table<RecordType>
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             ref={tableRef as React.Ref<any>}
                             className={tableClassName}
                             columns={finalColumns}

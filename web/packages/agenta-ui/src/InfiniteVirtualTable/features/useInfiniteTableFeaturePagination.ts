@@ -8,7 +8,7 @@ interface UseFeaturePaginationOptions {
 }
 
 const useInfiniteTableFeaturePagination = <Row extends InfiniteTableRowBase>(
-    datasetStore: InfiniteDatasetStore<Row, any, any>,
+    datasetStore: InfiniteDatasetStore<Row, unknown, unknown>,
     tableScope: TableScopeConfig,
     options?: UseFeaturePaginationOptions,
 ): TableFeaturePagination<Row> => {

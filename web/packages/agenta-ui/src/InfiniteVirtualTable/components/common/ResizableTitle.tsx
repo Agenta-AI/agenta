@@ -1,11 +1,22 @@
 import {memo, useEffect, useMemo, useState} from "react"
+import type {ThHTMLAttributes} from "react"
 
 import {Skeleton} from "antd"
-import {Resizable} from "react-resizable"
+import {Resizable, type ResizeCallbackData} from "react-resizable"
 
 import {cn} from "../../../utils/styles"
 
-export const ResizableTitle = memo((props: any) => {
+type ResizeHandler = (e: React.SyntheticEvent, data: ResizeCallbackData) => void
+
+interface ResizableTitleProps extends Omit<ThHTMLAttributes<HTMLTableCellElement>, "onResize"> {
+    onResize?: ResizeHandler
+    onResizeStart?: ResizeHandler
+    onResizeStop?: ResizeHandler
+    width?: number
+    minWidth?: number
+}
+
+export const ResizableTitle = memo((props: ResizableTitleProps) => {
     const {onResize, onResizeStart, onResizeStop, width, minWidth, ...restProps} = props
 
     // Local live width to avoid forcing parent re-renders on every drag frame
@@ -36,7 +47,7 @@ export const ResizableTitle = memo((props: any) => {
                     onClick={(e) => e.stopPropagation()}
                 />
             }
-            onResize={(e: any, data: any) => {
+            onResize={(e: React.SyntheticEvent, data: ResizeCallbackData) => {
                 setLiveWidth(data.size.width)
                 onResize && onResize(e, data)
             }}
@@ -51,7 +62,7 @@ export const ResizableTitle = memo((props: any) => {
                     minWidth: resolvedMinWidth,
                     width: (liveWidth ?? width) || resolvedMinWidth || 160,
                 }}
-                className={cn([restProps.className, {"select-none": onResize}])}
+                className={cn([restProps.className, {"select-none": !!onResize}])}
             >
                 <div style={{position: "relative", width: "100%", height: "100%"}}>
                     {restProps.children}
