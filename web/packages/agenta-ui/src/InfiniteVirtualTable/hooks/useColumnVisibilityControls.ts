@@ -1,21 +1,27 @@
 import {useCallback, useMemo} from "react"
 import type {Key} from "react"
 
-import type {ColumnVisibilityState} from "../types"
+import type {ColumnsType} from "antd/es/table"
 
-interface ColumnVisibilityHookResult {
-    visibleColumns: any[]
-    leafKeys: any[]
-    allKeys: any[]
-    hiddenKeys: any[]
-    isHidden: (key: any) => boolean
-    showColumn: (key: any) => void
-    hideColumn: (key: any) => void
-    toggleColumn: (key: any) => void
-    toggleTree: (key: any) => void
+import type {ColumnTreeNode, ColumnVisibilityState} from "../types"
+
+/**
+ * Return type of useColumnVisibility hook
+ * Note: The hook uses string internally for keys but the atom uses React.Key
+ */
+interface ColumnVisibilityHookResult<RecordType> {
+    visibleColumns: ColumnsType<RecordType>
+    leafKeys: string[]
+    allKeys: string[]
+    hiddenKeys: Key[]
+    isHidden: (key: string) => boolean
+    showColumn: (key: string) => void
+    hideColumn: (key: string) => void
+    toggleColumn: (key: string) => void
+    toggleTree: (key: string) => void
     reset: () => void
-    columnTree: any[]
-    setHiddenKeys: (keys: any) => void
+    columnTree: ColumnTreeNode[]
+    setHiddenKeys: (keys: Key[] | ((prev: Key[]) => Key[])) => void
     version: number
 }
 
@@ -23,7 +29,7 @@ interface ColumnVisibilityHookResult {
  * Creates normalized column visibility controls that work with React.Key
  */
 const useColumnVisibilityControls = <RecordType>(
-    hookResult: ColumnVisibilityHookResult,
+    hookResult: ColumnVisibilityHookResult<RecordType>,
 ): ColumnVisibilityState<RecordType> => {
     const {
         visibleColumns,

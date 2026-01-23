@@ -6,11 +6,12 @@ import type {
     ColumnVisibilityState,
     ColumnVisibilityMenuRenderer,
     ColumnVisibilityMenuTriggerRenderer,
+    InfiniteTableRowBase,
 } from "../types"
 
 const noop = () => undefined
 
-const defaultColumnVisibilityControls: ColumnVisibilityState<any> = {
+const defaultColumnVisibilityControls: ColumnVisibilityState<InfiniteTableRowBase> = {
     allKeys: [],
     leafKeys: [],
     hiddenKeys: [],
@@ -26,7 +27,7 @@ const defaultColumnVisibilityControls: ColumnVisibilityState<any> = {
     version: 0,
 }
 
-export interface ColumnVisibilityContextValue<RecordType extends object = any> {
+export interface ColumnVisibilityContextValue<RecordType extends object = InfiniteTableRowBase> {
     controls: ColumnVisibilityState<RecordType>
     registerHeader: VisibilityRegistrationHandler | null
     version: number
@@ -48,11 +49,14 @@ const ColumnVisibilityContext = createContext<ColumnVisibilityContextValue>(
     defaultColumnVisibilityContextValue,
 )
 
-export const useColumnVisibilityContext = <RecordType extends object = any>() =>
-    useContext(ColumnVisibilityContext) as ColumnVisibilityContextValue<RecordType>
+export const useColumnVisibilityContext = <
+    RecordType extends object = InfiniteTableRowBase,
+>(): ColumnVisibilityContextValue<RecordType> =>
+    useContext(ColumnVisibilityContext) as unknown as ColumnVisibilityContextValue<RecordType>
 
-export const useColumnVisibilityControls = <RecordType extends object = any>() =>
-    useColumnVisibilityContext<RecordType>().controls
+export const useColumnVisibilityControls = <
+    RecordType extends object = InfiniteTableRowBase,
+>(): ColumnVisibilityState<RecordType> => useColumnVisibilityContext<RecordType>().controls
 
 export {defaultColumnVisibilityControls}
 

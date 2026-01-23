@@ -12,8 +12,8 @@ import {
     COMMAND_PRIORITY_CRITICAL,
 } from "lexical"
 
-import {$createCodeBlockNode, $isCodeBlockNode} from "../nodes/CodeBlockNode"
-import {$isCodeLineNode} from "../nodes/CodeLineNode"
+import {$createCodeBlockNode, $isCodeBlockNode, CodeBlockNode} from "../nodes/CodeBlockNode"
+import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {calculateMultiLineIndentation, getIndentCount} from "../utils/indent"
 import {$insertLinesWithSelectionAndIndent} from "../utils/pasteUtils"
 
@@ -258,8 +258,8 @@ export function AutoFormatAndValidateOnPastePlugin() {
                     lines: properlyIndentedLines,
                     anchorNode,
                     anchorOffset: selection.anchor.offset,
-                    currentLine,
-                    parentBlock,
+                    currentLine: currentLine as CodeLineNode,
+                    parentBlock: parentBlock as CodeBlockNode,
                     skipNormalization: true,
                 })
 

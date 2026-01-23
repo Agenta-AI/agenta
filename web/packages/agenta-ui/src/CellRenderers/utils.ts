@@ -140,7 +140,10 @@ export const extractChatMessages = (value: unknown): unknown[] | null => {
     const choices = (value as Record<string, unknown>).choices
     if (Array.isArray(choices)) {
         const messages = choices
-            .map((choice: any) => choice?.message || choice?.delta)
+            .map((choice: unknown) => {
+                const c = choice as Record<string, unknown> | null
+                return c?.message || c?.delta
+            })
             .filter(Boolean)
         if (messages.length) {
             return messages

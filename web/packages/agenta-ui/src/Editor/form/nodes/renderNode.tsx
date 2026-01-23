@@ -1,20 +1,12 @@
 import {type ReactNode} from "react"
 
 import ArrayNode from "./ArrayNode"
-import {CustomRenderFn} from "./NodeTypes"
 import {BaseNodeProps} from "./NodeTypes"
 import ObjectNode from "./ObjectNode"
 import PrimitiveNode from "./PrimitiveNode"
 
 const renderNode = (props: BaseNodeProps): ReactNode => {
-    const {customRender, path, k, value, onChange, handleRename} = props as any as {
-        customRender?: CustomRenderFn
-        path: (string | number)[]
-        k: string | number
-        value: unknown
-        onChange: (path: (string | number)[], v: unknown) => void
-        handleRename: (p: (string | number)[], nk: string) => void
-    }
+    const {customRender, path, k, value, onChange, handleRename} = props
 
     const buildDefaultNode = (): ReactNode => {
         if (Array.isArray(value)) {

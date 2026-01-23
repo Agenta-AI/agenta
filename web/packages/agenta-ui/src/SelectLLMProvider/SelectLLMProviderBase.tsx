@@ -75,17 +75,18 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             label: group?.label as string | undefined,
             options:
                 (group.options
-                    ?.map((option: any) => {
-                        if (!option) return undefined
-                        if (typeof option === "string") {
+                    ?.map((option: unknown) => {
+                        const opt = option as Record<string, unknown> | string | null
+                        if (!opt) return undefined
+                        if (typeof opt === "string") {
                             return {
-                                label: option,
-                                value: option,
-                                key: option,
+                                label: opt,
+                                value: opt,
+                                key: opt,
                             }
                         }
-                        const optionLabel = option?.label ?? option?.value
-                        const optionValue = option?.value ?? option?.label
+                        const optionLabel = (opt.label ?? opt.value) as string | undefined
+                        const optionValue = (opt.value ?? opt.label) as string | undefined
 
                         if (!optionLabel && !optionValue) return undefined
                         const resolvedLabel = optionLabel || optionValue
@@ -94,8 +95,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                         return {
                             label: resolvedLabel,
                             value: resolvedValue,
-                            key: option?.key ?? resolvedValue,
-                            metadata: option?.metadata,
+                            key: (opt.key as string | undefined) ?? resolvedValue,
+                            metadata: opt.metadata as Record<string, unknown> | undefined,
                         }
                     })
                     .filter(Boolean) as ProviderOption[]) ?? [],
@@ -111,7 +112,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             onSelectValue(value)
         }
         if (props.onChange) {
-            props.onChange(value, {value} as any)
+            props.onChange(value, {value} as unknown as Parameters<
+                NonNullable<typeof props.onChange>
+            >[1])
         }
         setSearchTerm("")
         setHoveredProvider(null)
@@ -124,7 +127,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
         return value < 0.01 ? value.toFixed(4) : value.toFixed(2)
     }
 
-    const renderTooltipContent = (metadata: Record<string, any>) => (
+    const renderTooltipContent = (metadata: Record<string, unknown>) => (
         <div className="flex flex-col gap-0.5">
             {(metadata.input !== undefined || metadata.output !== undefined) && (
                 <>
@@ -133,7 +136,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                             Input:
                         </Typography.Text>
                         <Typography.Text className="text-[10px] text-nowrap">
-                            ${formatCost(metadata.input)} / 1M
+                            ${formatCost(metadata.input as number)} / 1M
                         </Typography.Text>
                     </div>
                     <div className="flex justify-between gap-4">
@@ -141,7 +144,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                             Output:{" "}
                         </Typography.Text>
                         <Typography.Text className="text-[10px] text-nowrap">
-                            ${formatCost(metadata.output)} / 1M
+                            ${formatCost(metadata.output as number)} / 1M
                         </Typography.Text>
                     </div>
                 </>

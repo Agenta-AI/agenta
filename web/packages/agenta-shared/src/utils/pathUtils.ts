@@ -230,7 +230,7 @@ export function hasValueAtPath(data: unknown, path: DataPath): boolean {
         }
     }
 
-    if (typeof value !== "object") {
+    if (value === null || typeof value !== "object") {
         return false
     }
 

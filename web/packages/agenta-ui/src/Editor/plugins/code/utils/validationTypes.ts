@@ -40,7 +40,7 @@ export interface SchemaError extends BaseValidationError {
     type: "required_property" | "additional_property" | "type_mismatch" | "enum_violation"
     schemaPath?: string
     instancePath?: string
-    params?: Record<string, any>
+    params?: Record<string, unknown>
 }
 
 export type ValidationError = StructuralError | SyntaxError | SchemaError

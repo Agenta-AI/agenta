@@ -36,7 +36,10 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
             const currentRoot = structuredClone(
                 form.getFieldsValue(true) as Record<string, unknown>,
             )
-            const arrTarget = path.reduce((acc: any, key) => acc[key], currentRoot) as unknown[]
+            const arrTarget = path.reduce<unknown>(
+                (acc, key) => (acc as Record<string, unknown>)[key],
+                currentRoot,
+            ) as unknown[]
             if (!Array.isArray(arrTarget)) return
 
             arrTarget.splice(idx, 1)
@@ -51,7 +54,10 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
             const currentRoot = structuredClone(
                 form.getFieldsValue(true) as Record<string, unknown>,
             )
-            const arrTarget = path.reduce((acc: any, key) => acc[key], currentRoot) as unknown[]
+            const arrTarget = path.reduce<unknown>(
+                (acc, key) => (acc as Record<string, unknown>)[key],
+                currentRoot,
+            ) as unknown[]
             if (!Array.isArray(arrTarget)) return
             const newItem = type === "object" ? {} : type === "array" ? [] : ""
             arrTarget.splice(index, 0, newItem)

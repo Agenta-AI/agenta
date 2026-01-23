@@ -87,7 +87,7 @@ export function EntityNameWithVersion({
     const content = (
         <>
             <span
-                className={cn("truncate", maxNameWidth && "flex-1 min-w-0")}
+                className={cn("truncate", maxNameWidth ? "flex-1 min-w-0" : undefined)}
                 style={maxNameWidth ? {maxWidth: maxNameWidth} : undefined}
                 title={name}
             >
@@ -111,7 +111,7 @@ export function EntityNameWithVersion({
                     flexLayouts.inlineCenter,
                     "gap-1",
                     sizeClasses[size],
-                    maxNameWidth && "w-full",
+                    maxNameWidth ? "w-full" : undefined,
                     className,
                 )}
             >

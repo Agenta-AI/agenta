@@ -256,7 +256,7 @@ export default function DiffHighlightPlugin({
                             }
 
                             // Parse content based on language
-                            let originalData: any, modifiedData: any
+                            let originalData: unknown, modifiedData: unknown
 
                             if (payload.language === "yaml") {
                                 originalData = yaml.load(payload.originalContent!)

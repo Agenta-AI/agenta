@@ -1,6 +1,7 @@
-import {$createRangeSelection, $setSelection} from "lexical"
+import {$copyNode, $createRangeSelection, $setSelection, LexicalNode} from "lexical"
 
 import {$createBase64Node, isBase64String, parseBase64String} from "../nodes/Base64Node"
+import {CodeBlockNode} from "../nodes/CodeBlockNode"
 import {$createCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$createCodeTabNode} from "../nodes/CodeTabNode"
@@ -23,10 +24,10 @@ export function $insertLinesWithSelectionAndIndent({
     skipNormalization = false,
 }: {
     lines: string[]
-    anchorNode: any
+    anchorNode: LexicalNode | null
     anchorOffset: number
-    currentLine: any
-    parentBlock: any
+    currentLine: CodeLineNode | null
+    parentBlock: CodeBlockNode | null
     skipNormalization?: boolean
 }) {
     // 1. Find selection context and extract state
@@ -35,7 +36,7 @@ export function $insertLinesWithSelectionAndIndent({
         return
     }
     const allLines = parentBlock.getChildren() as CodeLineNode[]
-    const lineIdx = allLines.findIndex((n: any) => n.getKey && n.getKey() === currentLine.getKey())
+    const lineIdx = allLines.findIndex((n) => n.getKey() === currentLine.getKey())
     if (lineIdx === -1) {
         console.error("[pasteUtils] Could not find currentLine in parentBlock children")
         return
@@ -45,8 +46,8 @@ export function $insertLinesWithSelectionAndIndent({
     const linesAfter = allLines.slice(lineIdx + 1)
     // Split currentLine nodes
     const children = currentLine.getChildren()
-    const beforeInLine: any[] = []
-    const afterInLine: any[] = []
+    const beforeInLine: LexicalNode[] = []
+    const afterInLine: LexicalNode[] = []
     let found = false
     let _cursorCount = 0
 
@@ -67,9 +68,9 @@ export function $insertLinesWithSelectionAndIndent({
 
     // Find anchorNode in currentLine children, split at anchorOffset
     for (const node of children) {
-        if (!found && node.getKey && anchorNode && node.getKey() === anchorNode.getKey()) {
+        if (!found && anchorNode && node.getKey() === anchorNode.getKey()) {
             const text = node.getTextContent()
-            beforeInLine.push((node.clone && node.clone()) || node)
+            beforeInLine.push($copyNode(node))
             if (
                 typeof anchorOffset === "number" &&
                 anchorOffset > 0 &&
@@ -86,14 +87,7 @@ export function $insertLinesWithSelectionAndIndent({
                         null,
                     )
                 if (afterText) {
-                    if (node && typeof node.clone === "function") {
-                        afterInLine.push(node.clone())
-                    } else if (node) {
-                        afterInLine.push(node)
-                        console.warn("[pasteUtils] Node without .clone() in afterInLine", node)
-                    } else {
-                        console.warn("[pasteUtils] Skipping undefined/null node in afterInLine")
-                    }
+                    afterInLine.push($copyNode(node))
                     afterInLine[afterInLine.length - 1] = $createCodeHighlightNode(
                         afterText,
                         "plain",
@@ -103,44 +97,23 @@ export function $insertLinesWithSelectionAndIndent({
                 }
             } else if (anchorOffset === 0) {
                 // All goes to afterInLine
-                if (node && typeof node.clone === "function") {
-                    afterInLine.push(node.clone())
-                } else if (node) {
-                    afterInLine.push(node)
-                    console.warn("[pasteUtils] Node without .clone() in afterInLine", node)
-                } else {
-                    console.warn("[pasteUtils] Skipping undefined/null node in afterInLine")
-                }
+                afterInLine.push($copyNode(node))
                 beforeInLine.pop()
             }
             found = true
             _cursorCount++
         } else if (!found) {
-            if (node && typeof node.clone === "function") {
-                beforeInLine.push(node.clone())
-            } else if (node) {
-                beforeInLine.push(node)
-                console.warn("[pasteUtils] Node without .clone() in beforeInLine", node)
-            } else {
-                console.warn("[pasteUtils] Skipping undefined/null node in beforeInLine")
-            }
+            beforeInLine.push($copyNode(node))
         } else {
-            if (node && typeof node.clone === "function") {
-                afterInLine.push(node.clone())
-            } else if (node) {
-                afterInLine.push(node)
-                console.warn("[pasteUtils] Node without .clone() in afterInLine", node)
-            } else {
-                console.warn("[pasteUtils] Skipping undefined/null node in afterInLine")
-            }
+            afterInLine.push($copyNode(node))
         }
     }
 
     // Clone trailing lines before removal
-    const clonedTrailingLines = linesAfter.map((l) => (l.clone && l.clone()) || l)
-    linesAfter.forEach((l) => l.remove && l.remove())
+    const clonedTrailingLines = linesAfter.map((l) => $copyNode(l))
+    linesAfter.forEach((l) => l.remove())
     // Remove current line
-    currentLine.remove && currentLine.remove()
+    currentLine.remove()
     // Insert new lines
     let insertIdx = lineIdx
     // First line: nodesBeforeSelection + first pasted line
@@ -184,13 +157,21 @@ export function $insertLinesWithSelectionAndIndent({
         const lineNode = $createCodeLineNode()
         beforeInLine.forEach((n) => lineNode.append(n))
         afterInLine.forEach((n) => lineNode.append(n))
-        parentBlock.insertBefore(lineNode, parentBlock.getChildAtIndex(insertIdx))
+        const childAtIdx = parentBlock.getChildAtIndex(insertIdx)
+        if (childAtIdx) {
+            childAtIdx.insertBefore(lineNode)
+        } else {
+            parentBlock.append(lineNode)
+        }
         insertIdx++
     }
 
     // Add trailing lines (use clones)
     clonedTrailingLines.forEach((l, i) => {
-        parentBlock.getChildAtIndex(insertIdx - 1 + i).insertAfter(l)
+        const prevChild = parentBlock.getChildAtIndex(insertIdx - 1 + i)
+        if (prevChild) {
+            prevChild.insertAfter(l)
+        }
     })
 
     // --- Selection restore: put cursor at the end of the pasted block ---
@@ -202,10 +183,10 @@ export function $insertLinesWithSelectionAndIndent({
     const childrenOfLast = lastInsertedLine.getChildren()
 
     // Find the last non-empty text-like child (so we don't land on an empty indent node)
-    let targetNode: any = null
+    let targetNode: LexicalNode | null = null
     for (let i = childrenOfLast.length - 1; i >= 0; i--) {
-        const child = childrenOfLast[i] as any
-        if (typeof child.getTextContentSize === "function" && child.getTextContentSize() > 0) {
+        const child = childrenOfLast[i]
+        if (child.getTextContentSize() > 0) {
             targetNode = child
             break
         }
@@ -213,9 +194,7 @@ export function $insertLinesWithSelectionAndIndent({
 
     if (!targetNode) {
         // Fallback: select end of the line
-        if (typeof (lastInsertedLine as any).selectEnd === "function") {
-            ;(lastInsertedLine as any).selectEnd()
-        }
+        lastInsertedLine.selectEnd()
         return
     }
 

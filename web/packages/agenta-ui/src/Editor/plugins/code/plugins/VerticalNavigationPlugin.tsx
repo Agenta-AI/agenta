@@ -23,10 +23,13 @@ import {
     KEY_DOWN_COMMAND,
     LexicalEditor,
     LexicalCommand,
+    RangeSelection,
+    LexicalNode,
+    ElementNode,
 } from "lexical"
 
 import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
-import {$isCodeLineNode} from "../nodes/CodeLineNode"
+import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$fixCodeBlockIndentation} from "../utils/indentationUtils"
 import {getNodeAtOffset} from "../utils/navigation"
 
@@ -78,7 +81,7 @@ function $handleShiftLines(
     // Helper to get all selected CodeLineNodes (collapsed or not)
     let anchorIdx = -1
     let focusIdx = -1
-    function getSelectedCodeLineNodes(selection: any) {
+    function getSelectedCodeLineNodes(selection: RangeSelection) {
         const anchorNode = selection.anchor.getNode()
         const focusNode = selection.focus.getNode()
         const anchorLine = anchorNode.getParents().find($isCodeLineNode)
@@ -105,12 +108,12 @@ function $handleShiftLines(
     const parent = selectedLines[0].getParent()
 
     // Helper to log indentation state for debugging
-    function logIndentationState(label: string, block: any) {
+    function logIndentationState(label: string, block: ElementNode | null) {
         if (!block) return
         const lines = block.getChildren().filter($isCodeLineNode)
         log(
             label,
-            lines.map((l: any, idx: number) => ({
+            lines.map((l, idx: number) => ({
                 line: idx,
                 text: l.getTextContent(),
                 indent: (l.getTextContent().match(/^(\s*)/)?.[1] || "")
@@ -177,12 +180,12 @@ function $handleShiftLines(
     // Try to restore anchor/focus to same child node key and offset if possible
     const newSelection = $createRangeSelection()
     // Find anchor/focus node in new line (by key if possible)
-    function findNodeInLine(line: any, origKey: string, origOffset: number) {
-        const children = line.getChildren()
-        let node = children.find((n: any) => n.getKey && n.getKey() === origKey)
+    function findNodeInLine(line: LexicalNode, origKey: string, origOffset: number) {
+        const children = (line as ElementNode).getChildren()
+        let node: LexicalNode | undefined = children.find((n) => n.getKey() === origKey)
         if (!node) node = children[0]
         let offset = origOffset
-        if (offset > node.getTextContentSize()) offset = node.getTextContentSize()
+        if (node && offset > node.getTextContentSize()) offset = node.getTextContentSize()
         return {node, offset}
     }
     const anchorInfo = findNodeInLine(newAnchorLine, anchorNode.getKey(), anchorOffset)
@@ -273,12 +276,15 @@ export function VerticalNavigationPlugin() {
                 const currentLine = anchorNode.getParents().find($isCodeLineNode)
                 if (!currentLine) return false
 
-                const getUnfoldedLine = (line: any, direction: "up" | "down") => {
+                const getUnfoldedLine = (
+                    line: LexicalNode | null,
+                    direction: "up" | "down",
+                ): CodeLineNode | null => {
                     if (!line) return null
                     const target =
                         direction === "up" ? line.getPreviousSibling() : line.getNextSibling()
 
-                    if (target && !target.isHidden()) return target
+                    if (target && $isCodeLineNode(target) && !target.isHidden()) return target
                     return getUnfoldedLine(target, direction)
                 }
 
@@ -405,7 +411,7 @@ export function VerticalNavigationPlugin() {
 
                 // Resolve node + inner offset via helper (O(children) worst-case but no manual loop here)
                 const {node: targetNode, innerOffset: offsetInTargetNode} = getNodeAtOffset(
-                    targetLine as any,
+                    targetLine,
                     targetOffset,
                 )
 
