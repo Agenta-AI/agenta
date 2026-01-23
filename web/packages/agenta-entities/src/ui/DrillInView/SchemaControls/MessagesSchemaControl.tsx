@@ -50,7 +50,7 @@ export function isMessagesSchema(schema: SchemaProperty | null | undefined): boo
     if (!schema) return false
 
     // Check for x-parameter: "messages"
-    const xParam = (schema as any)?.["x-parameter"]
+    const xParam = schema["x-parameter"] as string | undefined
     if (xParam === "messages") return true
 
     // Check for array with message-like items

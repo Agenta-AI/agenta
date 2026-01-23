@@ -8,6 +8,38 @@ import type {TraceSpan, TraceSpanNode} from "../core"
  */
 
 // ============================================================================
+// TYPE GUARDS
+// ============================================================================
+
+/** Type guard for traversable objects (non-null, non-array objects) */
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Safely access ag.data from span attributes
+ * Handles both "ag.data" and "ag.data" nested formats
+ */
+function getAgDataFromAttributes(
+    attributes: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null {
+    if (!attributes) return null
+
+    // Try "ag.data" direct key first
+    const direct = attributes["ag.data"]
+    if (isRecord(direct)) return direct
+
+    // Try nested "ag" -> "data" path
+    const ag = attributes["ag"]
+    if (isRecord(ag)) {
+        const data = ag["data"]
+        if (isRecord(data)) return data
+    }
+
+    return null
+}
+
+// ============================================================================
 // PATH EXTRACTION UTILITIES
 // ============================================================================
 
@@ -31,14 +63,17 @@ const splitPath = (path: string): string[] =>
  * Get a value from an object using dot-notation path
  * Handles nested objects, escaped dots in keys, and stringified JSON values
  */
-export const getValueAtPath = (obj: any, rawPath: string): any => {
+export const getValueAtPath = (obj: unknown, rawPath: string): unknown => {
     if (obj == null || !rawPath) return undefined
+
+    // Must be an object to traverse
+    if (!isRecord(obj)) return undefined
 
     // Quick direct hit (entire path is a literal key on the current object)
     if (Object.prototype.hasOwnProperty.call(obj, rawPath)) return obj[rawPath]
 
     const parts = splitPath(rawPath)
-    let cur: any = obj
+    let cur: unknown = obj
 
     for (let i = 0; i < parts.length; i++) {
         if (cur == null) return undefined
@@ -47,12 +82,15 @@ export const getValueAtPath = (obj: any, rawPath: string): any => {
         // This handles cases where data is stringified (e.g., outputs: '{"Response": "value"}')
         if (typeof cur === "string") {
             try {
-                cur = JSON.parse(cur)
+                cur = JSON.parse(cur) as unknown
             } catch {
                 // Not valid JSON, can't navigate further into a string
                 return undefined
             }
         }
+
+        // Must be a record to continue traversal
+        if (!isRecord(cur)) return undefined
 
         const key = parts[i]
 
@@ -79,9 +117,13 @@ export const getValueAtPath = (obj: any, rawPath: string): any => {
  * Only returns leaf paths (primitives/arrays) by default
  * Set includeObjectPaths=true to also include intermediate object paths
  */
-export const collectKeyPaths = (obj: any, prefix = "", includeObjectPaths = false): string[] => {
+export const collectKeyPaths = (
+    obj: unknown,
+    prefix = "",
+    includeObjectPaths = false,
+): string[] => {
     const paths: string[] = []
-    if (!obj || typeof obj !== "object") return paths
+    if (!isRecord(obj)) return paths
 
     for (const [key, value] of Object.entries(obj)) {
         const fullPath = prefix ? `${prefix}.${key}` : key
@@ -137,40 +179,44 @@ export const getColumnNameFromPath = (path: string): string => {
 /**
  * Extract input data from a span's attributes
  */
-export const extractInputs = (span: TraceSpan | TraceSpanNode | null): Record<string, any> => {
+export const extractInputs = (span: TraceSpan | TraceSpanNode | null): Record<string, unknown> => {
     if (!span?.attributes) return {}
 
-    const agData = (span.attributes as any)?.["ag.data"] || (span.attributes as any)?.ag?.data
-    return agData?.inputs || {}
+    const agData = getAgDataFromAttributes(span.attributes)
+    const inputs = agData?.inputs
+    return isRecord(inputs) ? inputs : {}
 }
 
 /**
  * Extract output data from a span's attributes
  */
-export const extractOutputs = (span: TraceSpan | TraceSpanNode | null): any => {
+export const extractOutputs = (span: TraceSpan | TraceSpanNode | null): unknown => {
     if (!span?.attributes) return undefined
 
-    const agData = (span.attributes as any)?.["ag.data"] || (span.attributes as any)?.ag?.data
+    const agData = getAgDataFromAttributes(span.attributes)
     return agData?.outputs
 }
 
 /**
  * Extract internals data from a span's attributes
  */
-export const extractInternals = (span: TraceSpan | TraceSpanNode | null): Record<string, any> => {
+export const extractInternals = (
+    span: TraceSpan | TraceSpanNode | null,
+): Record<string, unknown> => {
     if (!span?.attributes) return {}
 
-    const agData = (span.attributes as any)?.["ag.data"] || (span.attributes as any)?.ag?.data
-    return agData?.internals || {}
+    const agData = getAgDataFromAttributes(span.attributes)
+    const internals = agData?.internals
+    return isRecord(internals) ? internals : {}
 }
 
 /**
  * Extract all ag.data from a span's attributes
  */
-export const extractAgData = (span: TraceSpan | TraceSpanNode | null): Record<string, any> => {
+export const extractAgData = (span: TraceSpan | TraceSpanNode | null): Record<string, unknown> => {
     if (!span?.attributes) return {}
 
-    return (span.attributes as any)?.["ag.data"] || (span.attributes as any)?.ag?.data || {}
+    return getAgDataFromAttributes(span.attributes) || {}
 }
 
 /**
@@ -180,7 +226,7 @@ export const extractAgData = (span: TraceSpan | TraceSpanNode | null): Record<st
 export const spanToTraceData = (
     span: TraceSpan | TraceSpanNode,
     index: number,
-): {key: string; data: Record<string, any>; id: number} => {
+): {key: string; data: Record<string, unknown>; id: number} => {
     const agData = extractAgData(span)
 
     return {
@@ -198,18 +244,18 @@ export const spanToTraceData = (
  * Accepts any span-like object with attributes property
  */
 export const extractTestsetData = (
-    span: {attributes?: any} | null | undefined,
-): Record<string, any> | null => {
+    span: {attributes?: Record<string, unknown> | null} | null | undefined,
+): Record<string, unknown> | null => {
     if (!span) return null
 
     // Extract ag.data from attributes (handles both formats)
-    const agData =
-        (span.attributes as any)?.["ag.data"] || (span.attributes as any)?.ag?.data || null
+    const agData = getAgDataFromAttributes(span.attributes)
 
     if (!agData) return null
 
+    const inputs = agData.inputs
     return {
-        inputs: agData.inputs || {},
+        inputs: isRecord(inputs) ? inputs : {},
         outputs: agData.outputs,
     }
 }

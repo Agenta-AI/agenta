@@ -425,6 +425,8 @@ interface CreateTestcasesOptions {
     skipColumnSync?: boolean
     /** Testset ID to associate with */
     testsetId?: string
+    /** ID prefix for local entities (default: "new-") */
+    prefix?: string
 }
 
 /**

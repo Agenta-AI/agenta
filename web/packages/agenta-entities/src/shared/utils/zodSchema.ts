@@ -156,6 +156,7 @@ export function createEntitySchemaSet<TBase extends z.ZodRawShape>(
     const createSchema = base.omit(omitKeys).partial()
 
     // Update schema - partial with required ID
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod type composition requires assertion
     const updateSchema = base.partial().required({id: true} as any)
 
     // Local schema - has defaults and generates ID
@@ -166,6 +167,8 @@ export function createEntitySchemaSet<TBase extends z.ZodRawShape>(
     // Apply defaults to local schema
     const localWithDefaults = applyDefaults(localSchema, localDefaults)
 
+    // Zod schema composition requires type assertions for complex transformations
+    /* eslint-disable @typescript-eslint/no-explicit-any */
     return {
         base,
         create: createSchema as any,
@@ -173,6 +176,7 @@ export function createEntitySchemaSet<TBase extends z.ZodRawShape>(
         local: localWithDefaults as any,
         types: {} as any, // Types are inferred, this is just for documentation
     }
+    /* eslint-enable @typescript-eslint/no-explicit-any */
 }
 
 // ============================================================================
@@ -211,7 +215,10 @@ export function createLocalEntityFactory<T>(schema: z.ZodType<T>): LocalEntityFa
         // Log in development
         if (process.env.NODE_ENV !== "production") {
             if (result.success) {
-                console.log("[LocalEntityFactory] Created entity:", (result.data as any)?.id)
+                console.log(
+                    "[LocalEntityFactory] Created entity:",
+                    (result.data as {id?: string})?.id,
+                )
             } else {
                 console.error("[LocalEntityFactory] Validation failed:", result.errors)
             }
@@ -300,9 +307,12 @@ export function safeParseWithErrors<T>(schema: z.ZodType<T>, data: unknown): Saf
 
     // Flatten errors for easy consumption
     const flattened = result.error.flatten()
-    const errors: Record<string, string[]> = {
-        ...flattened.fieldErrors,
-    }
+    // Filter out undefined values from fieldErrors
+    const errors: Record<string, string[]> = Object.fromEntries(
+        Object.entries(flattened.fieldErrors).filter(
+            (entry): entry is [string, string[]] => entry[1] !== undefined,
+        ),
+    )
 
     // Add form-level errors under '_root'
     if (flattened.formErrors.length > 0) {
@@ -421,6 +431,7 @@ export function createPaginatedResponseSchema<T extends z.ZodTypeAny>(
     entityKey: string,
 ): z.ZodObject<{
     count: z.ZodNumber
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod windowing object is dynamic
     windowing: z.ZodOptional<z.ZodNullable<z.ZodObject<any>>>
 }> {
     return z.object({
@@ -436,6 +447,7 @@ export function createPaginatedResponseSchema<T extends z.ZodTypeAny>(
             .passthrough()
             .nullable()
             .optional(),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod type composition
     }) as any
 }
 
@@ -459,6 +471,7 @@ export function createBatchOperationSchema<T extends z.ZodTypeAny>(
     return z.object({
         items: z.array(itemSchema),
         operation: z.literal(operation).optional(),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod type composition
     }) as any
 }
 
@@ -517,19 +530,19 @@ export const jsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
 /**
  * Extract the inferred type from a schema set's base schema
  */
-export type InferBase<T extends EntitySchemaSet<any>> = T["types"]["Base"]
+export type InferBase<T extends EntitySchemaSet<z.ZodRawShape>> = T["types"]["Base"]
 
 /**
  * Extract the create input type from a schema set
  */
-export type InferCreate<T extends EntitySchemaSet<any>> = T["types"]["Create"]
+export type InferCreate<T extends EntitySchemaSet<z.ZodRawShape>> = T["types"]["Create"]
 
 /**
  * Extract the update input type from a schema set
  */
-export type InferUpdate<T extends EntitySchemaSet<any>> = T["types"]["Update"]
+export type InferUpdate<T extends EntitySchemaSet<z.ZodRawShape>> = T["types"]["Update"]
 
 /**
  * Extract the local entity type from a schema set
  */
-export type InferLocal<T extends EntitySchemaSet<any>> = T["types"]["Local"]
+export type InferLocal<T extends EntitySchemaSet<z.ZodRawShape>> = T["types"]["Local"]

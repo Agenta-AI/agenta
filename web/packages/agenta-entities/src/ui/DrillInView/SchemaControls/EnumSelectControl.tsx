@@ -104,7 +104,7 @@ export const EnumSelectControl = memo(function EnumSelectControl({
     }, [overrideOptions, schema])
 
     // Get description from schema or prop
-    const tooltipText = description ?? (schema as any)?.description ?? ""
+    const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
     // Dropdown variant (compact button) - use SimpleDropdownSelect from @agenta/ui
     if (variant === "dropdown") {

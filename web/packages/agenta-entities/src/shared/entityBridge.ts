@@ -76,7 +76,7 @@ export interface BaseMoleculeSelectors {
  */
 export interface BaseMolecule {
     selectors: BaseMoleculeSelectors
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types for action registries
     actions?: Record<string, WritableAtom<any, any[], any>>
 }
 
@@ -278,6 +278,7 @@ export interface RunnableTypeConfig<T = unknown> {
     /** Additional selectors specific to this runnable type */
     extraSelectors?: Record<string, (id: string) => Atom<unknown>>
     /** Additional actions specific to this runnable type */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types
     extraActions?: Record<string, WritableAtom<any, any[], any>>
 }
 
@@ -320,7 +321,7 @@ export interface RunnableBridge {
         runnableType: T,
     ) => {
         selectors: RunnableBridgeSelectors & Record<string, (id: string) => Atom<unknown>>
-
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types
         actions?: Record<string, WritableAtom<any, any[], any>>
     }
 }

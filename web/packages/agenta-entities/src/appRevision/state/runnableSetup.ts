@@ -141,9 +141,12 @@ export const inputsSchemaAtomFamily = atomFamily(
             if (!schemaState?.endpoints) return null
 
             const endpointKey = params.endpoint || "/test"
-            const endpoint = schemaState.endpoints[endpointKey] as
-                | {inputsSchema?: EntitySchema}
-                | undefined
+            // Use Record type to allow dynamic key access
+            const endpoints = schemaState.endpoints as Record<
+                string,
+                {inputsSchema?: EntitySchema} | null | undefined
+            >
+            const endpoint = endpoints[endpointKey]
 
             return endpoint?.inputsSchema || null
         }),
@@ -161,9 +164,12 @@ export const messagesSchemaAtomFamily = atomFamily(
             if (!schemaState?.endpoints) return null
 
             const endpointKey = params.endpoint || "/test"
-            const endpoint = schemaState.endpoints[endpointKey] as
-                | {messagesSchema?: EntitySchema}
-                | undefined
+            // Use Record type to allow dynamic key access
+            const endpoints = schemaState.endpoints as Record<
+                string,
+                {messagesSchema?: EntitySchema} | null | undefined
+            >
+            const endpoint = endpoints[endpointKey]
             return endpoint?.messagesSchema || null
         }),
     (a, b) => a.id === b.id && a.endpoint === b.endpoint,

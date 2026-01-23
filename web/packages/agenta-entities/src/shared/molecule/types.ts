@@ -31,7 +31,8 @@ export interface StoreOptions {
  * Query state from TanStack Query via jotai-tanstack-query
  */
 export interface QueryState<T> {
-    data: T | undefined
+    /** Server data from the query (undefined while loading, null if explicitly null) */
+    data: T | null | undefined
     isPending: boolean
     isError: boolean
     error: Error | null
@@ -357,6 +358,7 @@ export interface LifecycleConfig {
  */
 
 export interface FlexibleWritableAtomFamily<T, P = string> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms have specific args types that can't be unified with unknown[]
     (param: P): WritableAtom<T, any[], void>
     /** Remove atom for a specific parameter */
     remove: (param: P) => void
@@ -643,7 +645,7 @@ export interface MoleculeRelation<TParent, TChild> {
     childDataPath?: string | ((parent: TParent) => TChild[] | undefined)
 
     /** The child molecule */
-    childMolecule: Molecule<TChild, any> | LocalMolecule<TChild>
+    childMolecule: Molecule<TChild, unknown> | LocalMolecule<TChild>
 
     /**
      * How to handle embedded data:
@@ -659,7 +661,7 @@ export interface MoleculeRelation<TParent, TChild> {
 export interface MoleculeWithRelations<
     T,
     TDraft,
-    TRelations extends Record<string, MoleculeRelation<T, any>>,
+    TRelations extends Record<string, MoleculeRelation<T, unknown>>,
 > extends Molecule<T, TDraft> {
     /** Relation configurations */
     relations: TRelations
@@ -743,13 +745,15 @@ export function getEntityId<T>(entity: AnyEntity<T>): string {
  * Used for flexible extension atoms like cell accessor with {id, column} param
  */
 
-export type AnyAtomFamily = (param: any) => Atom<any>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Function params are contravariant, unknown can't be assigned from specific types
+export type AnyAtomFamily = (param: any) => Atom<unknown>
 
 /**
  * Any writable atom - supports any args and return type
  * Used for reducers that return values (not just void)
+ * Note: Uses `any` for all type params due to Jotai type system requirements
  */
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyWritableAtom = WritableAtom<any, any[], any>
 
 /**
@@ -760,7 +764,10 @@ export type AnyWritableAtom = WritableAtom<any, any[], any>
  * - Plain Atom<T> (non-parameterized)
  */
 
-export type ExtendedAtoms<T = unknown> = Record<string, AtomFamily<T> | AnyAtomFamily | Atom<any>>
+export type ExtendedAtoms<T = unknown> = Record<
+    string,
+    AtomFamily<T, string> | AnyAtomFamily | Atom<unknown>
+>
 
 /**
  * Additional reducers to add via extendMolecule
@@ -775,14 +782,16 @@ export type ExtendedReducers = Record<string, AnyWritableAtom>
  * Supports any function signature, not just (id, options) => unknown
  */
 
-export type ExtendedGetters = Record<string, (...args: any[]) => any>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Function params are contravariant, needs any for flexible signatures
+export type ExtendedGetters = Record<string, (...args: any[]) => unknown>
 
 /**
  * Additional setters to add via extendMolecule
  * Supports any function signature with any return type
  */
 
-export type ExtendedSetters = Record<string, (...args: any[]) => any>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Function params are contravariant, needs any for flexible signatures
+export type ExtendedSetters = Record<string, (...args: any[]) => unknown>
 
 /**
  * Configuration for extendMolecule

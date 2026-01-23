@@ -463,7 +463,7 @@ export const updatePromptAtom = atom(
         if (!entity) return
 
         const updated = produce(entity, (draft) => {
-            if (draft.prompts[promptIndex]) {
+            if (draft.prompts?.[promptIndex]) {
                 Object.assign(draft.prompts[promptIndex], changes)
             }
         })
@@ -489,7 +489,7 @@ export const updateMessageAtom = atom(
         if (!entity) return
 
         const updated = produce(entity, (draft) => {
-            const prompt = draft.prompts[promptIndex]
+            const prompt = draft.prompts?.[promptIndex]
             if (prompt?.messages[messageIndex]) {
                 Object.assign(prompt.messages[messageIndex], changes)
             }
@@ -509,7 +509,7 @@ export const addMessageAtom = atom(
         if (!entity) return
 
         const updated = produce(entity, (draft) => {
-            const prompt = draft.prompts[promptIndex]
+            const prompt = draft.prompts?.[promptIndex]
             if (prompt) {
                 prompt.messages.push(message)
             }
@@ -529,7 +529,7 @@ export const deleteMessageAtom = atom(
         if (!entity) return
 
         const updated = produce(entity, (draft) => {
-            const prompt = draft.prompts[promptIndex]
+            const prompt = draft.prompts?.[promptIndex]
             if (prompt) {
                 prompt.messages.splice(messageIndex, 1)
             }
@@ -549,7 +549,7 @@ export const reorderMessagesAtom = atom(
         if (!entity) return
 
         const updated = produce(entity, (draft) => {
-            const prompt = draft.prompts[promptIndex]
+            const prompt = draft.prompts?.[promptIndex]
             if (prompt) {
                 const [removed] = prompt.messages.splice(fromIndex, 1)
                 prompt.messages.splice(toIndex, 0, removed)

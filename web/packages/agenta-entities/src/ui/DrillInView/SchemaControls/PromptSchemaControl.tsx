@@ -120,7 +120,7 @@ export function isPromptSchema(schema: SchemaProperty | null | undefined): boole
     if (!schema) return false
 
     // Check for x-parameter: "prompt"
-    const xParam = (schema as any)?.["x-parameter"]
+    const xParam = schema["x-parameter"] as string | undefined
     if (xParam === "prompt") return true
 
     // Check for object with messages property

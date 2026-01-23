@@ -190,10 +190,10 @@ export function EntityCommitContent() {
                     </div>
                     <div className="flex-1 overflow-auto">
                         <DiffView
-                            key={`${context.diffData.original.length}-${context.diffData.modified.length}`}
-                            original={context.diffData.original}
-                            modified={context.diffData.modified}
-                            language={context.diffData.language === "yaml" ? "yaml" : "json"}
+                            key={`${context.diffData?.original.length}-${context.diffData?.modified.length}`}
+                            original={context.diffData?.original ?? ""}
+                            modified={context.diffData?.modified ?? ""}
+                            language={context.diffData?.language === "yaml" ? "yaml" : "json"}
                             className="h-full"
                             showErrors
                             enableFolding
