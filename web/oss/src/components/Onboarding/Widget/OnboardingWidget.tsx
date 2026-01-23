@@ -229,6 +229,13 @@ const OnboardingWidget = () => {
                     console.error("Failed to navigate to testsets", error)
                 }
                 return
+            } else if (item.activationHint === "create-evaluator" && projectURL) {
+                try {
+                    await router.push(`${projectURL}/evaluators`)
+                } catch (error) {
+                    console.error("Failed to navigate to evaluators", error)
+                }
+                return
             } else if (item.activationHint === "run-first-evaluation") {
                 goToPlayground()
             } else if (item.href) {
