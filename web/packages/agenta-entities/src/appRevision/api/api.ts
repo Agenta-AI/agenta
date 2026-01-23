@@ -29,6 +29,9 @@ export interface ApiRevision {
 
 /**
  * Enhanced variant structure (from variant revisions cache)
+ *
+ * This interface represents the cached variant data that may include
+ * WorkflowRevisionData fields from the backend.
  */
 export interface EnhancedVariantLike {
     id: string
@@ -38,6 +41,7 @@ export interface EnhancedVariantLike {
     prompts?: unknown[]
     parameters?: Record<string, unknown>
     uri?: string
+    url?: string
     uriObject?: {
         routePath?: string
         runtimePrefix?: string
@@ -46,6 +50,14 @@ export interface EnhancedVariantLike {
     created_at?: string
     updatedAt?: string
     updated_at?: string
+    // WorkflowServiceConfiguration fields
+    headers?: Record<string, unknown>
+    schemas?: Record<string, unknown>
+    script?: Record<string, unknown>
+    runtime?: string | null
+    // Legacy fields
+    service?: Record<string, unknown>
+    configuration?: Record<string, unknown>
 }
 
 /**
@@ -127,10 +139,29 @@ export function transformEnhancedVariant(enhanced: EnhancedVariantLike): AppRevi
         parameters: params,
         createdAt: enhanced.createdAt || enhanced.created_at,
         updatedAt: enhanced.updatedAt || enhanced.updated_at,
-        // URI/Runtime info
+        // WorkflowServiceConfiguration fields
         uri,
+        url: enhanced.url,
         runtimePrefix,
         routePath,
+        headers: enhanced.headers as
+            | Record<string, string | {id?: string; slug?: string; version?: number}>
+            | undefined,
+        schemas: enhanced.schemas
+            ? {
+                  inputs: (enhanced.schemas as Record<string, unknown>).inputs as
+                      | Record<string, unknown>
+                      | undefined,
+                  outputs: (enhanced.schemas as Record<string, unknown>).outputs as
+                      | Record<string, unknown>
+                      | undefined,
+              }
+            : undefined,
+        script: enhanced.script,
+        runtime: enhanced.runtime,
+        // Legacy fields
+        service: enhanced.service,
+        configuration: enhanced.configuration,
     }
 }
 
@@ -541,6 +572,19 @@ export async function fetchAppsList(projectId: string): Promise<AppListItem[]> {
 
 /**
  * Raw API response from /variants/configs/fetch
+ *
+ * Maps to backend WorkflowRevisionData structure:
+ * - params: Configuration parameters (ag_config)
+ * - variant_ref: Reference to the variant (id, version)
+ * - application_ref: Reference to the application
+ * - url: Full URL for the service endpoint
+ * - uri: Base URI for the service
+ * - headers: Request headers (can include secret references)
+ * - schemas: JSON schemas for inputs/outputs
+ * - script: Script content for custom workflows
+ * - runtime: Runtime environment (python, javascript, typescript)
+ * - service: Legacy service configuration
+ * - configuration: Legacy configuration object
  */
 interface ApiConfigResponse {
     params?: Record<string, unknown>
@@ -552,6 +596,14 @@ interface ApiConfigResponse {
         id?: string
     }
     url?: string
+    uri?: string
+    headers?: Record<string, unknown>
+    schemas?: Record<string, unknown>
+    script?: Record<string, unknown>
+    runtime?: string | null
+    // Legacy fields
+    service?: Record<string, unknown>
+    configuration?: Record<string, unknown>
 }
 
 /**
@@ -583,7 +635,21 @@ export async function fetchRevisionConfig(
         // Transform API response to AppRevisionData format
         const params = data.params || {}
         const variantRef = data.variant_ref || {}
-        const uri = data.url || undefined
+        // Use url field (preferred) or uri field
+        const uri = data.url || data.uri || undefined
+
+        // Extract runtime prefix and route path from URI if available
+        let runtimePrefix: string | undefined
+        let routePath: string | undefined
+        if (uri) {
+            try {
+                const parsedUrl = new URL(uri)
+                runtimePrefix = `${parsedUrl.protocol}//${parsedUrl.host}`
+                routePath = parsedUrl.pathname.replace(/^\//, "").replace(/\/$/, "") || undefined
+            } catch {
+                // Invalid URL, skip extraction
+            }
+        }
 
         const appRevisionData: AppRevisionData = {
             id: variantRef.id || revisionId,
@@ -593,7 +659,29 @@ export async function fetchRevisionConfig(
             prompts: [], // Will be populated from agConfig
             agConfig: params,
             parameters: params,
+            // WorkflowServiceConfiguration fields
             uri,
+            url: data.url,
+            runtimePrefix,
+            routePath,
+            headers: data.headers as
+                | Record<string, string | {id?: string; slug?: string; version?: number}>
+                | undefined,
+            schemas: data.schemas
+                ? {
+                      inputs: (data.schemas as Record<string, unknown>).inputs as
+                          | Record<string, unknown>
+                          | undefined,
+                      outputs: (data.schemas as Record<string, unknown>).outputs as
+                          | Record<string, unknown>
+                          | undefined,
+                  }
+                : undefined,
+            script: data.script,
+            runtime: data.runtime,
+            // Legacy fields
+            service: data.service,
+            configuration: data.configuration,
         }
 
         return appRevisionData
