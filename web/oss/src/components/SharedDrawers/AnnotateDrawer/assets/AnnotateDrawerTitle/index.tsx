@@ -266,6 +266,7 @@ const AnnotateDrawerTitle = ({
                         onClick={onSaveChanges}
                         loading={isSaving}
                         disabled={isChangedMetricData && isChangedSelectedEvalMetrics}
+                        data-tour="annotation-submit"
                     >
                         Save
                     </Button>

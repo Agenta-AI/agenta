@@ -1,10 +1,10 @@
 "use client"
 
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useNextStep} from "@agentaai/nextstepjs"
 import {CaretDown, CaretUp, RocketLaunch, X} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button, Typography, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -30,8 +30,14 @@ import {
     tourRegistry,
     type OnboardingWidgetItem,
 } from "@/oss/lib/onboarding"
+import {traceCountAtom, tracesQueryAtom} from "@/oss/state/newObservability/atoms/queries"
 
+import {ANNOTATE_TRACES_TOUR_ID, registerAnnotateTracesTour} from "../tours/annotateTracesTour"
 import {DEPLOY_PROMPT_TOUR_ID, registerDeployPromptTour} from "../tours/deployPromptTour"
+import {
+    registerTestsetFromTracesTour,
+    TESTSET_FROM_TRACES_TOUR_ID,
+} from "../tours/testsetFromTracesTour"
 import {registerWidgetClosedTour} from "../tours/widgetClosedTour"
 
 import {
@@ -70,12 +76,21 @@ const OnboardingWidget = () => {
     const setActiveTourId = useSetAtom(activeTourIdAtom)
     const {startNextStep, isNextStepVisible} = useNextStep()
     const {goToPlayground} = usePlaygroundNavigation()
+    const traceCount = useAtomValue(traceCountAtom)
+    const tracesQuery = useAtomValue(tracesQueryAtom)
+    const [pendingTraceTourId, setPendingTraceTourId] = useState<string | null>(null)
 
     const registryUrl = useMemo(() => {
         const base = appURL || recentlyVisitedAppURL || baseAppURL
         if (!base) return null
         return `${base}/variants`
     }, [appURL, recentlyVisitedAppURL, baseAppURL])
+    const observabilityUrl = useMemo(() => {
+        const base = appURL || recentlyVisitedAppURL
+        if (!base) return null
+        return `${base}/traces`
+    }, [appURL, recentlyVisitedAppURL])
+    const isOnTracesRoute = useMemo(() => router.asPath.includes("/traces"), [router.asPath])
 
     const allItems = useMemo(
         () => config.sections.flatMap((section) => section.items),
@@ -92,8 +107,6 @@ const OnboardingWidget = () => {
     // Widget renders for authenticated users when opened and not dismissed
     const shouldRender =
         doesSessionExist && widgetStatus !== "dismissed" && widgetUIState.isOpen && totalTasks > 0
-
-    const hasTrackedOpenRef = useRef(false)
 
     const startTour = useCallback(
         (tourId: string) => {
@@ -112,6 +125,33 @@ const OnboardingWidget = () => {
         },
         [activeTourId, isNextStepVisible, setActiveTourId, startNextStep],
     )
+
+    useEffect(() => {
+        if (!pendingTraceTourId || !router.isReady || !isOnTracesRoute) return
+        if (tracesQuery.isPending || tracesQuery.isLoading || tracesQuery.isFetching) return
+
+        if (traceCount > 0) {
+            startTour(pendingTraceTourId)
+            setPendingTraceTourId(null)
+            return
+        }
+
+        message.info(
+            "No traces yet. Set up tracing first, then return here to start the walkthrough.",
+        )
+        setPendingTraceTourId(null)
+    }, [
+        isOnTracesRoute,
+        pendingTraceTourId,
+        router.isReady,
+        startTour,
+        traceCount,
+        tracesQuery.isFetching,
+        tracesQuery.isPending,
+        tracesQuery.isLoading,
+    ])
+
+    const hasTrackedOpenRef = useRef(false)
 
     const handleItemClick = useCallback(
         async (item: OnboardingWidgetItem) => {
@@ -153,6 +193,37 @@ const OnboardingWidget = () => {
             } else if (item.activationHint === "deploy-variant") {
                 startTour(item.tourId || DEPLOY_PROMPT_TOUR_ID)
                 return
+            } else if (item.activationHint === "tracing-snippet" && baseAppURL) {
+                try {
+                    await router.push(baseAppURL)
+                } catch (error) {
+                    console.error("Failed to navigate to tracing setup", error)
+                    return
+                }
+            } else if (item.activationHint === "trace-annotations") {
+                try {
+                    if (observabilityUrl) {
+                        await router.push(observabilityUrl)
+                    }
+                    setPendingTraceTourId(item.tourId || ANNOTATE_TRACES_TOUR_ID)
+                    return
+                } catch (error) {
+                    console.error("Failed to navigate to observability", error)
+                    return
+                }
+            } else if (item.activationHint === "trace-to-testset") {
+                try {
+                    if (observabilityUrl) {
+                        await router.push(observabilityUrl)
+                    }
+                    setPendingTraceTourId(item.tourId || TESTSET_FROM_TRACES_TOUR_ID)
+                    return
+                } catch (error) {
+                    console.error("Failed to navigate to observability", error)
+                    return
+                }
+            } else if (item.activationHint === "run-first-evaluation") {
+                goToPlayground()
             } else if (item.href) {
                 try {
                     await router.push(item.href)
@@ -171,12 +242,14 @@ const OnboardingWidget = () => {
         [
             recordWidgetEvent,
             baseAppURL,
+            observabilityUrl,
             registryUrl,
             router,
             startTour,
             openDeploymentsDrawer,
             setWidgetActivation,
             goToPlayground,
+            setPendingTraceTourId,
         ],
     )
 
@@ -225,6 +298,8 @@ const OnboardingWidget = () => {
     useEffect(() => {
         registerWidgetClosedTour()
         registerDeployPromptTour()
+        registerAnnotateTracesTour()
+        registerTestsetFromTracesTour()
     }, [])
 
     useEffect(() => {
