@@ -84,6 +84,9 @@ export function getValueAtPath(data: unknown, path: DataPath): unknown {
             }
         }
 
+        // Re-check after JSON parse since parsed value could be null
+        if (current === null || current === undefined) return undefined
+
         if (typeof current !== "object") {
             return undefined
         }
