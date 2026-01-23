@@ -1,10 +1,55 @@
 import type {Key, ReactNode} from "react"
 
-import type {ColumnsType, TableProps} from "antd/es/table"
+import type {ColumnsType, ColumnType, ColumnGroupType, TableProps} from "antd/es/table"
 import type {Getter} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
 import type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"
+
+// ============================================================================
+// EXTENDED COLUMN TYPES
+// These types extend Ant Design's column types to include custom properties
+// used throughout the InfiniteVirtualTable system.
+// ============================================================================
+
+/**
+ * Extended column type with custom visibility properties.
+ * This is the base type for columns that support visibility controls.
+ */
+export interface ExtendedColumnProps<RecordType> {
+    /** Custom title for visibility menu (overrides title) */
+    columnVisibilityTitle?: ReactNode
+    /** Custom label for visibility menu search */
+    columnVisibilityLabel?: string
+    /** If true, column cannot be hidden */
+    columnVisibilityLocked?: boolean
+    /** Nested children columns */
+    children?: ExtendedColumn<RecordType>[]
+}
+
+/**
+ * Extended column type combining Ant Design's ColumnType with custom props
+ */
+export type ExtendedColumn<RecordType> = (ColumnType<RecordType> | ColumnGroupType<RecordType>) &
+    ExtendedColumnProps<RecordType>
+
+/**
+ * Type guard to check if a column has children
+ */
+export const isColumnGroup = <RecordType>(
+    column: ExtendedColumn<RecordType>,
+): column is ColumnGroupType<RecordType> & ExtendedColumnProps<RecordType> => {
+    return "children" in column && Array.isArray(column.children) && column.children.length > 0
+}
+
+/**
+ * Safely cast ColumnsType to ExtendedColumn array
+ */
+export const asExtendedColumns = <RecordType>(
+    columns: ColumnsType<RecordType>,
+): ExtendedColumn<RecordType>[] => {
+    return columns as ExtendedColumn<RecordType>[]
+}
 
 export interface WindowingState {
     next: string | null
@@ -179,7 +224,7 @@ export interface InfiniteVirtualTableKeyboardRowShortcuts<RecordType> {
     onExport?: (payload: {key: Key | null; record: RecordType | null; selection: Key[]}) => void
 }
 
-export interface InfiniteVirtualTableKeyboardShortcuts<RecordType = any> {
+export interface InfiniteVirtualTableKeyboardShortcuts<RecordType = unknown> {
     enabled?: boolean
     selection?: boolean | InfiniteVirtualTableKeyboardSelectionShortcuts
     rows?: InfiniteVirtualTableKeyboardRowShortcuts<RecordType>

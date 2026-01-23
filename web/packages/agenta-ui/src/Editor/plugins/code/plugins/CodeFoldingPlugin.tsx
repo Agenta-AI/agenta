@@ -93,10 +93,8 @@ export function CodeFoldingPlugin() {
                     const rect = el.getBoundingClientRect()
                     const top = rect.top + domRoot.scrollTop - domRoot.getBoundingClientRect().top
                     const height = rect.height
-                    const language =
-                        ($isCodeBlockNode(node.getParent()) &&
-                            (node.getParent() as any).getLanguage?.()) ||
-                        "json"
+                    const parent = node.getParent()
+                    const language = ($isCodeBlockNode(parent) && parent.getLanguage()) || "json"
                     const text = node.getTextContent()
                     const foldable = isFoldableLine(text, language)
                     next.push({

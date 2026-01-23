@@ -23,9 +23,11 @@ interface ChatMessagesCellContentProps {
  */
 const formatToolCalls = (toolCalls: unknown[]): string => {
     return toolCalls
-        .map((tc: any) => {
-            const name = tc?.function?.name || tc?.name || "tool"
-            const args = tc?.function?.arguments || tc?.arguments || ""
+        .map((tc: unknown) => {
+            const toolCall = tc as Record<string, unknown> | null
+            const fn = toolCall?.function as Record<string, unknown> | undefined
+            const name = fn?.name || toolCall?.name || "tool"
+            const args = fn?.arguments || toolCall?.arguments || ""
             return `${name}(${typeof args === "string" ? args : JSON.stringify(args)})`
         })
         .join("\n")
@@ -39,7 +41,10 @@ const getContentString = (content: unknown): string => {
     if (typeof content === "string") return content
     if (Array.isArray(content)) {
         // Handle OpenAI content array format
-        const textPart = content.find((c: any) => c?.type === "text")
+        const textPart = content.find((c: unknown) => {
+            const part = c as Record<string, unknown> | null
+            return part?.type === "text"
+        }) as Record<string, unknown> | undefined
         if (textPart?.text) return String(textPart.text)
     }
     // Use compact JSON (no pretty printing) to minimize rendered lines

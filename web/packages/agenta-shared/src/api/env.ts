@@ -6,6 +6,13 @@
  * 2. Build-time process.env values
  */
 
+/**
+ * Type declaration for runtime environment config injected via window.__env
+ */
+interface WindowWithEnv extends Window {
+    __env?: Record<string, string>
+}
+
 // Build-time environment variables
 export const processEnv = {
     NEXT_PUBLIC_AGENTA_LICENSE: process.env.NEXT_PUBLIC_AGENTA_LICENSE,
@@ -23,12 +30,11 @@ export const processEnv = {
  */
 export const getEnv = (envKey: string): string => {
     // Check for window.__env if in browser (runtime config)
-    if (
-        typeof window !== "undefined" &&
-        Object.keys((window as any).__env || {}).length > 0 &&
-        (window as any).__env[envKey]
-    ) {
-        return (window as any).__env[envKey]
+    if (typeof window !== "undefined") {
+        const windowEnv = (window as WindowWithEnv).__env
+        if (windowEnv && Object.keys(windowEnv).length > 0 && windowEnv[envKey]) {
+            return windowEnv[envKey]
+        }
     }
 
     // Fall back to build-time environment

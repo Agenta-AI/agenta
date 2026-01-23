@@ -97,7 +97,8 @@ export function useTableActions<T extends InfiniteTableRowBase>(
         (record: T): string => {
             if (getRecordId) return getRecordId(record)
             // Try common ID fields
-            const id = (record as any).id || (record as any)._id || (record as any).key
+            const rec = record as Record<string, unknown>
+            const id = rec.id || rec._id || rec.key
             if (typeof id === "string") return id
             throw new Error("Could not extract ID from record. Provide getRecordId function.")
         },

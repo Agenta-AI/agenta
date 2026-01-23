@@ -570,13 +570,17 @@ export function createPaginatedEntityStore<
 // ============================================================================
 
 /**
- * Type helper for extracting row type from a paginated store
+ * Type helper for extracting row type from a paginated store.
+ * Note: Uses 'any' for unused type parameters in conditional type inference - required by TypeScript.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export type PaginatedEntityRow<T> =
     T extends PaginatedEntityStore<infer TRow, any, any> ? TRow : never
 
 /**
- * Type helper for extracting meta type from a paginated store
+ * Type helper for extracting meta type from a paginated store.
+ * Note: Uses 'any' for unused type parameters in conditional type inference - required by TypeScript.
  */
 export type PaginatedEntityMeta<T> =
     T extends PaginatedEntityStore<any, any, infer TMeta> ? TMeta : never
+/* eslint-enable @typescript-eslint/no-explicit-any */

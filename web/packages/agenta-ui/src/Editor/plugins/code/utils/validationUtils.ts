@@ -248,7 +248,7 @@ export interface ErrorInfo {
  */
 export function validateAll(
     textContent: string,
-    schema?: any,
+    schema?: Record<string, unknown>,
     language: CodeLanguage = "json",
     _editedLineContent?: string,
     cleanedToOriginalLineMap?: Map<number, number>,
@@ -393,7 +393,7 @@ function validateStructure(textContent: string, lines: string[]): ErrorInfo[] {
     // Check if JSON5 parsing fails
     try {
         JSON5.parse(textContent)
-    } catch (parseError: any) {
+    } catch (_parseError) {
         _hasParseError = true
     }
 
@@ -599,8 +599,8 @@ function validateLineWithParser(
             }
 
             return {valid: true}
-        } catch (error: any) {
-            lastError = error.message
+        } catch (error) {
+            lastError = error instanceof Error ? error.message : String(error)
             continue
         }
     }
@@ -952,18 +952,19 @@ function detectYAMLSyntaxErrors(textContent: string, lines: string[]): ErrorInfo
     try {
         // Try to parse with js-yaml to get detailed error information
         yaml.load(textContent)
-    } catch (yamlError: any) {
+    } catch (yamlError) {
         // Extract line number from YAML error if available
         let lineNumber = 1
-        if (yamlError.mark && yamlError.mark.line !== undefined) {
-            lineNumber = yamlError.mark.line + 1 // js-yaml uses 0-based line numbers
+        const yamlErr = yamlError as {mark?: {line?: number}; message?: string}
+        if (yamlErr.mark && yamlErr.mark.line !== undefined) {
+            lineNumber = yamlErr.mark.line + 1 // js-yaml uses 0-based line numbers
         }
 
         // Create a more user-friendly error message
         let message = "Invalid YAML syntax"
-        if (yamlError.message) {
+        if (yamlErr.message) {
             // Clean up the error message to be more user-friendly
-            message = yamlError.message
+            message = yamlErr.message
                 .replace(/at line \d+, column \d+:/, "") // Remove position info since we show it separately
                 .replace(/^\s+/, "") // Remove leading whitespace
                 .trim()
@@ -1034,7 +1035,7 @@ function detectUnclosedStrings(lines: string[]): ErrorInfo[] {
  */
 function validateSchema(
     textContent: string,
-    schema: any,
+    schema: Record<string, unknown>,
     lines: string[],
     language: CodeLanguage = "json",
 ): ErrorInfo[] {
@@ -1056,13 +1057,13 @@ function validateSchema(
         // Check for missing required properties - must be at root level
         if (schema.required) {
             try {
-                let parsedContent: any
+                let parsedContent: Record<string, unknown>
                 if (language === "json") {
-                    parsedContent = JSON5.parse(textContent)
+                    parsedContent = JSON5.parse(textContent) as Record<string, unknown>
                 } else {
-                    parsedContent = yaml.load(textContent)
+                    parsedContent = yaml.load(textContent) as Record<string, unknown>
                 }
-                for (const requiredProp of schema.required) {
+                for (const requiredProp of schema.required as string[]) {
                     // Check if the required property exists at the root level
                     if (!(requiredProp in parsedContent)) {
                         errors.push({
@@ -1078,7 +1079,7 @@ function validateSchema(
             } catch (parseError) {
                 // When content is malformed, fall back to text-based validation
                 // This checks if the property exists anywhere in the text (less precise but more forgiving)
-                for (const requiredProp of schema.required) {
+                for (const requiredProp of schema.required as string[]) {
                     let propRegex: RegExp
                     if (language === "json") {
                         propRegex = new RegExp(`"${requiredProp}"\\s*:`, "i")
@@ -1103,15 +1104,16 @@ function validateSchema(
 
         // Check for wrong value types by trying to parse the content
         try {
-            let parsedContent: any
+            let parsedContent: Record<string, unknown>
             if (language === "json") {
-                parsedContent = JSON5.parse(textContent)
+                parsedContent = JSON5.parse(textContent) as Record<string, unknown>
             } else {
-                parsedContent = yaml.load(textContent)
+                parsedContent = yaml.load(textContent) as Record<string, unknown>
             }
 
             if (schema.properties) {
-                for (const [propName, propSchema] of Object.entries(schema.properties)) {
+                const schemaProps = schema.properties as Record<string, Record<string, unknown>>
+                for (const [propName, propSchema] of Object.entries(schemaProps)) {
                     if (propName in parsedContent) {
                         const actualValue = parsedContent[propName]
                         const actualType = Array.isArray(actualValue) ? "array" : typeof actualValue
@@ -1120,15 +1122,16 @@ function validateSchema(
                         let expectedTypes: string[] = []
                         let isValidType = false
 
-                        if ((propSchema as any).type) {
+                        if (propSchema.type) {
                             // Direct type specification
-                            expectedTypes = [(propSchema as any).type]
+                            expectedTypes = [propSchema.type as string]
                             isValidType = expectedTypes.includes(actualType)
-                        } else if ((propSchema as any).anyOf) {
+                        } else if (propSchema.anyOf) {
                             // anyOf specification - check if actualType matches any of the allowed types
-                            expectedTypes = (propSchema as any).anyOf
-                                .filter((item: any) => item.type)
-                                .map((item: any) => item.type)
+                            const anyOfItems = propSchema.anyOf as {type?: string}[]
+                            expectedTypes = anyOfItems
+                                .filter((item) => item.type)
+                                .map((item) => item.type as string)
                             isValidType = expectedTypes.includes(actualType)
                         }
 

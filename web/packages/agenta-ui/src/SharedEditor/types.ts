@@ -23,7 +23,7 @@ export interface SharedEditorProps extends BaseContainerProps {
     editorType?: "border" | "borderless"
     state?: "default" | "filled" | "disabled" | "readOnly" | "focus" | "typing"
     placeholder?: string
-    initialValue: any
+    initialValue: string
     /** Controlled value - when provided, editor syncs with this value (for undo/redo support) */
     value?: string
     editorClassName?: string
@@ -39,7 +39,7 @@ export interface SharedEditorProps extends BaseContainerProps {
     debug?: boolean
     isTool?: boolean
     propertyId?: string
-    baseProperty?: any
+    baseProperty?: Record<string, unknown>
     variantId?: string
     handleChange?: (value: string) => void
 

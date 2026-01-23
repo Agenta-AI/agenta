@@ -1,4 +1,6 @@
-import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
+import {LexicalNode} from "lexical"
+
+import {$isCodeBlockNode, CodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$createCodeTabNode, $isCodeTabNode} from "../nodes/CodeTabNode"
 
@@ -12,7 +14,7 @@ import {$createCodeTabNode, $isCodeTabNode} from "../nodes/CodeTabNode"
  *
  * @param codeBlock The code block node to fix indentation for.
  */
-export function $fixCodeBlockIndentation(codeBlock: any) {
+export function $fixCodeBlockIndentation(codeBlock: LexicalNode | CodeBlockNode | null) {
     if (!$isCodeBlockNode(codeBlock)) return
     const lines = codeBlock.getChildren().filter($isCodeLineNode) as CodeLineNode[]
 

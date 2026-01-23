@@ -46,7 +46,7 @@ export const shouldIgnoreRowClick = (event: MouseEvent<HTMLElement>): boolean =>
 
 export interface UseTableManagerConfig<T extends InfiniteTableRowBase> {
     /** The dataset store for this table */
-    datasetStore: InfiniteDatasetStore<T, any, any>
+    datasetStore: InfiniteDatasetStore<T, unknown, unknown>
 
     /** Unique scope ID for this table instance */
     scopeId: string
@@ -61,7 +61,7 @@ export interface UseTableManagerConfig<T extends InfiniteTableRowBase> {
     onRowClick?: (record: T) => void
 
     /** Dependencies that should trigger pagination reset (e.g., search term) */
-    searchDeps?: any[]
+    searchDeps?: unknown[]
 
     /** Whether rows should be clickable (default: true) */
     clickableRows?: boolean
@@ -96,7 +96,7 @@ export interface UseTableManagerConfig<T extends InfiniteTableRowBase> {
 
 export interface UseTableManagerReturn<T extends InfiniteTableRowBase> {
     /** Pagination state and controls */
-    pagination: ReturnType<InfiniteDatasetStore<T, any, any>["hooks"]["usePagination"]>
+    pagination: ReturnType<InfiniteDatasetStore<T, unknown, unknown>["hooks"]["usePagination"]>
 
     /** Current rows from pagination */
     rows: T[]

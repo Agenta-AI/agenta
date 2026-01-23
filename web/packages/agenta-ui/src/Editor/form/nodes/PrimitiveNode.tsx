@@ -5,10 +5,10 @@ import clsx from "clsx"
 
 import TreeRow from "../shared/TreeRow"
 
-import {BaseNodeProps} from "./NodeTypes"
+import {BaseNodeProps, CustomRenderFn} from "./NodeTypes"
 
 export interface PrimitiveNodeProps extends BaseNodeProps {
-    customRender?: any
+    customRender?: CustomRenderFn
 }
 
 const {Text} = Typography

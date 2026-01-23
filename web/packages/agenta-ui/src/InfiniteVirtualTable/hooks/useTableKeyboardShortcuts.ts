@@ -54,10 +54,12 @@ interface TableShortcutResult<RecordType> {
     getRowProps?: (
         record: RecordType,
         index: number,
-    ) => {
-        className?: string
-        onMouseEnter?: () => void
-    }
+    ) =>
+        | {
+              className?: string
+              onMouseEnter?: () => void
+          }
+        | undefined
 }
 
 const DEFAULT_HIGHLIGHT_CLASS = "ivt-row--highlighted"
@@ -231,7 +233,7 @@ function useTableKeyboardShortcuts<RecordType extends object>({
         dataSource.forEach((record, index) => {
             const key = resolveRowKey(rowKey, record, index)
             if (key === null || key === undefined) return
-            if ((record as any)?.__isSkeleton) return
+            if ((record as {__isSkeleton?: boolean})?.__isSkeleton) return
             const position = entries.length
             entries.push({key, record, position})
         })
@@ -521,7 +523,7 @@ function useTableKeyboardShortcuts<RecordType extends object>({
             const key = resolveRowKey(rowKey, record, index)
             if (key === null || key === undefined) return undefined
             const isHighlighted = highlightedKey !== null && key === highlightedKey
-            const props: Record<string, any> = {"data-ivt-row-key": key}
+            const props: Record<string, unknown> = {"data-ivt-row-key": key}
             if (isHighlighted) {
                 props.className = rowShortcuts.highlightClassName
             }

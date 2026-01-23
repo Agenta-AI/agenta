@@ -311,8 +311,8 @@ function applyFolding(
  * @returns Unified diff string in the specified format
  */
 export function computeDiff(
-    original: any,
-    modified: any,
+    original: unknown,
+    modified: unknown,
     options: {
         language: CodeLanguage
         contextLines?: number

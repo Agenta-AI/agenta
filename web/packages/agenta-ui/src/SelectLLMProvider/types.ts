@@ -4,7 +4,7 @@ export interface ProviderOption {
     label: string
     value: string
     key?: string
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
 }
 
 export interface ProviderGroup {
