@@ -30,6 +30,10 @@ import {
 import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
 import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/TestsetsHeaderFilters"
 import useURL from "@/oss/hooks/useURL"
+import {
+    onboardingWidgetActivationAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@/oss/lib/onboarding"
 import type {TestsetCreationMode} from "@/oss/lib/Types"
 import {
     archiveTestsetRevision,
@@ -89,6 +93,8 @@ const TestsetsTable = ({
 }: TestsetsTableProps) => {
     const {projectURL} = useURL()
     const projectId = useAtomValue(projectIdAtom)
+    const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
+    const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
 
     // Refresh trigger for the table
     const setRefreshTrigger = useSetAtom(testset.paginated.refreshAtom)
@@ -100,6 +106,22 @@ const TestsetsTable = ({
     const [current, setCurrent] = useState(0)
     const [selectedTestsetToDelete, setSelectedTestsetToDelete] = useState<TestsetTableRow[]>([])
     const [isDeleteTestsetModalOpen, setIsDeleteTestsetModalOpen] = useState(false)
+
+    useEffect(() => {
+        if (onboardingWidgetActivation !== "create-testset") return
+        setTestsetCreationMode("create")
+        setEditTestsetValues(null)
+        setCurrent(0)
+        setIsCreateTestsetModalOpen(true)
+        setOnboardingWidgetActivation(null)
+    }, [
+        onboardingWidgetActivation,
+        setOnboardingWidgetActivation,
+        setCurrent,
+        setEditTestsetValues,
+        setIsCreateTestsetModalOpen,
+        setTestsetCreationMode,
+    ])
 
     // Refresh table data
     const mutate = useCallback(() => {

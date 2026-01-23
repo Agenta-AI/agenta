@@ -55,7 +55,7 @@ const {Text} = Typography
 const OnboardingWidget = () => {
     const router = useRouter()
     const {doesSessionExist} = useSession()
-    const {appURL, recentlyVisitedAppURL, baseAppURL} = useURL()
+    const {appURL, recentlyVisitedAppURL, baseAppURL, projectURL} = useURL()
     const config = useAtomValue(onboardingWidgetConfigAtom)
     const widgetStatus = useAtomValue(onboardingWidgetStatusAtom)
     const setWidgetStatus = useSetAtom(onboardingWidgetStatusAtom)
@@ -222,6 +222,13 @@ const OnboardingWidget = () => {
                     console.error("Failed to navigate to observability", error)
                     return
                 }
+            } else if (item.activationHint === "create-testset" && projectURL) {
+                try {
+                    await router.push(`${projectURL}/testsets`)
+                } catch (error) {
+                    console.error("Failed to navigate to testsets", error)
+                }
+                return
             } else if (item.activationHint === "run-first-evaluation") {
                 goToPlayground()
             } else if (item.href) {
@@ -242,6 +249,7 @@ const OnboardingWidget = () => {
         [
             recordWidgetEvent,
             baseAppURL,
+            projectURL,
             observabilityUrl,
             registryUrl,
             router,
