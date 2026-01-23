@@ -6,7 +6,7 @@
  *
  * @example
  * ```tsx
- * import {SharedEditor} from '@agenta/entities/ui'
+ * import {SharedEditor} from '@agenta/ui'
  *
  * <SharedEditor
  *   initialValue="Hello World"

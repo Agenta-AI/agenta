@@ -69,7 +69,7 @@ Editor
 ### Basic Usage
 
 ```tsx
-import {Editor} from '@agenta/entities/editor'
+import {Editor} from '@agenta/ui'
 
 function MyEditor() {
   const [value, setValue] = useState('{"key": "value"}')
@@ -88,7 +88,7 @@ function MyEditor() {
 ### Rich Text Mode
 
 ```tsx
-import {Editor} from '@agenta/entities/editor'
+import {Editor} from '@agenta/ui'
 
 <Editor
   initialValue="# Hello World"
@@ -100,7 +100,7 @@ import {Editor} from '@agenta/entities/editor'
 ### With Token Support
 
 ```tsx
-import {Editor} from '@agenta/entities/editor'
+import {Editor} from '@agenta/ui'
 
 <Editor
   initialValue="Hello, {{name}}! Welcome to {{platform}}."
@@ -117,7 +117,7 @@ import {Editor} from '@agenta/entities/editor'
 ### Diff View
 
 ```tsx
-import {DiffView} from '@agenta/entities/editor'
+import {DiffView} from '@agenta/ui'
 
 <DiffView
   language="json"
@@ -209,7 +209,7 @@ Global editor state.
 Per-editor markdown view toggle state.
 
 ```tsx
-import {markdownViewAtom} from '@agenta/entities/editor'
+import {markdownViewAtom} from '@agenta/ui'
 
 const isMarkdownView = useAtomValue(markdownViewAtom(editorId))
 ```
@@ -221,7 +221,7 @@ const isMarkdownView = useAtomValue(markdownViewAtom(editorId))
 Toggle between code and form view.
 
 ```tsx
-import {useLexicalComposerContext} from '@agenta/entities/editor'
+import {useLexicalComposerContext} from '@agenta/ui'
 
 const [editor] = useLexicalComposerContext()
 editor.dispatchCommand(TOGGLE_FORM_VIEW, undefined)
@@ -254,7 +254,7 @@ editor.dispatchCommand(DRILL_IN_TO_PATH, {path: 'data.items[0]'})
 Parse JSON with JSON5 fallback and partial JSON recovery.
 
 ```tsx
-import {safeJson5Parse} from '@agenta/entities/editor'
+import {safeJson5Parse} from '@agenta/ui'
 
 const parsed = safeJson5Parse('{"key": value}') // handles unquoted values
 ```
@@ -315,7 +315,7 @@ Editor/
 The Editor integrates with DrillInView for navigating into nested JSON:
 
 ```tsx
-import {Editor, DRILL_IN_TO_PATH} from '@agenta/entities/editor'
+import {Editor, DRILL_IN_TO_PATH} from '@agenta/ui'
 
 <Editor
   codeOnly
