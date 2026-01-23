@@ -27,6 +27,7 @@ export function useEditorResize({
         }
 
         const container = containerRef.current || containerElmRef.current
+        if (!container) return
         const handle = container.querySelector(".resize-handle") as HTMLElement
         if (!skipHandle && !handle) {
             return

@@ -29,7 +29,7 @@ const useEditorConfig = ({
     EditorProps,
     "id" | "initialValue" | "disabled" | "codeOnly" | "enableTokens" | "initialEditorState"
 >): LexicalComposerProps["initialConfig"] | null => {
-    const cacheKey = buildCacheKey(codeOnly, enableTokens)
+    const cacheKey = buildCacheKey(codeOnly ?? false, enableTokens ?? false)
 
     // Return cached config immediately if we already have it
     const [config, setConfig] = useState<InitialConfigType | null>(
@@ -65,15 +65,24 @@ const useEditorConfig = ({
                     ],
                 )
             } else {
-                const codeNodePromises = await Promise.all([import("@lexical/code")])
-                // @ts-ignore
+                const codeNodeModule = await import("@lexical/code")
                 initialNodes.push(
-                    // @ts-ignore
-                    ...[codeNodePromises[0].CodeNode, codeNodePromises[0].CodeHighlightNode],
+                    codeNodeModule.CodeNode as unknown as typeof LexicalNode,
+                    codeNodeModule.CodeHighlightNode as unknown as typeof LexicalNode,
                 )
             }
 
-            const initialNodesPromises = await Promise.all([
+            const [
+                richTextModule,
+                listModule,
+                ,
+                tableModule,
+                hashtagModule,
+                linkModule,
+                overflowModule,
+                horizontalRuleModule,
+                markModule,
+            ] = await Promise.all([
                 import("@lexical/rich-text"),
                 import("@lexical/list"),
                 import("@lexical/code"),
@@ -85,24 +94,20 @@ const useEditorConfig = ({
                 import("@lexical/mark"),
             ])
 
-            // @ts-ignore
             initialNodes.push(
-                // @ts-ignore
-                ...[
-                    initialNodesPromises[0].HeadingNode,
-                    initialNodesPromises[1].ListNode,
-                    initialNodesPromises[1].ListItemNode,
-                    initialNodesPromises[0].QuoteNode,
-                    initialNodesPromises[3].TableNode,
-                    initialNodesPromises[3].TableCellNode,
-                    initialNodesPromises[3].TableRowNode,
-                    initialNodesPromises[4].HashtagNode, //TODO: type error is caused by this line. Check after upgrading lexical
-                    initialNodesPromises[5].AutoLinkNode,
-                    initialNodesPromises[5].LinkNode,
-                    initialNodesPromises[6].OverflowNode,
-                    initialNodesPromises[7].HorizontalRuleNode,
-                    initialNodesPromises[8].MarkNode,
-                ],
+                richTextModule.HeadingNode as unknown as typeof LexicalNode,
+                listModule.ListNode as unknown as typeof LexicalNode,
+                listModule.ListItemNode as unknown as typeof LexicalNode,
+                richTextModule.QuoteNode as unknown as typeof LexicalNode,
+                tableModule.TableNode as unknown as typeof LexicalNode,
+                tableModule.TableCellNode as unknown as typeof LexicalNode,
+                tableModule.TableRowNode as unknown as typeof LexicalNode,
+                hashtagModule.HashtagNode as unknown as typeof LexicalNode,
+                linkModule.AutoLinkNode as unknown as typeof LexicalNode,
+                linkModule.LinkNode as unknown as typeof LexicalNode,
+                overflowModule.OverflowNode as unknown as typeof LexicalNode,
+                horizontalRuleModule.HorizontalRuleNode as unknown as typeof LexicalNode,
+                markModule.MarkNode as unknown as typeof LexicalNode,
             )
 
             // lazy import and load initial nodes
