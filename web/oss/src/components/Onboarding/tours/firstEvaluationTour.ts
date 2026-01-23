@@ -1,6 +1,5 @@
 import {getDefaultStore} from "jotai"
 
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {recordWidgetEventAtom, tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
 
@@ -89,8 +88,6 @@ const firstEvaluationTour: OnboardingTour = {
     ],
 }
 
-const isWalkthroughsEnabled = () => getEnv("NEXT_PUBLIC_ENABLE_WALKTHROUGHS") === "true"
-
 /**
  * Register the tour
  *
@@ -98,9 +95,7 @@ const isWalkthroughsEnabled = () => getEnv("NEXT_PUBLIC_ENABLE_WALKTHROUGHS") ==
  * It's safe to call multiple times - duplicate registrations are ignored.
  */
 export function registerFirstEvaluationTour(): void {
-    tourRegistry.register(firstEvaluationTour, {
-        condition: isWalkthroughsEnabled,
-    })
+    tourRegistry.register(firstEvaluationTour)
 }
 
 /**

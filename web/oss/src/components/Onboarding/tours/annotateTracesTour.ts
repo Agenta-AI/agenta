@@ -1,4 +1,3 @@
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
 
@@ -69,8 +68,6 @@ const annotateTracesTour: OnboardingTour = {
     ],
 }
 
-const isWalkthroughsEnabled = () => getEnv("NEXT_PUBLIC_ENABLE_WALKTHROUGHS") === "true"
-
 /**
  * Register the tour
  *
@@ -78,9 +75,7 @@ const isWalkthroughsEnabled = () => getEnv("NEXT_PUBLIC_ENABLE_WALKTHROUGHS") ==
  * It's safe to call multiple times - duplicate registrations are ignored.
  */
 export function registerAnnotateTracesTour(): void {
-    tourRegistry.register(annotateTracesTour, {
-        condition: isWalkthroughsEnabled,
-    })
+    tourRegistry.register(annotateTracesTour)
 }
 
 /**
