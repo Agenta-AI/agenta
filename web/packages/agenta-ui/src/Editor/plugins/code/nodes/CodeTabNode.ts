@@ -79,8 +79,8 @@ export class CodeTabNode extends TabNode {
      * Always returns false as the node is replaced entirely when changed.
      * @returns false to indicate no incremental DOM updates
      */
-    updateDOM(prevNode: CodeTabNode, dom: HTMLElement, config: EditorConfig): boolean {
-        return super.updateDOM(prevNode as any, dom, config)
+    updateDOM(_prevNode: CodeTabNode, _dom: HTMLElement, _config: EditorConfig): boolean {
+        return false
     }
 
     /**

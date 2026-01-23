@@ -4,11 +4,18 @@ import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$isCodeLineNode} from "../nodes/CodeLineNode"
 
+/**
+ * Constructs a JSON object from a JSON Schema definition.
+ * Note: Uses 'any' for schema and return type because JSON Schema structures
+ * are inherently dynamic and recursive, making strict typing impractical.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export function constructJsonFromSchema(schema: any, valueMap: Record<string, string>): any {
     if (!schema) return null
 
     if (schema.type === "object") {
         const obj: any = {}
+        /* eslint-enable @typescript-eslint/no-explicit-any */
         // Use Object.keys to preserve property order instead of for...in
         const propertyKeys = Object.keys(schema.properties || {})
         for (const key of propertyKeys) {

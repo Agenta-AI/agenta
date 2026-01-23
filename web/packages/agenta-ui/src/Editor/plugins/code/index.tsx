@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Note: This file uses 'any' for Lexical editor node type compatibility
+
 // Editor.tsx
 import {Fragment, type ComponentProps, type FC, memo, useEffect, useRef} from "react"
 
@@ -241,7 +244,7 @@ function InsertInitialCodeBlockPlugin({
     debug?: boolean
     initialValue: string
     language?: "json" | "yaml"
-    validationSchema: any
+    validationSchema?: Record<string, unknown>
     additionalCodePlugins?: React.ReactNode[]
     editorId: string
     onPropertyClick?: (path: string) => void
