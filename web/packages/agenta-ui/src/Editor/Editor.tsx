@@ -175,7 +175,8 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 const root = $getRoot()
                 const block = root.getChildren().find($isCodeBlockNode)
                 if (!block) return
-                const lang = (block as any).getLanguage?.() ?? "json"
+                const blockLang = $isCodeBlockNode(block) ? block.getLanguage() : null
+                const lang = blockLang === "json" || blockLang === "yaml" ? blockLang : "json"
                 const text =
                     lang === "json"
                         ? JSON.stringify(jsonValue, null, 2)
@@ -207,21 +208,22 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                                 const root = $getRoot()
                                 const block = root.getChildren().find($isCodeBlockNode)
                                 if (!block) return
-                                const lang = (block as any).getLanguage?.() ?? "json"
+                                const lang =
+                                    ($isCodeBlockNode(block) ? block.getLanguage() : null) ?? "json"
                                 const codeLines = block
                                     .getChildren()
-                                    .map((l: any) => l.getTextContent())
+                                    .map((l) => l.getTextContent())
                                     .join("\n")
                                 try {
-                                    let obj: any
+                                    let obj: Record<string, unknown>
                                     if (lang === "json") {
-                                        obj = JSON.parse(codeLines)
+                                        obj = JSON.parse(codeLines) as Record<string, unknown>
                                     } else {
                                         try {
-                                            obj = yaml.load(codeLines)
+                                            obj = yaml.load(codeLines) as Record<string, unknown>
                                         } catch (e) {
                                             // Fallback: YAML might actually be JSON
-                                            obj = JSON.parse(codeLines)
+                                            obj = JSON.parse(codeLines) as Record<string, unknown>
                                         }
                                     }
                                     if (obj && typeof obj === "object") {
@@ -237,20 +239,26 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                                 const root = $getRoot()
                                 const block = root.getChildren().find($isCodeBlockNode)
                                 if (!block) return
-                                const lang = (block as any).getLanguage?.() ?? "json"
+                                const blockLang2 = $isCodeBlockNode(block)
+                                    ? block.getLanguage()
+                                    : null
+                                const lang2 =
+                                    blockLang2 === "json" || blockLang2 === "yaml"
+                                        ? blockLang2
+                                        : "json"
                                 const newText =
-                                    lang === "json"
+                                    lang2 === "json"
                                         ? JSON.stringify(jsonValue, null, 2)
                                         : yaml.dump(jsonValue, {indent: 2})
                                 const currentText = block
                                     .getChildren()
-                                    .map((l: any) => l.getTextContent())
+                                    .map((l) => l.getTextContent())
                                     .join("\n")
                                 if (currentText === newText) {
                                     return // no changes, keep existing nodes
                                 }
                                 block.clear()
-                                createHighlightedNodes(newText, lang).forEach((n) =>
+                                createHighlightedNodes(newText, lang2).forEach((n) =>
                                     block.append(n),
                                 )
                             })

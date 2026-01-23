@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Note: This file uses 'any' for diff library compatibility
+
 /**
  * @fileoverview DiffView - Reusable diff visualization component
  *
