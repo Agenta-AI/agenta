@@ -42,6 +42,11 @@ export {
     EntityNameWithVersion,
     EntityNameVersionText,
     type EntityNameWithVersionProps,
+    // List item labels for entity selection
+    EntityListItemLabel,
+    AppListItemLabel,
+    VariantListItemLabel,
+    type EntityListItemLabelProps,
 } from "./entity"
 
 // ============================================================================

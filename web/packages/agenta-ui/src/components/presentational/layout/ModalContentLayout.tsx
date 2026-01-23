@@ -83,14 +83,15 @@ export function ModalContentLayout({
     contentPadding = spacingClasses.panel,
 }: ModalContentLayoutProps) {
     return (
-        <div className={cn(flexLayouts.column, "h-full", className)}>
-            {/* Main content - left/right layout */}
+        <div className={cn(flexLayouts.column, "h-full min-h-0 overflow-hidden", className)}>
+            {/* Main content - left/right layout - flex-1 to fill remaining space */}
             <SplitPanelLayout
                 leftWidth={pickerWidth}
                 left={picker}
                 right={content}
                 leftPadding={pickerPadding}
                 rightPadding={contentPadding}
+                className="flex-1"
             />
 
             {/* Footer - optional, with top border */}
