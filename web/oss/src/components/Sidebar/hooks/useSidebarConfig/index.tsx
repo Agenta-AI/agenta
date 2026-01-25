@@ -17,14 +17,14 @@ import {
     HouseIcon,
     RocketLaunch,
 } from "@phosphor-icons/react"
-import {useSetAtom, useAtomValue} from "jotai"
+import {useSetAtom} from "jotai"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {isNewUserAtom, openWidgetAtom} from "@/oss/lib/onboarding"
+import {openWidgetAtom} from "@/oss/lib/onboarding"
 import {useAppsData} from "@/oss/state/app"
 import {useOrgData} from "@/oss/state/org"
 
@@ -38,8 +38,6 @@ export const useSidebarConfig = () => {
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const openWidget = useSetAtom(openWidgetAtom)
-    const isNewUser = useAtomValue(isNewUserAtom)
-
     const hasProjectURL = Boolean(projectURL)
 
     const sidebarConfig: SidebarConfig[] = [
@@ -116,6 +114,7 @@ export const useSidebarConfig = () => {
             isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <Lightning size={16} />,
             disabled: !hasProjectURL,
+            dataTour: "registry-nav",
         },
         {
             key: "app-evaluations-link",
@@ -162,7 +161,7 @@ export const useSidebarConfig = () => {
             ),
             isBottom: true,
             tooltip: "Open the onboarding guide",
-            isHidden: !doesSessionExist || !isNewUser,
+            isHidden: !doesSessionExist,
             onClick: (e) => {
                 e.preventDefault()
                 openWidget()
