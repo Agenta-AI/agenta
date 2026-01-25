@@ -213,6 +213,18 @@ const OnboardingWidget = () => {
                 }
                 startTour(item.tourId || DEPLOY_PROMPT_TOUR_ID)
                 return
+            } else if (item.activationHint === "sdk-docs") {
+                if (!projectURL) {
+                    message.info("Create or open a project to run SDK evaluations.")
+                    return
+                }
+                try {
+                    await router.push(`${projectURL}/evaluations?kind=custom`)
+                } catch (error) {
+                    console.error("Failed to navigate to SDK evaluations", error)
+                    return
+                }
+                return
             } else if (item.activationHint === "tracing-snippet") {
                 try {
                     await router.push(`${projectURL}/observability`)

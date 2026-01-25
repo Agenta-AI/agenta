@@ -63,9 +63,9 @@ export const defaultWidgetConfig: OnboardingWidgetConfig = {
                 {
                     id: "run-evaluation-from-code",
                     title: "Run evaluation from code",
-                    description: "View SDK docs or run via SDK.",
+                    description: "Open the Evaluate from SDK modal.",
                     activationHint: "sdk-docs",
-                    completionEventIds: ["sdk_docs_viewed", "sdk_eval_ran"],
+                    completionEventIds: ["sdk_evaluation_modal_opened"],
                     completionMode: "any",
                 },
             ],
