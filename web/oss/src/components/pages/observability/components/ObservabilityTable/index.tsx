@@ -228,7 +228,7 @@ const ObservabilityTable = () => {
                         offsetHeader: 0,
                         offsetScroll: 0,
                     }}
-                    onRow={(record) => ({
+                    onRow={(record, index) => ({
                         onClick: () => {
                             setSelectedNode(record.span_id)
                             const isSpanView = traceTabs === "span"
@@ -265,7 +265,7 @@ const ObservabilityTable = () => {
                                 setSpanParam(undefined)
                             }
                         },
-                        "data-tour": "trace-row",
+                        "data-tour": index === 0 ? "trace-row" : undefined,
                     })}
                     components={{
                         header: {

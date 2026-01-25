@@ -231,12 +231,13 @@ const AnnotateDrawerTitle = ({
     }, [isChangedMetricData, isChangedSelectedEvalMetrics, onCaptureError])
 
     return (
-        <section className="w-full flex items-center justify-between">
+        <section className="w-full flex items-center justify-between" data-tour="annotate-drawer">
             <div className="flex items-center gap-2">
                 <Button
                     type="text"
                     icon={<CaretLeft size={14} />}
                     onClick={() => onClickPrev(steps)}
+                    data-tour="annotate-drawer-close"
                 />
                 {steps === AnnotateDrawerSteps.ANNOTATE || showOnly?.annotateUi ? (
                     <Typography.Text className="text-sm font-medium">Annotate</Typography.Text>
@@ -258,6 +259,7 @@ const AnnotateDrawerTitle = ({
                     <Button
                         icon={<Plus size={14} />}
                         onClick={() => onClickNext(AnnotateDrawerSteps.SELECT_EVALUATORS)}
+                        data-tour="annotation-add-evaluator"
                     >
                         Add Evaluator
                     </Button>

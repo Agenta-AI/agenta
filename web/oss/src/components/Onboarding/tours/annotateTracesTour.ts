@@ -29,6 +29,16 @@ const annotateTracesTour: OnboardingTour = {
             side: "bottom",
             showControls: true,
             showSkip: true,
+            nextAction: {
+                selector: '[data-tour="trace-row"]',
+                type: "click",
+                waitForSelector: '[data-tour="trace-drawer"]',
+                waitForSelectorVisible: true,
+                waitTimeoutMs: 6000,
+            },
+            onNext: async () => {
+                await new Promise((resolve) => window.setTimeout(resolve, 400))
+            },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
         },
@@ -40,18 +50,40 @@ const annotateTracesTour: OnboardingTour = {
             side: "bottom",
             showControls: true,
             showSkip: true,
-            selectorRetryAttempts: 10,
+            nextAction: {
+                selector: '[data-tour="annotate-button"]',
+                type: "click",
+                waitForSelector: '[data-tour="annotate-drawer"]',
+                waitForSelectorVisible: true,
+                waitTimeoutMs: 6000,
+            },
+            onNext: async () => {
+                await new Promise((resolve) => window.setTimeout(resolve, 500))
+            },
+            prevAction: {
+                selector: '[data-tour="trace-drawer-close"]',
+                type: "click",
+                waitForHiddenSelector: '[data-tour="annotate-button"]',
+                waitTimeoutMs: 4000,
+            },
+            selectorRetryAttempts: 30,
             selectorRetryDelay: 200,
         },
         {
             icon: "👍",
-            title: "Choose a Rating",
-            content: "Select thumbs up or thumbs down. You can also add comments.",
-            selector: '[data-tour="annotation-rating"]',
+            title: "Select an Evaluator",
+            content: "Start by choosing which evaluator you want to annotate. Click Add Evaluator.",
+            selector: '[data-tour="annotation-add-evaluator"]',
             side: "bottom",
             showControls: true,
             showSkip: true,
-            selectorRetryAttempts: 10,
+            prevAction: {
+                selector: '[data-tour="annotate-drawer-close"]',
+                type: "click",
+                waitForHiddenSelector: '[data-tour="annotate-drawer-close"]',
+                waitTimeoutMs: 6000,
+            },
+            selectorRetryAttempts: 30,
             selectorRetryDelay: 200,
         },
         {
