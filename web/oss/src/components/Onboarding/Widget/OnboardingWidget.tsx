@@ -113,7 +113,6 @@ const OnboardingWidget = () => {
         widgetStatus !== "dismissed" &&
         widgetUIState.isOpen &&
         totalTasks > 0
-
     const hasTrackedOpenRef = useRef(false)
 
     const startTour = useCallback(
@@ -157,8 +156,6 @@ const OnboardingWidget = () => {
         tracesQuery.isPending,
         tracesQuery.isLoading,
     ])
-
-    const hasTrackedOpenRef = useRef(false)
 
     const handleItemClick = useCallback(
         async (item: OnboardingWidgetItem) => {
