@@ -110,9 +110,9 @@ export const defaultWidgetConfig: OnboardingWidgetConfig = {
                 {
                     id: "add-tracing",
                     title: "Set up tracing",
-                    description: "Open tracing setup docs/snippet.",
+                    description: "Open the tracing setup modal.",
                     activationHint: "tracing-snippet",
-                    completionEventIds: ["trace_received"],
+                    completionEventIds: ["tracing_setup_modal_opened"],
                     completionMode: "any",
                 },
                 {

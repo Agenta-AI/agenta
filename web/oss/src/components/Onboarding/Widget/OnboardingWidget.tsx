@@ -213,13 +213,14 @@ const OnboardingWidget = () => {
                 }
                 startTour(item.tourId || DEPLOY_PROMPT_TOUR_ID)
                 return
-            } else if (item.activationHint === "tracing-snippet" && baseAppURL) {
+            } else if (item.activationHint === "tracing-snippet") {
                 try {
-                    await router.push(baseAppURL)
+                    await router.push(`${projectURL}/observability`)
                 } catch (error) {
                     console.error("Failed to navigate to tracing setup", error)
                     return
                 }
+                return
             } else if (item.activationHint === "trace-annotations") {
                 try {
                     await router.push(`${projectURL}/observability`)
