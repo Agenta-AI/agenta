@@ -73,18 +73,6 @@ const deployPromptTour: OnboardingTour = {
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
-            onEnter: () => {
-                if (typeof window === "undefined") return
-                const store = getDefaultStore()
-                const selected = store.get(variantTableSelectionAtomFamily(SELECTION_SCOPE)) || []
-                const revisionId = selected[0] ? String(selected[0]) : undefined
-                store.set(openDeploymentsDrawerAtom, {
-                    initialWidth: 1200,
-                    revisionId,
-                    mode: "variant",
-                })
-                store.set(recordWidgetEventAtom, "integration_snippet_viewed")
-            },
         },
     ],
 }
