@@ -8,11 +8,13 @@ export type {
 export {
     onboardingWidgetCompletionAtom,
     onboardingWidgetConfigAtom,
+    onboardingWidgetActivationAtom,
     onboardingWidgetEventsAtom,
     onboardingWidgetExpandedSectionsAtom,
     onboardingWidgetStatusAtom,
     onboardingWidgetUIStateAtom,
     recordWidgetEventAtom,
+    setOnboardingWidgetActivationAtom,
     setOnboardingWidgetConfigAtom,
     setWidgetSectionExpandedAtom,
     hasSeenCloseTooltipAtom,

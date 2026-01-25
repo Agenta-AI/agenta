@@ -80,6 +80,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     selectedAppId,
     onSelectApp,
     appSelectionDisabled,
+    allowTestsetAutoAdvance,
     onSelectTemplate,
     onEvaluatorCreated,
     ...props
@@ -247,6 +248,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         selectedVariantRevisionIds={selectedVariantRevisionIds}
                         selectedVariants={selectedVariants}
                         className="pt-2"
+                        allowAutoAdvance={allowTestsetAutoAdvance}
                     />
                 ) : (
                     requireAppMessage
@@ -340,6 +342,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         handleCreateApp,
         handleSelectTemplate,
         handleCreateHumanEvaluator,
+        allowTestsetAutoAdvance,
     ])
 
     return (
