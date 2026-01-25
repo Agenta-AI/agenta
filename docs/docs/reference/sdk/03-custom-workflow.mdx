@@ -1,11 +1,11 @@
 ---
 title: "Custom Workflows SDK"
-description: "Reference for custom workflows SDK in Agenta which allows you to build custom workflows in the playground"
+description: "Reference for custom workflows SDK in Agenta"
 ---
 
 ## Overview
 
-The Custom Workflows SDK allows you to define and expose specific stages of your LLM workflows as API endpoints. By decorating your functions with `@ag.route` and `@ag.entrypoint`, you can create custom routes that integrate with the Agenta for playground interactions, evaluations, and deployments.
+The Custom Workflows SDK allows you to define and expose your LLM workflows as API endpoints. By decorating your functions with `@ag.route`, you can create custom routes that integrate with Agenta for playground interactions, evaluations, and deployments.
 
 ---
 
@@ -13,100 +13,151 @@ The Custom Workflows SDK allows you to define and expose specific stages of your
 
 ### `@ag.route` Decorator
 
-The `@ag.route` decorator is used to expose specific stages of a workflow (e.g., embedding, retrieval, summarization) as independent API endpoints.
+The `@ag.route` decorator exposes your function as an API endpoint that Agenta can call.
 
 #### Syntax
 
 ```python
 @ag.route(path, config_schema)
-def function_name(parameters):
+def function_name(parameters) -> str:
     # Function implementation
 ```
 
 #### Parameters
 
-- `path` (str): The URL path for the route. Must be a valid HTTP path.
-- `config_schema` (Type[BaseModel]): A Pydantic model defining the configuration schema for the route.
+- `path` (str): The URL path for the route. Use `"/"` for the main entry point.
+- `config_schema` (Type[BaseModel]): A Pydantic model defining the configuration schema.
 
 :::warning
-Configuration schemas are defined using Pydantic models. Each field must have a default value.
+The decorated function must return a `str`.
 :::
 
 #### Example
 
 ```python
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import agenta as ag
 
 class MyConfig(BaseModel):
-    prompt: str
+    prompt: str = Field(default="Hello, {{name}}!")
 
 @ag.route("/", config_schema=MyConfig)
-def generate_text(input_text: str):
+def generate_text(input_text: str) -> str:
     config = ag.ConfigManager.get_from_route(schema=MyConfig)
     # Function implementation
     return output_text
 ```
 
-#### Endpoints Created
+---
 
-When you use the `@ag.route` decorator, the following endpoints are created:
+## Configuration Types
 
-- **Playground Endpoints:**
+### PromptTemplate
 
-  - `POST /playground/run/{route}`
+`PromptTemplate` is the recommended way to define prompts. It bundles messages, model selection, and parameters into a single configurable unit that renders as a rich editor in the playground.
 
-  - This endpoint is intended for use within the Agenta playground. It takes as input the configuration parameters.
+#### Syntax
 
-- **Deployed Endpoints:**
+```python
+from agenta.sdk.types import PromptTemplate, Message, ModelConfig
 
-  - `POST /run/{route}`
+PromptTemplate(
+    messages=[...],
+    template_format="curly",
+    input_keys=["var1", "var2"],
+    llm_config=ModelConfig(...)
+)
+```
 
-  - This endpoint is intended for production or deployed environments. It takes as input the deployment slug.
+#### Parameters
+
+- `messages` (List[Message]): List of chat messages
+- `template_format` (str): Variable syntax. Use `"curly"` for `{{variable}}` syntax
+- `input_keys` (List[str]): Variables expected in the template
+- `llm_config` (ModelConfig): Model and parameter settings
+
+#### Example
+
+```python
+from pydantic import BaseModel, Field
+from agenta.sdk.types import PromptTemplate, Message, ModelConfig
+import agenta as ag
+
+class Config(BaseModel):
+    prompt: PromptTemplate = Field(
+        default=PromptTemplate(
+            messages=[
+                Message(role="system", content="You are a helpful assistant."),
+                Message(role="user", content="{{user_input}}")
+            ],
+            template_format="curly",
+            input_keys=["user_input"],
+            llm_config=ModelConfig(model="gpt-4o-mini", temperature=0.7)
+        )
+    )
+
+@ag.route("/", config_schema=Config)
+async def generate(user_input: str) -> str:
+    config = ag.ConfigManager.get_from_route(schema=Config)
+    
+    formatted = config.prompt.format(user_input=user_input)
+    response = client.chat.completions.create(**formatted.to_openai_kwargs())
+    
+    return response.choices[0].message.content
+```
+
+#### Methods
+
+- `format(**kwargs)`: Substitutes variables and returns a new `PromptTemplate`
+- `to_openai_kwargs()`: Converts to arguments for the OpenAI client
+
+### Message
+
+Represents a single chat message.
+
+```python
+from agenta.sdk.types import Message
+
+Message(role="system", content="You are helpful.")
+Message(role="user", content="Hello {{name}}")
+Message(role="assistant", content="Hi there!")
+```
+
+### ModelConfig
+
+Configures the LLM model and parameters.
+
+```python
+from agenta.sdk.types import ModelConfig
+
+ModelConfig(
+    model="gpt-4o-mini",
+    temperature=0.7,
+    max_tokens=1000,
+    top_p=1.0,
+    frequency_penalty=0.0,
+    presence_penalty=0.0
+)
+```
 
 ---
 
-### `@ag.entrypoint` Decorator
+## Basic Configuration Types
 
-The `@ag.entrypoint` decorator has the same inputs and outputs as `@ag.route("/", config_schema)`.
-However it creates the following endpoints:
-
-- **Playground Endpoints:**
-
-  - `POST /generate`
-
-  - `POST /playground/run`
-
-- **Deployed Endpoints:**
-
-  - `POST /generate_deployed`
-
-  - `POST /run`
-
----
-
-## Configuration Schema
-
-When using `@ag.route` or `@ag.entrypoint`, you define a configuration schema using a Pydantic `BaseModel`. This schema specifies the configuration parameters that your function accepts and how they are represented in the Agenta playground.
+For simpler configurations, you can use basic Python types:
 
 ### Accepted Types
 
-The following types are accepted in the configuration schema:
+- **String (`str`)**: Renders as a text area
+- **Integer (`int`)**: Renders as a slider
+- **Float (`float`)**: Renders as a slider
+- **Boolean (`bool`)**: Renders as a checkbox
 
-- **String (`str`)**
-- **Integer (`int`)**
-- **Float (`float`)**
-- **Boolean (`bool`)**
+:::warning
+Each field must have a default value.
+:::
 
-Both enumerations and grouped enumerations where a string can be chosen from a list of options are supported through the use of `MCField`. This is a factory function that returns a `pydantic` `Field` object with additional metadata for the Agenta UI to render appropriate selection controls.
-
-### Defining Fields with Constraints and Defaults
-
-Each field in the configuration schema **must** have a default value. This default value is specified using `Field(default=...)` from Pydantic. The default value will be shown in the playground when the application is first run.
-
-You can specify constraints such as minimum and maximum values using `Field` parameters like `ge` (greater than or equal to), `le` (less than or equal to), `gt` (greater than), and `lt` (less than).
-
-#### Example with Constraints and Defaults
+### Example with Constraints
 
 ```python
 from pydantic import BaseModel, Field
@@ -118,124 +169,64 @@ class MyConfig(BaseModel):
     use_cache: bool = Field(default=False)
 ```
 
-In this example:
+Constraints like `ge` (greater than or equal) and `le` (less than or equal) set the slider range.
 
-- `temperature` is a float field with a default value of `1.0`, and must be between `0.0` and `2.0` inclusive.
-- `max_tokens` is an integer field with a default value of `500`, and must be between `1` and `1000` inclusive.
-- `use_cache` is a boolean field with a default value of `False`.
+---
 
-### Defining Choices for Enumerations
+## Multiple Choice Fields
 
-For fields that should present a set of choices (like a dropdown menu), use `str` as type along with `MCField` to specify the choices. 
-
-#### Example with Multiple choices
+For dropdown selections, use `Annotated` with `ag.MultipleChoice`:
 
 ```python
+from typing import Annotated
 from pydantic import BaseModel, Field
-from agenta.sdk.types import MCField
 import agenta as ag
+from agenta.sdk.assets import supported_llm_models
 
 class MyConfig(BaseModel):
-    language: str = MCField(default="English", choices=["English", "Spanish", "French"])
+    model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
+        default="gpt-4o-mini"
+    )
+    language: Annotated[str, ag.MultipleChoice(choices=["English", "Spanish", "French"])] = Field(
+        default="English"
+    )
 ```
 
-In this example:
+### Grouped Choices
 
-- `language` is a string field that allows selection among "English", "Spanish", or "French".
-- The default value is set to "English".
-
-#### Example with Grouped Multiple Choices
+You can group choices using a dictionary:
 
 ```python
+from typing import Annotated
 from pydantic import BaseModel, Field
-from agenta.sdk.types import MCField
 import agenta as ag
 
 supported_models = {
-    "OpenAI Models": ["gpt-3.5-turbo", "gpt-4"],
-    "Other Models": ["bloom", "gpt-j"]
+    "OpenAI": ["gpt-4o", "gpt-4o-mini", "gpt-4"],
+    "Anthropic": ["claude-3-opus", "claude-3-sonnet"]
 }
 
 class MyConfig(BaseModel):
-    model: str = MCField(default="gpt-3.5-turbo", choices=supported_models)
+    model: Annotated[str, ag.MultipleChoice(choices=supported_models)] = Field(
+        default="gpt-4o-mini"
+    )
 ```
-
-In this example:
-
-- `model` is a string field with grouped choices specified in `supported_models`.
-- The default value is set to "gpt-3.5-turbo".
-
-### UI Representation
-
-The fields in the configuration schema are represented in the Agenta playground as follows:
-
-- **String (`str`)**:
-  - Shown as **text areas** where users can input text.
-- **Integer (`int`)** and **Float (`float`)**:
-  - Shown as **sliders**.
-  - The `minimum` and `maximum` values for the sliders are determined by the `ge`, `le`, `gt`, and `lt` constraints specified in `Field`.
-- **Boolean (`bool`)**:
-  - Shown as **checkboxes**.
-- **Enumerations**:
-  - Shown as **dropdown menus**.
-  - Choices and default are defined using `MCField`.
-
-### Complete Example
-
-```python
-from pydantic import BaseModel, Field
-from agenta.sdk.types import MCField
-import agenta as ag
-
-supported_llm_models = {
-    "Mistral AI": [
-        "mistral/mistral-tiny",
-        "mistral/mistral-small",
-        "mistral/mistral-medium",
-        "mistral/mistral-large-latest",
-    ],
-    "OpenAI": [
-        "gpt-3.5-turbo-1106",
-        "gpt-3.5-turbo",
-        "gpt-4",
-        "gpt-4o",
-        "gpt-4o-mini",
-        "gpt-4-1106-preview",
-    ],
-}
-
-class MyConfig(BaseModel):
-    temperature: float = Field(default=1.0, ge=0.0, le=2.0)
-    model: str = MCField(default="gpt-3.5-turbo", choices=supported_llm_models)
-    max_tokens: int = Field(default=-1, ge=-1, le=4000)
-    prompt_system: str = Field(default="System prompt text")
-    prompt_user: str = Field(default="User prompt text")
-    top_p: float = Field(default=1.0)
-    frequence_penalty: float = Field(default=0.0, ge=-2.0, le=2.0)
-    presence_penalty: float = Field(default=0.0, ge=-2.0, le=2.0)
-    force_json: bool = Field(default=False)
-```
-
-In this example:
-
-- Various field types are used, including strings, floats, integers, and booleans.
-- Constraints are specified using `Field` parameters like `ge` and `le`.
-- The `model` field uses `MCField` to define grouped choices.
-- Default values are specified using `Field(default=...)`.
 
 ### Importing Supported Models
 
-You can import predefined supported models from Agenta's assets:
+Agenta provides a predefined list of supported models:
 
 ```python
 from agenta.sdk.assets import supported_llm_models
 ```
 
+---
+
 ## Configuration Management
 
 ### `ag.ConfigManager.get_from_route()`
 
-Retrieves the configuration from the route context and returns a configuration object.
+Retrieves the configuration from the current request context.
 
 #### Syntax
 
@@ -245,111 +236,142 @@ config = ag.ConfigManager.get_from_route(schema=MyConfig)
 
 #### Parameters
 
-- `schema` (Type[BaseModel], optional): A Pydantic model class that defines the structure of the configuration.
+- `schema` (Type[BaseModel]): The Pydantic model class for the configuration.
 
 #### Returns
 
-- An instance of the specified `schema` populated with the configuration data.
-- If no `schema` is provided, returns a dictionary of configuration parameters.
-
-#### Description
-
-- Checks the route context for configuration information.
-- If configuration is present in the context, it uses that; otherwise, it attempts to fetch the configuration from the registry based on the provided application, variant, or environment identifiers.
+An instance of the specified schema populated with configuration data from the request.
 
 #### Example
 
 ```python
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import agenta as ag
 
 class MyConfig(BaseModel):
-    prompt: str
+    prompt: str = Field(default="Hello!")
 
 @ag.route("/", config_schema=MyConfig)
-def generate_text(input_text: str):
+def generate_text(input_text: str) -> str:
     config = ag.ConfigManager.get_from_route(schema=MyConfig)
-    # Use config.prompt in your function
+    # Use config.prompt
     return output_text
 ```
 
 ---
 
-## Context Managers
+## Initialization
 
-### `routing_context_manager`
+### `ag.init()`
 
-Manages the routing context for a request, allowing configuration, application, variant, and environment information to be set and accessed within the context.
+Initializes the Agenta SDK. Call this at the top of your application.
 
 #### Syntax
 
 ```python
-with routing_context_manager(config=config_dict):
-    # Code block
+ag.init(host=None, api_key=None)
 ```
 
 #### Parameters
 
-- `config` (Optional[Dict[str, Any]]): Configuration parameters.
-- `application` (Optional[Dict[str, Any]]): Application information.
-- `variant` (Optional[Dict[str, Any]]): Variant information.
-- `environment` (Optional[Dict[str, Any]]): Environment information.
-
-#### Description
-
-- Sets the routing context for the duration of the `with` block.
-- Allows functions and methods within the block to access the routing context via `routing_context.get()`.
+- `host` (Optional[str]): The Agenta backend URL. Defaults to `"https://cloud.agenta.ai"`.
+- `api_key` (Optional[str]): Your Agenta API key. Can also be set via `AGENTA_API_KEY` environment variable.
 
 #### Example
 
 ```python
-from agenta.sdk.context.routing import routing_context_manager
+import agenta as ag
 
-with routing_context_manager(config={"prompt": "Hello, {name}!"}):
-    # Call functions that rely on the routing context
-    output = generate_text("World")
+ag.init()  # Uses environment variables
 ```
 
----
-
-## Classes
-
-### `AgentaSingleton` Class
-
-A singleton class that maintains global state for the Agenta SDK, including configuration and tracing.
-
-#### Description
-
-- Holds instances of the configuration manager and tracing system.
-- Provides an `init` method to initialize the SDK with host, API key, and other settings.
-
-#### Methods
-
-##### `init(host=None, api_key=None, config_fname=None, redact=None, redact_on_error=True)`
-
-Initializes the Agenta SDK singleton instance.
-
-###### Parameters
-
-- `host` (Optional[str]): The backend server's host URL. Defaults to `"https://cloud.agenta.ai"`.
-- `api_key` (Optional[str]): API key for authentication.
-- `config_fname` (Optional[str]): Path to a configuration file.
-- `redact` (Optional[Callable[..., Any]]): Custom redaction function for tracing.
-- `redact_on_error` (Optional[bool]): Determines behavior if redaction fails.
-
-###### Description
-
-- Sets up the tracing configuration with the provided parameters.
-- Initializes the API client for communication with the Agenta backend.
-- Loads configuration from a file if `config_fname` is provided.
-
-###### Example
+Or with explicit values:
 
 ```python
 import agenta as ag
 
 ag.init(
     host="https://cloud.agenta.ai",
-    api_key="YOUR_API_KEY"
+    api_key="your-api-key"
 )
+```
+
+---
+
+## Observability
+
+### `@ag.instrument()` Decorator
+
+Adds tracing to your function for observability in the Agenta UI.
+
+:::warning
+The `@ag.instrument()` decorator must come after `@ag.route()`.
+:::
+
+#### Example
+
+```python
+@ag.route("/", config_schema=Config)
+@ag.instrument()
+async def generate(input_text: str) -> str:
+    # Your code here
+    return result
+```
+
+### OpenTelemetry Integration
+
+For automatic LLM call tracing, use OpenTelemetry instrumentation:
+
+```python
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+
+OpenAIInstrumentor().instrument()
+```
+
+This captures all OpenAI API calls in your traces.
+
+---
+
+## Complete Example
+
+```python
+from openai import OpenAI
+from pydantic import BaseModel, Field
+from typing import Annotated
+
+import agenta as ag
+from agenta.sdk.types import PromptTemplate, Message, ModelConfig
+from agenta.sdk.assets import supported_llm_models
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+
+ag.init()
+client = OpenAI()
+OpenAIInstrumentor().instrument()
+
+
+class Config(BaseModel):
+    prompt: PromptTemplate = Field(
+        default=PromptTemplate(
+            messages=[
+                Message(role="system", content="You are a helpful assistant."),
+                Message(role="user", content="{{user_input}}")
+            ],
+            template_format="curly",
+            input_keys=["user_input"],
+            llm_config=ModelConfig(model="gpt-4o-mini", temperature=0.7)
+        )
+    )
+    max_length: int = Field(default=100, ge=10, le=500)
+    use_examples: bool = Field(default=False)
+
+
+@ag.route("/", config_schema=Config)
+@ag.instrument()
+async def generate(user_input: str) -> str:
+    config = ag.ConfigManager.get_from_route(schema=Config)
+    
+    formatted = config.prompt.format(user_input=user_input)
+    response = client.chat.completions.create(**formatted.to_openai_kwargs())
+    
+    return response.choices[0].message.content
 ```
