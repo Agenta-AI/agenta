@@ -97,6 +97,7 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                 expandable
                 initialWidth={640}
                 headerExtra="Add to testset"
+                closeButtonProps={{"data-tour": "add-to-testset-close"}}
                 footer={
                     <div className="flex flex-col gap-3 py-2 px-3">
                         {/* Commit message input */}
@@ -142,7 +143,11 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                     </div>
                 }
                 mainContent={
-                    <section ref={elemRef} className="w-full flex flex-col gap-6">
+                    <section
+                        ref={elemRef}
+                        className="w-full flex flex-col gap-6"
+                        data-tour="add-to-testset-drawer"
+                    >
                         {drawer.isDifferStructureExist && (
                             <Typography.Text
                                 className="mb-1 flex items-center gap-1"

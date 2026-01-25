@@ -173,8 +173,8 @@ const ObservabilityTable = () => {
             setSelectedRowKeys(keys)
         },
         columnWidth: 48,
-        getCheckboxProps: () => ({
-            "data-tour": "trace-checkbox",
+        getCheckboxProps: (record: TraceSpanNode) => ({
+            "data-tour": record.span_id === traces[0]?.span_id ? "trace-checkbox" : undefined,
         }),
     }
 

@@ -2,6 +2,9 @@ import {getDefaultStore} from "jotai"
 
 import {recordWidgetEventAtom, tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
+import {selectedRowKeysAtom} from "@/oss/state/newObservability/atoms/controls"
+import {tracesAtom} from "@/oss/state/newObservability/atoms/queries"
+import {selectTestsetAtom} from "@/oss/state/testsetSelection"
 
 /**
  * Create Test Set from Traces Tour
@@ -31,6 +34,25 @@ const testsetFromTracesTour: OnboardingTour = {
             side: "bottom",
             showControls: true,
             showSkip: true,
+            onNext: async () => {
+                const store = getDefaultStore()
+                const traces = store.get(tracesAtom)
+                const firstSpanId = traces[0]?.span_id
+                if (!firstSpanId) return
+
+                const selectedKeys = store.get(selectedRowKeysAtom).map(String)
+                if (selectedKeys.includes(String(firstSpanId))) {
+                    return
+                }
+
+                const root = document.querySelector(
+                    '[data-tour="trace-checkbox"]',
+                ) as HTMLElement | null
+                if (!root) return
+
+                root.click()
+                await new Promise((resolve) => window.setTimeout(resolve, 200))
+            },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
         },
@@ -42,6 +64,22 @@ const testsetFromTracesTour: OnboardingTour = {
             side: "bottom",
             showControls: true,
             showSkip: true,
+            nextAction: {
+                selector: '[data-tour="create-testset-button"]',
+                type: "click",
+                waitForSelector: '[data-tour="add-to-testset-drawer"]',
+                waitForSelectorVisible: true,
+                waitTimeoutMs: 6000,
+            },
+            onNext: async () => {
+                const store = getDefaultStore()
+                await store.set(selectTestsetAtom, {
+                    testsetId: "create",
+                    testsetName: "Create New",
+                    autoSelectLatest: false,
+                })
+                await new Promise((resolve) => window.setTimeout(resolve, 200))
+            },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
         },
@@ -53,6 +91,12 @@ const testsetFromTracesTour: OnboardingTour = {
             side: "bottom",
             showControls: true,
             showSkip: true,
+            prevAction: {
+                selector: '[data-tour="add-to-testset-close"]',
+                type: "click",
+                waitForHiddenSelector: '[data-tour="add-to-testset-drawer"]',
+                waitTimeoutMs: 6000,
+            },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
         },
