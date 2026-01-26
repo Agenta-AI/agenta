@@ -2,6 +2,7 @@ import {useEffect, useMemo, useState} from "react"
 
 import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
+import {Typography} from "antd"
 import dynamic from "next/dynamic"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
@@ -23,6 +24,7 @@ import {useAppsData} from "@/oss/state/app"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
+import {welcomeCardsDismissedAtom} from "@/oss/components/pages/app-management/components/WelcomeCardsSection/assets/store/welcomeCards"
 
 import PageLayout from "../../PageLayout/PageLayout"
 
@@ -58,6 +60,7 @@ const AppManagement: React.FC = () => {
     const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
+    const welcomeCardsDismissed = useAtomValue(welcomeCardsDismissedAtom)
     const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
@@ -168,6 +171,12 @@ const AppManagement: React.FC = () => {
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
                     <>
+                        {welcomeCardsDismissed && (
+                            <Typography.Title level={5} className="!m-0">
+                                Home
+                            </Typography.Title>
+                        )}
+
                         <WelcomeCardsSection
                             onCreatePrompt={() => setIsAddAppFromTemplatedModal(true)}
                             onSetupTracing={() => setIsSetupTracingModal(true)}

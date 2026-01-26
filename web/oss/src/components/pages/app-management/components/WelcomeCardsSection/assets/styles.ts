@@ -17,5 +17,9 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         boxShadow:
             "0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)",
         cursor: "pointer",
+        transition: "background-color 0.2s",
+        "&:hover": {
+            backgroundColor: "#F9FAFB",
+        },
     },
 }))

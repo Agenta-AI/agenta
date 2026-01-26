@@ -699,7 +699,7 @@ const TestsetsTable = ({
     const headerTitle = useMemo(
         () => (
             <div className="flex flex-col gap-1">
-                <Typography.Title level={3} style={{margin: 0}}>
+                <Typography.Title level={5} style={{margin: 0}}>
                     Testsets
                 </Typography.Title>
                 <TableDescription>Manage your testsets for evaluations.</TableDescription>

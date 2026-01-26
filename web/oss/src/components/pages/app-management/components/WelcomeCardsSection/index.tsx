@@ -71,8 +71,8 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
     return (
         <div className="flex flex-col gap-8 rounded-lg bg-[#F5F7FA] p-6">
             <div className="flex items-start justify-between gap-4">
-                <div className="flex flex-col gap-2">
-                    <Typography className="!text-xl !font-semibold">Welcome,</Typography>
+                <div className="flex flex-col">
+                    <Typography className="!text-xl !font-medium">Welcome,</Typography>
                     <Typography className="!text-[32px] !font-semibold">
                         What do you want to do?
                     </Typography>
