@@ -4,17 +4,13 @@
  * Provides paginated fetching for testcases with InfiniteVirtualTable integration.
  */
 
-import {projectIdAtom} from "@agenta/shared"
-import {
-    createPaginatedEntityStore,
-    type InfiniteTableFetchResult,
-    type PaginatedEntityStore,
-} from "@agenta/ui"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom, type Atom, type PrimitiveAtom} from "jotai"
 
+import {createPaginatedEntityStore} from "../../shared/paginated"
+import type {InfiniteTableFetchResult, InfiniteTableRowBase} from "../../shared/tableTypes"
 import {isNewTestsetId} from "../../testset/core"
 import {fetchTestcasesPage} from "../api"
-import type {FlattenedTestcase} from "../core"
 
 import {testcaseMolecule} from "./molecule"
 import {
@@ -29,13 +25,17 @@ import {
 // ============================================================================
 
 /**
- * Row type for testcase table (extends FlattenedTestcase with table-specific fields)
+ * Row type for testcase table (identity-only)
+ *
+ * Cell data is accessed via testcaseCellAtomFamily(id, path) or testcase.get.cell(id, path).
+ * This decouples the row shape from the entity data shape, allowing the table to render
+ * without needing the full entity data in each row.
  */
-export interface TestcaseTableRow extends FlattenedTestcase {
+export interface TestcaseTableRow extends InfiniteTableRowBase {
+    id: string
     key: string
     __isSkeleton?: boolean
     __isNew?: boolean
-    [key: string]: unknown
 }
 
 /**
@@ -156,7 +156,18 @@ const clientRowsAtom: Atom<TestcaseTableRow[]> = atom((get) => {
 const excludeRowIdsAtom: Atom<Set<string>> = atom((get) => get(deletedEntityIdsAtom))
 
 /**
- * Fetch testcases page for the paginated store
+ * Minimal row shape returned by fetch (just id for identity).
+ * The full Testcase entity is stored in the query cache by fetchTestcasesPage.
+ */
+interface FetchedRowIdentity {
+    id: string
+}
+
+/**
+ * Fetch testcases page for the paginated store.
+ *
+ * Note: fetchTestcasesPage stores full Testcase data in the query cache.
+ * We only return the IDs here since cell data is accessed via testcaseCellAtomFamily.
  */
 async function fetchTestcasesWindow({
     meta,
@@ -166,7 +177,7 @@ async function fetchTestcasesWindow({
     meta: TestcasePaginatedMeta
     limit: number
     cursor?: string | null
-}): Promise<InfiniteTableFetchResult<FlattenedTestcase>> {
+}): Promise<InfiniteTableFetchResult<FetchedRowIdentity>> {
     const {projectId, revisionId} = meta
 
     // Skip fetch for empty, null, or new testset IDs (new, new-*, local-*)
@@ -189,8 +200,9 @@ async function fetchTestcasesWindow({
             cursor: cursor || undefined,
         })
 
+        // Extract only IDs - full data is in query cache
         return {
-            rows: result.testcases,
+            rows: result.testcases.map((tc) => ({id: tc.id})),
             totalCount: result.count,
             hasMore: result.hasMore,
             nextCursor: result.nextCursor,
@@ -212,12 +224,15 @@ async function fetchTestcasesWindow({
 
 /**
  * Testcase paginated store for InfiniteVirtualTable
+ *
+ * Note: TApiRow is now FetchedRowIdentity (just {id}) since we only need IDs.
+ * Full entity data is accessed via testcaseCellAtomFamily, not from the row object.
  */
-export const testcasePaginatedStore: PaginatedEntityStore<
+export const testcasePaginatedStore = createPaginatedEntityStore<
     TestcaseTableRow,
-    FlattenedTestcase,
+    FetchedRowIdentity,
     TestcasePaginatedMeta
-> = createPaginatedEntityStore<TestcaseTableRow, FlattenedTestcase, TestcasePaginatedMeta>({
+>({
     entityName: "testcase",
     metaAtom: testcasesPaginatedMetaAtom,
     fetchPage: fetchTestcasesWindow,
@@ -226,7 +241,7 @@ export const testcasePaginatedStore: PaginatedEntityStore<
         skeletonDefaults,
     },
     transformRow: (apiRow): TestcaseTableRow => ({
-        ...apiRow,
+        id: apiRow.id,
         key: apiRow.id,
     }),
     isEnabled: (meta) => Boolean(meta?.projectId && meta?.revisionId),
@@ -234,6 +249,10 @@ export const testcasePaginatedStore: PaginatedEntityStore<
     clientRowsAtom,
     // Exclude soft-deleted rows from display
     excludeRowIdsAtom,
+    // List counts config: server count is not reliable total, use cursor for "+"
+    listCountsConfig: {
+        totalCountMode: "unknown",
+    },
 })
 
 // ============================================================================

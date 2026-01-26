@@ -5,18 +5,12 @@
  * Also populates the query cache so testcaseMolecule.get.data(id) works.
  */
 
-import {axios, getAgentaApiUrl} from "@agenta/shared"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {getDefaultStore} from "jotai/vanilla"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {safeParseWithLogging} from "../../shared"
-import {
-    testcasesResponseSchema,
-    flattenTestcase,
-    type Testcase,
-    type FlattenedTestcase,
-    type TestcasesResponse,
-} from "../core"
+import {testcasesResponseSchema, type Testcase, type TestcasesResponse} from "../core"
 import type {
     TestcaseDetailParams,
     TestcaseListParams,
@@ -63,16 +57,6 @@ export async function fetchTestcase(params: TestcaseDetailParams): Promise<Testc
     }
 }
 
-/**
- * Fetch a single testcase and flatten for table display
- */
-export async function fetchFlattenedTestcase(
-    params: TestcaseDetailParams,
-): Promise<FlattenedTestcase | null> {
-    const testcase = await fetchTestcase(params)
-    return testcase ? flattenTestcase(testcase) : null
-}
-
 // ============================================================================
 // BATCH TESTCASE FETCH
 // ============================================================================
@@ -117,22 +101,6 @@ export async function fetchTestcasesBatch(
         }
     } catch (error) {
         console.error("[fetchTestcasesBatch] Failed to fetch testcases:", error)
-    }
-
-    return results
-}
-
-/**
- * Fetch multiple testcases and flatten for table display
- */
-export async function fetchFlattenedTestcasesBatch(
-    params: TestcaseBatchParams,
-): Promise<Map<string, FlattenedTestcase>> {
-    const testcases = await fetchTestcasesBatch(params)
-    const results = new Map<string, FlattenedTestcase>()
-
-    for (const [id, testcase] of testcases) {
-        results.set(id, flattenTestcase(testcase))
     }
 
     return results
@@ -199,14 +167,16 @@ export async function fetchTestcasesPage(params: TestcaseListParams): Promise<Te
             }
         }
 
-        const flattenedTestcases = validated.testcases.map(flattenTestcase)
+        // Store testcases in nested format (not flattened)
+        // Cell values are accessed via testcase.data[columnKey] through testcaseCellAtomFamily
+        const testcases = validated.testcases
 
         // Populate the query cache so testcaseMolecule.get.data(id) works
         // This ensures the entity layer has access to testcases fetched by the paginated store
         try {
             const store = getDefaultStore()
             const queryClient = store.get(queryClientAtom)
-            for (const tc of flattenedTestcases) {
+            for (const tc of testcases) {
                 queryClient.setQueryData(["testcase", projectId, tc.id], tc)
             }
         } catch {
@@ -214,7 +184,7 @@ export async function fetchTestcasesPage(params: TestcaseListParams): Promise<Te
         }
 
         return {
-            testcases: flattenedTestcases,
+            testcases,
             count: validated.count,
             nextCursor: validated.windowing?.next || null,
             hasMore: Boolean(validated.windowing?.next),
