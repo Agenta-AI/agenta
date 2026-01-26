@@ -1,6 +1,11 @@
 import {memo, useEffect} from "react"
 
-import {setUserAtoms} from "@agenta/entities/shared"
+import {
+    completionServiceSchemaAtom,
+    chatServiceSchemaAtom,
+} from "@agenta/entities/appRevision/state"
+import {setUserAtoms} from "@agenta/entities/shared/user"
+// import {} from "@agenta/entity-ui/modals"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Router from "next/router"
@@ -16,6 +21,11 @@ setUserAtoms({
     membersAtom: workspaceMembersAtom,
     currentUserAtom: userAtom,
 })
+
+const EntityModalsProvider = dynamic(
+    () => import("@agenta/entity-ui/modals").then((m) => m.EntityModalsProvider),
+    {ssr: false},
+)
 
 const TraceDrawer = dynamic(
     () => import("@/oss/components/SharedDrawers/TraceDrawer/components/TraceDrawer"),
@@ -175,8 +185,15 @@ const NavigationCommandListener = () => {
 
 const AppGlobalWrappers = () => {
     useAtomValue(urlQuerySyncAtom)
+
+    // Eagerly prefetch service schemas for completion/chat apps.
+    // These atoms use atomWithQuery — subscribing here triggers the fetch
+    // at app startup rather than waiting until a revision is selected.
+    useAtomValue(completionServiceSchemaAtom)
+    useAtomValue(chatServiceSchemaAtom)
+
     return (
-        <>
+        <EntityModalsProvider>
             <NavigationCommandListener />
             <TraceDrawer />
             <EvalRunFocusDrawerPreview />
@@ -192,7 +209,7 @@ const AppGlobalWrappers = () => {
             <DeploymentsDrawerWrapper />
             <CustomWorkflowModalMount />
             <OnboardingWidget />
-        </>
+        </EntityModalsProvider>
     )
 }
 
