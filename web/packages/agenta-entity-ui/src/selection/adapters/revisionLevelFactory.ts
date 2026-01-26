@@ -22,7 +22,7 @@
 import React from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared"
-import {formatVersion, RevisionLabel} from "@agenta/ui"
+import {formatVersion, RevisionLabel} from "@agenta/ui/components/presentational"
 import type {Atom} from "jotai"
 
 import type {SelectableEntityType, ListQueryState} from "../types"
