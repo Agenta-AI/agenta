@@ -1,224 +1,161 @@
 /**
- * @agenta/playground - Playground UI Components Package
+ * @agenta/playground - Playground State Management
  *
- * This package provides the playground interface for testing
- * app revisions, evaluators, and managing testcases.
+ * This package provides state controllers for the playground feature.
+ * Internal atoms are NOT exported - use controllers for all state access.
+ * For UI components, use @agenta/playground-ui.
  *
  * ## Usage
  *
- * The package requires a provider to inject OSS/EE-specific components:
+ * ```typescript
+ * import { playgroundController, outputConnectionController } from '@agenta/playground'
+ * import { useAtomValue, useSetAtom } from 'jotai'
  *
- * ```tsx
- * import { PlaygroundUIProvider, PlaygroundContent } from "@agenta/playground"
- * import { EntityDrillInView } from "@/oss/components/DrillInView"
- * import { SharedGenerationResultUtils } from "@/oss/components/SharedGenerationResultUtils"
- * // ... other imports
+ * // Read state via controller selectors
+ * const nodes = useAtomValue(playgroundController.selectors.nodes())
+ * const selectedNode = useAtomValue(playgroundController.selectors.selectedNode())
  *
- * export function PlaygroundTest() {
- *   return (
- *     <PlaygroundUIProvider providers={{
- *       EntityDrillInView,
- *       SharedGenerationResultUtils,
- *       LoadTestsetModal: dynamic(() => import("...LoadTestsetModal")),
- *       CommitVariantChangesButton: dynamic(() => import("...CommitVariantChangesButton")),
- *     }}>
- *       <PlaygroundContent />
- *     </PlaygroundUIProvider>
- *   )
- * }
+ * // Write state via controller actions
+ * const dispatch = useSetAtom(playgroundController.dispatch)
+ * dispatch({ type: 'ADD_NODE', payload: { ... } })
  * ```
  *
- * ## State Management
+ * ## Architecture
  *
- * - Playground state (controllers, atoms) is in this package at ./state
- * - Loadable/runnable hooks are in @agenta/entities/runnable (they depend on entity molecules)
+ * - Controllers provide clean API for state access (selectors + actions)
+ * - Internal atoms are hidden - use controllers instead
+ * - Entity injection via PlaygroundEntityProvider
+ * - UI components are in @agenta/playground-ui
  */
 
 // ============================================================================
-// CONTEXT (for OSS/EE injection)
+// CONTROLLERS (Public API)
 // ============================================================================
 
 export {
-    PlaygroundUIProvider,
-    usePlaygroundUI,
-    usePlaygroundUIOptional,
-    type PlaygroundUIProviders,
-    type PlaygroundUIProviderProps,
-    type PlaygroundUIContextValue,
-    // Component prop types
-    type EntityDrillInViewProps,
-    type SharedGenerationResultUtilsProps,
-    type LoadTestsetModalProps,
-    type LoadTestsetSelectionPayload,
-    type CommitVariantChangesButtonProps,
-    type SettingsPreset,
-    type SaveModeConfig,
-} from "./context"
+    playgroundController,
+    outputConnectionController,
+    entitySelectorController,
+    executionController,
+} from "./state"
+
+export type {
+    ConnectToTestsetPayload,
+    ImportTestcasesPayload,
+    AddRowWithInitPayload,
+    ExtraColumnPayload,
+} from "./state/controllers/playgroundController"
+
+// Execution types
+export type {
+    ExecutionMode,
+    ExecutionSession,
+    ExecutionInput,
+    ChatExecutionInput,
+    CompletionExecutionInput,
+    ExecutionStep,
+    RunStatus,
+    RunResult,
+    InitSessionsPayload,
+    RunStepPayload,
+    AddStepPayload,
+    CancelStepPayload,
+    ExecutionState,
+    RunStepWithContextPayload,
+} from "./state"
 
 // ============================================================================
-// HOOKS
+// ENTITY CONTEXT (Dependency Injection)
 // ============================================================================
 
-export {useChainExecution, type UseChainExecutionReturn} from "./hooks"
-
-// ============================================================================
-// COMPONENTS
-// ============================================================================
-
-export {
-    // Main orchestrator
-    PlaygroundContent,
-    // Main panels
-    ConfigPanel,
-    TestcasePanel,
-    RunnableColumnsLayout,
-    RunnableEntityPanel,
-    ConfigurationSection,
-    EmptyState,
-    LoadEvaluatorPresetModal,
-    // Entity selector
-    EntitySelectorProvider,
-    EntitySelector,
-    EntitySelectorModal,
-    useEntitySelector,
-    // Input mapping
-    InputMappingModalWrapper,
-    useMappingState,
-    getMappingStatus,
-    extractPathsFromValue,
-    buildAvailablePaths,
-    MappingLegend,
-    ObjectMappingRow,
-    PathSelector,
-    ScalarMappingRow,
-    TestRunPreview,
-    // Loadable panel
-    LoadableEntityPanel,
-    LoadableRowCard,
-    // Testset selection modal (entity-based)
-    TestsetSelectionModal,
-    useTestsetSelection,
-    TestcaseTable,
-    SelectionSummary,
-    // Types
-    type ConfigPanelProps,
-    type OutputReceiverInfo,
-    type ConfigurationSectionProps,
-    type RunnableEntityPanelProps,
-    type RunnableColumnsLayoutProps,
-    type RunnableNode,
-    type TestcasePanelProps,
-    type LoadableEntityPanelProps,
-    type LoadableRowCardProps,
-    type InputMappingModalProps,
-    type InputMappingModalWrapperProps,
-    type EntityInfo,
-    type PathInfo,
-    type MappingStatusInfo,
-    type EntitySelectorConfig as EntitySelectorConfigUI,
-    type EntityType,
-    type LoadEvaluatorPresetModalProps,
-    // Testset selection modal types
-    type TestsetSelectionModalProps,
-    type TestsetSelectionMode,
-    type TestsetSelectionPayload,
-    type TestcaseTableProps,
-    type SelectionSummaryProps,
-} from "./components"
-
-// ============================================================================
-// STATE (Playground-specific state management)
-// ============================================================================
-
-// Controllers (now in this package)
-export {playgroundController, outputConnectionController, entitySelectorController} from "./state"
-
-// Context (entity injection)
 export {
     PlaygroundEntityProvider,
     usePlaygroundEntities,
     usePlaygroundEntitiesOptional,
-    type PlaygroundEntityProviders,
-    type EntityRevisionSelectors,
-    type EvaluatorRevisionSelectors,
-    type EvaluatorRevisionActions,
-    type EntityQueryState,
-    type AppRevisionRawData,
-    type EvaluatorRevisionRawData,
 } from "./state"
 
-// Atoms (pure playground state)
-export {
-    defaultLocalTestsetName,
-    playgroundNodesAtom,
-    selectedNodeIdAtom,
-    connectedTestsetAtom,
-    extraColumnsAtom,
-    testsetModalOpenAtom,
-    mappingModalOpenAtom,
-    editingConnectionIdAtom,
-    primaryNodeAtom,
-    hasMultipleNodesAtom,
-    playgroundDispatchAtom,
-    outputConnectionsAtom,
-    connectionsBySourceAtomFamily,
-    connectionsByTargetAtomFamily,
-    entitySelectorOpenAtom,
-    entitySelectorConfigAtom,
-    entitySelectorResolverAtom,
-} from "./state"
-
-// Types (re-exported from entities for convenience)
 export type {
+    PlaygroundEntityProviders,
+    EntityRevisionSelectors,
+    EvaluatorRevisionSelectors,
+    EvaluatorRevisionActions,
+    EntityQueryState,
+    AppRevisionRawData,
+    EvaluatorRevisionRawData,
+} from "./state"
+
+// ============================================================================
+// REACT HOOKS
+// ============================================================================
+
+export {
+    useChainExecution,
+    type UseChainExecutionReturn,
+    usePlaygroundState,
+    useDerivedState,
+    type DerivedStateParams,
+} from "./react"
+
+// ============================================================================
+// TYPES (Public Types Only)
+// ============================================================================
+
+export type {
+    // Entity types
     RunnableType,
     EntitySelection,
     EntitySelectorConfig,
+    EntityType,
+    // Node types
+    PlaygroundNode,
+    ExtraColumn,
+    ConnectedTestset,
+    // Connection types
+    InputMappingStatus,
+    InputMapping,
+    OutputConnection,
+    // Testset types
     TestsetRow,
     TestsetColumn,
-    OutputConnection,
-    InputMapping,
-    InputMappingStatus,
+    // Execution types
+    ExecutionStatus,
+    TraceInfo,
+    ExecutionMetrics,
     ExecutionResult,
     StageExecutionResult,
     ChainProgress,
     ChainExecutionProgress,
     RowExecutionResult,
+    // Runnable types
     RunnableInputPort,
     RunnableOutputPort,
     RunnableData,
     AppRevisionData,
     EvaluatorRevisionData,
-    PlaygroundNode,
-    PlaygroundState,
-    PlaygroundAction,
-    ConnectedTestset,
-    ExtraColumn,
-    ExecutionStatus,
-    TraceInfo,
-    ExecutionMetrics,
+    // Path types
+    PathInfo,
     ExtendedPathInfo,
     PathItem,
+    // State types
+    PlaygroundState,
+    PlaygroundAction,
+    // View model types (playground-specific)
+    ChainExecutionResult,
+    ChainNodeInfo,
+    RunnableNode,
+    OutputReceiverInfo,
+    EntityInfo,
 } from "./state"
 
 // ============================================================================
-// RE-EXPORTS FROM @agenta/entities/runnable
-// (Loadable/runnable - depend on entity molecules, stay in entities)
+// NOTE: Internal atoms are NOT exported
 // ============================================================================
-
-export {
-    // Hooks
-    useRunnable,
-    useLoadable,
-    useRunnableSelectors,
-    useRunnableActions,
-    // Controllers that depend on entities
-    loadableController,
-    // Utilities
-    computeTopologicalOrder,
-    resolveChainInputs,
-    executeRunnable,
-    getRunnableRootItems,
-    // Types
-    type ConnectedSource,
-    type UseLoadableReturn,
-} from "@agenta/entities/runnable"
+//
+// DO NOT import internal atoms directly.
+// Use controllers instead:
+//
+//   playgroundController.selectors.nodes()      (not playgroundNodesAtom)
+//   playgroundController.selectors.primaryNode() (not primaryNodeAtom)
+//   outputConnectionController.selectors.allConnections() (not outputConnectionsAtom)
+//
+// This keeps the public API stable while allowing internal refactoring.
