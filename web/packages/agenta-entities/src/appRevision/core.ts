@@ -16,6 +16,74 @@ export type {EntitySchema, EntitySchemaProperty} from "../shared"
 import type {EntitySchema, EntitySchemaProperty as SchemaProperty} from "../shared"
 
 // ============================================================================
+// APP SERVICE TYPE
+// ============================================================================
+
+/**
+ * Known service types for app revisions.
+ *
+ * - `completion`: Standard completion service with known OpenAPI schema
+ * - `chat`: Standard chat service with known OpenAPI schema (includes messages)
+ * - `custom`: Custom app with user-defined endpoints and schema
+ *
+ * For completion and chat services, the OpenAPI schema is identical across
+ * all revisions of the same type, enabling prefetching at the app level.
+ */
+export const APP_SERVICE_TYPES = {
+    COMPLETION: "completion",
+    CHAT: "chat",
+    CUSTOM: "custom",
+} as const
+
+export type AppServiceType = (typeof APP_SERVICE_TYPES)[keyof typeof APP_SERVICE_TYPES]
+
+/**
+ * Service route paths for known service types.
+ * These are the paths used to construct the OpenAPI spec URLs.
+ */
+export const SERVICE_ROUTE_PATHS: Record<string, string> = {
+    [APP_SERVICE_TYPES.COMPLETION]: "services/completion",
+    [APP_SERVICE_TYPES.CHAT]: "services/chat",
+}
+
+/**
+ * Determine whether an app type string maps to a known (prefetchable) service type.
+ *
+ * Backend returns app_type values like:
+ * - "chat", "completion" (friendly tags)
+ * - "SERVICE:chat", "SERVICE:completion" (enum values)
+ * - "TEMPLATE:simple_chat", "TEMPLATE:simple_completion" (legacy templates)
+ * - "custom", "CUSTOM", "SDK_CUSTOM" (custom apps)
+ *
+ * @returns The normalized service type, or null if not a known service type
+ */
+export function resolveServiceType(appType: string | undefined | null): AppServiceType | null {
+    if (!appType) return null
+
+    const normalized = appType.toLowerCase()
+
+    if (
+        normalized === "chat" ||
+        normalized === "service:chat" ||
+        normalized === "template:simple_chat" ||
+        normalized === "chat (old)"
+    ) {
+        return APP_SERVICE_TYPES.CHAT
+    }
+
+    if (
+        normalized === "completion" ||
+        normalized === "service:completion" ||
+        normalized === "template:simple_completion" ||
+        normalized === "completion (old)"
+    ) {
+        return APP_SERVICE_TYPES.COMPLETION
+    }
+
+    return null
+}
+
+// ============================================================================
 // EXECUTION MODE
 // ============================================================================
 

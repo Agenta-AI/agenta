@@ -48,16 +48,7 @@ export {
 } from "./store"
 
 // Data controller (unified data source abstraction)
-export {
-    testcaseDataController,
-    testcaseSelectionAtomFamily,
-    setTestcaseSelectionAtom,
-    toggleTestcaseSelectionAtom,
-    selectAllTestcasesAtom,
-    clearTestcaseSelectionAtom,
-    resetTestcaseSelectionAtom,
-    type TestcaseDataConfig,
-} from "./dataController"
+export {testcaseDataController, type TestcaseDataConfig} from "./dataController"
 
 // Paginated store for InfiniteVirtualTable
 export {

@@ -10,16 +10,19 @@
  *
  * @example
  * ```typescript
- * import { traceSpanMolecule } from '@agenta/entities/trace'
+ * import { traceSpanMolecule, type TraceSpan } from '@agenta/entities/trace'
  *
- * // React hook
- * const [state, dispatch] = traceSpanMolecule.useController(spanId)
- *
- * // Fine-grained subscriptions
+ * // Reactive atoms (for useAtomValue, atom compositions)
  * const data = useAtomValue(traceSpanMolecule.atoms.data(spanId))
+ * const isDirty = useAtomValue(traceSpanMolecule.atoms.isDirty(spanId))
  * const inputs = useAtomValue(traceSpanMolecule.atoms.inputs(spanId))
  *
- * // Imperative API
+ * // Write atoms (for use in other atoms with set())
+ * set(traceSpanMolecule.actions.update, spanId, changes)
+ * set(traceSpanMolecule.actions.discard, spanId)
+ *
+ * // Imperative API (for callbacks outside React/atom context)
+ * const data = traceSpanMolecule.get.data(spanId)
  * traceSpanMolecule.set.update(spanId, { 'ag.data.inputs': newInputs })
  * ```
  */

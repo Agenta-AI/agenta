@@ -73,8 +73,21 @@ export interface BaseMoleculeSelectors {
 
 /**
  * Base molecule interface
+ *
+ * Molecules provide both:
+ * - Top-level API (preferred): `molecule.data(id)`, `molecule.query(id)`, `molecule.isDirty(id)`
+ * - Nested selectors (backwards compatible): `molecule.selectors.data(id)`
  */
 export interface BaseMolecule {
+    // Top-level API (preferred - unified API)
+    /** Get entity data by ID (top-level alias) */
+    data?: (id: string) => Atom<unknown | null>
+    /** Get query state by ID (top-level alias) */
+    query?: (id: string) => Atom<BridgeQueryState>
+    /** Check if entity has unsaved changes (top-level alias) */
+    isDirty?: (id: string) => Atom<boolean>
+
+    // Nested API (backwards compatible)
     selectors: BaseMoleculeSelectors
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types for action registries
     actions?: Record<string, WritableAtom<any, any[], any>>
@@ -204,10 +217,15 @@ export interface LoadableBridgeActions {
 
 /**
  * Loadable bridge interface
+ *
+ * Provides both nested API (selectors.*, actions.*) and flattened API
+ * for cleaner imports: `loadable.rows(id)` instead of `loadable.selectors.rows(id)`
  */
-export interface LoadableBridge {
+export interface LoadableBridge extends LoadableBridgeSelectors {
+    // Nested API (backwards compatible)
     selectors: LoadableBridgeSelectors
     actions: LoadableBridgeActions
+
     /** Get source-specific controller for a source type */
     source: <T extends string>(
         sourceType: T,
@@ -215,6 +233,39 @@ export interface LoadableBridge {
         selectors: LoadableBridgeSelectors
         actions: LoadableBridgeActions
     }
+
+    // Flattened actions (top-level aliases)
+    /** Add a row to the loadable */
+    addRow: LoadableBridgeActions["addRow"]
+    /** Update a row */
+    updateRow: LoadableBridgeActions["updateRow"]
+    /** Remove a row */
+    removeRow: LoadableBridgeActions["removeRow"]
+    /** Set the active row */
+    setActiveRow: LoadableBridgeActions["setActiveRow"]
+    /** Set all rows (bulk update) */
+    setRows: LoadableBridgeActions["setRows"]
+    /** Set columns */
+    setColumns: LoadableBridgeActions["setColumns"]
+    /** Connect to a data source */
+    connectToSource: LoadableBridgeActions["connectToSource"]
+    /** Disconnect from source (switch to local mode) */
+    disconnect: LoadableBridgeActions["disconnect"]
+    /** Link to a runnable (for column derivation) */
+    linkToRunnable: LoadableBridgeActions["linkToRunnable"]
+    /** Unlink from runnable */
+    unlinkRunnable: LoadableBridgeActions["unlinkRunnable"]
+    /** Set execution result for a row */
+    setExecutionResult: LoadableBridgeActions["setExecutionResult"]
+    /** Clear execution results */
+    clearExecutionResults: LoadableBridgeActions["clearExecutionResults"]
+    /** Save changes (when connected) */
+    save: LoadableBridgeActions["save"]
+    /** Discard changes (when connected) */
+    discard: LoadableBridgeActions["discard"]
+
+    /** Alias for isDirty (capability interface compatibility) */
+    hasChanges: LoadableBridgeSelectors["isDirty"]
 }
 
 // ============================================================================
@@ -313,9 +364,14 @@ export interface RunnableBridgeSelectors {
 
 /**
  * Runnable bridge interface
+ *
+ * Provides both nested API (selectors.*) and flattened API
+ * for cleaner imports: `runnable.inputPorts(id)` instead of `runnable.selectors.inputPorts(id)`
  */
-export interface RunnableBridge {
+export interface RunnableBridge extends RunnableBridgeSelectors {
+    // Nested API (backwards compatible)
     selectors: RunnableBridgeSelectors
+
     /** Get runnable-type-specific controller */
     runnable: <T extends string>(
         runnableType: T,
@@ -324,6 +380,9 @@ export interface RunnableBridge {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types
         actions?: Record<string, WritableAtom<any, any[], any>>
     }
+
+    /** Alias for configuration (capability interface compatibility) */
+    config: RunnableBridgeSelectors["configuration"]
 }
 
 // ============================================================================

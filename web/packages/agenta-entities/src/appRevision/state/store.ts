@@ -10,7 +10,7 @@
  * NOTE: Execution mode atoms are now in ./runnableSetup.ts
  */
 
-import {projectIdAtom} from "@agenta/shared"
+import {projectIdAtom} from "@agenta/shared/state"
 import {produce} from "immer"
 import type {WritableAtom} from "jotai"
 import {atom} from "jotai"

@@ -7,7 +7,7 @@
  * @example
  * To use evaluators, configure them via the adapter:
  * ```typescript
- * import { setEvaluatorRevisionAtoms } from '@agenta/entities/ui/selection'
+ * import { setEvaluatorRevisionAtoms } from '@agenta/entity-ui/selection'
  * ```
  */
 

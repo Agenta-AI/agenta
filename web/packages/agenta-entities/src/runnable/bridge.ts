@@ -8,9 +8,11 @@
  * ```typescript
  * import { runnableBridge } from '@agenta/entities/runnable'
  *
- * // Use unified API
- * const data = useAtomValue(runnableBridge.selectors.data(runnableId))
- * const inputPorts = useAtomValue(runnableBridge.selectors.inputPorts(runnableId))
+ * // Use flattened API (preferred)
+ * const data = useAtomValue(runnableBridge.data(runnableId))
+ * const inputPorts = useAtomValue(runnableBridge.inputPorts(runnableId))
+ * const outputPorts = useAtomValue(runnableBridge.outputPorts(runnableId))
+ * const config = useAtomValue(runnableBridge.config(runnableId))
  *
  * // Or access runnable-specific features
  * const evaluatorController = runnableBridge.runnable('evaluatorRevision')
@@ -26,7 +28,7 @@ import {evaluatorRevisionMolecule} from "../evaluatorRevision"
 import {loadableStateAtomFamily, loadableColumnsAtomFamily} from "../loadable/store"
 import {createRunnableBridge, type RunnableData, type RunnablePort} from "../shared"
 
-import type {TestsetColumn} from "./types"
+import type {PathItem, RunnableType, TestsetColumn} from "./types"
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -307,6 +309,47 @@ export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: str
         return get(loadableColumnsAtomFamily(loadableId))
     }),
 )
+
+// ============================================================================
+// DRILL-IN NAVIGATION
+// ============================================================================
+
+/** Data type for getRunnableRootItems */
+interface RunnableDataForRootItems {
+    configuration?: Record<string, unknown>
+}
+
+/**
+ * Get root items for DrillIn navigation based on runnable type
+ *
+ * Generates PathItems from the runnable's configuration for use in
+ * DrillIn navigation UI components (ConfigurationSection).
+ */
+export function getRunnableRootItems(
+    _type: RunnableType,
+    data: RunnableDataForRootItems | null,
+): PathItem[] {
+    if (!data) return []
+
+    const items: PathItem[] = []
+    const configuration = data.configuration
+
+    if (configuration) {
+        // Generate items from configuration keys
+        for (const [key, value] of Object.entries(configuration)) {
+            // Skip internal fields
+            if (key === "version" || key.startsWith("_")) continue
+
+            items.push({
+                key,
+                name: formatKeyAsName(key),
+                value,
+            })
+        }
+    }
+
+    return items
+}
 
 // ============================================================================
 // UTILITY EXPORTS

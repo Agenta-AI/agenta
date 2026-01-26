@@ -14,7 +14,7 @@
  * ```
  */
 
-import {axios, getAgentaApiUrl} from "@agenta/shared"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 
 import {safeParseWithLogging} from "../../shared"
 import {
