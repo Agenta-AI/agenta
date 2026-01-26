@@ -3,6 +3,16 @@
  *
  * Provides unified state management for revision entities using the molecule pattern.
  *
+ * ## Import constraint
+ *
+ * This file must NOT import from `../relations.ts`. The dependency is one-way:
+ * `relations.ts` imports `revisionMolecule` to populate `childMolecule` in relation
+ * definitions. If this file also imported from `relations.ts`, it would create a
+ * circular ES module dependency causing a `ReferenceError` at runtime.
+ *
+ * For child ID extraction (e.g., testcase IDs from a revision), inline the logic
+ * directly instead of using `getChildIds(data, relation)`.
+ *
  * ## Usage
  *
  * ```typescript
@@ -22,13 +32,14 @@
  * ```
  */
 
-import {isValidUUID, axios, getAgentaApiUrl} from "@agenta/shared"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {
+    isValidUUID,
     getValueAtPath as getValueAtPathUtil,
     setValueAtPath,
     getItemsAtPath,
     type DataPath,
-} from "@agenta/shared"
+} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
@@ -36,10 +47,12 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {createMolecule, extendMolecule, createControllerAtomFamily} from "../../shared"
 import type {AtomFamily, QueryState, PathItem} from "../../shared"
+import type {Testcase} from "../../testcase/core"
 import {testcaseMolecule} from "../../testcase/state/molecule"
 import {normalizeRevision, type Revision, type QueryResult} from "../core"
 
 // Import testcase molecule for compound actions
+import {deleteRevisionsReducer} from "./mutations"
 import {
     revisionTableState,
     pendingColumnOpsAtomFamily,
@@ -474,6 +487,53 @@ const serverRowIdsAtomFamily = atomFamily((revisionId: string) =>
     }),
 )
 
+// ============================================================================
+// RELATION-DERIVED ATOMS (Phase 2: Molecule Extension)
+// ============================================================================
+
+/**
+ * Testcase IDs derived from revision data.
+ *
+ * Extracts testcase IDs directly from the revision's `testcase_ids` field.
+ * This avoids importing from `../relations` (which imports revisionMolecule),
+ * preventing a circular dependency. The relation definition in `relations.ts`
+ * remains the single source of truth for the registry/selection system.
+ *
+ * Follows the same pattern as appRevision, where molecules are self-contained
+ * and do not import from their own relations file.
+ *
+ * @example
+ * ```typescript
+ * const testcaseIds = useAtomValue(revisionMolecule.atoms.testcasesIds(revisionId))
+ * ```
+ */
+const testcasesIdsAtomFamily = atomFamily((revisionId: string) =>
+    atom((get): string[] => {
+        const queryState = get(revisionWithTestcasesQueryAtomFamily(revisionId))
+        const revision = queryState.data
+        if (!revision) return []
+        return revision.data?.testcase_ids ?? []
+    }),
+)
+
+/**
+ * Testcase entities derived from revision data.
+ * Fetches each testcase from the testcaseMolecule by ID.
+ *
+ * Follows the `atoms.{relationName}` pattern for accessing child entities.
+ *
+ * @example
+ * ```typescript
+ * const testcases = useAtomValue(revisionMolecule.atoms.testcases(revisionId))
+ * ```
+ */
+const testcasesAtomFamily = atomFamily((revisionId: string) =>
+    atom((get): (Testcase | null)[] => {
+        const ids = get(testcasesIdsAtomFamily(revisionId))
+        return ids.map((id) => get(testcaseMolecule.atoms.data(id)))
+    }),
+)
+
 /**
  * Base columns as TableColumn[] (for use with createEffectiveColumnsAtomFamily)
  */
@@ -503,6 +563,40 @@ const effectiveColumnsAtomFamily = createEffectiveColumnsAtomFamily(
  * Effective row IDs = server row IDs + pending row operations
  */
 const effectiveRowIdsAtomFamily = createEffectiveRowIdsAtomFamily(serverRowIdsAtomFamily)
+
+/**
+ * Effective testcase IDs - semantic alias for table/editor use.
+ * Returns the combined server + local row IDs for this revision.
+ *
+ * @example
+ * ```typescript
+ * const testcaseIds = useAtomValue(revision.atoms.effectiveTestcaseIds(revisionId))
+ * ```
+ */
+const effectiveTestcaseIdsAtomFamily = atomFamily((revisionId: string) =>
+    atom((get): string[] => {
+        return get(effectiveRowIdsAtomFamily(revisionId))
+    }),
+)
+
+/**
+ * Effective testcases - resolves effective row IDs to testcase data.
+ * Provides a single API for table/editor components that need the actual row data.
+ *
+ * @example
+ * ```typescript
+ * const testcases = useAtomValue(revision.atoms.effectiveTestcases(revisionId))
+ * testcases.forEach((tc) => {
+ *   if (tc) console.log(tc.data)
+ * })
+ * ```
+ */
+const effectiveTestcasesAtomFamily = atomFamily((revisionId: string) =>
+    atom((get): (Testcase | null)[] => {
+        const ids = get(effectiveTestcaseIdsAtomFamily(revisionId))
+        return ids.map((id) => get(testcaseMolecule.atoms.data(id)))
+    }),
+)
 
 /**
  * Row refs with metadata (__isNew, __isDeleted)
@@ -671,12 +765,31 @@ const extendedRevisionMolecule = extendMolecule(baseRevisionMolecule, {
         effectiveColumns: effectiveColumnsAtomFamily as AtomFamily<TableColumn[]>,
         /** Effective row IDs (server + pending ops) */
         effectiveRowIds: effectiveRowIdsAtomFamily as AtomFamily<string[]>,
+        /** Effective testcase IDs - semantic alias for table/editor use */
+        effectiveTestcaseIds: effectiveTestcaseIdsAtomFamily as AtomFamily<string[]>,
+        /** Effective testcases - resolves IDs to testcase data */
+        effectiveTestcases: effectiveTestcasesAtomFamily as AtomFamily<(Testcase | null)[]>,
         /** Row refs with __isNew, __isDeleted metadata */
         rowRefs: rowRefsAtomFamily as AtomFamily<RowRef[]>,
         /** Has any pending changes (columns or rows) */
         hasPendingChanges: hasPendingChangesAtomFamily as AtomFamily<boolean>,
         /** Is loading revision with testcases */
         isLoading: isLoadingAtomFamily as AtomFamily<boolean>,
+
+        // ================================================================
+        // RELATION-DERIVED ATOMS (Phase 2: Molecule Extension)
+        // ================================================================
+
+        /**
+         * Testcase IDs derived via relation definition.
+         * Follows the atoms.{relationName}Ids pattern.
+         */
+        testcasesIds: testcasesIdsAtomFamily as AtomFamily<string[]>,
+        /**
+         * Testcase entities derived via relation definition.
+         * Follows the atoms.{relationName} pattern.
+         */
+        testcases: testcasesAtomFamily as AtomFamily<(Testcase | null)[]>,
     },
 })
 
@@ -746,45 +859,151 @@ const revisionControllerAtomFamily = createControllerAtomFamily<Revision, Partia
 })
 
 /**
- * Full revision molecule with selectors alias for backwards compatibility
+ * Full revision molecule with unified API
+ *
+ * ## Unified API
+ *
+ * The revision molecule provides a unified API with these access patterns:
+ *
+ * ### Top-level (most common operations)
+ * ```typescript
+ * revision.data(id)         // Reactive: merged entity data
+ * revision.query(id)        // Reactive: query state with loading/error
+ * revision.isDirty(id)      // Reactive: has unsaved changes
+ * ```
+ *
+ * ### Actions namespace (all write operations)
+ * ```typescript
+ * set(revision.actions.update, id, changes)
+ * set(revision.actions.discard, id)
+ * ```
+ *
+ * ### Table reducers (column and row operations)
+ * ```typescript
+ * set(revision.tableReducers.addColumn, params)
+ * set(revision.tableReducers.addRow, params)
+ * ```
+ *
+ * @example
+ * ```typescript
+ * import { revision } from '@agenta/entities'
+ *
+ * // Reactive subscriptions (most common)
+ * const data = useAtomValue(revision.data(id))
+ * const {isPending, isError} = useAtomValue(revision.query(id))
+ *
+ * // Table operations
+ * const addRow = useSetAtom(revision.tableReducers.addRow)
+ * addRow({revisionId, rowId})
+ *
+ * // Imperative reads (in callbacks)
+ * const data = revision.get.data(id)
+ * ```
  */
 export const revisionMolecule = {
     ...extendedRevisionMolecule,
 
+    // =========================================================================
+    // TOP-LEVEL API (most common operations - flattened for ergonomics)
+    // =========================================================================
+
+    /**
+     * Get merged entity data (server + draft).
+     * @param id - Revision ID
+     * @returns Atom<Revision | null>
+     * @example const data = useAtomValue(revision.data(id))
+     */
+    data: extendedRevisionMolecule.atoms.data,
+
+    /**
+     * Get query state with loading/error status.
+     * @param id - Revision ID
+     * @returns Atom<QueryState<Revision>>
+     * @example const {data, isPending, isError} = useAtomValue(revision.query(id))
+     */
+    query: revisionQueryAtomFamily as AtomFamily<QueryState<Revision>>,
+
+    /**
+     * Check if entity has unsaved changes.
+     * @param id - Revision ID
+     * @returns Atom<boolean>
+     * @example const isDirty = useAtomValue(revision.isDirty(id))
+     */
+    isDirty: extendedRevisionMolecule.atoms.isDirty,
+
+    /**
+     * Null-safe query selector. Returns null query result when id is null/undefined.
+     * Prevents unnecessary network requests for empty IDs.
+     * @param id - Revision ID (can be null/undefined)
+     * @returns Atom<QueryResult<Revision>>
+     * @example const query = useAtomValue(revision.queryOptional(id))
+     */
+    queryOptional: (id: string | null | undefined) =>
+        id ? (revisionQueryAtomFamily(id) as typeof nullQueryResultAtom) : nullQueryResultAtom,
+
+    /**
+     * Null-safe data selector. Returns null when id is null/undefined.
+     * @param id - Revision ID (can be null/undefined)
+     * @returns Atom<Revision | null>
+     * @example const data = useAtomValue(revision.dataOptional(id))
+     */
+    dataOptional: (id: string | null | undefined) =>
+        id ? extendedRevisionMolecule.atoms.data(id) : nullDataAtom,
+
     /**
      * Controller atom family for state + dispatch pattern.
-     * @example const [state, dispatch] = useAtom(revisionMolecule.controller(id))
+     * @example const [state, dispatch] = useAtom(revision.controller(id))
      */
     controller: revisionControllerAtomFamily,
 
+    // =========================================================================
+    // ACTIONS namespace (all write operations)
+    // =========================================================================
+
     /**
-     * Selectors - alias for atoms that provide query state
-     * For compatibility with component patterns that expect `revision.selectors.query(id)`
+     * Action atoms for mutations.
+     * Use with `useSetAtom` in components or `set()` in atom compositions.
+     */
+    actions: {
+        /** Update revision draft */
+        update: extendedRevisionMolecule.reducers.update,
+        /** Discard revision draft */
+        discard: extendedRevisionMolecule.reducers.discard,
+        /**
+         * Delete (archive) revisions by IDs
+         * @param ids - Array of revision IDs to delete
+         */
+        delete: deleteRevisionsReducer,
+    },
+
+    /**
+     * Selectors - DEPRECATED: Use top-level aliases instead
+     * @deprecated Use revision.data(id), revision.query(id), revision.isDirty(id)
      */
     selectors: {
-        /** Query atom for revision data with loading/error states */
+        /** @deprecated Use revision.query(id) */
         query: revisionQueryAtomFamily as AtomFamily<QueryState<Revision>>,
         /**
          * Null-safe query selector. Returns null query result when id is null/undefined.
          * Prevents unnecessary network requests for empty IDs.
-         * @example const query = useAtomValue(revisionMolecule.selectors.queryOptional(id))
+         * @example const query = useAtomValue(revision.selectors.queryOptional(id))
          */
         queryOptional: (id: string | null | undefined) =>
             // Cast needed: return type must match nullQueryResultAtom for union compatibility
             id ? (revisionQueryAtomFamily(id) as typeof nullQueryResultAtom) : nullQueryResultAtom,
-        /** Merged data atom (server + draft) */
+        /** @deprecated Use revision.data(id) */
         data: extendedRevisionMolecule.atoms.data,
         /**
          * Null-safe data selector. Returns null when id is null/undefined.
-         * @example const data = useAtomValue(revisionMolecule.selectors.dataOptional(id))
+         * @example const data = useAtomValue(revision.selectors.dataOptional(id))
          */
         dataOptional: (id: string | null | undefined) =>
             id ? extendedRevisionMolecule.atoms.data(id) : nullDataAtom,
         /** Raw server data (without draft) */
         serverData: extendedRevisionMolecule.atoms.serverData,
-        /** Draft data atom */
+        /** @deprecated Use revision.atoms.draft(id) */
         draft: extendedRevisionMolecule.atoms.draft,
-        /** isDirty atom */
+        /** @deprecated Use revision.isDirty(id) */
         isDirty: extendedRevisionMolecule.atoms.isDirty,
     },
 

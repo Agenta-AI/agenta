@@ -4,16 +4,14 @@
  * Provides paginated fetching for testsets with InfiniteVirtualTable integration.
  */
 
-import {projectIdAtom, axios, getAgentaApiUrl} from "@agenta/shared"
-import {
-    createPaginatedEntityStore,
-    type InfiniteTableFetchResult,
-    type PaginatedEntityStore,
-} from "@agenta/ui"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import type {Atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
+import {createPaginatedEntityStore} from "../../shared/paginated"
+import type {InfiniteTableFetchResult} from "../../shared/tableTypes"
 import type {TestsetApiRow, TestsetTableRow, TestsetDateRange, TestsetQueryMeta} from "../core"
 
 // ============================================================================
@@ -172,11 +170,11 @@ const skeletonDefaults: Partial<TestsetTableRow> = {
 /**
  * Paginated store for testsets table
  */
-export const testsetPaginatedStore: PaginatedEntityStore<
+export const testsetPaginatedStore = createPaginatedEntityStore<
     TestsetTableRow,
     TestsetApiRow,
     TestsetQueryMeta
-> = createPaginatedEntityStore<TestsetTableRow, TestsetApiRow, TestsetQueryMeta>({
+>({
     entityName: "testset",
     metaAtom: testsetsPaginatedMetaAtom,
     fetchPage: async ({meta, limit, cursor}): Promise<InfiniteTableFetchResult<TestsetApiRow>> => {
@@ -215,6 +213,10 @@ export const testsetPaginatedStore: PaginatedEntityStore<
         key: apiRow.id,
     }),
     isEnabled: (meta) => Boolean(meta?.projectId),
+    // List counts config: server count is not reliable total, use cursor for "+"
+    listCountsConfig: {
+        totalCountMode: "unknown",
+    },
 })
 
 // ============================================================================

@@ -27,7 +27,7 @@ import type {Atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
-import type {FlattenedTestcase} from "../../testcase/core"
+import type {Testcase} from "../../testcase/core"
 
 // ============================================================================
 // TYPES
@@ -348,7 +348,7 @@ export const renameColumnReducer = atom<
 let rowIdCounter = 0
 export const addRowReducer = atom<
     null,
-    [{revisionId: string; rowId?: string; initialData?: Partial<FlattenedTestcase>}],
+    [{revisionId: string; rowId?: string; initialData?: Partial<Testcase>}],
     string
 >(null, (get, set, {revisionId, rowId, initialData}) => {
     // Use provided ID or generate a new one
@@ -500,7 +500,7 @@ export const revisionTableState = {
             getStore().set(removeColumnReducer, params),
         renameColumn: (params: {revisionId: string; oldKey: string; newKey: string}) =>
             getStore().set(renameColumnReducer, params),
-        addRow: (params: {revisionId: string; initialData?: Partial<FlattenedTestcase>}) =>
+        addRow: (params: {revisionId: string; initialData?: Partial<Testcase>}) =>
             getStore().set(addRowReducer, params),
         removeRow: (params: {revisionId: string; rowId: string}) =>
             getStore().set(removeRowReducer, params),

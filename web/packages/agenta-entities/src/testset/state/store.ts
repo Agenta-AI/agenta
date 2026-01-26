@@ -5,7 +5,8 @@
  * These provide the single source of truth for server data.
  */
 
-import {createBatchFetcher, isValidUUID, projectIdAtom} from "@agenta/shared"
+import {projectIdAtom} from "@agenta/shared/state"
+import {createBatchFetcher, isValidUUID} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 import type {PrimitiveAtom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -14,6 +15,7 @@ import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 import {createLatestEntityQueryFactory} from "../../shared"
 import {
     fetchRevision,
+    fetchRevisionsBatch,
     fetchRevisionsList,
     fetchLatestRevisionsBatch,
     fetchTestsetDetail,
@@ -36,7 +38,16 @@ import type {RevisionDetailParams, TestsetsResponse} from "../core"
 // ============================================================================
 
 /**
- * Batch fetcher that combines concurrent revision requests into a single API call
+ * Batch fetcher for revision requests.
+ *
+ * Uses createBatchFetcher for request deduplication and batching, which groups
+ * concurrent requests within a 10ms window. Fetches revisions in batches using
+ * the batch query API for better performance.
+ *
+ * Benefits:
+ * - Deduplicates concurrent requests for the same revision
+ * - Groups requests by project and fetches in a single API call per project
+ * - Falls back to individual fetches on batch failure
  */
 const revisionBatchFetcher = createBatchFetcher<RevisionDetailParams, Revision | null>({
     maxBatchSize: 50,
@@ -58,23 +69,36 @@ const revisionBatchFetcher = createBatchFetcher<RevisionDetailParams, Revision |
             byProject.set(req.projectId, existing)
         })
 
-        // Fetch each project's revisions individually
-        // TODO: Implement a proper batch endpoint for better performance
+        // Fetch revisions in batch per project
         for (const [projectId, revisionIds] of byProject) {
             if (revisionIds.length === 0) continue
 
-            for (const revisionId of revisionIds) {
-                const key = `${projectId}:${revisionId}`
-                try {
-                    const revision = await fetchRevision({id: revisionId, projectId})
-                    results.set(key, revision)
-                } catch (error) {
-                    console.error(
-                        "[revisionBatchFetcher] Failed to fetch revision:",
-                        revisionId,
-                        error,
-                    )
-                    results.set(key, null)
+            try {
+                // Use batch API for better performance
+                const batchResults = await fetchRevisionsBatch(projectId, revisionIds)
+
+                // Map results back to serialized keys
+                for (const revisionId of revisionIds) {
+                    const key = `${projectId}:${revisionId}`
+                    results.set(key, batchResults.get(revisionId) ?? null)
+                }
+            } catch (error) {
+                console.error("[revisionBatchFetcher] Batch fetch failed, falling back:", error)
+
+                // Fallback to individual fetches on batch failure
+                for (const revisionId of revisionIds) {
+                    const key = `${projectId}:${revisionId}`
+                    try {
+                        const revision = await fetchRevision({id: revisionId, projectId})
+                        results.set(key, revision)
+                    } catch (individualError) {
+                        console.error(
+                            "[revisionBatchFetcher] Individual fetch failed:",
+                            revisionId,
+                            individualError,
+                        )
+                        results.set(key, null)
+                    }
                 }
             }
         }

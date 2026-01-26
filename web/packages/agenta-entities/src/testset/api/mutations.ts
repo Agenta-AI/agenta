@@ -5,7 +5,8 @@
  * These are pure functions with no Jotai dependencies.
  */
 
-import {getAgentaApiUrl, axios, validateUUID} from "@agenta/shared"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {validateUUID} from "@agenta/shared/utils"
 
 import type {TestsetRevisionDelta} from "../core"
 
