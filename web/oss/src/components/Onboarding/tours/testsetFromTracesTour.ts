@@ -5,6 +5,7 @@ import type {OnboardingTour} from "@/oss/lib/onboarding"
 import {selectedRowKeysAtom} from "@/oss/state/newObservability/atoms/controls"
 import {tracesAtom} from "@/oss/state/newObservability/atoms/queries"
 import {selectTestsetAtom} from "@/oss/state/testsetSelection"
+
 import {waitForSelectorVisible} from "./firstEvaluationTour"
 
 /**

@@ -1,11 +1,12 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {Typography} from "antd"
 import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
-import {Typography} from "antd"
 import dynamic from "next/dynamic"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+import {welcomeCardsDismissedAtom} from "@/oss/components/pages/app-management/components/WelcomeCardsSection/assets/store/welcomeCards"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
@@ -24,7 +25,6 @@ import {useAppsData} from "@/oss/state/app"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
-import {welcomeCardsDismissedAtom} from "@/oss/components/pages/app-management/components/WelcomeCardsSection/assets/store/welcomeCards"
 
 import PageLayout from "../../PageLayout/PageLayout"
 
