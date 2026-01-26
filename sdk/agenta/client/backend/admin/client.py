@@ -36,6 +36,194 @@ class AdminClient:
         """
         return self._raw_client
 
+    def create_portal(
+        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.admin.create_portal(
+            organization_id="organization_id",
+        )
+        """
+        _response = self._raw_client.create_portal(organization_id=organization_id, request_options=request_options)
+        return _response.data
+
+    def create_checkout(
+        self,
+        *,
+        organization_id: str,
+        plan: Plan,
+        success_url: str,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Any:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        plan : Plan
+
+        success_url : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.admin.create_checkout(
+            organization_id="organization_id",
+            plan="cloud_v0_hobby",
+            success_url="success_url",
+        )
+        """
+        _response = self._raw_client.create_checkout(
+            organization_id=organization_id, plan=plan, success_url=success_url, request_options=request_options
+        )
+        return _response.data
+
+    def switch_plans(
+        self, *, organization_id: str, plan: Plan, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        plan : Plan
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.admin.switch_plans(
+            organization_id="organization_id",
+            plan="cloud_v0_hobby",
+        )
+        """
+        _response = self._raw_client.switch_plans(
+            organization_id=organization_id, plan=plan, request_options=request_options
+        )
+        return _response.data
+
+    def cancel_subscription(
+        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.admin.cancel_subscription(
+            organization_id="organization_id",
+        )
+        """
+        _response = self._raw_client.cancel_subscription(
+            organization_id=organization_id, request_options=request_options
+        )
+        return _response.data
+
+    def report_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.admin.report_usage()
+        """
+        _response = self._raw_client.report_usage(request_options=request_options)
+        return _response.data
+
+    def flush_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.admin.flush_usage()
+        """
+        _response = self._raw_client.flush_usage(request_options=request_options)
+        return _response.data
+
     def create_accounts(
         self,
         *,
@@ -77,11 +265,11 @@ class AdminClient:
         --------
         from agenta import (
             AgentaApi,
+            EeSrcServicesAdminManagerReference,
             OrganizationMembershipRequest,
             OrganizationRequest,
             ProjectMembershipRequest,
             ProjectRequest,
-            Reference,
             UserRequest,
             WorkspaceMembershipRequest,
             WorkspaceRequest,
@@ -99,50 +287,44 @@ class AdminClient:
             },
             organizations={
                 "key": OrganizationRequest(
-                    name="name",
-                    description="description",
-                    is_paying=True,
+                    owner_id="owner_id",
                 )
             },
             workspaces={
                 "key": WorkspaceRequest(
-                    name="name",
-                    description="description",
                     is_default=True,
-                    organization_ref=Reference(),
+                    organization_ref=EeSrcServicesAdminManagerReference(),
                 )
             },
             projects={
                 "key": ProjectRequest(
-                    name="name",
-                    description="description",
                     is_default=True,
-                    workspace_ref=Reference(),
-                    organization_ref=Reference(),
+                    workspace_ref=EeSrcServicesAdminManagerReference(),
+                    organization_ref=EeSrcServicesAdminManagerReference(),
                 )
             },
             organization_memberships={
                 "key": OrganizationMembershipRequest(
                     role="owner",
                     is_demo=True,
-                    user_ref=Reference(),
-                    organization_ref=Reference(),
+                    user_ref=EeSrcServicesAdminManagerReference(),
+                    organization_ref=EeSrcServicesAdminManagerReference(),
                 )
             },
             workspace_memberships={
                 "key": WorkspaceMembershipRequest(
                     role="owner",
                     is_demo=True,
-                    user_ref=Reference(),
-                    workspace_ref=Reference(),
+                    user_ref=EeSrcServicesAdminManagerReference(),
+                    workspace_ref=EeSrcServicesAdminManagerReference(),
                 )
             },
             project_memberships={
                 "key": ProjectMembershipRequest(
                     role="owner",
                     is_demo=True,
-                    user_ref=Reference(),
-                    project_ref=Reference(),
+                    user_ref=EeSrcServicesAdminManagerReference(),
+                    project_ref=EeSrcServicesAdminManagerReference(),
                 )
             },
         )
@@ -180,197 +362,16 @@ class AdminClient:
 
         Examples
         --------
-        from agenta import AgentaApi
+        from agenta import AccountRequest, AgentaApi
 
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.admin.create_account()
-        """
-        _response = self._raw_client.create_account(
-            request=request, request_options=request_options
-        )
-        return _response.data
-
-    def create_portal(
-        self,
-        *,
-        organization_id: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.admin.create_portal(
-            organization_id="organization_id",
+        client.admin.create_account(
+            request=AccountRequest(),
         )
         """
-        _response = self._raw_client.create_portal(
-            organization_id=organization_id, request_options=request_options
-        )
-        return _response.data
-
-    def create_checkout(
-        self,
-        *,
-        organization_id: str,
-        plan: Plan,
-        success_url: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        plan : Plan
-
-        success_url : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.admin.create_checkout(
-            organization_id="organization_id",
-            plan="cloud_v0_hobby",
-            success_url="success_url",
-        )
-        """
-        _response = self._raw_client.create_checkout(
-            organization_id=organization_id,
-            plan=plan,
-            success_url=success_url,
-            request_options=request_options,
-        )
-        return _response.data
-
-    def switch_plans(
-        self,
-        *,
-        organization_id: str,
-        plan: Plan,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        plan : Plan
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.admin.switch_plans(
-            organization_id="organization_id",
-            plan="cloud_v0_hobby",
-        )
-        """
-        _response = self._raw_client.switch_plans(
-            organization_id=organization_id, plan=plan, request_options=request_options
-        )
-        return _response.data
-
-    def cancel_subscription(
-        self,
-        *,
-        organization_id: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.admin.cancel_subscription(
-            organization_id="organization_id",
-        )
-        """
-        _response = self._raw_client.cancel_subscription(
-            organization_id=organization_id, request_options=request_options
-        )
-        return _response.data
-
-    def report_usage(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
-        """
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.admin.report_usage()
-        """
-        _response = self._raw_client.report_usage(request_options=request_options)
+        _response = self._raw_client.create_account(request=request, request_options=request_options)
         return _response.data
 
 
@@ -388,6 +389,244 @@ class AsyncAdminClient:
         AsyncRawAdminClient
         """
         return self._raw_client
+
+    async def create_portal(
+        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.admin.create_portal(
+                organization_id="organization_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.create_portal(
+            organization_id=organization_id, request_options=request_options
+        )
+        return _response.data
+
+    async def create_checkout(
+        self,
+        *,
+        organization_id: str,
+        plan: Plan,
+        success_url: str,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Any:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        plan : Plan
+
+        success_url : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.admin.create_checkout(
+                organization_id="organization_id",
+                plan="cloud_v0_hobby",
+                success_url="success_url",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.create_checkout(
+            organization_id=organization_id, plan=plan, success_url=success_url, request_options=request_options
+        )
+        return _response.data
+
+    async def switch_plans(
+        self, *, organization_id: str, plan: Plan, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        plan : Plan
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.admin.switch_plans(
+                organization_id="organization_id",
+                plan="cloud_v0_hobby",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.switch_plans(
+            organization_id=organization_id, plan=plan, request_options=request_options
+        )
+        return _response.data
+
+    async def cancel_subscription(
+        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.admin.cancel_subscription(
+                organization_id="organization_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.cancel_subscription(
+            organization_id=organization_id, request_options=request_options
+        )
+        return _response.data
+
+    async def report_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.admin.report_usage()
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.report_usage(request_options=request_options)
+        return _response.data
+
+    async def flush_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.admin.flush_usage()
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.flush_usage(request_options=request_options)
+        return _response.data
 
     async def create_accounts(
         self,
@@ -432,11 +671,11 @@ class AsyncAdminClient:
 
         from agenta import (
             AsyncAgentaApi,
+            EeSrcServicesAdminManagerReference,
             OrganizationMembershipRequest,
             OrganizationRequest,
             ProjectMembershipRequest,
             ProjectRequest,
-            Reference,
             UserRequest,
             WorkspaceMembershipRequest,
             WorkspaceRequest,
@@ -457,50 +696,44 @@ class AsyncAdminClient:
                 },
                 organizations={
                     "key": OrganizationRequest(
-                        name="name",
-                        description="description",
-                        is_paying=True,
+                        owner_id="owner_id",
                     )
                 },
                 workspaces={
                     "key": WorkspaceRequest(
-                        name="name",
-                        description="description",
                         is_default=True,
-                        organization_ref=Reference(),
+                        organization_ref=EeSrcServicesAdminManagerReference(),
                     )
                 },
                 projects={
                     "key": ProjectRequest(
-                        name="name",
-                        description="description",
                         is_default=True,
-                        workspace_ref=Reference(),
-                        organization_ref=Reference(),
+                        workspace_ref=EeSrcServicesAdminManagerReference(),
+                        organization_ref=EeSrcServicesAdminManagerReference(),
                     )
                 },
                 organization_memberships={
                     "key": OrganizationMembershipRequest(
                         role="owner",
                         is_demo=True,
-                        user_ref=Reference(),
-                        organization_ref=Reference(),
+                        user_ref=EeSrcServicesAdminManagerReference(),
+                        organization_ref=EeSrcServicesAdminManagerReference(),
                     )
                 },
                 workspace_memberships={
                     "key": WorkspaceMembershipRequest(
                         role="owner",
                         is_demo=True,
-                        user_ref=Reference(),
-                        workspace_ref=Reference(),
+                        user_ref=EeSrcServicesAdminManagerReference(),
+                        workspace_ref=EeSrcServicesAdminManagerReference(),
                     )
                 },
                 project_memberships={
                     "key": ProjectMembershipRequest(
                         role="owner",
                         is_demo=True,
-                        user_ref=Reference(),
-                        project_ref=Reference(),
+                        user_ref=EeSrcServicesAdminManagerReference(),
+                        project_ref=EeSrcServicesAdminManagerReference(),
                     )
                 },
             )
@@ -543,7 +776,7 @@ class AsyncAdminClient:
         --------
         import asyncio
 
-        from agenta import AsyncAgentaApi
+        from agenta import AccountRequest, AsyncAgentaApi
 
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -551,233 +784,12 @@ class AsyncAdminClient:
 
 
         async def main() -> None:
-            await client.admin.create_account()
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.create_account(
-            request=request, request_options=request_options
-        )
-        return _response.data
-
-    async def create_portal(
-        self,
-        *,
-        organization_id: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.admin.create_portal(
-                organization_id="organization_id",
+            await client.admin.create_account(
+                request=AccountRequest(),
             )
 
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_portal(
-            organization_id=organization_id, request_options=request_options
-        )
-        return _response.data
-
-    async def create_checkout(
-        self,
-        *,
-        organization_id: str,
-        plan: Plan,
-        success_url: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        plan : Plan
-
-        success_url : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.admin.create_checkout(
-                organization_id="organization_id",
-                plan="cloud_v0_hobby",
-                success_url="success_url",
-            )
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.create_checkout(
-            organization_id=organization_id,
-            plan=plan,
-            success_url=success_url,
-            request_options=request_options,
-        )
-        return _response.data
-
-    async def switch_plans(
-        self,
-        *,
-        organization_id: str,
-        plan: Plan,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        plan : Plan
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.admin.switch_plans(
-                organization_id="organization_id",
-                plan="cloud_v0_hobby",
-            )
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.switch_plans(
-            organization_id=organization_id, plan=plan, request_options=request_options
-        )
-        return _response.data
-
-    async def cancel_subscription(
-        self,
-        *,
-        organization_id: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.admin.cancel_subscription(
-                organization_id="organization_id",
-            )
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.cancel_subscription(
-            organization_id=organization_id, request_options=request_options
-        )
-        return _response.data
-
-    async def report_usage(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
-        """
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.admin.report_usage()
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.report_usage(request_options=request_options)
+        _response = await self._raw_client.create_account(request=request, request_options=request_options)
         return _response.data

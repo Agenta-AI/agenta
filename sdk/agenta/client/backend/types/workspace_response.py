@@ -11,16 +11,14 @@ class WorkspaceResponse(UniversalBaseModel):
     created_at: typing.Optional[str] = None
     updated_at: typing.Optional[str] = None
     id: str
-    name: str
+    name: typing.Optional[str] = None
     description: typing.Optional[str] = None
     type: typing.Optional[str] = None
     organization: str
     members: typing.Optional[typing.List[WorkspaceMemberResponse]] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:

@@ -60,19 +60,13 @@ class ConfigsClient:
         )
         """
         _response = self._raw_client.get_config(
-            base_id=base_id,
-            config_name=config_name,
-            environment_name=environment_name,
-            request_options=request_options,
+            base_id=base_id, config_name=config_name, environment_name=environment_name, request_options=request_options
         )
         return _response.data
 
     def get_config_deployment_revision(
-        self,
-        deployment_revision_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+        self, deployment_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -83,7 +77,7 @@ class ConfigsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -103,11 +97,8 @@ class ConfigsClient:
         return _response.data
 
     def revert_deployment_revision(
-        self,
-        deployment_revision_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+        self, deployment_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -118,7 +109,7 @@ class ConfigsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -132,9 +123,7 @@ class ConfigsClient:
             deployment_revision_id="deployment_revision_id",
         )
         """
-        _response = self._raw_client.revert_deployment_revision(
-            deployment_revision_id, request_options=request_options
-        )
+        _response = self._raw_client.revert_deployment_revision(deployment_revision_id, request_options=request_options)
         return _response.data
 
 
@@ -198,19 +187,13 @@ class AsyncConfigsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.get_config(
-            base_id=base_id,
-            config_name=config_name,
-            environment_name=environment_name,
-            request_options=request_options,
+            base_id=base_id, config_name=config_name, environment_name=environment_name, request_options=request_options
         )
         return _response.data
 
     async def get_config_deployment_revision(
-        self,
-        deployment_revision_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+        self, deployment_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -221,7 +204,7 @@ class AsyncConfigsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -249,11 +232,8 @@ class AsyncConfigsClient:
         return _response.data
 
     async def revert_deployment_revision(
-        self,
-        deployment_revision_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+        self, deployment_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -264,7 +244,7 @@ class AsyncConfigsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples

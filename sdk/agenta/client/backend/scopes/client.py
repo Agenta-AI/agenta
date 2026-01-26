@@ -7,6 +7,9 @@ from ..core.request_options import RequestOptions
 from ..types.projects_response import ProjectsResponse
 from .raw_client import AsyncRawScopesClient, RawScopesClient
 
+# this is used as the default value for optional parameters
+OMIT = typing.cast(typing.Any, ...)
+
 
 class ScopesClient:
     def __init__(self, *, client_wrapper: SyncClientWrapper):
@@ -23,9 +26,7 @@ class ScopesClient:
         """
         return self._raw_client
 
-    def get_projects(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[ProjectsResponse]:
+    def get_projects(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[ProjectsResponse]:
         """
         Parameters
         ----------
@@ -47,6 +48,143 @@ class ScopesClient:
         client.scopes.get_projects()
         """
         _response = self._raw_client.get_projects(request_options=request_options)
+        return _response.data
+
+    def create_project(
+        self,
+        *,
+        name: str,
+        make_default: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ProjectsResponse:
+        """
+        Parameters
+        ----------
+        name : str
+
+        make_default : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ProjectsResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.scopes.create_project(
+            name="name",
+        )
+        """
+        _response = self._raw_client.create_project(
+            name=name, make_default=make_default, request_options=request_options
+        )
+        return _response.data
+
+    def get_project(
+        self, project_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> ProjectsResponse:
+        """
+        Parameters
+        ----------
+        project_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ProjectsResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.scopes.get_project(
+            project_id="project_id",
+        )
+        """
+        _response = self._raw_client.get_project(project_id, request_options=request_options)
+        return _response.data
+
+    def delete_project(self, project_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Parameters
+        ----------
+        project_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.scopes.delete_project(
+            project_id="project_id",
+        )
+        """
+        _response = self._raw_client.delete_project(project_id, request_options=request_options)
+        return _response.data
+
+    def update_project(
+        self,
+        project_id: str,
+        *,
+        name: typing.Optional[str] = OMIT,
+        make_default: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ProjectsResponse:
+        """
+        Parameters
+        ----------
+        project_id : str
+
+        name : typing.Optional[str]
+
+        make_default : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ProjectsResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.scopes.update_project(
+            project_id="project_id",
+        )
+        """
+        _response = self._raw_client.update_project(
+            project_id, name=name, make_default=make_default, request_options=request_options
+        )
         return _response.data
 
 
@@ -97,4 +235,175 @@ class AsyncScopesClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.get_projects(request_options=request_options)
+        return _response.data
+
+    async def create_project(
+        self,
+        *,
+        name: str,
+        make_default: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ProjectsResponse:
+        """
+        Parameters
+        ----------
+        name : str
+
+        make_default : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ProjectsResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.scopes.create_project(
+                name="name",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.create_project(
+            name=name, make_default=make_default, request_options=request_options
+        )
+        return _response.data
+
+    async def get_project(
+        self, project_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> ProjectsResponse:
+        """
+        Parameters
+        ----------
+        project_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ProjectsResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.scopes.get_project(
+                project_id="project_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.get_project(project_id, request_options=request_options)
+        return _response.data
+
+    async def delete_project(
+        self, project_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
+        """
+        Parameters
+        ----------
+        project_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.scopes.delete_project(
+                project_id="project_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.delete_project(project_id, request_options=request_options)
+        return _response.data
+
+    async def update_project(
+        self,
+        project_id: str,
+        *,
+        name: typing.Optional[str] = OMIT,
+        make_default: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ProjectsResponse:
+        """
+        Parameters
+        ----------
+        project_id : str
+
+        name : typing.Optional[str]
+
+        make_default : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ProjectsResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.scopes.update_project(
+                project_id="project_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.update_project(
+            project_id, name=name, make_default=make_default, request_options=request_options
+        )
         return _response.data

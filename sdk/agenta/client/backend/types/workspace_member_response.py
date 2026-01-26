@@ -8,13 +8,11 @@ from .workspace_permission import WorkspacePermission
 
 
 class WorkspaceMemberResponse(UniversalBaseModel):
-    user: typing.Dict[str, typing.Optional[typing.Any]]
+    user: typing.Dict[str, typing.Any]
     roles: typing.List[WorkspacePermission]
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:

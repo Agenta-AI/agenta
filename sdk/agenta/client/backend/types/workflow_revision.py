@@ -6,21 +6,22 @@ import datetime as dt
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import (
-    IS_PYDANTIC_V2,
-    UniversalBaseModel,
-    update_forward_refs,
-)
-from .artifact import Artifact
-from .workflow_data import WorkflowData
+from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
 from .workflow_flags import WorkflowFlags
-from .workflow_variant import WorkflowVariant
+from .workflow_revision_data_output import WorkflowRevisionDataOutput
 
 
 class WorkflowRevision(UniversalBaseModel):
+    workflow_variant_id: typing.Optional[str] = None
+    variant_id: typing.Optional[str] = None
+    workflow_id: typing.Optional[str] = None
+    artifact_id: typing.Optional[str] = None
     author: typing.Optional[str] = None
     date: typing.Optional[dt.datetime] = None
     message: typing.Optional[str] = None
+    flags: typing.Optional[WorkflowFlags] = None
+    tags: typing.Optional[typing.Dict[str, typing.Optional["LabelJsonOutput"]]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = None
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
     created_at: typing.Optional[dt.datetime] = None
@@ -32,20 +33,10 @@ class WorkflowRevision(UniversalBaseModel):
     version: typing.Optional[str] = None
     slug: typing.Optional[str] = None
     id: typing.Optional[str] = None
-    flags: typing.Optional[WorkflowFlags] = None
-    metadata: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
-        None
-    )
-    data: typing.Optional[WorkflowData] = None
-    artifact_id: typing.Optional[str] = None
-    artifact: typing.Optional[Artifact] = None
-    variant_id: typing.Optional[str] = None
-    variant: typing.Optional[WorkflowVariant] = None
+    data: typing.Optional[WorkflowRevisionDataOutput] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:
@@ -54,6 +45,7 @@ class WorkflowRevision(UniversalBaseModel):
             extra = pydantic.Extra.allow
 
 
-from .full_json_output import FullJsonOutput  # noqa: E402, F401, I001
+from .label_json_output import LabelJsonOutput  # noqa: E402, I001
+from .full_json_output import FullJsonOutput  # noqa: E402, I001
 
-update_forward_refs(WorkflowRevision)
+update_forward_refs(WorkflowRevision, FullJsonOutput=FullJsonOutput, LabelJsonOutput=LabelJsonOutput)

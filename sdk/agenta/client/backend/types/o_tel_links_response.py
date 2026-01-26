@@ -4,18 +4,15 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .o_tel_link import OTelLink
+from .o_tel_link_output import OTelLinkOutput
 
 
 class OTelLinksResponse(UniversalBaseModel):
-    version: str
-    count: int
-    links: typing.Optional[typing.List[OTelLink]] = None
+    count: typing.Optional[int] = None
+    links: typing.Optional[typing.List[OTelLinkOutput]] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:

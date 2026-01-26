@@ -28,10 +28,12 @@ SetIntStr = Set[Union[int, str]]
 DictIntStrAny = Dict[Union[int, str], Any]
 
 
-def jsonable_encoder(
-    obj: Any, custom_encoder: Optional[Dict[Any, Callable[[Any], Any]]] = None
-) -> Any:
+def jsonable_encoder(obj: Any, custom_encoder: Optional[Dict[Any, Callable[[Any], Any]]] = None) -> Any:
     custom_encoder = custom_encoder or {}
+    # Generated SDKs use Ellipsis (`...`) as the sentinel value for "OMIT".
+    # OMIT values should be excluded from serialized payloads.
+    if obj is Ellipsis:
+        return None
     if custom_encoder:
         if type(obj) in custom_encoder:
             return custom_encoder[type(obj)](obj)
@@ -72,6 +74,8 @@ def jsonable_encoder(
         allowed_keys = set(obj.keys())
         for key, value in obj.items():
             if key in allowed_keys:
+                if value is Ellipsis:
+                    continue
                 encoded_key = jsonable_encoder(key, custom_encoder=custom_encoder)
                 encoded_value = jsonable_encoder(value, custom_encoder=custom_encoder)
                 encoded_dict[encoded_key] = encoded_value
@@ -79,6 +83,8 @@ def jsonable_encoder(
     if isinstance(obj, (list, set, frozenset, GeneratorType, tuple)):
         encoded_list = []
         for item in obj:
+            if item is Ellipsis:
+                continue
             encoded_list.append(jsonable_encoder(item, custom_encoder=custom_encoder))
         return encoded_list
 

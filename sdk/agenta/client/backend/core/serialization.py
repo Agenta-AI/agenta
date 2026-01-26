@@ -67,9 +67,7 @@ def convert_and_respect_annotation_metadata(
     ):
         return _convert_mapping(object_, clean_type, direction)
     # TypedDicts
-    if typing_extensions.is_typeddict(clean_type) and isinstance(
-        object_, typing.Mapping
-    ):
+    if typing_extensions.is_typeddict(clean_type) and isinstance(object_, typing.Mapping):
         return _convert_mapping(object_, clean_type, direction)
 
     if (
@@ -163,9 +161,7 @@ def _convert_mapping(
 ) -> typing.Mapping[str, object]:
     converted_object: typing.Dict[str, object] = {}
     try:
-        annotations = typing_extensions.get_type_hints(
-            expected_type, include_extras=True
-        )
+        annotations = typing_extensions.get_type_hints(expected_type, include_extras=True)
     except NameError:
         # The TypedDict contains a circular reference, so
         # we use the __annotations__ attribute directly.
@@ -189,10 +185,8 @@ def _convert_mapping(
                 object_=value, annotation=type_, direction=direction
             )
         else:
-            converted_object[
-                _alias_key(key, type_, direction, aliases_to_field_names)
-            ] = convert_and_respect_annotation_metadata(
-                object_=value, annotation=type_, direction=direction
+            converted_object[_alias_key(key, type_, direction, aliases_to_field_names)] = (
+                convert_and_respect_annotation_metadata(object_=value, annotation=type_, direction=direction)
             )
     return converted_object
 

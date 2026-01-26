@@ -22,9 +22,7 @@ class ContainersClient:
         """
         return self._raw_client
 
-    def container_templates(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    def container_templates(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Returns a list of templates available for creating new containers.
 
@@ -35,7 +33,7 @@ class ContainersClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -47,9 +45,7 @@ class ContainersClient:
         )
         client.containers.container_templates()
         """
-        _response = self._raw_client.container_templates(
-            request_options=request_options
-        )
+        _response = self._raw_client.container_templates(request_options=request_options)
         return _response.data
 
 
@@ -68,9 +64,7 @@ class AsyncContainersClient:
         """
         return self._raw_client
 
-    async def container_templates(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    async def container_templates(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Returns a list of templates available for creating new containers.
 
@@ -81,7 +75,7 @@ class AsyncContainersClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -101,7 +95,5 @@ class AsyncContainersClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.container_templates(
-            request_options=request_options
-        )
+        _response = await self._raw_client.container_templates(request_options=request_options)
         return _response.data

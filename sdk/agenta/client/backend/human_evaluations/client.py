@@ -10,9 +10,9 @@ from ..types.human_evaluation import HumanEvaluation
 from ..types.human_evaluation_scenario import HumanEvaluationScenario
 from ..types.human_evaluation_scenario_input import HumanEvaluationScenarioInput
 from ..types.human_evaluation_scenario_output import HumanEvaluationScenarioOutput
-from ..types.score import Score
 from ..types.simple_evaluation_output import SimpleEvaluationOutput
 from .raw_client import AsyncRawHumanEvaluationsClient, RawHumanEvaluationsClient
+from .types.human_evaluation_scenario_update_score import HumanEvaluationScenarioUpdateScore
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -68,9 +68,7 @@ class HumanEvaluationsClient:
             app_id="app_id",
         )
         """
-        _response = self._raw_client.fetch_list_human_evaluations(
-            app_id=app_id, request_options=request_options
-        )
+        _response = self._raw_client.fetch_list_human_evaluations(app_id=app_id, request_options=request_options)
         return _response.data
 
     def create_human_evaluation(
@@ -141,10 +139,7 @@ class HumanEvaluationsClient:
         return _response.data
 
     def delete_evaluations(
-        self,
-        *,
-        evaluations_ids: typing.Sequence[str],
-        request_options: typing.Optional[RequestOptions] = None,
+        self, *, evaluations_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
     ) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
@@ -184,10 +179,7 @@ class HumanEvaluationsClient:
         return _response.data
 
     def fetch_human_evaluation(
-        self,
-        evaluation_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> HumanEvaluation:
         """
         Fetches a single evaluation based on its ID.
@@ -221,9 +213,7 @@ class HumanEvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.fetch_human_evaluation(
-            evaluation_id, request_options=request_options
-        )
+        _response = self._raw_client.fetch_human_evaluation(evaluation_id, request_options=request_options)
         return _response.data
 
     def update_human_evaluation(
@@ -232,7 +222,7 @@ class HumanEvaluationsClient:
         *,
         status: typing.Optional[EvaluationStatusEnum] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Updates an evaluation's status.
 
@@ -253,7 +243,7 @@ class HumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -273,10 +263,7 @@ class HumanEvaluationsClient:
         return _response.data
 
     def fetch_human_evaluation_scenarios(
-        self,
-        evaluation_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> typing.List[HumanEvaluationScenario]:
         """
         Fetches evaluation scenarios for a given evaluation ID.
@@ -313,9 +300,7 @@ class HumanEvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.fetch_human_evaluation_scenarios(
-            evaluation_id, request_options=request_options
-        )
+        _response = self._raw_client.fetch_human_evaluation_scenarios(evaluation_id, request_options=request_options)
         return _response.data
 
     def update_evaluation_scenario_router(
@@ -325,14 +310,14 @@ class HumanEvaluationsClient:
         evaluation_type: EvaluationType,
         *,
         vote: typing.Optional[str] = OMIT,
-        score: typing.Optional[Score] = OMIT,
+        score: typing.Optional[HumanEvaluationScenarioUpdateScore] = OMIT,
         correct_answer: typing.Optional[str] = OMIT,
         outputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]] = OMIT,
         inputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]] = OMIT,
         is_pinned: typing.Optional[bool] = OMIT,
         note: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Updates an evaluation scenario's vote or score based on its type.
 
@@ -352,7 +337,7 @@ class HumanEvaluationsClient:
 
         vote : typing.Optional[str]
 
-        score : typing.Optional[Score]
+        score : typing.Optional[HumanEvaluationScenarioUpdateScore]
 
         correct_answer : typing.Optional[str]
 
@@ -369,7 +354,7 @@ class HumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -401,10 +386,7 @@ class HumanEvaluationsClient:
         return _response.data
 
     def get_evaluation_scenario_score_router(
-        self,
-        evaluation_scenario_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, evaluation_scenario_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> typing.Dict[str, str]:
         """
         Fetch the score of a specific evaluation scenario.
@@ -444,12 +426,8 @@ class HumanEvaluationsClient:
         return _response.data
 
     def update_evaluation_scenario_score_router(
-        self,
-        evaluation_scenario_id: str,
-        *,
-        score: float,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+        self, evaluation_scenario_id: str, *, score: float, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Updates the score of an evaluation scenario.
 
@@ -470,7 +448,7 @@ class HumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -491,11 +469,8 @@ class HumanEvaluationsClient:
         return _response.data
 
     def fetch_results(
-        self,
-        evaluation_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Fetch all the results for one the comparison table
 
@@ -514,7 +489,7 @@ class HumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -528,9 +503,7 @@ class HumanEvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.fetch_results(
-            evaluation_id, request_options=request_options
-        )
+        _response = self._raw_client.fetch_results(evaluation_id, request_options=request_options)
         return _response.data
 
 
@@ -592,9 +565,7 @@ class AsyncHumanEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_list_human_evaluations(
-            app_id=app_id, request_options=request_options
-        )
+        _response = await self._raw_client.fetch_list_human_evaluations(app_id=app_id, request_options=request_options)
         return _response.data
 
     async def create_human_evaluation(
@@ -673,10 +644,7 @@ class AsyncHumanEvaluationsClient:
         return _response.data
 
     async def delete_evaluations(
-        self,
-        *,
-        evaluations_ids: typing.Sequence[str],
-        request_options: typing.Optional[RequestOptions] = None,
+        self, *, evaluations_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
     ) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
@@ -724,10 +692,7 @@ class AsyncHumanEvaluationsClient:
         return _response.data
 
     async def fetch_human_evaluation(
-        self,
-        evaluation_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> HumanEvaluation:
         """
         Fetches a single evaluation based on its ID.
@@ -769,9 +734,7 @@ class AsyncHumanEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_human_evaluation(
-            evaluation_id, request_options=request_options
-        )
+        _response = await self._raw_client.fetch_human_evaluation(evaluation_id, request_options=request_options)
         return _response.data
 
     async def update_human_evaluation(
@@ -780,7 +743,7 @@ class AsyncHumanEvaluationsClient:
         *,
         status: typing.Optional[EvaluationStatusEnum] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Updates an evaluation's status.
 
@@ -801,7 +764,7 @@ class AsyncHumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -829,10 +792,7 @@ class AsyncHumanEvaluationsClient:
         return _response.data
 
     async def fetch_human_evaluation_scenarios(
-        self,
-        evaluation_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> typing.List[HumanEvaluationScenario]:
         """
         Fetches evaluation scenarios for a given evaluation ID.
@@ -889,14 +849,14 @@ class AsyncHumanEvaluationsClient:
         evaluation_type: EvaluationType,
         *,
         vote: typing.Optional[str] = OMIT,
-        score: typing.Optional[Score] = OMIT,
+        score: typing.Optional[HumanEvaluationScenarioUpdateScore] = OMIT,
         correct_answer: typing.Optional[str] = OMIT,
         outputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]] = OMIT,
         inputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]] = OMIT,
         is_pinned: typing.Optional[bool] = OMIT,
         note: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Updates an evaluation scenario's vote or score based on its type.
 
@@ -916,7 +876,7 @@ class AsyncHumanEvaluationsClient:
 
         vote : typing.Optional[str]
 
-        score : typing.Optional[Score]
+        score : typing.Optional[HumanEvaluationScenarioUpdateScore]
 
         correct_answer : typing.Optional[str]
 
@@ -933,7 +893,7 @@ class AsyncHumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -973,10 +933,7 @@ class AsyncHumanEvaluationsClient:
         return _response.data
 
     async def get_evaluation_scenario_score_router(
-        self,
-        evaluation_scenario_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, evaluation_scenario_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> typing.Dict[str, str]:
         """
         Fetch the score of a specific evaluation scenario.
@@ -1024,12 +981,8 @@ class AsyncHumanEvaluationsClient:
         return _response.data
 
     async def update_evaluation_scenario_score_router(
-        self,
-        evaluation_scenario_id: str,
-        *,
-        score: float,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+        self, evaluation_scenario_id: str, *, score: float, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Updates the score of an evaluation scenario.
 
@@ -1050,7 +1003,7 @@ class AsyncHumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -1079,11 +1032,8 @@ class AsyncHumanEvaluationsClient:
         return _response.data
 
     async def fetch_results(
-        self,
-        evaluation_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Fetch all the results for one the comparison table
 
@@ -1102,7 +1052,7 @@ class AsyncHumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -1124,7 +1074,5 @@ class AsyncHumanEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_results(
-            evaluation_id, request_options=request_options
-        )
+        _response = await self._raw_client.fetch_results(evaluation_id, request_options=request_options)
         return _response.data
