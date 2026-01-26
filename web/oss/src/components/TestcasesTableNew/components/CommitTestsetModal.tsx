@@ -5,6 +5,8 @@ import {Input, Modal, Tooltip, Typography} from "antd"
 
 import DiffView from "@/oss/components/Editor/DiffView"
 import {COMMIT_MESSAGE_MAX_LENGTH} from "@/oss/config/constants"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
+import {useSetAtom} from "jotai"
 
 const {Text} = Typography
 
@@ -41,6 +43,7 @@ const CommitTestsetModal = ({
     changesSummary,
 }: CommitTestsetModalProps) => {
     const [note, setNote] = useState("")
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
 
     // Cache the changes summary when modal opens to prevent layout shift during close animation
     const cachedSummaryRef = useRef<TestsetChangesSummary | undefined>(undefined)
@@ -63,6 +66,7 @@ const CommitTestsetModal = ({
 
     const handleCommit = async () => {
         await onCommit(note)
+        recordWidgetEvent("testset_created")
         setNote("")
     }
 
