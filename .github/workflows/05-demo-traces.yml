@@ -1,5 +1,8 @@
 name: Generate Demo Traces
 
+permissions:
+  contents: read
+
 on:
   schedule:
     # Run twice daily: 9am and 4pm UTC
