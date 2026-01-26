@@ -5,11 +5,11 @@
  * These are core entity behaviors, not layer-specific.
  */
 
-import {projectIdAtom} from "@agenta/shared"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
+// Testcase atoms - import directly from internal modules (not public index)
 import {
-    // Testcase atoms
     currentRevisionIdAtom,
     testcaseIdsAtom,
     newEntityIdsAtom,
@@ -20,9 +20,8 @@ import {
     discardAllDraftsAtom,
     clearNewEntityIdsAtom,
     clearDeletedIdsAtom,
-    // Schema utilities
-    unflattenTestcase,
-} from "../../testcase"
+} from "../../testcase/state/store"
+// Schema utilities
 import {fetchRevision, fetchVariantDetail} from "../api/api"
 import {
     patchRevision,
@@ -65,11 +64,12 @@ const currentColumnsAtom = atom<Column[]>((get) => {
     const addedCols = new Set(pendingColumnOps?.add ?? [])
 
     // Collect unique keys from all entities
+    // Note: Testcase uses nested format - data fields are in testcase.data
     const keySet = new Set<string>()
     for (const id of allIds) {
         const entity = get(testcaseEntityAtomFamily(id))
-        if (!entity) continue
-        for (const key of Object.keys(entity)) {
+        if (!entity?.data) continue
+        for (const key of Object.keys(entity.data)) {
             if (!SYSTEM_FIELDS.has(key)) {
                 keySet.add(key)
             }
@@ -120,6 +120,7 @@ export interface SaveTestsetParams {
 export interface SaveTestsetResult {
     success: boolean
     newRevisionId?: string
+    newVersion?: number
     error?: Error
 }
 
@@ -220,6 +221,7 @@ export const saveTestsetAtom = atom(
             }
 
             // 1. Collect updated testcases (entities with drafts, excluding deleted)
+            // Note: Entity is already in nested Testcase format (entity.data contains column values)
             const updatedTestcases = serverIds
                 .filter((id) => {
                     // Has draft and not deleted
@@ -229,17 +231,16 @@ export const saveTestsetAtom = atom(
                 .map((id) => {
                     const entity = get(testcaseEntityAtomFamily(id))
                     if (!entity) return null
-                    const unflattened = unflattenTestcase(entity)
                     const filteredData: Record<string, unknown> = {}
-                    if (unflattened.data) {
-                        for (const key of Object.keys(unflattened.data)) {
+                    if (entity.data) {
+                        for (const key of Object.keys(entity.data)) {
                             if (currentColumnKeys.has(key)) {
-                                filteredData[key] = unflattened.data[key]
+                                filteredData[key] = entity.data[key]
                             }
                         }
                     }
                     return {
-                        id: unflattened.id!,
+                        id: entity.id,
                         data: filteredData,
                     }
                 })
@@ -253,16 +254,16 @@ export const saveTestsetAtom = atom(
             }
 
             // 2. Collect new testcases (from newEntityIdsAtom)
+            // Note: Draft is already in nested Testcase format (draft.data contains column values)
             const newTestcasesData = newIds
                 .map((id) => {
                     const draft = get(testcaseDraftAtomFamily(id))
                     if (!draft) return null
-                    const unflattened = unflattenTestcase(draft)
                     const filteredData: Record<string, unknown> = {}
-                    if (unflattened.data) {
-                        for (const key of Object.keys(unflattened.data)) {
+                    if (draft.data) {
+                        for (const key of Object.keys(draft.data)) {
                             if (currentColumnKeys.has(key)) {
-                                filteredData[key] = unflattened.data[key]
+                                filteredData[key] = draft.data[key]
                             }
                         }
                     }
@@ -311,6 +312,12 @@ export const saveTestsetAtom = atom(
 
             if (response?.testset_revision) {
                 const newRevisionId = response.testset_revision.id as string
+                const newVersion =
+                    typeof response.testset_revision.version === "number"
+                        ? response.testset_revision.version
+                        : typeof response.testset_revision.version === "string"
+                          ? parseInt(response.testset_revision.version, 10)
+                          : undefined
 
                 // Clear local edit state (drafts)
                 if (effectiveRevisionId) {
@@ -322,7 +329,7 @@ export const saveTestsetAtom = atom(
                 set(clearNewEntityIdsAtom)
                 set(clearDeletedIdsAtom)
 
-                return {success: true, newRevisionId}
+                return {success: true, newRevisionId, newVersion}
             }
 
             return {success: false, error: new Error("No revision returned from API")}
@@ -376,15 +383,16 @@ export const saveNewTestsetAtom = atom(
             const currentColumnKeys = new Set(columns.map((c) => c.key))
 
             // Collect testcase data from new entities
+            // Note: Testcase uses nested format - data fields are in draft.data
             const testcaseData = newIds
                 .map((id) => {
                     const draft = get(testcaseDraftAtomFamily(id))
-                    if (!draft) return null
+                    if (!draft?.data) return null
                     // Filter to only include current columns
                     const filteredData: Record<string, unknown> = {}
-                    for (const key of Object.keys(draft)) {
+                    for (const key of Object.keys(draft.data)) {
                         if (currentColumnKeys.has(key)) {
-                            filteredData[key] = draft[key]
+                            filteredData[key] = draft.data[key]
                         }
                     }
                     return filteredData

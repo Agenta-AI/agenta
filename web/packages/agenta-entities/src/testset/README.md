@@ -4,10 +4,11 @@ This module provides state management for **testset** and **revision** entities 
 
 ## Overview
 
-```
+```text
 testset/
 ├── index.ts              # Public exports
 ├── README.md             # This file
+├── relations.ts          # Entity relations (testset→revision→testcase)
 ├── core/                 # Schemas and types
 │   ├── schema.ts         # Zod schemas
 │   ├── types.ts          # TypeScript interfaces
@@ -101,6 +102,8 @@ Manages revision entity state.
 | `.atoms.withTestcases(id)` | Revision with testcases included |
 | `.atoms.testcaseColumns(id)` | Column names from testcases |
 | `.atoms.testcaseColumnsNormalized(id)` | Lowercase columns for matching |
+| `.atoms.effectiveTestcaseIds(id)` | Effective testcase IDs (server + pending local rows) |
+| `.atoms.effectiveTestcases(id)` | Effective testcases resolved from IDs |
 | `.atoms.list(testsetId)` | Revisions list for a testset |
 | `.atoms.latestForTestset(testsetId)` | Latest revision for a testset |
 
@@ -260,35 +263,22 @@ const revisionMap = await fetchLatestRevisionsBatch(projectId, testsetIds)
 const testset = await fetchTestsetDetail({ id: testsetId, projectId })
 ```
 
-### Optimized Latest Revision Fetching
+### Latest Revision Fetching
 
-For tables displaying testsets with their latest revision info, use the optimized query atoms:
+For getting the latest revision of a testset:
 
 ```typescript
-import {
-  latestRevisionQueryAtomFamily,
-  latestRevisionStatefulAtomFamily,
-  requestLatestRevisionAtom,
-} from '@agenta/entities/testset'
+import { latestRevisionForTestsetAtomFamily } from '@agenta/entities/testset'
 
-// Step 1: Request the latest revision (enables the query)
-const request = useSetAtom(requestLatestRevisionAtom)
-useEffect(() => {
-  if (testsetId && projectId) {
-    request({ testsetId, projectId })
-  }
-}, [testsetId, projectId, request])
-
-// Step 2: Read the latest revision with loading state
-const { data, isPending } = useAtomValue(latestRevisionStatefulAtomFamily(testsetId))
+// Read latest revision with loading state
+const { data, isPending } = useAtomValue(latestRevisionForTestsetAtomFamily(testsetId))
 ```
 
-**Why use this pattern?**
+**Features:**
 
-1. **Explicit enabling**: Queries are disabled until `requestLatestRevisionAtom` is called
-2. **Batch optimization**: When multiple components request latest revisions concurrently, requests are batched within a 10ms window into a single API call
-3. **Per-testset limits**: The batch API uses `ReferenceWithLimit` to fetch exactly 1 revision per testset using SQL window functions
-4. **Efficient caching**: Results are cached per testset with 30s stale time
+1. **Batch optimization**: Concurrent requests are batched into a single API call
+2. **Per-testset limits**: The batch API fetches exactly 1 revision per testset
+3. **Efficient caching**: Results are cached per testset with 30s stale time
 
 ## Utilities
 
@@ -318,16 +308,16 @@ isNewTestsetId("abc")  // false
 ### Entity Model
 
 ```
-Testset (metadata)
-├── Variant (name, description)
+Testset (metadata: name, description)
 └── Revisions (immutable snapshots)
     └── Testcases (data rows)
 ```
 
-- **Testset**: Parent entity with metadata
-- **Variant**: Contains mutable name/description
+- **Testset**: Parent entity with metadata (name, description)
 - **Revision**: Immutable snapshot of testcase data
 - **Testcases**: Row data within a revision
+
+> **Note:** The frontend uses a 2-level hierarchy (Testset → Revision → Testcase). There is no separate "Variant" entity — name and description are stored directly on the Testset.
 
 ### Immutability
 
@@ -336,6 +326,48 @@ Revisions are **immutable** - editing creates a new revision. This is why:
 - `revisionMolecule` doesn't have complex merge logic
 - Draft state is simple partial updates
 - Query caching uses `staleTime: Infinity`
+
+### Relations
+
+Entity relations define parent-child hierarchies and are declared in `relations.ts`:
+
+```text
+testset → revision → testcase
+```
+
+| Relation                      | File           | Mode      |
+|-------------------------------|----------------|-----------|
+| `testsetToRevisionRelation`   | `relations.ts` | reference |
+| `revisionToTestcaseRelation`  | `relations.ts` | reference |
+
+Relations are auto-registered on import and enable:
+
+- **EntityPicker** adapters for selection UI
+- **Hierarchy discovery** via `entityRelationRegistry`
+
+#### Import constraint
+
+The dependency between `relations.ts` and molecule files is **one-way**:
+
+```text
+relations.ts  ──imports──▶  state/revisionMolecule.ts   ✓
+state/revisionMolecule.ts  ──imports──▶  relations.ts   ✗ FORBIDDEN
+```
+
+`relations.ts` imports molecules to populate `childMolecule` in relation definitions.
+Molecule files must **never** import from `relations.ts` — doing so creates a circular
+ES module dependency that causes `ReferenceError: Cannot access 'X' before initialization`.
+
+If a molecule needs child IDs that a relation also extracts, **inline the logic**:
+
+```typescript
+// In state/revisionMolecule.ts — GOOD: inline extraction
+const testcaseIds = revision.data?.testcase_ids ?? []
+
+// In state/revisionMolecule.ts — BAD: imports from relations.ts
+import { revisionToTestcaseRelation } from "../relations"
+const testcaseIds = getChildIds(revision, revisionToTestcaseRelation)
+```
 
 ### Batch Fetching Architecture
 
@@ -360,47 +392,24 @@ Component C requests latest for testset-3  ─┘     (10ms window)
 - Guarantees exactly 1 result per testset (not affected by global ordering)
 - Works with TanStack Query caching
 
-## Table State Management
+## Saving Changes
 
-For revision table operations (column add/remove/rename, row operations):
-
-```typescript
-import {
-  // Column operations
-  addColumnReducer,
-  removeColumnReducer,
-  renameColumnReducer,
-  // Row operations
-  addRowReducer,
-  removeRowReducer,
-  removeRowsReducer,
-  // Pending state
-  pendingColumnOpsAtomFamily,
-  pendingRowOpsAtomFamily,
-  hasPendingChangesAtomFamily,
-  // Clear
-  clearPendingOpsReducer,
-} from '@agenta/entities/testset'
-```
-
-## Mutation Atoms
-
-For saving changes:
+For saving testset changes:
 
 ```typescript
-import {
-  saveTestsetAtom,
-  saveNewTestsetAtom,
-  clearChangesAtom,
-  changesSummaryAtom,
-  hasUnsavedChangesAtom,
-} from '@agenta/entities/testset'
+import { saveTestsetAtom } from '@agenta/entities/testset'
 
-// Check for changes
-const hasChanges = useAtomValue(hasUnsavedChangesAtom)
-const summary = useAtomValue(changesSummaryAtom)
-
-// Save
+// Save changes to create a new revision
 const save = useSetAtom(saveTestsetAtom)
-await save({ revisionId, message: 'Updated data' })
+const result = await save({
+  projectId,
+  testsetId,
+  revisionId,
+  commitMessage: 'Updated data'
+})
+
+if (result.success) {
+  // Navigate to new revision
+  router.push(`/testsets/${result.newRevisionId}`)
+}
 ```

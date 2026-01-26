@@ -5,7 +5,7 @@
  * These are pure functions with no Jotai dependencies.
  */
 
-import {getAgentaApiUrl, axios} from "@agenta/shared"
+import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
 import {safeParseWithLogging} from "../../shared"
 import {

@@ -41,7 +41,7 @@ import {
     setValueAtPath,
     getItemsAtPath,
     type DataPath,
-} from "@agenta/shared"
+} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 
 import {
@@ -52,9 +52,16 @@ import {
 } from "../../shared"
 import type {AtomFamily, QueryState, PathItem} from "../../shared"
 import {testcaseMolecule} from "../../testcase/state/molecule"
+import {fetchLatestRevision} from "../api"
+import {createTestset} from "../api/mutations"
 import {isNewTestsetId, type Testset, type Revision, type RevisionListItem} from "../core"
 
-import {saveNewTestsetAtom} from "./mutations"
+import {
+    saveNewTestsetAtom,
+    saveReducer,
+    changesSummaryAtom,
+    deleteTestsetsReducer,
+} from "./mutations"
 import {testsetPaginatedStore, testsetFilters, testsetsPaginatedMetaAtom} from "./paginatedStore"
 import {
     testsetQueryAtomFamily,
@@ -209,44 +216,187 @@ const testsetControllerAtomFamily = createControllerAtomFamily<Testset, Partial<
 
 /**
  * Full testset molecule with paginated store and filters
+ *
+ * ## Unified API
+ *
+ * The testset molecule provides a unified API with these access patterns:
+ *
+ * ### Top-level (most common operations)
+ * ```typescript
+ * testset.data(id)         // Reactive: merged entity data
+ * testset.query(id)        // Reactive: query state with loading/error
+ * testset.isDirty(id)      // Reactive: has unsaved changes
+ * testset.changesSummary   // Reactive: counts of changes
+ * ```
+ *
+ * ### Actions namespace (all write operations)
+ * ```typescript
+ * set(testset.actions.update, id, changes)
+ * set(testset.actions.save, params)
+ * set(testset.actions.delete, ids)
+ * ```
+ *
+ * ### Get namespace (imperative reads)
+ * ```typescript
+ * testset.get.data(id)
+ * testset.get.isDirty(id)
+ * ```
+ *
+ * @example
+ * ```typescript
+ * import { testset } from '@agenta/entities'
+ *
+ * // Reactive subscriptions (most common)
+ * const data = useAtomValue(testset.data(id))
+ * const {isPending, isError} = useAtomValue(testset.query(id))
+ * const summary = useAtomValue(testset.changesSummary)
+ *
+ * // Write operations
+ * const save = useSetAtom(testset.actions.save)
+ * await save({ projectId, revisionId })
+ *
+ * // Imperative reads (in callbacks)
+ * const data = testset.get.data(id)
+ * ```
  */
 export const testsetMolecule = {
     ...extendedMolecule,
 
+    // =========================================================================
+    // TOP-LEVEL API (most common operations - flattened for ergonomics)
+    // =========================================================================
+
+    /**
+     * Get merged entity data (server + draft).
+     * @param id - Testset ID
+     * @returns Atom<Testset | null>
+     * @example const data = useAtomValue(testset.data(id))
+     */
+    data: extendedMolecule.atoms.data,
+
+    /**
+     * Get query state with loading/error status.
+     * @param id - Testset ID
+     * @returns Atom<QueryState<Testset>>
+     * @example const {data, isPending, isError} = useAtomValue(testset.query(id))
+     */
+    query: testsetQueryAtomFamily as AtomFamily<QueryState<Testset>>,
+
+    /**
+     * Check if entity has unsaved changes.
+     * @param id - Testset ID
+     * @returns Atom<boolean>
+     * @example const isDirty = useAtomValue(testset.isDirty(id))
+     */
+    isDirty: extendedMolecule.atoms.isDirty,
+
+    /**
+     * Null-safe query selector. Returns null query result when id is null/undefined.
+     * Prevents unnecessary network requests for empty IDs.
+     * @param id - Testset ID (can be null/undefined)
+     * @returns Atom<QueryState<Testset>>
+     * @example const query = useAtomValue(testset.queryOptional(id))
+     */
+    queryOptional: (id: string | null | undefined) =>
+        id ? (testsetQueryAtomFamily(id) as typeof nullQueryResultAtom) : nullQueryResultAtom,
+
+    /**
+     * Null-safe data selector. Returns null when id is null/undefined.
+     * @param id - Testset ID (can be null/undefined)
+     * @returns Atom<Testset | null>
+     * @example const data = useAtomValue(testset.dataOptional(id))
+     */
+    dataOptional: (id: string | null | undefined) =>
+        id ? extendedMolecule.atoms.data(id) : nullDataAtom,
+
+    /**
+     * Changes summary - counts of new/updated/deleted testcases and column operations.
+     * @example const summary = useAtomValue(testset.changesSummary)
+     */
+    changesSummary: changesSummaryAtom,
+
     /**
      * Controller atom family for state + dispatch pattern.
-     * @example const [state, dispatch] = useAtom(testsetMolecule.controller(id))
+     * @example const [state, dispatch] = useAtom(testset.controller(id))
      */
     controller: testsetControllerAtomFamily,
 
+    // =========================================================================
+    // ATOMS namespace (additional/less common reactive atoms)
+    // =========================================================================
+
+    atoms: {
+        ...extendedMolecule.atoms,
+        /** Changes summary (also available at top level) */
+        changesSummary: changesSummaryAtom,
+    },
+
+    // =========================================================================
+    // ACTIONS namespace (all write operations)
+    // =========================================================================
+
     /**
-     * Selectors - alias for atoms that provide query state
-     * For compatibility with component patterns that expect `testset.selectors.query(id)`
+     * Action atoms for mutations.
+     * Use with `useSetAtom` in components or `set()` in atom compositions.
+     *
+     * @example
+     * ```typescript
+     * // In components
+     * const save = useSetAtom(testset.actions.save)
+     * await save({ projectId, revisionId })
+     *
+     * // In atom compositions
+     * const myAtom = atom(null, async (get, set) => {
+     *   await set(testset.actions.save, { projectId, revisionId })
+     * })
+     * ```
+     */
+    actions: {
+        /** Update testset draft */
+        update: extendedMolecule.reducers.update,
+        /** Discard testset draft */
+        discard: extendedMolecule.reducers.discard,
+        /**
+         * Save testset changes (handles both new and existing testsets)
+         * @param params - { projectId, revisionId?, testsetName?, commitMessage? }
+         * @returns Promise<string | null> - New revision ID on success
+         */
+        save: saveReducer,
+        /**
+         * Delete (archive) testsets by IDs
+         * @param ids - Array of testset IDs to delete
+         */
+        delete: deleteTestsetsReducer,
+    },
+
+    /**
+     * Selectors - DEPRECATED: Use top-level aliases instead
+     * @deprecated Use testset.data(id), testset.query(id), testset.isDirty(id)
      */
     selectors: {
-        /** Query atom for testset data with loading/error states */
+        /** @deprecated Use testset.query(id) */
         query: testsetQueryAtomFamily as AtomFamily<QueryState<Testset>>,
         /**
          * Null-safe query selector. Returns null query result when id is null/undefined.
          * Prevents unnecessary network requests for empty IDs.
-         * @example const query = useAtomValue(testsetMolecule.selectors.queryOptional(id))
+         * @example const query = useAtomValue(testset.selectors.queryOptional(id))
          */
         queryOptional: (id: string | null | undefined) =>
             // Cast needed: return type must match nullQueryResultAtom for union compatibility
             id ? (testsetQueryAtomFamily(id) as typeof nullQueryResultAtom) : nullQueryResultAtom,
-        /** Merged data atom (server + draft) */
+        /** @deprecated Use testset.data(id) */
         data: extendedMolecule.atoms.data,
         /**
          * Null-safe data selector. Returns null when id is null/undefined.
-         * @example const data = useAtomValue(testsetMolecule.selectors.dataOptional(id))
+         * @example const data = useAtomValue(testset.selectors.dataOptional(id))
          */
         dataOptional: (id: string | null | undefined) =>
             id ? extendedMolecule.atoms.data(id) : nullDataAtom,
         /** Raw server data (without draft) */
         serverData: extendedMolecule.atoms.serverData,
-        /** Draft data atom */
+        /** @deprecated Use testset.atoms.draft(id) */
         draft: extendedMolecule.atoms.draft,
-        /** isDirty atom */
+        /** @deprecated Use testset.isDirty(id) */
         isDirty: extendedMolecule.atoms.isDirty,
     },
 
@@ -375,7 +525,6 @@ export const testsetMolecule = {
          * @returns Promise<Revision | null>
          */
         fetch: async (testsetId: string, projectId: string): Promise<Revision | null> => {
-            const {fetchLatestRevision} = await import("../api")
             return fetchLatestRevision({testsetId, projectId})
         },
     },
@@ -490,7 +639,6 @@ export const testsetMolecule = {
                 if (directTestcases !== undefined) {
                     // Direct mode: save with provided testcase data
                     try {
-                        const {createTestset} = await import("../api/mutations")
                         const response = await createTestset({
                             projectId,
                             name: testsetName,
