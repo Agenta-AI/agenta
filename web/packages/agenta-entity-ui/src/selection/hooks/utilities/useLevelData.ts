@@ -9,6 +9,7 @@
 
 import {useEffect, useMemo} from "react"
 
+import {filterItems as sharedFilterItems} from "@agenta/shared/utils"
 import {atom, useAtomValue, type Atom} from "jotai"
 
 import type {
@@ -335,12 +336,6 @@ export function resolveListAtom<T = unknown>(
  * const filteredItems = filterItems(items, searchTerm)
  * ```
  */
-export function filterItems<T>(items: T[], searchTerm: string): T[] {
-    if (!searchTerm.trim()) return items
-    const term = searchTerm.toLowerCase().trim()
-    return items.filter((item) => JSON.stringify(item).toLowerCase().includes(term))
-}
-
 /**
  * Create a custom filter function using levelConfig's getLabel.
  *
@@ -355,9 +350,8 @@ export function filterItems<T>(items: T[], searchTerm: string): T[] {
 export function createLabelFilter<T>(
     levelConfig: HierarchyLevel<T>,
 ): (items: T[], searchTerm: string) => T[] {
-    return (items: T[], searchTerm: string): T[] => {
-        if (!searchTerm.trim()) return items
-        const term = searchTerm.toLowerCase().trim()
-        return items.filter((item) => levelConfig.getLabel(item).toLowerCase().includes(term))
-    }
+    return (items: T[], searchTerm: string): T[] =>
+        sharedFilterItems(items, searchTerm, levelConfig.getLabel)
 }
+
+export {sharedFilterItems as filterItems}

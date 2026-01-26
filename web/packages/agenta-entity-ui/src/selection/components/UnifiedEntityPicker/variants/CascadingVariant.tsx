@@ -9,7 +9,7 @@
 
 import React from "react"
 
-import {cn} from "@agenta/ui"
+import {cn} from "@agenta/ui/styles"
 
 import {useCascadingMode} from "../../../hooks"
 import type {EntitySelectionResult} from "../../../types"

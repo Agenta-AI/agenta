@@ -11,6 +11,7 @@
 
 import {useCallback, useEffect, useMemo, useState, useRef} from "react"
 
+import {computeListCounts, type EntityListCounts} from "@agenta/entities/shared"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -142,6 +143,8 @@ export interface UseBreadcrumbModeResult<TSelection = EntitySelectionResult> {
     totalCount: number | null
     /** Pagination info */
     pagination: PaginationInfo
+    /** Unified list counts (for LoadMoreButton/LoadAllButton) */
+    counts: EntityListCounts
 
     // Core
     /** Resolved adapter */
@@ -431,40 +434,49 @@ export function useBreadcrumbMode<TSelection = EntitySelectionResult>(
         }))
     }, [supportsPagination, hasNextPage, isFetchingNextPage, pagination, pageSize])
 
+    /**
+     * Start loading all remaining pages.
+     * Uses React-idiomatic approach: sets a flag that triggers an effect
+     * to automatically fetch subsequent pages as they complete.
+     */
     const loadAllPages = useCallback(async () => {
         if (!supportsPagination || isLoadingAll || !hasNextPage) return
 
         setIsLoadingAll(true)
         loadAllCancelledRef.current = false
 
-        return new Promise<void>((resolve, reject) => {
-            const intervalId = setInterval(() => {
-                if (loadAllCancelledRef.current || !pagination.hasNextPage) {
-                    clearInterval(intervalId)
-                    setIsLoadingAll(false)
-                    resolve()
-                } else if (!isFetchingNextPage && pagination.hasNextPage) {
-                    fetchNextPage()
-                }
-            }, 100)
+        // Trigger first fetch - the effect below will continue loading
+        fetchNextPage()
+    }, [supportsPagination, isLoadingAll, hasNextPage, fetchNextPage])
 
-            setTimeout(
-                () => {
-                    clearInterval(intervalId)
-                    setIsLoadingAll(false)
-                    reject(new Error("Load all timed out"))
-                },
-                5 * 60 * 1000,
-            )
-        })
-    }, [
-        supportsPagination,
-        isLoadingAll,
-        hasNextPage,
-        isFetchingNextPage,
-        pagination,
-        fetchNextPage,
-    ])
+    /**
+     * Effect to automatically fetch next pages when isLoadingAll is true.
+     * This replaces the timeout-based polling with a React-idiomatic approach.
+     */
+    useEffect(() => {
+        // Only run when we're in "load all" mode
+        if (!isLoadingAll) return
+
+        // Check if we should stop
+        if (loadAllCancelledRef.current) {
+            setIsLoadingAll(false)
+            return
+        }
+
+        // No more pages - we're done
+        if (!pagination.hasNextPage) {
+            setIsLoadingAll(false)
+            return
+        }
+
+        // Currently fetching - wait for completion
+        if (isFetchingNextPage) {
+            return
+        }
+
+        // Not fetching and more pages exist - fetch next page
+        fetchNextPage()
+    }, [isLoadingAll, pagination.hasNextPage, isFetchingNextPage, fetchNextPage])
 
     const cancelLoadAll = useCallback(() => {
         loadAllCancelledRef.current = true
@@ -593,6 +605,19 @@ export function useBreadcrumbMode<TSelection = EntitySelectionResult>(
     ])
 
     // ========================================================================
+    // LIST COUNTS
+    // ========================================================================
+
+    const counts = useMemo<EntityListCounts>(() => {
+        return computeListCounts({
+            loadedCount: items.length,
+            totalCount: pagination.totalCount,
+            hasMore: pagination.hasNextPage,
+            totalCountMode: "unknown",
+        })
+    }, [items.length, pagination.totalCount, pagination.hasNextPage])
+
+    // ========================================================================
     // RETURN
     // ========================================================================
 
@@ -629,6 +654,7 @@ export function useBreadcrumbMode<TSelection = EntitySelectionResult>(
         cancelLoadAll,
         totalCount,
         pagination,
+        counts,
 
         // Core
         adapter,
