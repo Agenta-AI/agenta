@@ -2,6 +2,7 @@
     "name": "@agenta/entities",
     "version": "0.75.0",
     "private": true,
+    "sideEffects": false,
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "scripts": {
@@ -12,7 +13,9 @@
     "exports": {
         ".": "./src/index.ts",
         "./shared": "./src/shared/index.ts",
+        "./shared/user": "./src/shared/user/index.ts",
         "./appRevision": "./src/appRevision/index.ts",
+        "./appRevision/state": "./src/appRevision/state/index.ts",
         "./evaluatorRevision": "./src/evaluatorRevision/index.ts",
         "./loadable": "./src/loadable/index.ts",
         "./runnable": "./src/runnable/index.ts",
@@ -22,9 +25,8 @@
     },
     "dependencies": {
         "@agenta/shared": "workspace:../agenta-shared",
-        "@agenta/ui": "workspace:../agenta-ui",
-        "lodash": "^4.17.21",
-        "lucide-react": "^0.475.0"
+        "jotai-scheduler": "^0.0.5",
+        "lodash": "^4.17.21"
     },
     "devDependencies": {
         "@floating-ui/react": "^0.26.0",
