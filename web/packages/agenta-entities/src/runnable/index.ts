@@ -1,37 +1,33 @@
 /**
- * Runnable & Loadable State Module
+ * Runnable Module
  *
- * Shared state management for runnables (executable entities like app revisions, evaluators)
- * and loadables (data sources like testsets that provide inputs to runnables).
+ * State management for runnable entities (app revisions, evaluators).
  *
- * ## New API (Recommended)
+ * ## Bridge API (Recommended for UI)
  *
  * ```typescript
- * import { runnableBridge, loadableBridge } from '@agenta/entities/runnable'
+ * import { runnableBridge } from '@agenta/entities/runnable'
+ * import { useAtomValue } from 'jotai'
+ * import { useMemo } from 'react'
  *
- * // Unified runnable API
- * const data = useAtomValue(runnableBridge.selectors.data(runnableId))
- * const inputPorts = useAtomValue(runnableBridge.selectors.inputPorts(runnableId))
+ * // Flattened API (preferred) - memoize atoms for stability
+ * const dataAtom = useMemo(() => runnableBridge.data(runnableId), [runnableId])
+ * const data = useAtomValue(dataAtom)
  *
- * // Access evaluator-specific features
+ * const inputPortsAtom = useMemo(() => runnableBridge.inputPorts(runnableId), [runnableId])
+ * const inputPorts = useAtomValue(inputPortsAtom)
+ *
+ * const outputPortsAtom = useMemo(() => runnableBridge.outputPorts(runnableId), [runnableId])
+ * const outputPorts = useAtomValue(outputPortsAtom)
+ *
+ * const configAtom = useMemo(() => runnableBridge.config(runnableId), [runnableId])
+ * const config = useAtomValue(configAtom)
+ *
+ * // Evaluator-specific features
  * const evalController = runnableBridge.runnable('evaluatorRevision')
- * const presets = useAtomValue(evalController.selectors.presets(evaluatorId))
- *
- * // Unified loadable API (re-exported from @agenta/entities/loadable)
- * const rows = useAtomValue(loadableBridge.selectors.rows(loadableId))
+ * const presetsAtom = useMemo(() => evalController.selectors.presets(evaluatorId), [evaluatorId])
+ * const presets = useAtomValue(presetsAtom)
  * ```
- *
- * ## Legacy API (Backwards Compatible)
- *
- * ```typescript
- * import { useRunnable, useLoadable } from '@agenta/entities/runnable'
- *
- * // Hook usage
- * const runnable = useRunnable('appRevision', revisionId)
- * const loadable = useLoadable(loadableId)
- * ```
- *
- * These stay in @agenta/entities because hooks/controllers depend on entity molecules.
  */
 
 // ============================================================================
@@ -80,24 +76,17 @@ export type {
 } from "./types"
 
 // ============================================================================
-// LOADABLE STATE (re-exported from ../loadable for backwards compatibility)
+// LOADABLE RE-EXPORTS (convenience)
 // ============================================================================
 
 export {loadableController, testsetLoadable} from "../loadable"
-export {useLoadable} from "../loadable"
-export type {ConnectedSource, UseLoadableReturn} from "../loadable"
+export type {ConnectedSource} from "../loadable"
 
-// Loadable atoms (pure state - no entity dependencies)
+// Loadable atoms (pure state)
 export {
     loadableStateAtomFamily,
-    loadableRowsAtomFamily,
     loadableColumnsAtomFamily,
-    loadableAllColumnsAtomFamily,
-    loadableActiveRowAtomFamily,
-    loadableRowCountAtomFamily,
     loadableModeAtomFamily,
-    loadableIsDirtyAtomFamily,
-    loadableHasLocalChangesAtomFamily,
     loadableExecutionResultsAtomFamily,
     loadableDataAtomFamily,
     loadableConnectedSourceAtomFamily,
@@ -105,19 +94,19 @@ export {
 } from "../loadable"
 
 // ============================================================================
-// NEW API: RUNNABLE BRIDGE (Recommended)
+// BRIDGE (Recommended for UI)
 // ============================================================================
 
-export {runnableBridge, loadableColumnsFromRunnableAtomFamily} from "./bridge"
+export {runnableBridge, loadableColumnsFromRunnableAtomFamily, getRunnableRootItems} from "./bridge"
 export {extractInputPortsFromSchema, extractOutputPortsFromSchema, formatKeyAsName} from "./bridge"
 
 // Re-export loadable bridge for convenience
 export {loadableBridge, createLoadableBridge} from "../loadable"
 
-// Re-export the factory for custom configurations
+// Bridge factories for custom configurations
 export {createRunnableBridge} from "../shared"
 
-// Re-export bridge types
+// Bridge types
 export type {
     RunnableBridge,
     RunnableBridgeSelectors,
@@ -126,19 +115,6 @@ export type {
     RunnablePort,
     RunnableData as BridgeRunnableData,
 } from "../shared"
-
-// ============================================================================
-// LEGACY API: RUNNABLE HOOKS (Backwards Compatible)
-// ============================================================================
-
-export {
-    useRunnable,
-    useRunnableSelectors,
-    useRunnableActions,
-    createRunnableSelectors,
-    createRunnableActions,
-    getRunnableRootItems,
-} from "./useRunnable"
 
 // ============================================================================
 // UTILITIES

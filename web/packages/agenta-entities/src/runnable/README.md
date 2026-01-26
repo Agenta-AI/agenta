@@ -7,18 +7,17 @@ A **runnable** represents an executable entity that can process inputs and produ
 - **App Revisions**: Application variants with specific configurations
 - **Evaluator Revisions**: Evaluation logic for scoring outputs
 
-## Quick Start (New API)
+## Quick Start
 
 ```typescript
 import { runnableBridge } from '@agenta/entities/runnable'
 import { useAtomValue } from 'jotai'
 
-// Get runnable data
-const data = useAtomValue(runnableBridge.selectors.data(revisionId))
-
-// Get input/output ports
-const inputPorts = useAtomValue(runnableBridge.selectors.inputPorts(revisionId))
-const outputPorts = useAtomValue(runnableBridge.selectors.outputPorts(revisionId))
+// Get runnable data (flattened API)
+const data = useAtomValue(runnableBridge.data(revisionId))
+const inputPorts = useAtomValue(runnableBridge.inputPorts(revisionId))
+const outputPorts = useAtomValue(runnableBridge.outputPorts(revisionId))
+const config = useAtomValue(runnableBridge.config(revisionId))
 
 // Access evaluator-specific features
 const evalController = runnableBridge.runnable('evaluatorRevision')
@@ -321,21 +320,6 @@ const mappings = autoMapInputs(
 // Returns: [{ targetKey: "input", sourcePath: "testcase.input", status: "valid" }, ...]
 ```
 
-## Legacy API (Backwards Compatible)
-
-The following exports are maintained for backwards compatibility:
-
-```typescript
-// Deprecated - use runnableBridge instead
-import { useRunnable, useRunnableSelectors } from '@agenta/entities/runnable'
-
-// Hook usage (still supported)
-const runnable = useRunnable('appRevision', revisionId)
-runnable.data
-runnable.inputPorts
-runnable.execute(inputs)
-```
-
 ## Entity Provider (Dependency Injection)
 
 For runtime dependency injection of entity implementations, use the context from `@agenta/playground`:
@@ -370,6 +354,5 @@ runnable/
 ├── types.ts                          # Shared type definitions
 ├── providerTypes.ts                  # Provider interface types (for DI context)
 ├── bridge.ts                         # Configured runnable bridge
-├── useRunnable.ts                    # React hook for runnables (legacy)
 └── utils.ts                          # Execution utilities
 ```
