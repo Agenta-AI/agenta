@@ -19,8 +19,12 @@ from ..types.windowing import Windowing
 from .raw_client import AsyncRawObservabilityClient, RawObservabilityClient
 from .types.fetch_analytics_request_newest import FetchAnalyticsRequestNewest
 from .types.fetch_analytics_request_oldest import FetchAnalyticsRequestOldest
-from .types.fetch_legacy_analytics_request_newest import FetchLegacyAnalyticsRequestNewest
-from .types.fetch_legacy_analytics_request_oldest import FetchLegacyAnalyticsRequestOldest
+from .types.fetch_legacy_analytics_request_newest import (
+    FetchLegacyAnalyticsRequestNewest,
+)
+from .types.fetch_legacy_analytics_request_oldest import (
+    FetchLegacyAnalyticsRequestOldest,
+)
 from .types.query_spans_rpc_request_newest import QuerySpansRpcRequestNewest
 from .types.query_spans_rpc_request_oldest import QuerySpansRpcRequestOldest
 
@@ -43,7 +47,9 @@ class ObservabilityClient:
         """
         return self._raw_client
 
-    def otlp_status(self, *, request_options: typing.Optional[RequestOptions] = None) -> CollectStatusResponse:
+    def otlp_status(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> CollectStatusResponse:
         """
         Parameters
         ----------
@@ -67,7 +73,9 @@ class ObservabilityClient:
         _response = self._raw_client.otlp_status(request_options=request_options)
         return _response.data
 
-    def otlp_ingest(self, *, request_options: typing.Optional[RequestOptions] = None) -> CollectStatusResponse:
+    def otlp_ingest(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> CollectStatusResponse:
         """
         Parameters
         ----------
@@ -95,7 +103,9 @@ class ObservabilityClient:
         self,
         *,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> OTelLinksResponse:
         """
@@ -122,7 +132,9 @@ class ObservabilityClient:
         )
         client.observability.ingest_spans_rpc()
         """
-        _response = self._raw_client.ingest_spans_rpc(spans=spans, traces=traces, request_options=request_options)
+        _response = self._raw_client.ingest_spans_rpc(
+            spans=spans, traces=traces, request_options=request_options
+        )
         return _response.data
 
     def query_spans_rpc(
@@ -316,7 +328,9 @@ class ObservabilityClient:
         *,
         sync: typing.Optional[bool] = None,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> OTelLinksResponse:
         """
@@ -377,7 +391,9 @@ class ObservabilityClient:
             trace_id="trace_id",
         )
         """
-        _response = self._raw_client.fetch_trace(trace_id, request_options=request_options)
+        _response = self._raw_client.fetch_trace(
+            trace_id, request_options=request_options
+        )
         return _response.data
 
     def edit_trace(
@@ -386,7 +402,9 @@ class ObservabilityClient:
         *,
         sync: typing.Optional[bool] = None,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> OTelLinksResponse:
         """
@@ -420,7 +438,11 @@ class ObservabilityClient:
         )
         """
         _response = self._raw_client.edit_trace(
-            trace_id, sync=sync, spans=spans, traces=traces, request_options=request_options
+            trace_id,
+            sync=sync,
+            spans=spans,
+            traces=traces,
+            request_options=request_options,
         )
         return _response.data
 
@@ -451,7 +473,9 @@ class ObservabilityClient:
             trace_id="trace_id",
         )
         """
-        _response = self._raw_client.delete_trace(trace_id, request_options=request_options)
+        _response = self._raw_client.delete_trace(
+            trace_id, request_options=request_options
+        )
         return _response.data
 
     def list_sessions(
@@ -521,7 +545,9 @@ class ObservabilityClient:
         )
         client.observability.list_users()
         """
-        _response = self._raw_client.list_users(realtime=realtime, windowing=windowing, request_options=request_options)
+        _response = self._raw_client.list_users(
+            realtime=realtime, windowing=windowing, request_options=request_options
+        )
         return _response.data
 
 
@@ -540,7 +566,9 @@ class AsyncObservabilityClient:
         """
         return self._raw_client
 
-    async def otlp_status(self, *, request_options: typing.Optional[RequestOptions] = None) -> CollectStatusResponse:
+    async def otlp_status(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> CollectStatusResponse:
         """
         Parameters
         ----------
@@ -572,7 +600,9 @@ class AsyncObservabilityClient:
         _response = await self._raw_client.otlp_status(request_options=request_options)
         return _response.data
 
-    async def otlp_ingest(self, *, request_options: typing.Optional[RequestOptions] = None) -> CollectStatusResponse:
+    async def otlp_ingest(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> CollectStatusResponse:
         """
         Parameters
         ----------
@@ -608,7 +638,9 @@ class AsyncObservabilityClient:
         self,
         *,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> OTelLinksResponse:
         """
@@ -643,7 +675,9 @@ class AsyncObservabilityClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.ingest_spans_rpc(spans=spans, traces=traces, request_options=request_options)
+        _response = await self._raw_client.ingest_spans_rpc(
+            spans=spans, traces=traces, request_options=request_options
+        )
         return _response.data
 
     async def query_spans_rpc(
@@ -861,7 +895,9 @@ class AsyncObservabilityClient:
         *,
         sync: typing.Optional[bool] = None,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> OTelLinksResponse:
         """
@@ -938,7 +974,9 @@ class AsyncObservabilityClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_trace(trace_id, request_options=request_options)
+        _response = await self._raw_client.fetch_trace(
+            trace_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_trace(
@@ -947,7 +985,9 @@ class AsyncObservabilityClient:
         *,
         sync: typing.Optional[bool] = None,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> OTelLinksResponse:
         """
@@ -989,7 +1029,11 @@ class AsyncObservabilityClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.edit_trace(
-            trace_id, sync=sync, spans=spans, traces=traces, request_options=request_options
+            trace_id,
+            sync=sync,
+            spans=spans,
+            traces=traces,
+            request_options=request_options,
         )
         return _response.data
 
@@ -1028,7 +1072,9 @@ class AsyncObservabilityClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_trace(trace_id, request_options=request_options)
+        _response = await self._raw_client.delete_trace(
+            trace_id, request_options=request_options
+        )
         return _response.data
 
     async def list_sessions(

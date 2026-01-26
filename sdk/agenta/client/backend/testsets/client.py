@@ -30,10 +30,18 @@ from ..types.testset_variants_response import TestsetVariantsResponse
 from ..types.testsets_response import TestsetsResponse
 from ..types.windowing import Windowing
 from .raw_client import AsyncRawTestsetsClient, RawTestsetsClient
-from .types.create_simple_testset_from_file_request_file_type import CreateSimpleTestsetFromFileRequestFileType
-from .types.edit_simple_testset_from_file_request_file_type import EditSimpleTestsetFromFileRequestFileType
-from .types.fetch_simple_testset_to_file_request_file_type import FetchSimpleTestsetToFileRequestFileType
-from .types.fetch_testset_revision_to_file_request_file_type import FetchTestsetRevisionToFileRequestFileType
+from .types.create_simple_testset_from_file_request_file_type import (
+    CreateSimpleTestsetFromFileRequestFileType,
+)
+from .types.edit_simple_testset_from_file_request_file_type import (
+    EditSimpleTestsetFromFileRequestFileType,
+)
+from .types.fetch_simple_testset_to_file_request_file_type import (
+    FetchSimpleTestsetToFileRequestFileType,
+)
+from .types.fetch_testset_revision_to_file_request_file_type import (
+    FetchTestsetRevisionToFileRequestFileType,
+)
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -93,7 +101,10 @@ class TestsetsClient:
         return _response.data
 
     def fetch_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
         Parameters
@@ -119,11 +130,17 @@ class TestsetsClient:
             testset_id="testset_id",
         )
         """
-        _response = self._raw_client.fetch_testset(testset_id, request_options=request_options)
+        _response = self._raw_client.fetch_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     def edit_testset(
-        self, testset_id: str, *, testset: TestsetEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        testset: TestsetEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
         Parameters
@@ -152,11 +169,16 @@ class TestsetsClient:
             testset=TestsetEdit(),
         )
         """
-        _response = self._raw_client.edit_testset(testset_id, testset=testset, request_options=request_options)
+        _response = self._raw_client.edit_testset(
+            testset_id, testset=testset, request_options=request_options
+        )
         return _response.data
 
     def archive_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
         Parameters
@@ -182,11 +204,16 @@ class TestsetsClient:
             testset_id="testset_id",
         )
         """
-        _response = self._raw_client.archive_testset(testset_id, request_options=request_options)
+        _response = self._raw_client.archive_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
         Parameters
@@ -212,7 +239,9 @@ class TestsetsClient:
             testset_id="testset_id",
         )
         """
-        _response = self._raw_client.unarchive_testset(testset_id, request_options=request_options)
+        _response = self._raw_client.unarchive_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     def query_testsets(
@@ -262,7 +291,10 @@ class TestsetsClient:
         return _response.data
 
     def create_testset_variant(
-        self, *, testset_variant: TestsetVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        testset_variant: TestsetVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetVariantResponse:
         """
         Parameters
@@ -294,7 +326,10 @@ class TestsetsClient:
         return _response.data
 
     def fetch_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetVariantResponse:
         """
         Parameters
@@ -320,7 +355,9 @@ class TestsetsClient:
             testset_variant_id="testset_variant_id",
         )
         """
-        _response = self._raw_client.fetch_testset_variant(testset_variant_id, request_options=request_options)
+        _response = self._raw_client.fetch_testset_variant(
+            testset_variant_id, request_options=request_options
+        )
         return _response.data
 
     def edit_testset_variant(
@@ -358,12 +395,17 @@ class TestsetsClient:
         )
         """
         _response = self._raw_client.edit_testset_variant(
-            testset_variant_id, testset_variant=testset_variant, request_options=request_options
+            testset_variant_id,
+            testset_variant=testset_variant,
+            request_options=request_options,
         )
         return _response.data
 
     def archive_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetVariantResponse:
         """
         Parameters
@@ -389,11 +431,16 @@ class TestsetsClient:
             testset_variant_id="testset_variant_id",
         )
         """
-        _response = self._raw_client.archive_testset_variant(testset_variant_id, request_options=request_options)
+        _response = self._raw_client.archive_testset_variant(
+            testset_variant_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetVariantResponse:
         """
         Parameters
@@ -419,7 +466,9 @@ class TestsetsClient:
             testset_variant_id="testset_variant_id",
         )
         """
-        _response = self._raw_client.unarchive_testset_variant(testset_variant_id, request_options=request_options)
+        _response = self._raw_client.unarchive_testset_variant(
+            testset_variant_id, request_options=request_options
+        )
         return _response.data
 
     def query_testset_variants(
@@ -552,7 +601,9 @@ class TestsetsClient:
         )
         """
         _response = self._raw_client.create_testset_revision(
-            testset_revision=testset_revision, include_testcases=include_testcases, request_options=request_options
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
+            request_options=request_options,
         )
         return _response.data
 
@@ -591,7 +642,9 @@ class TestsetsClient:
         )
         """
         _response = self._raw_client.fetch_testset_revision(
-            testset_revision_id, include_testcases=include_testcases, request_options=request_options
+            testset_revision_id,
+            include_testcases=include_testcases,
+            request_options=request_options,
         )
         return _response.data
 
@@ -641,7 +694,10 @@ class TestsetsClient:
         return _response.data
 
     def archive_testset_revision(
-        self, testset_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetRevisionResponse:
         """
         Parameters
@@ -667,11 +723,16 @@ class TestsetsClient:
             testset_revision_id="testset_revision_id",
         )
         """
-        _response = self._raw_client.archive_testset_revision(testset_revision_id, request_options=request_options)
+        _response = self._raw_client.archive_testset_revision(
+            testset_revision_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_testset_revision(
-        self, testset_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetRevisionResponse:
         """
         Parameters
@@ -697,7 +758,9 @@ class TestsetsClient:
             testset_revision_id="testset_revision_id",
         )
         """
-        _response = self._raw_client.unarchive_testset_revision(testset_revision_id, request_options=request_options)
+        _response = self._raw_client.unarchive_testset_revision(
+            testset_revision_id, request_options=request_options
+        )
         return _response.data
 
     def fetch_testset_revision_to_file(
@@ -739,7 +802,10 @@ class TestsetsClient:
         )
         """
         _response = self._raw_client.fetch_testset_revision_to_file(
-            testset_revision_id, file_type=file_type, file_name=file_name, request_options=request_options
+            testset_revision_id,
+            file_type=file_type,
+            file_name=file_name,
+            request_options=request_options,
         )
         return _response.data
 
@@ -875,7 +941,9 @@ class TestsetsClient:
         )
         """
         _response = self._raw_client.log_testset_revisions(
-            testset_revision=testset_revision, include_testcases=include_testcases, request_options=request_options
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
+            request_options=request_options,
         )
         return _response.data
 
@@ -918,7 +986,10 @@ class TestsetsClient:
         return _response.data
 
     def fetch_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleTestsetResponse:
         """
         Parameters
@@ -944,11 +1015,17 @@ class TestsetsClient:
             testset_id="testset_id",
         )
         """
-        _response = self._raw_client.fetch_simple_testset(testset_id, request_options=request_options)
+        _response = self._raw_client.fetch_simple_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     def edit_simple_testset(
-        self, testset_id: str, *, testset: SimpleTestsetEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        testset: SimpleTestsetEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleTestsetResponse:
         """
         Parameters
@@ -977,11 +1054,16 @@ class TestsetsClient:
             testset=SimpleTestsetEdit(),
         )
         """
-        _response = self._raw_client.edit_simple_testset(testset_id, testset=testset, request_options=request_options)
+        _response = self._raw_client.edit_simple_testset(
+            testset_id, testset=testset, request_options=request_options
+        )
         return _response.data
 
     def archive_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleTestsetResponse:
         """
         Parameters
@@ -1007,11 +1089,16 @@ class TestsetsClient:
             testset_id="testset_id",
         )
         """
-        _response = self._raw_client.archive_simple_testset(testset_id, request_options=request_options)
+        _response = self._raw_client.archive_simple_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleTestsetResponse:
         """
         Parameters
@@ -1037,7 +1124,9 @@ class TestsetsClient:
             testset_id="testset_id",
         )
         """
-        _response = self._raw_client.unarchive_simple_testset(testset_id, request_options=request_options)
+        _response = self._raw_client.unarchive_simple_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     def query_simple_testsets(
@@ -1243,12 +1332,18 @@ class TestsetsClient:
         )
         """
         _response = self._raw_client.fetch_simple_testset_to_file(
-            testset_id, file_type=file_type, file_name=file_name, request_options=request_options
+            testset_id,
+            file_type=file_type,
+            file_name=file_name,
+            request_options=request_options,
         )
         return _response.data
 
     def transfer_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleTestsetResponse:
         """
         Parameters
@@ -1274,7 +1369,9 @@ class TestsetsClient:
             testset_id="testset_id",
         )
         """
-        _response = self._raw_client.transfer_simple_testset(testset_id, request_options=request_options)
+        _response = self._raw_client.transfer_simple_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
 
@@ -1340,7 +1437,10 @@ class AsyncTestsetsClient:
         return _response.data
 
     async def fetch_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
         Parameters
@@ -1374,11 +1474,17 @@ class AsyncTestsetsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_testset(testset_id, request_options=request_options)
+        _response = await self._raw_client.fetch_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_testset(
-        self, testset_id: str, *, testset: TestsetEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        testset: TestsetEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
         Parameters
@@ -1415,11 +1521,16 @@ class AsyncTestsetsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_testset(testset_id, testset=testset, request_options=request_options)
+        _response = await self._raw_client.edit_testset(
+            testset_id, testset=testset, request_options=request_options
+        )
         return _response.data
 
     async def archive_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
         Parameters
@@ -1453,11 +1564,16 @@ class AsyncTestsetsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.archive_testset(testset_id, request_options=request_options)
+        _response = await self._raw_client.archive_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     async def unarchive_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
         Parameters
@@ -1491,7 +1607,9 @@ class AsyncTestsetsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.unarchive_testset(testset_id, request_options=request_options)
+        _response = await self._raw_client.unarchive_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     async def query_testsets(
@@ -1549,7 +1667,10 @@ class AsyncTestsetsClient:
         return _response.data
 
     async def create_testset_variant(
-        self, *, testset_variant: TestsetVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        testset_variant: TestsetVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetVariantResponse:
         """
         Parameters
@@ -1589,7 +1710,10 @@ class AsyncTestsetsClient:
         return _response.data
 
     async def fetch_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetVariantResponse:
         """
         Parameters
@@ -1623,7 +1747,9 @@ class AsyncTestsetsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_testset_variant(testset_variant_id, request_options=request_options)
+        _response = await self._raw_client.fetch_testset_variant(
+            testset_variant_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_testset_variant(
@@ -1669,12 +1795,17 @@ class AsyncTestsetsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.edit_testset_variant(
-            testset_variant_id, testset_variant=testset_variant, request_options=request_options
+            testset_variant_id,
+            testset_variant=testset_variant,
+            request_options=request_options,
         )
         return _response.data
 
     async def archive_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetVariantResponse:
         """
         Parameters
@@ -1708,11 +1839,16 @@ class AsyncTestsetsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.archive_testset_variant(testset_variant_id, request_options=request_options)
+        _response = await self._raw_client.archive_testset_variant(
+            testset_variant_id, request_options=request_options
+        )
         return _response.data
 
     async def unarchive_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetVariantResponse:
         """
         Parameters
@@ -1905,7 +2041,9 @@ class AsyncTestsetsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.create_testset_revision(
-            testset_revision=testset_revision, include_testcases=include_testcases, request_options=request_options
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
+            request_options=request_options,
         )
         return _response.data
 
@@ -1952,7 +2090,9 @@ class AsyncTestsetsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.fetch_testset_revision(
-            testset_revision_id, include_testcases=include_testcases, request_options=request_options
+            testset_revision_id,
+            include_testcases=include_testcases,
+            request_options=request_options,
         )
         return _response.data
 
@@ -2010,7 +2150,10 @@ class AsyncTestsetsClient:
         return _response.data
 
     async def archive_testset_revision(
-        self, testset_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetRevisionResponse:
         """
         Parameters
@@ -2050,7 +2193,10 @@ class AsyncTestsetsClient:
         return _response.data
 
     async def unarchive_testset_revision(
-        self, testset_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetRevisionResponse:
         """
         Parameters
@@ -2136,7 +2282,10 @@ class AsyncTestsetsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.fetch_testset_revision_to_file(
-            testset_revision_id, file_type=file_type, file_name=file_name, request_options=request_options
+            testset_revision_id,
+            file_type=file_type,
+            file_name=file_name,
+            request_options=request_options,
         )
         return _response.data
 
@@ -2296,7 +2445,9 @@ class AsyncTestsetsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.log_testset_revisions(
-            testset_revision=testset_revision, include_testcases=include_testcases, request_options=request_options
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
+            request_options=request_options,
         )
         return _response.data
 
@@ -2347,7 +2498,10 @@ class AsyncTestsetsClient:
         return _response.data
 
     async def fetch_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleTestsetResponse:
         """
         Parameters
@@ -2381,11 +2535,17 @@ class AsyncTestsetsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_simple_testset(testset_id, request_options=request_options)
+        _response = await self._raw_client.fetch_simple_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_simple_testset(
-        self, testset_id: str, *, testset: SimpleTestsetEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        testset: SimpleTestsetEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleTestsetResponse:
         """
         Parameters
@@ -2428,7 +2588,10 @@ class AsyncTestsetsClient:
         return _response.data
 
     async def archive_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleTestsetResponse:
         """
         Parameters
@@ -2462,11 +2625,16 @@ class AsyncTestsetsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.archive_simple_testset(testset_id, request_options=request_options)
+        _response = await self._raw_client.archive_simple_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     async def unarchive_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleTestsetResponse:
         """
         Parameters
@@ -2500,7 +2668,9 @@ class AsyncTestsetsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.unarchive_simple_testset(testset_id, request_options=request_options)
+        _response = await self._raw_client.unarchive_simple_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data
 
     async def query_simple_testsets(
@@ -2738,12 +2908,18 @@ class AsyncTestsetsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.fetch_simple_testset_to_file(
-            testset_id, file_type=file_type, file_name=file_name, request_options=request_options
+            testset_id,
+            file_type=file_type,
+            file_name=file_name,
+            request_options=request_options,
         )
         return _response.data
 
     async def transfer_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleTestsetResponse:
         """
         Parameters
@@ -2777,5 +2953,7 @@ class AsyncTestsetsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.transfer_simple_testset(testset_id, request_options=request_options)
+        _response = await self._raw_client.transfer_simple_testset(
+            testset_id, request_options=request_options
+        )
         return _response.data

@@ -34,7 +34,10 @@ class AnnotationsClient:
         return self._raw_client
 
     def create_annotation(
-        self, *, annotation: AnnotationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        annotation: AnnotationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AnnotationResponse:
         """
         Parameters
@@ -64,7 +67,9 @@ class AnnotationsClient:
             ),
         )
         """
-        _response = self._raw_client.create_annotation(annotation=annotation, request_options=request_options)
+        _response = self._raw_client.create_annotation(
+            annotation=annotation, request_options=request_options
+        )
         return _response.data
 
     def fetch_annotation_by_trace_id(
@@ -183,12 +188,19 @@ class AnnotationsClient:
         )
         """
         _response = self._raw_client.edit_annotation_by_trace_id(
-            trace_id, annotation=annotation, span_id=span_id, request_options=request_options
+            trace_id,
+            annotation=annotation,
+            span_id=span_id,
+            request_options=request_options,
         )
         return _response.data
 
     def fetch_annotation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AnnotationResponse:
         """
         Parameters
@@ -217,11 +229,17 @@ class AnnotationsClient:
             span_id="span_id",
         )
         """
-        _response = self._raw_client.fetch_annotation(trace_id, span_id, request_options=request_options)
+        _response = self._raw_client.fetch_annotation(
+            trace_id, span_id, request_options=request_options
+        )
         return _response.data
 
     def delete_annotation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AnnotationLinkResponse:
         """
         Parameters
@@ -250,7 +268,9 @@ class AnnotationsClient:
             span_id="span_id",
         )
         """
-        _response = self._raw_client.delete_annotation(trace_id, span_id, request_options=request_options)
+        _response = self._raw_client.delete_annotation(
+            trace_id, span_id, request_options=request_options
+        )
         return _response.data
 
     def edit_annotation(
@@ -357,7 +377,10 @@ class AsyncAnnotationsClient:
         return self._raw_client
 
     async def create_annotation(
-        self, *, annotation: AnnotationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        annotation: AnnotationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AnnotationResponse:
         """
         Parameters
@@ -395,7 +418,9 @@ class AsyncAnnotationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_annotation(annotation=annotation, request_options=request_options)
+        _response = await self._raw_client.create_annotation(
+            annotation=annotation, request_options=request_options
+        )
         return _response.data
 
     async def fetch_annotation_by_trace_id(
@@ -538,12 +563,19 @@ class AsyncAnnotationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.edit_annotation_by_trace_id(
-            trace_id, annotation=annotation, span_id=span_id, request_options=request_options
+            trace_id,
+            annotation=annotation,
+            span_id=span_id,
+            request_options=request_options,
         )
         return _response.data
 
     async def fetch_annotation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AnnotationResponse:
         """
         Parameters
@@ -580,11 +612,17 @@ class AsyncAnnotationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_annotation(trace_id, span_id, request_options=request_options)
+        _response = await self._raw_client.fetch_annotation(
+            trace_id, span_id, request_options=request_options
+        )
         return _response.data
 
     async def delete_annotation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AnnotationLinkResponse:
         """
         Parameters
@@ -621,7 +659,9 @@ class AsyncAnnotationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_annotation(trace_id, span_id, request_options=request_options)
+        _response = await self._raw_client.delete_annotation(
+            trace_id, span_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_annotation(

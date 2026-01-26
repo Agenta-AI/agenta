@@ -30,7 +30,10 @@ class RawAnnotationsClient:
         self._client_wrapper = client_wrapper
 
     def create_annotation(
-        self, *, annotation: AnnotationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        annotation: AnnotationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[AnnotationResponse]:
         """
         Parameters
@@ -82,8 +85,16 @@ class RawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_annotation_by_trace_id(
         self,
@@ -138,8 +149,16 @@ class RawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def delete_annotation_by_trace_id(
         self,
@@ -194,8 +213,16 @@ class RawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_annotation_by_trace_id(
         self,
@@ -262,11 +289,23 @@ class RawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_annotation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[AnnotationResponse]:
         """
         Parameters
@@ -311,11 +350,23 @@ class RawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def delete_annotation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[AnnotationLinkResponse]:
         """
         Parameters
@@ -360,8 +411,16 @@ class RawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_annotation(
         self,
@@ -425,8 +484,16 @@ class RawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_annotations(
         self,
@@ -458,13 +525,19 @@ class RawAnnotationsClient:
             method="POST",
             json={
                 "annotation": convert_and_respect_annotation_metadata(
-                    object_=annotation, annotation=typing.Optional[AnnotationQuery], direction="write"
+                    object_=annotation,
+                    annotation=typing.Optional[AnnotationQuery],
+                    direction="write",
                 ),
                 "annotation_links": convert_and_respect_annotation_metadata(
-                    object_=annotation_links, annotation=typing.Optional[typing.Sequence[Link]], direction="write"
+                    object_=annotation_links,
+                    annotation=typing.Optional[typing.Sequence[Link]],
+                    direction="write",
                 ),
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -496,8 +569,16 @@ class RawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawAnnotationsClient:
@@ -505,7 +586,10 @@ class AsyncRawAnnotationsClient:
         self._client_wrapper = client_wrapper
 
     async def create_annotation(
-        self, *, annotation: AnnotationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        annotation: AnnotationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[AnnotationResponse]:
         """
         Parameters
@@ -557,8 +641,16 @@ class AsyncRawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_annotation_by_trace_id(
         self,
@@ -613,8 +705,16 @@ class AsyncRawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def delete_annotation_by_trace_id(
         self,
@@ -669,8 +769,16 @@ class AsyncRawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_annotation_by_trace_id(
         self,
@@ -737,11 +845,23 @@ class AsyncRawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_annotation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[AnnotationResponse]:
         """
         Parameters
@@ -786,11 +906,23 @@ class AsyncRawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def delete_annotation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[AnnotationLinkResponse]:
         """
         Parameters
@@ -835,8 +967,16 @@ class AsyncRawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_annotation(
         self,
@@ -900,8 +1040,16 @@ class AsyncRawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_annotations(
         self,
@@ -933,13 +1081,19 @@ class AsyncRawAnnotationsClient:
             method="POST",
             json={
                 "annotation": convert_and_respect_annotation_metadata(
-                    object_=annotation, annotation=typing.Optional[AnnotationQuery], direction="write"
+                    object_=annotation,
+                    annotation=typing.Optional[AnnotationQuery],
+                    direction="write",
                 ),
                 "annotation_links": convert_and_respect_annotation_metadata(
-                    object_=annotation_links, annotation=typing.Optional[typing.Sequence[Link]], direction="write"
+                    object_=annotation_links,
+                    annotation=typing.Optional[typing.Sequence[Link]],
+                    direction="write",
                 ),
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -971,5 +1125,13 @@ class AsyncRawAnnotationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

@@ -26,7 +26,9 @@ class ScopesClient:
         """
         return self._raw_client
 
-    def get_projects(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[ProjectsResponse]:
+    def get_projects(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.List[ProjectsResponse]:
         """
         Parameters
         ----------
@@ -89,7 +91,10 @@ class ScopesClient:
         return _response.data
 
     def get_project(
-        self, project_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        project_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> ProjectsResponse:
         """
         Parameters
@@ -115,10 +120,17 @@ class ScopesClient:
             project_id="project_id",
         )
         """
-        _response = self._raw_client.get_project(project_id, request_options=request_options)
+        _response = self._raw_client.get_project(
+            project_id, request_options=request_options
+        )
         return _response.data
 
-    def delete_project(self, project_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def delete_project(
+        self,
+        project_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -143,7 +155,9 @@ class ScopesClient:
             project_id="project_id",
         )
         """
-        _response = self._raw_client.delete_project(project_id, request_options=request_options)
+        _response = self._raw_client.delete_project(
+            project_id, request_options=request_options
+        )
         return _response.data
 
     def update_project(
@@ -183,7 +197,10 @@ class ScopesClient:
         )
         """
         _response = self._raw_client.update_project(
-            project_id, name=name, make_default=make_default, request_options=request_options
+            project_id,
+            name=name,
+            make_default=make_default,
+            request_options=request_options,
         )
         return _response.data
 
@@ -284,7 +301,10 @@ class AsyncScopesClient:
         return _response.data
 
     async def get_project(
-        self, project_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        project_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> ProjectsResponse:
         """
         Parameters
@@ -318,11 +338,16 @@ class AsyncScopesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_project(project_id, request_options=request_options)
+        _response = await self._raw_client.get_project(
+            project_id, request_options=request_options
+        )
         return _response.data
 
     async def delete_project(
-        self, project_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        project_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Parameters
@@ -356,7 +381,9 @@ class AsyncScopesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_project(project_id, request_options=request_options)
+        _response = await self._raw_client.delete_project(
+            project_id, request_options=request_options
+        )
         return _response.data
 
     async def update_project(
@@ -404,6 +431,9 @@ class AsyncScopesClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.update_project(
-            project_id, name=name, make_default=make_default, request_options=request_options
+            project_id,
+            name=name,
+            make_default=make_default,
+            request_options=request_options,
         )
         return _response.data

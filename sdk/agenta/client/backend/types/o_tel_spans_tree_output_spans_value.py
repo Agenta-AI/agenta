@@ -4,4 +4,6 @@ import typing
 
 from .o_tel_span_output import OTelSpanOutput
 
-OTelSpansTreeOutputSpansValue = typing.Union[OTelSpanOutput, typing.List[OTelSpanOutput]]
+OTelSpansTreeOutputSpansValue = typing.Union[
+    OTelSpanOutput, typing.List[OTelSpanOutput]
+]

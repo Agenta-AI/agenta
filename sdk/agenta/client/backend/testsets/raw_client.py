@@ -37,10 +37,18 @@ from ..types.testset_variant_response import TestsetVariantResponse
 from ..types.testset_variants_response import TestsetVariantsResponse
 from ..types.testsets_response import TestsetsResponse
 from ..types.windowing import Windowing
-from .types.create_simple_testset_from_file_request_file_type import CreateSimpleTestsetFromFileRequestFileType
-from .types.edit_simple_testset_from_file_request_file_type import EditSimpleTestsetFromFileRequestFileType
-from .types.fetch_simple_testset_to_file_request_file_type import FetchSimpleTestsetToFileRequestFileType
-from .types.fetch_testset_revision_to_file_request_file_type import FetchTestsetRevisionToFileRequestFileType
+from .types.create_simple_testset_from_file_request_file_type import (
+    CreateSimpleTestsetFromFileRequestFileType,
+)
+from .types.edit_simple_testset_from_file_request_file_type import (
+    EditSimpleTestsetFromFileRequestFileType,
+)
+from .types.fetch_simple_testset_to_file_request_file_type import (
+    FetchSimpleTestsetToFileRequestFileType,
+)
+from .types.fetch_testset_revision_to_file_request_file_type import (
+    FetchTestsetRevisionToFileRequestFileType,
+)
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -112,11 +120,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[TestsetResponse]:
         """
         Parameters
@@ -159,11 +178,23 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_testset(
-        self, testset_id: str, *, testset: TestsetEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        testset: TestsetEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[TestsetResponse]:
         """
         Parameters
@@ -217,11 +248,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[TestsetResponse]:
         """
         Parameters
@@ -264,11 +306,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[TestsetResponse]:
         """
         Parameters
@@ -311,8 +364,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_testsets(
         self,
@@ -347,14 +408,20 @@ class RawTestsetsClient:
             method="POST",
             json={
                 "testset": convert_and_respect_annotation_metadata(
-                    object_=testset, annotation=typing.Optional[TestsetQuery], direction="write"
+                    object_=testset,
+                    annotation=typing.Optional[TestsetQuery],
+                    direction="write",
                 ),
                 "testset_refs": convert_and_respect_annotation_metadata(
-                    object_=testset_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=testset_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -386,11 +453,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_testset_variant(
-        self, *, testset_variant: TestsetVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        testset_variant: TestsetVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[TestsetVariantResponse]:
         """
         Parameters
@@ -410,7 +488,9 @@ class RawTestsetsClient:
             method="POST",
             json={
                 "testset_variant": convert_and_respect_annotation_metadata(
-                    object_=testset_variant, annotation=TestsetVariantCreate, direction="write"
+                    object_=testset_variant,
+                    annotation=TestsetVariantCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -442,11 +522,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[TestsetVariantResponse]:
         """
         Parameters
@@ -489,8 +580,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_testset_variant(
         self,
@@ -519,7 +618,9 @@ class RawTestsetsClient:
             method="PUT",
             json={
                 "testset_variant": convert_and_respect_annotation_metadata(
-                    object_=testset_variant, annotation=TestsetVariantEdit, direction="write"
+                    object_=testset_variant,
+                    annotation=TestsetVariantEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -551,11 +652,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[TestsetVariantResponse]:
         """
         Parameters
@@ -598,11 +710,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[TestsetVariantResponse]:
         """
         Parameters
@@ -645,8 +768,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_testset_variants(
         self,
@@ -684,10 +815,14 @@ class RawTestsetsClient:
             method="POST",
             json={
                 "testset_variant": convert_and_respect_annotation_metadata(
-                    object_=testset_variant, annotation=typing.Optional[TestsetVariantQuery], direction="write"
+                    object_=testset_variant,
+                    annotation=typing.Optional[TestsetVariantQuery],
+                    direction="write",
                 ),
                 "testset_refs": convert_and_respect_annotation_metadata(
-                    object_=testset_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=testset_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "testset_variant_refs": convert_and_respect_annotation_metadata(
                     object_=testset_variant_refs,
@@ -696,7 +831,9 @@ class RawTestsetsClient:
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -728,8 +865,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def retrieve_testset_revision(
         self,
@@ -764,13 +909,19 @@ class RawTestsetsClient:
             method="POST",
             json={
                 "testset_ref": convert_and_respect_annotation_metadata(
-                    object_=testset_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=testset_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "testset_variant_ref": convert_and_respect_annotation_metadata(
-                    object_=testset_variant_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=testset_variant_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "testset_revision_ref": convert_and_respect_annotation_metadata(
-                    object_=testset_revision_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=testset_revision_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "include_testcases": include_testcases,
             },
@@ -803,8 +954,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_testset_revision(
         self,
@@ -833,7 +992,9 @@ class RawTestsetsClient:
             method="POST",
             json={
                 "testset_revision": convert_and_respect_annotation_metadata(
-                    object_=testset_revision, annotation=TestsetRevisionCreate, direction="write"
+                    object_=testset_revision,
+                    annotation=TestsetRevisionCreate,
+                    direction="write",
                 ),
                 "include_testcases": include_testcases,
             },
@@ -866,8 +1027,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_testset_revision(
         self,
@@ -923,8 +1092,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_testset_revision(
         self,
@@ -956,7 +1133,9 @@ class RawTestsetsClient:
             method="PUT",
             json={
                 "testset_revision": convert_and_respect_annotation_metadata(
-                    object_=testset_revision, annotation=TestsetRevisionEdit, direction="write"
+                    object_=testset_revision,
+                    annotation=TestsetRevisionEdit,
+                    direction="write",
                 ),
                 "include_testcases": include_testcases,
             },
@@ -989,11 +1168,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_testset_revision(
-        self, testset_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[TestsetRevisionResponse]:
         """
         Parameters
@@ -1036,11 +1226,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_testset_revision(
-        self, testset_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[TestsetRevisionResponse]:
         """
         Parameters
@@ -1083,8 +1284,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_testset_revision_to_file(
         self,
@@ -1147,8 +1356,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_testset_revisions(
         self,
@@ -1192,10 +1409,14 @@ class RawTestsetsClient:
             method="POST",
             json={
                 "testset_revision": convert_and_respect_annotation_metadata(
-                    object_=testset_revision, annotation=typing.Optional[TestsetRevisionQuery], direction="write"
+                    object_=testset_revision,
+                    annotation=typing.Optional[TestsetRevisionQuery],
+                    direction="write",
                 ),
                 "testset_refs": convert_and_respect_annotation_metadata(
-                    object_=testset_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=testset_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "testset_variant_refs": convert_and_respect_annotation_metadata(
                     object_=testset_variant_refs,
@@ -1210,7 +1431,9 @@ class RawTestsetsClient:
                 "include_archived": include_archived,
                 "include_testcases": include_testcases,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -1242,8 +1465,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def commit_testset_revision(
         self,
@@ -1272,7 +1503,9 @@ class RawTestsetsClient:
             method="POST",
             json={
                 "testset_revision_commit": convert_and_respect_annotation_metadata(
-                    object_=testset_revision_commit, annotation=TestsetRevisionCommit, direction="write"
+                    object_=testset_revision_commit,
+                    annotation=TestsetRevisionCommit,
+                    direction="write",
                 ),
                 "include_testcases": include_testcases,
             },
@@ -1305,8 +1538,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def log_testset_revisions(
         self,
@@ -1335,7 +1576,9 @@ class RawTestsetsClient:
             method="POST",
             json={
                 "testset_revision": convert_and_respect_annotation_metadata(
-                    object_=testset_revision, annotation=TestsetRevisionsLog, direction="write"
+                    object_=testset_revision,
+                    annotation=TestsetRevisionsLog,
+                    direction="write",
                 ),
                 "include_testcases": include_testcases,
             },
@@ -1368,8 +1611,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_simple_testset(
         self,
@@ -1433,11 +1684,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[SimpleTestsetResponse]:
         """
         Parameters
@@ -1480,11 +1742,23 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_simple_testset(
-        self, testset_id: str, *, testset: SimpleTestsetEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        testset: SimpleTestsetEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[SimpleTestsetResponse]:
         """
         Parameters
@@ -1538,11 +1812,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[SimpleTestsetResponse]:
         """
         Parameters
@@ -1585,11 +1870,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[SimpleTestsetResponse]:
         """
         Parameters
@@ -1632,8 +1928,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_simple_testsets(
         self,
@@ -1668,14 +1972,20 @@ class RawTestsetsClient:
             method="POST",
             json={
                 "testset": convert_and_respect_annotation_metadata(
-                    object_=testset, annotation=typing.Optional[SimpleTestsetQuery], direction="write"
+                    object_=testset,
+                    annotation=typing.Optional[SimpleTestsetQuery],
+                    direction="write",
                 ),
                 "testset_refs": convert_and_respect_annotation_metadata(
-                    object_=testset_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=testset_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -1707,8 +2017,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_simple_testset_from_file(
         self,
@@ -1789,8 +2107,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_simple_testset_from_file(
         self,
@@ -1870,8 +2196,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_simple_testset_to_file(
         self,
@@ -1930,11 +2264,22 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def transfer_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[SimpleTestsetResponse]:
         """
         Parameters
@@ -1977,8 +2322,16 @@ class RawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawTestsetsClient:
@@ -2047,11 +2400,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[TestsetResponse]:
         """
         Parameters
@@ -2094,11 +2458,23 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_testset(
-        self, testset_id: str, *, testset: TestsetEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        testset: TestsetEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[TestsetResponse]:
         """
         Parameters
@@ -2152,11 +2528,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[TestsetResponse]:
         """
         Parameters
@@ -2199,11 +2586,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[TestsetResponse]:
         """
         Parameters
@@ -2246,8 +2644,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_testsets(
         self,
@@ -2282,14 +2688,20 @@ class AsyncRawTestsetsClient:
             method="POST",
             json={
                 "testset": convert_and_respect_annotation_metadata(
-                    object_=testset, annotation=typing.Optional[TestsetQuery], direction="write"
+                    object_=testset,
+                    annotation=typing.Optional[TestsetQuery],
+                    direction="write",
                 ),
                 "testset_refs": convert_and_respect_annotation_metadata(
-                    object_=testset_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=testset_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -2321,11 +2733,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_testset_variant(
-        self, *, testset_variant: TestsetVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        testset_variant: TestsetVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[TestsetVariantResponse]:
         """
         Parameters
@@ -2345,7 +2768,9 @@ class AsyncRawTestsetsClient:
             method="POST",
             json={
                 "testset_variant": convert_and_respect_annotation_metadata(
-                    object_=testset_variant, annotation=TestsetVariantCreate, direction="write"
+                    object_=testset_variant,
+                    annotation=TestsetVariantCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -2377,11 +2802,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[TestsetVariantResponse]:
         """
         Parameters
@@ -2424,8 +2860,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_testset_variant(
         self,
@@ -2454,7 +2898,9 @@ class AsyncRawTestsetsClient:
             method="PUT",
             json={
                 "testset_variant": convert_and_respect_annotation_metadata(
-                    object_=testset_variant, annotation=TestsetVariantEdit, direction="write"
+                    object_=testset_variant,
+                    annotation=TestsetVariantEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -2486,11 +2932,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[TestsetVariantResponse]:
         """
         Parameters
@@ -2533,11 +2990,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_testset_variant(
-        self, testset_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[TestsetVariantResponse]:
         """
         Parameters
@@ -2580,8 +3048,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_testset_variants(
         self,
@@ -2619,10 +3095,14 @@ class AsyncRawTestsetsClient:
             method="POST",
             json={
                 "testset_variant": convert_and_respect_annotation_metadata(
-                    object_=testset_variant, annotation=typing.Optional[TestsetVariantQuery], direction="write"
+                    object_=testset_variant,
+                    annotation=typing.Optional[TestsetVariantQuery],
+                    direction="write",
                 ),
                 "testset_refs": convert_and_respect_annotation_metadata(
-                    object_=testset_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=testset_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "testset_variant_refs": convert_and_respect_annotation_metadata(
                     object_=testset_variant_refs,
@@ -2631,7 +3111,9 @@ class AsyncRawTestsetsClient:
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -2663,8 +3145,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def retrieve_testset_revision(
         self,
@@ -2699,13 +3189,19 @@ class AsyncRawTestsetsClient:
             method="POST",
             json={
                 "testset_ref": convert_and_respect_annotation_metadata(
-                    object_=testset_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=testset_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "testset_variant_ref": convert_and_respect_annotation_metadata(
-                    object_=testset_variant_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=testset_variant_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "testset_revision_ref": convert_and_respect_annotation_metadata(
-                    object_=testset_revision_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=testset_revision_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "include_testcases": include_testcases,
             },
@@ -2738,8 +3234,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_testset_revision(
         self,
@@ -2768,7 +3272,9 @@ class AsyncRawTestsetsClient:
             method="POST",
             json={
                 "testset_revision": convert_and_respect_annotation_metadata(
-                    object_=testset_revision, annotation=TestsetRevisionCreate, direction="write"
+                    object_=testset_revision,
+                    annotation=TestsetRevisionCreate,
+                    direction="write",
                 ),
                 "include_testcases": include_testcases,
             },
@@ -2801,8 +3307,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_testset_revision(
         self,
@@ -2858,8 +3372,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_testset_revision(
         self,
@@ -2891,7 +3413,9 @@ class AsyncRawTestsetsClient:
             method="PUT",
             json={
                 "testset_revision": convert_and_respect_annotation_metadata(
-                    object_=testset_revision, annotation=TestsetRevisionEdit, direction="write"
+                    object_=testset_revision,
+                    annotation=TestsetRevisionEdit,
+                    direction="write",
                 ),
                 "include_testcases": include_testcases,
             },
@@ -2924,11 +3448,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_testset_revision(
-        self, testset_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[TestsetRevisionResponse]:
         """
         Parameters
@@ -2971,11 +3506,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_testset_revision(
-        self, testset_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[TestsetRevisionResponse]:
         """
         Parameters
@@ -3018,8 +3564,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_testset_revision_to_file(
         self,
@@ -3082,8 +3636,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_testset_revisions(
         self,
@@ -3127,10 +3689,14 @@ class AsyncRawTestsetsClient:
             method="POST",
             json={
                 "testset_revision": convert_and_respect_annotation_metadata(
-                    object_=testset_revision, annotation=typing.Optional[TestsetRevisionQuery], direction="write"
+                    object_=testset_revision,
+                    annotation=typing.Optional[TestsetRevisionQuery],
+                    direction="write",
                 ),
                 "testset_refs": convert_and_respect_annotation_metadata(
-                    object_=testset_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=testset_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "testset_variant_refs": convert_and_respect_annotation_metadata(
                     object_=testset_variant_refs,
@@ -3145,7 +3711,9 @@ class AsyncRawTestsetsClient:
                 "include_archived": include_archived,
                 "include_testcases": include_testcases,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -3177,8 +3745,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def commit_testset_revision(
         self,
@@ -3207,7 +3783,9 @@ class AsyncRawTestsetsClient:
             method="POST",
             json={
                 "testset_revision_commit": convert_and_respect_annotation_metadata(
-                    object_=testset_revision_commit, annotation=TestsetRevisionCommit, direction="write"
+                    object_=testset_revision_commit,
+                    annotation=TestsetRevisionCommit,
+                    direction="write",
                 ),
                 "include_testcases": include_testcases,
             },
@@ -3240,8 +3818,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def log_testset_revisions(
         self,
@@ -3270,7 +3856,9 @@ class AsyncRawTestsetsClient:
             method="POST",
             json={
                 "testset_revision": convert_and_respect_annotation_metadata(
-                    object_=testset_revision, annotation=TestsetRevisionsLog, direction="write"
+                    object_=testset_revision,
+                    annotation=TestsetRevisionsLog,
+                    direction="write",
                 ),
                 "include_testcases": include_testcases,
             },
@@ -3303,8 +3891,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_simple_testset(
         self,
@@ -3368,11 +3964,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[SimpleTestsetResponse]:
         """
         Parameters
@@ -3415,11 +4022,23 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_simple_testset(
-        self, testset_id: str, *, testset: SimpleTestsetEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        testset: SimpleTestsetEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[SimpleTestsetResponse]:
         """
         Parameters
@@ -3473,11 +4092,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[SimpleTestsetResponse]:
         """
         Parameters
@@ -3520,11 +4150,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[SimpleTestsetResponse]:
         """
         Parameters
@@ -3567,8 +4208,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_simple_testsets(
         self,
@@ -3603,14 +4252,20 @@ class AsyncRawTestsetsClient:
             method="POST",
             json={
                 "testset": convert_and_respect_annotation_metadata(
-                    object_=testset, annotation=typing.Optional[SimpleTestsetQuery], direction="write"
+                    object_=testset,
+                    annotation=typing.Optional[SimpleTestsetQuery],
+                    direction="write",
                 ),
                 "testset_refs": convert_and_respect_annotation_metadata(
-                    object_=testset_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=testset_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -3642,8 +4297,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_simple_testset_from_file(
         self,
@@ -3724,8 +4387,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_simple_testset_from_file(
         self,
@@ -3805,8 +4476,16 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_simple_testset_to_file(
         self,
@@ -3865,11 +4544,22 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def transfer_simple_testset(
-        self, testset_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[SimpleTestsetResponse]:
         """
         Parameters
@@ -3912,5 +4602,13 @@ class AsyncRawTestsetsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

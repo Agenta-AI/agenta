@@ -5,17 +5,25 @@ from __future__ import annotations
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 from .o_tel_flat_span_input import OTelFlatSpanInput
 from .o_tel_spans_tree_input import OTelSpansTreeInput
 
 
 class OTelTracingRequest(UniversalBaseModel):
     spans: typing.Optional[typing.List[OTelFlatSpanInput]] = None
-    traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = None
+    traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = (
+        None
+    )
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:

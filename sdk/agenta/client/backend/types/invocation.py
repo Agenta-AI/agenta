@@ -6,7 +6,11 @@ import datetime as dt
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 from .invocation_links import InvocationLinks
 from .simple_trace_channel import SimpleTraceChannel
 from .simple_trace_kind import SimpleTraceKind
@@ -33,7 +37,9 @@ class Invocation(UniversalBaseModel):
     links: typing.Optional[InvocationLinks] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:
@@ -45,4 +51,6 @@ class Invocation(UniversalBaseModel):
 from .label_json_output import LabelJsonOutput  # noqa: E402, I001
 from .full_json_output import FullJsonOutput  # noqa: E402, I001
 
-update_forward_refs(Invocation, FullJsonOutput=FullJsonOutput, LabelJsonOutput=LabelJsonOutput)
+update_forward_refs(
+    Invocation, FullJsonOutput=FullJsonOutput, LabelJsonOutput=LabelJsonOutput
+)

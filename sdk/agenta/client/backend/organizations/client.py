@@ -101,7 +101,10 @@ class OrganizationsClient:
         )
         """
         _response = self._raw_client.create_domain(
-            domain=domain, name=name, description=description, request_options=request_options
+            domain=domain,
+            name=name,
+            description=description,
+            request_options=request_options,
         )
         return _response.data
 
@@ -137,7 +140,9 @@ class OrganizationsClient:
             domain_id="domain_id",
         )
         """
-        _response = self._raw_client.verify_domain(domain_id=domain_id, request_options=request_options)
+        _response = self._raw_client.verify_domain(
+            domain_id=domain_id, request_options=request_options
+        )
         return _response.data
 
     def refresh_domain_token(
@@ -172,7 +177,9 @@ class OrganizationsClient:
             domain_id="domain_id",
         )
         """
-        _response = self._raw_client.refresh_domain_token(domain_id, request_options=request_options)
+        _response = self._raw_client.refresh_domain_token(
+            domain_id, request_options=request_options
+        )
         return _response.data
 
     def reset_domain(
@@ -207,10 +214,14 @@ class OrganizationsClient:
             domain_id="domain_id",
         )
         """
-        _response = self._raw_client.reset_domain(domain_id, request_options=request_options)
+        _response = self._raw_client.reset_domain(
+            domain_id, request_options=request_options
+        )
         return _response.data
 
-    def delete_domain(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> None:
+    def delete_domain(
+        self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> None:
         """
         Delete a domain.
 
@@ -236,7 +247,9 @@ class OrganizationsClient:
             domain_id="domain_id",
         )
         """
-        _response = self._raw_client.delete_domain(domain_id, request_options=request_options)
+        _response = self._raw_client.delete_domain(
+            domain_id, request_options=request_options
+        )
         return _response.data
 
     def list_providers(
@@ -326,7 +339,12 @@ class OrganizationsClient:
         )
         return _response.data
 
-    def delete_provider(self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> None:
+    def delete_provider(
+        self,
+        provider_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> None:
         """
         Delete an SSO provider configuration.
 
@@ -352,7 +370,9 @@ class OrganizationsClient:
             provider_id="provider_id",
         )
         """
-        _response = self._raw_client.delete_provider(provider_id, request_options=request_options)
+        _response = self._raw_client.delete_provider(
+            provider_id, request_options=request_options
+        )
         return _response.data
 
     def update_provider(
@@ -414,7 +434,10 @@ class OrganizationsClient:
         return _response.data
 
     def test_provider(
-        self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        provider_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> OrganizationProviderResponse:
         """
         Test SSO provider connection.
@@ -447,7 +470,9 @@ class OrganizationsClient:
             provider_id="provider_id",
         )
         """
-        _response = self._raw_client.test_provider(provider_id, request_options=request_options)
+        _response = self._raw_client.test_provider(
+            provider_id, request_options=request_options
+        )
         return _response.data
 
 
@@ -556,7 +581,10 @@ class AsyncOrganizationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.create_domain(
-            domain=domain, name=name, description=description, request_options=request_options
+            domain=domain,
+            name=name,
+            description=description,
+            request_options=request_options,
         )
         return _response.data
 
@@ -600,7 +628,9 @@ class AsyncOrganizationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.verify_domain(domain_id=domain_id, request_options=request_options)
+        _response = await self._raw_client.verify_domain(
+            domain_id=domain_id, request_options=request_options
+        )
         return _response.data
 
     async def refresh_domain_token(
@@ -643,7 +673,9 @@ class AsyncOrganizationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.refresh_domain_token(domain_id, request_options=request_options)
+        _response = await self._raw_client.refresh_domain_token(
+            domain_id, request_options=request_options
+        )
         return _response.data
 
     async def reset_domain(
@@ -686,10 +718,14 @@ class AsyncOrganizationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.reset_domain(domain_id, request_options=request_options)
+        _response = await self._raw_client.reset_domain(
+            domain_id, request_options=request_options
+        )
         return _response.data
 
-    async def delete_domain(self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> None:
+    async def delete_domain(
+        self, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> None:
         """
         Delete a domain.
 
@@ -723,7 +759,9 @@ class AsyncOrganizationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_domain(domain_id, request_options=request_options)
+        _response = await self._raw_client.delete_domain(
+            domain_id, request_options=request_options
+        )
         return _response.data
 
     async def list_providers(
@@ -759,7 +797,9 @@ class AsyncOrganizationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.list_providers(request_options=request_options)
+        _response = await self._raw_client.list_providers(
+            request_options=request_options
+        )
         return _response.data
 
     async def create_provider(
@@ -830,7 +870,10 @@ class AsyncOrganizationsClient:
         return _response.data
 
     async def delete_provider(
-        self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        provider_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> None:
         """
         Delete an SSO provider configuration.
@@ -865,7 +908,9 @@ class AsyncOrganizationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_provider(provider_id, request_options=request_options)
+        _response = await self._raw_client.delete_provider(
+            provider_id, request_options=request_options
+        )
         return _response.data
 
     async def update_provider(
@@ -935,7 +980,10 @@ class AsyncOrganizationsClient:
         return _response.data
 
     async def test_provider(
-        self, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        provider_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> OrganizationProviderResponse:
         """
         Test SSO provider connection.
@@ -976,5 +1024,7 @@ class AsyncOrganizationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.test_provider(provider_id, request_options=request_options)
+        _response = await self._raw_client.test_provider(
+            provider_id, request_options=request_options
+        )
         return _response.data

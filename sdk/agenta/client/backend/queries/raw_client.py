@@ -104,8 +104,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -151,11 +159,23 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_query(
-        self, query_id: str, *, query: QueryEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_id: str,
+        *,
+        query: QueryEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[QueryResponse]:
         """
         Parameters
@@ -209,8 +229,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -256,8 +284,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -303,8 +339,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_queries(
         self,
@@ -412,8 +456,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def retrieve_query_revision(
         self,
@@ -445,13 +497,19 @@ class RawQueriesClient:
             method="POST",
             json={
                 "query_ref": convert_and_respect_annotation_metadata(
-                    object_=query_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=query_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "query_variant_ref": convert_and_respect_annotation_metadata(
-                    object_=query_variant_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=query_variant_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "query_revision_ref": convert_and_respect_annotation_metadata(
-                    object_=query_revision_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=query_revision_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
             },
             headers={
@@ -483,11 +541,22 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_query_revision(
-        self, *, query_revision: QueryRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revision: QueryRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -507,7 +576,9 @@ class RawQueriesClient:
             method="POST",
             json={
                 "query_revision": convert_and_respect_annotation_metadata(
-                    object_=query_revision, annotation=QueryRevisionCreate, direction="write"
+                    object_=query_revision,
+                    annotation=QueryRevisionCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -539,11 +610,22 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -586,8 +668,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_query_revision(
         self,
@@ -616,7 +706,9 @@ class RawQueriesClient:
             method="PUT",
             json={
                 "query_revision": convert_and_respect_annotation_metadata(
-                    object_=query_revision, annotation=QueryRevisionEdit, direction="write"
+                    object_=query_revision,
+                    annotation=QueryRevisionEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -648,11 +740,22 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -695,11 +798,22 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -742,8 +856,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_query_revisions(
         self,
@@ -784,10 +906,14 @@ class RawQueriesClient:
             method="POST",
             json={
                 "query_revision": convert_and_respect_annotation_metadata(
-                    object_=query_revision, annotation=typing.Optional[QueryRevisionQuery], direction="write"
+                    object_=query_revision,
+                    annotation=typing.Optional[QueryRevisionQuery],
+                    direction="write",
                 ),
                 "query_refs": convert_and_respect_annotation_metadata(
-                    object_=query_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=query_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "query_variant_refs": convert_and_respect_annotation_metadata(
                     object_=query_variant_refs,
@@ -801,7 +927,9 @@ class RawQueriesClient:
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -833,11 +961,22 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def commit_query_revision(
-        self, *, query_revision_commit: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revision_commit: QueryRevisionCommit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -857,7 +996,9 @@ class RawQueriesClient:
             method="POST",
             json={
                 "query_revision_commit": convert_and_respect_annotation_metadata(
-                    object_=query_revision_commit, annotation=QueryRevisionCommit, direction="write"
+                    object_=query_revision_commit,
+                    annotation=QueryRevisionCommit,
+                    direction="write",
                 ),
             },
             headers={
@@ -889,11 +1030,22 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def log_query_revisions(
-        self, *, query_revisions: QueryRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revisions: QueryRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[QueryRevisionsResponse]:
         """
         Parameters
@@ -913,7 +1065,9 @@ class RawQueriesClient:
             method="POST",
             json={
                 "query_revisions": convert_and_respect_annotation_metadata(
-                    object_=query_revisions, annotation=QueryRevisionsLog, direction="write"
+                    object_=query_revisions,
+                    annotation=QueryRevisionsLog,
+                    direction="write",
                 ),
             },
             headers={
@@ -945,8 +1099,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_simple_query(
         self,
@@ -1010,8 +1172,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_simple_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -1057,11 +1227,23 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_simple_query(
-        self, query_id: str, *, query: SimpleQueryEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_id: str,
+        *,
+        query: SimpleQueryEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[SimpleQueryResponse]:
         """
         Parameters
@@ -1115,8 +1297,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_simple_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -1162,8 +1352,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_simple_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -1209,8 +1407,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_simple_queries(
         self,
@@ -1245,14 +1451,20 @@ class RawQueriesClient:
             method="POST",
             json={
                 "query": convert_and_respect_annotation_metadata(
-                    object_=query, annotation=typing.Optional[SimpleQueryQuery], direction="write"
+                    object_=query,
+                    annotation=typing.Optional[SimpleQueryQuery],
+                    direction="write",
                 ),
                 "query_refs": convert_and_respect_annotation_metadata(
-                    object_=query_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=query_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -1284,8 +1496,16 @@ class RawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawQueriesClient:
@@ -1354,8 +1574,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -1401,11 +1629,23 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_query(
-        self, query_id: str, *, query: QueryEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_id: str,
+        *,
+        query: QueryEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[QueryResponse]:
         """
         Parameters
@@ -1459,8 +1699,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -1506,8 +1754,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -1553,8 +1809,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_queries(
         self,
@@ -1662,8 +1926,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def retrieve_query_revision(
         self,
@@ -1695,13 +1967,19 @@ class AsyncRawQueriesClient:
             method="POST",
             json={
                 "query_ref": convert_and_respect_annotation_metadata(
-                    object_=query_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=query_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "query_variant_ref": convert_and_respect_annotation_metadata(
-                    object_=query_variant_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=query_variant_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "query_revision_ref": convert_and_respect_annotation_metadata(
-                    object_=query_revision_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=query_revision_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
             },
             headers={
@@ -1733,11 +2011,22 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_query_revision(
-        self, *, query_revision: QueryRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revision: QueryRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -1757,7 +2046,9 @@ class AsyncRawQueriesClient:
             method="POST",
             json={
                 "query_revision": convert_and_respect_annotation_metadata(
-                    object_=query_revision, annotation=QueryRevisionCreate, direction="write"
+                    object_=query_revision,
+                    annotation=QueryRevisionCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -1789,11 +2080,22 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -1836,8 +2138,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_query_revision(
         self,
@@ -1866,7 +2176,9 @@ class AsyncRawQueriesClient:
             method="PUT",
             json={
                 "query_revision": convert_and_respect_annotation_metadata(
-                    object_=query_revision, annotation=QueryRevisionEdit, direction="write"
+                    object_=query_revision,
+                    annotation=QueryRevisionEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -1898,11 +2210,22 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -1945,11 +2268,22 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -1992,8 +2326,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_query_revisions(
         self,
@@ -2034,10 +2376,14 @@ class AsyncRawQueriesClient:
             method="POST",
             json={
                 "query_revision": convert_and_respect_annotation_metadata(
-                    object_=query_revision, annotation=typing.Optional[QueryRevisionQuery], direction="write"
+                    object_=query_revision,
+                    annotation=typing.Optional[QueryRevisionQuery],
+                    direction="write",
                 ),
                 "query_refs": convert_and_respect_annotation_metadata(
-                    object_=query_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=query_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "query_variant_refs": convert_and_respect_annotation_metadata(
                     object_=query_variant_refs,
@@ -2051,7 +2397,9 @@ class AsyncRawQueriesClient:
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -2083,11 +2431,22 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def commit_query_revision(
-        self, *, query_revision_commit: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revision_commit: QueryRevisionCommit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[QueryRevisionResponse]:
         """
         Parameters
@@ -2107,7 +2466,9 @@ class AsyncRawQueriesClient:
             method="POST",
             json={
                 "query_revision_commit": convert_and_respect_annotation_metadata(
-                    object_=query_revision_commit, annotation=QueryRevisionCommit, direction="write"
+                    object_=query_revision_commit,
+                    annotation=QueryRevisionCommit,
+                    direction="write",
                 ),
             },
             headers={
@@ -2139,11 +2500,22 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def log_query_revisions(
-        self, *, query_revisions: QueryRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revisions: QueryRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[QueryRevisionsResponse]:
         """
         Parameters
@@ -2163,7 +2535,9 @@ class AsyncRawQueriesClient:
             method="POST",
             json={
                 "query_revisions": convert_and_respect_annotation_metadata(
-                    object_=query_revisions, annotation=QueryRevisionsLog, direction="write"
+                    object_=query_revisions,
+                    annotation=QueryRevisionsLog,
+                    direction="write",
                 ),
             },
             headers={
@@ -2195,8 +2569,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_simple_query(
         self,
@@ -2260,8 +2642,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_simple_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -2307,11 +2697,23 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_simple_query(
-        self, query_id: str, *, query: SimpleQueryEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_id: str,
+        *,
+        query: SimpleQueryEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[SimpleQueryResponse]:
         """
         Parameters
@@ -2365,8 +2767,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_simple_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -2412,8 +2822,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_simple_query(
         self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -2459,8 +2877,16 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_simple_queries(
         self,
@@ -2495,14 +2921,20 @@ class AsyncRawQueriesClient:
             method="POST",
             json={
                 "query": convert_and_respect_annotation_metadata(
-                    object_=query, annotation=typing.Optional[SimpleQueryQuery], direction="write"
+                    object_=query,
+                    annotation=typing.Optional[SimpleQueryQuery],
+                    direction="write",
                 ),
                 "query_refs": convert_and_respect_annotation_metadata(
-                    object_=query_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=query_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -2534,5 +2966,13 @@ class AsyncRawQueriesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

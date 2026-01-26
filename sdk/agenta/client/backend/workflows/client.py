@@ -18,10 +18,18 @@ from ..types.workflow_revision_response import WorkflowRevisionResponse
 from ..types.workflow_revisions_log import WorkflowRevisionsLog
 from ..types.workflow_revisions_response import WorkflowRevisionsResponse
 from ..types.workflow_service_request_data import WorkflowServiceRequestData
-from ..types.workflow_service_request_input_configuration import WorkflowServiceRequestInputConfiguration
-from ..types.workflow_service_request_input_interface import WorkflowServiceRequestInputInterface
-from ..types.workflow_service_request_input_links_value import WorkflowServiceRequestInputLinksValue
-from ..types.workflow_service_request_input_references_value import WorkflowServiceRequestInputReferencesValue
+from ..types.workflow_service_request_input_configuration import (
+    WorkflowServiceRequestInputConfiguration,
+)
+from ..types.workflow_service_request_input_interface import (
+    WorkflowServiceRequestInputInterface,
+)
+from ..types.workflow_service_request_input_links_value import (
+    WorkflowServiceRequestInputLinksValue,
+)
+from ..types.workflow_service_request_input_references_value import (
+    WorkflowServiceRequestInputReferencesValue,
+)
 from ..types.workflow_service_request_output import WorkflowServiceRequestOutput
 from ..types.workflow_variant_create import WorkflowVariantCreate
 from ..types.workflow_variant_edit import WorkflowVariantEdit
@@ -30,8 +38,12 @@ from ..types.workflow_variants_response import WorkflowVariantsResponse
 from ..types.workflows_response import WorkflowsResponse
 from .raw_client import AsyncRawWorkflowsClient, RawWorkflowsClient
 from .types.invoke_workflow_response import InvokeWorkflowResponse
-from .types.query_workflow_revisions_request_order import QueryWorkflowRevisionsRequestOrder
-from .types.query_workflow_variants_request_order import QueryWorkflowVariantsRequestOrder
+from .types.query_workflow_revisions_request_order import (
+    QueryWorkflowRevisionsRequestOrder,
+)
+from .types.query_workflow_variants_request_order import (
+    QueryWorkflowVariantsRequestOrder,
+)
 from .types.query_workflows_request_order import QueryWorkflowsRequestOrder
 
 # this is used as the default value for optional parameters
@@ -54,7 +66,10 @@ class WorkflowsClient:
         return self._raw_client
 
     def create_workflow(
-        self, *, workflow: WorkflowCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowResponse:
         """
         Parameters
@@ -80,11 +95,16 @@ class WorkflowsClient:
             workflow=WorkflowCreate(),
         )
         """
-        _response = self._raw_client.create_workflow(workflow=workflow, request_options=request_options)
+        _response = self._raw_client.create_workflow(
+            workflow=workflow, request_options=request_options
+        )
         return _response.data
 
     def fetch_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowResponse:
         """
         Parameters
@@ -110,11 +130,17 @@ class WorkflowsClient:
             workflow_id="workflow_id",
         )
         """
-        _response = self._raw_client.fetch_workflow(workflow_id, request_options=request_options)
+        _response = self._raw_client.fetch_workflow(
+            workflow_id, request_options=request_options
+        )
         return _response.data
 
     def edit_workflow(
-        self, workflow_id: str, *, workflow: WorkflowEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        workflow: WorkflowEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowResponse:
         """
         Parameters
@@ -143,11 +169,16 @@ class WorkflowsClient:
             workflow=WorkflowEdit(),
         )
         """
-        _response = self._raw_client.edit_workflow(workflow_id, workflow=workflow, request_options=request_options)
+        _response = self._raw_client.edit_workflow(
+            workflow_id, workflow=workflow, request_options=request_options
+        )
         return _response.data
 
     def archive_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowResponse:
         """
         Parameters
@@ -173,11 +204,16 @@ class WorkflowsClient:
             workflow_id="workflow_id",
         )
         """
-        _response = self._raw_client.archive_workflow(workflow_id, request_options=request_options)
+        _response = self._raw_client.archive_workflow(
+            workflow_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowResponse:
         """
         Parameters
@@ -203,7 +239,9 @@ class WorkflowsClient:
             workflow_id="workflow_id",
         )
         """
-        _response = self._raw_client.unarchive_workflow(workflow_id, request_options=request_options)
+        _response = self._raw_client.unarchive_workflow(
+            workflow_id, request_options=request_options
+        )
         return _response.data
 
     def query_workflows(
@@ -297,7 +335,10 @@ class WorkflowsClient:
         return _response.data
 
     def create_workflow_variant(
-        self, *, workflow_variant: WorkflowVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow_variant: WorkflowVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowVariantResponse:
         """
         Parameters
@@ -329,7 +370,10 @@ class WorkflowsClient:
         return _response.data
 
     def fetch_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowVariantResponse:
         """
         Parameters
@@ -355,7 +399,9 @@ class WorkflowsClient:
             workflow_variant_id="workflow_variant_id",
         )
         """
-        _response = self._raw_client.fetch_workflow_variant(workflow_variant_id, request_options=request_options)
+        _response = self._raw_client.fetch_workflow_variant(
+            workflow_variant_id, request_options=request_options
+        )
         return _response.data
 
     def edit_workflow_variant(
@@ -393,12 +439,17 @@ class WorkflowsClient:
         )
         """
         _response = self._raw_client.edit_workflow_variant(
-            workflow_variant_id, workflow_variant=workflow_variant, request_options=request_options
+            workflow_variant_id,
+            workflow_variant=workflow_variant,
+            request_options=request_options,
         )
         return _response.data
 
     def archive_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowVariantResponse:
         """
         Parameters
@@ -424,11 +475,16 @@ class WorkflowsClient:
             workflow_variant_id="workflow_variant_id",
         )
         """
-        _response = self._raw_client.archive_workflow_variant(workflow_variant_id, request_options=request_options)
+        _response = self._raw_client.archive_workflow_variant(
+            workflow_variant_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowVariantResponse:
         """
         Parameters
@@ -454,7 +510,9 @@ class WorkflowsClient:
             workflow_variant_id="workflow_variant_id",
         )
         """
-        _response = self._raw_client.unarchive_workflow_variant(workflow_variant_id, request_options=request_options)
+        _response = self._raw_client.unarchive_workflow_variant(
+            workflow_variant_id, request_options=request_options
+        )
         return _response.data
 
     def query_workflow_variants(
@@ -564,7 +622,10 @@ class WorkflowsClient:
         return _response.data
 
     def fork_workflow_variant(
-        self, *, workflow: WorkflowFork, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowFork,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowVariantResponse:
         """
         Parameters
@@ -590,7 +651,9 @@ class WorkflowsClient:
             workflow=WorkflowFork(),
         )
         """
-        _response = self._raw_client.fork_workflow_variant(workflow=workflow, request_options=request_options)
+        _response = self._raw_client.fork_workflow_variant(
+            workflow=workflow, request_options=request_options
+        )
         return _response.data
 
     def retrieve_workflow_revision(
@@ -616,11 +679,16 @@ class WorkflowsClient:
         )
         client.workflows.retrieve_workflow_revision()
         """
-        _response = self._raw_client.retrieve_workflow_revision(request_options=request_options)
+        _response = self._raw_client.retrieve_workflow_revision(
+            request_options=request_options
+        )
         return _response.data
 
     def create_workflow_revision(
-        self, *, workflow_revision: WorkflowRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow_revision: WorkflowRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowRevisionResponse:
         """
         Parameters
@@ -652,7 +720,10 @@ class WorkflowsClient:
         return _response.data
 
     def fetch_workflow_revision(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowRevisionResponse:
         """
         Parameters
@@ -678,7 +749,9 @@ class WorkflowsClient:
             workflow_revision_id="workflow_revision_id",
         )
         """
-        _response = self._raw_client.fetch_workflow_revision(workflow_revision_id, request_options=request_options)
+        _response = self._raw_client.fetch_workflow_revision(
+            workflow_revision_id, request_options=request_options
+        )
         return _response.data
 
     def edit_workflow_revision(
@@ -716,12 +789,17 @@ class WorkflowsClient:
         )
         """
         _response = self._raw_client.edit_workflow_revision(
-            workflow_revision_id, workflow_revision=workflow_revision, request_options=request_options
+            workflow_revision_id,
+            workflow_revision=workflow_revision,
+            request_options=request_options,
         )
         return _response.data
 
     def archive_workflow_revision_rpc(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowRevisionResponse:
         """
         Parameters
@@ -753,7 +831,10 @@ class WorkflowsClient:
         return _response.data
 
     def unarchive_workflow_revision_rpc(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowRevisionResponse:
         """
         Parameters
@@ -955,7 +1036,10 @@ class WorkflowsClient:
         return _response.data
 
     def log_workflow_revisions(
-        self, *, workflow: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowRevisionsResponse:
         """
         Parameters
@@ -981,22 +1065,30 @@ class WorkflowsClient:
             workflow=WorkflowRevisionsLog(),
         )
         """
-        _response = self._raw_client.log_workflow_revisions(workflow=workflow, request_options=request_options)
+        _response = self._raw_client.log_workflow_revisions(
+            workflow=workflow, request_options=request_options
+        )
         return _response.data
 
     def invoke_workflow(
         self,
         *,
-        flags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
+        flags: typing.Optional[
+            typing.Dict[str, typing.Optional[LabelJsonInput]]
+        ] = OMIT,
         tags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
         meta: typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]] = OMIT,
         version: typing.Optional[str] = OMIT,
         interface: typing.Optional[WorkflowServiceRequestInputInterface] = OMIT,
         configuration: typing.Optional[WorkflowServiceRequestInputConfiguration] = OMIT,
         references: typing.Optional[
-            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+            typing.Dict[
+                str, typing.Optional[WorkflowServiceRequestInputReferencesValue]
+            ]
         ] = OMIT,
-        links: typing.Optional[typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]] = OMIT,
+        links: typing.Optional[
+            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+        ] = OMIT,
         secrets: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         credentials: typing.Optional[str] = OMIT,
         data: typing.Optional[WorkflowServiceRequestData] = OMIT,
@@ -1063,16 +1155,22 @@ class WorkflowsClient:
     def inspect_workflow(
         self,
         *,
-        flags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
+        flags: typing.Optional[
+            typing.Dict[str, typing.Optional[LabelJsonInput]]
+        ] = OMIT,
         tags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
         meta: typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]] = OMIT,
         version: typing.Optional[str] = OMIT,
         interface: typing.Optional[WorkflowServiceRequestInputInterface] = OMIT,
         configuration: typing.Optional[WorkflowServiceRequestInputConfiguration] = OMIT,
         references: typing.Optional[
-            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+            typing.Dict[
+                str, typing.Optional[WorkflowServiceRequestInputReferencesValue]
+            ]
         ] = OMIT,
-        links: typing.Optional[typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]] = OMIT,
+        links: typing.Optional[
+            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+        ] = OMIT,
         secrets: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         credentials: typing.Optional[str] = OMIT,
         data: typing.Optional[WorkflowServiceRequestData] = OMIT,
@@ -1153,7 +1251,10 @@ class AsyncWorkflowsClient:
         return self._raw_client
 
     async def create_workflow(
-        self, *, workflow: WorkflowCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowResponse:
         """
         Parameters
@@ -1187,11 +1288,16 @@ class AsyncWorkflowsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_workflow(workflow=workflow, request_options=request_options)
+        _response = await self._raw_client.create_workflow(
+            workflow=workflow, request_options=request_options
+        )
         return _response.data
 
     async def fetch_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowResponse:
         """
         Parameters
@@ -1225,11 +1331,17 @@ class AsyncWorkflowsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_workflow(workflow_id, request_options=request_options)
+        _response = await self._raw_client.fetch_workflow(
+            workflow_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_workflow(
-        self, workflow_id: str, *, workflow: WorkflowEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        workflow: WorkflowEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowResponse:
         """
         Parameters
@@ -1272,7 +1384,10 @@ class AsyncWorkflowsClient:
         return _response.data
 
     async def archive_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowResponse:
         """
         Parameters
@@ -1306,11 +1421,16 @@ class AsyncWorkflowsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.archive_workflow(workflow_id, request_options=request_options)
+        _response = await self._raw_client.archive_workflow(
+            workflow_id, request_options=request_options
+        )
         return _response.data
 
     async def unarchive_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowResponse:
         """
         Parameters
@@ -1344,7 +1464,9 @@ class AsyncWorkflowsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.unarchive_workflow(workflow_id, request_options=request_options)
+        _response = await self._raw_client.unarchive_workflow(
+            workflow_id, request_options=request_options
+        )
         return _response.data
 
     async def query_workflows(
@@ -1446,7 +1568,10 @@ class AsyncWorkflowsClient:
         return _response.data
 
     async def create_workflow_variant(
-        self, *, workflow_variant: WorkflowVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow_variant: WorkflowVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowVariantResponse:
         """
         Parameters
@@ -1486,7 +1611,10 @@ class AsyncWorkflowsClient:
         return _response.data
 
     async def fetch_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowVariantResponse:
         """
         Parameters
@@ -1520,7 +1648,9 @@ class AsyncWorkflowsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_workflow_variant(workflow_variant_id, request_options=request_options)
+        _response = await self._raw_client.fetch_workflow_variant(
+            workflow_variant_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_workflow_variant(
@@ -1566,12 +1696,17 @@ class AsyncWorkflowsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.edit_workflow_variant(
-            workflow_variant_id, workflow_variant=workflow_variant, request_options=request_options
+            workflow_variant_id,
+            workflow_variant=workflow_variant,
+            request_options=request_options,
         )
         return _response.data
 
     async def archive_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowVariantResponse:
         """
         Parameters
@@ -1611,7 +1746,10 @@ class AsyncWorkflowsClient:
         return _response.data
 
     async def unarchive_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowVariantResponse:
         """
         Parameters
@@ -1765,7 +1903,10 @@ class AsyncWorkflowsClient:
         return _response.data
 
     async def fork_workflow_variant(
-        self, *, workflow: WorkflowFork, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowFork,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowVariantResponse:
         """
         Parameters
@@ -1799,7 +1940,9 @@ class AsyncWorkflowsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fork_workflow_variant(workflow=workflow, request_options=request_options)
+        _response = await self._raw_client.fork_workflow_variant(
+            workflow=workflow, request_options=request_options
+        )
         return _response.data
 
     async def retrieve_workflow_revision(
@@ -1833,11 +1976,16 @@ class AsyncWorkflowsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.retrieve_workflow_revision(request_options=request_options)
+        _response = await self._raw_client.retrieve_workflow_revision(
+            request_options=request_options
+        )
         return _response.data
 
     async def create_workflow_revision(
-        self, *, workflow_revision: WorkflowRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow_revision: WorkflowRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowRevisionResponse:
         """
         Parameters
@@ -1877,7 +2025,10 @@ class AsyncWorkflowsClient:
         return _response.data
 
     async def fetch_workflow_revision(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowRevisionResponse:
         """
         Parameters
@@ -1959,12 +2110,17 @@ class AsyncWorkflowsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.edit_workflow_revision(
-            workflow_revision_id, workflow_revision=workflow_revision, request_options=request_options
+            workflow_revision_id,
+            workflow_revision=workflow_revision,
+            request_options=request_options,
         )
         return _response.data
 
     async def archive_workflow_revision_rpc(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowRevisionResponse:
         """
         Parameters
@@ -2004,7 +2160,10 @@ class AsyncWorkflowsClient:
         return _response.data
 
     async def unarchive_workflow_revision_rpc(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowRevisionResponse:
         """
         Parameters
@@ -2230,7 +2389,10 @@ class AsyncWorkflowsClient:
         return _response.data
 
     async def log_workflow_revisions(
-        self, *, workflow: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkflowRevisionsResponse:
         """
         Parameters
@@ -2264,22 +2426,30 @@ class AsyncWorkflowsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.log_workflow_revisions(workflow=workflow, request_options=request_options)
+        _response = await self._raw_client.log_workflow_revisions(
+            workflow=workflow, request_options=request_options
+        )
         return _response.data
 
     async def invoke_workflow(
         self,
         *,
-        flags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
+        flags: typing.Optional[
+            typing.Dict[str, typing.Optional[LabelJsonInput]]
+        ] = OMIT,
         tags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
         meta: typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]] = OMIT,
         version: typing.Optional[str] = OMIT,
         interface: typing.Optional[WorkflowServiceRequestInputInterface] = OMIT,
         configuration: typing.Optional[WorkflowServiceRequestInputConfiguration] = OMIT,
         references: typing.Optional[
-            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+            typing.Dict[
+                str, typing.Optional[WorkflowServiceRequestInputReferencesValue]
+            ]
         ] = OMIT,
-        links: typing.Optional[typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]] = OMIT,
+        links: typing.Optional[
+            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+        ] = OMIT,
         secrets: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         credentials: typing.Optional[str] = OMIT,
         data: typing.Optional[WorkflowServiceRequestData] = OMIT,
@@ -2354,16 +2524,22 @@ class AsyncWorkflowsClient:
     async def inspect_workflow(
         self,
         *,
-        flags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
+        flags: typing.Optional[
+            typing.Dict[str, typing.Optional[LabelJsonInput]]
+        ] = OMIT,
         tags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
         meta: typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]] = OMIT,
         version: typing.Optional[str] = OMIT,
         interface: typing.Optional[WorkflowServiceRequestInputInterface] = OMIT,
         configuration: typing.Optional[WorkflowServiceRequestInputConfiguration] = OMIT,
         references: typing.Optional[
-            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+            typing.Dict[
+                str, typing.Optional[WorkflowServiceRequestInputReferencesValue]
+            ]
         ] = OMIT,
-        links: typing.Optional[typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]] = OMIT,
+        links: typing.Optional[
+            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+        ] = OMIT,
         secrets: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         credentials: typing.Optional[str] = OMIT,
         data: typing.Optional[WorkflowServiceRequestData] = OMIT,

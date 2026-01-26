@@ -14,7 +14,9 @@ from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
 from ..types.invite_request import InviteRequest
 from ..types.organization_details import OrganizationDetails
-from ..types.oss_src_models_api_organization_models_organization import OssSrcModelsApiOrganizationModelsOrganization
+from ..types.oss_src_models_api_organization_models_organization import (
+    OssSrcModelsApiOrganizationModelsOrganization,
+)
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -25,7 +27,10 @@ class RawOrganizationClient:
         self._client_wrapper = client_wrapper
 
     def fetch_organization_details(
-        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[OrganizationDetails]:
         """
         Return the details of the organization.
@@ -70,8 +75,16 @@ class RawOrganizationClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def list_organizations(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -105,15 +118,25 @@ class RawOrganizationClient:
                 _data = typing.cast(
                     typing.List[OssSrcModelsApiOrganizationModelsOrganization],
                     parse_obj_as(
-                        type_=typing.List[OssSrcModelsApiOrganizationModelsOrganization],  # type: ignore
+                        type_=typing.List[
+                            OssSrcModelsApiOrganizationModelsOrganization
+                        ],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def invite_user_to_workspace(
         self,
@@ -158,7 +181,9 @@ class RawOrganizationClient:
             f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
             method="POST",
             json=convert_and_respect_annotation_metadata(
-                object_=request, annotation=typing.Sequence[InviteRequest], direction="write"
+                object_=request,
+                annotation=typing.Sequence[InviteRequest],
+                direction="write",
             ),
             headers={
                 "content-type": "application/json",
@@ -191,8 +216,16 @@ class RawOrganizationClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def resend_invitation(
         self,
@@ -266,8 +299,16 @@ class RawOrganizationClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def accept_invitation(
         self,
@@ -351,8 +392,16 @@ class RawOrganizationClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawOrganizationClient:
@@ -360,7 +409,10 @@ class AsyncRawOrganizationClient:
         self._client_wrapper = client_wrapper
 
     async def fetch_organization_details(
-        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[OrganizationDetails]:
         """
         Return the details of the organization.
@@ -405,8 +457,16 @@ class AsyncRawOrganizationClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def list_organizations(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -440,15 +500,25 @@ class AsyncRawOrganizationClient:
                 _data = typing.cast(
                     typing.List[OssSrcModelsApiOrganizationModelsOrganization],
                     parse_obj_as(
-                        type_=typing.List[OssSrcModelsApiOrganizationModelsOrganization],  # type: ignore
+                        type_=typing.List[
+                            OssSrcModelsApiOrganizationModelsOrganization
+                        ],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def invite_user_to_workspace(
         self,
@@ -493,7 +563,9 @@ class AsyncRawOrganizationClient:
             f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
             method="POST",
             json=convert_and_respect_annotation_metadata(
-                object_=request, annotation=typing.Sequence[InviteRequest], direction="write"
+                object_=request,
+                annotation=typing.Sequence[InviteRequest],
+                direction="write",
             ),
             headers={
                 "content-type": "application/json",
@@ -526,8 +598,16 @@ class AsyncRawOrganizationClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def resend_invitation(
         self,
@@ -601,8 +681,16 @@ class AsyncRawOrganizationClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def accept_invitation(
         self,
@@ -686,5 +774,13 @@ class AsyncRawOrganizationClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

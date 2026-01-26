@@ -37,7 +37,10 @@ class AdminClient:
         return self._raw_client
 
     def create_portal(
-        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Parameters
@@ -63,7 +66,9 @@ class AdminClient:
             organization_id="organization_id",
         )
         """
-        _response = self._raw_client.create_portal(organization_id=organization_id, request_options=request_options)
+        _response = self._raw_client.create_portal(
+            organization_id=organization_id, request_options=request_options
+        )
         return _response.data
 
     def create_checkout(
@@ -105,12 +110,19 @@ class AdminClient:
         )
         """
         _response = self._raw_client.create_checkout(
-            organization_id=organization_id, plan=plan, success_url=success_url, request_options=request_options
+            organization_id=organization_id,
+            plan=plan,
+            success_url=success_url,
+            request_options=request_options,
         )
         return _response.data
 
     def switch_plans(
-        self, *, organization_id: str, plan: Plan, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        plan: Plan,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Parameters
@@ -145,7 +157,10 @@ class AdminClient:
         return _response.data
 
     def cancel_subscription(
-        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Parameters
@@ -176,7 +191,9 @@ class AdminClient:
         )
         return _response.data
 
-    def report_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def report_usage(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -200,7 +217,9 @@ class AdminClient:
         _response = self._raw_client.report_usage(request_options=request_options)
         return _response.data
 
-    def flush_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def flush_usage(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -371,7 +390,9 @@ class AdminClient:
             request=AccountRequest(),
         )
         """
-        _response = self._raw_client.create_account(request=request, request_options=request_options)
+        _response = self._raw_client.create_account(
+            request=request, request_options=request_options
+        )
         return _response.data
 
 
@@ -391,7 +412,10 @@ class AsyncAdminClient:
         return self._raw_client
 
     async def create_portal(
-        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Parameters
@@ -477,12 +501,19 @@ class AsyncAdminClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.create_checkout(
-            organization_id=organization_id, plan=plan, success_url=success_url, request_options=request_options
+            organization_id=organization_id,
+            plan=plan,
+            success_url=success_url,
+            request_options=request_options,
         )
         return _response.data
 
     async def switch_plans(
-        self, *, organization_id: str, plan: Plan, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        plan: Plan,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Parameters
@@ -525,7 +556,10 @@ class AsyncAdminClient:
         return _response.data
 
     async def cancel_subscription(
-        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Parameters
@@ -564,7 +598,9 @@ class AsyncAdminClient:
         )
         return _response.data
 
-    async def report_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def report_usage(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -596,7 +632,9 @@ class AsyncAdminClient:
         _response = await self._raw_client.report_usage(request_options=request_options)
         return _response.data
 
-    async def flush_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def flush_usage(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -791,5 +829,7 @@ class AsyncAdminClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_account(request=request, request_options=request_options)
+        _response = await self._raw_client.create_account(
+            request=request, request_options=request_options
+        )
         return _response.data

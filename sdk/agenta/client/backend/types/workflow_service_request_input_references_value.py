@@ -4,4 +4,6 @@ import typing
 
 from .reference import Reference
 
-WorkflowServiceRequestInputReferencesValue = typing.Union[Reference, typing.Dict[str, typing.Any]]
+WorkflowServiceRequestInputReferencesValue = typing.Union[
+    Reference, typing.Dict[str, typing.Any]
+]

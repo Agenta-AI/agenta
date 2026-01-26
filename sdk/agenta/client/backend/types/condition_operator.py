@@ -10,5 +10,10 @@ from .numeric_operator import NumericOperator
 from .string_operator import StringOperator
 
 ConditionOperator = typing.Union[
-    ComparisonOperator, NumericOperator, StringOperator, ListOperator, DictOperator, ExistenceOperator
+    ComparisonOperator,
+    NumericOperator,
+    StringOperator,
+    ListOperator,
+    DictOperator,
+    ExistenceOperator,
 ]

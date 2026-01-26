@@ -2,7 +2,9 @@
 
 import typing
 
-from .simple_evaluation_data_testset_steps_one_value import SimpleEvaluationDataTestsetStepsOneValue
+from .simple_evaluation_data_testset_steps_one_value import (
+    SimpleEvaluationDataTestsetStepsOneValue,
+)
 
 SimpleEvaluationDataTestsetSteps = typing.Union[
     typing.List[str], typing.Dict[str, SimpleEvaluationDataTestsetStepsOneValue]

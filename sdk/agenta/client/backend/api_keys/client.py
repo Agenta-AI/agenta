@@ -57,7 +57,9 @@ class ApiKeysClient:
         _response = self._raw_client.list_api_keys(request_options=request_options)
         return _response.data
 
-    def create_api_key(self, *, request_options: typing.Optional[RequestOptions] = None) -> str:
+    def create_api_key(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> str:
         """
         Creates an API key for a user.
 
@@ -90,7 +92,10 @@ class ApiKeysClient:
         return _response.data
 
     def delete_api_key(
-        self, key_prefix: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        key_prefix: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Dict[str, typing.Any]:
         """
         Delete an API key with the given key prefix for the authenticated user.
@@ -128,7 +133,9 @@ class ApiKeysClient:
             key_prefix="key_prefix",
         )
         """
-        _response = self._raw_client.delete_api_key(key_prefix, request_options=request_options)
+        _response = self._raw_client.delete_api_key(
+            key_prefix, request_options=request_options
+        )
         return _response.data
 
 
@@ -186,10 +193,14 @@ class AsyncApiKeysClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.list_api_keys(request_options=request_options)
+        _response = await self._raw_client.list_api_keys(
+            request_options=request_options
+        )
         return _response.data
 
-    async def create_api_key(self, *, request_options: typing.Optional[RequestOptions] = None) -> str:
+    async def create_api_key(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> str:
         """
         Creates an API key for a user.
 
@@ -226,11 +237,16 @@ class AsyncApiKeysClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_api_key(request_options=request_options)
+        _response = await self._raw_client.create_api_key(
+            request_options=request_options
+        )
         return _response.data
 
     async def delete_api_key(
-        self, key_prefix: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        key_prefix: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Dict[str, typing.Any]:
         """
         Delete an API key with the given key prefix for the authenticated user.
@@ -276,5 +292,7 @@ class AsyncApiKeysClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_api_key(key_prefix, request_options=request_options)
+        _response = await self._raw_client.delete_api_key(
+            key_prefix, request_options=request_options
+        )
         return _response.data

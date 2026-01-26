@@ -6,7 +6,9 @@ from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
 from ..types.invite_request import InviteRequest
 from ..types.organization_details import OrganizationDetails
-from ..types.oss_src_models_api_organization_models_organization import OssSrcModelsApiOrganizationModelsOrganization
+from ..types.oss_src_models_api_organization_models_organization import (
+    OssSrcModelsApiOrganizationModelsOrganization,
+)
 from .raw_client import AsyncRawOrganizationClient, RawOrganizationClient
 
 # this is used as the default value for optional parameters
@@ -29,7 +31,10 @@ class OrganizationClient:
         return self._raw_client
 
     def fetch_organization_details(
-        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> OrganizationDetails:
         """
         Return the details of the organization.
@@ -57,7 +62,9 @@ class OrganizationClient:
             organization_id="organization_id",
         )
         """
-        _response = self._raw_client.fetch_organization_details(organization_id, request_options=request_options)
+        _response = self._raw_client.fetch_organization_details(
+            organization_id, request_options=request_options
+        )
         return _response.data
 
     def list_organizations(
@@ -151,7 +158,10 @@ class OrganizationClient:
         )
         """
         _response = self._raw_client.invite_user_to_workspace(
-            organization_id, workspace_id, request=request, request_options=request_options
+            organization_id,
+            workspace_id,
+            request=request,
+            request_options=request_options,
         )
         return _response.data
 
@@ -291,7 +301,10 @@ class AsyncOrganizationClient:
         return self._raw_client
 
     async def fetch_organization_details(
-        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> OrganizationDetails:
         """
         Return the details of the organization.
@@ -327,7 +340,9 @@ class AsyncOrganizationClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_organization_details(organization_id, request_options=request_options)
+        _response = await self._raw_client.fetch_organization_details(
+            organization_id, request_options=request_options
+        )
         return _response.data
 
     async def list_organizations(
@@ -369,7 +384,9 @@ class AsyncOrganizationClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.list_organizations(request_options=request_options)
+        _response = await self._raw_client.list_organizations(
+            request_options=request_options
+        )
         return _response.data
 
     async def invite_user_to_workspace(
@@ -437,7 +454,10 @@ class AsyncOrganizationClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.invite_user_to_workspace(
-            organization_id, workspace_id, request=request, request_options=request_options
+            organization_id,
+            workspace_id,
+            request=request,
+            request_options=request_options,
         )
         return _response.data
 

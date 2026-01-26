@@ -5,12 +5,24 @@ from __future__ import annotations
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 from .workflow_service_request_data import WorkflowServiceRequestData
-from .workflow_service_request_input_configuration import WorkflowServiceRequestInputConfiguration
-from .workflow_service_request_input_interface import WorkflowServiceRequestInputInterface
-from .workflow_service_request_input_links_value import WorkflowServiceRequestInputLinksValue
-from .workflow_service_request_input_references_value import WorkflowServiceRequestInputReferencesValue
+from .workflow_service_request_input_configuration import (
+    WorkflowServiceRequestInputConfiguration,
+)
+from .workflow_service_request_input_interface import (
+    WorkflowServiceRequestInputInterface,
+)
+from .workflow_service_request_input_links_value import (
+    WorkflowServiceRequestInputLinksValue,
+)
+from .workflow_service_request_input_references_value import (
+    WorkflowServiceRequestInputReferencesValue,
+)
 
 
 class WorkflowServiceRequestInput(UniversalBaseModel):
@@ -20,14 +32,20 @@ class WorkflowServiceRequestInput(UniversalBaseModel):
     version: typing.Optional[str] = None
     interface: typing.Optional[WorkflowServiceRequestInputInterface] = None
     configuration: typing.Optional[WorkflowServiceRequestInputConfiguration] = None
-    references: typing.Optional[typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]] = None
-    links: typing.Optional[typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]] = None
+    references: typing.Optional[
+        typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+    ] = None
+    links: typing.Optional[
+        typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+    ] = None
     secrets: typing.Optional[typing.Dict[str, typing.Any]] = None
     credentials: typing.Optional[str] = None
     data: typing.Optional[WorkflowServiceRequestData] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:
@@ -39,4 +57,8 @@ class WorkflowServiceRequestInput(UniversalBaseModel):
 from .label_json_input import LabelJsonInput  # noqa: E402, I001
 from .full_json_input import FullJsonInput  # noqa: E402, I001
 
-update_forward_refs(WorkflowServiceRequestInput, FullJsonInput=FullJsonInput, LabelJsonInput=LabelJsonInput)
+update_forward_refs(
+    WorkflowServiceRequestInput,
+    FullJsonInput=FullJsonInput,
+    LabelJsonInput=LabelJsonInput,
+)

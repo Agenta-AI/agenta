@@ -2,4 +2,6 @@
 
 import typing
 
-LogicalOperator = typing.Union[typing.Literal["and", "or", "not", "nand", "nor"], typing.Any]
+LogicalOperator = typing.Union[
+    typing.Literal["and", "or", "not", "nand", "nor"], typing.Any
+]

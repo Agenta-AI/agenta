@@ -25,7 +25,10 @@ class RawTestcasesClient:
         self._client_wrapper = client_wrapper
 
     def fetch_testcase(
-        self, testcase_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testcase_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[TestcaseResponse]:
         """
         Parameters
@@ -68,8 +71,16 @@ class RawTestcasesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_testcases(
         self,
@@ -107,7 +118,9 @@ class RawTestcasesClient:
                 "testset_id": testset_id,
                 "testset_revision_id": testset_revision_id,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -139,8 +152,16 @@ class RawTestcasesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawTestcasesClient:
@@ -148,7 +169,10 @@ class AsyncRawTestcasesClient:
         self._client_wrapper = client_wrapper
 
     async def fetch_testcase(
-        self, testcase_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testcase_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[TestcaseResponse]:
         """
         Parameters
@@ -191,8 +215,16 @@ class AsyncRawTestcasesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_testcases(
         self,
@@ -230,7 +262,9 @@ class AsyncRawTestcasesClient:
                 "testset_id": testset_id,
                 "testset_revision_id": testset_revision_id,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -262,5 +296,13 @@ class AsyncRawTestcasesClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

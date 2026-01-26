@@ -26,7 +26,9 @@ class AuthClient:
         """
         return self._raw_client
 
-    def discover(self, *, email: str, request_options: typing.Optional[RequestOptions] = None) -> DiscoverResponse:
+    def discover(
+        self, *, email: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> DiscoverResponse:
         """
         Discover authentication methods available for a given email.
 
@@ -60,11 +62,16 @@ class AuthClient:
             email="email",
         )
         """
-        _response = self._raw_client.discover(email=email, request_options=request_options)
+        _response = self._raw_client.discover(
+            email=email, request_options=request_options
+        )
         return _response.data
 
     def check_organization_access(
-        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Check if the current session satisfies the organization's auth policy.
@@ -100,7 +107,10 @@ class AuthClient:
         return _response.data
 
     def update_session_identities(
-        self, *, session_identities: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        session_identities: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Parameters
@@ -132,7 +142,11 @@ class AuthClient:
         return _response.data
 
     def sso_callback_redirect(
-        self, organization_slug: str, provider_slug: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_slug: str,
+        provider_slug: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Custom SSO callback endpoint that redirects to SuperTokens.
@@ -240,11 +254,16 @@ class AsyncAuthClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.discover(email=email, request_options=request_options)
+        _response = await self._raw_client.discover(
+            email=email, request_options=request_options
+        )
         return _response.data
 
     async def check_organization_access(
-        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Check if the current session satisfies the organization's auth policy.
@@ -288,7 +307,10 @@ class AsyncAuthClient:
         return _response.data
 
     async def update_session_identities(
-        self, *, session_identities: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        session_identities: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Parameters
@@ -328,7 +350,11 @@ class AsyncAuthClient:
         return _response.data
 
     async def sso_callback_redirect(
-        self, organization_slug: str, provider_slug: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_slug: str,
+        provider_slug: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Custom SSO callback endpoint that redirects to SuperTokens.

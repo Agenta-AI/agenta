@@ -30,7 +30,10 @@ class RawInvocationsClient:
         self._client_wrapper = client_wrapper
 
     def create_invocation(
-        self, *, invocation: InvocationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        invocation: InvocationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[InvocationResponse]:
         """
         Parameters
@@ -82,8 +85,16 @@ class RawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_invocation_by_trace_id(
         self,
@@ -138,8 +149,16 @@ class RawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def delete_invocation_by_trace_id(
         self,
@@ -194,8 +213,16 @@ class RawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_invocation_by_trace_id(
         self,
@@ -262,11 +289,23 @@ class RawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_invocation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[InvocationResponse]:
         """
         Parameters
@@ -311,11 +350,23 @@ class RawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def delete_invocation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[InvocationLinkResponse]:
         """
         Parameters
@@ -360,8 +411,16 @@ class RawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_invocation(
         self,
@@ -425,8 +484,16 @@ class RawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_invocations(
         self,
@@ -458,13 +525,19 @@ class RawInvocationsClient:
             method="POST",
             json={
                 "invocation": convert_and_respect_annotation_metadata(
-                    object_=invocation, annotation=typing.Optional[InvocationQuery], direction="write"
+                    object_=invocation,
+                    annotation=typing.Optional[InvocationQuery],
+                    direction="write",
                 ),
                 "invocation_links": convert_and_respect_annotation_metadata(
-                    object_=invocation_links, annotation=typing.Optional[typing.Sequence[Link]], direction="write"
+                    object_=invocation_links,
+                    annotation=typing.Optional[typing.Sequence[Link]],
+                    direction="write",
                 ),
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -496,8 +569,16 @@ class RawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawInvocationsClient:
@@ -505,7 +586,10 @@ class AsyncRawInvocationsClient:
         self._client_wrapper = client_wrapper
 
     async def create_invocation(
-        self, *, invocation: InvocationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        invocation: InvocationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[InvocationResponse]:
         """
         Parameters
@@ -557,8 +641,16 @@ class AsyncRawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_invocation_by_trace_id(
         self,
@@ -613,8 +705,16 @@ class AsyncRawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def delete_invocation_by_trace_id(
         self,
@@ -669,8 +769,16 @@ class AsyncRawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_invocation_by_trace_id(
         self,
@@ -737,11 +845,23 @@ class AsyncRawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_invocation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[InvocationResponse]:
         """
         Parameters
@@ -786,11 +906,23 @@ class AsyncRawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def delete_invocation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[InvocationLinkResponse]:
         """
         Parameters
@@ -835,8 +967,16 @@ class AsyncRawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_invocation(
         self,
@@ -900,8 +1040,16 @@ class AsyncRawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_invocations(
         self,
@@ -933,13 +1081,19 @@ class AsyncRawInvocationsClient:
             method="POST",
             json={
                 "invocation": convert_and_respect_annotation_metadata(
-                    object_=invocation, annotation=typing.Optional[InvocationQuery], direction="write"
+                    object_=invocation,
+                    annotation=typing.Optional[InvocationQuery],
+                    direction="write",
                 ),
                 "invocation_links": convert_and_respect_annotation_metadata(
-                    object_=invocation_links, annotation=typing.Optional[typing.Sequence[Link]], direction="write"
+                    object_=invocation_links,
+                    annotation=typing.Optional[typing.Sequence[Link]],
+                    direction="write",
                 ),
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -971,5 +1125,13 @@ class AsyncRawInvocationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

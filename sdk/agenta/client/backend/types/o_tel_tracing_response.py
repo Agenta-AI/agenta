@@ -5,7 +5,11 @@ from __future__ import annotations
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 from .o_tel_flat_span_output import OTelFlatSpanOutput
 from .o_tel_spans_tree_output import OTelSpansTreeOutput
 
@@ -13,10 +17,14 @@ from .o_tel_spans_tree_output import OTelSpansTreeOutput
 class OTelTracingResponse(UniversalBaseModel):
     count: typing.Optional[int] = None
     spans: typing.Optional[typing.List[OTelFlatSpanOutput]] = None
-    traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeOutput]]] = None
+    traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeOutput]]] = (
+        None
+    )
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:

@@ -7,7 +7,9 @@ from importlib import import_module
 
 if typing.TYPE_CHECKING:
     from .invoke_workflow_response import InvokeWorkflowResponse
-    from .query_workflow_revisions_request_order import QueryWorkflowRevisionsRequestOrder
+    from .query_workflow_revisions_request_order import (
+        QueryWorkflowRevisionsRequestOrder,
+    )
     from .query_workflow_variants_request_order import QueryWorkflowVariantsRequestOrder
     from .query_workflows_request_order import QueryWorkflowsRequestOrder
 _dynamic_imports: typing.Dict[str, str] = {
@@ -21,7 +23,9 @@ _dynamic_imports: typing.Dict[str, str] = {
 def __getattr__(attr_name: str) -> typing.Any:
     module_name = _dynamic_imports.get(attr_name)
     if module_name is None:
-        raise AttributeError(f"No {attr_name} found in _dynamic_imports for module name -> {__name__}")
+        raise AttributeError(
+            f"No {attr_name} found in _dynamic_imports for module name -> {__name__}"
+        )
     try:
         module = import_module(module_name, __package__)
         if module_name == f".{attr_name}":
@@ -29,9 +33,13 @@ def __getattr__(attr_name: str) -> typing.Any:
         else:
             return getattr(module, attr_name)
     except ImportError as e:
-        raise ImportError(f"Failed to import {attr_name} from {module_name}: {e}") from e
+        raise ImportError(
+            f"Failed to import {attr_name} from {module_name}: {e}"
+        ) from e
     except AttributeError as e:
-        raise AttributeError(f"Failed to get {attr_name} from {module_name}: {e}") from e
+        raise AttributeError(
+            f"Failed to get {attr_name} from {module_name}: {e}"
+        ) from e
 
 
 def __dir__():

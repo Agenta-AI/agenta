@@ -23,7 +23,9 @@ class WorkspaceClient:
         """
         return self._raw_client
 
-    def get_workspace(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[Workspace]:
+    def get_workspace(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.List[Workspace]:
         """
         Get workspace details.
 
@@ -90,11 +92,17 @@ class WorkspaceClient:
         )
         client.workspace.get_all_workspace_roles()
         """
-        _response = self._raw_client.get_all_workspace_roles(request_options=request_options)
+        _response = self._raw_client.get_all_workspace_roles(
+            request_options=request_options
+        )
         return _response.data
 
     def remove_user_from_workspace(
-        self, workspace_id: str, *, email: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workspace_id: str,
+        *,
+        email: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Remove a user from a workspace.
@@ -150,7 +158,9 @@ class AsyncWorkspaceClient:
         """
         return self._raw_client
 
-    async def get_workspace(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[Workspace]:
+    async def get_workspace(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.List[Workspace]:
         """
         Get workspace details.
 
@@ -189,7 +199,9 @@ class AsyncWorkspaceClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_workspace(request_options=request_options)
+        _response = await self._raw_client.get_workspace(
+            request_options=request_options
+        )
         return _response.data
 
     async def get_all_workspace_roles(
@@ -233,11 +245,17 @@ class AsyncWorkspaceClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_all_workspace_roles(request_options=request_options)
+        _response = await self._raw_client.get_all_workspace_roles(
+            request_options=request_options
+        )
         return _response.data
 
     async def remove_user_from_workspace(
-        self, workspace_id: str, *, email: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workspace_id: str,
+        *,
+        email: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Remove a user from a workspace.

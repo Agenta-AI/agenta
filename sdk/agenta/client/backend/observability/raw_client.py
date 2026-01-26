@@ -26,8 +26,12 @@ from ..types.user_ids_response import UserIdsResponse
 from ..types.windowing import Windowing
 from .types.fetch_analytics_request_newest import FetchAnalyticsRequestNewest
 from .types.fetch_analytics_request_oldest import FetchAnalyticsRequestOldest
-from .types.fetch_legacy_analytics_request_newest import FetchLegacyAnalyticsRequestNewest
-from .types.fetch_legacy_analytics_request_oldest import FetchLegacyAnalyticsRequestOldest
+from .types.fetch_legacy_analytics_request_newest import (
+    FetchLegacyAnalyticsRequestNewest,
+)
+from .types.fetch_legacy_analytics_request_oldest import (
+    FetchLegacyAnalyticsRequestOldest,
+)
 from .types.query_spans_rpc_request_newest import QuerySpansRpcRequestNewest
 from .types.query_spans_rpc_request_oldest import QuerySpansRpcRequestOldest
 
@@ -70,8 +74,16 @@ class RawObservabilityClient:
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def otlp_ingest(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -104,14 +116,24 @@ class RawObservabilityClient:
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def ingest_spans_rpc(
         self,
         *,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[OTelLinksResponse]:
         """
@@ -134,11 +156,15 @@ class RawObservabilityClient:
             method="POST",
             json={
                 "spans": convert_and_respect_annotation_metadata(
-                    object_=spans, annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]], direction="write"
+                    object_=spans,
+                    annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]],
+                    direction="write",
                 ),
                 "traces": convert_and_respect_annotation_metadata(
                     object_=traces,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+                    ],
                     direction="write",
                 ),
             },
@@ -171,8 +197,16 @@ class RawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_spans_rpc(
         self,
@@ -252,8 +286,16 @@ class RawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_legacy_analytics(
         self,
@@ -333,8 +375,16 @@ class RawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_analytics(
         self,
@@ -414,15 +464,25 @@ class RawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_trace(
         self,
         *,
         sync: typing.Optional[bool] = None,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[OTelLinksResponse]:
         """
@@ -450,11 +510,15 @@ class RawObservabilityClient:
             },
             json={
                 "spans": convert_and_respect_annotation_metadata(
-                    object_=spans, annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]], direction="write"
+                    object_=spans,
+                    annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]],
+                    direction="write",
                 ),
                 "traces": convert_and_respect_annotation_metadata(
                     object_=traces,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+                    ],
                     direction="write",
                 ),
             },
@@ -487,8 +551,16 @@ class RawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_trace(
         self, trace_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -534,8 +606,16 @@ class RawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_trace(
         self,
@@ -543,7 +623,9 @@ class RawObservabilityClient:
         *,
         sync: typing.Optional[bool] = None,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[OTelLinksResponse]:
         """
@@ -573,11 +655,15 @@ class RawObservabilityClient:
             },
             json={
                 "spans": convert_and_respect_annotation_metadata(
-                    object_=spans, annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]], direction="write"
+                    object_=spans,
+                    annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]],
+                    direction="write",
                 ),
                 "traces": convert_and_respect_annotation_metadata(
                     object_=traces,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+                    ],
                     direction="write",
                 ),
             },
@@ -610,8 +696,16 @@ class RawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def delete_trace(
         self, trace_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -657,8 +751,16 @@ class RawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def list_sessions(
         self,
@@ -688,7 +790,9 @@ class RawObservabilityClient:
             json={
                 "realtime": realtime,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -720,8 +824,16 @@ class RawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def list_users(
         self,
@@ -751,7 +863,9 @@ class RawObservabilityClient:
             json={
                 "realtime": realtime,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -783,8 +897,16 @@ class RawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawObservabilityClient:
@@ -822,8 +944,16 @@ class AsyncRawObservabilityClient:
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def otlp_ingest(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -856,14 +986,24 @@ class AsyncRawObservabilityClient:
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def ingest_spans_rpc(
         self,
         *,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[OTelLinksResponse]:
         """
@@ -886,11 +1026,15 @@ class AsyncRawObservabilityClient:
             method="POST",
             json={
                 "spans": convert_and_respect_annotation_metadata(
-                    object_=spans, annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]], direction="write"
+                    object_=spans,
+                    annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]],
+                    direction="write",
                 ),
                 "traces": convert_and_respect_annotation_metadata(
                     object_=traces,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+                    ],
                     direction="write",
                 ),
             },
@@ -923,8 +1067,16 @@ class AsyncRawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_spans_rpc(
         self,
@@ -1004,8 +1156,16 @@ class AsyncRawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_legacy_analytics(
         self,
@@ -1085,8 +1245,16 @@ class AsyncRawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_analytics(
         self,
@@ -1166,15 +1334,25 @@ class AsyncRawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_trace(
         self,
         *,
         sync: typing.Optional[bool] = None,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[OTelLinksResponse]:
         """
@@ -1202,11 +1380,15 @@ class AsyncRawObservabilityClient:
             },
             json={
                 "spans": convert_and_respect_annotation_metadata(
-                    object_=spans, annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]], direction="write"
+                    object_=spans,
+                    annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]],
+                    direction="write",
                 ),
                 "traces": convert_and_respect_annotation_metadata(
                     object_=traces,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+                    ],
                     direction="write",
                 ),
             },
@@ -1239,8 +1421,16 @@ class AsyncRawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_trace(
         self, trace_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -1286,8 +1476,16 @@ class AsyncRawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_trace(
         self,
@@ -1295,7 +1493,9 @@ class AsyncRawObservabilityClient:
         *,
         sync: typing.Optional[bool] = None,
         spans: typing.Optional[typing.Sequence[OTelFlatSpanInput]] = OMIT,
-        traces: typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]] = OMIT,
+        traces: typing.Optional[
+            typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+        ] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[OTelLinksResponse]:
         """
@@ -1325,11 +1525,15 @@ class AsyncRawObservabilityClient:
             },
             json={
                 "spans": convert_and_respect_annotation_metadata(
-                    object_=spans, annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]], direction="write"
+                    object_=spans,
+                    annotation=typing.Optional[typing.Sequence[OTelFlatSpanInput]],
+                    direction="write",
                 ),
                 "traces": convert_and_respect_annotation_metadata(
                     object_=traces,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[OTelSpansTreeInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[OTelSpansTreeInput]]
+                    ],
                     direction="write",
                 ),
             },
@@ -1362,8 +1566,16 @@ class AsyncRawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def delete_trace(
         self, trace_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -1409,8 +1621,16 @@ class AsyncRawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def list_sessions(
         self,
@@ -1440,7 +1660,9 @@ class AsyncRawObservabilityClient:
             json={
                 "realtime": realtime,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -1472,8 +1694,16 @@ class AsyncRawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def list_users(
         self,
@@ -1503,7 +1733,9 @@ class AsyncRawObservabilityClient:
             json={
                 "realtime": realtime,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -1535,5 +1767,13 @@ class AsyncRawObservabilityClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

@@ -32,7 +32,10 @@ class FoldersClient:
         return self._raw_client
 
     def create_folder(
-        self, *, folder: FolderCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        folder: FolderCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> FolderResponse:
         """
         Parameters
@@ -58,7 +61,9 @@ class FoldersClient:
             folder=FolderCreate(),
         )
         """
-        _response = self._raw_client.create_folder(folder=folder, request_options=request_options)
+        _response = self._raw_client.create_folder(
+            folder=folder, request_options=request_options
+        )
         return _response.data
 
     def fetch_folder(
@@ -88,11 +93,17 @@ class FoldersClient:
             folder_id="folder_id",
         )
         """
-        _response = self._raw_client.fetch_folder(folder_id, request_options=request_options)
+        _response = self._raw_client.fetch_folder(
+            folder_id, request_options=request_options
+        )
         return _response.data
 
     def edit_folder(
-        self, folder_id: str, *, folder: FolderEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        folder_id: str,
+        *,
+        folder: FolderEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> FolderResponse:
         """
         Parameters
@@ -121,7 +132,9 @@ class FoldersClient:
             folder=FolderEdit(),
         )
         """
-        _response = self._raw_client.edit_folder(folder_id, folder=folder, request_options=request_options)
+        _response = self._raw_client.edit_folder(
+            folder_id, folder=folder, request_options=request_options
+        )
         return _response.data
 
     def delete_folder(
@@ -151,11 +164,16 @@ class FoldersClient:
             folder_id="folder_id",
         )
         """
-        _response = self._raw_client.delete_folder(folder_id, request_options=request_options)
+        _response = self._raw_client.delete_folder(
+            folder_id, request_options=request_options
+        )
         return _response.data
 
     def query_folders(
-        self, *, folder: FolderQuery, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        folder: FolderQuery,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> FoldersResponse:
         """
         Parameters
@@ -181,7 +199,9 @@ class FoldersClient:
             folder=FolderQuery(),
         )
         """
-        _response = self._raw_client.query_folders(folder=folder, request_options=request_options)
+        _response = self._raw_client.query_folders(
+            folder=folder, request_options=request_options
+        )
         return _response.data
 
 
@@ -201,7 +221,10 @@ class AsyncFoldersClient:
         return self._raw_client
 
     async def create_folder(
-        self, *, folder: FolderCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        folder: FolderCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> FolderResponse:
         """
         Parameters
@@ -235,7 +258,9 @@ class AsyncFoldersClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_folder(folder=folder, request_options=request_options)
+        _response = await self._raw_client.create_folder(
+            folder=folder, request_options=request_options
+        )
         return _response.data
 
     async def fetch_folder(
@@ -273,11 +298,17 @@ class AsyncFoldersClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_folder(folder_id, request_options=request_options)
+        _response = await self._raw_client.fetch_folder(
+            folder_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_folder(
-        self, folder_id: str, *, folder: FolderEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        folder_id: str,
+        *,
+        folder: FolderEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> FolderResponse:
         """
         Parameters
@@ -314,7 +345,9 @@ class AsyncFoldersClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_folder(folder_id, folder=folder, request_options=request_options)
+        _response = await self._raw_client.edit_folder(
+            folder_id, folder=folder, request_options=request_options
+        )
         return _response.data
 
     async def delete_folder(
@@ -352,11 +385,16 @@ class AsyncFoldersClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_folder(folder_id, request_options=request_options)
+        _response = await self._raw_client.delete_folder(
+            folder_id, request_options=request_options
+        )
         return _response.data
 
     async def query_folders(
-        self, *, folder: FolderQuery, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        folder: FolderQuery,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> FoldersResponse:
         """
         Parameters
@@ -390,5 +428,7 @@ class AsyncFoldersClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.query_folders(folder=folder, request_options=request_options)
+        _response = await self._raw_client.query_folders(
+            folder=folder, request_options=request_options
+        )
         return _response.data

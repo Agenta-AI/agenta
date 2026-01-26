@@ -27,10 +27,18 @@ from ..types.workflow_revision_response import WorkflowRevisionResponse
 from ..types.workflow_revisions_log import WorkflowRevisionsLog
 from ..types.workflow_revisions_response import WorkflowRevisionsResponse
 from ..types.workflow_service_request_data import WorkflowServiceRequestData
-from ..types.workflow_service_request_input_configuration import WorkflowServiceRequestInputConfiguration
-from ..types.workflow_service_request_input_interface import WorkflowServiceRequestInputInterface
-from ..types.workflow_service_request_input_links_value import WorkflowServiceRequestInputLinksValue
-from ..types.workflow_service_request_input_references_value import WorkflowServiceRequestInputReferencesValue
+from ..types.workflow_service_request_input_configuration import (
+    WorkflowServiceRequestInputConfiguration,
+)
+from ..types.workflow_service_request_input_interface import (
+    WorkflowServiceRequestInputInterface,
+)
+from ..types.workflow_service_request_input_links_value import (
+    WorkflowServiceRequestInputLinksValue,
+)
+from ..types.workflow_service_request_input_references_value import (
+    WorkflowServiceRequestInputReferencesValue,
+)
 from ..types.workflow_service_request_output import WorkflowServiceRequestOutput
 from ..types.workflow_variant_create import WorkflowVariantCreate
 from ..types.workflow_variant_edit import WorkflowVariantEdit
@@ -38,8 +46,12 @@ from ..types.workflow_variant_response import WorkflowVariantResponse
 from ..types.workflow_variants_response import WorkflowVariantsResponse
 from ..types.workflows_response import WorkflowsResponse
 from .types.invoke_workflow_response import InvokeWorkflowResponse
-from .types.query_workflow_revisions_request_order import QueryWorkflowRevisionsRequestOrder
-from .types.query_workflow_variants_request_order import QueryWorkflowVariantsRequestOrder
+from .types.query_workflow_revisions_request_order import (
+    QueryWorkflowRevisionsRequestOrder,
+)
+from .types.query_workflow_variants_request_order import (
+    QueryWorkflowVariantsRequestOrder,
+)
 from .types.query_workflows_request_order import QueryWorkflowsRequestOrder
 
 # this is used as the default value for optional parameters
@@ -51,7 +63,10 @@ class RawWorkflowsClient:
         self._client_wrapper = client_wrapper
 
     def create_workflow(
-        self, *, workflow: WorkflowCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowResponse]:
         """
         Parameters
@@ -103,11 +118,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowResponse]:
         """
         Parameters
@@ -150,11 +176,23 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_workflow(
-        self, workflow_id: str, *, workflow: WorkflowEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        workflow: WorkflowEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowResponse]:
         """
         Parameters
@@ -208,11 +246,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowResponse]:
         """
         Parameters
@@ -255,11 +304,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowResponse]:
         """
         Parameters
@@ -302,8 +362,16 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_workflows(
         self,
@@ -411,11 +479,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_workflow_variant(
-        self, *, workflow_variant: WorkflowVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow_variant: WorkflowVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowVariantResponse]:
         """
         Parameters
@@ -435,7 +514,9 @@ class RawWorkflowsClient:
             method="POST",
             json={
                 "workflow_variant": convert_and_respect_annotation_metadata(
-                    object_=workflow_variant, annotation=WorkflowVariantCreate, direction="write"
+                    object_=workflow_variant,
+                    annotation=WorkflowVariantCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -467,11 +548,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowVariantResponse]:
         """
         Parameters
@@ -514,8 +606,16 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_workflow_variant(
         self,
@@ -544,7 +644,9 @@ class RawWorkflowsClient:
             method="PUT",
             json={
                 "workflow_variant": convert_and_respect_annotation_metadata(
-                    object_=workflow_variant, annotation=WorkflowVariantEdit, direction="write"
+                    object_=workflow_variant,
+                    annotation=WorkflowVariantEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -576,11 +678,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowVariantResponse]:
         """
         Parameters
@@ -623,11 +736,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowVariantResponse]:
         """
         Parameters
@@ -670,8 +794,16 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_workflow_variants(
         self,
@@ -795,11 +927,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fork_workflow_variant(
-        self, *, workflow: WorkflowFork, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowFork,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowVariantResponse]:
         """
         Parameters
@@ -851,8 +994,16 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def retrieve_workflow_revision(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -896,11 +1047,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_workflow_revision(
-        self, *, workflow_revision: WorkflowRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow_revision: WorkflowRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowRevisionResponse]:
         """
         Parameters
@@ -920,7 +1082,9 @@ class RawWorkflowsClient:
             method="POST",
             json={
                 "workflow_revision": convert_and_respect_annotation_metadata(
-                    object_=workflow_revision, annotation=WorkflowRevisionCreate, direction="write"
+                    object_=workflow_revision,
+                    annotation=WorkflowRevisionCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -952,11 +1116,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_workflow_revision(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowRevisionResponse]:
         """
         Parameters
@@ -999,8 +1174,16 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_workflow_revision(
         self,
@@ -1029,7 +1212,9 @@ class RawWorkflowsClient:
             method="PUT",
             json={
                 "workflow_revision": convert_and_respect_annotation_metadata(
-                    object_=workflow_revision, annotation=WorkflowRevisionEdit, direction="write"
+                    object_=workflow_revision,
+                    annotation=WorkflowRevisionEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -1061,11 +1246,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_workflow_revision_rpc(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowRevisionResponse]:
         """
         Parameters
@@ -1108,11 +1304,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_workflow_revision_rpc(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowRevisionResponse]:
         """
         Parameters
@@ -1155,8 +1362,16 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_workflow_revisions(
         self,
@@ -1304,8 +1519,16 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def commit_workflow_revision(
         self,
@@ -1337,7 +1560,9 @@ class RawWorkflowsClient:
             },
             json={
                 "workflow_revision": convert_and_respect_annotation_metadata(
-                    object_=workflow_revision, annotation=WorkflowRevisionCommit, direction="write"
+                    object_=workflow_revision,
+                    annotation=WorkflowRevisionCommit,
+                    direction="write",
                 ),
             },
             headers={
@@ -1369,11 +1594,22 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def log_workflow_revisions(
-        self, *, workflow: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[WorkflowRevisionsResponse]:
         """
         Parameters
@@ -1425,22 +1661,36 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def invoke_workflow(
         self,
         *,
-        flags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
+        flags: typing.Optional[
+            typing.Dict[str, typing.Optional[LabelJsonInput]]
+        ] = OMIT,
         tags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
         meta: typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]] = OMIT,
         version: typing.Optional[str] = OMIT,
         interface: typing.Optional[WorkflowServiceRequestInputInterface] = OMIT,
         configuration: typing.Optional[WorkflowServiceRequestInputConfiguration] = OMIT,
         references: typing.Optional[
-            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+            typing.Dict[
+                str, typing.Optional[WorkflowServiceRequestInputReferencesValue]
+            ]
         ] = OMIT,
-        links: typing.Optional[typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]] = OMIT,
+        links: typing.Optional[
+            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+        ] = OMIT,
         secrets: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         credentials: typing.Optional[str] = OMIT,
         data: typing.Optional[WorkflowServiceRequestData] = OMIT,
@@ -1485,17 +1735,23 @@ class RawWorkflowsClient:
             json={
                 "flags": convert_and_respect_annotation_metadata(
                     object_=flags,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[LabelJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "tags": convert_and_respect_annotation_metadata(
                     object_=tags,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[LabelJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "meta": convert_and_respect_annotation_metadata(
                     object_=meta,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[FullJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "version": version,
@@ -1506,27 +1762,36 @@ class RawWorkflowsClient:
                 ),
                 "configuration": convert_and_respect_annotation_metadata(
                     object_=configuration,
-                    annotation=typing.Optional[WorkflowServiceRequestInputConfiguration],
+                    annotation=typing.Optional[
+                        WorkflowServiceRequestInputConfiguration
+                    ],
                     direction="write",
                 ),
                 "references": convert_and_respect_annotation_metadata(
                     object_=references,
                     annotation=typing.Optional[
-                        typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+                        typing.Dict[
+                            str,
+                            typing.Optional[WorkflowServiceRequestInputReferencesValue],
+                        ]
                     ],
                     direction="write",
                 ),
                 "links": convert_and_respect_annotation_metadata(
                     object_=links,
                     annotation=typing.Optional[
-                        typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+                        typing.Dict[
+                            str, typing.Optional[WorkflowServiceRequestInputLinksValue]
+                        ]
                     ],
                     direction="write",
                 ),
                 "secrets": secrets,
                 "credentials": credentials,
                 "data": convert_and_respect_annotation_metadata(
-                    object_=data, annotation=typing.Optional[WorkflowServiceRequestData], direction="write"
+                    object_=data,
+                    annotation=typing.Optional[WorkflowServiceRequestData],
+                    direction="write",
                 ),
             },
             headers={
@@ -1558,22 +1823,36 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def inspect_workflow(
         self,
         *,
-        flags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
+        flags: typing.Optional[
+            typing.Dict[str, typing.Optional[LabelJsonInput]]
+        ] = OMIT,
         tags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
         meta: typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]] = OMIT,
         version: typing.Optional[str] = OMIT,
         interface: typing.Optional[WorkflowServiceRequestInputInterface] = OMIT,
         configuration: typing.Optional[WorkflowServiceRequestInputConfiguration] = OMIT,
         references: typing.Optional[
-            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+            typing.Dict[
+                str, typing.Optional[WorkflowServiceRequestInputReferencesValue]
+            ]
         ] = OMIT,
-        links: typing.Optional[typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]] = OMIT,
+        links: typing.Optional[
+            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+        ] = OMIT,
         secrets: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         credentials: typing.Optional[str] = OMIT,
         data: typing.Optional[WorkflowServiceRequestData] = OMIT,
@@ -1618,17 +1897,23 @@ class RawWorkflowsClient:
             json={
                 "flags": convert_and_respect_annotation_metadata(
                     object_=flags,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[LabelJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "tags": convert_and_respect_annotation_metadata(
                     object_=tags,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[LabelJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "meta": convert_and_respect_annotation_metadata(
                     object_=meta,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[FullJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "version": version,
@@ -1639,27 +1924,36 @@ class RawWorkflowsClient:
                 ),
                 "configuration": convert_and_respect_annotation_metadata(
                     object_=configuration,
-                    annotation=typing.Optional[WorkflowServiceRequestInputConfiguration],
+                    annotation=typing.Optional[
+                        WorkflowServiceRequestInputConfiguration
+                    ],
                     direction="write",
                 ),
                 "references": convert_and_respect_annotation_metadata(
                     object_=references,
                     annotation=typing.Optional[
-                        typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+                        typing.Dict[
+                            str,
+                            typing.Optional[WorkflowServiceRequestInputReferencesValue],
+                        ]
                     ],
                     direction="write",
                 ),
                 "links": convert_and_respect_annotation_metadata(
                     object_=links,
                     annotation=typing.Optional[
-                        typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+                        typing.Dict[
+                            str, typing.Optional[WorkflowServiceRequestInputLinksValue]
+                        ]
                     ],
                     direction="write",
                 ),
                 "secrets": secrets,
                 "credentials": credentials,
                 "data": convert_and_respect_annotation_metadata(
-                    object_=data, annotation=typing.Optional[WorkflowServiceRequestData], direction="write"
+                    object_=data,
+                    annotation=typing.Optional[WorkflowServiceRequestData],
+                    direction="write",
                 ),
             },
             headers={
@@ -1691,8 +1985,16 @@ class RawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawWorkflowsClient:
@@ -1700,7 +2002,10 @@ class AsyncRawWorkflowsClient:
         self._client_wrapper = client_wrapper
 
     async def create_workflow(
-        self, *, workflow: WorkflowCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowResponse]:
         """
         Parameters
@@ -1752,11 +2057,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowResponse]:
         """
         Parameters
@@ -1799,11 +2115,23 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_workflow(
-        self, workflow_id: str, *, workflow: WorkflowEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        workflow: WorkflowEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowResponse]:
         """
         Parameters
@@ -1857,11 +2185,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowResponse]:
         """
         Parameters
@@ -1904,11 +2243,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_workflow(
-        self, workflow_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowResponse]:
         """
         Parameters
@@ -1951,8 +2301,16 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_workflows(
         self,
@@ -2060,11 +2418,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_workflow_variant(
-        self, *, workflow_variant: WorkflowVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow_variant: WorkflowVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowVariantResponse]:
         """
         Parameters
@@ -2084,7 +2453,9 @@ class AsyncRawWorkflowsClient:
             method="POST",
             json={
                 "workflow_variant": convert_and_respect_annotation_metadata(
-                    object_=workflow_variant, annotation=WorkflowVariantCreate, direction="write"
+                    object_=workflow_variant,
+                    annotation=WorkflowVariantCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -2116,11 +2487,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowVariantResponse]:
         """
         Parameters
@@ -2163,8 +2545,16 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_workflow_variant(
         self,
@@ -2193,7 +2583,9 @@ class AsyncRawWorkflowsClient:
             method="PUT",
             json={
                 "workflow_variant": convert_and_respect_annotation_metadata(
-                    object_=workflow_variant, annotation=WorkflowVariantEdit, direction="write"
+                    object_=workflow_variant,
+                    annotation=WorkflowVariantEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -2225,11 +2617,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowVariantResponse]:
         """
         Parameters
@@ -2272,11 +2675,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_workflow_variant(
-        self, workflow_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowVariantResponse]:
         """
         Parameters
@@ -2319,8 +2733,16 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_workflow_variants(
         self,
@@ -2444,11 +2866,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fork_workflow_variant(
-        self, *, workflow: WorkflowFork, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowFork,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowVariantResponse]:
         """
         Parameters
@@ -2500,8 +2933,16 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def retrieve_workflow_revision(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -2545,11 +2986,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_workflow_revision(
-        self, *, workflow_revision: WorkflowRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow_revision: WorkflowRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowRevisionResponse]:
         """
         Parameters
@@ -2569,7 +3021,9 @@ class AsyncRawWorkflowsClient:
             method="POST",
             json={
                 "workflow_revision": convert_and_respect_annotation_metadata(
-                    object_=workflow_revision, annotation=WorkflowRevisionCreate, direction="write"
+                    object_=workflow_revision,
+                    annotation=WorkflowRevisionCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -2601,11 +3055,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_workflow_revision(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowRevisionResponse]:
         """
         Parameters
@@ -2648,8 +3113,16 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_workflow_revision(
         self,
@@ -2678,7 +3151,9 @@ class AsyncRawWorkflowsClient:
             method="PUT",
             json={
                 "workflow_revision": convert_and_respect_annotation_metadata(
-                    object_=workflow_revision, annotation=WorkflowRevisionEdit, direction="write"
+                    object_=workflow_revision,
+                    annotation=WorkflowRevisionEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -2710,11 +3185,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_workflow_revision_rpc(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowRevisionResponse]:
         """
         Parameters
@@ -2757,11 +3243,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_workflow_revision_rpc(
-        self, workflow_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        workflow_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowRevisionResponse]:
         """
         Parameters
@@ -2804,8 +3301,16 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_workflow_revisions(
         self,
@@ -2953,8 +3458,16 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def commit_workflow_revision(
         self,
@@ -2986,7 +3499,9 @@ class AsyncRawWorkflowsClient:
             },
             json={
                 "workflow_revision": convert_and_respect_annotation_metadata(
-                    object_=workflow_revision, annotation=WorkflowRevisionCommit, direction="write"
+                    object_=workflow_revision,
+                    annotation=WorkflowRevisionCommit,
+                    direction="write",
                 ),
             },
             headers={
@@ -3018,11 +3533,22 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def log_workflow_revisions(
-        self, *, workflow: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        workflow: WorkflowRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[WorkflowRevisionsResponse]:
         """
         Parameters
@@ -3074,22 +3600,36 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def invoke_workflow(
         self,
         *,
-        flags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
+        flags: typing.Optional[
+            typing.Dict[str, typing.Optional[LabelJsonInput]]
+        ] = OMIT,
         tags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
         meta: typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]] = OMIT,
         version: typing.Optional[str] = OMIT,
         interface: typing.Optional[WorkflowServiceRequestInputInterface] = OMIT,
         configuration: typing.Optional[WorkflowServiceRequestInputConfiguration] = OMIT,
         references: typing.Optional[
-            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+            typing.Dict[
+                str, typing.Optional[WorkflowServiceRequestInputReferencesValue]
+            ]
         ] = OMIT,
-        links: typing.Optional[typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]] = OMIT,
+        links: typing.Optional[
+            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+        ] = OMIT,
         secrets: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         credentials: typing.Optional[str] = OMIT,
         data: typing.Optional[WorkflowServiceRequestData] = OMIT,
@@ -3134,17 +3674,23 @@ class AsyncRawWorkflowsClient:
             json={
                 "flags": convert_and_respect_annotation_metadata(
                     object_=flags,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[LabelJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "tags": convert_and_respect_annotation_metadata(
                     object_=tags,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[LabelJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "meta": convert_and_respect_annotation_metadata(
                     object_=meta,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[FullJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "version": version,
@@ -3155,27 +3701,36 @@ class AsyncRawWorkflowsClient:
                 ),
                 "configuration": convert_and_respect_annotation_metadata(
                     object_=configuration,
-                    annotation=typing.Optional[WorkflowServiceRequestInputConfiguration],
+                    annotation=typing.Optional[
+                        WorkflowServiceRequestInputConfiguration
+                    ],
                     direction="write",
                 ),
                 "references": convert_and_respect_annotation_metadata(
                     object_=references,
                     annotation=typing.Optional[
-                        typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+                        typing.Dict[
+                            str,
+                            typing.Optional[WorkflowServiceRequestInputReferencesValue],
+                        ]
                     ],
                     direction="write",
                 ),
                 "links": convert_and_respect_annotation_metadata(
                     object_=links,
                     annotation=typing.Optional[
-                        typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+                        typing.Dict[
+                            str, typing.Optional[WorkflowServiceRequestInputLinksValue]
+                        ]
                     ],
                     direction="write",
                 ),
                 "secrets": secrets,
                 "credentials": credentials,
                 "data": convert_and_respect_annotation_metadata(
-                    object_=data, annotation=typing.Optional[WorkflowServiceRequestData], direction="write"
+                    object_=data,
+                    annotation=typing.Optional[WorkflowServiceRequestData],
+                    direction="write",
                 ),
             },
             headers={
@@ -3207,22 +3762,36 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def inspect_workflow(
         self,
         *,
-        flags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
+        flags: typing.Optional[
+            typing.Dict[str, typing.Optional[LabelJsonInput]]
+        ] = OMIT,
         tags: typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]] = OMIT,
         meta: typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]] = OMIT,
         version: typing.Optional[str] = OMIT,
         interface: typing.Optional[WorkflowServiceRequestInputInterface] = OMIT,
         configuration: typing.Optional[WorkflowServiceRequestInputConfiguration] = OMIT,
         references: typing.Optional[
-            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+            typing.Dict[
+                str, typing.Optional[WorkflowServiceRequestInputReferencesValue]
+            ]
         ] = OMIT,
-        links: typing.Optional[typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]] = OMIT,
+        links: typing.Optional[
+            typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+        ] = OMIT,
         secrets: typing.Optional[typing.Dict[str, typing.Any]] = OMIT,
         credentials: typing.Optional[str] = OMIT,
         data: typing.Optional[WorkflowServiceRequestData] = OMIT,
@@ -3267,17 +3836,23 @@ class AsyncRawWorkflowsClient:
             json={
                 "flags": convert_and_respect_annotation_metadata(
                     object_=flags,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[LabelJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "tags": convert_and_respect_annotation_metadata(
                     object_=tags,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[LabelJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[LabelJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "meta": convert_and_respect_annotation_metadata(
                     object_=meta,
-                    annotation=typing.Optional[typing.Dict[str, typing.Optional[FullJsonInput]]],
+                    annotation=typing.Optional[
+                        typing.Dict[str, typing.Optional[FullJsonInput]]
+                    ],
                     direction="write",
                 ),
                 "version": version,
@@ -3288,27 +3863,36 @@ class AsyncRawWorkflowsClient:
                 ),
                 "configuration": convert_and_respect_annotation_metadata(
                     object_=configuration,
-                    annotation=typing.Optional[WorkflowServiceRequestInputConfiguration],
+                    annotation=typing.Optional[
+                        WorkflowServiceRequestInputConfiguration
+                    ],
                     direction="write",
                 ),
                 "references": convert_and_respect_annotation_metadata(
                     object_=references,
                     annotation=typing.Optional[
-                        typing.Dict[str, typing.Optional[WorkflowServiceRequestInputReferencesValue]]
+                        typing.Dict[
+                            str,
+                            typing.Optional[WorkflowServiceRequestInputReferencesValue],
+                        ]
                     ],
                     direction="write",
                 ),
                 "links": convert_and_respect_annotation_metadata(
                     object_=links,
                     annotation=typing.Optional[
-                        typing.Dict[str, typing.Optional[WorkflowServiceRequestInputLinksValue]]
+                        typing.Dict[
+                            str, typing.Optional[WorkflowServiceRequestInputLinksValue]
+                        ]
                     ],
                     direction="write",
                 ),
                 "secrets": secrets,
                 "credentials": credentials,
                 "data": convert_and_respect_annotation_metadata(
-                    object_=data, annotation=typing.Optional[WorkflowServiceRequestData], direction="write"
+                    object_=data,
+                    annotation=typing.Optional[WorkflowServiceRequestData],
+                    direction="write",
                 ),
             },
             headers={
@@ -3340,5 +3924,13 @@ class AsyncRawWorkflowsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

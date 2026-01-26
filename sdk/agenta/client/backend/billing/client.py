@@ -23,7 +23,9 @@ class BillingClient:
         """
         return self._raw_client
 
-    def handle_events(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def handle_events(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -47,7 +49,9 @@ class BillingClient:
         _response = self._raw_client.handle_events(request_options=request_options)
         return _response.data
 
-    def create_portal(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def create_portal(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -72,7 +76,11 @@ class BillingClient:
         return _response.data
 
     def create_checkout(
-        self, *, plan: Plan, success_url: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        plan: Plan,
+        success_url: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Parameters
@@ -106,7 +114,9 @@ class BillingClient:
         )
         return _response.data
 
-    def fetch_plans(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def fetch_plans(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -130,7 +140,9 @@ class BillingClient:
         _response = self._raw_client.fetch_plans(request_options=request_options)
         return _response.data
 
-    def switch_plans(self, *, plan: Plan, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def switch_plans(
+        self, *, plan: Plan, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -155,10 +167,14 @@ class BillingClient:
             plan="cloud_v0_hobby",
         )
         """
-        _response = self._raw_client.switch_plans(plan=plan, request_options=request_options)
+        _response = self._raw_client.switch_plans(
+            plan=plan, request_options=request_options
+        )
         return _response.data
 
-    def fetch_subscription(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def fetch_subscription(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -182,7 +198,9 @@ class BillingClient:
         _response = self._raw_client.fetch_subscription(request_options=request_options)
         return _response.data
 
-    def cancel_plan(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def cancel_plan(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -206,7 +224,9 @@ class BillingClient:
         _response = self._raw_client.cancel_plan(request_options=request_options)
         return _response.data
 
-    def fetch_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def fetch_usage(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -246,7 +266,9 @@ class AsyncBillingClient:
         """
         return self._raw_client
 
-    async def handle_events(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def handle_events(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -275,10 +297,14 @@ class AsyncBillingClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.handle_events(request_options=request_options)
+        _response = await self._raw_client.handle_events(
+            request_options=request_options
+        )
         return _response.data
 
-    async def create_portal(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def create_portal(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -307,11 +333,17 @@ class AsyncBillingClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_portal(request_options=request_options)
+        _response = await self._raw_client.create_portal(
+            request_options=request_options
+        )
         return _response.data
 
     async def create_checkout(
-        self, *, plan: Plan, success_url: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        plan: Plan,
+        success_url: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Parameters
@@ -353,7 +385,9 @@ class AsyncBillingClient:
         )
         return _response.data
 
-    async def fetch_plans(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def fetch_plans(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -385,7 +419,9 @@ class AsyncBillingClient:
         _response = await self._raw_client.fetch_plans(request_options=request_options)
         return _response.data
 
-    async def switch_plans(self, *, plan: Plan, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def switch_plans(
+        self, *, plan: Plan, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -418,10 +454,14 @@ class AsyncBillingClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.switch_plans(plan=plan, request_options=request_options)
+        _response = await self._raw_client.switch_plans(
+            plan=plan, request_options=request_options
+        )
         return _response.data
 
-    async def fetch_subscription(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def fetch_subscription(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -450,10 +490,14 @@ class AsyncBillingClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_subscription(request_options=request_options)
+        _response = await self._raw_client.fetch_subscription(
+            request_options=request_options
+        )
         return _response.data
 
-    async def cancel_plan(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def cancel_plan(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -485,7 +529,9 @@ class AsyncBillingClient:
         _response = await self._raw_client.cancel_plan(request_options=request_options)
         return _response.data
 
-    async def fetch_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def fetch_usage(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------

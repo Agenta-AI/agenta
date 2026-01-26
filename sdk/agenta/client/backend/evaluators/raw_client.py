@@ -42,7 +42,9 @@ from ..types.simple_evaluator_query import SimpleEvaluatorQuery
 from ..types.simple_evaluator_response import SimpleEvaluatorResponse
 from ..types.simple_evaluators_response import SimpleEvaluatorsResponse
 from ..types.windowing import Windowing
-from .types.query_evaluator_variants_request_order import QueryEvaluatorVariantsRequestOrder
+from .types.query_evaluator_variants_request_order import (
+    QueryEvaluatorVariantsRequestOrder,
+)
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -114,11 +116,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorResponse]:
         """
         Parameters
@@ -161,11 +174,23 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_evaluator(
-        self, evaluator_id: str, *, evaluator: EvaluatorEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        evaluator: EvaluatorEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorResponse]:
         """
         Parameters
@@ -219,11 +244,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorResponse]:
         """
         Parameters
@@ -266,11 +302,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorResponse]:
         """
         Parameters
@@ -313,8 +360,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_evaluators(
         self,
@@ -349,14 +404,20 @@ class RawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator": convert_and_respect_annotation_metadata(
-                    object_=evaluator, annotation=typing.Optional[EvaluatorQuery], direction="write"
+                    object_=evaluator,
+                    annotation=typing.Optional[EvaluatorQuery],
+                    direction="write",
                 ),
                 "evaluator_refs": convert_and_respect_annotation_metadata(
-                    object_=evaluator_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=evaluator_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -388,11 +449,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_evaluator_variant(
-        self, *, evaluator_variant: EvaluatorVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator_variant: EvaluatorVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorVariantResponse]:
         """
         Parameters
@@ -412,7 +484,9 @@ class RawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator_variant": convert_and_respect_annotation_metadata(
-                    object_=evaluator_variant, annotation=EvaluatorVariantCreate, direction="write"
+                    object_=evaluator_variant,
+                    annotation=EvaluatorVariantCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -444,11 +518,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorVariantResponse]:
         """
         Parameters
@@ -491,8 +576,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_evaluator_variant(
         self,
@@ -521,7 +614,9 @@ class RawEvaluatorsClient:
             method="PUT",
             json={
                 "evaluator_variant": convert_and_respect_annotation_metadata(
-                    object_=evaluator_variant, annotation=EvaluatorVariantEdit, direction="write"
+                    object_=evaluator_variant,
+                    annotation=EvaluatorVariantEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -553,11 +648,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorVariantResponse]:
         """
         Parameters
@@ -600,11 +706,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorVariantResponse]:
         """
         Parameters
@@ -647,8 +764,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_evaluator_variants(
         self,
@@ -772,8 +897,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fork_evaluator_variant(
         self,
@@ -837,8 +970,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def retrieve_evaluator_revision(
         self,
@@ -870,13 +1011,19 @@ class RawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator_ref": convert_and_respect_annotation_metadata(
-                    object_=evaluator_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=evaluator_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "evaluator_variant_ref": convert_and_respect_annotation_metadata(
-                    object_=evaluator_variant_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=evaluator_variant_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "evaluator_revision_ref": convert_and_respect_annotation_metadata(
-                    object_=evaluator_revision_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=evaluator_revision_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
             },
             headers={
@@ -908,11 +1055,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_evaluator_revision(
-        self, *, evaluator_revision: EvaluatorRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator_revision: EvaluatorRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorRevisionResponse]:
         """
         Parameters
@@ -932,7 +1090,9 @@ class RawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator_revision": convert_and_respect_annotation_metadata(
-                    object_=evaluator_revision, annotation=EvaluatorRevisionCreate, direction="write"
+                    object_=evaluator_revision,
+                    annotation=EvaluatorRevisionCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -964,11 +1124,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorRevisionResponse]:
         """
         Parameters
@@ -1011,8 +1182,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_evaluator_revision(
         self,
@@ -1041,7 +1220,9 @@ class RawEvaluatorsClient:
             method="PUT",
             json={
                 "evaluator_revision": convert_and_respect_annotation_metadata(
-                    object_=evaluator_revision, annotation=EvaluatorRevisionEdit, direction="write"
+                    object_=evaluator_revision,
+                    annotation=EvaluatorRevisionEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -1073,11 +1254,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorRevisionResponse]:
         """
         Parameters
@@ -1120,11 +1312,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorRevisionResponse]:
         """
         Parameters
@@ -1167,8 +1370,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_evaluator_revisions(
         self,
@@ -1209,10 +1420,14 @@ class RawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator_revision": convert_and_respect_annotation_metadata(
-                    object_=evaluator_revision, annotation=typing.Optional[EvaluatorRevisionQuery], direction="write"
+                    object_=evaluator_revision,
+                    annotation=typing.Optional[EvaluatorRevisionQuery],
+                    direction="write",
                 ),
                 "evaluator_refs": convert_and_respect_annotation_metadata(
-                    object_=evaluator_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=evaluator_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "evaluator_variant_refs": convert_and_respect_annotation_metadata(
                     object_=evaluator_variant_refs,
@@ -1226,7 +1441,9 @@ class RawEvaluatorsClient:
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -1258,8 +1475,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def commit_evaluator_revision(
         self,
@@ -1285,7 +1510,9 @@ class RawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator_revision_commit": convert_and_respect_annotation_metadata(
-                    object_=evaluator_revision_commit, annotation=EvaluatorRevisionCommit, direction="write"
+                    object_=evaluator_revision_commit,
+                    annotation=EvaluatorRevisionCommit,
+                    direction="write",
                 ),
             },
             headers={
@@ -1317,11 +1544,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def log_evaluator_revisions(
-        self, *, evaluator: EvaluatorRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator: EvaluatorRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorRevisionsResponse]:
         """
         Parameters
@@ -1341,7 +1579,9 @@ class RawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator": convert_and_respect_annotation_metadata(
-                    object_=evaluator, annotation=EvaluatorRevisionsLog, direction="write"
+                    object_=evaluator,
+                    annotation=EvaluatorRevisionsLog,
+                    direction="write",
                 ),
             },
             headers={
@@ -1373,8 +1613,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_simple_evaluator(
         self,
@@ -1406,7 +1654,9 @@ class RawEvaluatorsClient:
             },
             json={
                 "evaluator": convert_and_respect_annotation_metadata(
-                    object_=evaluator, annotation=SimpleEvaluatorCreate, direction="write"
+                    object_=evaluator,
+                    annotation=SimpleEvaluatorCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -1438,11 +1688,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[SimpleEvaluatorResponse]:
         """
         Parameters
@@ -1485,8 +1746,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_simple_evaluator(
         self,
@@ -1547,11 +1816,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def archive_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[SimpleEvaluatorResponse]:
         """
         Parameters
@@ -1594,11 +1874,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def unarchive_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[SimpleEvaluatorResponse]:
         """
         Parameters
@@ -1641,8 +1932,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_simple_evaluators(
         self,
@@ -1677,14 +1976,20 @@ class RawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator": convert_and_respect_annotation_metadata(
-                    object_=evaluator, annotation=typing.Optional[SimpleEvaluatorQuery], direction="write"
+                    object_=evaluator,
+                    annotation=typing.Optional[SimpleEvaluatorQuery],
+                    direction="write",
                 ),
                 "evaluator_refs": convert_and_respect_annotation_metadata(
-                    object_=evaluator_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=evaluator_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -1716,11 +2021,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def transfer_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[SimpleEvaluatorResponse]:
         """
         Parameters
@@ -1763,8 +2079,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def get_evaluators_endpoint(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -1802,8 +2126,16 @@ class RawEvaluatorsClient:
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def evaluator_data_map(
         self,
@@ -1872,8 +2204,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def evaluator_run(
         self,
@@ -1950,11 +2290,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def get_evaluator_configs(
-        self, *, app_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        app_id: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[typing.List[EvaluatorConfig]]:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -2008,8 +2359,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_new_evaluator_config(
         self,
@@ -2081,11 +2440,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def get_evaluator_config(
-        self, evaluator_config_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_config_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EvaluatorConfig]:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -2133,8 +2503,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def update_evaluator_config(
         self,
@@ -2206,11 +2584,22 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def delete_evaluator_config(
-        self, evaluator_config_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_config_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[bool]:
         """
         Endpoint to delete a specific evaluator configuration.
@@ -2261,8 +2650,16 @@ class RawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawEvaluatorsClient:
@@ -2331,11 +2728,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorResponse]:
         """
         Parameters
@@ -2378,11 +2786,23 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_evaluator(
-        self, evaluator_id: str, *, evaluator: EvaluatorEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        evaluator: EvaluatorEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorResponse]:
         """
         Parameters
@@ -2436,11 +2856,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorResponse]:
         """
         Parameters
@@ -2483,11 +2914,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorResponse]:
         """
         Parameters
@@ -2530,8 +2972,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_evaluators(
         self,
@@ -2566,14 +3016,20 @@ class AsyncRawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator": convert_and_respect_annotation_metadata(
-                    object_=evaluator, annotation=typing.Optional[EvaluatorQuery], direction="write"
+                    object_=evaluator,
+                    annotation=typing.Optional[EvaluatorQuery],
+                    direction="write",
                 ),
                 "evaluator_refs": convert_and_respect_annotation_metadata(
-                    object_=evaluator_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=evaluator_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -2605,11 +3061,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_evaluator_variant(
-        self, *, evaluator_variant: EvaluatorVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator_variant: EvaluatorVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorVariantResponse]:
         """
         Parameters
@@ -2629,7 +3096,9 @@ class AsyncRawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator_variant": convert_and_respect_annotation_metadata(
-                    object_=evaluator_variant, annotation=EvaluatorVariantCreate, direction="write"
+                    object_=evaluator_variant,
+                    annotation=EvaluatorVariantCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -2661,11 +3130,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorVariantResponse]:
         """
         Parameters
@@ -2708,8 +3188,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_evaluator_variant(
         self,
@@ -2738,7 +3226,9 @@ class AsyncRawEvaluatorsClient:
             method="PUT",
             json={
                 "evaluator_variant": convert_and_respect_annotation_metadata(
-                    object_=evaluator_variant, annotation=EvaluatorVariantEdit, direction="write"
+                    object_=evaluator_variant,
+                    annotation=EvaluatorVariantEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -2770,11 +3260,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorVariantResponse]:
         """
         Parameters
@@ -2817,11 +3318,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorVariantResponse]:
         """
         Parameters
@@ -2864,8 +3376,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_evaluator_variants(
         self,
@@ -2989,8 +3509,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fork_evaluator_variant(
         self,
@@ -3054,8 +3582,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def retrieve_evaluator_revision(
         self,
@@ -3087,13 +3623,19 @@ class AsyncRawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator_ref": convert_and_respect_annotation_metadata(
-                    object_=evaluator_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=evaluator_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "evaluator_variant_ref": convert_and_respect_annotation_metadata(
-                    object_=evaluator_variant_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=evaluator_variant_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "evaluator_revision_ref": convert_and_respect_annotation_metadata(
-                    object_=evaluator_revision_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=evaluator_revision_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
             },
             headers={
@@ -3125,11 +3667,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_evaluator_revision(
-        self, *, evaluator_revision: EvaluatorRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator_revision: EvaluatorRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorRevisionResponse]:
         """
         Parameters
@@ -3149,7 +3702,9 @@ class AsyncRawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator_revision": convert_and_respect_annotation_metadata(
-                    object_=evaluator_revision, annotation=EvaluatorRevisionCreate, direction="write"
+                    object_=evaluator_revision,
+                    annotation=EvaluatorRevisionCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -3181,11 +3736,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorRevisionResponse]:
         """
         Parameters
@@ -3228,8 +3794,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_evaluator_revision(
         self,
@@ -3258,7 +3832,9 @@ class AsyncRawEvaluatorsClient:
             method="PUT",
             json={
                 "evaluator_revision": convert_and_respect_annotation_metadata(
-                    object_=evaluator_revision, annotation=EvaluatorRevisionEdit, direction="write"
+                    object_=evaluator_revision,
+                    annotation=EvaluatorRevisionEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -3290,11 +3866,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorRevisionResponse]:
         """
         Parameters
@@ -3337,11 +3924,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorRevisionResponse]:
         """
         Parameters
@@ -3384,8 +3982,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_evaluator_revisions(
         self,
@@ -3426,10 +4032,14 @@ class AsyncRawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator_revision": convert_and_respect_annotation_metadata(
-                    object_=evaluator_revision, annotation=typing.Optional[EvaluatorRevisionQuery], direction="write"
+                    object_=evaluator_revision,
+                    annotation=typing.Optional[EvaluatorRevisionQuery],
+                    direction="write",
                 ),
                 "evaluator_refs": convert_and_respect_annotation_metadata(
-                    object_=evaluator_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=evaluator_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "evaluator_variant_refs": convert_and_respect_annotation_metadata(
                     object_=evaluator_variant_refs,
@@ -3443,7 +4053,9 @@ class AsyncRawEvaluatorsClient:
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -3475,8 +4087,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def commit_evaluator_revision(
         self,
@@ -3502,7 +4122,9 @@ class AsyncRawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator_revision_commit": convert_and_respect_annotation_metadata(
-                    object_=evaluator_revision_commit, annotation=EvaluatorRevisionCommit, direction="write"
+                    object_=evaluator_revision_commit,
+                    annotation=EvaluatorRevisionCommit,
+                    direction="write",
                 ),
             },
             headers={
@@ -3534,11 +4156,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def log_evaluator_revisions(
-        self, *, evaluator: EvaluatorRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator: EvaluatorRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorRevisionsResponse]:
         """
         Parameters
@@ -3558,7 +4191,9 @@ class AsyncRawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator": convert_and_respect_annotation_metadata(
-                    object_=evaluator, annotation=EvaluatorRevisionsLog, direction="write"
+                    object_=evaluator,
+                    annotation=EvaluatorRevisionsLog,
+                    direction="write",
                 ),
             },
             headers={
@@ -3590,8 +4225,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_simple_evaluator(
         self,
@@ -3623,7 +4266,9 @@ class AsyncRawEvaluatorsClient:
             },
             json={
                 "evaluator": convert_and_respect_annotation_metadata(
-                    object_=evaluator, annotation=SimpleEvaluatorCreate, direction="write"
+                    object_=evaluator,
+                    annotation=SimpleEvaluatorCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -3655,11 +4300,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[SimpleEvaluatorResponse]:
         """
         Parameters
@@ -3702,8 +4358,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_simple_evaluator(
         self,
@@ -3764,11 +4428,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def archive_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[SimpleEvaluatorResponse]:
         """
         Parameters
@@ -3811,11 +4486,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def unarchive_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[SimpleEvaluatorResponse]:
         """
         Parameters
@@ -3858,8 +4544,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_simple_evaluators(
         self,
@@ -3894,14 +4588,20 @@ class AsyncRawEvaluatorsClient:
             method="POST",
             json={
                 "evaluator": convert_and_respect_annotation_metadata(
-                    object_=evaluator, annotation=typing.Optional[SimpleEvaluatorQuery], direction="write"
+                    object_=evaluator,
+                    annotation=typing.Optional[SimpleEvaluatorQuery],
+                    direction="write",
                 ),
                 "evaluator_refs": convert_and_respect_annotation_metadata(
-                    object_=evaluator_refs, annotation=typing.Optional[typing.Sequence[Reference]], direction="write"
+                    object_=evaluator_refs,
+                    annotation=typing.Optional[typing.Sequence[Reference]],
+                    direction="write",
                 ),
                 "include_archived": include_archived,
                 "windowing": convert_and_respect_annotation_metadata(
-                    object_=windowing, annotation=typing.Optional[Windowing], direction="write"
+                    object_=windowing,
+                    annotation=typing.Optional[Windowing],
+                    direction="write",
                 ),
             },
             headers={
@@ -3933,11 +4633,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def transfer_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[SimpleEvaluatorResponse]:
         """
         Parameters
@@ -3980,8 +4691,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def get_evaluators_endpoint(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -4019,8 +4738,16 @@ class AsyncRawEvaluatorsClient:
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def evaluator_data_map(
         self,
@@ -4089,8 +4816,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def evaluator_run(
         self,
@@ -4167,11 +4902,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def get_evaluator_configs(
-        self, *, app_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        app_id: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[typing.List[EvaluatorConfig]]:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -4225,8 +4971,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_new_evaluator_config(
         self,
@@ -4298,11 +5052,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def get_evaluator_config(
-        self, evaluator_config_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_config_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EvaluatorConfig]:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -4350,8 +5115,16 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def update_evaluator_config(
         self,
@@ -4423,11 +5196,22 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def delete_evaluator_config(
-        self, evaluator_config_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_config_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[bool]:
         """
         Endpoint to delete a specific evaluator configuration.
@@ -4478,5 +5262,13 @@ class AsyncRawEvaluatorsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

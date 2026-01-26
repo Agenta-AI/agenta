@@ -5,17 +5,25 @@ from __future__ import annotations
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 from .o_tel_event_input_timestamp import OTelEventInputTimestamp
 
 
 class OTelEventInput(UniversalBaseModel):
     name: str
     timestamp: OTelEventInputTimestamp
-    attributes: typing.Optional[typing.Dict[str, typing.Optional["FullJsonInput"]]] = None
+    attributes: typing.Optional[typing.Dict[str, typing.Optional["FullJsonInput"]]] = (
+        None
+    )
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:
