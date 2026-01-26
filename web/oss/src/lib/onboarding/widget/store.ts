@@ -84,45 +84,6 @@ export const hasSeenCloseTooltipAtom = atom(
     },
 )
 
-/** Write atom to open the widget (used by sidebar) */
-const ensureOnboardingStorageUserIdAtom = atom(null, async (get, set) => {
-    const existing = get(onboardingStorageUserIdAtom)
-    if (existing) return
-    if (typeof window === "undefined") return
-
-    try {
-        const mod = await import("supertokens-auth-react/recipe/session")
-        const Session = mod.default
-        let userId: string | null = null
-
-        try {
-            userId = await Session.getUserId()
-        } catch {
-            // ignore user id lookup failures
-        }
-
-        if (!userId) {
-            try {
-                const payload = await Session.getAccessTokenPayloadSecurely()
-                userId =
-                    typeof payload?.user_id === "string"
-                        ? payload.user_id
-                        : typeof payload?.sub === "string"
-                          ? payload.sub
-                          : null
-            } catch {
-                // ignore payload lookup failures
-            }
-        }
-
-        if (typeof userId === "string" && userId) {
-            set(onboardingStorageUserIdAtom, userId)
-        }
-    } catch {
-        // ignore user id lookup failures
-    }
-})
-
 export const openWidgetAtom = atom(null, async (get, set) => {
     let userId = get(onboardingStorageUserIdAtom)
 
