@@ -74,6 +74,62 @@ import {
 import type {InfiniteTableFetchResult, InfiniteTableRowBase, WindowingState} from "../types"
 
 // ============================================================================
+// LIST COUNTS TYPES (inline to avoid circular dependency with @agenta/entities)
+// ============================================================================
+
+/**
+ * How to interpret the `totalCount` from the server response.
+ *
+ * - `"total"`: `totalCount` is a real server total (display exact count).
+ * - `"page"`: treat as page count (display `+` if `hasMore` is true).
+ * - `"unknown"`: ignore `totalCount`, display `+` when cursor is present.
+ */
+export type TotalCountMode = "total" | "page" | "unknown"
+
+/**
+ * Configuration for list count computation in paginated stores.
+ */
+export interface ListCountsConfig {
+    /**
+     * How to interpret the server's totalCount.
+     * @default "unknown"
+     */
+    totalCountMode?: TotalCountMode
+
+    /**
+     * Custom function to determine if a row should be counted.
+     * By default, skeleton rows (`__isSkeleton === true`) are excluded.
+     */
+    isRowCountable?: (row: InfiniteTableRowBase) => boolean
+}
+
+/**
+ * Unified list count summary for entities.
+ */
+export interface EntityListCounts {
+    /** Number of rows currently loaded and displayed (excludes skeletons) */
+    loadedCount: number
+
+    /** Total count from server (null if unknown or not provided) */
+    totalCount: number | null
+
+    /** Whether more data is available (based on cursor presence) */
+    hasMore: boolean
+
+    /** Whether the total count is known and reliable */
+    isTotalKnown: boolean
+
+    /** Display label (e.g., "12 of 40", "12+", "12 of 40+") */
+    displayLabel: string
+
+    /** Short display label (e.g., "12", "12+") */
+    displayLabelShort: string
+
+    /** Display suffix ("+" if hasMore, "" otherwise) */
+    displaySuffix: "+" | ""
+}
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
@@ -144,6 +200,12 @@ export interface PaginatedEntityStoreConfig<
      * If not provided, assumes TRow === TApiRow.
      */
     transformRow?: (apiRow: TApiRow) => TRow
+
+    /**
+     * Optional: Configuration for list count computation.
+     * Controls how counts are displayed (e.g., "12+", "12 of 40").
+     */
+    listCountsConfig?: ListCountsConfig
 }
 
 // ============================================================================
@@ -344,6 +406,23 @@ export interface PaginatedEntityStore<
          * ```
          */
         selection: (params: PaginatedControllerParams) => PrimitiveAtom<Key[]>
+
+        /**
+         * List counts atom - unified count summary
+         *
+         * Provides loadedCount, totalCount, hasMore, and display labels.
+         *
+         * @example
+         * ```ts
+         * const countsAtom = useMemo(
+         *   () => store.selectors.listCounts(params),
+         *   [params],
+         * )
+         * const counts = useAtomValue(countsAtom)
+         * // counts.displayLabel -> "35+" or "35 of 100+"
+         * ```
+         */
+        listCounts: (params: PaginatedControllerParams) => Atom<EntityListCounts>
     }
 
     /**
@@ -394,7 +473,12 @@ export function createPaginatedEntityStore<
         excludeRowIdsAtom,
         isEnabled,
         transformRow,
+        listCountsConfig,
     } = config
+
+    // List counts configuration with defaults
+    const totalCountMode = listCountsConfig?.totalCountMode ?? "unknown"
+    const isRowCountable = listCountsConfig?.isRowCountable ?? ((row) => row.__isSkeleton !== true)
 
     // Create internal refresh trigger
     const internalRefreshAtom = atom(0)
@@ -486,6 +570,56 @@ export function createPaginatedEntityStore<
         (a, b) => paramsKey(a) === paramsKey(b),
     )
 
+    // List counts atom family - unified count summary
+    const listCountsAtomFamily = atomFamily(
+        (params: PaginatedControllerParams) =>
+            atom((get): EntityListCounts => {
+                const rows = get(rowsAtomFamily(params))
+                const pagination = get(paginationAtomFamily(params))
+
+                // Count only countable rows (excludes skeletons by default)
+                const loadedCount = rows.filter(isRowCountable).length
+                const hasMore = pagination.hasMore
+                const serverTotalCount = pagination.totalCount
+
+                // Determine if total is known based on mode
+                const isTotalKnown = totalCountMode === "total" && serverTotalCount !== null
+                const effectiveTotalCount = isTotalKnown ? serverTotalCount : null
+
+                // Compute display suffix
+                const displaySuffix: "+" | "" = hasMore ? "+" : ""
+
+                // Compute display labels
+                let displayLabel: string
+                let displayLabelShort: string
+
+                // Short label is always just count + suffix
+                displayLabelShort = `${loadedCount}${displaySuffix}`
+
+                // Full label shows "x of y" when total is known and different
+                if (
+                    isTotalKnown &&
+                    effectiveTotalCount !== null &&
+                    effectiveTotalCount !== loadedCount
+                ) {
+                    displayLabel = `${loadedCount} of ${effectiveTotalCount}${displaySuffix}`
+                } else {
+                    displayLabel = displayLabelShort
+                }
+
+                return {
+                    loadedCount,
+                    totalCount: effectiveTotalCount,
+                    hasMore,
+                    isTotalKnown,
+                    displayLabel,
+                    displayLabelShort,
+                    displaySuffix,
+                }
+            }),
+        (a, b) => paramsKey(a) === paramsKey(b),
+    )
+
     // Controller atom family - combines all state + dispatch
     const controllerAtomFamily = atomFamily(
         (params: PaginatedControllerParams) =>
@@ -558,6 +692,7 @@ export function createPaginatedEntityStore<
         selectors: {
             state: stateAtomFamily,
             selection: selectionAtomFamily,
+            listCounts: listCountsAtomFamily,
         },
         actions: {
             refresh: refreshAtom,
