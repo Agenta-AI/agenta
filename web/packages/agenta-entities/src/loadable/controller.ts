@@ -18,22 +18,22 @@
  * ## Usage
  *
  * ```typescript
- * import { loadableController } from '@agenta/entities/loadable'
+ * import { loadableBridge } from '@agenta/entities/loadable'
  *
- * // Selectors
- * const rows = useAtomValue(loadableController.testset.selectors.rows(loadableId))
- * const activeRow = useAtomValue(loadableController.testset.selectors.activeRow(loadableId))
+ * // Selectors (top-level for common operations)
+ * const rows = useAtomValue(loadableBridge.rows(loadableId))
+ * const activeRow = useAtomValue(loadableBridge.activeRow(loadableId))
  *
  * // Actions
- * const addRow = useSetAtom(loadableController.testset.actions.addRow)
+ * const addRow = useSetAtom(loadableBridge.actions.addRow)
  * addRow(loadableId, { prompt: 'Hello' })
  *
- * const connectToSource = useSetAtom(loadableController.testset.actions.connectToSource)
+ * const connectToSource = useSetAtom(loadableBridge.actions.connectToSource)
  * connectToSource(loadableId, revisionId, 'TestsetName v1')
  * ```
  */
 
-import {projectIdAtom} from "@agenta/shared"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
@@ -41,15 +41,15 @@ import {queryClientAtom} from "jotai-tanstack-query"
 
 import {appRevisionMolecule} from "../appRevision"
 import {loadableColumnsFromRunnableAtomFamily} from "../runnable/bridge"
+import type {Testcase} from "../testcase/core"
+import {testcaseMolecule} from "../testcase/state/molecule"
 import {
-    testcaseMolecule,
     setTestcaseIdsAtom,
     resetTestcaseIdsAtom,
     clearNewEntityIdsAtom,
     currentRevisionIdAtom,
     setCurrentRevisionIdAtom,
-} from "../testcase"
-import type {FlattenedTestcase} from "../testcase/core"
+} from "../testcase/state/store"
 import {pendingColumnOpsAtomFamily} from "../testset/state"
 import {saveNewTestsetAtom, saveTestsetAtom} from "../testset/state/mutations"
 import {revisionMolecule} from "../testset/state/revisionMolecule"
@@ -65,9 +65,7 @@ import {
 
 import {
     loadableStateAtomFamily,
-    loadableAllColumnsAtomFamily,
-    loadableActiveRowAtomFamily,
-    loadableRowCountAtomFamily,
+    loadableColumnsAtomFamily,
     loadableModeAtomFamily,
     loadableExecutionResultsAtomFamily,
     loadableDataAtomFamily,
@@ -194,18 +192,19 @@ const connectedRowsAtomFamily = atomFamily((loadableId: string) =>
 
         // Get original server keys from first row to filter out stale draft columns
         // This handles the case where a variable is added, used, then removed
+        // Note: Testcase uses nested format - data fields are in testcase.data
         let serverKeys: Set<string> | null = null
         if (displayRowIds.length > 0) {
             const firstRowServerData = get(testcaseMolecule.selectors.serverData(displayRowIds[0]))
-            if (firstRowServerData) {
+            if (firstRowServerData?.data) {
                 serverKeys = new Set(
-                    Object.keys(firstRowServerData).filter((key) => !SYSTEM_FIELDS.has(key)),
+                    Object.keys(firstRowServerData.data).filter((key) => !SYSTEM_FIELDS.has(key)),
                 )
             }
         }
 
         return displayRowIds.map((id) => {
-            const entity = get(testcaseMolecule.selectors.data(id))
+            const entity = get(testcaseMolecule.data(id))
             if (!entity) {
                 // Return row with all expected columns as empty
                 const emptyData: Record<string, unknown> = {}
@@ -219,9 +218,11 @@ const connectedRowsAtomFamily = atomFamily((loadableId: string) =>
             // For local/new entities: include ALL data columns (they were imported with full data)
             // For server entities: only include columns that are expected OR in original server data
             // This filters out stale draft columns from removed variables while preserving imported data
+            // Note: Testcase uses nested format - data fields are in entity.data
             const isLocalEntity = id.startsWith("new-") || id.startsWith("local-")
             let data: Record<string, unknown> = {}
-            for (const [key, value] of Object.entries(entity)) {
+            const entityData = entity.data ?? {}
+            for (const [key, value] of Object.entries(entityData)) {
                 // Skip system fields (entity metadata, not actual testcase data)
                 if (SYSTEM_FIELDS.has(key)) continue
 
@@ -303,7 +304,7 @@ const allRowsIncludingHiddenAtomFamily = atomFamily((loadableId: string) =>
         const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIds)
 
         return allDisplayRowIds.map((id) => {
-            const entity = get(testcaseMolecule.selectors.data(id))
+            const entity = get(testcaseMolecule.data(id))
             if (!entity) {
                 // Return row with all expected columns as empty
                 const emptyData: Record<string, unknown> = {}
@@ -314,9 +315,11 @@ const allRowsIncludingHiddenAtomFamily = atomFamily((loadableId: string) =>
             }
 
             // Convert testcase entity to TestsetRow format
+            // Note: Testcase uses nested format - data fields are in entity.data
             const isLocalEntity = id.startsWith("new-") || id.startsWith("local-")
             const data: Record<string, unknown> = {}
-            for (const [key, value] of Object.entries(entity)) {
+            const entityData = entity.data ?? {}
+            for (const [key, value] of Object.entries(entityData)) {
                 if (SYSTEM_FIELDS.has(key)) continue
                 if (isLocalEntity || expectedKeys.has(key)) {
                     data[key] = value
@@ -384,7 +387,7 @@ const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
         // Check if any row has changes to RELEVANT columns only
         for (const id of displayRowIds) {
             const serverData = get(testcaseMolecule.selectors.serverData(id))
-            const mergedData = get(testcaseMolecule.selectors.data(id))
+            const mergedData = get(testcaseMolecule.data(id))
 
             if (!serverData || !mergedData) continue
 
@@ -562,7 +565,8 @@ const addRowAtom = atom(null, (get, set, loadableId: string, data?: Record<strin
     const state = get(loadableStateAtomFamily(loadableId))
 
     // Always route through testcase molecule - local or connected
-    const result = set(testcaseMolecule.actions.add, data as Partial<FlattenedTestcase>)
+    // Pass data wrapped in {data: ...} to match Testcase nested format
+    const result = set(testcaseMolecule.actions.add, data ? {data} : undefined)
     if (result?.id) {
         // Update active row
         set(loadableStateAtomFamily(loadableId), {
@@ -581,7 +585,8 @@ const updateRowAtom = atom(
     null,
     (_get, set, _loadableId: string, rowId: string, data: Record<string, unknown>) => {
         // Always route through testcase molecule - local or connected
-        set(testcaseMolecule.reducers.update, rowId, data as Partial<FlattenedTestcase>)
+        // Pass data wrapped in {data: ...} to match Testcase nested format
+        set(testcaseMolecule.actions.update, rowId, {data})
     },
 )
 
@@ -635,39 +640,22 @@ const setActiveRowAtom = atom(null, (get, set, loadableId: string, rowId: string
 const importRowsAtom = atom(
     null,
     (get, set, loadableId: string, testcases: Record<string, unknown>[]) => {
-        console.log("[importRowsAtom] Starting import", {
-            loadableId,
-            testcasesCount: testcases.length,
-        })
-        console.log("[importRowsAtom] Input testcases:", JSON.stringify(testcases, null, 2))
-
         const state = get(loadableStateAtomFamily(loadableId))
         const addedIds: string[] = []
         const unhiddenIds: string[] = []
 
         // Track IDs to unhide
         const newHiddenIds = new Set(state.hiddenTestcaseIds)
-        console.log("[importRowsAtom] Current hiddenTestcaseIds:", [...state.hiddenTestcaseIds])
 
         // Get existing testcase IDs to check for duplicates
         const existingIds = new Set(get(testcaseMolecule.atoms.displayRowIds))
-        console.log("[importRowsAtom] Existing displayRowIds:", [...existingIds])
 
         // Add each testcase as a new local entity (or unhide if already exists)
         for (const tc of testcases) {
-            console.log("[importRowsAtom] Processing testcase:", tc)
-
             const tcId = tc.id as string | undefined
-            console.log(
-                "[importRowsAtom] Testcase ID:",
-                tcId,
-                "isHidden:",
-                tcId ? state.hiddenTestcaseIds.has(tcId) : false,
-            )
 
             // Check if this testcase is currently hidden - if so, unhide it instead of creating duplicate
             if (tcId && state.hiddenTestcaseIds.has(tcId)) {
-                console.log("[importRowsAtom] Unhiding previously hidden testcase:", tcId)
                 newHiddenIds.delete(tcId)
                 unhiddenIds.push(tcId)
                 continue
@@ -675,31 +663,28 @@ const importRowsAtom = atom(
 
             // Skip if testcase already exists and is not hidden (avoid duplicates)
             if (tcId && existingIds.has(tcId) && !state.hiddenTestcaseIds.has(tcId)) {
-                console.log("[importRowsAtom] Skipping already existing testcase:", tcId)
                 continue
             }
 
-            // The incoming testcases are FlattenedTestcase format (data fields at top level)
-            // testcaseMolecule.actions.add expects flat input - it internally handles
-            // the conversion via createLocalTestcase which wraps in { data: {...} }
-            // So we just need to extract data fields (skip system fields) and pass directly
+            // The incoming testcases may have data at top level or nested in .data
+            // Extract data fields (skip system fields) and wrap in {data: ...} for molecule
             const dataFields: Record<string, unknown> = {}
-            for (const [key, value] of Object.entries(tc)) {
+
+            // Check if data is nested (new format) or flat (legacy)
+            const sourceData =
+                tc.data && typeof tc.data === "object" && !Array.isArray(tc.data)
+                    ? (tc.data as Record<string, unknown>)
+                    : tc
+
+            for (const [key, value] of Object.entries(sourceData)) {
                 // Skip system fields - only keep actual data columns
                 if (!SYSTEM_FIELDS.has(key)) {
                     dataFields[key] = value
                 }
             }
 
-            console.log("[importRowsAtom] Extracted data fields:", dataFields)
-            console.log("[importRowsAtom] Calling testcaseMolecule.actions.add with flat data")
-
-            // Pass flat data directly - addTestcaseAtom/createLocalTestcase handles the rest
-            const result = set(
-                testcaseMolecule.actions.add,
-                dataFields as Partial<FlattenedTestcase>,
-            )
-            console.log("[importRowsAtom] Add result:", result)
+            // Pass data wrapped in {data: ...} to match Testcase nested format
+            const result = set(testcaseMolecule.actions.add, {data: dataFields})
 
             if (result?.id) {
                 addedIds.push(result.id)
@@ -738,8 +723,9 @@ const setRowsAtom = atom(null, (get, set, loadableId: string, rows: TestsetRow[]
     }
 
     // Create new testcase entities from rows
+    // Pass data wrapped in {data: ...} to match Testcase nested format
     for (const row of rows) {
-        set(testcaseMolecule.actions.add, row.data as Partial<FlattenedTestcase>)
+        set(testcaseMolecule.actions.add, {data: row.data})
     }
 
     // Update active row
@@ -832,7 +818,7 @@ const addColumnAtom = atom(null, (get, set, loadableId: string, column: TestsetC
     // Add empty value to all testcase entities
     const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
     for (const rowId of displayRowIds) {
-        set(testcaseMolecule.reducers.update, rowId, {[column.key]: ""})
+        set(testcaseMolecule.actions.update, rowId, {[column.key]: ""})
     }
 })
 
@@ -881,10 +867,11 @@ const connectToSourceAtom = atom(
         set(clearNewEntityIdsAtom)
 
         // If testcases provided, populate query cache and set IDs
+        // Note: Testcases are stored in nested Testcase format
         if (testcases && testcases.length > 0) {
             const ids: string[] = []
             for (const tc of testcases) {
-                queryClient.setQueryData(["testcase", projectId, tc.id], tc as FlattenedTestcase)
+                queryClient.setQueryData(["testcase", projectId, tc.id], tc as Testcase)
                 ids.push(tc.id)
             }
             // Reset and set testcase IDs so displayRowIds picks them up
@@ -896,6 +883,9 @@ const connectToSourceAtom = atom(
             ...state,
             connectedSourceId: sourceId,
             connectedSourceName: sourceName ?? null,
+            // Set source type to 'testcase' - this is the only supported type currently
+            // Future: accept sourceType as parameter for trace/other sources
+            connectedSourceType: "testcase",
             // Clear hidden testcase IDs when connecting to a new source
             hiddenTestcaseIds: new Set<string>(),
         })
@@ -923,6 +913,7 @@ const disconnectAtom = atom(null, (get, set, loadableId: string) => {
         ...state,
         connectedSourceId: null,
         connectedSourceName: null,
+        connectedSourceType: null,
         activeRowId: null,
     })
     // Clear currentRevisionIdAtom since we're no longer connected
@@ -986,7 +977,7 @@ const discardChangesAtom = atom(null, (get, set, loadableId: string) => {
 
     if (state.connectedSourceId) {
         // CONNECTED: Delegate to testcase molecule
-        set(testcaseMolecule.reducers.discardAll)
+        set(testcaseMolecule.actions.discardAll)
         return
     }
 
@@ -1034,7 +1025,7 @@ const commitChangesAtom = atom(
         }
 
         // Get testset ID from revision
-        const revisionQuery = get(revisionMolecule.selectors.query(state.connectedSourceId))
+        const revisionQuery = get(revisionMolecule.query(state.connectedSourceId))
         const testsetId = revisionQuery?.data?.testset_id
         if (!testsetId) {
             throw new Error("Could not determine testset ID from revision")
@@ -1054,7 +1045,7 @@ const commitChangesAtom = atom(
 
         return {
             revisionId: result.newRevisionId!,
-            version: 1, // TODO: get actual version from API response
+            version: result.newVersion ?? 1,
         }
     },
 )
@@ -1726,13 +1717,15 @@ const rowReadyStateAtomFamily = atomFamily(
                 return {isReady: true, missingKeys: []}
             }
 
-            // Get the row data
-            const rowData = get(testcaseMolecule.selectors.data(rowId))
-            if (!rowData) {
+            // Get the row data (nested format - data fields in .data)
+            const rowEntity = get(testcaseMolecule.data(rowId))
+            if (!rowEntity) {
                 return {isReady: false, missingKeys: expectedKeys}
             }
 
             // Check which expected keys are missing or empty
+            // Note: Testcase uses nested format - data fields are in entity.data
+            const rowData = rowEntity.data ?? {}
             const missingKeys: string[] = []
             for (const key of expectedKeys) {
                 const value = rowData[key]
@@ -1780,9 +1773,9 @@ const rowExecutionStaleStateAtomFamily = atomFamily(
                 return {isStale: false, changedKeys: []}
             }
 
-            // Get current row data
-            const currentRowData = get(testcaseMolecule.selectors.data(rowId))
-            if (!currentRowData) {
+            // Get current row data (nested format - data fields in .data)
+            const currentRowEntity = get(testcaseMolecule.data(rowId))
+            if (!currentRowEntity) {
                 return {isStale: true, changedKeys: expectedKeys}
             }
 
@@ -1809,6 +1802,8 @@ const rowExecutionStaleStateAtomFamily = atomFamily(
             }
 
             // Compare current values vs trace inputs for expected keys
+            // Note: Testcase uses nested format - data fields are in entity.data
+            const currentRowData = currentRowEntity.data ?? {}
             const changedKeys: string[] = []
             for (const key of expectedKeys) {
                 const currentValue = currentRowData[key]
@@ -1819,14 +1814,6 @@ const rowExecutionStaleStateAtomFamily = atomFamily(
                     currentValue === undefined || currentValue === null ? "" : String(currentValue)
                 const normalizedTrace =
                     traceValue === undefined || traceValue === null ? "" : String(traceValue)
-
-                console.log(`[rowExecutionStaleState] Comparing key "${key}":`, {
-                    currentValue,
-                    traceValue,
-                    normalizedCurrent,
-                    normalizedTrace,
-                    isEqual: normalizedCurrent === normalizedTrace,
-                })
 
                 if (normalizedCurrent !== normalizedTrace) {
                     changedKeys.push(key)
@@ -1868,13 +1855,15 @@ const rowOutputMappingOverrideStateAtomFamily = atomFamily(
             }
 
             // Get original testcase data (before any output mapping)
-            const originalData = get(testcaseMolecule.selectors.data(rowId))
+            // Note: Testcase uses nested format - data fields are in entity.data
+            const originalEntity = get(testcaseMolecule.data(rowId))
 
-            if (!originalData) {
+            if (!originalEntity) {
                 return null
             }
 
             // Compare: find columns where derived value would overwrite existing non-empty value
+            const originalData = originalEntity.data ?? {}
             const overriddenColumns: string[] = []
             const originalValues: Record<string, unknown> = {}
 
@@ -1926,7 +1915,6 @@ const defaultOutputMappingsAtomFamily = atomFamily((loadableId: string) =>
 
         // Need a linked runnable to derive default mappings
         if (!linkedRunnableType || !linkedRunnableId) {
-            console.log("[defaultOutputMappings] No linked runnable")
             return []
         }
 
@@ -1935,9 +1923,10 @@ const defaultOutputMappingsAtomFamily = atomFamily((loadableId: string) =>
         if (linkedRunnableType === "appRevision") {
             // Use the molecule's outputPorts selector (derives from schema query)
             outputPorts = get(appRevisionMolecule.selectors.outputPorts(linkedRunnableId))
-            console.log("[PLAYGROUND_OUTPUT_MAPPING] Output ports from molecule:", outputPorts)
         }
-        // TODO: Add evaluatorRevision support via evaluatorRevisionMolecule.selectors.outputPorts
+        // TODO(evaluator-output-ports): Add evaluatorRevision support when backend provides
+        // evaluator output schema. Will need evaluatorRevisionMolecule.selectors.outputPorts
+        // similar to appRevisionMolecule. Blocked on backend API support.
 
         // For simple outputs, use data.outputs directly
         // The trace data typically stores the output at data.outputs (not data.outputs.{key})
@@ -1950,14 +1939,6 @@ const defaultOutputMappingsAtomFamily = atomFamily((loadableId: string) =>
         const outputPath = useDirectOutputPath
             ? "data.outputs"
             : `data.outputs.${outputPorts[0]?.key || "output"}`
-
-        console.log("[PLAYGROUND_OUTPUT_MAPPING] Creating single default mapping:", {
-            outputPath,
-            targetColumn: "correct_answer",
-            useDirectOutputPath,
-            outputPortsCount: outputPorts.length,
-            outputPortKeys: outputPorts.map((p) => p.key),
-        })
 
         return [
             {
@@ -2006,7 +1987,8 @@ const applyOutputMappingToRowAtom = atom(null, (get, set, loadableId: string, ro
     if (!outputValues) return false
 
     // Update testcase with output values via molecule
-    set(testcaseMolecule.reducers.update, rowId, outputValues as Partial<FlattenedTestcase>)
+    // Pass data wrapped in {data: ...} to match Testcase nested format
+    set(testcaseMolecule.actions.update, rowId, {data: outputValues})
     return true
 })
 
@@ -2106,25 +2088,17 @@ const newColumnsFromOutputMappingsAtomFamily = atomFamily((loadableId: string) =
  * This allows users to see and configure mappings before running any executions.
  */
 const initializeDefaultOutputMappingsAtom = atom(null, (get, set, loadableId: string) => {
-    console.log("[PLAYGROUND_OUTPUT_MAPPING] initializeDefaultOutputMappings starting:", loadableId)
-
     const state = get(loadableStateAtomFamily(loadableId))
 
     // Don't overwrite existing mappings
     if (state.outputMappings.length > 0) {
-        console.log(
-            "[PLAYGROUND_OUTPUT_MAPPING] Skipping - mappings already exist:",
-            state.outputMappings,
-        )
         return
     }
 
     // Get default mappings from schema
     const defaultMappings = get(defaultOutputMappingsAtomFamily(loadableId))
-    console.log("[initializeDefaultOutputMappings] Default mappings from schema:", defaultMappings)
 
     if (defaultMappings.length === 0) {
-        console.log("[initializeDefaultOutputMappings] No default mappings found")
         return
     }
 
@@ -2135,8 +2109,6 @@ const initializeDefaultOutputMappingsAtom = atom(null, (get, set, loadableId: st
         targetColumn: dm.suggestedTargetColumn,
         isNewColumn: true, // These columns likely don't exist yet
     }))
-
-    console.log("[initializeDefaultOutputMappings] Creating mappings:", newMappings)
 
     // Update state with new mappings
     set(loadableStateAtomFamily(loadableId), {
@@ -2149,13 +2121,9 @@ const initializeDefaultOutputMappingsAtom = atom(null, (get, set, loadableId: st
     const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
     for (const mapping of newMappings) {
         if (mapping.isNewColumn && mapping.targetColumn) {
-            console.log(
-                "[initializeDefaultOutputMappings] Adding new column to testcase data:",
-                mapping.targetColumn,
-            )
             // Add empty value to all testcase rows
             for (const rowId of displayRowIds) {
-                set(testcaseMolecule.reducers.update, rowId, {[mapping.targetColumn]: ""})
+                set(testcaseMolecule.actions.update, rowId, {[mapping.targetColumn]: ""})
             }
         }
     }
@@ -2246,14 +2214,16 @@ export const testsetLoadable = {
         /** Columns for a loadable - derives from linked runnable when linked */
         columns: (loadableId: string) => loadableColumnsFromRunnableAtomFamily(loadableId),
 
-        /** All columns for a loadable (not filtered) */
-        allColumns: (loadableId: string) => loadableAllColumnsAtomFamily(loadableId),
+        /** All columns for a loadable (from state, not filtered by runnable) */
+        allColumns: (loadableId: string) => loadableColumnsAtomFamily(loadableId),
 
-        /** Active row for a loadable */
-        activeRow: (loadableId: string) => loadableActiveRowAtomFamily(loadableId),
+        /** Active row ID for a loadable */
+        activeRow: (loadableId: string) =>
+            atom((get) => get(loadableStateAtomFamily(loadableId)).activeRowId),
 
-        /** Row count for a loadable */
-        rowCount: (loadableId: string) => loadableRowCountAtomFamily(loadableId),
+        /** Row count for a loadable (visible rows only) */
+        rowCount: (loadableId: string) =>
+            atom((get) => get(displayRowIdsAtomFamily(loadableId)).length),
 
         /** Display row IDs for a loadable (filters out hidden testcases) */
         displayRowIds: (loadableId: string) => displayRowIdsAtomFamily(loadableId),
@@ -2460,13 +2430,205 @@ export const testsetLoadable = {
     },
 }
 
+// ============================================================================
+// UNIFIED SELECTORS (entity-agnostic API)
+// These dispatch to the appropriate entity based on connectedSourceType
+// ============================================================================
+
+/**
+ * Unified selectors that dispatch based on source type.
+ * Currently only 'testcase' is implemented; defaults to testcase for local mode.
+ *
+ * Usage:
+ * ```typescript
+ * const rows = useAtomValue(loadableController.selectors.rows(loadableId))
+ * ```
+ */
+const unifiedSelectors = {
+    /** Rows for a loadable - dispatches to appropriate entity */
+    rows: (loadableId: string) => testsetLoadable.selectors.rows(loadableId),
+
+    /** Columns for a loadable - derives from linked runnable */
+    columns: (loadableId: string) => testsetLoadable.selectors.columns(loadableId),
+
+    /** All columns for a loadable (from state, not filtered by runnable) */
+    allColumns: (loadableId: string) => testsetLoadable.selectors.allColumns(loadableId),
+
+    /** Active row ID for a loadable */
+    activeRow: (loadableId: string) => testsetLoadable.selectors.activeRow(loadableId),
+
+    /** Row count for a loadable (visible rows only) */
+    rowCount: (loadableId: string) => testsetLoadable.selectors.rowCount(loadableId),
+
+    /** Display row IDs for a loadable (filters out hidden items) */
+    displayRowIds: (loadableId: string) => testsetLoadable.selectors.displayRowIds(loadableId),
+
+    /** Total row count including hidden items */
+    totalRowCount: (loadableId: string) => testsetLoadable.selectors.totalRowCount(loadableId),
+
+    /** All rows including hidden ones */
+    allRowsIncludingHidden: (loadableId: string) =>
+        testsetLoadable.selectors.allRowsIncludingHidden(loadableId),
+
+    /** Mode for a loadable */
+    mode: (loadableId: string) => testsetLoadable.selectors.mode(loadableId),
+
+    /** Is dirty for a loadable */
+    isDirty: (loadableId: string) => testsetLoadable.selectors.isDirty(loadableId),
+
+    /** Has local changes for a loadable */
+    hasLocalChanges: (loadableId: string) => testsetLoadable.selectors.hasLocalChanges(loadableId),
+
+    /** Column keys that are new (added but not in original data) */
+    newColumnKeys: (loadableId: string) => testsetLoadable.selectors.newColumnKeys(loadableId),
+
+    /** Execution results for a loadable */
+    executionResults: (loadableId: string) =>
+        testsetLoadable.selectors.executionResults(loadableId),
+
+    /** Full data for a loadable */
+    data: (loadableId: string) => testsetLoadable.selectors.data(loadableId),
+
+    /** Connected source for a loadable */
+    connectedSource: (loadableId: string) => testsetLoadable.selectors.connectedSource(loadableId),
+
+    /** Linked runnable for a loadable */
+    linkedRunnable: (loadableId: string) => testsetLoadable.selectors.linkedRunnable(loadableId),
+
+    /** Name for a loadable */
+    name: (loadableId: string) => testsetLoadable.selectors.name(loadableId),
+
+    /** Whether the linked runnable supports dynamic inputs */
+    supportsDynamicInputs: (loadableId: string) =>
+        testsetLoadable.selectors.supportsDynamicInputs(loadableId),
+
+    /** Derived column changes for commit context */
+    derivedColumnChanges: (loadableId: string) =>
+        testsetLoadable.selectors.derivedColumnChanges(loadableId),
+
+    // Output mapping selectors
+    outputMappings: (loadableId: string) => testsetLoadable.selectors.outputMappings(loadableId),
+    availableOutputPaths: (loadableId: string) =>
+        testsetLoadable.selectors.availableOutputPaths(loadableId),
+    outputDataPreview: (loadableId: string) =>
+        testsetLoadable.selectors.outputDataPreview(loadableId),
+    hasExecutionResults: (loadableId: string) =>
+        testsetLoadable.selectors.hasExecutionResults(loadableId),
+    derivedOutputValues: (loadableId: string, rowId: string) =>
+        testsetLoadable.selectors.derivedOutputValues(loadableId, rowId),
+    newColumnsFromOutputMappings: (loadableId: string) =>
+        testsetLoadable.selectors.newColumnsFromOutputMappings(loadableId),
+    defaultOutputMappings: (loadableId: string) =>
+        testsetLoadable.selectors.defaultOutputMappings(loadableId),
+    availableOutputPathsWithSchema: (loadableId: string) =>
+        testsetLoadable.selectors.availableOutputPathsWithSchema(loadableId),
+
+    // Row state indicator selectors
+    rowReadyState: (loadableId: string, rowId: string) =>
+        testsetLoadable.selectors.rowReadyState(loadableId, rowId),
+    rowExecutionStaleState: (loadableId: string, rowId: string) =>
+        testsetLoadable.selectors.rowExecutionStaleState(loadableId, rowId),
+    rowOutputMappingOverrideState: (loadableId: string, rowId: string) =>
+        testsetLoadable.selectors.rowOutputMappingOverrideState(loadableId, rowId),
+}
+
+/**
+ * Unified actions that dispatch based on source type.
+ * Currently only 'testcase' is implemented.
+ *
+ * Usage:
+ * ```typescript
+ * const addRow = useSetAtom(loadableController.actions.addRow)
+ * addRow(loadableId, { input: 'test' })
+ * ```
+ */
+const unifiedActions = {
+    // Row actions
+    addRow: testsetLoadable.actions.addRow,
+    updateRow: testsetLoadable.actions.updateRow,
+    removeRow: testsetLoadable.actions.removeRow,
+    setActiveRow: testsetLoadable.actions.setActiveRow,
+    setRows: testsetLoadable.actions.setRows,
+    importRows: testsetLoadable.actions.importRows,
+    clearRows: testsetLoadable.actions.clearRows,
+
+    // Column actions
+    setColumns: testsetLoadable.actions.setColumns,
+    initializeWithColumns: testsetLoadable.actions.initializeWithColumns,
+    addColumn: testsetLoadable.actions.addColumn,
+    removeColumn: testsetLoadable.actions.removeColumn,
+
+    // Connection actions
+    connectToSource: testsetLoadable.actions.connectToSource,
+    disconnect: testsetLoadable.actions.disconnect,
+
+    // Change management
+    discardChanges: testsetLoadable.actions.discardChanges,
+    commitChanges: testsetLoadable.actions.commitChanges,
+    setName: testsetLoadable.actions.setName,
+    saveAsNewTestset: testsetLoadable.actions.saveAsNewTestset,
+
+    // Runnable linking
+    linkToRunnable: testsetLoadable.actions.linkToRunnable,
+    unlinkFromRunnable: testsetLoadable.actions.unlinkFromRunnable,
+
+    // Execution
+    setRowExecutionResult: testsetLoadable.actions.setRowExecutionResult,
+    clearRowExecutionResult: testsetLoadable.actions.clearRowExecutionResult,
+
+    // Testset sync
+    syncNewColumnsToTestset: testsetLoadable.actions.syncNewColumnsToTestset,
+    updateTestcaseSelection: testsetLoadable.actions.updateTestcaseSelection,
+
+    // Output mapping actions
+    addOutputMapping: testsetLoadable.actions.addOutputMapping,
+    removeOutputMapping: testsetLoadable.actions.removeOutputMapping,
+    updateOutputMapping: testsetLoadable.actions.updateOutputMapping,
+    clearOutputMappings: testsetLoadable.actions.clearOutputMappings,
+    applyOutputMappingToRow: testsetLoadable.actions.applyOutputMappingToRow,
+    applyOutputMappingsToAll: testsetLoadable.actions.applyOutputMappingsToAll,
+    initializeDefaultOutputMappings: testsetLoadable.actions.initializeDefaultOutputMappings,
+    revertOutputMappingOverrides: testsetLoadable.actions.revertOutputMappingOverrides,
+}
+
 /**
  * Unified loadable controller
- * Supports multiple loadable types (testset, span in future)
+ *
+ * Provides entity-agnostic API for UI components.
+ * Dispatches to appropriate entity based on connectedSourceType.
+ *
+ * ## Usage
+ *
+ * ```typescript
+ * import { loadableController } from '@agenta/entities/loadable'
+ *
+ * // Entity-agnostic API (recommended)
+ * const rows = useAtomValue(loadableController.selectors.rows(loadableId))
+ * const addRow = useSetAtom(loadableController.actions.addRow)
+ * addRow(loadableId, { input: 'test' })
+ *
+ * // Entity-specific access (advanced use cases)
+ * const derivedChanges = useAtomValue(
+ *     loadableController.entities.testset.selectors.derivedColumnChanges(loadableId)
+ * )
+ * ```
  */
 export const loadableController = {
     /**
-     * Testset loadable operations
+     * Entity-agnostic selectors (recommended for UI)
      */
-    testset: testsetLoadable,
+    selectors: unifiedSelectors,
+
+    /**
+     * Entity-agnostic actions (recommended for UI)
+     */
+    actions: unifiedActions,
+
+    /**
+     * Entity-specific access for advanced use cases
+     * Use this when you need features specific to a source type
+     */
+    entities: {
+        testset: testsetLoadable,
+    },
 }

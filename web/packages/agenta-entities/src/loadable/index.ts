@@ -6,32 +6,48 @@
  * A loadable represents a data source (like a testset or trace) that provides
  * input rows for execution. Loadables can operate in local or connected mode.
  *
- * ## New API (Recommended)
+ * ## Controller API (Recommended)
+ *
+ * The loadableController provides a flat, entity-agnostic API that internally
+ * dispatches to the appropriate entity implementation based on connectedSourceType.
+ *
+ * ```typescript
+ * import { loadableController } from '@agenta/entities/loadable'
+ *
+ * // Selectors - flat API (entity-agnostic)
+ * const rows = useAtomValue(loadableController.selectors.rows(loadableId))
+ * const columns = useAtomValue(loadableController.selectors.columns(loadableId))
+ * const isDirty = useAtomValue(loadableController.selectors.isDirty(loadableId))
+ *
+ * // Actions - flat API (entity-agnostic)
+ * const addRow = useSetAtom(loadableController.actions.addRow)
+ * addRow(loadableId, { input: 'test' })
+ *
+ * // Connect to a testset (sets connectedSourceType: 'testcase')
+ * const connect = useSetAtom(loadableController.actions.connectToSource)
+ * connect(loadableId, revisionId, 'MyTestset v1', testcases)
+ * ```
+ *
+ * ## Bridge API (Simplified Access)
+ *
+ * For simpler use cases, the loadableBridge provides direct atom access:
  *
  * ```typescript
  * import { loadableBridge } from '@agenta/entities/loadable'
  *
- * // Unified API works with any source type
- * const rows = useAtomValue(loadableBridge.selectors.rows(loadableId))
+ * const rows = useAtomValue(loadableBridge.rows(loadableId))
  * const addRow = useSetAtom(loadableBridge.actions.addRow)
- *
- * // Connect to a testset
- * const connect = useSetAtom(loadableBridge.actions.connectToSource)
- * connect(loadableId, revisionId, 'MyTestset v1', 'testcase')
  * ```
  *
- * ## Legacy API (Backwards Compatible)
+ * ## Entity-Specific Access (Advanced)
+ *
+ * For entity-specific features not in the unified API:
  *
  * ```typescript
- * import { loadableController, useLoadable } from '@agenta/entities/loadable'
- *
- * // Hook usage
- * const loadable = useLoadable(loadableId)
- * loadable.rows
- * loadable.addRow({ input: "test" })
- *
- * // Direct atom access
- * const rows = useAtomValue(loadableController.testset.selectors.rows(id))
+ * // Access entity implementation directly
+ * const newColumnKeys = useAtomValue(
+ *   loadableController.entities.testset.selectors.newColumnKeys(id)
+ * )
  * ```
  */
 
@@ -42,6 +58,7 @@
 export type {
     // Loadable-specific types
     LoadableMode,
+    LoadableSourceType,
     ConnectedSource,
     LinkedRunnable,
     LoadableState,
@@ -69,7 +86,7 @@ export type {
 } from "../shared"
 
 // ============================================================================
-// NEW API: LOADABLE BRIDGE (Recommended)
+// BRIDGE (Recommended for UI)
 // ============================================================================
 
 export {loadableBridge} from "./bridge"
@@ -78,10 +95,9 @@ export {loadableBridge} from "./bridge"
 export {createLoadableBridge} from "../shared"
 
 // ============================================================================
-// LEGACY API: CONTROLLER & HOOK (Backwards Compatible)
+// CONTROLLER (Full Feature Access)
 // ============================================================================
 
-// Controller exports (full API with all selectors including derivedColumnChanges)
 export {
     loadableController,
     testsetLoadable,
@@ -92,25 +108,13 @@ export {
     type TraceMetrics,
 } from "./controller"
 
-// Hook (works with both old and new API)
-export {useLoadable} from "./useLoadable"
-export type {UseLoadableReturn} from "./useLoadable"
-
 // ============================================================================
-// STORE ATOMS (pure state - advanced usage)
+// STORE ATOMS (advanced usage)
 // ============================================================================
-
-// Legacy atoms (still useful for direct access)
 export {
     loadableStateAtomFamily,
-    loadableRowsAtomFamily,
     loadableColumnsAtomFamily,
-    loadableAllColumnsAtomFamily,
-    loadableActiveRowAtomFamily,
-    loadableRowCountAtomFamily,
     loadableModeAtomFamily,
-    loadableIsDirtyAtomFamily,
-    loadableHasLocalChangesAtomFamily,
     loadableExecutionResultsAtomFamily,
     loadableDataAtomFamily,
     loadableConnectedSourceAtomFamily,
@@ -126,16 +130,3 @@ export {extractPaths, getValueAtPath, createOutputMappingId} from "./utils"
 
 // New shared state family (from bridge factory)
 export {loadableStateFamily} from "../shared"
-
-// ============================================================================
-// PAGINATED STORE (for InfiniteVirtualTable integration)
-// ============================================================================
-
-export {
-    loadablePaginatedStore,
-    loadablePaginatedMetaAtom,
-    loadableIdAtom,
-    loadableFilters,
-    type LoadableTableRow,
-    type LoadablePaginatedMeta,
-} from "./state"
