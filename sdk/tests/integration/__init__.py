@@ -8,5 +8,5 @@ Run with: pytest sdk/tests/integration/ -v -m integration
 
 Environment variables:
 - AGENTA_HOST: API host URL (default: https://cloud.agenta.ai)
-- AGENTA_API_KEY: API key for authentication
+- AGENTA_API_KEY: API key for authentication (required)
 """
