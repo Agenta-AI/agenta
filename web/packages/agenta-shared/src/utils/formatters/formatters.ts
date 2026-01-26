@@ -241,11 +241,18 @@ export const formatTokens = (value: number | undefined | null): string => {
  * @param value - Decimal value (0.5 = 50%)
  * @returns Formatted percentage string
  *
+ * @remarks
+ * - Negative values are treated as 0% (use case: scores/metrics that shouldn't be negative)
+ * - Values >= 99.95% are rounded to "100%"
+ * - Values >= 10% show 1 decimal place
+ * - Values < 10% show 2 decimal places
+ *
  * @example
  * ```typescript
- * formatPercent(0.856)    // "85.60%"
- * formatPercent(1)        // "100.00%"
+ * formatPercent(0.856)    // "85.6%"
+ * formatPercent(1)        // "100%"
  * formatPercent(0.001)    // "0.10%"
+ * formatPercent(-0.1)     // "0%" (negative values treated as 0)
  * ```
  */
 export const formatPercent = (value: number | undefined | null): string => {
