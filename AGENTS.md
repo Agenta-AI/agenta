@@ -965,17 +965,68 @@ The monorepo uses workspace packages to share components, utilities, and logic a
 | `@agenta/entities` | Entity state/hooks/controllers | Molecules, bridges, UI components (modals, pickers) |
 | `@agenta/playground` | Playground-specific components | `PlaygroundContent`, `EntitySelector`, `InputMappingModal` |
 
+#### Subpath Imports for Tree-Shaking
+
+**Always use subpath imports for better tree-shaking.** Importing from root barrel exports (e.g., `@agenta/shared`) pulls the entire dependency graph, which significantly increases bundle size.
+
+#### @agenta/shared Subpath Exports
+
+```typescript
+// API utilities
+import {axios, getAgentaApiUrl, getEnv, configureAxios} from "@agenta/shared/api"
+
+// State atoms
+import {projectIdAtom, setProjectIdAtom} from "@agenta/shared/state"
+
+// Utilities (most common)
+import {
+  dayjs,
+  createBatchFetcher,
+  isValidUUID,
+  dereferenceSchema,
+  getValueAtPath,
+  setValueAtPath,
+  extractTypedPaths,
+  determineMappingStatus,
+  formatNumber,
+  formatLatency,
+} from "@agenta/shared/utils"
+
+// React hooks
+import {useDebounceInput} from "@agenta/shared/hooks"
+
+// Schemas (for validation)
+import {MESSAGE_CONTENT_SCHEMA, CHAT_MESSAGE_SCHEMA} from "@agenta/shared/schemas"
+
+// Types (use `import type` for type-only imports)
+import type {SimpleChatMessage, MessageContent, ToolCall} from "@agenta/shared/types"
+```
+
+#### @agenta/ui Subpath Exports
+
+```typescript
+import {...} from "@agenta/ui"                   // Main exports (presentational components)
+import {...} from "@agenta/ui/table"             // InfiniteVirtualTable, paginated stores
+import {...} from "@agenta/ui/editor"            // Editor, JSON parsing utilities
+import {...} from "@agenta/ui/shared-editor"     // SharedEditor, useDebounceInput
+import {...} from "@agenta/ui/chat-message"      // ChatMessageEditor, message types/schemas
+import {...} from "@agenta/ui/llm-icons"         // LLM provider icons
+import {...} from "@agenta/ui/select-llm-provider" // LLM provider selector
+import {...} from "@agenta/ui/app-message"       // AppMessageContext, useAppMessage
+import {...} from "@agenta/ui/cell-renderers"    // Table cell renderers, CellRendererRegistry
+```
+
 #### @agenta/entities Subpath Exports
 
 ```typescript
-import { ... } from '@agenta/entities'           // Core utilities
-import { ... } from '@agenta/entities/shared'    // Molecule factories, transforms
-import { ... } from '@agenta/entities/trace'     // Trace/span molecule, schemas
-import { ... } from '@agenta/entities/testset'   // Testset/revision molecules
-import { ... } from '@agenta/entities/testcase'  // Testcase molecule
-import { ... } from '@agenta/entities/loadable'  // Loadable bridge
-import { ... } from '@agenta/entities/runnable'  // Runnable bridge
-import { ... } from '@agenta/entity-ui'        // UI components (modals, pickers)
+import {...} from "@agenta/entities"             // Clean named exports (preferred)
+import {...} from "@agenta/entities/shared"      // Molecule factories, transforms
+import {...} from "@agenta/entities/trace"       // Trace/span molecule, schemas
+import {...} from "@agenta/entities/testset"     // Testset/revision molecules
+import {...} from "@agenta/entities/testcase"    // Testcase molecule
+import {...} from "@agenta/entities/loadable"    // Loadable bridge
+import {...} from "@agenta/entities/runnable"    // Runnable bridge
+import {...} from "@agenta/entity-ui"            // UI components (modals, pickers)
 ```
 
 #### EnhancedModal (Required for All New Modals)
