@@ -4,6 +4,9 @@
  * Unified API for testcase data access that abstracts the data source (local vs server).
  * This enables shared components to work with testcase data without knowing the source.
  *
+ * Built using `createEntityDataController` factory from `@agenta/entities/shared`,
+ * which provides selection management, derived selectors, and cleanup.
+ *
  * ## Memory Management
  *
  * This controller uses `atomFamily` for scoped state (selection, rows, etc.). To prevent
@@ -48,9 +51,13 @@
  * ```
  */
 
-import {atom, type Atom, type PrimitiveAtom} from "jotai"
+import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
+import {
+    createEntityDataController,
+    type EntityDataConfigBase,
+} from "../../shared/createEntityDataController"
 import {extractColumnsFromData, type Column} from "../core"
 
 import {testcaseMolecule} from "./molecule"
@@ -67,11 +74,9 @@ import {testcasePaginatedStore, type TestcaseTableRow} from "./paginatedStore"
  * (e.g., via `useMemo`) to prevent unnecessary atom recreation. The equality
  * check uses reference equality for performance.
  */
-export interface TestcaseDataConfig {
+export interface TestcaseDataConfig extends EntityDataConfigBase {
     /** Revision ID for server data (null for local-only mode) */
     revisionId?: string | null
-    /** Unique scope ID for this data instance (used for selection state) */
-    scopeId: string
     /** Page size for paginated fetching (default: 100) */
     pageSize?: number
     /** Use local testcases from molecule instead of server (default: false) */
@@ -100,82 +105,14 @@ function areConfigsEqual(a: TestcaseDataConfig, b: TestcaseDataConfig): boolean 
 }
 
 // ============================================================================
-// SELECTION STATE
+// ENTITY-SPECIFIC DATA SELECTORS
 // ============================================================================
 
 /**
- * Selection state per scope - stores selected testcase IDs
- */
-export const testcaseSelectionAtomFamily = atomFamily(
-    (_scopeId: string) => atom<Set<string>>(new Set<string>()) as PrimitiveAtom<Set<string>>,
-)
-
-/**
- * Set selection for a scope
- */
-export const setTestcaseSelectionAtom = atom(
-    null,
-    (_get, set, scopeId: string, selectedIds: string[]) => {
-        set(testcaseSelectionAtomFamily(scopeId), new Set(selectedIds))
-    },
-)
-
-/**
- * Toggle a single testcase selection
- */
-export const toggleTestcaseSelectionAtom = atom(
-    null,
-    (get, set, scopeId: string, testcaseId: string, multiSelect = true) => {
-        const current = get(testcaseSelectionAtomFamily(scopeId))
-        const newSet = new Set(current)
-
-        if (multiSelect) {
-            if (newSet.has(testcaseId)) {
-                newSet.delete(testcaseId)
-            } else {
-                newSet.add(testcaseId)
-            }
-        } else {
-            // Single select mode - clear and set
-            newSet.clear()
-            if (!current.has(testcaseId)) {
-                newSet.add(testcaseId)
-            }
-        }
-
-        set(testcaseSelectionAtomFamily(scopeId), newSet)
-    },
-)
-
-/**
- * Select all testcases in scope
- */
-export const selectAllTestcasesAtom = atom(null, (_get, set, scopeId: string, allIds: string[]) => {
-    set(testcaseSelectionAtomFamily(scopeId), new Set(allIds))
-})
-
-/**
- * Clear selection for a scope
- */
-export const clearTestcaseSelectionAtom = atom(null, (_get, set, scopeId: string) => {
-    set(testcaseSelectionAtomFamily(scopeId), new Set<string>())
-})
-
-/**
- * Reset selection for a scope (removes the atom from the family cache)
- * Use this when a scope is being destroyed to prevent memory leaks
- */
-export const resetTestcaseSelectionAtom = atom(null, (_get, _set, scopeId: string) => {
-    // Clear the selection and remove from cache
-    testcaseSelectionAtomFamily.remove(scopeId)
-})
-
-// ============================================================================
-// DATA SELECTORS
-// ============================================================================
-
-/**
- * Rows selector - returns testcase rows from the appropriate source
+ * Rows selector - returns testcase rows from the appropriate source.
+ *
+ * Note: TestcaseTableRow is identity-only ({id, key, flags}).
+ * Cell data is accessed via testcaseCellAtomFamily(id, column) which reads from testcase.data.
  */
 const rowsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
     return atom((get): TestcaseTableRow[] => {
@@ -183,23 +120,21 @@ const rowsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
         if (config.useLocal) {
             // Use provided local rows if available
             if (config.localRows && config.localRows.length > 0) {
+                // Local rows are identity-only, data accessed via cell atoms
                 return config.localRows.map((row) => ({
                     id: row.id,
                     key: row.id,
-                    ...row.data,
+                    __isNew: true,
                 })) as TestcaseTableRow[]
             }
 
             // Fallback to molecule display rows
             const localIds = get(testcaseMolecule.atoms.displayRowIds)
-            return localIds.map((id) => {
-                const data = testcaseMolecule.get.data(id)
-                return {
-                    id,
-                    key: id,
-                    ...data,
-                } as TestcaseTableRow
-            })
+            return localIds.map((id) => ({
+                id,
+                key: id,
+                __isNew: id.startsWith("new-"),
+            })) as TestcaseTableRow[]
         }
 
         // Server mode - use paginated store
@@ -235,7 +170,10 @@ const isLoadingAtomFamily = atomFamily((config: TestcaseDataConfig) => {
 }, areConfigsEqual)
 
 /**
- * Columns selector - extracts columns from row data
+ * Columns selector - extracts columns from testcase data.
+ *
+ * Note: Testcases use nested format (testcase.data), so we need to
+ * access the entity data to extract columns.
  */
 const columnsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
     return atom((get): Column[] => {
@@ -244,139 +182,72 @@ const columnsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
             return config.localColumnKeys.map((key) => ({key, label: key}))
         }
 
-        // Extract columns from rows
+        // Get rows first
         const rows = get(rowsAtomFamily(config))
-        return extractColumnsFromData(rows as Record<string, unknown>[])
-    })
-}, areConfigsEqual)
 
-/**
- * All row IDs selector (for select all functionality)
- */
-const allRowIdsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
-    return atom((get): string[] => {
-        const rows = get(rowsAtomFamily(config))
-        return rows.map((row) => row.id)
-    })
-}, areConfigsEqual)
+        // Extract columns from entity data (testcase.data)
+        // We need to look up entity data for each row since rows are identity-only
+        const dataObjects: Record<string, unknown>[] = []
+        for (const row of rows.slice(0, 20)) {
+            // Sample first 20 rows
+            const entity = testcaseMolecule.get.data(row.id)
+            if (entity?.data) {
+                dataObjects.push(entity.data as Record<string, unknown>)
+            }
+        }
 
-/**
- * Selected IDs as array selector
- */
-const selectedIdsArrayAtomFamily = atomFamily((scopeId: string) => {
-    return atom((get): string[] => {
-        const selection = get(testcaseSelectionAtomFamily(scopeId))
-        return [...selection]
-    })
-})
-
-/**
- * Selected count selector
- */
-const selectedCountAtomFamily = atomFamily((scopeId: string) => {
-    return atom((get): number => {
-        const selection = get(testcaseSelectionAtomFamily(scopeId))
-        return selection.size
-    })
-})
-
-/**
- * Total count selector
- */
-const totalCountAtomFamily = atomFamily((config: TestcaseDataConfig) => {
-    return atom((get): number => {
-        const rows = get(rowsAtomFamily(config))
-        return rows.length
-    })
-}, areConfigsEqual)
-
-/**
- * Is all selected selector
- */
-const isAllSelectedAtomFamily = atomFamily((config: TestcaseDataConfig) => {
-    return atom((get): boolean => {
-        const allIds = get(allRowIdsAtomFamily(config))
-        const selection = get(testcaseSelectionAtomFamily(config.scopeId))
-        return allIds.length > 0 && allIds.every((id) => selection.has(id))
-    })
-}, areConfigsEqual)
-
-/**
- * Is some selected (for indeterminate checkbox state)
- */
-const isSomeSelectedAtomFamily = atomFamily((config: TestcaseDataConfig) => {
-    return atom((get): boolean => {
-        const allIds = get(allRowIdsAtomFamily(config))
-        const selection = get(testcaseSelectionAtomFamily(config.scopeId))
-        const selectedCount = allIds.filter((id) => selection.has(id)).length
-        return selectedCount > 0 && selectedCount < allIds.length
+        return extractColumnsFromData(dataObjects)
     })
 }, areConfigsEqual)
 
 // ============================================================================
-// CONTROLLER EXPORT
+// CONTROLLER (built with factory)
 // ============================================================================
+
+/**
+ * List counts selector - returns list counts from paginated store or local fallback
+ */
+const countsAtomFamily = atomFamily((config: TestcaseDataConfig) => {
+    return atom((get) => {
+        // Local mode - compute counts from local rows
+        if (config.useLocal) {
+            const rows = get(rowsAtomFamily(config))
+            const loadedCount = rows.length
+            return {
+                loadedCount,
+                totalCount: loadedCount,
+                hasMore: false,
+                isTotalKnown: true,
+                displayLabel: String(loadedCount),
+                displayLabelShort: String(loadedCount),
+                displaySuffix: "" as const,
+            }
+        }
+
+        // Server mode - use paginated store's listCounts
+        const paginatedParams = {
+            scopeId: config.scopeId,
+            pageSize: config.pageSize ?? 100,
+        }
+        return get(testcasePaginatedStore.selectors.listCounts(paginatedParams))
+    })
+}, areConfigsEqual)
 
 /**
  * Testcase Data Controller
  *
  * Unified API for testcase data access that abstracts the data source.
+ * Selection state, derived selectors, and actions are provided by the
+ * `createEntityDataController` factory.
  */
-export const testcaseDataController = {
-    /**
-     * Selectors for reading data
-     */
-    selectors: {
-        /** Get rows from configured data source */
-        rows: (config: TestcaseDataConfig): Atom<TestcaseTableRow[]> => rowsAtomFamily(config),
-
-        /** Check if data is loading */
-        isLoading: (config: TestcaseDataConfig): Atom<boolean> => isLoadingAtomFamily(config),
-
-        /** Get extracted columns from data */
-        columns: (config: TestcaseDataConfig): Atom<Column[]> => columnsAtomFamily(config),
-
-        /** Get all row IDs */
-        allRowIds: (config: TestcaseDataConfig): Atom<string[]> => allRowIdsAtomFamily(config),
-
-        /** Get total row count */
-        totalCount: (config: TestcaseDataConfig): Atom<number> => totalCountAtomFamily(config),
-
-        /** Get selected IDs as Set */
-        selectedIds: (scopeId: string): Atom<Set<string>> => testcaseSelectionAtomFamily(scopeId),
-
-        /** Get selected IDs as array */
-        selectedIdsArray: (scopeId: string): Atom<string[]> => selectedIdsArrayAtomFamily(scopeId),
-
-        /** Get selected count */
-        selectedCount: (scopeId: string): Atom<number> => selectedCountAtomFamily(scopeId),
-
-        /** Check if all rows are selected */
-        isAllSelected: (config: TestcaseDataConfig): Atom<boolean> =>
-            isAllSelectedAtomFamily(config),
-
-        /** Check if some (but not all) rows are selected */
-        isSomeSelected: (config: TestcaseDataConfig): Atom<boolean> =>
-            isSomeSelectedAtomFamily(config),
-    },
-
-    /**
-     * Actions for modifying state
-     */
-    actions: {
-        /** Set selection for a scope */
-        setSelection: setTestcaseSelectionAtom,
-
-        /** Toggle a single testcase selection */
-        toggleSelection: toggleTestcaseSelectionAtom,
-
-        /** Select all testcases */
-        selectAll: selectAllTestcasesAtom,
-
-        /** Clear selection */
-        clearSelection: clearTestcaseSelectionAtom,
-
-        /** Reset selection (removes from cache - use on scope destruction) */
-        resetSelection: resetTestcaseSelectionAtom,
-    },
-}
+export const testcaseDataController = createEntityDataController<
+    TestcaseTableRow,
+    TestcaseDataConfig,
+    Column
+>({
+    rows: (config) => rowsAtomFamily(config),
+    isLoading: (config) => isLoadingAtomFamily(config),
+    columns: (config) => columnsAtomFamily(config),
+    configEquals: areConfigsEqual,
+    counts: (config) => countsAtomFamily(config),
+})

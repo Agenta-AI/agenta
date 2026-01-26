@@ -58,7 +58,7 @@ export {
 // ============================================================================
 
 export {
-    // Schema query
+    // Schema query (router — auto-resolves service vs per-revision schema)
     appRevisionSchemaQueryAtomFamily,
     // Schema selectors (appRevision-specific)
     revisionOpenApiSchemaAtomFamily,
@@ -70,6 +70,21 @@ export {
     // Endpoint selectors (appRevision-specific)
     revisionEndpointsAtomFamily,
 } from "./schemaAtoms"
+
+// ============================================================================
+// SERVICE SCHEMA PREFETCH
+// ============================================================================
+
+export {
+    // Prefetched service schemas
+    completionServiceSchemaAtom,
+    chatServiceSchemaAtom,
+    // Per-revision service type lookup
+    revisionServiceTypeAtomFamily,
+    // Composed schema (service schema + revision runtime context)
+    serviceSchemaForRevisionAtomFamily,
+    composedServiceSchemaAtomFamily,
+} from "./serviceSchemaAtoms"
 
 // ============================================================================
 // RUNNABLE EXTENSION

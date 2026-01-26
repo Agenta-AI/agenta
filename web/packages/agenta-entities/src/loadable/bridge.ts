@@ -8,8 +8,10 @@
  * ```typescript
  * import { loadableBridge } from '@agenta/entities/loadable'
  *
- * // Use unified API
- * const rows = useAtomValue(loadableBridge.selectors.rows(loadableId))
+ * // Use flattened API (preferred)
+ * const rows = useAtomValue(loadableBridge.rows(loadableId))
+ * const columns = useAtomValue(loadableBridge.columns(loadableId))
+ * const isDirty = useAtomValue(loadableBridge.isDirty(loadableId))
  *
  * // Or access source-specific features
  * const testcaseController = loadableBridge.source('testcase')

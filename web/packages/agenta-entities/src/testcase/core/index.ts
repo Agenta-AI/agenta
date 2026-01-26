@@ -9,8 +9,6 @@ export {
     // Main schemas
     testcaseSchema,
     type Testcase,
-    flattenedTestcaseSchema,
-    type FlattenedTestcase,
     // Schema set (factory-generated variants)
     testcaseSchemas,
     // Parse utility
@@ -24,10 +22,7 @@ export {
     // Metadata schema
     testsetMetadataSchema,
     type TestsetMetadata,
-    // Transformation utilities
-    flattenTestcase,
-    unflattenTestcase,
-    // Local testcase factory (accepts flat input)
+    // Local testcase factory
     createLocalTestcase,
     type CreateLocalTestcaseResult,
     type CreateLocalTestcaseSuccess,

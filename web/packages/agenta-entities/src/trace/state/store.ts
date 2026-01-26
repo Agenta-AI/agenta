@@ -18,7 +18,8 @@
  * ```
  */
 
-import {createBatchFetcher, projectIdAtom} from "@agenta/shared"
+import {projectIdAtom} from "@agenta/shared/state"
+import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"

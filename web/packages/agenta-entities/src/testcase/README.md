@@ -41,7 +41,6 @@ import {
     fetchTestcasesBatch,
     // Types
     type Testcase,
-    type FlattenedTestcase,
 } from '@agenta/entities/testcase'
 
 // For table components - use data controller
@@ -132,40 +131,32 @@ const page = await fetchTestcasesPage({
 ### Testcase Schema
 
 ```typescript
-import { testcaseSchema, flattenTestcase, unflattenTestcase } from '@agenta/entities/testcase'
+import { testcaseSchema, createLocalTestcase } from '@agenta/entities/testcase'
 
 // Parse API response
 const testcase = testcaseSchema.parse(apiResponse)
 
-// Flatten for table display (spreads data into columns)
-const flattened = flattenTestcase(testcase)
-// { id: '1', name: 'Test', value: 123 }
-
-// Unflatten for API submission
-const unflattened = unflattenTestcase(flattened)
-// { id: '1', data: { name: 'Test', value: 123 } }
+// Create a local testcase (for new rows)
+const result = createLocalTestcase({ data: { name: 'Test', value: 123 } })
+if (result.success) {
+    console.log(result.data) // Testcase with generated ID
+}
 ```
 
 ### Type Structure
 
 ```typescript
-// API format (nested data)
+// Testcase format (nested data)
 type Testcase = {
     id: string
-    data: Record<string, unknown>
+    data: Record<string, unknown>  // Cell values stored here
     testset_id?: string
     created_at?: string
     // ... other system fields
 }
 
-// Table format (flattened)
-type FlattenedTestcase = {
-    id: string
-    // Data fields spread to top level
-    name: string
-    value: number
-    // ... dynamic columns
-}
+// Access cell values via data property
+const value = testcase.data?.name  // 'Test'
 ```
 
 ## State Management
@@ -182,31 +173,6 @@ type FlattenedTestcase = {
 | `testcaseMolecule.get.*` | Imperative reads |
 | `testcaseMolecule.set.*` | Imperative writes |
 
-### Store Atoms (Advanced)
-
-For direct atom access in the OSS layer:
-
-```typescript
-// Context
-currentRevisionIdAtom
-
-// ID tracking
-testcaseIdsAtom           // Server testcase IDs
-newEntityIdsAtom          // Locally created IDs
-deletedEntityIdsAtom      // Pending deletions
-
-// Query atoms
-testcaseQueryAtomFamily(id)   // { data, isPending, isError, error }
-
-// Draft state
-testcaseDraftAtomFamily(id)   // Local changes
-testcaseIsDirtyAtomFamily(id) // Has unsaved changes
-
-// Entity atoms
-testcaseEntityAtomFamily(id)  // Merged server + draft
-testcaseCellAtomFamily({id, column}) // Cell accessor
-```
-
 ### Paginated Store
 
 For table views with pagination:
@@ -214,38 +180,29 @@ For table views with pagination:
 ```typescript
 import { testcasePaginatedStore } from '@agenta/entities/testcase'
 
-// Access paginated data
-const rows = useAtomValue(testcasePaginatedStore.rowsAtom)
-const meta = useAtomValue(testcasesPaginatedMetaAtom)
-
-// Search
-const [searchTerm, setSearchTerm] = useAtom(testcasesSearchTermAtom)
-
-// Filters
-const [filters, setFilters] = useAtom(testcaseFilters.all)
+// Access paginated state with config
+const config = { revisionId: 'rev-123', scopeId: 'my-table' }
+const state = useAtomValue(testcasePaginatedStore.selectors.state(config))
 ```
 
 ## Data Flow
 
 ```text
-API Response
+API Response (Testcase with nested data)
     │
     ▼
-testcaseQueryAtomFamily ─────────────────────────┐
-    │                                             │
-    ▼                                             │
-flattenTestcase()                                 │
-    │                                             │
-    ▼                                             │
-testcaseDraftAtomFamily (local changes) ─────────┤
-    │                                             │
-    ▼                                             │
-testcaseEntityAtomFamily (merged) ───────────────┤
-    │                                             │
-    ├─► testcaseCellAtomFamily (per-cell) ◄──────┘
-    │
+Query Atom (TanStack Query) ──────────────────────┐
+    │                                              │
+    ▼                                              │
+Draft State (local changes) ──────────────────────┤
+    │                                              │
+    ▼                                              │
+testcaseMolecule.atoms.data (merged) ─────────────┤
+    │                                              │
+    ├─► testcaseMolecule.atoms.cell ◄─────────────┘
+    │   (reads from testcase.data[column])
     ▼
-testcaseIsDirtyAtomFamily
+testcaseMolecule.atoms.isDirty
 ```
 
 ## Cache Strategy

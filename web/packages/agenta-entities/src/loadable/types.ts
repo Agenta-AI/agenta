@@ -30,6 +30,11 @@ export type {
 export type LoadableMode = "local" | "connected"
 
 /**
+ * Loadable source type - determines which entity implementation to use
+ */
+export type LoadableSourceType = "testcase" | "trace"
+
+/**
  * Connected source information
  */
 export interface ConnectedSource {
@@ -37,6 +42,8 @@ export interface ConnectedSource {
     id: string | null
     /** Display name (e.g., "Testset v3") */
     name: string | null
+    /** Source type for dispatch */
+    type: LoadableSourceType | null
 }
 
 /**
@@ -81,6 +88,8 @@ export interface LoadableState {
     connectedSourceId: string | null
     /** Connected source display name */
     connectedSourceName: string | null
+    /** Connected source type for entity dispatch (defaults to 'testcase' when connected) */
+    connectedSourceType: LoadableSourceType | null
     /** Linked runnable type */
     linkedRunnableType: import("../runnable/types").RunnableType | null
     /** Linked runnable ID */

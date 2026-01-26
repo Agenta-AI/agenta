@@ -16,24 +16,16 @@
  * ```typescript
  * import { revisionMolecule, testsetMolecule } from '@agenta/entities/testset'
  *
- * // In components - use the React hook
- * const [state, dispatch] = revisionMolecule.useController(revisionId)
- * const [testsetState, testsetDispatch] = testsetMolecule.useController(testsetId)
+ * // Reactive atoms (for useAtomValue, atom compositions)
+ * const data = useAtomValue(revisionMolecule.atoms.data(revisionId))
+ * const isDirty = useAtomValue(revisionMolecule.atoms.isDirty(revisionId))
+ * const columns = useAtomValue(revisionMolecule.atoms.testcaseColumns(revisionId))
  *
- * // Access state
- * state.data         // Revision | null
- * state.isPending    // boolean
- * state.isDirty      // boolean
+ * // Write atoms (for use in other atoms with set())
+ * set(revisionMolecule.actions.update, revisionId, { message: 'Updated' })
+ * set(revisionMolecule.actions.discard, revisionId)
  *
- * // Dispatch actions
- * dispatch.update({ message: 'Updated commit message' })
- * dispatch.discard()
- *
- * // In atoms - use atoms directly
- * const dataAtom = revisionMolecule.atoms.data(revisionId)
- * const columnsAtom = revisionMolecule.atoms.testcaseColumns(revisionId)
- *
- * // Imperatively (in callbacks)
+ * // Imperative API (for callbacks outside React/atom context)
  * const data = revisionMolecule.get.data(revisionId)
  * revisionMolecule.set.update(revisionId, { message: 'New message' })
  * ```
@@ -149,104 +141,52 @@ export {
 } from "./api"
 
 // ============================================================================
-// LOW-LEVEL STORE (for OSS layer integration)
+// ADAPTER UTILITIES
 // ============================================================================
 
 /**
- * Low-level store atoms for advanced use cases and OSS layer integration.
- *
- * @internal These atoms are implementation details and may change without notice.
- * Prefer using `revisionMolecule` or `testsetMolecule` APIs for most use cases.
- *
- * @example
- * ```typescript
- * // Prefer this (stable API):
- * const data = useAtomValue(revisionMolecule.atoms.data(id))
- *
- * // Over this (internal, may change):
- * const data = useAtomValue(revisionQueryAtomFamily(id))
- * ```
+ * Atom for fetching the latest revision of a testset.
+ * Used by entity adapters for display and selection.
  */
-export {
-    // Revision atoms
-    currentTestsetIdForRevisionsAtom,
-    revisionIdsAtom,
-    setRevisionIdsAtom,
-    revisionQueryAtomFamily,
-    revisionDraftAtomFamily,
-    revisionsListQueryAtomFamily,
-    enableRevisionsListQueryAtom,
-    latestRevisionForTestsetAtomFamily,
-    // Latest revision helpers (for OSS table cells)
-    latestRevisionAtomFamily,
-    latestRevisionStatefulAtomFamily,
-    requestLatestRevisionAtom,
-    // Testset atoms
-    testsetQueryAtomFamily,
-    testsetDraftAtomFamily,
-    testsetsListQueryAtomFamily,
-    // Variant atoms
-    variantQueryAtomFamily,
-    // Revision table state
-    revisionTableState,
-    pendingColumnOpsAtomFamily,
-    pendingRowOpsAtomFamily,
-    hasPendingChangesAtomFamily,
-    addColumnReducer,
-    removeColumnReducer,
-    renameColumnReducer,
-    addRowReducer,
-    removeRowReducer,
-    removeRowsReducer,
-    clearPendingOpsReducer,
-} from "./state"
+export {latestRevisionForTestsetAtomFamily} from "./state"
 
-// Revision table state types
-export type {TableColumn, RowRef, PendingColumnOps, PendingRowOps, ColumnRenameOp} from "./state"
+/**
+ * Save mutation atom for committing testset changes.
+ * Used by entity adapters for the commit modal.
+ */
+export {saveTestsetAtom} from "./state"
 
-// ============================================================================
-// MUTATION ATOMS
-// ============================================================================
-
-export {
-    // Unified save reducer (preferred)
-    saveReducer,
-    saveStateAtom,
-    // Legacy save atoms
-    saveTestsetAtom,
-    saveNewTestsetAtom,
-    // Clone reducers (two-layer: local and backend)
-    cloneLocalReducer,
-    cloneBackendReducer,
-    // Delete reducers
-    deleteTestsetsReducer,
-    deleteRevisionsReducer,
-    // Clear/discard
-    clearChangesAtom,
-    // Change tracking
-    changesSummaryAtom,
-    hasUnsavedChangesAtom,
-} from "./state"
-
-export type {
-    // Unified save types
-    SaveState,
-    SaveParams,
-    // Legacy types
-    SaveTestsetParams,
-    SaveTestsetResult,
-    SaveNewTestsetParams,
-    SaveNewTestsetResult,
-    // Clone types
-    CloneLocalParams,
-    CloneLocalResult,
-    CloneBackendParams,
-    CloneBackendResult,
-    ChangesSummary,
-} from "./state"
+export type {SaveTestsetParams, SaveTestsetResult} from "./state"
 
 // ============================================================================
 // SELECTION CONFIG
 // ============================================================================
 
 export {testsetSelectionConfig, type TestsetSelectionConfig} from "./state"
+
+// ============================================================================
+// ENTITY RELATIONS
+// ============================================================================
+
+/**
+ * Entity relations for the testset hierarchy.
+ *
+ * - testsetToRevisionRelation: testset → revision
+ * - revisionToTestcaseRelation: revision → testcase
+ *
+ * Relations are auto-registered when this module is imported.
+ * Use the registry to query hierarchies:
+ *
+ * ```typescript
+ * import { entityRelationRegistry } from '@agenta/entities/shared'
+ * const path = entityRelationRegistry.getPath("testset", "testcase")
+ * // Returns: ["testset", "revision", "testcase"]
+ * ```
+ */
+export {
+    testsetToRevisionRelation,
+    revisionToTestcaseRelation,
+    registerTestsetRelations,
+    // Root-level list atom for selection adapters
+    testsetsListAtom,
+} from "./relations"

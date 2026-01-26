@@ -112,3 +112,20 @@ export {
     type CreateLatestEntityQueryConfig,
     type LatestEntityQueryParams,
 } from "./latestEntityQuery"
+
+// Null-safe atom utilities
+export {
+    // Atom factories
+    createNullQueryResultAtom,
+    createNullDataAtom,
+    // Selector factories
+    createNullSafeQuerySelector,
+    createNullSafeDataSelector,
+    // Convenience factory
+    createNullSafeSelectors,
+    // Types
+    type NullQueryResult,
+    type AtomFamilyFn,
+    type CreateNullSafeSelectorsConfig,
+    type NullSafeSelectors,
+} from "./nullSafeAtoms"

@@ -5,10 +5,8 @@
 export {
     // Single testcase
     fetchTestcase,
-    fetchFlattenedTestcase,
     // Batch testcases
     fetchTestcasesBatch,
-    fetchFlattenedTestcasesBatch,
     // Paginated testcases
     PAGE_SIZE,
     fetchTestcasesPage,

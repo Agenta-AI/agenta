@@ -110,7 +110,7 @@ export {
 // SELECTION CONFIG
 // ============================================================================
 
-import {projectIdAtom} from "@agenta/shared"
+import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
 import {revisionMolecule} from "./revisionMolecule"

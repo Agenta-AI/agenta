@@ -8,25 +8,20 @@
  *
  * @example
  * ```typescript
- * import {
- *     // Molecule (primary API)
- *     testcaseMolecule,
+ * import { testcaseMolecule, type Testcase } from '@agenta/entities/testcase'
  *
- *     // API functions
- *     fetchTestcase,
- *     fetchTestcasesBatch,
- *
- *     // Types
- *     type Testcase,
- *     type FlattenedTestcase,
- * } from '@agenta/entities/testcase'
- *
- * // Using the molecule
- * const [state, dispatch] = useAtom(testcaseMolecule.controller(id))
+ * // Reactive atoms (for useAtomValue, atom compositions)
+ * const data = useAtomValue(testcaseMolecule.atoms.data(id))
+ * const isDirty = useAtomValue(testcaseMolecule.atoms.isDirty(id))
  * const cell = useAtomValue(testcaseMolecule.atoms.cell({id, column}))
  *
- * // Imperative API
- * testcaseMolecule.set.update(id, { name: 'Updated' })
+ * // Write atoms (for use in other atoms with set())
+ * set(testcaseMolecule.actions.update, id, changes)
+ * set(testcaseMolecule.actions.discard, id)
+ *
+ * // Imperative API (for callbacks outside React/atom context)
+ * const data = testcaseMolecule.get.data(id)
+ * testcaseMolecule.set.update(id, { data: { name: 'Updated' } })
  * ```
  */
 
@@ -37,7 +32,6 @@
 export {
     // Schemas
     testcaseSchema,
-    flattenedTestcaseSchema,
     testcasesQueryRequestSchema,
     testcasesResponseSchema,
     testsetMetadataSchema,
@@ -47,13 +41,10 @@ export {
     parseTestcase,
     // Types
     type Testcase,
-    type FlattenedTestcase,
     type TestcasesQueryRequest,
     type TestcasesResponse,
     type TestsetMetadata,
-    // Utilities
-    flattenTestcase,
-    unflattenTestcase,
+    // Constants
     SYSTEM_FIELDS,
     isSystemField,
     // Column extraction utilities
@@ -93,10 +84,8 @@ export type {
 export {
     // Single testcase
     fetchTestcase,
-    fetchFlattenedTestcase,
     // Batch testcases
     fetchTestcasesBatch,
-    fetchFlattenedTestcasesBatch,
     // Paginated testcases
     PAGE_SIZE,
     fetchTestcasesPage,
@@ -110,73 +99,34 @@ export {
 
 export {testcaseMolecule, type TestcaseMolecule, type CreateTestcasesOptions} from "./state"
 
+// ============================================================================
+// PAGINATED STORE & DATA CONTROLLER
+// ============================================================================
+
 /**
- * Low-level store atoms for advanced use cases and OSS layer integration.
- *
- * @internal These atoms are implementation details and may change without notice.
- * Prefer using `testcaseMolecule` API for most use cases.
+ * Paginated store for testcase table rendering with InfiniteVirtualTable.
  *
  * @example
  * ```typescript
- * // Prefer this (stable API):
- * const data = useAtomValue(testcaseMolecule.atoms.data(id))
+ * import { testcasePaginatedStore } from '@agenta/entities/testcase'
  *
- * // Over this (internal, may change):
- * const data = useAtomValue(testcaseEntityAtomFamily(id))
+ * const paginatedState = useAtomValue(testcasePaginatedStore.selectors.state(params))
  * ```
  */
-export {
-    // Context
-    currentRevisionIdAtom,
-    setCurrentRevisionIdAtom,
-    // ID tracking
-    testcaseIdsAtom,
-    setTestcaseIdsAtom,
-    resetTestcaseIdsAtom,
-    newEntityIdsAtom,
-    addNewEntityIdAtom,
-    removeNewEntityIdAtom,
-    clearNewEntityIdsAtom,
-    deletedEntityIdsAtom,
-    markDeletedAtom,
-    unmarkDeletedAtom,
-    clearDeletedIdsAtom,
-    // Query atoms
-    testcaseQueryAtomFamily,
-    // Draft atoms
-    testcaseDraftAtomFamily,
-    testcaseHasDraftAtomFamily,
-    testcaseIsDirtyAtomFamily,
-    // Entity atoms
-    testcaseEntityAtomFamily,
-    // Cell atoms
-    testcaseCellAtomFamily,
-    // Mutations
-    updateTestcaseAtom,
-    discardDraftAtom,
-    discardAllDraftsAtom,
-    batchUpdateTestcasesSyncAtom,
-    // Paginated store
-    testcasePaginatedStore,
-    testcasesPaginatedMetaAtom,
-    testcasesRevisionIdAtom,
-    testcasesSearchTermAtom,
-    setDebouncedSearchTermAtom,
-    testcaseFilters,
-    initializeEmptyRevisionAtom,
-    // Data controller (unified data source abstraction)
-    testcaseDataController,
-    testcaseSelectionAtomFamily,
-    setTestcaseSelectionAtom,
-    toggleTestcaseSelectionAtom,
-    selectAllTestcasesAtom,
-    clearTestcaseSelectionAtom,
-    resetTestcaseSelectionAtom,
-} from "./state"
+export {testcasePaginatedStore} from "./state"
 
-export type {
-    TestcaseTableRow,
-    TestcasePaginatedMeta,
-    InitializeEmptyRevisionParams,
-    TestcaseDataConfig,
-} from "./state"
+/**
+ * Unified data controller for testcase table rendering.
+ * Provides rows, columns, selection state, and actions.
+ *
+ * @example
+ * ```typescript
+ * import { testcaseDataController } from '@agenta/entities/testcase'
+ *
+ * const rows = useAtomValue(testcaseDataController.selectors.rows(config))
+ * const columns = useAtomValue(testcaseDataController.selectors.columns(config))
+ * ```
+ */
+export {testcaseDataController} from "./state"
+
+export type {TestcaseTableRow, TestcasePaginatedMeta, TestcaseDataConfig} from "./state"

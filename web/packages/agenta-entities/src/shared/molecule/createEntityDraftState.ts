@@ -215,7 +215,7 @@ function defaultIsDirty<T>(draftData: T, originalData: T, excludeFields?: Set<st
  * @example
  * ```typescript
  * // For testcase entity (entire entity is draftable)
- * const testcaseDraftState = createEntityDraftState<FlattenedTestcase, FlattenedTestcase>({
+ * const testcaseDraftState = createEntityDraftState<Testcase, Testcase>({
  *   entityAtomFamily: testcaseQueryAtomFamily,
  *   getDraftableData: (entity) => entity,
  *   mergeDraft: (entity, draft) => ({...entity, ...draft}),

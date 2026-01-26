@@ -4,7 +4,7 @@
  * TypeScript interfaces for API parameters and internal types.
  */
 
-import type {FlattenedTestcase} from "./schema"
+import type {Testcase} from "./schema"
 
 // ============================================================================
 // API PARAMETER TYPES
@@ -97,9 +97,12 @@ export interface QueryResult<T> {
 
 /**
  * Page result for paginated queries
+ *
+ * Note: Testcases are stored in nested format (with `data` property).
+ * Cell values are accessed via `testcase.data[columnKey]`.
  */
 export interface TestcasesPage {
-    testcases: FlattenedTestcase[]
+    testcases: Testcase[]
     count: number
     nextCursor: string | null
     hasMore: boolean
@@ -139,10 +142,12 @@ export interface CellKey {
 
 /**
  * Batch update entry
+ *
+ * Note: Updates are applied to the nested `data` property of a Testcase.
  */
 export interface BatchUpdateEntry {
     id: string
-    updates: Partial<FlattenedTestcase>
+    updates: {data?: Record<string, unknown>}
 }
 
 /**

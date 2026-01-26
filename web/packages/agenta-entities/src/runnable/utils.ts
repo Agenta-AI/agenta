@@ -137,12 +137,23 @@ export function resolveChainInputs(
 
             // Handle object-type inputs with keyInObject
             if (mapping.keyInObject) {
-                const targetObj = (result[mapping.targetKey] as Record<string, unknown>) ?? {}
+                // Use prototype-less object to prevent prototype pollution
+                const existing = result[mapping.targetKey]
+                const targetObj: Record<string, unknown> =
+                    existing && typeof existing === "object" && existing !== null
+                        ? (existing as Record<string, unknown>)
+                        : Object.create(null)
                 // keyInObject can be string or string[] - use first element if array
                 const keyName = Array.isArray(mapping.keyInObject)
                     ? mapping.keyInObject[0]
                     : mapping.keyInObject
-                if (keyName) {
+                // Avoid prototype pollution by rejecting dangerous keys
+                if (
+                    keyName &&
+                    keyName !== "__proto__" &&
+                    keyName !== "constructor" &&
+                    keyName !== "prototype"
+                ) {
                     targetObj[keyName] = value
                 }
                 result[mapping.targetKey] = targetObj
@@ -287,11 +298,14 @@ export function autoMapInputs(
  * @returns Array of unique variable names found in the string
  */
 export function extractTemplateVariables(input: string): string[] {
-    const variablePattern = /\{\{((?:\\.|[^\}\\])*)\}\}/g
+    // Use a non-backtracking regex to avoid ReDoS vulnerability
+    // Match {{ followed by content (non-greedy) followed by }}
+    const variablePattern = /\{\{([^}]*(?:\}(?!\})[^}]*)*)\}\}/g
     const variables: string[] = []
 
     let match: RegExpExecArray | null
     while ((match = variablePattern.exec(input)) !== null) {
+        // Process escape sequences and trim
         const variable = match[1].replaceAll(/\\(.)/g, "$1").trim()
         if (variable && !variables.includes(variable)) {
             variables.push(variable)
