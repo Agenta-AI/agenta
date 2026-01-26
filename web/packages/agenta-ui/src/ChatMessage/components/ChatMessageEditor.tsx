@@ -1,6 +1,6 @@
 import React, {useMemo} from "react"
 
-import {MESSAGE_CONTENT_SCHEMA} from "@agenta/shared"
+import {MESSAGE_CONTENT_SCHEMA} from "@agenta/shared/schemas"
 
 import {SimpleDropdownSelect} from "../../components/presentational/select"
 import {EditorProvider} from "../../Editor/Editor"
