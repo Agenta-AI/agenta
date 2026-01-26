@@ -43,12 +43,42 @@ export type {
     CreateRevisionLevelOptions,
 } from "./revisionLevelFactory"
 
-// Pre-built adapters
-export {appRevisionAdapter, setAppRevisionAtoms} from "./appRevisionAdapter"
-export type {AppRevisionSelectionResult} from "./appRevisionAdapter"
+// Relation-based factories
+export {
+    createLevelFromRelation,
+    createRootLevelFromRelation,
+    createMiddleLevelFromRelation,
+    createLeafLevelFromRelation,
+} from "./createLevelFromRelation"
+export type {CreateLevelFromRelationOptions} from "./createLevelFromRelation"
 
+export {
+    createAdapterFromRelations,
+    createTwoLevelAdapter,
+    createThreeLevelAdapter,
+} from "./createAdapterFromRelations"
+export type {
+    LevelOverride,
+    RootLevelConfig,
+    ChildLevelConfig,
+    CreateAdapterFromRelationsOptions,
+} from "./createAdapterFromRelations"
+
+// ============================================================================
+// PRE-BUILT ADAPTERS (Relation-Based)
+// ============================================================================
+
+// Testset adapter (2-level: Testset → Revision)
+// Uses atoms and relations from @agenta/entities/testset
+export {testsetAdapter} from "./testsetRelationAdapter"
+export type {TestsetSelectionResult} from "./testsetRelationAdapter"
+
+// App revision adapter (3-level: App → Variant → Revision)
+// Uses atoms and relations from @agenta/entities/appRevision
+export {appRevisionAdapter} from "./appRevisionRelationAdapter"
+export type {AppRevisionSelectionResult} from "./appRevisionRelationAdapter"
+
+// Evaluator revision adapter (3-level: Evaluator → Variant → Revision)
+// Uses legacy runtime configuration pattern (no evaluator relations yet)
 export {evaluatorRevisionAdapter, setEvaluatorRevisionAtoms} from "./evaluatorRevisionAdapter"
 export type {EvaluatorRevisionSelectionResult} from "./evaluatorRevisionAdapter"
-
-export {testsetAdapter, setTestsetAtoms} from "./testsetAdapter"
-export type {TestsetSelectionResult} from "./testsetAdapter"
