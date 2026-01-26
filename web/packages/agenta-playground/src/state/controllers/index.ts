@@ -7,3 +7,4 @@
 export {playgroundController} from "./playgroundController"
 export {outputConnectionController} from "./outputConnectionController"
 export {entitySelectorController} from "./entitySelectorController"
+export {executionController} from "./executionController"

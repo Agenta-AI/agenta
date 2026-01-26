@@ -43,6 +43,56 @@ import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
 // Import loadable state from entities (stays there due to entity dependencies)
 
 // ============================================================================
+// COMPOUND ACTION PAYLOAD TYPES
+// ============================================================================
+
+/**
+ * Payload for connecting to a testset (load mode)
+ */
+export interface ConnectToTestsetPayload {
+    loadableId: string
+    revisionId: string
+    testcases: ({id?: string} & Record<string, unknown>)[]
+    testsetName?: string
+    testsetId?: string | null
+    revisionVersion?: number | null
+}
+
+/**
+ * Payload for importing testcases (import mode - no connection)
+ */
+export interface ImportTestcasesPayload {
+    loadableId: string
+    testcases: Record<string, unknown>[]
+}
+
+/**
+ * Payload for adding a row with testset initialization
+ */
+export interface AddRowWithInitPayload {
+    loadableId: string
+    data?: Record<string, unknown>
+    entityLabel?: string
+}
+
+/**
+ * Payload for adding/removing extra columns
+ */
+export interface ExtraColumnPayload {
+    loadableId: string
+    key: string
+    name?: string
+}
+
+/**
+ * Payload for adding output mapping columns
+ */
+export interface OutputMappingColumnPayload {
+    loadableId: string
+    name: string
+}
+
+// ============================================================================
 // COMPOUND ACTIONS
 // ============================================================================
 
@@ -99,7 +149,7 @@ const addPrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => {
 
     // Use loadableController action which handles row creation via testcaseMolecule
     set(
-        loadableController.testset.actions.linkToRunnable,
+        loadableController.actions.linkToRunnable,
         loadableId,
         entity.type as RunnableType,
         entity.id,
@@ -211,7 +261,7 @@ const changePrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => 
     // Link the loadable to the new runnable via controller API
     const loadableId = `testset:${entity.type}:${entity.id}`
     set(
-        loadableController.testset.actions.linkToRunnable,
+        loadableController.actions.linkToRunnable,
         loadableId,
         entity.type as RunnableType,
         entity.id,
@@ -236,7 +286,7 @@ const disconnectAndResetToLocalAtom = atom(null, (get, set, loadableId: string) 
     if (!primaryNode) return
 
     // 1. Call loadable disconnect action
-    set(loadableController.testset.actions.disconnect, loadableId)
+    set(loadableController.actions.disconnect, loadableId)
 
     // 2. Generate and set local testset name
     const localTestsetName = generateLocalTestsetName(primaryNode.label)
@@ -246,8 +296,217 @@ const disconnectAndResetToLocalAtom = atom(null, (get, set, loadableId: string) 
     })
 
     // 3. Create an initial empty row via loadableController (uses testcaseMolecule)
-    set(loadableController.testset.actions.addRow, loadableId, {})
+    set(loadableController.actions.addRow, loadableId, {})
 })
+
+// ============================================================================
+// WP1: TESTSET CONNECTION COMPOUND ACTIONS
+// ============================================================================
+
+/**
+ * Connect to a testset (load mode)
+ *
+ * This compound action handles the "load" mode of testset selection:
+ * 1. Generates a display name from testset name and version
+ * 2. Ensures testcases have IDs
+ * 3. Calls loadable.connectToSource
+ * 4. Updates connectedTestsetAtom with name and id
+ *
+ * This encapsulates the logic from handleSelectionConfirm in load mode.
+ */
+const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayload) => {
+    const {loadableId, revisionId, testcases, testsetName, testsetId, revisionVersion} = payload
+
+    // Generate display name from testset name and version
+    const displayName = testsetName
+        ? revisionVersion != null
+            ? `${testsetName} v${revisionVersion}`
+            : testsetName
+        : undefined
+
+    // Ensure testcases have IDs
+    const testcasesWithIds = testcases.map((tc, index) => {
+        const id = tc.id ?? `testcase-${Date.now()}-${index}`
+        return {id, ...tc}
+    })
+
+    // Connect to source via loadable controller
+    set(
+        loadableController.actions.connectToSource,
+        loadableId,
+        revisionId,
+        displayName,
+        testcasesWithIds,
+    )
+
+    // Update playground's connectedTestset state
+    set(connectedTestsetAtom, {
+        name: displayName ?? null,
+        id: testsetId ?? null,
+    })
+})
+
+/**
+ * Import testcases (import mode - no connection)
+ *
+ * This compound action handles the "import" mode of testset selection:
+ * 1. Imports the testcases as local rows
+ * 2. Does NOT update connectedTestset (stays in local mode)
+ *
+ * This encapsulates the logic from handleSelectionConfirm in import mode.
+ */
+const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayload) => {
+    const {loadableId, testcases} = payload
+
+    // Import rows via loadable controller (stays in local mode)
+    set(loadableController.actions.importRows, loadableId, testcases)
+})
+
+// ============================================================================
+// WP2: ROW WITH INIT COMPOUND ACTION
+// ============================================================================
+
+/**
+ * Add a row with local testset initialization
+ *
+ * This compound action handles the row addition logic:
+ * 1. If first row and not connected to remote testset, generates a local testset name
+ * 2. Adds the row via loadable controller
+ *
+ * This encapsulates the logic from handleAddRow in PlaygroundContent.
+ */
+const addRowWithInitAtom = atom(null, (get, set, payload: AddRowWithInitPayload) => {
+    const {loadableId, data, entityLabel} = payload
+
+    // Check if we need to initialize local testset name
+    const connectedTestset = get(connectedTestsetAtom)
+    const rowCount = get(loadableController.selectors.rowCount(loadableId))
+
+    if (rowCount === 0 && !connectedTestset?.id) {
+        // First row in local mode - generate local testset name
+        const localTestsetName = generateLocalTestsetName(entityLabel)
+        set(connectedTestsetAtom, {
+            id: null,
+            name: localTestsetName,
+        })
+    }
+
+    // Add the row via loadable controller
+    set(loadableController.actions.addRow, loadableId, data)
+})
+
+// ============================================================================
+// WP3: EXTRA COLUMN COMPOUND ACTIONS
+// ============================================================================
+
+/**
+ * Add an extra column (coordinated across playground and loadable state)
+ *
+ * This compound action:
+ * 1. Validates the column key doesn't already exist
+ * 2. Updates playground extraColumns state
+ * 3. Updates loadable columns via controller
+ *
+ * This encapsulates the logic from handleAddExtraColumn in PlaygroundContent.
+ */
+const addExtraColumnAtom = atom(
+    null,
+    (get, set, payload: ExtraColumnPayload & {existingColumnKeys?: string[]}) => {
+        const {loadableId, key, name, existingColumnKeys = []} = payload
+
+        // Validate key doesn't already exist
+        const currentExtraColumns = get(extraColumnsAtom)
+        const existingKeys = new Set([
+            ...existingColumnKeys,
+            ...currentExtraColumns.map((c) => c.key),
+        ])
+
+        if (existingKeys.has(key)) return false
+
+        // Update playground extraColumns state
+        set(playgroundDispatchAtom, {type: "addExtraColumn", key, name: name ?? key})
+
+        // Update loadable columns via controller
+        set(loadableController.actions.addColumn, loadableId, {
+            key,
+            name: name ?? key,
+            type: "string",
+        })
+
+        return true
+    },
+)
+
+/**
+ * Remove an extra column (coordinated across playground and loadable state)
+ *
+ * This compound action:
+ * 1. Updates playground extraColumns state
+ * 2. Updates loadable columns via controller
+ *
+ * This encapsulates the logic from handleRemoveExtraColumn in PlaygroundContent.
+ */
+const removeExtraColumnAtom = atom(null, (get, set, payload: ExtraColumnPayload) => {
+    const {loadableId, key} = payload
+
+    // Update playground extraColumns state
+    set(playgroundDispatchAtom, {type: "removeExtraColumn", key})
+
+    // Update loadable columns via controller
+    set(loadableController.actions.removeColumn, loadableId, key)
+})
+
+// ============================================================================
+// WP4: OUTPUT MAPPING COLUMN COMPOUND ACTION
+// ============================================================================
+
+/**
+ * Normalize a column name to a key format
+ * Converts to lowercase and replaces whitespace with underscores
+ */
+function normalizeColumnKey(name: string): string {
+    return name.toLowerCase().replace(/\s+/g, "_")
+}
+
+/**
+ * Add an output mapping column (adds to loadable columns only, not to extraColumns)
+ *
+ * This compound action:
+ * 1. Normalizes the column name to a key
+ * 2. Validates the column key doesn't already exist
+ * 3. Adds the column to loadable via controller
+ *
+ * This encapsulates the logic from handleAddOutputMappingColumn in PlaygroundContent,
+ * following the playground-compound-actions rule.
+ */
+const addOutputMappingColumnAtom = atom(
+    null,
+    (get, set, payload: OutputMappingColumnPayload): boolean => {
+        const {loadableId, name} = payload
+        const key = normalizeColumnKey(name)
+
+        // Get existing column keys for validation using selector pattern
+        const columnsAtom = loadableController.selectors.columns(loadableId)
+        const columns = get(columnsAtom)
+        const extraColumns = get(extraColumnsAtom)
+        const existingKeys = new Set([
+            ...columns.map((c) => c.key),
+            ...extraColumns.map((c) => c.key),
+        ])
+
+        // Validate key doesn't already exist
+        if (existingKeys.has(key)) return false
+
+        // Add column via loadable controller (not to extraColumns)
+        set(loadableController.actions.addColumn, loadableId, {
+            key,
+            name,
+            type: "string",
+        })
+
+        return true
+    },
+)
 
 // ============================================================================
 // CONTROLLER EXPORT
@@ -306,6 +565,28 @@ export const playgroundController = {
 
         /** Disconnect from testset and reset to local mode */
         disconnectAndResetToLocal: disconnectAndResetToLocalAtom,
+
+        // WP1: Testset connection actions
+        /** Connect to a testset (load mode) */
+        connectToTestset: connectToTestsetAtom,
+
+        /** Import testcases (import mode - no connection) */
+        importTestcases: importTestcasesAtom,
+
+        // WP2: Row with init action
+        /** Add a row with local testset initialization */
+        addRowWithInit: addRowWithInitAtom,
+
+        // WP3: Extra column actions
+        /** Add an extra column (coordinated) */
+        addExtraColumn: addExtraColumnAtom,
+
+        /** Remove an extra column (coordinated) */
+        removeExtraColumn: removeExtraColumnAtom,
+
+        // WP4: Output mapping column action
+        /** Add an output mapping column (loadable only, not extraColumns) */
+        addOutputMappingColumn: addOutputMappingColumnAtom,
     },
 
     /**
