@@ -4,7 +4,7 @@
  * UI components for entity selection.
  */
 
-// Primitives - imported from @agenta/ui
+// Primitives - imported from @agenta/ui/components/selection
 export {
     EntityBreadcrumb,
     EntityListItem,
@@ -17,7 +17,7 @@ export {
     EndOfList,
     LoadAllButton,
     LoadAllInline,
-} from "@agenta/ui"
+} from "@agenta/ui/components/selection"
 
 export type {
     EntityBreadcrumbProps,
@@ -31,7 +31,7 @@ export type {
     EndOfListProps,
     LoadAllButtonProps,
     LoadAllInlineProps,
-} from "@agenta/ui"
+} from "@agenta/ui/components/selection"
 
 // ============================================================================
 // UNIFIED ENTITY PICKER

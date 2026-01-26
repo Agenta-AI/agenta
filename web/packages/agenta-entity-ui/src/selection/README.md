@@ -18,11 +18,11 @@ The Entity Selection System provides a **single `EntityPicker` component** with 
 │                     Entity Selection Architecture                        │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  DATA LAYER (Existing Molecules - Source of Truth)                       │
+│  DATA LAYER (Entity Controllers - Source of Truth)                       │
 │  ┌─────────────────────────────────────────────────────────────────────┐│
 │  │ appRevision.selectors.apps / variantsByApp(id) / revisions(id)      ││
 │  │ evaluatorRevision.selectors.evaluators / variantsByEvaluator / ...  ││
-│  │ testsetMolecule / revisionMolecule (from @agenta/entities/testset)  ││
+│  │ testset / revision (from @agenta/entities)                          ││
 │  └─────────────────────────────────────────────────────────────────────┘│
 │                                    │                                     │
 │                                    ▼                                     │
@@ -130,29 +130,31 @@ const { parents, handleParentHover, handleChildSelect } = useListPopoverMode({
 
 ## Initialization
 
-Before using the selection components, adapters must be initialized with actual atoms from the application. This is done in `Providers.tsx`:
+Before using the selection components, adapters must be initialized. This is done in `Providers.tsx`.
+
+### Recommended Setup
+
+The testset and appRevision adapters are **auto-configured** from `EntityRelation` definitions in `@agenta/entities`. They no longer require runtime configuration. Only the evaluator adapter still needs runtime config:
 
 ```typescript
 import { initializeSelectionSystem } from '@agenta/entity-ui'
 
-// Called once during app initialization
+// Testset and appRevision adapters are auto-configured from entity relations.
+// Only evaluator needs runtime config (no evaluator relations defined yet).
 initializeSelectionSystem({
-  appRevision: {
-    appsAtom: appRevisionMolecule.selectors.apps,
-    variantsByAppFamily: (appId) => appRevisionMolecule.selectors.variantsByApp(appId),
-    revisionsByVariantFamily: (variantId) => appRevisionMolecule.selectors.revisions(variantId),
+  user: {
+    membersAtom: workspaceMembersAtom,
+    currentUserAtom: userAtom,
   },
   evaluatorRevision: {
-    evaluatorsAtom: evaluatorRevisionMolecule.selectors.evaluators,
-    variantsAtomFamily: (evaluatorId) => evaluatorRevisionMolecule.selectors.variantsByEvaluator(evaluatorId),
-    revisionsAtomFamily: (variantId) => evaluatorRevisionMolecule.selectors.revisions(variantId),
-  },
-  testset: {
-    testsetsListAtom: testsetMolecule.atoms.list(null),
-    revisionsListFamily: (testsetId) => revisionMolecule.atoms.list(testsetId),
+    evaluatorsAtom: evaluatorRevision.selectors.evaluators,
+    variantsByEvaluatorFamily: evaluatorRevision.selectors.variantsByEvaluator,
+    revisionsByVariantFamily: evaluatorRevision.selectors.revisions,
   },
 })
 ```
+
+> **Migration Note:** The old `testset` and `appRevision` config keys are no longer needed. The adapters use atoms and relations defined directly in `@agenta/entities/testset` and `@agenta/entities/appRevision`.
 
 ## Directory Structure
 
@@ -164,17 +166,19 @@ selection/
 ├── initializeSelection.ts    # Initialization function
 │
 ├── adapters/                 # Entity adapters
-│   ├── README.md
 │   ├── index.ts
-│   ├── createAdapter.ts      # Factory function & registry
-│   ├── appRevisionAdapter.ts # App → Variant → Revision
-│   ├── evaluatorRevisionAdapter.ts
-│   └── testsetAdapter.ts     # Testset → Revision
+│   ├── createAdapter.ts              # Base factory & registry
+│   ├── createAdapterFromRelations.ts # Relation-based factory (preferred)
+│   ├── createLevelFromRelation.ts    # Level config from EntityRelation
+│   ├── revisionLevelFactory.ts       # Git-based revision levels
+│   ├── appRevisionRelationAdapter.ts # App → Variant → Revision (relation-based)
+│   ├── testsetRelationAdapter.ts     # Testset → Revision (relation-based)
+│   └── evaluatorRevisionAdapter.ts   # Evaluator → Variant → Revision (legacy)
 │
 ├── state/                    # Jotai state atoms
 │   ├── README.md
 │   ├── index.ts
-│   ├── selectionState.ts     # Navigation state (molecule pattern)
+│   ├── selectionState.ts     # Navigation state (controller pattern)
 │   └── modalState.ts         # Modal controller state
 │
 ├── hooks/                    # Unified hooks
@@ -212,17 +216,54 @@ selection/
 
 ## Pre-built Adapters
 
-| Adapter | Hierarchy | Selection Result |
-|---------|-----------|------------------|
-| `appRevisionAdapter` | App → Variant → Revision | `AppRevisionSelectionResult` |
-| `evaluatorRevisionAdapter` | Evaluator → Variant → Revision | `EvaluatorRevisionSelectionResult` |
-| `testsetAdapter` | Testset → Revision | `TestsetSelectionResult` |
+| Adapter | Hierarchy | Selection Result | Source |
+|---------|-----------|------------------|--------|
+| `appRevisionAdapter` | App → Variant → Revision | `AppRevisionSelectionResult` | Relation-based |
+| `testsetAdapter` | Testset → Revision | `TestsetSelectionResult` | Relation-based |
+| `evaluatorRevisionAdapter` | Evaluator → Variant → Revision | `EvaluatorRevisionSelectionResult` | Legacy (runtime config) |
+
+The `appRevisionAdapter` and `testsetAdapter` are built using relation-based factories (`createThreeLevelAdapter` / `createTwoLevelAdapter`). They derive their hierarchy configuration from `EntityRelation` definitions in `@agenta/entities`, eliminating ~200 lines of boilerplate per adapter.
+
+### Creating Custom Adapters (Relation-Based)
+
+For new entities with defined relations, use the factory functions:
+
+```typescript
+import { createTwoLevelAdapter, createThreeLevelAdapter } from '@agenta/entity-ui'
+
+// 2-level: Parent → Child
+export const myAdapter = createTwoLevelAdapter({
+  name: 'myEntity',
+  parentType: 'parent',
+  parentListAtom: parentListAtom,
+  childType: 'child',
+  childRelation: parentToChildRelation, // EntityRelation from @agenta/entities
+  selectionType: 'child',
+  toSelection: (path, leaf) => ({ ... }),
+})
+
+// 3-level: Grandparent → Parent → Child
+export const myAdapter = createThreeLevelAdapter({
+  name: 'myEntity',
+  grandparentType: 'grandparent',
+  grandparentListAtom: grandparentListAtom,
+  parentType: 'parent',
+  parentRelation: grandparentToParentRelation,
+  childType: 'child',
+  childRelation: parentToChildRelation,
+  selectionType: 'child',
+  toSelection: (path, leaf) => ({ ... }),
+})
+```
+
+For full customization, use `createAdapterFromRelations` directly - see `createAdapterFromRelations.ts`.
 
 ## Key Concepts
 
 ### Adapter
 
 An adapter defines how to navigate and select entities within a specific hierarchy. It provides:
+
 - `levels`: Array of `HierarchyLevel` configurations
 - `toSelection`: Function to transform path + entity into selection result
 - `emptyMessage` / `loadingMessage`: UI strings
@@ -230,10 +271,20 @@ An adapter defines how to navigate and select entities within a specific hierarc
 ### HierarchyLevel
 
 Defines a single level in the hierarchy:
+
 - `type`: Entity type (e.g., "app", "variant", "revision")
 - `listAtom` or `listAtomFamily`: Data source
 - `getId` / `getLabel`: Entity display functions
 - `hasChildren` / `isSelectable`: Navigation control
+
+### EntityRelation (from @agenta/entities)
+
+Relations declaratively define parent-child hierarchies. The selection adapter factories use:
+
+- `relation.listAtomFamily` - To populate dropdown data
+- `relation.selection.label` - For UI labels
+- `relation.selection.autoSelectSingle` - Auto-selection behavior
+- `relation.selection.displayName` - Custom display names
 
 ### Selection Result
 
