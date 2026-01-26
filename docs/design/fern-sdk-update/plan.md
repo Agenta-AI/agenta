@@ -79,7 +79,7 @@ This should be added to `setup_fern.sh` for full automation.
 cd sdk && poetry run pytest tests/test_fern_client.py -v
 ```
 
-#### Integration Tests (46 tests)
+#### Integration Tests (54 tests)
 `sdk/tests/integration/` - Real API calls with response validation (categorized by feature)
 ```bash
 # Run all integration tests
@@ -96,7 +96,7 @@ AGENTA_HOST="https://cloud.agenta.ai" AGENTA_API_KEY="your-key" \
 | AppManager | create, list, update, delete | acreate, alist, aupdate, adelete |
 | SharedManager | add, fetch, list, history, commit, deploy, delete, fork | aadd, afetch, alist, ahistory, acommit, adeploy, adelete, afork |
 
-Plus: prompts-with-messages config roundtrip, testsets, evaluators, legacy applications, and observability trace lifecycle.
+Plus: prompts-with-messages config roundtrip, testsets, evaluators, legacy applications, observability trace lifecycle, and vault/secrets CRUD.
 
 ## Fern Commands Reference
 ```bash

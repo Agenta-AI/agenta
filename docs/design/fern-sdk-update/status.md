@@ -50,7 +50,7 @@ cd sdk && poetry run pytest tests/test_fern_client.py -v
 | Additional sub-modules | 5 | PASS |
 | Type structure | 6 | PASS |
 
-### Integration Tests (46 tests)
+### Integration Tests (54 tests)
 
 These tests make real API calls to `cloud.agenta.ai`. They require `AGENTA_API_KEY` set in the environment. Without it, they skip cleanly.
 
@@ -73,6 +73,10 @@ AGENTA_API_KEY="your-key" poetry run pytest tests/integration/ -v -m integration
 | Prompts config | `prompts/test_prompt_template_storage.py` | 1 | PASS |
 | Testsets | `testsets/test_testsets_manager.py` | 1 | PASS |
 | Observability tracing | `tracing/test_observability_traces.py` | 1 | PASS |
+| Vault permissions | `vault/test_vault_secrets.py` | 2 | PASS |
+| Vault secrets list/read | `vault/test_vault_secrets.py` | 2 | PASS |
+| Vault secrets lifecycle | `vault/test_vault_secrets.py` | 2 | PASS |
+| Vault serialization | `vault/test_vault_secrets.py` | 2 | PASS |
 
 
 ## Findings and Suggestions
@@ -119,10 +123,8 @@ The following SDK features were identified as relying on the Fern client but are
 | Feature | Reason | Risk |
 |---------|--------|------|
 | Workflow invocation with LLM calls | Requires provider API keys and a deployed workflow | Medium |
-| Vault/secrets at runtime | Requires `/api/permissions/verify` and `/vault/v1/secrets/` calls during workflow execution | Low |
 | Fern `client.evaluations` submodule | SDK evaluations layer uses `authed_api` directly, not Fern | Low |
 | Fern `client.testsets` submodule | SDK testsets layer uses `authed_api` directly, not Fern | Low |
-| Fern `client.secrets` submodule | Only type imports tested | Low |
 
 To fully test workflow invocation with LLM calls, you would need:
 
