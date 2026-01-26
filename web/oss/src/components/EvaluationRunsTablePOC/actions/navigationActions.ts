@@ -1,9 +1,9 @@
 import type {MouseEvent} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 // import {, buildEvaluationNavigationUrl} from "@/oss/pages/evaluations/utils"
 import {routerAppIdAtom} from "@/oss/state/app"

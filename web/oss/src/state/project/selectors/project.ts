@@ -1,4 +1,4 @@
-import {projectIdAtom} from "@agenta/shared"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"

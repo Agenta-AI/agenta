@@ -17,6 +17,7 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {
     CheckCircleOutlined,
     CloseCircleOutlined,
@@ -31,7 +32,6 @@ import yaml from "js-yaml"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
 import type {LoadTestsetSelectionPayload} from "@/oss/components/Playground/Components/Modals/LoadTestsetModal/assets/types"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"

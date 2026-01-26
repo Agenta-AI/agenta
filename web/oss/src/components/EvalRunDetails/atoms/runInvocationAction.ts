@@ -4,10 +4,10 @@
  * without needing to use hooks in each cell.
  */
 
+import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {queryClient} from "@/oss/lib/api/queryClient"

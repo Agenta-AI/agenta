@@ -1,6 +1,6 @@
+import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 import {variantsAtom} from "@/oss/state/variant/atoms/fetcher"
 
