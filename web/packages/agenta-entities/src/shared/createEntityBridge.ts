@@ -10,6 +10,17 @@
  * - Static configuration at build time with runtime flexibility via context
  * - Clean separation between state management and entity specifics
  *
+ * ## Important: Local-Only vs Connected Mode
+ *
+ * The `createLoadableBridge` factory creates bridges with **local-only** action
+ * implementations. Actions like `addRow`, `updateRow`, and `removeRow` only
+ * update local state and do NOT route through entity molecules.
+ *
+ * For production UI that needs full connected-mode support (syncing with
+ * testsets, traces, etc.), use `loadableController` from `@agenta/entities/loadable`
+ * instead, which properly routes actions through entity molecules.
+ *
+ * @see loadableController for full connected-mode support
  * @module shared/createEntityBridge
  */
 
@@ -71,20 +82,31 @@ const loadableStateFamily = atomFamily((_loadableId: string) =>
 // ============================================================================
 
 /**
- * Create a loadable bridge with configured source types
+ * Create a loadable bridge with configured source types.
+ *
+ * **Important:** This factory creates bridges with **local-only** action implementations.
+ * Actions like `addRow`, `updateRow`, `removeRow` only update local state and do NOT
+ * route through entity molecules when in connected mode.
+ *
+ * For production UI that needs full connected-mode support (syncing changes back to
+ * testsets, traces, etc.), use `loadableController` from `@agenta/entities/loadable`
+ * instead.
+ *
+ * Use this factory only for:
+ * - Custom data sources that don't need entity molecule routing
+ * - Local-only data manipulation (e.g., playground scratch data)
+ * - Testing or prototyping
+ *
+ * @see loadableController for full connected-mode support with entity routing
  *
  * @example
  * ```typescript
- * const loadableBridge = createLoadableBridge({
+ * // For custom local-only sources
+ * const customBridge = createLoadableBridge({
  *     sources: {
- *         testcase: {
- *             molecule: testcaseMolecule,
- *             toRow: (entity) => ({ id: entity.id, data: extractData(entity) }),
- *             displayRowIdsAtom: testcaseMolecule.atoms.displayRowIds,
- *         },
- *         trace: {
- *             molecule: traceSpanMolecule,
- *             toRow: (entity) => ({ id: entity.id, data: entity.attributes }),
+ *         customSource: {
+ *             molecule: customMolecule,
+ *             toRow: (entity) => ({ id: entity.id, data: entity.data }),
  *         },
  *     },
  * })
@@ -114,7 +136,10 @@ export function createLoadableBridge(config: CreateLoadableBridgeConfig): Loadab
             if (sourceConfig.displayRowIdsAtom) {
                 const displayRowIds = get(sourceConfig.displayRowIdsAtom)
                 return displayRowIds.map((id) => {
-                    const entity = get(sourceConfig.molecule.selectors.data(id))
+                    // Use top-level data (unified API) or fall back to selectors.data
+                    const dataAtom =
+                        sourceConfig.molecule.data?.(id) ?? sourceConfig.molecule.selectors.data(id)
+                    const entity = get(dataAtom)
                     if (!entity) {
                         return {id, data: {}} as LoadableRow
                     }
@@ -385,12 +410,74 @@ export function createLoadableBridge(config: CreateLoadableBridgeConfig): Loadab
     }
 
     return {
+        // Nested API (backwards compatible)
         selectors,
         actions,
         source: <T extends string>(_sourceType: T) => ({
             selectors,
             actions,
         }),
+
+        // =====================================================================
+        // FLATTENED API (preferred)
+        // These are top-level aliases for cleaner imports:
+        //   loadable.rows(id) instead of loadable.selectors.rows(id)
+        // =====================================================================
+
+        /** Get all rows for a loadable */
+        rows: selectors.rows,
+        /** Get column definitions */
+        columns: selectors.columns,
+        /** Get all columns from data */
+        allColumns: selectors.allColumns,
+        /** Get the active/selected row */
+        activeRow: selectors.activeRow,
+        /** Get row count */
+        rowCount: selectors.rowCount,
+        /** Get mode (local or connected) */
+        mode: selectors.mode,
+        /** Check if loadable has unsaved changes */
+        isDirty: selectors.isDirty,
+        /** Check if loadable has local changes */
+        hasLocalChanges: selectors.hasLocalChanges,
+        /** Alias for isDirty (capability interface compatibility) */
+        hasChanges: selectors.isDirty,
+        /** Get connected source info */
+        connectedSource: selectors.connectedSource,
+        /** Get execution results */
+        executionResults: selectors.executionResults,
+        /** Check if source supports dynamic inputs */
+        supportsDynamicInputs: selectors.supportsDynamicInputs,
+
+        // Flattened actions
+        /** Add a row to the loadable */
+        addRow: actions.addRow,
+        /** Update a row */
+        updateRow: actions.updateRow,
+        /** Remove a row */
+        removeRow: actions.removeRow,
+        /** Set the active row */
+        setActiveRow: actions.setActiveRow,
+        /** Set all rows (bulk update) */
+        setRows: actions.setRows,
+        /** Set columns */
+        setColumns: actions.setColumns,
+        /** Connect to a data source */
+        connectToSource: actions.connectToSource,
+        /** Disconnect from source (switch to local mode) */
+        disconnect: actions.disconnect,
+        /** Link to a runnable (for column derivation) */
+        linkToRunnable: actions.linkToRunnable,
+        /** Unlink from runnable */
+        unlinkRunnable: actions.unlinkRunnable,
+        /** Set execution result for a row */
+        setExecutionResult: actions.setExecutionResult,
+        /** Clear execution results */
+        clearExecutionResults: actions.clearExecutionResults,
+        /** Save changes (when connected) */
+        save: actions.save,
+        /** Discard changes (when connected) */
+        discard: actions.discard,
     }
 }
 
@@ -531,6 +618,7 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
     }
 
     return {
+        // Nested API (backwards compatible)
         selectors,
         runnable: <T extends string>(runnableType: T) => {
             const config = runnables[runnableType]
@@ -546,6 +634,31 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                 actions: config.extraActions,
             }
         },
+
+        // =====================================================================
+        // FLATTENED API (preferred)
+        // These are top-level aliases for cleaner imports:
+        //   runnable.inputPorts(id) instead of runnable.selectors.inputPorts(id)
+        // =====================================================================
+
+        /** Get runnable data by ID */
+        data: selectors.data,
+        /** Get query state */
+        query: selectors.query,
+        /** Check if runnable has unsaved changes */
+        isDirty: selectors.isDirty,
+        /** Get input ports */
+        inputPorts: selectors.inputPorts,
+        /** Get output ports */
+        outputPorts: selectors.outputPorts,
+        /** Get configuration */
+        configuration: selectors.configuration,
+        /** Alias for configuration (capability interface compatibility) */
+        config: selectors.configuration,
+        /** Get invocation URL */
+        invocationUrl: selectors.invocationUrl,
+        /** Get schemas */
+        schemas: selectors.schemas,
     }
 }
 
