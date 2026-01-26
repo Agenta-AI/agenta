@@ -42,7 +42,7 @@ import {
     getItemsAtPath,
     type PathItem,
     type DataPath,
-} from "@agenta/shared"
+} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
