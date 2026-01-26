@@ -1,18 +1,19 @@
 /**
  * LevelSelect Component
  *
- * Reusable select component for a single hierarchy level.
+ * Adapter that maps CascadingLevelState to HierarchyLevelSelect.
  * Used by CascadingVariant to render each level as a dropdown.
+ *
+ * Architecture:
+ * - Thin wrapper that adapts entity-specific state to the generic HierarchyLevelSelect
+ * - Delegates all rendering to HierarchyLevelSelect from @agenta/ui
  */
 
-import React, {useMemo} from "react"
+import React, {useCallback, useMemo} from "react"
 
-import {cn, textColors} from "@agenta/ui"
-import {Select, Typography} from "antd"
+import {HierarchyLevelSelect} from "@agenta/ui/components/selection"
 
 import type {CascadingLevelState} from "../../../hooks"
-
-const {Text} = Typography
 
 // ============================================================================
 // TYPES
@@ -83,83 +84,58 @@ export function LevelSelect({
     // Get label from config or capitalize type
     const label = config.label ?? config.type.charAt(0).toUpperCase() + config.type.slice(1)
 
-    // Build placeholder text
-    const defaultPlaceholder = query.isPending
-        ? "Loading..."
-        : isEnabled
-          ? `Select ${label.toLowerCase()}...`
-          : prevLevelLabel
-            ? `Select ${prevLevelLabel.toLowerCase()} first`
-            : "Select previous level first"
+    // Create getter functions that use the config
+    const getItemId = useCallback((item: unknown) => config.getId(item), [config])
+    const getItemLabel = useCallback((item: unknown) => config.getLabel(item), [config])
+    const getItemLabelNode = useMemo(
+        () => (config.getLabelNode ? (item: unknown) => config.getLabelNode!(item) : undefined),
+        [config],
+    )
+    const getPlaceholderNode = useMemo(
+        () =>
+            config.getPlaceholderNode
+                ? (text: string) => config.getPlaceholderNode!(text)
+                : undefined,
+        [config],
+    )
 
-    const effectivePlaceholderText = placeholder ?? defaultPlaceholder
-
-    // Build placeholder - use getPlaceholderNode if available for consistent height
-    const effectivePlaceholder = useMemo(() => {
-        if (config.getPlaceholderNode) {
-            return config.getPlaceholderNode(effectivePlaceholderText)
-        }
-        return effectivePlaceholderText
-    }, [config, effectivePlaceholderText])
-
-    // Build options - use getLabelNode for rich rendering, keep string label for search
-    const options = useMemo(() => {
-        return items.map((item) => {
-            const stringLabel = config.getLabel(item)
-            const labelNode = config.getLabelNode?.(item)
-            return {
-                value: config.getId(item),
-                // Use labelNode for display if available, otherwise use string
-                label: labelNode ?? stringLabel,
-                // Store string label for search filtering
-                searchLabel: stringLabel,
-            }
-        })
-    }, [items, config])
-
-    // Handle change
-    const handleChange = (value: string | null) => {
-        setSelectedId(value ?? null)
-    }
+    // Handle selection change
+    const handleSelect = useCallback(
+        (id: string | null) => {
+            setSelectedId(id)
+        },
+        [setSelectedId],
+    )
 
     // Get not found content based on state
-    const getNotFoundContent = () => {
+    const notFoundContent = useMemo(() => {
         if (query.isPending) return "Loading..."
         if (query.isError) return "Error loading items"
         if (!isEnabled) return `Select ${prevLevelLabel?.toLowerCase() ?? "previous level"} first`
         return "No items found"
-    }
+    }, [query.isPending, query.isError, isEnabled, prevLevelLabel])
 
     return (
-        <div className="flex flex-col min-w-0">
-            {showLabel && (
-                <Text className={cn("text-xs mb-1 block", textColors.secondary)}>
-                    {label}
-                    {showAutoIndicator && isAutoSelected && (
-                        <span className="text-zinc-400 ml-1">(auto)</span>
-                    )}
-                </Text>
-            )}
-            <Select
-                className="w-full"
-                placeholder={effectivePlaceholder}
-                value={effectiveId}
-                onChange={handleChange}
-                loading={query.isPending}
-                disabled={disabled || !isEnabled || query.isPending}
-                status={query.isError ? "error" : undefined}
-                options={options}
-                size={size}
-                showSearch
-                filterOption={(input, option) => {
-                    // Use searchLabel for filtering if available, otherwise try label
-                    const searchText =
-                        (option as {searchLabel?: string})?.searchLabel ?? String(option?.label)
-                    return searchText.toLowerCase().includes(input.toLowerCase())
-                }}
-                notFoundContent={getNotFoundContent()}
-                allowClear
-            />
-        </div>
+        <HierarchyLevelSelect
+            items={items}
+            selectedId={effectiveId}
+            onSelect={handleSelect}
+            getItemId={getItemId}
+            getItemLabel={getItemLabel}
+            getItemLabelNode={getItemLabelNode}
+            getPlaceholderNode={getPlaceholderNode}
+            label={label}
+            showLabel={showLabel}
+            placeholder={placeholder}
+            size={size}
+            disabled={disabled}
+            isLoading={query.isPending}
+            isError={query.isError}
+            isEnabled={isEnabled}
+            showAutoIndicator={showAutoIndicator}
+            isAutoSelected={isAutoSelected}
+            prevLevelLabel={prevLevelLabel}
+            notFoundContent={notFoundContent}
+        />
     )
 }

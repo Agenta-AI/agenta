@@ -612,10 +612,11 @@ export const myMolecule = {
 export const testcaseMolecule = {
   // ... atoms and reducers
   drillIn: {
-    getRootData: (testcase) => testcase ?? {},
+    getRootData: (testcase) => testcase?.data ?? {},
     getChangesFromRoot: (testcase, rootData, path, value) => {
       // Return partial changes that will be merged with entity
-      return setValueAtPath({}, path, value) as Partial<FlattenedTestcase>
+      // Data changes go into the testcase.data property
+      return { data: setValueAtPath(testcase?.data ?? {}, path, value) } as Partial<Testcase>
     },
     valueMode: 'structured',
   },

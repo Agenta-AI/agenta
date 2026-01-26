@@ -187,11 +187,9 @@ export type {
 // Pre-built adapters
 export {
     appRevisionAdapter,
-    setAppRevisionAtoms,
     evaluatorRevisionAdapter,
     setEvaluatorRevisionAtoms,
     testsetAdapter,
-    setTestsetAtoms,
 } from "./adapters"
 
 export type {
@@ -207,9 +205,4 @@ export {
     isSelectionSystemInitialized,
 } from "./initializeSelection"
 
-export type {
-    SelectionSystemConfig,
-    TestsetSelectionConfig,
-    AppRevisionSelectionConfig,
-    EvaluatorRevisionSelectionConfig,
-} from "./initializeSelection"
+export type {SelectionSystemConfig, EvaluatorRevisionSelectionConfig} from "./initializeSelection"

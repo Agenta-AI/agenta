@@ -5,7 +5,7 @@
  * with ChatMessageEditor from @agenta/ui, otherwise uses JSON editor.
  */
 
-import {ChatMessageEditor, MarkdownToggleButton} from "@agenta/ui"
+import {ChatMessageEditor, MarkdownToggleButton} from "@agenta/ui/chat-message"
 
 import {isChatMessageObject} from "./fieldUtils"
 import {JsonEditorWithLocalState} from "./JsonEditorWithLocalState"

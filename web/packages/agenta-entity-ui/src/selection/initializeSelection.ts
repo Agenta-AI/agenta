@@ -2,28 +2,25 @@
  * Selection System Initialization
  *
  * Unified initialization for the entity selection system.
- * Call this during app initialization to configure all adapters.
+ * Call this during app initialization to register adapters.
  *
- * @example
+ * ## Migration Note
+ *
+ * The testset and appRevision adapters now use relation-based atoms directly
+ * from @agenta/entities. They no longer require runtime configuration.
+ * Just call initializeSelectionSystem() to register them.
+ *
+ * @example Simple initialization (recommended)
  * ```typescript
  * import { initializeSelectionSystem } from '@agenta/entity-ui/selection'
  *
- * // In your app's initialization (e.g., Providers.tsx)
+ * // Testset and appRevision adapters are auto-configured from entities package
  * initializeSelectionSystem({
  *   user: {
  *     membersAtom: workspaceMembersAtom,
  *     currentUserAtom: userAtom,
  *   },
- *   testset: {
- *     testsetsListAtom: testsetMolecule.atoms.list(null),
- *     revisionsListFamily: (id) => revisionMolecule.atoms.list(id),
- *     enableRevisionsQuery: (id) => enableQuery(id),
- *   },
- *   appRevision: {
- *     appsAtom: appRevisionMolecule.selectors.apps,
- *     variantsByAppFamily: appRevisionMolecule.selectors.variantsByApp,
- *     revisionsByVariantFamily: appRevisionMolecule.selectors.revisions,
- *   },
+ *   // Only evaluator needs runtime config (no evaluator relations yet)
  *   evaluatorRevision: {
  *     evaluatorsAtom: evaluatorRevision.selectors.evaluators,
  *     variantsByEvaluatorFamily: evaluatorRevision.selectors.variantsByEvaluator,
@@ -37,61 +34,24 @@ import {setUserAtoms, type UserAtomConfig} from "@agenta/entities/shared"
 import type {Atom} from "jotai"
 
 import {registerSelectionAdapter} from "./adapters"
-import {appRevisionAdapter, setAppRevisionAtoms} from "./adapters/appRevisionAdapter"
+// New relation-based adapters (auto-configured from @agenta/entities)
+import {appRevisionAdapter} from "./adapters/appRevisionRelationAdapter"
+// Legacy adapter (still needs runtime configuration)
 import {
     evaluatorRevisionAdapter,
     setEvaluatorRevisionAtoms,
 } from "./adapters/evaluatorRevisionAdapter"
-import {setTestsetAtoms, testsetAdapter} from "./adapters/testsetAdapter"
+import {testsetAdapter} from "./adapters/testsetRelationAdapter"
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 /**
- * Configuration for testset selection adapter
- */
-export interface TestsetSelectionConfig {
-    /**
-     * Atom that provides the list of testsets.
-     * Should return query state with { data: testsets[], isPending, isError }
-     */
-    testsetsListAtom: Atom<unknown>
-
-    /**
-     * Factory function that returns an atom for revisions given a testset ID.
-     */
-    revisionsListFamily: (testsetId: string) => Atom<unknown>
-
-    /**
-     * Optional callback to enable revisions query for a testset.
-     * Called when user navigates into a testset to load its revisions.
-     */
-    enableRevisionsQuery?: (testsetId: string) => void
-}
-
-/**
- * Configuration for app revision selection adapter
- */
-export interface AppRevisionSelectionConfig {
-    /**
-     * Atom that provides the list of apps.
-     */
-    appsAtom: Atom<unknown[]>
-
-    /**
-     * Factory function that returns an atom for variants given an app ID.
-     */
-    variantsByAppFamily: (appId: string) => Atom<unknown[]>
-
-    /**
-     * Factory function that returns an atom for revisions given a variant ID.
-     */
-    revisionsByVariantFamily: (variantId: string) => Atom<unknown[]>
-}
-
-/**
  * Configuration for evaluator revision selection adapter
+ *
+ * Note: This is the only adapter that still requires runtime configuration.
+ * Testset and appRevision adapters use relation-based atoms directly.
  */
 export interface EvaluatorRevisionSelectionConfig {
     /**
@@ -121,17 +81,8 @@ export interface SelectionSystemConfig {
     user?: UserAtomConfig
 
     /**
-     * Testset selection adapter configuration.
-     */
-    testset?: TestsetSelectionConfig
-
-    /**
-     * App revision selection adapter configuration.
-     */
-    appRevision?: AppRevisionSelectionConfig
-
-    /**
      * Evaluator revision selection adapter configuration.
+     * Required if using the evaluator adapter.
      */
     evaluatorRevision?: EvaluatorRevisionSelectionConfig
 }
@@ -149,14 +100,15 @@ let initialized = false
 /**
  * Initialize the entity selection system.
  *
- * This function configures all selection adapters with the provided atoms
- * and registers them for use with selection components.
+ * This function registers all selection adapters for use with selection components.
+ * Testset and appRevision adapters are auto-configured from @agenta/entities.
+ * Only evaluator requires runtime configuration.
  *
  * Safe to call multiple times - subsequent calls are no-ops.
  *
- * @param config - Configuration for all selection adapters
+ * @param config - Optional configuration for user resolution and evaluator adapter
  */
-export function initializeSelectionSystem(config: SelectionSystemConfig): void {
+export function initializeSelectionSystem(config: SelectionSystemConfig = {}): void {
     if (initialized) return
     initialized = true
 
@@ -165,19 +117,13 @@ export function initializeSelectionSystem(config: SelectionSystemConfig): void {
         setUserAtoms(config.user)
     }
 
-    // Configure testset adapter (if provided)
-    if (config.testset) {
-        setTestsetAtoms(config.testset)
-        registerSelectionAdapter(testsetAdapter)
-    }
+    // Register testset adapter (auto-configured from @agenta/entities/testset)
+    registerSelectionAdapter(testsetAdapter)
 
-    // Configure app revision adapter (if provided)
-    if (config.appRevision) {
-        setAppRevisionAtoms(config.appRevision)
-        registerSelectionAdapter(appRevisionAdapter)
-    }
+    // Register app revision adapter (auto-configured from @agenta/entities/appRevision)
+    registerSelectionAdapter(appRevisionAdapter)
 
-    // Configure evaluator revision adapter (if provided)
+    // Configure and register evaluator revision adapter (if provided)
     if (config.evaluatorRevision) {
         setEvaluatorRevisionAtoms(config.evaluatorRevision)
         registerSelectionAdapter(evaluatorRevisionAdapter)

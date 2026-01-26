@@ -7,7 +7,7 @@
 
 import {useMemo} from "react"
 
-import {type PathItem, getItemsAtPath} from "@agenta/shared"
+import {type PathItem, getItemsAtPath} from "@agenta/shared/utils"
 
 import {useDrillIn} from "./MoleculeDrillInContext"
 import {MoleculeDrillInFieldItem} from "./MoleculeDrillInFieldItem"

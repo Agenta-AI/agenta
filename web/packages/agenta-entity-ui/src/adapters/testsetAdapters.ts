@@ -4,22 +4,27 @@
  * Registers testset and revision entity adapters for the unified modal system.
  * These adapters enable EntityDeleteModal, EntityCommitModal, and EntitySaveModal
  * to work with testset entities.
+ *
+ * Uses the unified entity API:
+ * - `entity.data(id)` - top-level atom for merged data
+ * - `entity.query(id)` - top-level atom for query state
+ * - `entity.actions.save` - action atom for save operation
+ * - `entity.get.data(id)` - imperative read
  */
 
-import {derivedColumnChangesAtomFamily} from "@agenta/entities/loadable"
-import {testcaseMolecule, type FlattenedTestcase} from "@agenta/entities/testcase"
+// Clean entity imports from main package (preferred)
 import {
+    testcase,
+    revision,
+    testset,
+    type Testcase,
     type Revision,
     type Testset,
-    changesSummaryAtom,
-    deleteRevisionsReducer,
-    deleteTestsetsReducer,
-    saveTestsetAtom,
-    revisionMolecule,
-    latestRevisionForTestsetAtomFamily,
-    testsetMolecule,
-} from "@agenta/entities/testset"
-import {projectIdAtom} from "@agenta/shared"
+} from "@agenta/entities"
+// Specialized utilities require subpath imports
+import {derivedColumnChangesAtomFamily} from "@agenta/entities/loadable"
+import {latestRevisionForTestsetAtomFamily, saveTestsetAtom} from "@agenta/entities/testset"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
 import {
@@ -46,7 +51,7 @@ const commitRevisionReducer = atom(null, async (get, set, params: CommitParams):
     }
 
     // Get testset ID from revision
-    const revisionData = revisionMolecule.get.data(revisionId)
+    const revisionData = revision.get.data(revisionId)
     const testsetId = revisionData?.testset_id
     if (!testsetId) {
         throw new Error("Could not determine testset ID from revision")
@@ -70,21 +75,21 @@ const commitRevisionReducer = atom(null, async (get, set, params: CommitParams):
 
 /**
  * Testset data atom factory for modal adapter
+ * Uses unified API: testset.query(id) instead of testset.selectors.query(id)
  */
 const testsetDataAtom = (id: string) =>
     atom((get) => {
-        const queryAtom = testsetMolecule.selectors.query(id)
-        const query = get(queryAtom)
+        const query = get(testset.query(id))
         return (query?.data as Testset | null) ?? null
     })
 
 /**
  * Revision data atom factory for modal adapter
+ * Uses unified API: revision.query(id) instead of revision.selectors.query(id)
  */
 const revisionDataAtom = (id: string) =>
     atom((get) => {
-        const queryAtom = revisionMolecule.selectors.query(id)
-        const query = get(queryAtom)
+        const query = get(revision.query(id))
         return (query?.data as Revision | null) ?? null
     })
 
@@ -93,39 +98,12 @@ const revisionDataAtom = (id: string) =>
 // ============================================================================
 
 /**
- * System fields to exclude from diff display
- */
-const DIFF_EXCLUDED_FIELDS = new Set([
-    "id",
-    "key",
-    "testset_id",
-    "set_id",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "created_by_id",
-    "updated_by_id",
-    "deleted_by_id",
-    "flags",
-    "tags",
-    "meta",
-    "__isSkeleton",
-    "testcase_dedup_id",
-])
-
-/**
  * Extract only data fields from testcase (excluding system fields)
+ * Note: Testcase uses nested format - data fields are in testcase.data
  */
-function extractDataFields(testcase: FlattenedTestcase | null): Record<string, unknown> {
-    if (!testcase) return {}
-
-    const data: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(testcase)) {
-        if (!DIFF_EXCLUDED_FIELDS.has(key)) {
-            data[key] = value
-        }
-    }
-    return data
+function extractDataFields(testcaseData: Testcase | null): Record<string, unknown> {
+    if (!testcaseData?.data) return {}
+    return testcaseData.data
 }
 
 /**
@@ -174,7 +152,8 @@ const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string,
         const targetVersion = latestVersion + 1
 
         // Get core changes summary from testcase state (manual ops only)
-        const coreChangesSummary = get(changesSummaryAtom)
+        // Uses unified API: testset.changesSummary instead of external changesSummaryAtom
+        const coreChangesSummary = get(testset.changesSummary)
 
         // Get loadable-derived column changes (optional - only when loadableId provided)
         // This allows reactive column change detection without explicit sync
@@ -201,17 +180,18 @@ const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string,
             : null
 
         // Compute diff data from testcase molecule state
-        const serverIds = get(testcaseMolecule.atoms.ids)
-        const newIds = get(testcaseMolecule.atoms.newIds)
-        const deletedIds = get(testcaseMolecule.atoms.deletedIds)
+        // Uses unified API: testcase.ids, testcase.newIds, testcase.deletedIds
+        const serverIds = get(testcase.ids)
+        const newIds = get(testcase.newIds)
+        const deletedIds = get(testcase.deletedIds)
 
         // Build original (server) state - only non-deleted server entities
         const originalTestcases: {id: string; data: Record<string, unknown>}[] = []
         for (const id of serverIds) {
             if (deletedIds.has(id)) continue // Skip deleted
 
-            // Get server data (without drafts)
-            const serverData = get(testcaseMolecule.selectors.serverData(id))
+            // Get server data (without drafts) - still use selectors.serverData for raw data
+            const serverData = get(testcase.selectors.serverData(id))
             if (serverData) {
                 originalTestcases.push({
                     id,
@@ -228,7 +208,7 @@ const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string,
             if (deletedIds.has(id)) continue // Skip deleted
 
             // Get merged data (server + draft)
-            const mergedData = get(testcaseMolecule.selectors.data(id))
+            const mergedData = get(testcase.data(id))
             if (mergedData) {
                 modifiedTestcases.push({
                     id,
@@ -239,7 +219,7 @@ const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string,
 
         // Add new entities
         for (const id of newIds) {
-            const newData = get(testcaseMolecule.selectors.data(id))
+            const newData = get(testcase.data(id))
             if (newData) {
                 modifiedTestcases.push({
                     id,
@@ -300,12 +280,13 @@ const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string,
 
 /**
  * Testset modal adapter
+ * Uses unified API: testset.actions.delete
  */
 export const testsetModalAdapter: EntityModalAdapter<Testset> = createAndRegisterEntityAdapter({
     type: "testset",
-    getDisplayName: (testset) => testset?.name ?? "Untitled Testset",
+    getDisplayName: (entity) => entity?.name ?? "Untitled Testset",
     getDisplayLabel: (count) => (count === 1 ? "Testset" : "Testsets"),
-    deleteAtom: deleteTestsetsReducer,
+    deleteAtom: testset.actions.delete,
     dataAtom: testsetDataAtom,
     canDelete: () => true,
     getDeleteWarning: () => null,
@@ -314,22 +295,23 @@ export const testsetModalAdapter: EntityModalAdapter<Testset> = createAndRegiste
 /**
  * Revision modal adapter
  * Includes commit support for creating new revisions
+ * Uses unified API: revision.actions.delete
  */
 export const revisionModalAdapter: EntityModalAdapter<Revision> = createAndRegisterEntityAdapter({
     type: "revision",
-    getDisplayName: (revision) => {
-        if (!revision) return "Untitled Revision"
-        const version = revision.version ?? 0
+    getDisplayName: (entity) => {
+        if (!entity) return "Untitled Revision"
+        const version = entity.version ?? 0
         return `v${version}`
     },
     getDisplayLabel: (count) => (count === 1 ? "Revision" : "Revisions"),
-    deleteAtom: deleteRevisionsReducer,
+    deleteAtom: revision.actions.delete,
     dataAtom: revisionDataAtom,
     canDelete: () => true,
     getDeleteWarning: () => null,
     // Commit support
     commitAtom: commitRevisionReducer,
-    canCommit: (_revision) => {
+    canCommit: (_entity) => {
         // Commit is allowed if there are unsaved changes
         // Note: This is checked at render time via the atom
         return true

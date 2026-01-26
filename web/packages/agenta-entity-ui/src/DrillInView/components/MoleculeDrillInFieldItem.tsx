@@ -3,16 +3,24 @@
  *
  * Renders a single field in the drill-in view.
  * Supports header, content, and actions slots for customization.
+ *
+ * Architecture:
+ * - Delegates to FieldItemHeader, FieldItemActions, FieldItemContent subcomponents
+ * - Uses copyToClipboard from @agenta/ui for clipboard operations
+ * - Provides slot system for customization
  */
 
 import {useCallback, useMemo} from "react"
 
-import {type PathItem, type DataPath, isExpandable, getChildCount} from "@agenta/shared"
-import {ChevronRight, ChevronDown, Copy, Trash2, Plus} from "lucide-react"
+import {type PathItem, type DataPath, isExpandable, getChildCount} from "@agenta/shared/utils"
+import {copyToClipboard} from "@agenta/ui/utils"
 
 import type {FieldHeaderSlotProps, FieldContentSlotProps, FieldActionsSlotProps} from "../types"
 import {buildClassName} from "../utils/classNames"
 
+import {FieldItemActions} from "./FieldItemActions"
+import {FieldItemContent} from "./FieldItemContent"
+import {FieldItemHeader} from "./FieldItemHeader"
 import {useDrillIn} from "./MoleculeDrillInContext"
 
 // ============================================================================
@@ -66,10 +74,10 @@ export function MoleculeDrillInFieldItem({item}: MoleculeDrillInFieldItemProps) 
         }
     }, [canDrillIn, item.key, navigateInto])
 
-    const handleCopy = useCallback(() => {
+    const handleCopy = useCallback(async () => {
         const text =
             typeof item.value === "string" ? item.value : JSON.stringify(item.value, null, 2)
-        navigator.clipboard.writeText(text)
+        await copyToClipboard(text)
     }, [item.value])
 
     const handleDelete = useCallback(() => {
@@ -107,145 +115,104 @@ export function MoleculeDrillInFieldItem({item}: MoleculeDrillInFieldItemProps) 
 
     const defaultRenderHeader = useCallback(() => {
         return (
-            <div className={classNames.fieldHeader} style={styles?.fieldHeader}>
-                {/* Collapse toggle */}
-                {behaviors.collapsible && expandable && (
-                    <button
-                        type="button"
-                        onClick={handleToggleCollapse}
-                        className="mr-1 p-0.5 hover:bg-gray-100 rounded"
-                        aria-label={collapsed ? "Expand" : "Collapse"}
-                    >
-                        {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                    </button>
-                )}
-
-                {/* Title */}
-                <span
-                    className={classNames.fieldHeaderTitle}
-                    style={styles?.fieldHeaderTitle}
-                    onClick={canDrillIn ? handleDrillIn : undefined}
-                    role={canDrillIn ? "button" : undefined}
-                    tabIndex={canDrillIn ? 0 : undefined}
-                >
-                    {item.name}
-                </span>
-
-                {/* Meta (item count) */}
-                {childCount !== undefined && (
-                    <span className={classNames.fieldHeaderMeta} style={styles?.fieldHeaderMeta}>
-                        ({childCount} {childCount === 1 ? "item" : "items"})
-                    </span>
-                )}
-            </div>
+            <FieldItemHeader
+                item={item}
+                fullPath={fullPath}
+                isCollapsed={collapsed}
+                canCollapse={behaviors.collapsible}
+                isExpandable={expandable}
+                childCount={childCount}
+                canDrillIn={canDrillIn}
+                onToggleCollapse={handleToggleCollapse}
+                onDrillIn={handleDrillIn}
+                classNames={{
+                    fieldHeader: classNames.fieldHeader,
+                    fieldHeaderTitle: classNames.fieldHeaderTitle,
+                    fieldHeaderMeta: classNames.fieldHeaderMeta,
+                }}
+                styles={{
+                    fieldHeader: styles?.fieldHeader,
+                    fieldHeaderTitle: styles?.fieldHeaderTitle,
+                    fieldHeaderMeta: styles?.fieldHeaderMeta,
+                }}
+            />
         )
     }, [
-        classNames,
-        styles,
+        item,
+        fullPath,
+        collapsed,
         behaviors.collapsible,
         expandable,
-        collapsed,
-        canDrillIn,
-        item.name,
         childCount,
+        canDrillIn,
         handleToggleCollapse,
         handleDrillIn,
+        classNames,
+        styles,
     ])
 
     const defaultRenderActions = useCallback(() => {
         return (
-            <div className={classNames.fieldHeaderActions} style={styles?.fieldHeaderActions}>
-                {/* Copy button */}
-                {behaviors.copyable && (
-                    <button
-                        type="button"
-                        onClick={handleCopy}
-                        className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700"
-                        aria-label="Copy value"
-                    >
-                        <Copy size={14} />
-                    </button>
-                )}
-
-                {/* Delete button */}
-                {behaviors.deletable && (
-                    <button
-                        type="button"
-                        onClick={handleDelete}
-                        className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600"
-                        aria-label="Delete field"
-                    >
-                        <Trash2 size={14} />
-                    </button>
-                )}
-
-                {/* Add button (for arrays/objects) */}
-                {behaviors.addable && expandable && (
-                    <button
-                        type="button"
-                        onClick={handleAdd}
-                        className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-green-600"
-                        aria-label="Add item"
-                    >
-                        <Plus size={14} />
-                    </button>
-                )}
-            </div>
+            <FieldItemActions
+                value={item.value}
+                isExpandable={expandable}
+                canCopy={behaviors.copyable}
+                canDelete={behaviors.deletable}
+                canAdd={behaviors.addable}
+                onCopy={handleCopy}
+                onDelete={handleDelete}
+                onAdd={handleAdd}
+                classNames={{
+                    fieldHeaderActions: classNames.fieldHeaderActions,
+                }}
+                styles={{
+                    fieldHeaderActions: styles?.fieldHeaderActions,
+                }}
+            />
         )
     }, [
-        classNames,
-        styles,
+        item.value,
+        expandable,
         behaviors.copyable,
         behaviors.deletable,
         behaviors.addable,
-        expandable,
         handleCopy,
         handleDelete,
         handleAdd,
+        classNames,
+        styles,
     ])
 
     const defaultRenderContent = useCallback(() => {
-        // Simple value display
-        const displayValue =
-            typeof item.value === "string" ? item.value : JSON.stringify(item.value, null, 2)
-
         return (
-            <div className={classNames.fieldContent} style={styles?.fieldContent}>
-                {expandable ? (
-                    <button
-                        type="button"
-                        onClick={handleDrillIn}
-                        className="text-blue-600 hover:underline"
-                    >
-                        View {childCount} {childCount === 1 ? "item" : "items"} →
-                    </button>
-                ) : (
-                    <div className={classNames.valueRenderer} style={styles?.valueRenderer}>
-                        {behaviors.editable ? (
-                            <textarea
-                                value={displayValue}
-                                onChange={(e) => handleChange(e.target.value)}
-                                className="w-full p-2 border rounded font-mono"
-                                rows={Math.min(displayValue.split("\n").length, 10)}
-                            />
-                        ) : (
-                            <pre className="text-gray-700 whitespace-pre-wrap break-words">
-                                {displayValue}
-                            </pre>
-                        )}
-                    </div>
-                )}
-            </div>
+            <FieldItemContent
+                item={item}
+                isExpandable={expandable}
+                childCount={childCount}
+                canDrillIn={canDrillIn}
+                isEditable={behaviors.editable}
+                onDrillIn={handleDrillIn}
+                onChange={handleChange}
+                classNames={{
+                    fieldContent: classNames.fieldContent,
+                    valueRenderer: classNames.valueRenderer,
+                }}
+                styles={{
+                    fieldContent: styles?.fieldContent,
+                    valueRenderer: styles?.valueRenderer,
+                }}
+            />
         )
     }, [
-        classNames,
-        styles,
-        item.value,
+        item,
         expandable,
         childCount,
+        canDrillIn,
         behaviors.editable,
         handleDrillIn,
         handleChange,
+        classNames,
+        styles,
     ])
 
     // ========== SLOT PROPS ==========

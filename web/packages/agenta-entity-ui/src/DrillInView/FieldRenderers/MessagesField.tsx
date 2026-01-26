@@ -4,7 +4,7 @@
  * Renders a chat messages array using ChatMessageList from @agenta/ui.
  */
 
-import {ChatMessageList} from "@agenta/ui"
+import {ChatMessageList} from "@agenta/ui/chat-message"
 
 import {isMessagesArray, parseMessages} from "./fieldUtils"
 import type {BaseFieldProps} from "./types"

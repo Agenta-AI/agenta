@@ -12,7 +12,8 @@
 
 import React, {useCallback, useId} from "react"
 
-import {cn, EntityListItem, SearchInput} from "@agenta/ui"
+import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
+import {cn} from "@agenta/ui/styles"
 import {Empty, Popover, Spin, Tooltip} from "antd"
 
 import {useListPopoverMode} from "../../../hooks"

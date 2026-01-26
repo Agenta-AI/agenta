@@ -13,8 +13,8 @@
 import {memo, useCallback, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
-import type {SimpleChatMessage} from "@agenta/shared"
-import {ChatMessageList} from "@agenta/ui"
+import type {SimpleChatMessage} from "@agenta/shared/types"
+import {ChatMessageList} from "@agenta/ui/chat-message"
 import {Typography} from "antd"
 import clsx from "clsx"
 

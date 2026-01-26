@@ -10,14 +10,13 @@
 import React, {useCallback, useId, useMemo} from "react"
 
 import {
-    cn,
     EntityBreadcrumb,
     EntityListItem,
-    LoadAllButton,
-    LoadMoreButton,
     SearchInput,
     VirtualEntityList,
-} from "@agenta/ui"
+} from "@agenta/ui/components/selection"
+import {LoadAllButton, LoadMoreButton} from "@agenta/ui/components/selection"
+import {cn} from "@agenta/ui/styles"
 import {Button, Empty, Spin} from "antd"
 import {ArrowLeft} from "lucide-react"
 
@@ -94,7 +93,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
         isLoadingAll,
         fetchNextPage,
         loadAllPages,
-        totalCount,
+        counts,
         adapter: resolvedAdapter,
     } = useBreadcrumbMode({
         adapter,
@@ -275,15 +274,14 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                         <LoadMoreButton
                             onClick={fetchNextPage}
                             isLoading={isFetchingNextPage}
-                            hasMore={hasNextPage}
+                            counts={counts}
                         />
                     )}
                     {showLoadAll && (
                         <LoadAllButton
                             onLoadAll={loadAllPages}
                             isLoading={isLoadingAll}
-                            hasMore={hasNextPage}
-                            totalCount={totalCount ?? undefined}
+                            counts={counts}
                         />
                     )}
                 </div>
