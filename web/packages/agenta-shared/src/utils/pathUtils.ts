@@ -141,6 +141,8 @@ export function setValueAtPath(data: unknown, path: DataPath, value: unknown): u
 
     if (Array.isArray(data)) {
         const idx = typeof key === "number" ? key : parseInt(String(key), 10)
+        // Validate array index (consistent with getValueAtPath)
+        if (isNaN(idx) || idx < 0) return data
         const newArray = [...data]
         newArray[idx] = rest.length === 0 ? value : setValueAtPath(data[idx], rest, value)
         return newArray
@@ -450,4 +452,217 @@ export function collectPaths(data: unknown, maxDepth = 10, currentPath: DataPath
     })
 
     return paths
+}
+
+// ============================================================================
+// TYPED PATH INFO (for UI selection)
+// ============================================================================
+
+/**
+ * Detailed path information for UI selection components.
+ * Includes type information and display labels.
+ */
+export interface TypedPathInfo {
+    /** Dot-notation path string */
+    path: string
+    /** Display string for the path (defaults to path if not provided) */
+    pathString?: string
+    /** Display label for UI */
+    label: string
+    /** Value type (string, number, boolean, array, object, unknown) */
+    type: string
+    /** Same as type (for compatibility, defaults to type if not provided) */
+    valueType?: string
+    /** Source of the path (output, testcase, etc.) */
+    source: string
+    /** Optional sample value for preview */
+    sampleValue?: unknown
+}
+
+/**
+ * Options for extractTypedPaths function
+ */
+export interface ExtractTypedPathsOptions {
+    /** Prefix for generated paths */
+    prefix?: string
+    /** Maximum recursion depth (default: 3) */
+    maxDepth?: number
+    /** Source identifier (default: "output") */
+    source?: string
+    /** Include sample values in output */
+    includeSampleValues?: boolean
+}
+
+/**
+ * Extract typed paths from a value for UI selection.
+ *
+ * Returns detailed path information including type, label, and optional sample values.
+ * Useful for building path selection dropdowns in mapping UIs.
+ *
+ * @example
+ * ```typescript
+ * const data = { user: { name: 'Alice', tags: ['admin'] } }
+ * const paths = extractTypedPaths(data)
+ * // [
+ * //   { path: 'user', label: 'user', type: 'object', ... },
+ * //   { path: 'user.name', label: 'name', type: 'string', ... },
+ * //   { path: 'user.tags', label: 'tags', type: 'array', ... },
+ * // ]
+ * ```
+ */
+export function extractTypedPaths(
+    value: unknown,
+    options: ExtractTypedPathsOptions = {},
+): TypedPathInfo[] {
+    const {prefix = "", maxDepth = 3, source = "output", includeSampleValues = true} = options
+    const paths: TypedPathInfo[] = []
+
+    if (maxDepth <= 0) return paths
+    if (value === null || value === undefined) return paths
+
+    if (Array.isArray(value)) {
+        // For arrays, add the array itself as a path
+        const pathString = prefix || "output"
+        paths.push({
+            path: pathString,
+            pathString,
+            label: prefix.split(".").pop() || "output",
+            type: "array",
+            valueType: "array",
+            source,
+            ...(includeSampleValues && {sampleValue: value}),
+        })
+        // Also extract from first item if it's an object
+        if (value.length > 0 && typeof value[0] === "object" && value[0] !== null) {
+            const itemPaths = extractTypedPaths(value[0], {
+                prefix: prefix ? `${prefix}.0` : "0",
+                maxDepth: maxDepth - 1,
+                source,
+                includeSampleValues,
+            })
+            paths.push(...itemPaths)
+        }
+    } else if (typeof value === "object") {
+        // For objects, add each property as a path
+        for (const [key, val] of Object.entries(value)) {
+            const currentPath = prefix ? `${prefix}.${key}` : key
+            const valueType = getTypedValueType(val)
+
+            paths.push({
+                path: currentPath,
+                pathString: currentPath,
+                label: key,
+                type: valueType,
+                valueType,
+                source,
+                ...(includeSampleValues && {sampleValue: val}),
+            })
+
+            // Recursively extract from nested objects
+            if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+                const nestedPaths = extractTypedPaths(val, {
+                    prefix: currentPath,
+                    maxDepth: maxDepth - 1,
+                    source,
+                    includeSampleValues,
+                })
+                paths.push(...nestedPaths)
+            }
+        }
+    } else {
+        // Primitive value at root
+        const valueType = getTypedValueType(value)
+        const pathString = prefix || "output"
+        paths.push({
+            path: pathString,
+            pathString,
+            label: prefix.split(".").pop() || "output",
+            type: valueType,
+            valueType,
+            source,
+            ...(includeSampleValues && {sampleValue: value}),
+        })
+    }
+
+    return paths
+}
+
+/**
+ * Get type string for a value (for TypedPathInfo)
+ */
+function getTypedValueType(val: unknown): string {
+    if (val === null || val === undefined) return "unknown"
+    if (Array.isArray(val)) return "array"
+    if (typeof val === "object") return "object"
+    if (typeof val === "string") return "string"
+    if (typeof val === "number") return "number"
+    if (typeof val === "boolean") return "boolean"
+    return "unknown"
+}
+
+/**
+ * Combine multiple path arrays with deduplication.
+ *
+ * Merges paths from different sources (schema, runtime, testcase columns)
+ * into a single array, removing duplicates based on path string.
+ *
+ * @example
+ * ```typescript
+ * const schemaPaths = [{ path: 'output', type: 'object', ... }]
+ * const runtimePaths = [{ path: 'output.name', type: 'string', ... }]
+ * const combined = combineTypedPaths(schemaPaths, runtimePaths)
+ * ```
+ */
+export function combineTypedPaths(...pathArrays: (TypedPathInfo[] | undefined)[]): TypedPathInfo[] {
+    const seen = new Set<string>()
+    const result: TypedPathInfo[] = []
+
+    for (const paths of pathArrays) {
+        if (!paths) continue
+        for (const p of paths) {
+            const key = p.pathString || p.path
+            if (!seen.has(key)) {
+                seen.add(key)
+                result.push(p)
+            }
+        }
+    }
+
+    return result
+}
+
+/**
+ * Build testcase column paths from column definitions.
+ *
+ * Converts testcase column definitions into TypedPathInfo objects
+ * for use in path selection UIs.
+ *
+ * @example
+ * ```typescript
+ * const columns = [{ key: 'prompt', name: 'Prompt', type: 'string' }]
+ * const paths = buildTestcaseColumnPaths(columns)
+ * // [{ path: 'testcase.prompt', label: 'Prompt', type: 'string', source: 'testcase' }]
+ * ```
+ */
+export function buildTestcaseColumnPaths(
+    columns: {key: string; name?: string; type?: string}[],
+): TypedPathInfo[] {
+    return columns.map((col) => {
+        let valueType = "unknown"
+        if (col.type === "integer") {
+            valueType = "number"
+        } else if (col.type) {
+            valueType = col.type
+        }
+
+        const pathString = `testcase.${col.key}`
+        return {
+            path: pathString,
+            pathString,
+            label: col.name || col.key,
+            type: valueType,
+            valueType,
+            source: "testcase",
+        }
+    })
 }

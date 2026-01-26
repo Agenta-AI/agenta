@@ -156,6 +156,12 @@ export const createBatchFetcher = <K, V, R = BatchFnResponse<K, V>>({
             return inflightPromise
         }
 
+        // If a request for this key is already pending (but not yet flushed),
+        // return a new promise that shares the same resolvers/rejecters array.
+        // This is intentional: both promises will resolve together when the batch completes.
+        // Note: This promise is NOT added to `inflight` since only the first request
+        // for a key gets tracked there (after flush). This is fine because all callers
+        // share the same pending entry and will be resolved together.
         const entry = pending.get(serializedKey)
         if (entry) {
             return new Promise<V>((resolve, reject) => {

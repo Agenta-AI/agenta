@@ -6,6 +6,10 @@ export {isValidHttpUrl, isValidRegex, isValidUUID, validateUUID} from "./validat
 export {createBatchFetcher} from "./createBatchFetcher"
 export type {BatchFetcher, BatchFetcherOptions, BatchFnResponse} from "./createBatchFetcher"
 
+// Filtering utilities
+export {filterItems} from "./filterItems"
+export type {FilterItemLabel} from "./filterItems"
+
 // Date/time utilities
 export {default as dayjs} from "./dayjs"
 export {normalizeTimestamps, normalizeEntityTimestamps, parseEntityDate} from "./entityTransforms"
@@ -27,8 +31,18 @@ export {
     getLastSegment,
     isChildPath,
     collectPaths,
+    // Typed path utilities for UI selection components
+    extractTypedPaths,
+    combineTypedPaths,
+    buildTestcaseColumnPaths,
 } from "./pathUtils"
-export type {PathSegment, DataPath, PathItem} from "./pathUtils"
+export type {
+    PathSegment,
+    DataPath,
+    PathItem,
+    TypedPathInfo,
+    ExtractTypedPathsOptions,
+} from "./pathUtils"
 
 // Chat message utilities
 export {
@@ -94,5 +108,28 @@ export {
 } from "./formatters/index"
 export type {FormatterOptions, Formatter} from "./formatters/index"
 
+// Enum label utilities
+export {formatEnumLabel} from "./formatEnumLabel"
+
+// Schema options utilities
+export {getOptionsFromSchema} from "./schemaOptions"
+export type {OptionGroup} from "./schemaOptions"
+
 // Pluralization utilities
 export {pluralize, formatCount} from "./pluralize"
+
+// Mapping utilities for input/output mappings
+export {
+    determineMappingStatus,
+    getMappingStatusConfig,
+    isMappingError,
+    isMappingWarning,
+    isMappingComplete,
+    validateMappings,
+} from "./mappingUtils"
+export type {
+    MappingStatus,
+    MappingStatusConfig,
+    MappingLike,
+    MappingValidationResult,
+} from "./mappingUtils"
