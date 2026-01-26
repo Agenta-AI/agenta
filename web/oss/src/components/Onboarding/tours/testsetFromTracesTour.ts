@@ -5,6 +5,7 @@ import type {OnboardingTour} from "@/oss/lib/onboarding"
 import {selectedRowKeysAtom} from "@/oss/state/newObservability/atoms/controls"
 import {tracesAtom} from "@/oss/state/newObservability/atoms/queries"
 import {selectTestsetAtom} from "@/oss/state/testsetSelection"
+import {waitForSelectorVisible} from "./firstEvaluationTour"
 
 /**
  * Create Test Set from Traces Tour
@@ -78,7 +79,8 @@ const testsetFromTracesTour: OnboardingTour = {
                     testsetName: "Create New",
                     autoSelectLatest: false,
                 })
-                await new Promise((resolve) => window.setTimeout(resolve, 200))
+                await waitForSelectorVisible('[data-tour="testset-name-input"]')
+                await new Promise((resolve) => window.setTimeout(resolve, 1000))
             },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
@@ -105,7 +107,7 @@ const testsetFromTracesTour: OnboardingTour = {
             title: "Confirm",
             content: "Click Create to save your test set. You can now use it in evaluations.",
             selector: '[data-tour="testset-confirm"]',
-            side: "bottom",
+            side: "top",
             showControls: true,
             showSkip: true,
             selectorRetryAttempts: 10,

@@ -15,7 +15,7 @@ import type {OnboardingTour} from "@/oss/lib/onboarding"
  */
 export const FIRST_EVALUATION_TOUR_ID = "first-evaluation"
 
-const waitForSelectorVisible = (
+export const waitForSelectorVisible = (
     selector: string,
     timeoutMs = 2000,
     pollInterval = 100,
