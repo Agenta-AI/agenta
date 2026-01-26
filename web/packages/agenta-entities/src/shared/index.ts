@@ -107,6 +107,18 @@ export {
     isLocalEntity,
     isServerEntity,
     getEntityId,
+    // ============================================================================
+    // PUBLIC API INTERFACES (Clean entity controller pattern)
+    // ============================================================================
+    // Entity controller interface (uniform base API)
+    type EntityController,
+    // Capability interfaces
+    type RunnableCapability,
+    type LoadableCapability,
+    // Combined entity types
+    type RunnableEntity,
+    type LoadableEntity,
+    type RunnableLoadableEntity,
 } from "./molecule"
 
 // ============================================================================
@@ -166,10 +178,24 @@ export {
     batchUpdate,
     batchCreate,
     batchDelete,
+    // Relation utilities
+    getChildIds,
+    getChildData,
+    createRelation,
     // Latest entity query factory
     createLatestEntityQueryFactory,
     type CreateLatestEntityQueryConfig,
     type LatestEntityQueryParams,
+    // Null-safe atom utilities
+    createNullQueryResultAtom,
+    createNullDataAtom,
+    createNullSafeQuerySelector,
+    createNullSafeDataSelector,
+    createNullSafeSelectors,
+    type NullQueryResult,
+    type AtomFamilyFn,
+    type CreateNullSafeSelectorsConfig,
+    type NullSafeSelectors,
 } from "./utils"
 
 // ============================================================================
@@ -242,3 +268,138 @@ export type {
     SourceConfig,
     RunnableConfig,
 } from "./entityBridge"
+
+// ============================================================================
+// ENTITY RELATIONS (parent-child relationship management)
+// ============================================================================
+
+export {
+    // Registry
+    entityRelationRegistry,
+    createRelationRegistry,
+    // Extension helper
+    extendWithRelations,
+    createRelationIdsAtom,
+    createRelationDataAtom,
+    // Type guards
+    hasSelectionConfig,
+    hasBindingConfig,
+    // Binding utilities (Phase 3)
+    loadableBindingRelation,
+    getLoadableId,
+    parseLoadableId,
+    isLoadableBindingId,
+    getLoadableEntityType,
+    getLoadableEntityId,
+} from "./relations"
+
+export type {
+    // Registry types
+    RelationRegistry,
+    // Extension types
+    MoleculeWithRelationAtoms,
+    // Relation types
+    EntityRelation,
+    ListQueryState,
+    RelationSelectionConfig,
+    RelationBindingConfig,
+    // Binding types
+    BindingFormat,
+    ParsedBindingId,
+} from "./relations"
+
+// ============================================================================
+// ENTITY DATA CONTROLLER (unified table data access factory)
+// ============================================================================
+
+export {
+    createEntityDataController,
+    type EntityColumnDef,
+    type EntityRowBase,
+    type EntityDataConfigBase,
+    type CreateEntityDataControllerConfig,
+    type EntityDataController,
+} from "./createEntityDataController"
+
+// ============================================================================
+// LIST COUNTS (unified count summaries for paginated and regular lists)
+// ============================================================================
+
+export {
+    // Types
+    type TotalCountMode,
+    type ListCountsConfig,
+    type LocalDelta,
+    type EntityListCounts,
+    type PaginationState,
+    // Helpers
+    defaultIsRowCountable,
+    hasMorePages,
+    formatListCountLabel,
+    formatListCountLabelShort,
+    computeListCounts,
+    // Paginated list counts
+    createPaginatedListCountsAtom,
+    createPaginatedListCountsAtomFamily,
+    // Regular list counts
+    createListCountsAtom,
+    createListCountsFromPaginationAtom,
+    // Utility atoms
+    createDisplayLabelAtom,
+    createDisplayLabelShortAtom,
+    createHasMoreAtom,
+} from "./listCounts"
+
+// ============================================================================
+// TABLE TYPES (local definitions to avoid @agenta/ui dependency)
+// ============================================================================
+
+export type {
+    InfiniteTableRowBase,
+    WindowingState,
+    InfiniteTableFetchResult,
+    BaseTableMeta,
+    PaginatedControllerParams,
+    PaginatedCombinedState,
+    PaginatedControllerAction,
+    PaginatedControllerState,
+    PaginatedEntityStore,
+    GroupableColumn,
+} from "./tableTypes"
+
+// ============================================================================
+// PAGINATED STORE (self-contained pagination infrastructure)
+// ============================================================================
+
+export {
+    // Core stores
+    createInfiniteTableStore,
+    createInfiniteDatasetStore,
+    createSimpleTableStore,
+    createTableMetaAtom,
+    // Paginated entity store (main factory)
+    createPaginatedEntityStore,
+    // Row helpers
+    createTableRowHelpers,
+    // React hook
+    useInfiniteTablePagination,
+    // Types (note: EntityListCounts, ListCountsConfig, TotalCountMode already exported from ./listCounts)
+    type InfiniteTableStore,
+    type TableRowAtomKey,
+    type TablePagesKey,
+    type InfiniteDatasetStore,
+    type InfiniteDatasetStoreConfig,
+    type DateRangeFilter,
+    type SimpleTableStore,
+    type SimpleTableStoreConfig,
+    type PaginatedEntityRow,
+    type PaginatedEntityRowConfig,
+    type PaginatedEntityStoreConfig,
+    type PaginatedEntityMeta,
+    type PaginatedFetchParams,
+    type PaginatedState,
+    type CreateSkeletonRowParams,
+    type MergeRowParams,
+    type TableRowHelpers,
+    type TableRowHelpersConfig,
+} from "./paginated"

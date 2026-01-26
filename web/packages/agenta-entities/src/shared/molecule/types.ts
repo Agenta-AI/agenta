@@ -7,6 +7,9 @@
 import type {Atom, WritableAtom} from "jotai"
 import type {createStore} from "jotai/vanilla"
 
+// Import bridge types for capability interfaces
+import type {RunnablePort, LoadableRow, LoadableColumn} from "../entityBridge"
+
 // ============================================================================
 // STORE TYPES
 // ============================================================================
@@ -678,6 +681,109 @@ export interface MoleculeWithRelations<
 }
 
 // ============================================================================
+// ENTITY RELATION TYPES
+// ============================================================================
+
+/**
+ * Query state for list queries (used by selection UI)
+ */
+export interface ListQueryState<T> {
+    data: T[]
+    isPending: boolean
+    isError: boolean
+    error: Error | null
+}
+
+/**
+ * Selection UI metadata for a relation
+ */
+export interface RelationSelectionConfig {
+    /** Display label for this level */
+    label: string
+    /** Icon to show (React node or icon name) */
+    icon?: unknown
+    /** How to display an entity in the list */
+    displayName?: (entity: unknown) => string
+    /** Auto-select if only one item */
+    autoSelectSingle?: boolean
+    /** Auto-select the latest (most recent) item */
+    autoSelectLatest?: boolean
+}
+
+/**
+ * Binding configuration for entity connections (e.g., loadable-runnable)
+ */
+export interface RelationBindingConfig {
+    /** Generate a binding ID from parent type and ID */
+    getId: (parentType: string, parentId: string) => string
+    /** Parse a binding ID back to parent info */
+    parseId: (bindingId: string) => {type: string; id: string} | null
+}
+
+/**
+ * Extended relation interface with selection and binding metadata.
+ *
+ * Extends `MoleculeRelation` to support:
+ * - Selection UI generation (for EntityPicker, adapters)
+ * - Entity binding (for loadable-runnable connections)
+ * - List atom families (for hierarchical navigation)
+ *
+ * @example
+ * ```typescript
+ * const testcaseRelation: EntityRelation<Revision, Testcase> = {
+ *   name: "testcases",
+ *   parentType: "revision",
+ *   childType: "testcase",
+ *   childIdsPath: (rev) => rev.data?.testcase_ids ?? [],
+ *   childDataPath: (rev) => rev.data?.testcases,
+ *   childMolecule: testcaseMolecule,
+ *   mode: "populate",
+ *   selection: {
+ *     label: "Testcase",
+ *     autoSelectSingle: true,
+ *   },
+ * }
+ * ```
+ */
+export interface EntityRelation<TParent, TChild> extends MoleculeRelation<TParent, TChild> {
+    /** Parent entity type identifier (e.g., "revision", "app", "testset") */
+    parentType: string
+
+    /** Child entity type identifier (e.g., "testcase", "variant", "revision") */
+    childType: string
+
+    /**
+     * Atom family that returns a list of children given a parent ID.
+     * Used by selection UIs to populate dropdown/list options.
+     */
+    listAtomFamily?: (parentId: string) => Atom<ListQueryState<TChild>>
+
+    /** Selection UI metadata */
+    selection?: RelationSelectionConfig
+
+    /** Binding configuration (for loadable/runnable connections) */
+    binding?: RelationBindingConfig
+}
+
+/**
+ * Type guard to check if a relation has selection config
+ */
+export function hasSelectionConfig<TParent, TChild>(
+    relation: EntityRelation<TParent, TChild>,
+): relation is EntityRelation<TParent, TChild> & {selection: RelationSelectionConfig} {
+    return relation.selection !== undefined
+}
+
+/**
+ * Type guard to check if a relation has binding config
+ */
+export function hasBindingConfig<TParent, TChild>(
+    relation: EntityRelation<TParent, TChild>,
+): relation is EntityRelation<TParent, TChild> & {binding: RelationBindingConfig} {
+    return relation.binding !== undefined
+}
+
+// ============================================================================
 // TYPE UTILITIES FOR STRICT TYPING
 // ============================================================================
 
@@ -735,6 +841,246 @@ export function isServerEntity<T>(entity: AnyEntity<T>): entity is ServerEntity<
 export function getEntityId<T>(entity: AnyEntity<T>): string {
     return isLocalEntity(entity) ? entity.localId : (entity as ServerEntity<T>).id
 }
+
+// ============================================================================
+// PUBLIC API INTERFACES
+// ============================================================================
+
+// Note: RunnablePort, LoadableRow, LoadableColumn are defined in entityBridge.ts
+// and re-exported from there to avoid duplication.
+
+/**
+ * Base entity controller interface.
+ *
+ * All entities implement this uniform interface, providing:
+ * - **atoms**: Reactive subscriptions for useAtomValue and atom compositions
+ * - **actions**: Write atoms for use in other atoms with set()
+ * - **get**: Imperative reads for callbacks outside React/atom context
+ * - **set**: Imperative writes for callbacks outside React/atom context
+ *
+ * @example
+ * ```typescript
+ * // Reactive subscription
+ * const data = useAtomValue(entity.atoms.data(id))
+ *
+ * // Write in atom composition
+ * set(entity.actions.update, id, { name: 'New Name' })
+ *
+ * // Imperative (callbacks)
+ * const data = entity.get.data(id)
+ * entity.set.update(id, changes)
+ * ```
+ */
+export interface EntityController<T, TDraft = Partial<T>> {
+    /**
+     * Reactive atoms for subscribing to entity state.
+     * Use with `useAtomValue` or in atom compositions with `get()`.
+     */
+    atoms: {
+        /**
+         * Entity data with local draft merged.
+         * @param id - Entity ID
+         * @returns Atom that resolves to entity data or null if not found
+         */
+        data: AtomFamily<T | null>
+        /**
+         * Local draft changes only.
+         * @param id - Entity ID
+         * @returns Atom that resolves to draft or null if no changes
+         */
+        draft: AtomFamily<TDraft | null>
+        /**
+         * Whether entity has unsaved local changes.
+         * @param id - Entity ID
+         * @returns Atom that resolves to boolean
+         */
+        isDirty: AtomFamily<boolean>
+        /**
+         * Query state (isPending, isError, error).
+         * @param id - Entity ID
+         * @returns Atom that resolves to QueryState
+         */
+        query: AtomFamily<QueryState<T>>
+    }
+
+    /**
+     * Write atoms for use in other atoms with `set()`.
+     * These maintain correct Jotai store context in atom compositions.
+     *
+     * @example
+     * ```typescript
+     * const saveAtom = atom(null, (get, set) => {
+     *   set(entity.actions.update, id, changes)
+     *   set(entity.actions.discard, id)
+     * })
+     * ```
+     */
+    actions: {
+        /**
+         * Update entity draft with partial changes.
+         * Usage: `set(entity.actions.update, id, changes)`
+         */
+        update: Reducer<[id: string, changes: TDraft]>
+        /**
+         * Discard all local changes, revert to server state.
+         * Usage: `set(entity.actions.discard, id)`
+         */
+        discard: Reducer<[id: string]>
+    }
+
+    /**
+     * Imperative read operations for callbacks outside React/atom context.
+     * These read directly from the Jotai store.
+     */
+    get: {
+        /**
+         * Get entity data with draft merged.
+         * @param id - Entity ID
+         * @returns Entity data or null if not found
+         */
+        data: (id: string, options?: StoreOptions) => T | null
+        /**
+         * Check if entity has unsaved local changes.
+         * @param id - Entity ID
+         * @returns True if entity has local changes
+         */
+        isDirty: (id: string, options?: StoreOptions) => boolean
+    }
+
+    /**
+     * Imperative write operations for callbacks outside React/atom context.
+     * These write directly to the Jotai store.
+     */
+    set: {
+        /**
+         * Update entity draft with partial changes.
+         * @param id - Entity ID
+         * @param changes - Partial changes to merge into draft
+         */
+        update: (id: string, changes: TDraft, options?: StoreOptions) => void
+        /**
+         * Discard all local changes, revert to server state.
+         * @param id - Entity ID
+         */
+        discard: (id: string, options?: StoreOptions) => void
+    }
+}
+
+/**
+ * Runnable capability interface.
+ *
+ * Entities that are runnable (appRevision, evaluator) implement this interface,
+ * providing access to input/output ports, configuration, and invocation URL.
+ *
+ * @example
+ * ```typescript
+ * // Get input ports for a runnable
+ * const inputPorts = useAtomValue(appRevision.runnable.inputPorts(id))
+ *
+ * // Get configuration
+ * const config = useAtomValue(appRevision.runnable.config(id))
+ *
+ * // Get invocation URL
+ * const url = useAtomValue(appRevision.runnable.invocationUrl(id))
+ * ```
+ */
+export interface RunnableCapability {
+    /**
+     * Runnable-specific atoms for input/output ports and configuration.
+     */
+    runnable: {
+        /**
+         * Input port definitions for this runnable.
+         * @param id - Entity ID
+         * @returns Atom that resolves to array of input ports
+         */
+        inputPorts: AtomFamily<RunnablePort[]>
+        /**
+         * Output port definitions for this runnable.
+         * @param id - Entity ID
+         * @returns Atom that resolves to array of output ports
+         */
+        outputPorts: AtomFamily<RunnablePort[]>
+        /**
+         * Configuration object for this runnable.
+         * @param id - Entity ID
+         * @returns Atom that resolves to configuration or null
+         */
+        config: AtomFamily<Record<string, unknown> | null>
+        /**
+         * URL to invoke this runnable.
+         * @param id - Entity ID
+         * @returns Atom that resolves to URL string or null
+         */
+        invocationUrl: AtomFamily<string | null>
+    }
+}
+
+/**
+ * Loadable capability interface.
+ *
+ * Entities that are loadable (testcase) implement this interface,
+ * providing access to rows, columns, and change tracking.
+ *
+ * @example
+ * ```typescript
+ * // Get rows for a revision
+ * const rows = useAtomValue(testcase.loadable.rows(revisionId))
+ *
+ * // Get column definitions
+ * const columns = useAtomValue(testcase.loadable.columns(revisionId))
+ *
+ * // Check for changes
+ * const hasChanges = useAtomValue(testcase.loadable.hasChanges(revisionId))
+ * ```
+ */
+export interface LoadableCapability {
+    /**
+     * Loadable-specific atoms for rows, columns, and change tracking.
+     */
+    loadable: {
+        /**
+         * Rows for the given revision.
+         * @param revisionId - Revision ID (not entity ID)
+         * @returns Atom that resolves to array of rows
+         */
+        rows: AtomFamily<LoadableRow[]>
+        /**
+         * Column definitions for the given revision.
+         * @param revisionId - Revision ID (not entity ID)
+         * @returns Atom that resolves to array of columns
+         */
+        columns: AtomFamily<LoadableColumn[]>
+        /**
+         * Whether the revision has unsaved changes.
+         * @param revisionId - Revision ID (not entity ID)
+         * @returns Atom that resolves to boolean
+         */
+        hasChanges: AtomFamily<boolean>
+    }
+}
+
+/**
+ * Combined entity type with runnable capability.
+ * Use this type for entities like appRevision and evaluator.
+ */
+export type RunnableEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> &
+    RunnableCapability
+
+/**
+ * Combined entity type with loadable capability.
+ * Use this type for entities like testcase.
+ */
+export type LoadableEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> &
+    LoadableCapability
+
+/**
+ * Combined entity type with both runnable and loadable capabilities.
+ * Reserved for future entities that might need both.
+ */
+export type RunnableLoadableEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> &
+    RunnableCapability &
+    LoadableCapability
 
 // ============================================================================
 // EXTENSION TYPES

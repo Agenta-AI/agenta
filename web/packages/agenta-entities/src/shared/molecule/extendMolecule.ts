@@ -20,7 +20,7 @@ import type {
  *
  * @example
  * ```typescript
- * const testcaseBase = createMolecule<FlattenedTestcase>({
+ * const testcaseBase = createMolecule<Testcase>({
  *   name: 'testcase',
  *   queryAtomFamily: testcaseQueryFamily,
  *   draftAtomFamily: testcaseDraftFamily,

@@ -124,4 +124,20 @@ export {
     isLocalEntity,
     isServerEntity,
     getEntityId,
+    // ============================================================================
+    // PUBLIC API INTERFACES (Clean entity controller pattern)
+    // ============================================================================
+    // Entity controller interface (uniform base API)
+    type EntityController,
+    // Capability interfaces
+    type RunnableCapability,
+    type LoadableCapability,
+    // Combined entity types
+    type RunnableEntity,
+    type LoadableEntity,
+    type RunnableLoadableEntity,
 } from "./types"
+
+// Re-export bridge types for public API (RunnablePort, LoadableRow, LoadableColumn)
+// These are the canonical definitions used by capability interfaces
+export type {RunnablePort, LoadableRow, LoadableColumn} from "../entityBridge"
