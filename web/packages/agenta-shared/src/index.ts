@@ -52,8 +52,23 @@ export type {AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosInterceptorC
 export {projectIdAtom, setProjectIdAtom} from "./state"
 
 // Utilities
-export {isValidHttpUrl, isValidRegex, isValidUUID, validateUUID, createBatchFetcher} from "./utils"
-export type {BatchFetcher, BatchFetcherOptions, BatchFnResponse} from "./utils"
+export {
+    isValidHttpUrl,
+    isValidRegex,
+    isValidUUID,
+    validateUUID,
+    createBatchFetcher,
+    filterItems,
+    formatEnumLabel,
+    getOptionsFromSchema,
+} from "./utils"
+export type {
+    BatchFetcher,
+    BatchFetcherOptions,
+    BatchFnResponse,
+    FilterItemLabel,
+    OptionGroup,
+} from "./utils"
 
 // Date/time utilities
 export {dayjs, normalizeTimestamps, normalizeEntityTimestamps, parseEntityDate} from "./utils"
@@ -75,8 +90,18 @@ export {
     getLastSegment,
     isChildPath,
     collectPaths,
+    // Typed path utilities for UI selection
+    extractTypedPaths,
+    combineTypedPaths,
+    buildTestcaseColumnPaths,
 } from "./utils"
-export type {PathSegment, DataPath, PathItem} from "./utils"
+export type {
+    PathSegment,
+    DataPath,
+    PathItem,
+    TypedPathInfo,
+    ExtractTypedPathsOptions,
+} from "./utils"
 
 // Chat message utilities
 export {
@@ -156,3 +181,19 @@ export type {FormatterOptions, Formatter} from "./utils"
 
 // Pluralization utilities
 export {pluralize, formatCount} from "./utils"
+
+// Mapping utilities for input/output mappings
+export {
+    determineMappingStatus,
+    getMappingStatusConfig,
+    isMappingError,
+    isMappingWarning,
+    isMappingComplete,
+    validateMappings,
+} from "./utils"
+export type {
+    MappingStatus,
+    MappingStatusConfig,
+    MappingLike,
+    MappingValidationResult,
+} from "./utils"
