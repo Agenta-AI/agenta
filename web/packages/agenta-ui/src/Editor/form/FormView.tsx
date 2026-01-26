@@ -1,6 +1,6 @@
 import {FC, Fragment, useState, useEffect, useCallback} from "react"
 
-import {isPlainObject} from "@agenta/shared"
+import {isPlainObject} from "@agenta/shared/utils"
 import {Form} from "antd"
 import merge from "lodash/merge"
 
