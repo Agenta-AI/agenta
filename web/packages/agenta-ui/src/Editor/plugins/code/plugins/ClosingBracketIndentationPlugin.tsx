@@ -1,7 +1,7 @@
 // plugins/ClosingBracketIndentationPlugin.tsx
 import {useEffect} from "react"
 
-import {createLogger} from "@agenta/shared"
+import {createLogger} from "@agenta/shared/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {$getSelection, $isRangeSelection, COMMAND_PRIORITY_HIGH, KEY_DOWN_COMMAND} from "lexical"
 

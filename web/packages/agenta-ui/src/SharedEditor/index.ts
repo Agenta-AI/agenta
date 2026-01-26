@@ -19,4 +19,4 @@ export {default as SharedEditor} from "./SharedEditor"
 export type {SharedEditorProps, BaseContainerProps} from "./types"
 
 // Re-export useDebounceInput from @agenta/shared
-export {useDebounceInput} from "@agenta/shared"
+export {useDebounceInput} from "@agenta/shared/hooks"
