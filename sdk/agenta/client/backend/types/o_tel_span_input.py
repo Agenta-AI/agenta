@@ -6,7 +6,11 @@ import datetime as dt
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 from .o_tel_event_input import OTelEventInput
 from .o_tel_hash_input import OTelHashInput
 from .o_tel_link_input import OTelLinkInput
@@ -20,7 +24,9 @@ from .trace_type import TraceType
 
 
 class OTelSpanInput(UniversalBaseModel):
-    spans: typing.Optional[typing.Dict[str, typing.Optional["OTelSpanInputSpansValue"]]] = None
+    spans: typing.Optional[
+        typing.Dict[str, typing.Optional["OTelSpanInputSpansValue"]]
+    ] = None
     created_at: typing.Optional[dt.datetime] = None
     updated_at: typing.Optional[dt.datetime] = None
     deleted_at: typing.Optional[dt.datetime] = None
@@ -38,15 +44,21 @@ class OTelSpanInput(UniversalBaseModel):
     end_time: typing.Optional[OTelSpanInputEndTime] = None
     status_code: typing.Optional[OTelStatusCode] = None
     status_message: typing.Optional[str] = None
-    attributes: typing.Optional[typing.Dict[str, typing.Optional["FullJsonInput"]]] = None
+    attributes: typing.Optional[typing.Dict[str, typing.Optional["FullJsonInput"]]] = (
+        None
+    )
     references: typing.Optional[typing.List[OTelReferenceInput]] = None
     links: typing.Optional[typing.List[OTelLinkInput]] = None
     hashes: typing.Optional[typing.List[OTelHashInput]] = None
-    exception: typing.Optional[typing.Dict[str, typing.Optional["FullJsonInput"]]] = None
+    exception: typing.Optional[typing.Dict[str, typing.Optional["FullJsonInput"]]] = (
+        None
+    )
     events: typing.Optional[typing.List[OTelEventInput]] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:
@@ -58,4 +70,8 @@ class OTelSpanInput(UniversalBaseModel):
 from .o_tel_span_input_spans_value import OTelSpanInputSpansValue  # noqa: E402, I001
 from .full_json_input import FullJsonInput  # noqa: E402, I001
 
-update_forward_refs(OTelSpanInput, FullJsonInput=FullJsonInput, OTelSpanInputSpansValue=OTelSpanInputSpansValue)
+update_forward_refs(
+    OTelSpanInput,
+    FullJsonInput=FullJsonInput,
+    OTelSpanInputSpansValue=OTelSpanInputSpansValue,
+)

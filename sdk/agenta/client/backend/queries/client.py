@@ -78,10 +78,14 @@ class QueriesClient:
             query=QueryCreate(),
         )
         """
-        _response = self._raw_client.create_query(query=query, query_id=query_id, request_options=request_options)
+        _response = self._raw_client.create_query(
+            query=query, query_id=query_id, request_options=request_options
+        )
         return _response.data
 
-    def fetch_query(self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> QueryResponse:
+    def fetch_query(
+        self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> QueryResponse:
         """
         Parameters
         ----------
@@ -106,11 +110,17 @@ class QueriesClient:
             query_id="query_id",
         )
         """
-        _response = self._raw_client.fetch_query(query_id, request_options=request_options)
+        _response = self._raw_client.fetch_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     def edit_query(
-        self, query_id: str, *, query: QueryEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_id: str,
+        *,
+        query: QueryEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryResponse:
         """
         Parameters
@@ -139,10 +149,14 @@ class QueriesClient:
             query=QueryEdit(),
         )
         """
-        _response = self._raw_client.edit_query(query_id, query=query, request_options=request_options)
+        _response = self._raw_client.edit_query(
+            query_id, query=query, request_options=request_options
+        )
         return _response.data
 
-    def archive_query(self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> QueryResponse:
+    def archive_query(
+        self, query_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> QueryResponse:
         """
         Parameters
         ----------
@@ -167,7 +181,9 @@ class QueriesClient:
             query_id="query_id",
         )
         """
-        _response = self._raw_client.archive_query(query_id, request_options=request_options)
+        _response = self._raw_client.archive_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_query(
@@ -197,7 +213,9 @@ class QueriesClient:
             query_id="query_id",
         )
         """
-        _response = self._raw_client.unarchive_query(query_id, request_options=request_options)
+        _response = self._raw_client.unarchive_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     def query_queries(
@@ -333,7 +351,10 @@ class QueriesClient:
         return _response.data
 
     def create_query_revision(
-        self, *, query_revision: QueryRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revision: QueryRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionResponse:
         """
         Parameters
@@ -365,7 +386,10 @@ class QueriesClient:
         return _response.data
 
     def fetch_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionResponse:
         """
         Parameters
@@ -391,7 +415,9 @@ class QueriesClient:
             query_revision_id="query_revision_id",
         )
         """
-        _response = self._raw_client.fetch_query_revision(query_revision_id, request_options=request_options)
+        _response = self._raw_client.fetch_query_revision(
+            query_revision_id, request_options=request_options
+        )
         return _response.data
 
     def edit_query_revision(
@@ -429,12 +455,17 @@ class QueriesClient:
         )
         """
         _response = self._raw_client.edit_query_revision(
-            query_revision_id, query_revision=query_revision, request_options=request_options
+            query_revision_id,
+            query_revision=query_revision,
+            request_options=request_options,
         )
         return _response.data
 
     def archive_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionResponse:
         """
         Parameters
@@ -460,11 +491,16 @@ class QueriesClient:
             query_revision_id="query_revision_id",
         )
         """
-        _response = self._raw_client.archive_query_revision(query_revision_id, request_options=request_options)
+        _response = self._raw_client.archive_query_revision(
+            query_revision_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionResponse:
         """
         Parameters
@@ -490,7 +526,9 @@ class QueriesClient:
             query_revision_id="query_revision_id",
         )
         """
-        _response = self._raw_client.unarchive_query_revision(query_revision_id, request_options=request_options)
+        _response = self._raw_client.unarchive_query_revision(
+            query_revision_id, request_options=request_options
+        )
         return _response.data
 
     def query_query_revisions(
@@ -548,7 +586,10 @@ class QueriesClient:
         return _response.data
 
     def commit_query_revision(
-        self, *, query_revision_commit: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revision_commit: QueryRevisionCommit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionResponse:
         """
         Parameters
@@ -580,7 +621,10 @@ class QueriesClient:
         return _response.data
 
     def log_query_revisions(
-        self, *, query_revisions: QueryRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revisions: QueryRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionsResponse:
         """
         Parameters
@@ -676,11 +720,17 @@ class QueriesClient:
             query_id="query_id",
         )
         """
-        _response = self._raw_client.fetch_simple_query(query_id, request_options=request_options)
+        _response = self._raw_client.fetch_simple_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     def edit_simple_query(
-        self, query_id: str, *, query: SimpleQueryEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_id: str,
+        *,
+        query: SimpleQueryEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleQueryResponse:
         """
         Parameters
@@ -709,7 +759,9 @@ class QueriesClient:
             query=SimpleQueryEdit(),
         )
         """
-        _response = self._raw_client.edit_simple_query(query_id, query=query, request_options=request_options)
+        _response = self._raw_client.edit_simple_query(
+            query_id, query=query, request_options=request_options
+        )
         return _response.data
 
     def archive_simple_query(
@@ -739,7 +791,9 @@ class QueriesClient:
             query_id="query_id",
         )
         """
-        _response = self._raw_client.archive_simple_query(query_id, request_options=request_options)
+        _response = self._raw_client.archive_simple_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_simple_query(
@@ -769,7 +823,9 @@ class QueriesClient:
             query_id="query_id",
         )
         """
-        _response = self._raw_client.unarchive_simple_query(query_id, request_options=request_options)
+        _response = self._raw_client.unarchive_simple_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     def query_simple_queries(
@@ -875,7 +931,9 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_query(query=query, query_id=query_id, request_options=request_options)
+        _response = await self._raw_client.create_query(
+            query=query, query_id=query_id, request_options=request_options
+        )
         return _response.data
 
     async def fetch_query(
@@ -913,11 +971,17 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_query(query_id, request_options=request_options)
+        _response = await self._raw_client.fetch_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_query(
-        self, query_id: str, *, query: QueryEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_id: str,
+        *,
+        query: QueryEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryResponse:
         """
         Parameters
@@ -954,7 +1018,9 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_query(query_id, query=query, request_options=request_options)
+        _response = await self._raw_client.edit_query(
+            query_id, query=query, request_options=request_options
+        )
         return _response.data
 
     async def archive_query(
@@ -992,7 +1058,9 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.archive_query(query_id, request_options=request_options)
+        _response = await self._raw_client.archive_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     async def unarchive_query(
@@ -1030,7 +1098,9 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.unarchive_query(query_id, request_options=request_options)
+        _response = await self._raw_client.unarchive_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     async def query_queries(
@@ -1182,7 +1252,10 @@ class AsyncQueriesClient:
         return _response.data
 
     async def create_query_revision(
-        self, *, query_revision: QueryRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revision: QueryRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionResponse:
         """
         Parameters
@@ -1222,7 +1295,10 @@ class AsyncQueriesClient:
         return _response.data
 
     async def fetch_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionResponse:
         """
         Parameters
@@ -1256,7 +1332,9 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_query_revision(query_revision_id, request_options=request_options)
+        _response = await self._raw_client.fetch_query_revision(
+            query_revision_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_query_revision(
@@ -1302,12 +1380,17 @@ class AsyncQueriesClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.edit_query_revision(
-            query_revision_id, query_revision=query_revision, request_options=request_options
+            query_revision_id,
+            query_revision=query_revision,
+            request_options=request_options,
         )
         return _response.data
 
     async def archive_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionResponse:
         """
         Parameters
@@ -1341,11 +1424,16 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.archive_query_revision(query_revision_id, request_options=request_options)
+        _response = await self._raw_client.archive_query_revision(
+            query_revision_id, request_options=request_options
+        )
         return _response.data
 
     async def unarchive_query_revision(
-        self, query_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionResponse:
         """
         Parameters
@@ -1379,7 +1467,9 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.unarchive_query_revision(query_revision_id, request_options=request_options)
+        _response = await self._raw_client.unarchive_query_revision(
+            query_revision_id, request_options=request_options
+        )
         return _response.data
 
     async def query_query_revisions(
@@ -1445,7 +1535,10 @@ class AsyncQueriesClient:
         return _response.data
 
     async def commit_query_revision(
-        self, *, query_revision_commit: QueryRevisionCommit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revision_commit: QueryRevisionCommit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionResponse:
         """
         Parameters
@@ -1485,7 +1578,10 @@ class AsyncQueriesClient:
         return _response.data
 
     async def log_query_revisions(
-        self, *, query_revisions: QueryRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        query_revisions: QueryRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> QueryRevisionsResponse:
         """
         Parameters
@@ -1605,11 +1701,17 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_simple_query(query_id, request_options=request_options)
+        _response = await self._raw_client.fetch_simple_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_simple_query(
-        self, query_id: str, *, query: SimpleQueryEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        query_id: str,
+        *,
+        query: SimpleQueryEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleQueryResponse:
         """
         Parameters
@@ -1646,7 +1748,9 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_simple_query(query_id, query=query, request_options=request_options)
+        _response = await self._raw_client.edit_simple_query(
+            query_id, query=query, request_options=request_options
+        )
         return _response.data
 
     async def archive_simple_query(
@@ -1684,7 +1788,9 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.archive_simple_query(query_id, request_options=request_options)
+        _response = await self._raw_client.archive_simple_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     async def unarchive_simple_query(
@@ -1722,7 +1828,9 @@ class AsyncQueriesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.unarchive_simple_query(query_id, request_options=request_options)
+        _response = await self._raw_client.unarchive_simple_query(
+            query_id, request_options=request_options
+        )
         return _response.data
 
     async def query_simple_queries(

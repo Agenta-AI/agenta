@@ -3,5 +3,8 @@
 import typing
 
 EvaluationStatus = typing.Union[
-    typing.Literal["pending", "queued", "running", "success", "failure", "errors", "cancelled"], typing.Any
+    typing.Literal[
+        "pending", "queued", "running", "success", "failure", "errors", "cancelled"
+    ],
+    typing.Any,
 ]

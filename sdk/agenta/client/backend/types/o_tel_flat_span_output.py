@@ -6,7 +6,11 @@ import datetime as dt
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 from .o_tel_event_output import OTelEventOutput
 from .o_tel_flat_span_output_end_time import OTelFlatSpanOutputEndTime
 from .o_tel_flat_span_output_start_time import OTelFlatSpanOutputStartTime
@@ -37,15 +41,21 @@ class OTelFlatSpanOutput(UniversalBaseModel):
     end_time: typing.Optional[OTelFlatSpanOutputEndTime] = None
     status_code: typing.Optional[OTelStatusCode] = None
     status_message: typing.Optional[str] = None
-    attributes: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = None
+    attributes: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
+        None
+    )
     references: typing.Optional[typing.List[OTelReferenceOutput]] = None
     links: typing.Optional[typing.List[OTelLinkOutput]] = None
     hashes: typing.Optional[typing.List[OTelHashOutput]] = None
-    exception: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = None
+    exception: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
+        None
+    )
     events: typing.Optional[typing.List[OTelEventOutput]] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:

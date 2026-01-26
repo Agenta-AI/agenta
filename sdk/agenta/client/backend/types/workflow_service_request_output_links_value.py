@@ -4,4 +4,6 @@ import typing
 
 from .link import Link
 
-WorkflowServiceRequestOutputLinksValue = typing.Union[Link, typing.Dict[str, typing.Any]]
+WorkflowServiceRequestOutputLinksValue = typing.Union[
+    Link, typing.Dict[str, typing.Any]
+]

@@ -2,4 +2,6 @@
 
 import typing
 
-NumericOperator = typing.Union[typing.Literal["eq", "neq", "gt", "lt", "gte", "lte", "btwn"], typing.Any]
+NumericOperator = typing.Union[
+    typing.Literal["eq", "neq", "gt", "lt", "gte", "lte", "btwn"], typing.Any
+]

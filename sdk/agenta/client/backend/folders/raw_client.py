@@ -28,7 +28,10 @@ class RawFoldersClient:
         self._client_wrapper = client_wrapper
 
     def create_folder(
-        self, *, folder: FolderCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        folder: FolderCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[FolderResponse]:
         """
         Parameters
@@ -80,8 +83,16 @@ class RawFoldersClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_folder(
         self, folder_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -127,11 +138,23 @@ class RawFoldersClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_folder(
-        self, folder_id: str, *, folder: FolderEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        folder_id: str,
+        *,
+        folder: FolderEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[FolderResponse]:
         """
         Parameters
@@ -185,8 +208,16 @@ class RawFoldersClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def delete_folder(
         self, folder_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -232,11 +263,22 @@ class RawFoldersClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def query_folders(
-        self, *, folder: FolderQuery, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        folder: FolderQuery,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[FoldersResponse]:
         """
         Parameters
@@ -288,8 +330,16 @@ class RawFoldersClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawFoldersClient:
@@ -297,7 +347,10 @@ class AsyncRawFoldersClient:
         self._client_wrapper = client_wrapper
 
     async def create_folder(
-        self, *, folder: FolderCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        folder: FolderCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[FolderResponse]:
         """
         Parameters
@@ -349,8 +402,16 @@ class AsyncRawFoldersClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_folder(
         self, folder_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -396,11 +457,23 @@ class AsyncRawFoldersClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_folder(
-        self, folder_id: str, *, folder: FolderEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        folder_id: str,
+        *,
+        folder: FolderEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[FolderResponse]:
         """
         Parameters
@@ -454,8 +527,16 @@ class AsyncRawFoldersClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def delete_folder(
         self, folder_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -501,11 +582,22 @@ class AsyncRawFoldersClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def query_folders(
-        self, *, folder: FolderQuery, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        folder: FolderQuery,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[FoldersResponse]:
         """
         Parameters
@@ -557,5 +649,13 @@ class AsyncRawFoldersClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

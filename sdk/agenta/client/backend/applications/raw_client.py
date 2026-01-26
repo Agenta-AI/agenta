@@ -56,13 +56,19 @@ class RawApplicationsClient:
             method="POST",
             json={
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "application_variant_ref": convert_and_respect_annotation_metadata(
-                    object_=application_variant_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=application_variant_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "application_revision_ref": convert_and_respect_annotation_metadata(
-                    object_=application_revision_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=application_revision_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
             },
             headers={
@@ -94,11 +100,22 @@ class RawApplicationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_legacy_application(
-        self, *, application: LegacyApplicationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        application: LegacyApplicationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[LegacyApplicationResponse]:
         """
         Create a new application using workflow data stored in legacy format
@@ -120,7 +137,9 @@ class RawApplicationsClient:
             method="POST",
             json={
                 "application": convert_and_respect_annotation_metadata(
-                    object_=application, annotation=LegacyApplicationCreate, direction="write"
+                    object_=application,
+                    annotation=LegacyApplicationCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -152,11 +171,22 @@ class RawApplicationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def fetch_legacy_application(
-        self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        application_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[LegacyApplicationResponse]:
         """
         Get an application using workflow data stored in legacy format
@@ -201,8 +231,16 @@ class RawApplicationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def edit_legacy_application(
         self,
@@ -233,7 +271,9 @@ class RawApplicationsClient:
             method="PUT",
             json={
                 "application": convert_and_respect_annotation_metadata(
-                    object_=application, annotation=LegacyApplicationEdit, direction="write"
+                    object_=application,
+                    annotation=LegacyApplicationEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -265,8 +305,16 @@ class RawApplicationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawApplicationsClient:
@@ -303,13 +351,19 @@ class AsyncRawApplicationsClient:
             method="POST",
             json={
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "application_variant_ref": convert_and_respect_annotation_metadata(
-                    object_=application_variant_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=application_variant_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
                 "application_revision_ref": convert_and_respect_annotation_metadata(
-                    object_=application_revision_ref, annotation=typing.Optional[Reference], direction="write"
+                    object_=application_revision_ref,
+                    annotation=typing.Optional[Reference],
+                    direction="write",
                 ),
             },
             headers={
@@ -341,11 +395,22 @@ class AsyncRawApplicationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_legacy_application(
-        self, *, application: LegacyApplicationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        application: LegacyApplicationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[LegacyApplicationResponse]:
         """
         Create a new application using workflow data stored in legacy format
@@ -367,7 +432,9 @@ class AsyncRawApplicationsClient:
             method="POST",
             json={
                 "application": convert_and_respect_annotation_metadata(
-                    object_=application, annotation=LegacyApplicationCreate, direction="write"
+                    object_=application,
+                    annotation=LegacyApplicationCreate,
+                    direction="write",
                 ),
             },
             headers={
@@ -399,11 +466,22 @@ class AsyncRawApplicationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def fetch_legacy_application(
-        self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        application_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[LegacyApplicationResponse]:
         """
         Get an application using workflow data stored in legacy format
@@ -448,8 +526,16 @@ class AsyncRawApplicationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def edit_legacy_application(
         self,
@@ -480,7 +566,9 @@ class AsyncRawApplicationsClient:
             method="PUT",
             json={
                 "application": convert_and_respect_annotation_metadata(
-                    object_=application, annotation=LegacyApplicationEdit, direction="write"
+                    object_=application,
+                    annotation=LegacyApplicationEdit,
+                    direction="write",
                 ),
             },
             headers={
@@ -512,5 +600,13 @@ class AsyncRawApplicationsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

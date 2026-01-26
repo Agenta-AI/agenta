@@ -2,4 +2,6 @@
 
 import typing
 
-CreateSimpleTestsetFromFileRequestFileType = typing.Union[typing.Literal["csv", "json"], typing.Any]
+CreateSimpleTestsetFromFileRequestFileType = typing.Union[
+    typing.Literal["csv", "json"], typing.Any
+]

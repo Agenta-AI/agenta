@@ -32,7 +32,10 @@ class RawAdminClient:
         self._client_wrapper = client_wrapper
 
     def create_portal(
-        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[typing.Any]:
         """
         Parameters
@@ -80,8 +83,16 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_checkout(
         self,
@@ -143,11 +154,23 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def switch_plans(
-        self, *, organization_id: str, plan: Plan, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        plan: Plan,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[typing.Any]:
         """
         Parameters
@@ -198,11 +221,22 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def cancel_subscription(
-        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[typing.Any]:
         """
         Parameters
@@ -250,10 +284,20 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
-    def report_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+    def report_usage(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -284,10 +328,20 @@ class RawAdminClient:
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
-    def flush_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+    def flush_usage(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -318,8 +372,16 @@ class RawAdminClient:
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_accounts(
         self,
@@ -363,16 +425,24 @@ class RawAdminClient:
             method="POST",
             json={
                 "users": convert_and_respect_annotation_metadata(
-                    object_=users, annotation=typing.Dict[str, UserRequest], direction="write"
+                    object_=users,
+                    annotation=typing.Dict[str, UserRequest],
+                    direction="write",
                 ),
                 "organizations": convert_and_respect_annotation_metadata(
-                    object_=organizations, annotation=typing.Dict[str, OrganizationRequest], direction="write"
+                    object_=organizations,
+                    annotation=typing.Dict[str, OrganizationRequest],
+                    direction="write",
                 ),
                 "workspaces": convert_and_respect_annotation_metadata(
-                    object_=workspaces, annotation=typing.Dict[str, WorkspaceRequest], direction="write"
+                    object_=workspaces,
+                    annotation=typing.Dict[str, WorkspaceRequest],
+                    direction="write",
                 ),
                 "projects": convert_and_respect_annotation_metadata(
-                    object_=projects, annotation=typing.Dict[str, ProjectRequest], direction="write"
+                    object_=projects,
+                    annotation=typing.Dict[str, ProjectRequest],
+                    direction="write",
                 ),
                 "organization_memberships": convert_and_respect_annotation_metadata(
                     object_=organization_memberships,
@@ -419,8 +489,16 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_account(
         self,
@@ -445,7 +523,9 @@ class RawAdminClient:
             "admin/account",
             method="POST",
             json=convert_and_respect_annotation_metadata(
-                object_=request, annotation=typing.Optional[AccountRequest], direction="write"
+                object_=request,
+                annotation=typing.Optional[AccountRequest],
+                direction="write",
             ),
             headers={
                 "content-type": "application/json",
@@ -476,8 +556,16 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawAdminClient:
@@ -485,7 +573,10 @@ class AsyncRawAdminClient:
         self._client_wrapper = client_wrapper
 
     async def create_portal(
-        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
@@ -533,8 +624,16 @@ class AsyncRawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_checkout(
         self,
@@ -596,11 +695,23 @@ class AsyncRawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def switch_plans(
-        self, *, organization_id: str, plan: Plan, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        plan: Plan,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
@@ -651,11 +762,22 @@ class AsyncRawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def cancel_subscription(
-        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        organization_id: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
@@ -703,8 +825,16 @@ class AsyncRawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def report_usage(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -739,8 +869,16 @@ class AsyncRawAdminClient:
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def flush_usage(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -775,8 +913,16 @@ class AsyncRawAdminClient:
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_accounts(
         self,
@@ -820,16 +966,24 @@ class AsyncRawAdminClient:
             method="POST",
             json={
                 "users": convert_and_respect_annotation_metadata(
-                    object_=users, annotation=typing.Dict[str, UserRequest], direction="write"
+                    object_=users,
+                    annotation=typing.Dict[str, UserRequest],
+                    direction="write",
                 ),
                 "organizations": convert_and_respect_annotation_metadata(
-                    object_=organizations, annotation=typing.Dict[str, OrganizationRequest], direction="write"
+                    object_=organizations,
+                    annotation=typing.Dict[str, OrganizationRequest],
+                    direction="write",
                 ),
                 "workspaces": convert_and_respect_annotation_metadata(
-                    object_=workspaces, annotation=typing.Dict[str, WorkspaceRequest], direction="write"
+                    object_=workspaces,
+                    annotation=typing.Dict[str, WorkspaceRequest],
+                    direction="write",
                 ),
                 "projects": convert_and_respect_annotation_metadata(
-                    object_=projects, annotation=typing.Dict[str, ProjectRequest], direction="write"
+                    object_=projects,
+                    annotation=typing.Dict[str, ProjectRequest],
+                    direction="write",
                 ),
                 "organization_memberships": convert_and_respect_annotation_metadata(
                     object_=organization_memberships,
@@ -876,8 +1030,16 @@ class AsyncRawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_account(
         self,
@@ -902,7 +1064,9 @@ class AsyncRawAdminClient:
             "admin/account",
             method="POST",
             json=convert_and_respect_annotation_metadata(
-                object_=request, annotation=typing.Optional[AccountRequest], direction="write"
+                object_=request,
+                annotation=typing.Optional[AccountRequest],
+                direction="write",
             ),
             headers={
                 "content-type": "application/json",
@@ -933,5 +1097,13 @@ class AsyncRawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

@@ -5,16 +5,24 @@ from __future__ import annotations
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 
 
 class OTelLinkOutput(UniversalBaseModel):
     span_id: str
     trace_id: str
-    attributes: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = None
+    attributes: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
+        None
+    )
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:

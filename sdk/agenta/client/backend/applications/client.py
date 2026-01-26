@@ -73,7 +73,10 @@ class ApplicationsClient:
         return _response.data
 
     def create_legacy_application(
-        self, *, application: LegacyApplicationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        application: LegacyApplicationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> LegacyApplicationResponse:
         """
         Create a new application using workflow data stored in legacy format
@@ -101,11 +104,16 @@ class ApplicationsClient:
             application=LegacyApplicationCreate(),
         )
         """
-        _response = self._raw_client.create_legacy_application(application=application, request_options=request_options)
+        _response = self._raw_client.create_legacy_application(
+            application=application, request_options=request_options
+        )
         return _response.data
 
     def fetch_legacy_application(
-        self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        application_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> LegacyApplicationResponse:
         """
         Get an application using workflow data stored in legacy format
@@ -133,7 +141,9 @@ class ApplicationsClient:
             application_id="application_id",
         )
         """
-        _response = self._raw_client.fetch_legacy_application(application_id, request_options=request_options)
+        _response = self._raw_client.fetch_legacy_application(
+            application_id, request_options=request_options
+        )
         return _response.data
 
     def edit_legacy_application(
@@ -244,7 +254,10 @@ class AsyncApplicationsClient:
         return _response.data
 
     async def create_legacy_application(
-        self, *, application: LegacyApplicationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        application: LegacyApplicationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> LegacyApplicationResponse:
         """
         Create a new application using workflow data stored in legacy format
@@ -286,7 +299,10 @@ class AsyncApplicationsClient:
         return _response.data
 
     async def fetch_legacy_application(
-        self, application_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        application_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> LegacyApplicationResponse:
         """
         Get an application using workflow data stored in legacy format
@@ -322,7 +338,9 @@ class AsyncApplicationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_legacy_application(application_id, request_options=request_options)
+        _response = await self._raw_client.fetch_legacy_application(
+            application_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_legacy_application(

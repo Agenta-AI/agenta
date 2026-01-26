@@ -2,4 +2,6 @@
 
 import typing
 
-SimpleEvaluationDataTestsetStepsOneValue = typing.Union[typing.Literal["custom", "human", "auto"], typing.Any]
+SimpleEvaluationDataTestsetStepsOneValue = typing.Union[
+    typing.Literal["custom", "human", "auto"], typing.Any
+]

@@ -19,7 +19,9 @@ from ..types.configs_response_model import ConfigsResponseModel
 from ..types.http_validation_error import HttpValidationError
 from ..types.reference_dto import ReferenceDto
 from ..types.reference_request_model import ReferenceRequestModel
-from .types.add_variant_from_base_and_config_response import AddVariantFromBaseAndConfigResponse
+from .types.add_variant_from_base_and_config_response import (
+    AddVariantFromBaseAndConfigResponse,
+)
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -111,11 +113,22 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def get_variant(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[AppVariantResponse]:
         """
         Parameters
@@ -158,11 +171,22 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def mark_variant_as_hidden(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[typing.Any]:
         """
         Mark a variant as hidden from the UI.
@@ -215,8 +239,16 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def update_variant_parameters(
         self,
@@ -291,8 +323,16 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def update_variant_url(
         self,
@@ -373,11 +413,22 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def get_variant_revisions(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[typing.List[AppVariantRevision]]:
         """
         Parameters
@@ -420,11 +471,23 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def get_variant_revision(
-        self, variant_id: str, revision_number: int, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        revision_number: int,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[AppVariantRevision]:
         """
         Parameters
@@ -469,11 +532,23 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def mark_variant_revision_as_hidden(
-        self, variant_id: str, revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[typing.Any]:
         """
         Mark a variant revision as hidden from the UI.
@@ -529,8 +604,16 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def configs_add(
         self,
@@ -559,10 +642,14 @@ class RawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
             },
             headers={
@@ -594,8 +681,16 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def configs_fetch(
         self,
@@ -644,13 +739,19 @@ class RawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=variant_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
                 "environment_ref": convert_and_respect_annotation_metadata(
-                    object_=environment_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=environment_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -682,8 +783,16 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def configs_fork(
         self,
@@ -715,13 +824,19 @@ class RawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=variant_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
                 "environment_ref": convert_and_respect_annotation_metadata(
-                    object_=environment_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=environment_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -753,8 +868,16 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def configs_query(
         self,
@@ -788,7 +911,9 @@ class RawVariantsClient:
                     direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -820,11 +945,22 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def configs_commit(
-        self, *, config: ConfigDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        config: ConfigDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[ConfigResponseModel]:
         """
         Parameters
@@ -876,8 +1012,16 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def configs_deploy(
         self,
@@ -909,13 +1053,19 @@ class RawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
                 "environment_ref": convert_and_respect_annotation_metadata(
-                    object_=environment_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=environment_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -947,8 +1097,16 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def configs_delete(
         self,
@@ -977,10 +1135,14 @@ class RawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -1012,11 +1174,22 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def configs_list(
-        self, *, application_ref: ReferenceDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        application_ref: ReferenceDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[typing.List[ConfigResponseModel]]:
         """
         Parameters
@@ -1068,8 +1241,16 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def configs_history(
         self,
@@ -1098,10 +1279,14 @@ class RawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -1133,8 +1318,16 @@ class RawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawVariantsClient:
@@ -1223,11 +1416,22 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def get_variant(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[AppVariantResponse]:
         """
         Parameters
@@ -1270,11 +1474,22 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def mark_variant_as_hidden(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[typing.Any]:
         """
         Mark a variant as hidden from the UI.
@@ -1327,8 +1542,16 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def update_variant_parameters(
         self,
@@ -1403,8 +1626,16 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def update_variant_url(
         self,
@@ -1485,11 +1716,22 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def get_variant_revisions(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[typing.List[AppVariantRevision]]:
         """
         Parameters
@@ -1532,11 +1774,23 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def get_variant_revision(
-        self, variant_id: str, revision_number: int, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        revision_number: int,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[AppVariantRevision]:
         """
         Parameters
@@ -1581,11 +1835,23 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def mark_variant_revision_as_hidden(
-        self, variant_id: str, revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[typing.Any]:
         """
         Mark a variant revision as hidden from the UI.
@@ -1641,8 +1907,16 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def configs_add(
         self,
@@ -1671,10 +1945,14 @@ class AsyncRawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
             },
             headers={
@@ -1706,8 +1984,16 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def configs_fetch(
         self,
@@ -1756,13 +2042,19 @@ class AsyncRawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=variant_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
                 "environment_ref": convert_and_respect_annotation_metadata(
-                    object_=environment_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=environment_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -1794,8 +2086,16 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def configs_fork(
         self,
@@ -1827,13 +2127,19 @@ class AsyncRawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=variant_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
                 "environment_ref": convert_and_respect_annotation_metadata(
-                    object_=environment_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=environment_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -1865,8 +2171,16 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def configs_query(
         self,
@@ -1900,7 +2214,9 @@ class AsyncRawVariantsClient:
                     direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -1932,11 +2248,22 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def configs_commit(
-        self, *, config: ConfigDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        config: ConfigDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[ConfigResponseModel]:
         """
         Parameters
@@ -1988,8 +2315,16 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def configs_deploy(
         self,
@@ -2021,13 +2356,19 @@ class AsyncRawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
                 "environment_ref": convert_and_respect_annotation_metadata(
-                    object_=environment_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=environment_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -2059,8 +2400,16 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def configs_delete(
         self,
@@ -2089,10 +2438,14 @@ class AsyncRawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -2124,11 +2477,22 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def configs_list(
-        self, *, application_ref: ReferenceDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        application_ref: ReferenceDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[typing.List[ConfigResponseModel]]:
         """
         Parameters
@@ -2180,8 +2544,16 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def configs_history(
         self,
@@ -2210,10 +2582,14 @@ class AsyncRawVariantsClient:
             method="POST",
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=ReferenceRequestModel, direction="write"
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=typing.Optional[ReferenceRequestModel], direction="write"
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
                 ),
             },
             headers={
@@ -2245,5 +2621,13 @@ class AsyncRawVariantsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

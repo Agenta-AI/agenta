@@ -4,4 +4,6 @@ import typing
 
 from .workflow_service_configuration_input import WorkflowServiceConfigurationInput
 
-WorkflowServiceRequestInputConfiguration = typing.Union[WorkflowServiceConfigurationInput, typing.Dict[str, typing.Any]]
+WorkflowServiceRequestInputConfiguration = typing.Union[
+    WorkflowServiceConfigurationInput, typing.Dict[str, typing.Any]
+]

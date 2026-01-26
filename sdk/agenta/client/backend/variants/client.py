@@ -12,7 +12,9 @@ from ..types.configs_response_model import ConfigsResponseModel
 from ..types.reference_dto import ReferenceDto
 from ..types.reference_request_model import ReferenceRequestModel
 from .raw_client import AsyncRawVariantsClient, RawVariantsClient
-from .types.add_variant_from_base_and_config_response import AddVariantFromBaseAndConfigResponse
+from .types.add_variant_from_base_and_config_response import (
+    AddVariantFromBaseAndConfigResponse,
+)
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -101,7 +103,10 @@ class VariantsClient:
         return _response.data
 
     def get_variant(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantResponse:
         """
         Parameters
@@ -127,11 +132,16 @@ class VariantsClient:
             variant_id="variant_id",
         )
         """
-        _response = self._raw_client.get_variant(variant_id, request_options=request_options)
+        _response = self._raw_client.get_variant(
+            variant_id, request_options=request_options
+        )
         return _response.data
 
     def mark_variant_as_hidden(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Mark a variant as hidden from the UI.
@@ -165,7 +175,9 @@ class VariantsClient:
             variant_id="variant_id",
         )
         """
-        _response = self._raw_client.mark_variant_as_hidden(variant_id, request_options=request_options)
+        _response = self._raw_client.mark_variant_as_hidden(
+            variant_id, request_options=request_options
+        )
         return _response.data
 
     def update_variant_parameters(
@@ -218,7 +230,10 @@ class VariantsClient:
         )
         """
         _response = self._raw_client.update_variant_parameters(
-            variant_id, parameters=parameters, commit_message=commit_message, request_options=request_options
+            variant_id,
+            parameters=parameters,
+            commit_message=commit_message,
+            request_options=request_options,
         )
         return _response.data
 
@@ -285,7 +300,10 @@ class VariantsClient:
         return _response.data
 
     def get_variant_revisions(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[AppVariantRevision]:
         """
         Parameters
@@ -311,11 +329,17 @@ class VariantsClient:
             variant_id="variant_id",
         )
         """
-        _response = self._raw_client.get_variant_revisions(variant_id, request_options=request_options)
+        _response = self._raw_client.get_variant_revisions(
+            variant_id, request_options=request_options
+        )
         return _response.data
 
     def get_variant_revision(
-        self, variant_id: str, revision_number: int, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        revision_number: int,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantRevision:
         """
         Parameters
@@ -344,11 +368,17 @@ class VariantsClient:
             revision_number=1,
         )
         """
-        _response = self._raw_client.get_variant_revision(variant_id, revision_number, request_options=request_options)
+        _response = self._raw_client.get_variant_revision(
+            variant_id, revision_number, request_options=request_options
+        )
         return _response.data
 
     def mark_variant_revision_as_hidden(
-        self, variant_id: str, revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Mark a variant revision as hidden from the UI.
@@ -426,7 +456,9 @@ class VariantsClient:
         )
         """
         _response = self._raw_client.configs_add(
-            variant_ref=variant_ref, application_ref=application_ref, request_options=request_options
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+            request_options=request_options,
         )
         return _response.data
 
@@ -563,12 +595,17 @@ class VariantsClient:
         client.variants.configs_query()
         """
         _response = self._raw_client.configs_query(
-            variant_refs=variant_refs, application_ref=application_ref, request_options=request_options
+            variant_refs=variant_refs,
+            application_ref=application_ref,
+            request_options=request_options,
         )
         return _response.data
 
     def configs_commit(
-        self, *, config: ConfigDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        config: ConfigDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> ConfigResponseModel:
         """
         Parameters
@@ -596,7 +633,9 @@ class VariantsClient:
             ),
         )
         """
-        _response = self._raw_client.configs_commit(config=config, request_options=request_options)
+        _response = self._raw_client.configs_commit(
+            config=config, request_options=request_options
+        )
         return _response.data
 
     def configs_deploy(
@@ -678,12 +717,17 @@ class VariantsClient:
         )
         """
         _response = self._raw_client.configs_delete(
-            variant_ref=variant_ref, application_ref=application_ref, request_options=request_options
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+            request_options=request_options,
         )
         return _response.data
 
     def configs_list(
-        self, *, application_ref: ReferenceDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        application_ref: ReferenceDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[ConfigResponseModel]:
         """
         Parameters
@@ -709,7 +753,9 @@ class VariantsClient:
             application_ref=ReferenceDto(),
         )
         """
-        _response = self._raw_client.configs_list(application_ref=application_ref, request_options=request_options)
+        _response = self._raw_client.configs_list(
+            application_ref=application_ref, request_options=request_options
+        )
         return _response.data
 
     def configs_history(
@@ -746,7 +792,9 @@ class VariantsClient:
         )
         """
         _response = self._raw_client.configs_history(
-            variant_ref=variant_ref, application_ref=application_ref, request_options=request_options
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+            request_options=request_options,
         )
         return _response.data
 
@@ -842,7 +890,10 @@ class AsyncVariantsClient:
         return _response.data
 
     async def get_variant(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantResponse:
         """
         Parameters
@@ -876,11 +927,16 @@ class AsyncVariantsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_variant(variant_id, request_options=request_options)
+        _response = await self._raw_client.get_variant(
+            variant_id, request_options=request_options
+        )
         return _response.data
 
     async def mark_variant_as_hidden(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Mark a variant as hidden from the UI.
@@ -922,7 +978,9 @@ class AsyncVariantsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.mark_variant_as_hidden(variant_id, request_options=request_options)
+        _response = await self._raw_client.mark_variant_as_hidden(
+            variant_id, request_options=request_options
+        )
         return _response.data
 
     async def update_variant_parameters(
@@ -983,7 +1041,10 @@ class AsyncVariantsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.update_variant_parameters(
-            variant_id, parameters=parameters, commit_message=commit_message, request_options=request_options
+            variant_id,
+            parameters=parameters,
+            commit_message=commit_message,
+            request_options=request_options,
         )
         return _response.data
 
@@ -1058,7 +1119,10 @@ class AsyncVariantsClient:
         return _response.data
 
     async def get_variant_revisions(
-        self, variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[AppVariantRevision]:
         """
         Parameters
@@ -1092,11 +1156,17 @@ class AsyncVariantsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_variant_revisions(variant_id, request_options=request_options)
+        _response = await self._raw_client.get_variant_revisions(
+            variant_id, request_options=request_options
+        )
         return _response.data
 
     async def get_variant_revision(
-        self, variant_id: str, revision_number: int, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        revision_number: int,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantRevision:
         """
         Parameters
@@ -1139,7 +1209,11 @@ class AsyncVariantsClient:
         return _response.data
 
     async def mark_variant_revision_as_hidden(
-        self, variant_id: str, revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        variant_id: str,
+        revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Mark a variant revision as hidden from the UI.
@@ -1233,7 +1307,9 @@ class AsyncVariantsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.configs_add(
-            variant_ref=variant_ref, application_ref=application_ref, request_options=request_options
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+            request_options=request_options,
         )
         return _response.data
 
@@ -1394,12 +1470,17 @@ class AsyncVariantsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.configs_query(
-            variant_refs=variant_refs, application_ref=application_ref, request_options=request_options
+            variant_refs=variant_refs,
+            application_ref=application_ref,
+            request_options=request_options,
         )
         return _response.data
 
     async def configs_commit(
-        self, *, config: ConfigDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        config: ConfigDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> ConfigResponseModel:
         """
         Parameters
@@ -1435,7 +1516,9 @@ class AsyncVariantsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.configs_commit(config=config, request_options=request_options)
+        _response = await self._raw_client.configs_commit(
+            config=config, request_options=request_options
+        )
         return _response.data
 
     async def configs_deploy(
@@ -1533,12 +1616,17 @@ class AsyncVariantsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.configs_delete(
-            variant_ref=variant_ref, application_ref=application_ref, request_options=request_options
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+            request_options=request_options,
         )
         return _response.data
 
     async def configs_list(
-        self, *, application_ref: ReferenceDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        application_ref: ReferenceDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[ConfigResponseModel]:
         """
         Parameters
@@ -1619,6 +1707,8 @@ class AsyncVariantsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.configs_history(
-            variant_ref=variant_ref, application_ref=application_ref, request_options=request_options
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+            request_options=request_options,
         )
         return _response.data

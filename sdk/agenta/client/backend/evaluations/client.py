@@ -18,7 +18,9 @@ from ..types.evaluation_queue_id_response import EvaluationQueueIdResponse
 from ..types.evaluation_queue_ids_response import EvaluationQueueIdsResponse
 from ..types.evaluation_queue_query import EvaluationQueueQuery
 from ..types.evaluation_queue_response import EvaluationQueueResponse
-from ..types.evaluation_queue_scenario_ids_response import EvaluationQueueScenarioIdsResponse
+from ..types.evaluation_queue_scenario_ids_response import (
+    EvaluationQueueScenarioIdsResponse,
+)
 from ..types.evaluation_queues_response import EvaluationQueuesResponse
 from ..types.evaluation_result_create import EvaluationResultCreate
 from ..types.evaluation_result_edit import EvaluationResultEdit
@@ -106,12 +108,17 @@ class EvaluationsClient:
         client.evaluations.refresh_runs()
         """
         _response = self._raw_client.refresh_runs(
-            trigger_interval=trigger_interval, trigger_datetime=trigger_datetime, request_options=request_options
+            trigger_interval=trigger_interval,
+            trigger_datetime=trigger_datetime,
+            request_options=request_options,
         )
         return _response.data
 
     def create_runs(
-        self, *, runs: typing.Sequence[EvaluationRunCreate], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        runs: typing.Sequence[EvaluationRunCreate],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunsResponse:
         """
         Parameters
@@ -137,11 +144,16 @@ class EvaluationsClient:
             runs=[EvaluationRunCreate()],
         )
         """
-        _response = self._raw_client.create_runs(runs=runs, request_options=request_options)
+        _response = self._raw_client.create_runs(
+            runs=runs, request_options=request_options
+        )
         return _response.data
 
     def delete_runs(
-        self, *, run_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        run_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunIdsResponse:
         """
         Parameters
@@ -167,11 +179,16 @@ class EvaluationsClient:
             run_ids=["run_ids"],
         )
         """
-        _response = self._raw_client.delete_runs(run_ids=run_ids, request_options=request_options)
+        _response = self._raw_client.delete_runs(
+            run_ids=run_ids, request_options=request_options
+        )
         return _response.data
 
     def edit_runs(
-        self, *, runs: typing.Sequence[EvaluationRunEdit], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        runs: typing.Sequence[EvaluationRunEdit],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunsResponse:
         """
         Parameters
@@ -197,7 +214,9 @@ class EvaluationsClient:
             runs=[EvaluationRunEdit()],
         )
         """
-        _response = self._raw_client.edit_runs(runs=runs, request_options=request_options)
+        _response = self._raw_client.edit_runs(
+            runs=runs, request_options=request_options
+        )
         return _response.data
 
     def query_runs(
@@ -231,11 +250,16 @@ class EvaluationsClient:
         )
         client.evaluations.query_runs()
         """
-        _response = self._raw_client.query_runs(run=run, windowing=windowing, request_options=request_options)
+        _response = self._raw_client.query_runs(
+            run=run, windowing=windowing, request_options=request_options
+        )
         return _response.data
 
     def close_runs(
-        self, *, run_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        run_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunsResponse:
         """
         Parameters
@@ -261,11 +285,16 @@ class EvaluationsClient:
             run_ids=["run_ids"],
         )
         """
-        _response = self._raw_client.close_runs(run_ids=run_ids, request_options=request_options)
+        _response = self._raw_client.close_runs(
+            run_ids=run_ids, request_options=request_options
+        )
         return _response.data
 
     def open_runs(
-        self, *, run_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        run_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunsResponse:
         """
         Parameters
@@ -291,7 +320,9 @@ class EvaluationsClient:
             run_ids=["run_ids"],
         )
         """
-        _response = self._raw_client.open_runs(run_ids=run_ids, request_options=request_options)
+        _response = self._raw_client.open_runs(
+            run_ids=run_ids, request_options=request_options
+        )
         return _response.data
 
     def fetch_run(
@@ -355,7 +386,11 @@ class EvaluationsClient:
         return _response.data
 
     def edit_run(
-        self, run_id: str, *, run: EvaluationRunEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        run_id: str,
+        *,
+        run: EvaluationRunEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunResponse:
         """
         Parameters
@@ -384,7 +419,9 @@ class EvaluationsClient:
             run=EvaluationRunEdit(),
         )
         """
-        _response = self._raw_client.edit_run(run_id, run=run, request_options=request_options)
+        _response = self._raw_client.edit_run(
+            run_id, run=run, request_options=request_options
+        )
         return _response.data
 
     def close_run(
@@ -421,7 +458,9 @@ class EvaluationsClient:
             status="pending",
         )
         """
-        _response = self._raw_client.close_run(run_id, status, request_options=request_options)
+        _response = self._raw_client.close_run(
+            run_id, status, request_options=request_options
+        )
         return _response.data
 
     def open_run(
@@ -488,11 +527,16 @@ class EvaluationsClient:
             ],
         )
         """
-        _response = self._raw_client.create_scenarios(scenarios=scenarios, request_options=request_options)
+        _response = self._raw_client.create_scenarios(
+            scenarios=scenarios, request_options=request_options
+        )
         return _response.data
 
     def delete_scenarios(
-        self, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        scenario_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationScenarioIdsResponse:
         """
         Parameters
@@ -518,7 +562,9 @@ class EvaluationsClient:
             scenario_ids=["scenario_ids"],
         )
         """
-        _response = self._raw_client.delete_scenarios(scenario_ids=scenario_ids, request_options=request_options)
+        _response = self._raw_client.delete_scenarios(
+            scenario_ids=scenario_ids, request_options=request_options
+        )
         return _response.data
 
     def edit_scenarios(
@@ -551,7 +597,9 @@ class EvaluationsClient:
             scenarios=[EvaluationScenarioEdit()],
         )
         """
-        _response = self._raw_client.edit_scenarios(scenarios=scenarios, request_options=request_options)
+        _response = self._raw_client.edit_scenarios(
+            scenarios=scenarios, request_options=request_options
+        )
         return _response.data
 
     def query_scenarios(
@@ -591,7 +639,10 @@ class EvaluationsClient:
         return _response.data
 
     def fetch_scenario(
-        self, scenario_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        scenario_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationScenarioResponse:
         """
         Parameters
@@ -617,11 +668,16 @@ class EvaluationsClient:
             scenario_id="scenario_id",
         )
         """
-        _response = self._raw_client.fetch_scenario(scenario_id, request_options=request_options)
+        _response = self._raw_client.fetch_scenario(
+            scenario_id, request_options=request_options
+        )
         return _response.data
 
     def delete_scenario(
-        self, scenario_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        scenario_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationScenarioIdResponse:
         """
         Parameters
@@ -647,7 +703,9 @@ class EvaluationsClient:
             scenario_id="scenario_id",
         )
         """
-        _response = self._raw_client.delete_scenario(scenario_id, request_options=request_options)
+        _response = self._raw_client.delete_scenario(
+            scenario_id, request_options=request_options
+        )
         return _response.data
 
     def edit_scenario(
@@ -684,7 +742,9 @@ class EvaluationsClient:
             scenario=EvaluationScenarioEdit(),
         )
         """
-        _response = self._raw_client.edit_scenario(scenario_id, scenario=scenario, request_options=request_options)
+        _response = self._raw_client.edit_scenario(
+            scenario_id, scenario=scenario, request_options=request_options
+        )
         return _response.data
 
     def create_results(
@@ -723,11 +783,16 @@ class EvaluationsClient:
             ],
         )
         """
-        _response = self._raw_client.create_results(results=results, request_options=request_options)
+        _response = self._raw_client.create_results(
+            results=results, request_options=request_options
+        )
         return _response.data
 
     def delete_results(
-        self, *, result_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        result_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationResultIdsResponse:
         """
         Parameters
@@ -753,11 +818,16 @@ class EvaluationsClient:
             result_ids=["result_ids"],
         )
         """
-        _response = self._raw_client.delete_results(result_ids=result_ids, request_options=request_options)
+        _response = self._raw_client.delete_results(
+            result_ids=result_ids, request_options=request_options
+        )
         return _response.data
 
     def edit_results(
-        self, *, results: typing.Sequence[EvaluationResultEdit], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        results: typing.Sequence[EvaluationResultEdit],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationResultsResponse:
         """
         Parameters
@@ -783,7 +853,9 @@ class EvaluationsClient:
             results=[EvaluationResultEdit()],
         )
         """
-        _response = self._raw_client.edit_results(results=results, request_options=request_options)
+        _response = self._raw_client.edit_results(
+            results=results, request_options=request_options
+        )
         return _response.data
 
     def query_results(
@@ -817,7 +889,9 @@ class EvaluationsClient:
         )
         client.evaluations.query_results()
         """
-        _response = self._raw_client.query_results(result=result, windowing=windowing, request_options=request_options)
+        _response = self._raw_client.query_results(
+            result=result, windowing=windowing, request_options=request_options
+        )
         return _response.data
 
     def fetch_result(
@@ -847,7 +921,9 @@ class EvaluationsClient:
             result_id="result_id",
         )
         """
-        _response = self._raw_client.fetch_result(result_id, request_options=request_options)
+        _response = self._raw_client.fetch_result(
+            result_id, request_options=request_options
+        )
         return _response.data
 
     def delete_result(
@@ -877,11 +953,17 @@ class EvaluationsClient:
             result_id="result_id",
         )
         """
-        _response = self._raw_client.delete_result(result_id, request_options=request_options)
+        _response = self._raw_client.delete_result(
+            result_id, request_options=request_options
+        )
         return _response.data
 
     def edit_result(
-        self, result_id: str, *, result: EvaluationResultEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        result_id: str,
+        *,
+        result: EvaluationResultEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationResultResponse:
         """
         Parameters
@@ -910,11 +992,16 @@ class EvaluationsClient:
             result=EvaluationResultEdit(),
         )
         """
-        _response = self._raw_client.edit_result(result_id, result=result, request_options=request_options)
+        _response = self._raw_client.edit_result(
+            result_id, result=result, request_options=request_options
+        )
         return _response.data
 
     def refresh_metrics(
-        self, *, metrics: EvaluationMetricsRefresh, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        metrics: EvaluationMetricsRefresh,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationMetricsResponse:
         """
         Parameters
@@ -940,7 +1027,9 @@ class EvaluationsClient:
             metrics=EvaluationMetricsRefresh(),
         )
         """
-        _response = self._raw_client.refresh_metrics(metrics=metrics, request_options=request_options)
+        _response = self._raw_client.refresh_metrics(
+            metrics=metrics, request_options=request_options
+        )
         return _response.data
 
     def create_metrics(
@@ -977,11 +1066,16 @@ class EvaluationsClient:
             ],
         )
         """
-        _response = self._raw_client.create_metrics(metrics=metrics, request_options=request_options)
+        _response = self._raw_client.create_metrics(
+            metrics=metrics, request_options=request_options
+        )
         return _response.data
 
     def delete_metrics(
-        self, *, metrics_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        metrics_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationMetricsIdsResponse:
         """
         Parameters
@@ -1007,7 +1101,9 @@ class EvaluationsClient:
             metrics_ids=["metrics_ids"],
         )
         """
-        _response = self._raw_client.delete_metrics(metrics_ids=metrics_ids, request_options=request_options)
+        _response = self._raw_client.delete_metrics(
+            metrics_ids=metrics_ids, request_options=request_options
+        )
         return _response.data
 
     def edit_metrics(
@@ -1040,7 +1136,9 @@ class EvaluationsClient:
             metrics=[EvaluationMetricsEdit()],
         )
         """
-        _response = self._raw_client.edit_metrics(metrics=metrics, request_options=request_options)
+        _response = self._raw_client.edit_metrics(
+            metrics=metrics, request_options=request_options
+        )
         return _response.data
 
     def query_metrics(
@@ -1080,7 +1178,10 @@ class EvaluationsClient:
         return _response.data
 
     def create_queues(
-        self, *, queues: typing.Sequence[EvaluationQueueCreate], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        queues: typing.Sequence[EvaluationQueueCreate],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationQueuesResponse:
         """
         Parameters
@@ -1110,11 +1211,16 @@ class EvaluationsClient:
             ],
         )
         """
-        _response = self._raw_client.create_queues(queues=queues, request_options=request_options)
+        _response = self._raw_client.create_queues(
+            queues=queues, request_options=request_options
+        )
         return _response.data
 
     def delete_queues(
-        self, *, queue_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        queue_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationQueueIdsResponse:
         """
         Parameters
@@ -1140,11 +1246,16 @@ class EvaluationsClient:
             queue_ids=["queue_ids"],
         )
         """
-        _response = self._raw_client.delete_queues(queue_ids=queue_ids, request_options=request_options)
+        _response = self._raw_client.delete_queues(
+            queue_ids=queue_ids, request_options=request_options
+        )
         return _response.data
 
     def edit_queues(
-        self, *, queues: typing.Sequence[EvaluationQueueEdit], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        queues: typing.Sequence[EvaluationQueueEdit],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationQueuesResponse:
         """
         Parameters
@@ -1170,7 +1281,9 @@ class EvaluationsClient:
             queues=[EvaluationQueueEdit()],
         )
         """
-        _response = self._raw_client.edit_queues(queues=queues, request_options=request_options)
+        _response = self._raw_client.edit_queues(
+            queues=queues, request_options=request_options
+        )
         return _response.data
 
     def query_queues(
@@ -1204,7 +1317,9 @@ class EvaluationsClient:
         )
         client.evaluations.query_queues()
         """
-        _response = self._raw_client.query_queues(queue=queue, windowing=windowing, request_options=request_options)
+        _response = self._raw_client.query_queues(
+            queue=queue, windowing=windowing, request_options=request_options
+        )
         return _response.data
 
     def fetch_queue(
@@ -1234,7 +1349,9 @@ class EvaluationsClient:
             queue_id="queue_id",
         )
         """
-        _response = self._raw_client.fetch_queue(queue_id, request_options=request_options)
+        _response = self._raw_client.fetch_queue(
+            queue_id, request_options=request_options
+        )
         return _response.data
 
     def delete_queue(
@@ -1264,11 +1381,17 @@ class EvaluationsClient:
             queue_id="queue_id",
         )
         """
-        _response = self._raw_client.delete_queue(queue_id, request_options=request_options)
+        _response = self._raw_client.delete_queue(
+            queue_id, request_options=request_options
+        )
         return _response.data
 
     def edit_queue(
-        self, queue_id: str, *, queue: EvaluationQueueEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        queue_id: str,
+        *,
+        queue: EvaluationQueueEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationQueueResponse:
         """
         Parameters
@@ -1297,7 +1420,9 @@ class EvaluationsClient:
             queue=EvaluationQueueEdit(),
         )
         """
-        _response = self._raw_client.edit_queue(queue_id, queue=queue, request_options=request_options)
+        _response = self._raw_client.edit_queue(
+            queue_id, queue=queue, request_options=request_options
+        )
         return _response.data
 
     def fetch_queue_scenarios(
@@ -1333,11 +1458,16 @@ class EvaluationsClient:
             queue_id="queue_id",
         )
         """
-        _response = self._raw_client.fetch_queue_scenarios(queue_id, user_id=user_id, request_options=request_options)
+        _response = self._raw_client.fetch_queue_scenarios(
+            queue_id, user_id=user_id, request_options=request_options
+        )
         return _response.data
 
     def create_evaluation(
-        self, *, evaluation: SimpleEvaluationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluation: SimpleEvaluationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -1363,11 +1493,16 @@ class EvaluationsClient:
             evaluation=SimpleEvaluationCreate(),
         )
         """
-        _response = self._raw_client.create_evaluation(evaluation=evaluation, request_options=request_options)
+        _response = self._raw_client.create_evaluation(
+            evaluation=evaluation, request_options=request_options
+        )
         return _response.data
 
     def fetch_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -1393,11 +1528,16 @@ class EvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.fetch_evaluation(evaluation_id, request_options=request_options)
+        _response = self._raw_client.fetch_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     def delete_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationIdResponse:
         """
         Parameters
@@ -1423,7 +1563,9 @@ class EvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.delete_evaluation(evaluation_id, request_options=request_options)
+        _response = self._raw_client.delete_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     def edit_evaluation(
@@ -1502,7 +1644,10 @@ class EvaluationsClient:
         return _response.data
 
     def start_simple_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -1528,11 +1673,16 @@ class EvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.start_simple_evaluation(evaluation_id, request_options=request_options)
+        _response = self._raw_client.start_simple_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     def stop_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -1558,11 +1708,16 @@ class EvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.stop_evaluation(evaluation_id, request_options=request_options)
+        _response = self._raw_client.stop_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     def close_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -1588,11 +1743,16 @@ class EvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.close_evaluation(evaluation_id, request_options=request_options)
+        _response = self._raw_client.close_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     def open_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -1618,7 +1778,9 @@ class EvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.open_evaluation(evaluation_id, request_options=request_options)
+        _response = self._raw_client.open_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     def fetch_evaluation_ids(
@@ -1668,12 +1830,17 @@ class EvaluationsClient:
         )
         """
         _response = self._raw_client.fetch_evaluation_ids(
-            resource_type=resource_type, resource_ids=resource_ids, request_options=request_options
+            resource_type=resource_type,
+            resource_ids=resource_ids,
+            request_options=request_options,
         )
         return _response.data
 
     def fetch_evaluation_status(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Fetches the status of the evaluation.
@@ -1708,11 +1875,16 @@ class EvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.fetch_evaluation_status(evaluation_id, request_options=request_options)
+        _response = self._raw_client.fetch_evaluation_status(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     def fetch_legacy_evaluation_results(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Fetches the results of the evaluation
@@ -1747,11 +1919,16 @@ class EvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.fetch_legacy_evaluation_results(evaluation_id, request_options=request_options)
+        _response = self._raw_client.fetch_legacy_evaluation_results(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     def fetch_legacy_evaluation_scenarios(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[OssSrcModelsApiEvaluationModelEvaluationScenario]:
         """
         Fetches evaluation scenarios for a given evaluation ID.
@@ -1788,7 +1965,9 @@ class EvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.fetch_legacy_evaluation_scenarios(evaluation_id, request_options=request_options)
+        _response = self._raw_client.fetch_legacy_evaluation_scenarios(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     def fetch_legacy_evaluations(
@@ -1826,11 +2005,16 @@ class EvaluationsClient:
             app_id="app_id",
         )
         """
-        _response = self._raw_client.fetch_legacy_evaluations(app_id=app_id, request_options=request_options)
+        _response = self._raw_client.fetch_legacy_evaluations(
+            app_id=app_id, request_options=request_options
+        )
         return _response.data
 
     def delete_legacy_evaluations(
-        self, *, evaluations_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluations_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
@@ -1870,7 +2054,10 @@ class EvaluationsClient:
         return _response.data
 
     def fetch_legacy_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> Evaluation:
         """
         Fetches a single evaluation based on its ID.
@@ -1904,11 +2091,16 @@ class EvaluationsClient:
             evaluation_id="evaluation_id",
         )
         """
-        _response = self._raw_client.fetch_legacy_evaluation(evaluation_id, request_options=request_options)
+        _response = self._raw_client.fetch_legacy_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     def fetch_legacy_evaluation_scenarios_comparison_results(
-        self, *, evaluations_ids: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluations_ids: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Fetches evaluation scenarios for a given evaluation ID.
@@ -1945,8 +2137,10 @@ class EvaluationsClient:
             evaluations_ids="evaluations_ids",
         )
         """
-        _response = self._raw_client.fetch_legacy_evaluation_scenarios_comparison_results(
-            evaluations_ids=evaluations_ids, request_options=request_options
+        _response = (
+            self._raw_client.fetch_legacy_evaluation_scenarios_comparison_results(
+                evaluations_ids=evaluations_ids, request_options=request_options
+            )
         )
         return _response.data
 
@@ -2070,12 +2264,17 @@ class AsyncEvaluationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.refresh_runs(
-            trigger_interval=trigger_interval, trigger_datetime=trigger_datetime, request_options=request_options
+            trigger_interval=trigger_interval,
+            trigger_datetime=trigger_datetime,
+            request_options=request_options,
         )
         return _response.data
 
     async def create_runs(
-        self, *, runs: typing.Sequence[EvaluationRunCreate], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        runs: typing.Sequence[EvaluationRunCreate],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunsResponse:
         """
         Parameters
@@ -2109,11 +2308,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_runs(runs=runs, request_options=request_options)
+        _response = await self._raw_client.create_runs(
+            runs=runs, request_options=request_options
+        )
         return _response.data
 
     async def delete_runs(
-        self, *, run_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        run_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunIdsResponse:
         """
         Parameters
@@ -2147,11 +2351,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_runs(run_ids=run_ids, request_options=request_options)
+        _response = await self._raw_client.delete_runs(
+            run_ids=run_ids, request_options=request_options
+        )
         return _response.data
 
     async def edit_runs(
-        self, *, runs: typing.Sequence[EvaluationRunEdit], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        runs: typing.Sequence[EvaluationRunEdit],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunsResponse:
         """
         Parameters
@@ -2185,7 +2394,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_runs(runs=runs, request_options=request_options)
+        _response = await self._raw_client.edit_runs(
+            runs=runs, request_options=request_options
+        )
         return _response.data
 
     async def query_runs(
@@ -2227,11 +2438,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.query_runs(run=run, windowing=windowing, request_options=request_options)
+        _response = await self._raw_client.query_runs(
+            run=run, windowing=windowing, request_options=request_options
+        )
         return _response.data
 
     async def close_runs(
-        self, *, run_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        run_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunsResponse:
         """
         Parameters
@@ -2265,11 +2481,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.close_runs(run_ids=run_ids, request_options=request_options)
+        _response = await self._raw_client.close_runs(
+            run_ids=run_ids, request_options=request_options
+        )
         return _response.data
 
     async def open_runs(
-        self, *, run_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        run_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunsResponse:
         """
         Parameters
@@ -2303,7 +2524,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.open_runs(run_ids=run_ids, request_options=request_options)
+        _response = await self._raw_client.open_runs(
+            run_ids=run_ids, request_options=request_options
+        )
         return _response.data
 
     async def fetch_run(
@@ -2341,7 +2564,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_run(run_id, request_options=request_options)
+        _response = await self._raw_client.fetch_run(
+            run_id, request_options=request_options
+        )
         return _response.data
 
     async def delete_run(
@@ -2379,11 +2604,17 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_run(run_id, request_options=request_options)
+        _response = await self._raw_client.delete_run(
+            run_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_run(
-        self, run_id: str, *, run: EvaluationRunEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        run_id: str,
+        *,
+        run: EvaluationRunEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationRunResponse:
         """
         Parameters
@@ -2420,7 +2651,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_run(run_id, run=run, request_options=request_options)
+        _response = await self._raw_client.edit_run(
+            run_id, run=run, request_options=request_options
+        )
         return _response.data
 
     async def close_run(
@@ -2465,7 +2698,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.close_run(run_id, status, request_options=request_options)
+        _response = await self._raw_client.close_run(
+            run_id, status, request_options=request_options
+        )
         return _response.data
 
     async def open_run(
@@ -2503,7 +2738,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.open_run(run_id, request_options=request_options)
+        _response = await self._raw_client.open_run(
+            run_id, request_options=request_options
+        )
         return _response.data
 
     async def create_scenarios(
@@ -2548,11 +2785,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_scenarios(scenarios=scenarios, request_options=request_options)
+        _response = await self._raw_client.create_scenarios(
+            scenarios=scenarios, request_options=request_options
+        )
         return _response.data
 
     async def delete_scenarios(
-        self, *, scenario_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        scenario_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationScenarioIdsResponse:
         """
         Parameters
@@ -2586,7 +2828,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_scenarios(scenario_ids=scenario_ids, request_options=request_options)
+        _response = await self._raw_client.delete_scenarios(
+            scenario_ids=scenario_ids, request_options=request_options
+        )
         return _response.data
 
     async def edit_scenarios(
@@ -2627,7 +2871,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_scenarios(scenarios=scenarios, request_options=request_options)
+        _response = await self._raw_client.edit_scenarios(
+            scenarios=scenarios, request_options=request_options
+        )
         return _response.data
 
     async def query_scenarios(
@@ -2675,7 +2921,10 @@ class AsyncEvaluationsClient:
         return _response.data
 
     async def fetch_scenario(
-        self, scenario_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        scenario_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationScenarioResponse:
         """
         Parameters
@@ -2709,11 +2958,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_scenario(scenario_id, request_options=request_options)
+        _response = await self._raw_client.fetch_scenario(
+            scenario_id, request_options=request_options
+        )
         return _response.data
 
     async def delete_scenario(
-        self, scenario_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        scenario_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationScenarioIdResponse:
         """
         Parameters
@@ -2747,7 +3001,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_scenario(scenario_id, request_options=request_options)
+        _response = await self._raw_client.delete_scenario(
+            scenario_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_scenario(
@@ -2841,11 +3097,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_results(results=results, request_options=request_options)
+        _response = await self._raw_client.create_results(
+            results=results, request_options=request_options
+        )
         return _response.data
 
     async def delete_results(
-        self, *, result_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        result_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationResultIdsResponse:
         """
         Parameters
@@ -2879,11 +3140,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_results(result_ids=result_ids, request_options=request_options)
+        _response = await self._raw_client.delete_results(
+            result_ids=result_ids, request_options=request_options
+        )
         return _response.data
 
     async def edit_results(
-        self, *, results: typing.Sequence[EvaluationResultEdit], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        results: typing.Sequence[EvaluationResultEdit],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationResultsResponse:
         """
         Parameters
@@ -2917,7 +3183,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_results(results=results, request_options=request_options)
+        _response = await self._raw_client.edit_results(
+            results=results, request_options=request_options
+        )
         return _response.data
 
     async def query_results(
@@ -2999,7 +3267,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_result(result_id, request_options=request_options)
+        _response = await self._raw_client.fetch_result(
+            result_id, request_options=request_options
+        )
         return _response.data
 
     async def delete_result(
@@ -3037,11 +3307,17 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_result(result_id, request_options=request_options)
+        _response = await self._raw_client.delete_result(
+            result_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_result(
-        self, result_id: str, *, result: EvaluationResultEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        result_id: str,
+        *,
+        result: EvaluationResultEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationResultResponse:
         """
         Parameters
@@ -3078,11 +3354,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_result(result_id, result=result, request_options=request_options)
+        _response = await self._raw_client.edit_result(
+            result_id, result=result, request_options=request_options
+        )
         return _response.data
 
     async def refresh_metrics(
-        self, *, metrics: EvaluationMetricsRefresh, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        metrics: EvaluationMetricsRefresh,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationMetricsResponse:
         """
         Parameters
@@ -3116,7 +3397,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.refresh_metrics(metrics=metrics, request_options=request_options)
+        _response = await self._raw_client.refresh_metrics(
+            metrics=metrics, request_options=request_options
+        )
         return _response.data
 
     async def create_metrics(
@@ -3161,11 +3444,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_metrics(metrics=metrics, request_options=request_options)
+        _response = await self._raw_client.create_metrics(
+            metrics=metrics, request_options=request_options
+        )
         return _response.data
 
     async def delete_metrics(
-        self, *, metrics_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        metrics_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationMetricsIdsResponse:
         """
         Parameters
@@ -3199,7 +3487,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_metrics(metrics_ids=metrics_ids, request_options=request_options)
+        _response = await self._raw_client.delete_metrics(
+            metrics_ids=metrics_ids, request_options=request_options
+        )
         return _response.data
 
     async def edit_metrics(
@@ -3240,7 +3530,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_metrics(metrics=metrics, request_options=request_options)
+        _response = await self._raw_client.edit_metrics(
+            metrics=metrics, request_options=request_options
+        )
         return _response.data
 
     async def query_metrics(
@@ -3288,7 +3580,10 @@ class AsyncEvaluationsClient:
         return _response.data
 
     async def create_queues(
-        self, *, queues: typing.Sequence[EvaluationQueueCreate], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        queues: typing.Sequence[EvaluationQueueCreate],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationQueuesResponse:
         """
         Parameters
@@ -3326,11 +3621,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_queues(queues=queues, request_options=request_options)
+        _response = await self._raw_client.create_queues(
+            queues=queues, request_options=request_options
+        )
         return _response.data
 
     async def delete_queues(
-        self, *, queue_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        queue_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationQueueIdsResponse:
         """
         Parameters
@@ -3364,11 +3664,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_queues(queue_ids=queue_ids, request_options=request_options)
+        _response = await self._raw_client.delete_queues(
+            queue_ids=queue_ids, request_options=request_options
+        )
         return _response.data
 
     async def edit_queues(
-        self, *, queues: typing.Sequence[EvaluationQueueEdit], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        queues: typing.Sequence[EvaluationQueueEdit],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationQueuesResponse:
         """
         Parameters
@@ -3402,7 +3707,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_queues(queues=queues, request_options=request_options)
+        _response = await self._raw_client.edit_queues(
+            queues=queues, request_options=request_options
+        )
         return _response.data
 
     async def query_queues(
@@ -3484,7 +3791,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_queue(queue_id, request_options=request_options)
+        _response = await self._raw_client.fetch_queue(
+            queue_id, request_options=request_options
+        )
         return _response.data
 
     async def delete_queue(
@@ -3522,11 +3831,17 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_queue(queue_id, request_options=request_options)
+        _response = await self._raw_client.delete_queue(
+            queue_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_queue(
-        self, queue_id: str, *, queue: EvaluationQueueEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        queue_id: str,
+        *,
+        queue: EvaluationQueueEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluationQueueResponse:
         """
         Parameters
@@ -3563,7 +3878,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.edit_queue(queue_id, queue=queue, request_options=request_options)
+        _response = await self._raw_client.edit_queue(
+            queue_id, queue=queue, request_options=request_options
+        )
         return _response.data
 
     async def fetch_queue_scenarios(
@@ -3613,7 +3930,10 @@ class AsyncEvaluationsClient:
         return _response.data
 
     async def create_evaluation(
-        self, *, evaluation: SimpleEvaluationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluation: SimpleEvaluationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -3647,11 +3967,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_evaluation(evaluation=evaluation, request_options=request_options)
+        _response = await self._raw_client.create_evaluation(
+            evaluation=evaluation, request_options=request_options
+        )
         return _response.data
 
     async def fetch_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -3685,11 +4010,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_evaluation(evaluation_id, request_options=request_options)
+        _response = await self._raw_client.fetch_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     async def delete_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationIdResponse:
         """
         Parameters
@@ -3723,7 +4053,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_evaluation(evaluation_id, request_options=request_options)
+        _response = await self._raw_client.delete_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_evaluation(
@@ -3818,7 +4150,10 @@ class AsyncEvaluationsClient:
         return _response.data
 
     async def start_simple_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -3852,11 +4187,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.start_simple_evaluation(evaluation_id, request_options=request_options)
+        _response = await self._raw_client.start_simple_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     async def stop_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -3890,11 +4230,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.stop_evaluation(evaluation_id, request_options=request_options)
+        _response = await self._raw_client.stop_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     async def close_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -3928,11 +4273,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.close_evaluation(evaluation_id, request_options=request_options)
+        _response = await self._raw_client.close_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     async def open_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluationResponse:
         """
         Parameters
@@ -3966,7 +4316,9 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.open_evaluation(evaluation_id, request_options=request_options)
+        _response = await self._raw_client.open_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     async def fetch_evaluation_ids(
@@ -4024,12 +4376,17 @@ class AsyncEvaluationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.fetch_evaluation_ids(
-            resource_type=resource_type, resource_ids=resource_ids, request_options=request_options
+            resource_type=resource_type,
+            resource_ids=resource_ids,
+            request_options=request_options,
         )
         return _response.data
 
     async def fetch_evaluation_status(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Fetches the status of the evaluation.
@@ -4072,11 +4429,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_evaluation_status(evaluation_id, request_options=request_options)
+        _response = await self._raw_client.fetch_evaluation_status(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     async def fetch_legacy_evaluation_results(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Fetches the results of the evaluation
@@ -4125,7 +4487,10 @@ class AsyncEvaluationsClient:
         return _response.data
 
     async def fetch_legacy_evaluation_scenarios(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[OssSrcModelsApiEvaluationModelEvaluationScenario]:
         """
         Fetches evaluation scenarios for a given evaluation ID.
@@ -4218,11 +4583,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_legacy_evaluations(app_id=app_id, request_options=request_options)
+        _response = await self._raw_client.fetch_legacy_evaluations(
+            app_id=app_id, request_options=request_options
+        )
         return _response.data
 
     async def delete_legacy_evaluations(
-        self, *, evaluations_ids: typing.Sequence[str], request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluations_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
@@ -4270,7 +4640,10 @@ class AsyncEvaluationsClient:
         return _response.data
 
     async def fetch_legacy_evaluation(
-        self, evaluation_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> Evaluation:
         """
         Fetches a single evaluation based on its ID.
@@ -4312,11 +4685,16 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_legacy_evaluation(evaluation_id, request_options=request_options)
+        _response = await self._raw_client.fetch_legacy_evaluation(
+            evaluation_id, request_options=request_options
+        )
         return _response.data
 
     async def fetch_legacy_evaluation_scenarios_comparison_results(
-        self, *, evaluations_ids: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluations_ids: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Fetches evaluation scenarios for a given evaluation ID.
@@ -4361,8 +4739,10 @@ class AsyncEvaluationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_legacy_evaluation_scenarios_comparison_results(
-            evaluations_ids=evaluations_ids, request_options=request_options
+        _response = (
+            await self._raw_client.fetch_legacy_evaluation_scenarios_comparison_results(
+                evaluations_ids=evaluations_ids, request_options=request_options
+            )
         )
         return _response.data
 

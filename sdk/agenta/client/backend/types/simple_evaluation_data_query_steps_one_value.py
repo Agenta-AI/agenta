@@ -2,4 +2,6 @@
 
 import typing
 
-SimpleEvaluationDataQueryStepsOneValue = typing.Union[typing.Literal["custom", "human", "auto"], typing.Any]
+SimpleEvaluationDataQueryStepsOneValue = typing.Union[
+    typing.Literal["custom", "human", "auto"], typing.Any
+]

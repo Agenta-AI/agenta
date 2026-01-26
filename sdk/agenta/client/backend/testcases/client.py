@@ -29,7 +29,10 @@ class TestcasesClient:
         return self._raw_client
 
     def fetch_testcase(
-        self, testcase_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testcase_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestcaseResponse:
         """
         Parameters
@@ -55,7 +58,9 @@ class TestcasesClient:
             testcase_id="testcase_id",
         )
         """
-        _response = self._raw_client.fetch_testcase(testcase_id, request_options=request_options)
+        _response = self._raw_client.fetch_testcase(
+            testcase_id, request_options=request_options
+        )
         return _response.data
 
     def query_testcases(
@@ -121,7 +126,10 @@ class AsyncTestcasesClient:
         return self._raw_client
 
     async def fetch_testcase(
-        self, testcase_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        testcase_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> TestcaseResponse:
         """
         Parameters
@@ -155,7 +163,9 @@ class AsyncTestcasesClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_testcase(testcase_id, request_options=request_options)
+        _response = await self._raw_client.fetch_testcase(
+            testcase_id, request_options=request_options
+        )
         return _response.data
 
     async def query_testcases(

@@ -2,4 +2,6 @@
 
 import typing
 
-TraceType = typing.Union[typing.Literal["invocation", "annotation", "unknown"], typing.Any]
+TraceType = typing.Union[
+    typing.Literal["invocation", "annotation", "unknown"], typing.Any
+]

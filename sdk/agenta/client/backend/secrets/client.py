@@ -55,7 +55,11 @@ class SecretsClient:
         return _response.data
 
     def create_secret(
-        self, *, header: Header, secret: SecretDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        header: Header,
+        secret: SecretDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SecretResponseDto:
         """
         Parameters
@@ -98,7 +102,9 @@ class SecretsClient:
             ),
         )
         """
-        _response = self._raw_client.create_secret(header=header, secret=secret, request_options=request_options)
+        _response = self._raw_client.create_secret(
+            header=header, secret=secret, request_options=request_options
+        )
         return _response.data
 
     def read_secret(
@@ -128,7 +134,9 @@ class SecretsClient:
             secret_id="secret_id",
         )
         """
-        _response = self._raw_client.read_secret(secret_id, request_options=request_options)
+        _response = self._raw_client.read_secret(
+            secret_id, request_options=request_options
+        )
         return _response.data
 
     def update_secret(
@@ -172,7 +180,9 @@ class SecretsClient:
         )
         return _response.data
 
-    def delete_secret(self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> None:
+    def delete_secret(
+        self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -196,7 +206,9 @@ class SecretsClient:
             secret_id="secret_id",
         )
         """
-        _response = self._raw_client.delete_secret(secret_id, request_options=request_options)
+        _response = self._raw_client.delete_secret(
+            secret_id, request_options=request_options
+        )
         return _response.data
 
 
@@ -250,7 +262,11 @@ class AsyncSecretsClient:
         return _response.data
 
     async def create_secret(
-        self, *, header: Header, secret: SecretDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        header: Header,
+        secret: SecretDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SecretResponseDto:
         """
         Parameters
@@ -301,7 +317,9 @@ class AsyncSecretsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_secret(header=header, secret=secret, request_options=request_options)
+        _response = await self._raw_client.create_secret(
+            header=header, secret=secret, request_options=request_options
+        )
         return _response.data
 
     async def read_secret(
@@ -339,7 +357,9 @@ class AsyncSecretsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.read_secret(secret_id, request_options=request_options)
+        _response = await self._raw_client.read_secret(
+            secret_id, request_options=request_options
+        )
         return _response.data
 
     async def update_secret(
@@ -391,7 +411,9 @@ class AsyncSecretsClient:
         )
         return _response.data
 
-    async def delete_secret(self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> None:
+    async def delete_secret(
+        self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -423,5 +445,7 @@ class AsyncSecretsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_secret(secret_id, request_options=request_options)
+        _response = await self._raw_client.delete_secret(
+            secret_id, request_options=request_options
+        )
         return _response.data

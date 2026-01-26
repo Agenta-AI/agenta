@@ -34,7 +34,10 @@ class InvocationsClient:
         return self._raw_client
 
     def create_invocation(
-        self, *, invocation: InvocationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        invocation: InvocationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> InvocationResponse:
         """
         Parameters
@@ -63,7 +66,9 @@ class InvocationsClient:
             ),
         )
         """
-        _response = self._raw_client.create_invocation(invocation=invocation, request_options=request_options)
+        _response = self._raw_client.create_invocation(
+            invocation=invocation, request_options=request_options
+        )
         return _response.data
 
     def fetch_invocation_by_trace_id(
@@ -182,12 +187,19 @@ class InvocationsClient:
         )
         """
         _response = self._raw_client.edit_invocation_by_trace_id(
-            trace_id, invocation=invocation, span_id=span_id, request_options=request_options
+            trace_id,
+            invocation=invocation,
+            span_id=span_id,
+            request_options=request_options,
         )
         return _response.data
 
     def fetch_invocation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> InvocationResponse:
         """
         Parameters
@@ -216,11 +228,17 @@ class InvocationsClient:
             span_id="span_id",
         )
         """
-        _response = self._raw_client.fetch_invocation(trace_id, span_id, request_options=request_options)
+        _response = self._raw_client.fetch_invocation(
+            trace_id, span_id, request_options=request_options
+        )
         return _response.data
 
     def delete_invocation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> InvocationLinkResponse:
         """
         Parameters
@@ -249,7 +267,9 @@ class InvocationsClient:
             span_id="span_id",
         )
         """
-        _response = self._raw_client.delete_invocation(trace_id, span_id, request_options=request_options)
+        _response = self._raw_client.delete_invocation(
+            trace_id, span_id, request_options=request_options
+        )
         return _response.data
 
     def edit_invocation(
@@ -356,7 +376,10 @@ class AsyncInvocationsClient:
         return self._raw_client
 
     async def create_invocation(
-        self, *, invocation: InvocationCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        invocation: InvocationCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> InvocationResponse:
         """
         Parameters
@@ -393,7 +416,9 @@ class AsyncInvocationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_invocation(invocation=invocation, request_options=request_options)
+        _response = await self._raw_client.create_invocation(
+            invocation=invocation, request_options=request_options
+        )
         return _response.data
 
     async def fetch_invocation_by_trace_id(
@@ -536,12 +561,19 @@ class AsyncInvocationsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.edit_invocation_by_trace_id(
-            trace_id, invocation=invocation, span_id=span_id, request_options=request_options
+            trace_id,
+            invocation=invocation,
+            span_id=span_id,
+            request_options=request_options,
         )
         return _response.data
 
     async def fetch_invocation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> InvocationResponse:
         """
         Parameters
@@ -578,11 +610,17 @@ class AsyncInvocationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_invocation(trace_id, span_id, request_options=request_options)
+        _response = await self._raw_client.fetch_invocation(
+            trace_id, span_id, request_options=request_options
+        )
         return _response.data
 
     async def delete_invocation(
-        self, trace_id: str, span_id: typing.Optional[str], *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        trace_id: str,
+        span_id: typing.Optional[str],
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> InvocationLinkResponse:
         """
         Parameters
@@ -619,7 +657,9 @@ class AsyncInvocationsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_invocation(trace_id, span_id, request_options=request_options)
+        _response = await self._raw_client.delete_invocation(
+            trace_id, span_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_invocation(

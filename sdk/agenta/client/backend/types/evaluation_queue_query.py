@@ -5,7 +5,11 @@ from __future__ import annotations
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 from .evaluation_queue_flags import EvaluationQueueFlags
 
 
@@ -22,7 +26,9 @@ class EvaluationQueueQuery(UniversalBaseModel):
     ids: typing.Optional[typing.List[str]] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:
@@ -34,4 +40,6 @@ class EvaluationQueueQuery(UniversalBaseModel):
 from .label_json_input import LabelJsonInput  # noqa: E402, I001
 from .full_json_input import FullJsonInput  # noqa: E402, I001
 
-update_forward_refs(EvaluationQueueQuery, FullJsonInput=FullJsonInput, LabelJsonInput=LabelJsonInput)
+update_forward_refs(
+    EvaluationQueueQuery, FullJsonInput=FullJsonInput, LabelJsonInput=LabelJsonInput
+)

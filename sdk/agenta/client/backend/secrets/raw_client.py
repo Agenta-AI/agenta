@@ -55,11 +55,23 @@ class RawSecretsClient:
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def create_secret(
-        self, *, header: Header, secret: SecretDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        header: Header,
+        secret: SecretDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[SecretResponseDto]:
         """
         Parameters
@@ -80,7 +92,9 @@ class RawSecretsClient:
             "vault/v1/secrets/",
             method="POST",
             json={
-                "header": convert_and_respect_annotation_metadata(object_=header, annotation=Header, direction="write"),
+                "header": convert_and_respect_annotation_metadata(
+                    object_=header, annotation=Header, direction="write"
+                ),
                 "secret": convert_and_respect_annotation_metadata(
                     object_=secret, annotation=SecretDto, direction="write"
                 ),
@@ -114,8 +128,16 @@ class RawSecretsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def read_secret(
         self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -161,8 +183,16 @@ class RawSecretsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def update_secret(
         self,
@@ -194,10 +224,14 @@ class RawSecretsClient:
             method="PUT",
             json={
                 "header": convert_and_respect_annotation_metadata(
-                    object_=header, annotation=typing.Optional[Header], direction="write"
+                    object_=header,
+                    annotation=typing.Optional[Header],
+                    direction="write",
                 ),
                 "secret": convert_and_respect_annotation_metadata(
-                    object_=secret, annotation=typing.Optional[SecretDto], direction="write"
+                    object_=secret,
+                    annotation=typing.Optional[SecretDto],
+                    direction="write",
                 ),
             },
             headers={
@@ -229,8 +263,16 @@ class RawSecretsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     def delete_secret(
         self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -268,8 +310,16 @@ class RawSecretsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
 
 class AsyncRawSecretsClient:
@@ -307,11 +357,23 @@ class AsyncRawSecretsClient:
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def create_secret(
-        self, *, header: Header, secret: SecretDto, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        header: Header,
+        secret: SecretDto,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[SecretResponseDto]:
         """
         Parameters
@@ -332,7 +394,9 @@ class AsyncRawSecretsClient:
             "vault/v1/secrets/",
             method="POST",
             json={
-                "header": convert_and_respect_annotation_metadata(object_=header, annotation=Header, direction="write"),
+                "header": convert_and_respect_annotation_metadata(
+                    object_=header, annotation=Header, direction="write"
+                ),
                 "secret": convert_and_respect_annotation_metadata(
                     object_=secret, annotation=SecretDto, direction="write"
                 ),
@@ -366,8 +430,16 @@ class AsyncRawSecretsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def read_secret(
         self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -413,8 +485,16 @@ class AsyncRawSecretsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def update_secret(
         self,
@@ -446,10 +526,14 @@ class AsyncRawSecretsClient:
             method="PUT",
             json={
                 "header": convert_and_respect_annotation_metadata(
-                    object_=header, annotation=typing.Optional[Header], direction="write"
+                    object_=header,
+                    annotation=typing.Optional[Header],
+                    direction="write",
                 ),
                 "secret": convert_and_respect_annotation_metadata(
-                    object_=secret, annotation=typing.Optional[SecretDto], direction="write"
+                    object_=secret,
+                    annotation=typing.Optional[SecretDto],
+                    direction="write",
                 ),
             },
             headers={
@@ -481,8 +565,16 @@ class AsyncRawSecretsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
 
     async def delete_secret(
         self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -520,5 +612,13 @@ class AsyncRawSecretsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
-        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )

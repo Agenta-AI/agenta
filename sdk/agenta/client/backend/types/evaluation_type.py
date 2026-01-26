@@ -2,4 +2,6 @@
 
 import typing
 
-EvaluationType = typing.Union[typing.Literal["human_a_b_testing", "single_model_test"], typing.Any]
+EvaluationType = typing.Union[
+    typing.Literal["human_a_b_testing", "single_model_test"], typing.Any
+]

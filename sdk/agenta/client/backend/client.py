@@ -29,7 +29,10 @@ if typing.TYPE_CHECKING:
     from .evaluations.client import AsyncEvaluationsClient, EvaluationsClient
     from .evaluators.client import AsyncEvaluatorsClient, EvaluatorsClient
     from .folders.client import AsyncFoldersClient, FoldersClient
-    from .human_evaluations.client import AsyncHumanEvaluationsClient, HumanEvaluationsClient
+    from .human_evaluations.client import (
+        AsyncHumanEvaluationsClient,
+        HumanEvaluationsClient,
+    )
     from .invocations.client import AsyncInvocationsClient, InvocationsClient
     from .observability.client import AsyncObservabilityClient, ObservabilityClient
     from .organization.client import AsyncOrganizationClient, OrganizationClient
@@ -98,7 +101,11 @@ class AgentaApi:
         httpx_client: typing.Optional[httpx.Client] = None,
     ):
         _defaulted_timeout = (
-            timeout if timeout is not None else 60 if httpx_client is None else httpx_client.timeout.read
+            timeout
+            if timeout is not None
+            else 60
+            if httpx_client is None
+            else httpx_client.timeout.read
         )
         self._client_wrapper = SyncClientWrapper(
             base_url=_get_base_url(base_url=base_url, environment=environment),
@@ -106,7 +113,9 @@ class AgentaApi:
             headers=headers,
             httpx_client=httpx_client
             if httpx_client is not None
-            else httpx.Client(timeout=_defaulted_timeout, follow_redirects=follow_redirects)
+            else httpx.Client(
+                timeout=_defaulted_timeout, follow_redirects=follow_redirects
+            )
             if follow_redirects is not None
             else httpx.Client(timeout=_defaulted_timeout),
             timeout=_defaulted_timeout,
@@ -208,7 +217,10 @@ class AgentaApi:
         return _response.data
 
     def delete_organization(
-        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Delete an organization (owner only).
@@ -236,7 +248,9 @@ class AgentaApi:
             organization_id="organization_id",
         )
         """
-        _response = self._raw_client.delete_organization(organization_id, request_options=request_options)
+        _response = self._raw_client.delete_organization(
+            organization_id, request_options=request_options
+        )
         return _response.data
 
     def patch_organization(
@@ -335,7 +349,11 @@ class AgentaApi:
         )
         """
         _response = self._raw_client.create_workspace(
-            organization_id, name=name, description=description, type=type, request_options=request_options
+            organization_id,
+            name=name,
+            description=description,
+            type=type,
+            request_options=request_options,
         )
         return _response.data
 
@@ -393,7 +411,11 @@ class AgentaApi:
         return _response.data
 
     def transfer_organization_ownership(
-        self, organization_id: str, new_owner_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        new_owner_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Transfer organization ownership to another member.
@@ -468,7 +490,10 @@ class AgentaApi:
         return _response.data
 
     def list_organization_domains(
-        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         List all domains for an organization.
@@ -496,11 +521,17 @@ class AgentaApi:
             organization_id="organization_id",
         )
         """
-        _response = self._raw_client.list_organization_domains(organization_id, request_options=request_options)
+        _response = self._raw_client.list_organization_domains(
+            organization_id, request_options=request_options
+        )
         return _response.data
 
     def create_organization_domain(
-        self, organization_id: str, *, domain: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        domain: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Add a new domain to an organization.
@@ -537,7 +568,11 @@ class AgentaApi:
         return _response.data
 
     def get_organization_domain(
-        self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        domain_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Get a single domain by ID.
@@ -574,7 +609,11 @@ class AgentaApi:
         return _response.data
 
     def delete_organization_domain(
-        self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        domain_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Delete a domain from an organization.
@@ -611,7 +650,11 @@ class AgentaApi:
         return _response.data
 
     def verify_organization_domain(
-        self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        domain_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Verify a domain (marks it as verified).
@@ -648,7 +691,10 @@ class AgentaApi:
         return _response.data
 
     def list_organization_providers(
-        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         List all SSO providers for an organization.
@@ -676,7 +722,9 @@ class AgentaApi:
             organization_id="organization_id",
         )
         """
-        _response = self._raw_client.list_organization_providers(organization_id, request_options=request_options)
+        _response = self._raw_client.list_organization_providers(
+            organization_id, request_options=request_options
+        )
         return _response.data
 
     def create_organization_provider(
@@ -721,7 +769,11 @@ class AgentaApi:
         return _response.data
 
     def get_organization_provider(
-        self, organization_id: str, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        provider_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Get a single SSO provider by ID.
@@ -758,7 +810,11 @@ class AgentaApi:
         return _response.data
 
     def delete_organization_provider(
-        self, organization_id: str, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        provider_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Delete an SSO provider from an organization.
@@ -835,7 +891,10 @@ class AgentaApi:
         )
         """
         _response = self._raw_client.update_organization_provider(
-            organization_id, provider_id, request=request, request_options=request_options
+            organization_id,
+            provider_id,
+            request=request,
+            request_options=request_options,
         )
         return _response.data
 
@@ -872,7 +931,9 @@ class AgentaApi:
         )
         client.get_all_workspace_permissions()
         """
-        _response = self._raw_client.get_all_workspace_permissions(request_options=request_options)
+        _response = self._raw_client.get_all_workspace_permissions(
+            request_options=request_options
+        )
         return _response.data
 
     def assign_role_to_user(
@@ -931,7 +992,11 @@ class AgentaApi:
         )
         """
         _response = self._raw_client.assign_role_to_user(
-            workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options
+            workspace_id,
+            email=email,
+            organization_id=organization_id,
+            role=role,
+            request_options=request_options,
         )
         return _response.data
 
@@ -994,11 +1059,17 @@ class AgentaApi:
         )
         """
         _response = self._raw_client.unassign_role_from_user(
-            workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options
+            workspace_id,
+            email=email,
+            organization_id=organization_id,
+            role=role,
+            request_options=request_options,
         )
         return _response.data
 
-    def health_check(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def health_check(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -1022,7 +1093,9 @@ class AgentaApi:
         _response = self._raw_client.health_check(request_options=request_options)
         return _response.data
 
-    def fetch_user_profile(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def fetch_user_profile(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -1081,7 +1154,10 @@ class AgentaApi:
         client.update_user_username()
         """
         _response = self._raw_client.update_user_username(
-            username=username, email=email, updated_at=updated_at, request_options=request_options
+            username=username,
+            email=email,
+            updated_at=updated_at,
+            request_options=request_options,
         )
         return _response.data
 
@@ -1112,7 +1188,9 @@ class AgentaApi:
             user_id="user_id",
         )
         """
-        _response = self._raw_client.reset_user_password(user_id=user_id, request_options=request_options)
+        _response = self._raw_client.reset_user_password(
+            user_id=user_id, request_options=request_options
+        )
         return _response.data
 
     @property
@@ -1136,7 +1214,9 @@ class AgentaApi:
         if self._organizations is None:
             from .organizations.client import OrganizationsClient  # noqa: E402
 
-            self._organizations = OrganizationsClient(client_wrapper=self._client_wrapper)
+            self._organizations = OrganizationsClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._organizations
 
     @property
@@ -1160,7 +1240,9 @@ class AgentaApi:
         if self._observability is None:
             from .observability.client import ObservabilityClient  # noqa: E402
 
-            self._observability = ObservabilityClient(client_wrapper=self._client_wrapper)
+            self._observability = ObservabilityClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._observability
 
     @property
@@ -1256,7 +1338,9 @@ class AgentaApi:
         if self._human_evaluations is None:
             from .human_evaluations.client import HumanEvaluationsClient  # noqa: E402
 
-            self._human_evaluations = HumanEvaluationsClient(client_wrapper=self._client_wrapper)
+            self._human_evaluations = HumanEvaluationsClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._human_evaluations
 
     @property
@@ -1264,7 +1348,9 @@ class AgentaApi:
         if self._access_control is None:
             from .access_control.client import AccessControlClient  # noqa: E402
 
-            self._access_control = AccessControlClient(client_wrapper=self._client_wrapper)
+            self._access_control = AccessControlClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._access_control
 
     @property
@@ -1384,7 +1470,11 @@ class AsyncAgentaApi:
         httpx_client: typing.Optional[httpx.AsyncClient] = None,
     ):
         _defaulted_timeout = (
-            timeout if timeout is not None else 60 if httpx_client is None else httpx_client.timeout.read
+            timeout
+            if timeout is not None
+            else 60
+            if httpx_client is None
+            else httpx_client.timeout.read
         )
         self._client_wrapper = AsyncClientWrapper(
             base_url=_get_base_url(base_url=base_url, environment=environment),
@@ -1392,7 +1482,9 @@ class AsyncAgentaApi:
             headers=headers,
             httpx_client=httpx_client
             if httpx_client is not None
-            else httpx.AsyncClient(timeout=_defaulted_timeout, follow_redirects=follow_redirects)
+            else httpx.AsyncClient(
+                timeout=_defaulted_timeout, follow_redirects=follow_redirects
+            )
             if follow_redirects is not None
             else httpx.AsyncClient(timeout=_defaulted_timeout),
             timeout=_defaulted_timeout,
@@ -1502,7 +1594,10 @@ class AsyncAgentaApi:
         return _response.data
 
     async def delete_organization(
-        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Delete an organization (owner only).
@@ -1538,7 +1633,9 @@ class AsyncAgentaApi:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_organization(organization_id, request_options=request_options)
+        _response = await self._raw_client.delete_organization(
+            organization_id, request_options=request_options
+        )
         return _response.data
 
     async def patch_organization(
@@ -1653,7 +1750,11 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._raw_client.create_workspace(
-            organization_id, name=name, description=description, type=type, request_options=request_options
+            organization_id,
+            name=name,
+            description=description,
+            type=type,
+            request_options=request_options,
         )
         return _response.data
 
@@ -1719,7 +1820,11 @@ class AsyncAgentaApi:
         return _response.data
 
     async def transfer_organization_ownership(
-        self, organization_id: str, new_owner_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        new_owner_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Transfer organization ownership to another member.
@@ -1810,7 +1915,10 @@ class AsyncAgentaApi:
         return _response.data
 
     async def list_organization_domains(
-        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         List all domains for an organization.
@@ -1846,11 +1954,17 @@ class AsyncAgentaApi:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.list_organization_domains(organization_id, request_options=request_options)
+        _response = await self._raw_client.list_organization_domains(
+            organization_id, request_options=request_options
+        )
         return _response.data
 
     async def create_organization_domain(
-        self, organization_id: str, *, domain: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        domain: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Add a new domain to an organization.
@@ -1895,7 +2009,11 @@ class AsyncAgentaApi:
         return _response.data
 
     async def get_organization_domain(
-        self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        domain_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Get a single domain by ID.
@@ -1940,7 +2058,11 @@ class AsyncAgentaApi:
         return _response.data
 
     async def delete_organization_domain(
-        self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        domain_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Delete a domain from an organization.
@@ -1985,7 +2107,11 @@ class AsyncAgentaApi:
         return _response.data
 
     async def verify_organization_domain(
-        self, organization_id: str, domain_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        domain_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Verify a domain (marks it as verified).
@@ -2030,7 +2156,10 @@ class AsyncAgentaApi:
         return _response.data
 
     async def list_organization_providers(
-        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         List all SSO providers for an organization.
@@ -2066,7 +2195,9 @@ class AsyncAgentaApi:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.list_organization_providers(organization_id, request_options=request_options)
+        _response = await self._raw_client.list_organization_providers(
+            organization_id, request_options=request_options
+        )
         return _response.data
 
     async def create_organization_provider(
@@ -2119,7 +2250,11 @@ class AsyncAgentaApi:
         return _response.data
 
     async def get_organization_provider(
-        self, organization_id: str, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        provider_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Get a single SSO provider by ID.
@@ -2164,7 +2299,11 @@ class AsyncAgentaApi:
         return _response.data
 
     async def delete_organization_provider(
-        self, organization_id: str, provider_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        organization_id: str,
+        provider_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Any:
         """
         Delete an SSO provider from an organization.
@@ -2257,7 +2396,10 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._raw_client.update_organization_provider(
-            organization_id, provider_id, request=request, request_options=request_options
+            organization_id,
+            provider_id,
+            request=request,
+            request_options=request_options,
         )
         return _response.data
 
@@ -2302,7 +2444,9 @@ class AsyncAgentaApi:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_all_workspace_permissions(request_options=request_options)
+        _response = await self._raw_client.get_all_workspace_permissions(
+            request_options=request_options
+        )
         return _response.data
 
     async def assign_role_to_user(
@@ -2369,7 +2513,11 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._raw_client.assign_role_to_user(
-            workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options
+            workspace_id,
+            email=email,
+            organization_id=organization_id,
+            role=role,
+            request_options=request_options,
         )
         return _response.data
 
@@ -2440,11 +2588,17 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._raw_client.unassign_role_from_user(
-            workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options
+            workspace_id,
+            email=email,
+            organization_id=organization_id,
+            role=role,
+            request_options=request_options,
         )
         return _response.data
 
-    async def health_check(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def health_check(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -2476,7 +2630,9 @@ class AsyncAgentaApi:
         _response = await self._raw_client.health_check(request_options=request_options)
         return _response.data
 
-    async def fetch_user_profile(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def fetch_user_profile(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -2505,7 +2661,9 @@ class AsyncAgentaApi:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_user_profile(request_options=request_options)
+        _response = await self._raw_client.fetch_user_profile(
+            request_options=request_options
+        )
         return _response.data
 
     async def update_user_username(
@@ -2551,7 +2709,10 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._raw_client.update_user_username(
-            username=username, email=email, updated_at=updated_at, request_options=request_options
+            username=username,
+            email=email,
+            updated_at=updated_at,
+            request_options=request_options,
         )
         return _response.data
 
@@ -2590,7 +2751,9 @@ class AsyncAgentaApi:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.reset_user_password(user_id=user_id, request_options=request_options)
+        _response = await self._raw_client.reset_user_password(
+            user_id=user_id, request_options=request_options
+        )
         return _response.data
 
     @property
@@ -2614,7 +2777,9 @@ class AsyncAgentaApi:
         if self._organizations is None:
             from .organizations.client import AsyncOrganizationsClient  # noqa: E402
 
-            self._organizations = AsyncOrganizationsClient(client_wrapper=self._client_wrapper)
+            self._organizations = AsyncOrganizationsClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._organizations
 
     @property
@@ -2622,7 +2787,9 @@ class AsyncAgentaApi:
         if self._organization is None:
             from .organization.client import AsyncOrganizationClient  # noqa: E402
 
-            self._organization = AsyncOrganizationClient(client_wrapper=self._client_wrapper)
+            self._organization = AsyncOrganizationClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._organization
 
     @property
@@ -2638,7 +2805,9 @@ class AsyncAgentaApi:
         if self._observability is None:
             from .observability.client import AsyncObservabilityClient  # noqa: E402
 
-            self._observability = AsyncObservabilityClient(client_wrapper=self._client_wrapper)
+            self._observability = AsyncObservabilityClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._observability
 
     @property
@@ -2654,7 +2823,9 @@ class AsyncAgentaApi:
         if self._invocations is None:
             from .invocations.client import AsyncInvocationsClient  # noqa: E402
 
-            self._invocations = AsyncInvocationsClient(client_wrapper=self._client_wrapper)
+            self._invocations = AsyncInvocationsClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._invocations
 
     @property
@@ -2662,7 +2833,9 @@ class AsyncAgentaApi:
         if self._annotations is None:
             from .annotations.client import AsyncAnnotationsClient  # noqa: E402
 
-            self._annotations = AsyncAnnotationsClient(client_wrapper=self._client_wrapper)
+            self._annotations = AsyncAnnotationsClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._annotations
 
     @property
@@ -2702,7 +2875,9 @@ class AsyncAgentaApi:
         if self._applications is None:
             from .applications.client import AsyncApplicationsClient  # noqa: E402
 
-            self._applications = AsyncApplicationsClient(client_wrapper=self._client_wrapper)
+            self._applications = AsyncApplicationsClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._applications
 
     @property
@@ -2718,7 +2893,9 @@ class AsyncAgentaApi:
         if self._evaluators is None:
             from .evaluators.client import AsyncEvaluatorsClient  # noqa: E402
 
-            self._evaluators = AsyncEvaluatorsClient(client_wrapper=self._client_wrapper)
+            self._evaluators = AsyncEvaluatorsClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._evaluators
 
     @property
@@ -2726,7 +2903,9 @@ class AsyncAgentaApi:
         if self._evaluations is None:
             from .evaluations.client import AsyncEvaluationsClient  # noqa: E402
 
-            self._evaluations = AsyncEvaluationsClient(client_wrapper=self._client_wrapper)
+            self._evaluations = AsyncEvaluationsClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._evaluations
 
     @property
@@ -2734,7 +2913,9 @@ class AsyncAgentaApi:
         if self._human_evaluations is None:
             from .human_evaluations.client import AsyncHumanEvaluationsClient  # noqa: E402
 
-            self._human_evaluations = AsyncHumanEvaluationsClient(client_wrapper=self._client_wrapper)
+            self._human_evaluations = AsyncHumanEvaluationsClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._human_evaluations
 
     @property
@@ -2742,7 +2923,9 @@ class AsyncAgentaApi:
         if self._access_control is None:
             from .access_control.client import AsyncAccessControlClient  # noqa: E402
 
-            self._access_control = AsyncAccessControlClient(client_wrapper=self._client_wrapper)
+            self._access_control = AsyncAccessControlClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._access_control
 
     @property
@@ -2774,7 +2957,9 @@ class AsyncAgentaApi:
         if self._containers is None:
             from .containers.client import AsyncContainersClient  # noqa: E402
 
-            self._containers = AsyncContainersClient(client_wrapper=self._client_wrapper)
+            self._containers = AsyncContainersClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._containers
 
     @property
@@ -2782,7 +2967,9 @@ class AsyncAgentaApi:
         if self._environments is None:
             from .environments.client import AsyncEnvironmentsClient  # noqa: E402
 
-            self._environments = AsyncEnvironmentsClient(client_wrapper=self._client_wrapper)
+            self._environments = AsyncEnvironmentsClient(
+                client_wrapper=self._client_wrapper
+            )
         return self._environments
 
     @property
@@ -2810,10 +2997,14 @@ class AsyncAgentaApi:
         return self._workspace
 
 
-def _get_base_url(*, base_url: typing.Optional[str] = None, environment: AgentaApiEnvironment) -> str:
+def _get_base_url(
+    *, base_url: typing.Optional[str] = None, environment: AgentaApiEnvironment
+) -> str:
     if base_url is not None:
         return base_url
     elif environment is not None:
         return environment.value
     else:
-        raise Exception("Please pass in either base_url or environment to construct the client")
+        raise Exception(
+            "Please pass in either base_url or environment to construct the client"
+        )

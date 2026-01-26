@@ -5,7 +5,11 @@ from __future__ import annotations
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 from .logical_operator import LogicalOperator
 
 
@@ -14,7 +18,9 @@ class FilteringOutput(UniversalBaseModel):
     conditions: typing.Optional[typing.List["FilteringOutputConditionsItem"]] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:
@@ -25,4 +31,6 @@ class FilteringOutput(UniversalBaseModel):
 
 from .filtering_output_conditions_item import FilteringOutputConditionsItem  # noqa: E402, I001
 
-update_forward_refs(FilteringOutput, FilteringOutputConditionsItem=FilteringOutputConditionsItem)
+update_forward_refs(
+    FilteringOutput, FilteringOutputConditionsItem=FilteringOutputConditionsItem
+)

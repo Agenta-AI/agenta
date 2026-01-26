@@ -5,7 +5,11 @@ from __future__ import annotations
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 from .formatting import Formatting
 from .windowing import Windowing
 
@@ -16,7 +20,9 @@ class TracingQuery(UniversalBaseModel):
     filtering: typing.Optional["FilteringOutput"] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:
@@ -29,5 +35,7 @@ from .filtering_output import FilteringOutput  # noqa: E402, I001
 from .filtering_output_conditions_item import FilteringOutputConditionsItem  # noqa: E402, I001
 
 update_forward_refs(
-    TracingQuery, FilteringOutput=FilteringOutput, FilteringOutputConditionsItem=FilteringOutputConditionsItem
+    TracingQuery,
+    FilteringOutput=FilteringOutput,
+    FilteringOutputConditionsItem=FilteringOutputConditionsItem,
 )

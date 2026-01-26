@@ -5,4 +5,6 @@ import typing
 from ...types.workflow_service_batch_response import WorkflowServiceBatchResponse
 from ...types.workflow_service_stream_response import WorkflowServiceStreamResponse
 
-InvokeWorkflowResponse = typing.Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]
+InvokeWorkflowResponse = typing.Union[
+    WorkflowServiceBatchResponse, WorkflowServiceStreamResponse
+]

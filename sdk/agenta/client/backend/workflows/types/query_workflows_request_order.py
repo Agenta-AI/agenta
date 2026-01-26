@@ -2,4 +2,6 @@
 
 import typing
 
-QueryWorkflowsRequestOrder = typing.Union[typing.Literal["ascending", "descending"], typing.Any]
+QueryWorkflowsRequestOrder = typing.Union[
+    typing.Literal["ascending", "descending"], typing.Any
+]

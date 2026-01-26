@@ -6,4 +6,6 @@ from .custom_provider_dto import CustomProviderDto
 from .sso_provider_dto import SsoProviderDto
 from .standard_provider_dto import StandardProviderDto
 
-SecretResponseDtoData = typing.Union[StandardProviderDto, CustomProviderDto, SsoProviderDto]
+SecretResponseDtoData = typing.Union[
+    StandardProviderDto, CustomProviderDto, SsoProviderDto
+]

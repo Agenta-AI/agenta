@@ -67,11 +67,17 @@ class AppsClient:
             app_id="app_id",
         )
         """
-        _response = self._raw_client.list_app_variants(app_id, request_options=request_options)
+        _response = self._raw_client.list_app_variants(
+            app_id, request_options=request_options
+        )
         return _response.data
 
     def get_variant_by_env(
-        self, *, app_id: str, environment: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        app_id: str,
+        environment: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantResponse:
         """
         Retrieve the app variant based on the provided app_id and environment.
@@ -118,7 +124,10 @@ class AppsClient:
         return _response.data
 
     def list_apps(
-        self, *, app_name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        app_name: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[App]:
         """
         Retrieve a list of apps filtered by app_name.
@@ -153,7 +162,9 @@ class AppsClient:
         )
         client.apps.list_apps()
         """
-        _response = self._raw_client.list_apps(app_name=app_name, request_options=request_options)
+        _response = self._raw_client.list_apps(
+            app_name=app_name, request_options=request_options
+        )
         return _response.data
 
     def create_app(
@@ -223,7 +234,9 @@ class AppsClient:
         )
         return _response.data
 
-    def read_app(self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> ReadAppOutput:
+    def read_app(
+        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> ReadAppOutput:
         """
         Retrieve an app by its ID.
 
@@ -262,7 +275,9 @@ class AppsClient:
         _response = self._raw_client.read_app(app_id, request_options=request_options)
         return _response.data
 
-    def remove_app(self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def remove_app(
+        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Remove app, all its variant.
 
@@ -344,7 +359,10 @@ class AppsClient:
         )
         """
         _response = self._raw_client.update_app(
-            app_id, app_name=app_name, folder_id=folder_id, request_options=request_options
+            app_id,
+            app_name=app_name,
+            folder_id=folder_id,
+            request_options=request_options,
         )
         return _response.data
 
@@ -499,11 +517,17 @@ class AppsClient:
             app_id="app_id",
         )
         """
-        _response = self._raw_client.list_environments(app_id, request_options=request_options)
+        _response = self._raw_client.list_environments(
+            app_id, request_options=request_options
+        )
         return _response.data
 
     def environment_revisions(
-        self, app_id: str, environment_name: typing.Any, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        app_id: str,
+        environment_name: typing.Any,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EnvironmentOutputExtended:
         """
         Parameters
@@ -532,7 +556,9 @@ class AppsClient:
             environment_name={"key": "value"},
         )
         """
-        _response = self._raw_client.environment_revisions(app_id, environment_name, request_options=request_options)
+        _response = self._raw_client.environment_revisions(
+            app_id, environment_name, request_options=request_options
+        )
         return _response.data
 
 
@@ -594,11 +620,17 @@ class AsyncAppsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.list_app_variants(app_id, request_options=request_options)
+        _response = await self._raw_client.list_app_variants(
+            app_id, request_options=request_options
+        )
         return _response.data
 
     async def get_variant_by_env(
-        self, *, app_id: str, environment: str, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        app_id: str,
+        environment: str,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantResponse:
         """
         Retrieve the app variant based on the provided app_id and environment.
@@ -653,7 +685,10 @@ class AsyncAppsClient:
         return _response.data
 
     async def list_apps(
-        self, *, app_name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        app_name: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[App]:
         """
         Retrieve a list of apps filtered by app_name.
@@ -696,7 +731,9 @@ class AsyncAppsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.list_apps(app_name=app_name, request_options=request_options)
+        _response = await self._raw_client.list_apps(
+            app_name=app_name, request_options=request_options
+        )
         return _response.data
 
     async def create_app(
@@ -774,7 +811,9 @@ class AsyncAppsClient:
         )
         return _response.data
 
-    async def read_app(self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> ReadAppOutput:
+    async def read_app(
+        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> ReadAppOutput:
         """
         Retrieve an app by its ID.
 
@@ -818,10 +857,14 @@ class AsyncAppsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.read_app(app_id, request_options=request_options)
+        _response = await self._raw_client.read_app(
+            app_id, request_options=request_options
+        )
         return _response.data
 
-    async def remove_app(self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def remove_app(
+        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.Any:
         """
         Remove app, all its variant.
 
@@ -859,7 +902,9 @@ class AsyncAppsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.remove_app(app_id, request_options=request_options)
+        _response = await self._raw_client.remove_app(
+            app_id, request_options=request_options
+        )
         return _response.data
 
     async def update_app(
@@ -919,7 +964,10 @@ class AsyncAppsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.update_app(
-            app_id, app_name=app_name, folder_id=folder_id, request_options=request_options
+            app_id,
+            app_name=app_name,
+            folder_id=folder_id,
+            request_options=request_options,
         )
         return _response.data
 
@@ -1098,11 +1146,17 @@ class AsyncAppsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.list_environments(app_id, request_options=request_options)
+        _response = await self._raw_client.list_environments(
+            app_id, request_options=request_options
+        )
         return _response.data
 
     async def environment_revisions(
-        self, app_id: str, environment_name: typing.Any, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        app_id: str,
+        environment_name: typing.Any,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EnvironmentOutputExtended:
         """
         Parameters

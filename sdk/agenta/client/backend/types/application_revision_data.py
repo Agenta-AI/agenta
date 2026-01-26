@@ -5,7 +5,11 @@ from __future__ import annotations
 import typing
 
 import pydantic
-from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
+from ..core.pydantic_utilities import (
+    IS_PYDANTIC_V2,
+    UniversalBaseModel,
+    update_forward_refs,
+)
 from .application_revision_data_headers_value import ApplicationRevisionDataHeadersValue
 
 
@@ -13,18 +17,26 @@ class ApplicationRevisionData(UniversalBaseModel):
     version: typing.Optional[str] = None
     uri: typing.Optional[str] = None
     url: typing.Optional[str] = None
-    headers: typing.Optional[typing.Dict[str, typing.Optional[ApplicationRevisionDataHeadersValue]]] = None
-    schemas: typing.Optional[typing.Dict[str, typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]]]] = (
+    headers: typing.Optional[
+        typing.Dict[str, typing.Optional[ApplicationRevisionDataHeadersValue]]
+    ] = None
+    schemas: typing.Optional[
+        typing.Dict[
+            str, typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]]
+        ]
+    ] = None
+    script: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = None
+    parameters: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
         None
     )
-    script: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = None
-    parameters: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = None
     runtime: typing.Optional[str] = None
     service: typing.Optional[typing.Dict[str, typing.Any]] = None
     configuration: typing.Optional[typing.Dict[str, typing.Any]] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:

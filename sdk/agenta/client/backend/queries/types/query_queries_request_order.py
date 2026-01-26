@@ -2,4 +2,6 @@
 
 import typing
 
-QueryQueriesRequestOrder = typing.Union[typing.Literal["ascending", "descending"], typing.Any]
+QueryQueriesRequestOrder = typing.Union[
+    typing.Literal["ascending", "descending"], typing.Any
+]

@@ -34,7 +34,9 @@ from ..types.simple_evaluator_response import SimpleEvaluatorResponse
 from ..types.simple_evaluators_response import SimpleEvaluatorsResponse
 from ..types.windowing import Windowing
 from .raw_client import AsyncRawEvaluatorsClient, RawEvaluatorsClient
-from .types.query_evaluator_variants_request_order import QueryEvaluatorVariantsRequestOrder
+from .types.query_evaluator_variants_request_order import (
+    QueryEvaluatorVariantsRequestOrder,
+)
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -89,12 +91,17 @@ class EvaluatorsClient:
         )
         """
         _response = self._raw_client.create_evaluator(
-            evaluator=evaluator, evaluator_id=evaluator_id, request_options=request_options
+            evaluator=evaluator,
+            evaluator_id=evaluator_id,
+            request_options=request_options,
         )
         return _response.data
 
     def fetch_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorResponse:
         """
         Parameters
@@ -120,11 +127,17 @@ class EvaluatorsClient:
             evaluator_id="evaluator_id",
         )
         """
-        _response = self._raw_client.fetch_evaluator(evaluator_id, request_options=request_options)
+        _response = self._raw_client.fetch_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     def edit_evaluator(
-        self, evaluator_id: str, *, evaluator: EvaluatorEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        evaluator: EvaluatorEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorResponse:
         """
         Parameters
@@ -153,11 +166,16 @@ class EvaluatorsClient:
             evaluator=EvaluatorEdit(),
         )
         """
-        _response = self._raw_client.edit_evaluator(evaluator_id, evaluator=evaluator, request_options=request_options)
+        _response = self._raw_client.edit_evaluator(
+            evaluator_id, evaluator=evaluator, request_options=request_options
+        )
         return _response.data
 
     def archive_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorResponse:
         """
         Parameters
@@ -183,11 +201,16 @@ class EvaluatorsClient:
             evaluator_id="evaluator_id",
         )
         """
-        _response = self._raw_client.archive_evaluator(evaluator_id, request_options=request_options)
+        _response = self._raw_client.archive_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorResponse:
         """
         Parameters
@@ -213,7 +236,9 @@ class EvaluatorsClient:
             evaluator_id="evaluator_id",
         )
         """
-        _response = self._raw_client.unarchive_evaluator(evaluator_id, request_options=request_options)
+        _response = self._raw_client.unarchive_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     def query_evaluators(
@@ -263,7 +288,10 @@ class EvaluatorsClient:
         return _response.data
 
     def create_evaluator_variant(
-        self, *, evaluator_variant: EvaluatorVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator_variant: EvaluatorVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorVariantResponse:
         """
         Parameters
@@ -295,7 +323,10 @@ class EvaluatorsClient:
         return _response.data
 
     def fetch_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorVariantResponse:
         """
         Parameters
@@ -321,7 +352,9 @@ class EvaluatorsClient:
             evaluator_variant_id="evaluator_variant_id",
         )
         """
-        _response = self._raw_client.fetch_evaluator_variant(evaluator_variant_id, request_options=request_options)
+        _response = self._raw_client.fetch_evaluator_variant(
+            evaluator_variant_id, request_options=request_options
+        )
         return _response.data
 
     def edit_evaluator_variant(
@@ -359,12 +392,17 @@ class EvaluatorsClient:
         )
         """
         _response = self._raw_client.edit_evaluator_variant(
-            evaluator_variant_id, evaluator_variant=evaluator_variant, request_options=request_options
+            evaluator_variant_id,
+            evaluator_variant=evaluator_variant,
+            request_options=request_options,
         )
         return _response.data
 
     def archive_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorVariantResponse:
         """
         Parameters
@@ -390,11 +428,16 @@ class EvaluatorsClient:
             evaluator_variant_id="evaluator_variant_id",
         )
         """
-        _response = self._raw_client.archive_evaluator_variant(evaluator_variant_id, request_options=request_options)
+        _response = self._raw_client.archive_evaluator_variant(
+            evaluator_variant_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorVariantResponse:
         """
         Parameters
@@ -420,7 +463,9 @@ class EvaluatorsClient:
             evaluator_variant_id="evaluator_variant_id",
         )
         """
-        _response = self._raw_client.unarchive_evaluator_variant(evaluator_variant_id, request_options=request_options)
+        _response = self._raw_client.unarchive_evaluator_variant(
+            evaluator_variant_id, request_options=request_options
+        )
         return _response.data
 
     def query_evaluator_variants(
@@ -564,7 +609,9 @@ class EvaluatorsClient:
         )
         """
         _response = self._raw_client.fork_evaluator_variant(
-            evaluator_variant_id=evaluator_variant_id, evaluator=evaluator, request_options=request_options
+            evaluator_variant_id=evaluator_variant_id,
+            evaluator=evaluator,
+            request_options=request_options,
         )
         return _response.data
 
@@ -611,7 +658,10 @@ class EvaluatorsClient:
         return _response.data
 
     def create_evaluator_revision(
-        self, *, evaluator_revision: EvaluatorRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator_revision: EvaluatorRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorRevisionResponse:
         """
         Parameters
@@ -643,7 +693,10 @@ class EvaluatorsClient:
         return _response.data
 
     def fetch_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorRevisionResponse:
         """
         Parameters
@@ -669,7 +722,9 @@ class EvaluatorsClient:
             evaluator_revision_id="evaluator_revision_id",
         )
         """
-        _response = self._raw_client.fetch_evaluator_revision(evaluator_revision_id, request_options=request_options)
+        _response = self._raw_client.fetch_evaluator_revision(
+            evaluator_revision_id, request_options=request_options
+        )
         return _response.data
 
     def edit_evaluator_revision(
@@ -707,12 +762,17 @@ class EvaluatorsClient:
         )
         """
         _response = self._raw_client.edit_evaluator_revision(
-            evaluator_revision_id, evaluator_revision=evaluator_revision, request_options=request_options
+            evaluator_revision_id,
+            evaluator_revision=evaluator_revision,
+            request_options=request_options,
         )
         return _response.data
 
     def archive_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorRevisionResponse:
         """
         Parameters
@@ -738,11 +798,16 @@ class EvaluatorsClient:
             evaluator_revision_id="evaluator_revision_id",
         )
         """
-        _response = self._raw_client.archive_evaluator_revision(evaluator_revision_id, request_options=request_options)
+        _response = self._raw_client.archive_evaluator_revision(
+            evaluator_revision_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorRevisionResponse:
         """
         Parameters
@@ -858,12 +923,16 @@ class EvaluatorsClient:
         )
         """
         _response = self._raw_client.commit_evaluator_revision(
-            evaluator_revision_commit=evaluator_revision_commit, request_options=request_options
+            evaluator_revision_commit=evaluator_revision_commit,
+            request_options=request_options,
         )
         return _response.data
 
     def log_evaluator_revisions(
-        self, *, evaluator: EvaluatorRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator: EvaluatorRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorRevisionsResponse:
         """
         Parameters
@@ -889,7 +958,9 @@ class EvaluatorsClient:
             evaluator=EvaluatorRevisionsLog(),
         )
         """
-        _response = self._raw_client.log_evaluator_revisions(evaluator=evaluator, request_options=request_options)
+        _response = self._raw_client.log_evaluator_revisions(
+            evaluator=evaluator, request_options=request_options
+        )
         return _response.data
 
     def create_simple_evaluator(
@@ -926,12 +997,17 @@ class EvaluatorsClient:
         )
         """
         _response = self._raw_client.create_simple_evaluator(
-            evaluator=evaluator, evaluator_id=evaluator_id, request_options=request_options
+            evaluator=evaluator,
+            evaluator_id=evaluator_id,
+            request_options=request_options,
         )
         return _response.data
 
     def fetch_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluatorResponse:
         """
         Parameters
@@ -957,7 +1033,9 @@ class EvaluatorsClient:
             evaluator_id="evaluator_id",
         )
         """
-        _response = self._raw_client.fetch_simple_evaluator(evaluator_id, request_options=request_options)
+        _response = self._raw_client.fetch_simple_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     def edit_simple_evaluator(
@@ -1000,7 +1078,10 @@ class EvaluatorsClient:
         return _response.data
 
     def archive_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluatorResponse:
         """
         Parameters
@@ -1026,11 +1107,16 @@ class EvaluatorsClient:
             evaluator_id="evaluator_id",
         )
         """
-        _response = self._raw_client.archive_simple_evaluator(evaluator_id, request_options=request_options)
+        _response = self._raw_client.archive_simple_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     def unarchive_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluatorResponse:
         """
         Parameters
@@ -1056,7 +1142,9 @@ class EvaluatorsClient:
             evaluator_id="evaluator_id",
         )
         """
-        _response = self._raw_client.unarchive_simple_evaluator(evaluator_id, request_options=request_options)
+        _response = self._raw_client.unarchive_simple_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     def query_simple_evaluators(
@@ -1106,7 +1194,10 @@ class EvaluatorsClient:
         return _response.data
 
     def transfer_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluatorResponse:
         """
         Parameters
@@ -1132,7 +1223,9 @@ class EvaluatorsClient:
             evaluator_id="evaluator_id",
         )
         """
-        _response = self._raw_client.transfer_simple_evaluator(evaluator_id, request_options=request_options)
+        _response = self._raw_client.transfer_simple_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     def get_evaluators_endpoint(
@@ -1163,7 +1256,9 @@ class EvaluatorsClient:
         )
         client.evaluators.get_evaluators_endpoint()
         """
-        _response = self._raw_client.get_evaluators_endpoint(request_options=request_options)
+        _response = self._raw_client.get_evaluators_endpoint(
+            request_options=request_options
+        )
         return _response.data
 
     def evaluator_data_map(
@@ -1209,7 +1304,9 @@ class EvaluatorsClient:
             mapping={"key": "value"},
         )
         """
-        _response = self._raw_client.evaluator_data_map(inputs=inputs, mapping=mapping, request_options=request_options)
+        _response = self._raw_client.evaluator_data_map(
+            inputs=inputs, mapping=mapping, request_options=request_options
+        )
         return _response.data
 
     def evaluator_run(
@@ -1262,12 +1359,19 @@ class EvaluatorsClient:
         )
         """
         _response = self._raw_client.evaluator_run(
-            evaluator_key, inputs=inputs, settings=settings, credentials=credentials, request_options=request_options
+            evaluator_key,
+            inputs=inputs,
+            settings=settings,
+            credentials=credentials,
+            request_options=request_options,
         )
         return _response.data
 
     def get_evaluator_configs(
-        self, *, app_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        app_id: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[EvaluatorConfig]:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -1299,7 +1403,9 @@ class EvaluatorsClient:
         )
         client.evaluators.get_evaluator_configs()
         """
-        _response = self._raw_client.get_evaluator_configs(app_id=app_id, request_options=request_options)
+        _response = self._raw_client.get_evaluator_configs(
+            app_id=app_id, request_options=request_options
+        )
         return _response.data
 
     def create_new_evaluator_config(
@@ -1349,12 +1455,18 @@ class EvaluatorsClient:
         )
         """
         _response = self._raw_client.create_new_evaluator_config(
-            name=name, evaluator_key=evaluator_key, settings_values=settings_values, request_options=request_options
+            name=name,
+            evaluator_key=evaluator_key,
+            settings_values=settings_values,
+            request_options=request_options,
         )
         return _response.data
 
     def get_evaluator_config(
-        self, evaluator_config_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_config_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorConfig:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -1385,7 +1497,9 @@ class EvaluatorsClient:
             evaluator_config_id="evaluator_config_id",
         )
         """
-        _response = self._raw_client.get_evaluator_config(evaluator_config_id, request_options=request_options)
+        _response = self._raw_client.get_evaluator_config(
+            evaluator_config_id, request_options=request_options
+        )
         return _response.data
 
     def update_evaluator_config(
@@ -1442,7 +1556,10 @@ class EvaluatorsClient:
         return _response.data
 
     def delete_evaluator_config(
-        self, evaluator_config_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_config_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> bool:
         """
         Endpoint to delete a specific evaluator configuration.
@@ -1476,7 +1593,9 @@ class EvaluatorsClient:
             evaluator_config_id="evaluator_config_id",
         )
         """
-        _response = self._raw_client.delete_evaluator_config(evaluator_config_id, request_options=request_options)
+        _response = self._raw_client.delete_evaluator_config(
+            evaluator_config_id, request_options=request_options
+        )
         return _response.data
 
 
@@ -1537,12 +1656,17 @@ class AsyncEvaluatorsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.create_evaluator(
-            evaluator=evaluator, evaluator_id=evaluator_id, request_options=request_options
+            evaluator=evaluator,
+            evaluator_id=evaluator_id,
+            request_options=request_options,
         )
         return _response.data
 
     async def fetch_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorResponse:
         """
         Parameters
@@ -1576,11 +1700,17 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_evaluator(evaluator_id, request_options=request_options)
+        _response = await self._raw_client.fetch_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_evaluator(
-        self, evaluator_id: str, *, evaluator: EvaluatorEdit, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        evaluator: EvaluatorEdit,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorResponse:
         """
         Parameters
@@ -1623,7 +1753,10 @@ class AsyncEvaluatorsClient:
         return _response.data
 
     async def archive_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorResponse:
         """
         Parameters
@@ -1657,11 +1790,16 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.archive_evaluator(evaluator_id, request_options=request_options)
+        _response = await self._raw_client.archive_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     async def unarchive_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorResponse:
         """
         Parameters
@@ -1695,7 +1833,9 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.unarchive_evaluator(evaluator_id, request_options=request_options)
+        _response = await self._raw_client.unarchive_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     async def query_evaluators(
@@ -1753,7 +1893,10 @@ class AsyncEvaluatorsClient:
         return _response.data
 
     async def create_evaluator_variant(
-        self, *, evaluator_variant: EvaluatorVariantCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator_variant: EvaluatorVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorVariantResponse:
         """
         Parameters
@@ -1793,7 +1936,10 @@ class AsyncEvaluatorsClient:
         return _response.data
 
     async def fetch_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorVariantResponse:
         """
         Parameters
@@ -1875,12 +2021,17 @@ class AsyncEvaluatorsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.edit_evaluator_variant(
-            evaluator_variant_id, evaluator_variant=evaluator_variant, request_options=request_options
+            evaluator_variant_id,
+            evaluator_variant=evaluator_variant,
+            request_options=request_options,
         )
         return _response.data
 
     async def archive_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorVariantResponse:
         """
         Parameters
@@ -1920,7 +2071,10 @@ class AsyncEvaluatorsClient:
         return _response.data
 
     async def unarchive_evaluator_variant(
-        self, evaluator_variant_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorVariantResponse:
         """
         Parameters
@@ -2116,7 +2270,9 @@ class AsyncEvaluatorsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.fork_evaluator_variant(
-            evaluator_variant_id=evaluator_variant_id, evaluator=evaluator, request_options=request_options
+            evaluator_variant_id=evaluator_variant_id,
+            evaluator=evaluator,
+            request_options=request_options,
         )
         return _response.data
 
@@ -2171,7 +2327,10 @@ class AsyncEvaluatorsClient:
         return _response.data
 
     async def create_evaluator_revision(
-        self, *, evaluator_revision: EvaluatorRevisionCreate, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator_revision: EvaluatorRevisionCreate,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorRevisionResponse:
         """
         Parameters
@@ -2211,7 +2370,10 @@ class AsyncEvaluatorsClient:
         return _response.data
 
     async def fetch_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorRevisionResponse:
         """
         Parameters
@@ -2293,12 +2455,17 @@ class AsyncEvaluatorsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.edit_evaluator_revision(
-            evaluator_revision_id, evaluator_revision=evaluator_revision, request_options=request_options
+            evaluator_revision_id,
+            evaluator_revision=evaluator_revision,
+            request_options=request_options,
         )
         return _response.data
 
     async def archive_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorRevisionResponse:
         """
         Parameters
@@ -2338,7 +2505,10 @@ class AsyncEvaluatorsClient:
         return _response.data
 
     async def unarchive_evaluator_revision(
-        self, evaluator_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorRevisionResponse:
         """
         Parameters
@@ -2478,12 +2648,16 @@ class AsyncEvaluatorsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.commit_evaluator_revision(
-            evaluator_revision_commit=evaluator_revision_commit, request_options=request_options
+            evaluator_revision_commit=evaluator_revision_commit,
+            request_options=request_options,
         )
         return _response.data
 
     async def log_evaluator_revisions(
-        self, *, evaluator: EvaluatorRevisionsLog, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        evaluator: EvaluatorRevisionsLog,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorRevisionsResponse:
         """
         Parameters
@@ -2517,7 +2691,9 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.log_evaluator_revisions(evaluator=evaluator, request_options=request_options)
+        _response = await self._raw_client.log_evaluator_revisions(
+            evaluator=evaluator, request_options=request_options
+        )
         return _response.data
 
     async def create_simple_evaluator(
@@ -2562,12 +2738,17 @@ class AsyncEvaluatorsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.create_simple_evaluator(
-            evaluator=evaluator, evaluator_id=evaluator_id, request_options=request_options
+            evaluator=evaluator,
+            evaluator_id=evaluator_id,
+            request_options=request_options,
         )
         return _response.data
 
     async def fetch_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluatorResponse:
         """
         Parameters
@@ -2601,7 +2782,9 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_simple_evaluator(evaluator_id, request_options=request_options)
+        _response = await self._raw_client.fetch_simple_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     async def edit_simple_evaluator(
@@ -2652,7 +2835,10 @@ class AsyncEvaluatorsClient:
         return _response.data
 
     async def archive_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluatorResponse:
         """
         Parameters
@@ -2686,11 +2872,16 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.archive_simple_evaluator(evaluator_id, request_options=request_options)
+        _response = await self._raw_client.archive_simple_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     async def unarchive_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluatorResponse:
         """
         Parameters
@@ -2724,7 +2915,9 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.unarchive_simple_evaluator(evaluator_id, request_options=request_options)
+        _response = await self._raw_client.unarchive_simple_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     async def query_simple_evaluators(
@@ -2782,7 +2975,10 @@ class AsyncEvaluatorsClient:
         return _response.data
 
     async def transfer_simple_evaluator(
-        self, evaluator_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> SimpleEvaluatorResponse:
         """
         Parameters
@@ -2816,7 +3012,9 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.transfer_simple_evaluator(evaluator_id, request_options=request_options)
+        _response = await self._raw_client.transfer_simple_evaluator(
+            evaluator_id, request_options=request_options
+        )
         return _response.data
 
     async def get_evaluators_endpoint(
@@ -2855,7 +3053,9 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_evaluators_endpoint(request_options=request_options)
+        _response = await self._raw_client.get_evaluators_endpoint(
+            request_options=request_options
+        )
         return _response.data
 
     async def evaluator_data_map(
@@ -2972,12 +3172,19 @@ class AsyncEvaluatorsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.evaluator_run(
-            evaluator_key, inputs=inputs, settings=settings, credentials=credentials, request_options=request_options
+            evaluator_key,
+            inputs=inputs,
+            settings=settings,
+            credentials=credentials,
+            request_options=request_options,
         )
         return _response.data
 
     async def get_evaluator_configs(
-        self, *, app_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None
+        self,
+        *,
+        app_id: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[EvaluatorConfig]:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -3017,7 +3224,9 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_evaluator_configs(app_id=app_id, request_options=request_options)
+        _response = await self._raw_client.get_evaluator_configs(
+            app_id=app_id, request_options=request_options
+        )
         return _response.data
 
     async def create_new_evaluator_config(
@@ -3075,12 +3284,18 @@ class AsyncEvaluatorsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.create_new_evaluator_config(
-            name=name, evaluator_key=evaluator_key, settings_values=settings_values, request_options=request_options
+            name=name,
+            evaluator_key=evaluator_key,
+            settings_values=settings_values,
+            request_options=request_options,
         )
         return _response.data
 
     async def get_evaluator_config(
-        self, evaluator_config_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_config_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> EvaluatorConfig:
         """
         Endpoint to fetch evaluator configurations for a specific app.
@@ -3119,7 +3334,9 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_evaluator_config(evaluator_config_id, request_options=request_options)
+        _response = await self._raw_client.get_evaluator_config(
+            evaluator_config_id, request_options=request_options
+        )
         return _response.data
 
     async def update_evaluator_config(
@@ -3184,7 +3401,10 @@ class AsyncEvaluatorsClient:
         return _response.data
 
     async def delete_evaluator_config(
-        self, evaluator_config_id: str, *, request_options: typing.Optional[RequestOptions] = None
+        self,
+        evaluator_config_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> bool:
         """
         Endpoint to delete a specific evaluator configuration.
@@ -3226,5 +3446,7 @@ class AsyncEvaluatorsClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.delete_evaluator_config(evaluator_config_id, request_options=request_options)
+        _response = await self._raw_client.delete_evaluator_config(
+            evaluator_config_id, request_options=request_options
+        )
         return _response.data
