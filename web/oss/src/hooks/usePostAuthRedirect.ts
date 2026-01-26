@@ -8,7 +8,7 @@ import {useLocalStorage} from "usehooks-ts"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
 import {isEE} from "@/oss/lib/helpers/isEE"
-import {isNewUserAtom} from "@/oss/lib/onboarding/atoms"
+import {isNewUserAtom, onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
@@ -41,6 +41,7 @@ const usePostAuthRedirect = () => {
     const authUpgradeOrgKey = "authUpgradeOrgId"
     const lastSsoOrgSlugKey = "lastSsoOrgSlug"
     const setIsNewUser = useSetAtom(isNewUserAtom)
+    const setOnboardingStorageUserId = useSetAtom(onboardingStorageUserIdAtom)
 
     const hasInviteFromQuery = useMemo(() => {
         const token = router.query?.token
@@ -72,12 +73,29 @@ const usePostAuthRedirect = () => {
             // Read is_new_user from session payload (set by backend overrides)
             let isNewUser = false
             let payload: any = null
+            let sessionUserId: string | null = null
             try {
                 payload = await Session.getAccessTokenPayloadSecurely()
                 isNewUser = Boolean(payload?.is_new_user)
+                sessionUserId =
+                    typeof payload?.user_id === "string"
+                        ? payload.user_id
+                        : typeof payload?.sub === "string"
+                          ? payload.sub
+                          : null
             } catch {
                 // Fallback to createdNewRecipeUser if payload unavailable (EE only)
                 isNewUser = isEE() && Boolean(authResult?.createdNewRecipeUser)
+            }
+
+            try {
+                sessionUserId = sessionUserId || (await Session.getUserId())
+            } catch {
+                // ignore user id lookup failures
+            }
+
+            if (sessionUserId) {
+                setOnboardingStorageUserId(sessionUserId)
             }
 
             console.log("[post-auth] handleAuthSuccess", {

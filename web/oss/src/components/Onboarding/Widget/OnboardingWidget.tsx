@@ -108,7 +108,6 @@ const OnboardingWidget = () => {
 
     const shouldRender =
         doesSessionExist &&
-        isNewUser &&
         !isOnboardingRoute &&
         widgetStatus !== "dismissed" &&
         widgetUIState.isOpen &&
