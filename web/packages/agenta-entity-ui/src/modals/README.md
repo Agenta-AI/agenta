@@ -6,37 +6,33 @@ Reusable modal components for entity operations (commit, save, delete). These mo
 
 ```
 modals/
+├── actions/                # Unified action dispatch system
+│   ├── types.ts            # EntityModalAction types
+│   ├── reducer.ts          # Action reducer
+│   ├── context.tsx         # EntityActionProvider + hooks
+│   └── index.ts
 ├── commit/                 # Commit modal (save changes with message)
-│   ├── EntityCommitModal.tsx
-│   ├── EntityCommitTitle.tsx
-│   ├── EntityCommitContent.tsx
-│   ├── EntityCommitFooter.tsx
-│   ├── useEntityCommit.ts
+│   ├── components/
+│   ├── hooks/
 │   ├── state.ts
 │   └── index.ts
 ├── save/                   # Save modal (save/save-as/create new)
-│   ├── EntitySaveModal.tsx
-│   ├── EntitySaveTitle.tsx
-│   ├── EntitySaveContent.tsx
-│   ├── EntitySaveFooter.tsx
-│   ├── useEntitySave.ts
+│   ├── components/
+│   ├── hooks/
 │   ├── state.ts
 │   └── index.ts
 ├── delete/                 # Delete modal (single/batch delete)
-│   ├── EntityDeleteModal.tsx
-│   ├── EntityDeleteTitle.tsx
-│   ├── EntityDeleteContent.tsx
-│   ├── EntityDeleteFooter.tsx
-│   ├── useEntityDelete.ts
+│   ├── components/
+│   ├── hooks/
 │   ├── state.ts
 │   └── index.ts
-├── shared/                 # Shared utilities and factories
-│   ├── createEntityActionHook.ts
-│   ├── types.ts
+├── shared/                 # Shared utilities and hooks
+│   ├── hooks/              # Hook factories
 │   └── index.ts
 ├── adapters.ts             # Entity adapter registry
 ├── types.ts                # Core types (EntityReference, EntityType, etc.)
 ├── useSaveOrCommit.ts      # Combined save/commit hook
+├── EntityActionProvider.tsx # Combined provider with all modals
 └── index.ts                # Public exports
 ```
 
@@ -48,37 +44,95 @@ Before using modals with an entity type, register an adapter:
 
 ```typescript
 import { createAndRegisterEntityAdapter } from '@agenta/entity-ui'
+// Use clean named exports from main package
+import { testset } from '@agenta/entities'
 
 createAndRegisterEntityAdapter({
   type: 'testset',
-  getDisplayName: (testset) => testset?.name ?? 'Untitled Testset',
-  deleteAtom: testsetMolecule.reducers.delete,
-  dataAtom: (id) => testsetMolecule.selectors.data(id),
-  commitAtom: testsetMolecule.reducers.commit,  // optional
-  saveAtom: testsetMolecule.reducers.save,      // optional
+  getDisplayName: (entity) => entity?.name ?? 'Untitled Testset',
+  deleteAtom: testset.actions.delete,
+  dataAtom: (id) => testset.atoms.data(id),
+  commitAtom: testset.actions.commit,  // optional
+  saveAtom: testset.actions.save,      // optional
 })
 ```
 
-### 2. Add Modal Components to Your App
+### 2. Add Modal Components to Your App (Recommended: EntityModalsProvider)
 
-Add the modal components once at the app root:
+Use `EntityModalsProvider` to mount all modals and the action dispatch context in one place:
 
 ```tsx
-import { EntityCommitModal, EntitySaveModal, EntityDeleteModal } from '@agenta/entity-ui'
+import { EntityModalsProvider } from '@agenta/entity-ui'
 
 function App() {
   return (
-    <>
+    <EntityModalsProvider>
       <YourRoutes />
-      <EntityCommitModal />
-      <EntitySaveModal />
-      <EntityDeleteModal />
-    </>
+    </EntityModalsProvider>
   )
 }
 ```
 
-### 3. Trigger Modals with Hooks
+This is equivalent to manually adding each modal:
+
+```tsx
+import { 
+  EntityActionProvider, 
+  EntityCommitModal, 
+  EntitySaveModal, 
+  EntityDeleteModal 
+} from '@agenta/entity-ui'
+
+function App() {
+  return (
+    <EntityActionProvider>
+      <YourRoutes />
+      <EntityCommitModal />
+      <EntitySaveModal />
+      <EntityDeleteModal />
+    </EntityActionProvider>
+  )
+}
+```
+
+### 3. Trigger Modals with Unified Dispatch (Recommended)
+
+Use `useEntityActionDispatch` for a unified API:
+
+```tsx
+import { 
+  useEntityActionDispatch, 
+  commitAction, 
+  saveAction, 
+  deleteAction 
+} from '@agenta/entity-ui'
+
+function EntityActions({ entity }: { entity: Entity }) {
+  const dispatch = useEntityActionDispatch()
+
+  return (
+    <div>
+      <Button onClick={() => dispatch(commitAction(
+        {type: 'testset', id: entity.id, name: entity.name}
+      ))}>
+        Commit
+      </Button>
+      <Button onClick={() => dispatch(saveAction(
+        {type: 'testset', id: entity.id, name: entity.name}
+      ))}>
+        Save
+      </Button>
+      <Button danger onClick={() => dispatch(deleteAction(
+        [{type: 'testset', id: entity.id, name: entity.name}]
+      ))}>
+        Delete
+      </Button>
+    </div>
+  )
+}
+```
+
+### 4. Alternative: Trigger Modals with Individual Hooks
 
 ```tsx
 import { useEntityCommit, useEntitySave, useEntityDelete } from '@agenta/entity-ui'
@@ -107,14 +161,49 @@ function EntityActions({ entity }: { entity: Entity }) {
 }
 ```
 
-## Available Hooks
+## Unified Action Dispatch (Recommended)
+
+The unified action dispatch system provides a single entry point for all entity modal operations.
+
+### Action Types
+
+| Action | Purpose | Creator |
+| ------ | ------- | ------- |
+| `commit` | Open commit modal | `commitAction(entity, initialMessage?)` |
+| `save` | Open save modal | `saveAction(entity, saveAsNew?)` |
+| `create` | Open save modal for new entity | `createAction(entityType, initialName?)` |
+| `delete` | Open delete modal | `deleteAction(entities, onSuccess?)` |
+| `saveOrCommit` | Route to save or commit based on state | `saveOrCommitAction(entity, state, options?)` |
+
+### Dispatch Hooks
+
+| Hook | Purpose |
+| ---- | ------- |
+| `useEntityActionDispatch` | Get dispatch function for modal actions |
+| `useEntityActionState` | Get current modal state (activeModal, isOpen, isLoading) |
+| `useEntityActionGuard` | Check if any modal is open (for preventing concurrent modals) |
+
+### Guard Behavior
+
+By default, `EntityModalsProvider` guards against opening multiple modals simultaneously. When a modal is already open, dispatch calls are ignored with a dev warning.
+
+```tsx
+// Disable guard if needed
+<EntityModalsProvider guardConcurrentModals={false}>
+  <App />
+</EntityModalsProvider>
+```
+
+## Available Hooks (Legacy API)
+
+These hooks remain available for backwards compatibility:
 
 | Hook | Purpose | Methods |
-|------|---------|---------|
+| ---- | ------- | ------- |
 | `useEntityCommit` | Commit changes with message | `commitEntity`, `commitEntityRef` |
 | `useEntitySave` | Save/save-as/create | `saveEntity`, `saveEntityRef`, `createEntity` |
 | `useEntityDelete` | Delete single/multiple | `deleteEntity`, `deleteEntities` |
-| `useSaveOrCommit` | Combined save + commit | `save`, `commit`, `saveOrCommit` |
+| `useSaveOrCommit` | Combined save + commit | `saveOrCommit`, `createNew` |
 
 ### Entity-Specific Convenience Hooks
 
@@ -195,6 +284,28 @@ Each modal uses Jotai atoms for state:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## Hook Factories
+
+For creating entity action hooks with a consistent pattern:
+
+### createEntityActionHook
+
+Creates standardized hooks for triggering modal actions:
+
+```typescript
+import { createEntityActionHook, createTypedEntityActionHook } from '@agenta/entity-ui'
+
+// Base hook (works with any entity type)
+const useEntityMyAction = createEntityActionHook({
+  openAtom: openMyModalAtom,
+  loadingAtom: myModal.atoms.loading,
+  openStateAtom: myModal.atoms.open,
+})
+
+// Typed hook (for specific entity type)
+const useTestsetMyAction = createTypedEntityActionHook(useEntityMyAction, 'testset')
+```
+
 ## Files Overview
 
 | File | Purpose |
@@ -202,4 +313,5 @@ Each modal uses Jotai atoms for state:
 | `types.ts` | Core types: `EntityType`, `EntityReference`, modal state types |
 | `adapters.ts` | Adapter registry and factory functions |
 | `useSaveOrCommit.ts` | Combined hook for save-or-commit workflows |
+| `shared/hooks/createEntityActionHook.ts` | Hook factories for entity actions |
 | `index.ts` | Public API exports |

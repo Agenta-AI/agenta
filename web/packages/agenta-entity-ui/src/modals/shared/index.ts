@@ -8,7 +8,11 @@
 // COMPONENTS - imported from @agenta/ui
 // ============================================================================
 
-export {EnhancedModal, type EnhancedModalProps, type EnhancedModalStyles} from "@agenta/ui"
+export {
+    EnhancedModal,
+    type EnhancedModalProps,
+    type EnhancedModalStyles,
+} from "@agenta/ui/components/modal"
 
 // ============================================================================
 // TYPES
