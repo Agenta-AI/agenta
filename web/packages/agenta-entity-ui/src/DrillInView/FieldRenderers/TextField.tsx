@@ -5,7 +5,9 @@
  * Uses EditorProvider/SharedEditor/FieldHeader from @agenta/ui.
  */
 
-import {EditorProvider, FieldHeader, SharedEditor} from "@agenta/ui"
+import {FieldHeader} from "@agenta/ui/components/presentational"
+import {EditorProvider} from "@agenta/ui/editor"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 
 import {getTextModeValue, textModeToStorageValue} from "./fieldUtils"
 import type {TextFieldProps} from "./types"

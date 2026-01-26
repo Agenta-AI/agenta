@@ -6,7 +6,7 @@
  */
 
 import type {SchemaProperty} from "@agenta/entities"
-import type {SimpleChatMessage} from "@agenta/shared"
+import type {SimpleChatMessage} from "@agenta/shared/types"
 
 // ============================================================================
 // Schema Resolution
@@ -330,54 +330,5 @@ export function denormalizeMessages(messages: SimpleChatMessage[]): Record<strin
 // Options Extraction
 // ============================================================================
 
-/**
- * Options format for select components
- */
-export interface OptionGroup {
-    label: string
-    options: {label: string; value: string}[]
-}
-
-/**
- * Extract options from schema - handles both grouped (choices) and flat (enum) formats.
- * Returns null if no options found.
- *
- * Used by SelectLLMProvider to get the grouped model options from schema.
- */
-export function getOptionsFromSchema(
-    schema: SchemaProperty | null | undefined,
-): {grouped: Record<string, string[]>; options: OptionGroup[]} | null {
-    if (!schema) return null
-
-    // Check for choices property (grouped options - provider: [model1, model2])
-    const choices = schema.choices as Record<string, string[]> | undefined
-    if (choices && typeof choices === "object" && !Array.isArray(choices)) {
-        const grouped = choices
-        const options = Object.entries(grouped).map(([group, models]) => ({
-            label: group.charAt(0).toUpperCase() + group.slice(1).replace(/_/g, " "),
-            options: models.map((model) => ({
-                label: model,
-                value: model,
-            })),
-        }))
-        return {grouped, options}
-    }
-
-    // Check for enum property (flat list)
-    const enumValues = schema.enum as string[] | undefined
-    if (enumValues && Array.isArray(enumValues) && enumValues.length > 0) {
-        // Convert flat list to single group format
-        const options: OptionGroup[] = [
-            {
-                label: "Models",
-                options: enumValues.map((value: string) => ({
-                    label: value,
-                    value: value,
-                })),
-            },
-        ]
-        return {grouped: {Models: enumValues}, options}
-    }
-
-    return null
-}
+export type {OptionGroup} from "@agenta/shared/utils"
+export {getOptionsFromSchema} from "@agenta/shared/utils"

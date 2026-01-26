@@ -16,8 +16,9 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
-import type {SimpleChatMessage} from "@agenta/shared"
-import {ChatMessageList, cn} from "@agenta/ui"
+import type {SimpleChatMessage} from "@agenta/shared/types"
+import {ChatMessageList} from "@agenta/ui/chat-message"
+import {cn} from "@agenta/ui/styles"
 import {CaretDown, Plus, Wrench} from "@phosphor-icons/react"
 import {Button, Popover, Select, Typography} from "antd"
 import {v4 as uuidv4} from "uuid"
