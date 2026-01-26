@@ -157,9 +157,22 @@ fix_recursive_types "./backend/types/label_json_output.py"
 
 echo ""
 
-# Step 10: Clean up
-echo "Cleaning up..."
+# Step 10: Clean up fern directory
+echo "Cleaning up fern directory..."
 rm -rf ./fern
+echo ""
+
+# Step 11: Format generated code with ruff
+echo "Formatting generated code with ruff..."
+if command -v uvx >/dev/null 2>&1; then
+  uvx ruff format ./backend/
+  echo "Formatted with uvx ruff"
+elif command -v ruff >/dev/null 2>&1; then
+  ruff format ./backend/
+  echo "Formatted with ruff"
+else
+  echo "Warning: ruff not found. Run 'uvx ruff format sdk/agenta/client/backend/' manually."
+fi
 echo ""
 
 echo "=== SDK Generation Complete ==="
@@ -167,5 +180,5 @@ echo "Generated SDK is in: $CLIENT_DIR/backend/"
 echo ""
 echo "Next steps:"
 echo "  1. Test imports: python -c 'from agenta.client import AgentaApi'"
-echo "  2. Run SDK tests if available"
+echo "  2. Run SDK tests: cd sdk && poetry run pytest tests/test_fern_client.py -v"
 echo "  3. Commit changes"
