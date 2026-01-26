@@ -1,7 +1,14 @@
 /**
  * Playground Hooks
  *
- * Custom hooks for playground functionality.
+ * @deprecated Use '@agenta/playground/react' instead.
+ * This re-exports from the react module for backwards compatibility.
  */
 
-export {useChainExecution, type UseChainExecutionReturn} from "./useChainExecution"
+export {
+    useChainExecution,
+    type UseChainExecutionReturn,
+    usePlaygroundState,
+    useDerivedState,
+    type DerivedStateParams,
+} from "../react"
