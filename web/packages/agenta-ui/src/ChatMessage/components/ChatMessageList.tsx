@@ -1,7 +1,7 @@
 import React from "react"
 
+import type {SimpleChatMessage} from "@agenta/shared/types"
 import {
-    type SimpleChatMessage,
     extractTextFromContent,
     extractDisplayTextFromMessage,
     updateTextInContent,
@@ -9,7 +9,7 @@ import {
     addFileToContent,
     removeAttachmentFromContent,
     getAttachments,
-} from "@agenta/shared"
+} from "@agenta/shared/utils"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 

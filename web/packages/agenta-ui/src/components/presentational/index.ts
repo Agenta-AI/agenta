@@ -76,7 +76,14 @@ export {CopyButton, type CopyButtonProps} from "./CopyButton"
 // SELECT COMPONENTS
 // ============================================================================
 
-export {SimpleDropdownSelect, type SimpleDropdownSelectProps, type DropdownMenuItem} from "./select"
+export {
+    SimpleDropdownSelect,
+    PathSelectorDropdown,
+    type SimpleDropdownSelectProps,
+    type DropdownMenuItem,
+    type PathSelectorDropdownProps,
+    type PathSelectorItem,
+} from "./select"
 
 // ============================================================================
 // METADATA COMPONENTS
@@ -180,3 +187,15 @@ export {
     type TableEmptyStateProps,
     type CollapsibleGroupHeaderProps,
 } from "./table-states"
+
+// ============================================================================
+// METRICS COMPONENTS
+// ============================================================================
+
+export {
+    ExecutionMetricsDisplay,
+    MappingStatusTag,
+    type ExecutionMetricsDisplayProps,
+    type ExecutionMetricsData,
+    type MappingStatusTagProps,
+} from "./metrics"

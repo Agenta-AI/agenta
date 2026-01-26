@@ -1,6 +1,6 @@
 import {ChangeEvent, useCallback, useRef, useState} from "react"
 
-import {useDebounceInput} from "@agenta/shared"
+import {useDebounceInput} from "@agenta/shared/hooks"
 import {Input} from "antd"
 import clsx from "clsx"
 import {v4 as uuidv4} from "uuid"

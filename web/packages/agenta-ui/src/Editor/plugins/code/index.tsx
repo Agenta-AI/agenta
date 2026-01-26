@@ -3,7 +3,7 @@
 // Editor.tsx
 import {Fragment, type ComponentProps, type FC, memo, useEffect, useRef} from "react"
 
-import {tryParsePartialJson, safeJson5Parse, createLogger} from "@agenta/shared"
+import {tryParsePartialJson, safeJson5Parse, createLogger} from "@agenta/shared/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {mergeRegister} from "@lexical/utils"
 import isEqual from "fast-deep-equal"

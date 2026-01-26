@@ -24,6 +24,7 @@ import React from "react"
 import {Button, Spin} from "antd"
 import {ChevronDown} from "lucide-react"
 
+import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
 import {
     cn,
     flexLayouts,
@@ -38,6 +39,11 @@ import {
 // ============================================================================
 
 export interface LoadMoreButtonProps {
+    /**
+     * Optional: EntityListCounts object from paginated store.
+     * When provided, overrides loadedCount, totalCount, and hasMore props.
+     */
+    counts?: EntityListCounts
     /**
      * Callback when button is clicked
      */
@@ -107,30 +113,37 @@ export interface LoadMoreButtonProps {
  * Button for loading more items in a paginated list
  */
 export function LoadMoreButton({
+    counts,
     onClick,
     isLoading = false,
-    hasMore = true,
+    hasMore: hasMoreProp = true,
     label = "Load more",
     loadingLabel = "Loading...",
-    totalCount,
-    loadedCount,
+    totalCount: totalCountProp,
+    loadedCount: loadedCountProp,
     showCount = false,
     size = "middle",
     className = "",
     block = true,
 }: LoadMoreButtonProps) {
+    // Use counts object if provided, otherwise fall back to individual props
+    const hasMore = counts?.hasMore ?? hasMoreProp
+    const totalCount = counts?.totalCount ?? totalCountProp
+    const loadedCount = counts?.loadedCount ?? loadedCountProp
+
     // Don't render if no more items
     if (!hasMore && !isLoading) {
         return null
     }
 
-    // Build count string
-    const countString =
-        showCount && loadedCount !== undefined && totalCount
-            ? ` (${loadedCount} of ${totalCount})`
-            : showCount && loadedCount !== undefined
-              ? ` (${loadedCount} loaded)`
-              : ""
+    // Build count string - use displayLabel from counts if available
+    const countString = counts?.displayLabel
+        ? ` (${counts.displayLabel})`
+        : showCount && loadedCount !== undefined && totalCount
+          ? ` (${loadedCount} of ${totalCount})`
+          : showCount && loadedCount !== undefined
+            ? ` (${loadedCount} loaded)`
+            : ""
 
     return (
         <div className={cn("py-2", className)}>

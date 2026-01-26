@@ -6,3 +6,4 @@
 
 export {ModalFooter, type ModalFooterProps} from "./ModalFooter"
 export {ModalContent, type ModalContentProps} from "./ModalContent"
+export {EnhancedModal, type EnhancedModalProps, type EnhancedModalStyles} from "../EnhancedModal"

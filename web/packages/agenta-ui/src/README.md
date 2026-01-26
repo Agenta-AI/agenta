@@ -73,6 +73,9 @@ Pure display components for entity information:
 - **SectionCard/ConfigBlock**: Section layout primitives
 - **MetadataHeader**: Label/value metadata display
 - **EditableText**: Inline editable text
+- **ExecutionMetricsDisplay**: Display latency, tokens, and cost metrics
+- **MappingStatusTag**: Mapping status indicator (auto, manual, missing, etc.)
+- **PathSelectorDropdown**: Path selection dropdown with source icons
 
 #### Modal Components (`components/modal/`)
 
@@ -150,6 +153,9 @@ import {
   SectionCard,
   MetadataHeader,
   EditableText,
+  ExecutionMetricsDisplay,
+  MappingStatusTag,
+  PathSelectorDropdown,
 
   // Modal
   EnhancedModal,
