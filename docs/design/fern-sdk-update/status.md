@@ -25,11 +25,22 @@
 ## Ready for Review
 PR #3561: https://github.com/Agenta-AI/agenta/pull/3561
 
-## Test Suite
-Run tests with:
+## Test Suites
+
+### Structure Tests (66 tests) - No API calls
 ```bash
 cd sdk && poetry run pytest tests/test_fern_client.py -v
 ```
+
+### Integration Tests (40 tests) - Real API calls
+```bash
+cd sdk && poetry run pytest tests/integration/ -v -m integration
+```
+
+**Coverage:**
+- AppManager: create, list, update, delete (sync + async)
+- SharedManager: add, fetch, list, history, commit, deploy, delete, fork (sync + async)
+- Response serialization, error handling, concurrent operations
 
 ## Next Steps
 1. Get PR reviewed and merged

@@ -71,13 +71,32 @@ This should be added to `setup_fern.sh` for full automation.
 | `StandardProviderDto` | `vault.py` | [x] |
 | `StandardProviderSettingsDto` | `vault.py` | [x] |
 
-### Test Suite
-All tests verified in `sdk/tests/test_fern_client.py` (66 tests, all passing).
+### Test Suites
 
-Run tests with:
+#### Structure Tests (66 tests)
+`sdk/tests/test_fern_client.py` - Import and structure validation (no API calls)
 ```bash
 cd sdk && poetry run pytest tests/test_fern_client.py -v
 ```
+
+#### Integration Tests (40 tests)
+`sdk/tests/integration/test_fern_integration.py` - Real API calls with response validation
+```bash
+# Run all integration tests
+cd sdk && poetry run pytest tests/integration/ -v -m integration
+
+# With custom credentials
+AGENTA_HOST="https://cloud.agenta.ai" AGENTA_API_KEY="your-key" \
+  poetry run pytest tests/integration/ -v -m integration
+```
+
+**Integration tests cover:**
+| Manager | Sync Methods | Async Methods |
+|---------|--------------|---------------|
+| AppManager | create, list, update, delete | acreate, alist, aupdate, adelete |
+| SharedManager | add, fetch, list, history, commit, deploy, delete, fork | aadd, afetch, alist, ahistory, acommit, adeploy, adelete, afork |
+
+Plus: Response serialization, error handling, concurrent operations
 
 ## Fern Commands Reference
 ```bash
