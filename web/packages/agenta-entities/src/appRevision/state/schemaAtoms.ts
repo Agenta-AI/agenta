@@ -2,9 +2,22 @@
  * AppRevision Schema Atoms
  *
  * Entity-scoped schema atoms for OpenAPI schema fetching and selectors.
- * Each revision fetches its own openapi.json based on the revision's URI.
  *
- * Schema is fetched directly from the revision's URI endpoint.
+ * ## Two-Layer Schema Resolution
+ *
+ * This module implements a router pattern for schema resolution:
+ *
+ * 1. **Service schema (fast path)** — For completion/chat apps, the OpenAPI schema
+ *    is prefetched at app-selection time from known service endpoints. When a revision
+ *    is selected, the schema is already available — no additional fetch needed.
+ *
+ * 2. **Per-revision schema (fallback)** — For custom apps (or when service schema
+ *    is unavailable), the schema is fetched from the revision's URI as before.
+ *
+ * The router atom `appRevisionSchemaQueryAtomFamily` is the single consumer-facing
+ * interface. All downstream atoms read from it transparently.
+ *
+ * @see serviceSchemaAtoms.ts — Prefetch atoms and composition logic
  */
 
 import {atom} from "jotai"
@@ -15,6 +28,10 @@ import type {EntitySchema, EntitySchemaProperty} from "../../shared"
 import {fetchRevisionSchema, buildRevisionSchemaState, type OpenAPISpec} from "../api"
 import type {RevisionSchemaState} from "../core"
 
+import {
+    serviceSchemaForRevisionAtomFamily,
+    composedServiceSchemaAtomFamily,
+} from "./serviceSchemaAtoms"
 import {appRevisionEntityAtomFamily} from "./store"
 
 // ============================================================================
@@ -77,12 +94,53 @@ const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
 )
 
 /**
- * Schema query atom family - returns schema state for a revision
+ * Schema query atom family — **router atom**.
  *
- * Uses direct API query. Returns QueryState format for consistency.
+ * This is the single consumer-facing atom for schema data. All downstream atoms
+ * (isChatVariant, messagesSchema, agConfigSchema, invocationUrl, etc.) read from
+ * this atom. It routes to the appropriate source:
+ *
+ * 1. **Service schema (fast path):** For completion/chat apps, returns the prefetched
+ *    service schema composed with revision-specific runtime context. Available
+ *    immediately at revision selection — no per-revision fetch needed.
+ *
+ * 2. **Per-revision schema (fallback):** For custom apps, or when the service schema
+ *    is unavailable, falls back to fetching from the revision's URI (existing behavior).
+ *
+ * Downstream consumers are unaffected by this routing — they see the same
+ * `{ data: RevisionSchemaState, isPending, isError, error }` interface.
  */
 export const appRevisionSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
+        // Layer 1: Try service schema (fast path for completion/chat apps)
+        const serviceResult = get(serviceSchemaForRevisionAtomFamily(revisionId))
+
+        if (serviceResult.isAvailable) {
+            // Service schema route is active for this revision
+            if (serviceResult.isPending) {
+                return {
+                    data: emptySchemaState,
+                    isPending: true,
+                    isError: false,
+                    error: null,
+                }
+            }
+
+            // Compose with revision-specific runtime context
+            const composed = get(composedServiceSchemaAtomFamily(revisionId))
+            if (composed) {
+                return {
+                    data: composed,
+                    isPending: false,
+                    isError: false,
+                    error: null,
+                }
+            }
+
+            // Service schema fetch succeeded but composition failed — fall through
+        }
+
+        // Layer 2: Per-revision schema (fallback for custom apps or failed service fetch)
         const query = get(directSchemaQueryAtomFamily(revisionId))
 
         if (query.isPending) {

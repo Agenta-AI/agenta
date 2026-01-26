@@ -9,25 +9,23 @@
  *
  * @example
  * ```typescript
- * import {
- *     // Molecule (primary API)
- *     appRevisionMolecule,
+ * import { appRevisionMolecule, type AppRevisionData } from '@agenta/entities/appRevision'
  *
- *     // Types
- *     type AppRevisionData,
- *     type ExecutionMode,
- *     type RevisionSchemaState,
- *
- *     // Transformers
- *     transformEnhancedVariant,
- *     transformApiRevision,
- * } from '@agenta/entities/appRevision'
- *
- * // Using the molecule
+ * // Reactive atoms (for useAtomValue, atom compositions)
  * const data = useAtomValue(appRevisionMolecule.atoms.data(revisionId))
+ * const isDirty = useAtomValue(appRevisionMolecule.atoms.isDirty(revisionId))
  * const schema = useAtomValue(appRevisionMolecule.atoms.agConfigSchema(revisionId))
  *
- * // Imperative API
+ * // Runnable capability atoms
+ * const inputPorts = useAtomValue(appRevisionMolecule.selectors.inputPorts(revisionId))
+ * const outputPorts = useAtomValue(appRevisionMolecule.selectors.outputPorts(revisionId))
+ *
+ * // Write atoms (for use in other atoms with set())
+ * set(appRevisionMolecule.actions.update, revisionId, { agConfig: newConfig })
+ * set(appRevisionMolecule.actions.discard, revisionId)
+ *
+ * // Imperative API (for callbacks outside React/atom context)
+ * const data = appRevisionMolecule.get.data(revisionId)
  * appRevisionMolecule.set.update(revisionId, { agConfig: newConfig })
  * ```
  */
@@ -48,6 +46,10 @@ export {
     endpointSchemaSchema,
     revisionSchemaStateSchema,
     executionModeSchema,
+    // Service type utilities
+    APP_SERVICE_TYPES,
+    SERVICE_ROUTE_PATHS,
+    resolveServiceType,
     // Parse utilities
     parseAppRevision,
     parsePromptConfig,
@@ -61,6 +63,8 @@ export {
 export type {
     // Execution mode
     ExecutionMode,
+    // Service types
+    AppServiceType,
     // Data types
     AppRevisionData,
     PromptConfig,
@@ -106,6 +110,8 @@ export {
     createEmptyRevisionSchemaState,
     buildRevisionSchemaState,
     getSchemaPropertyAtPath,
+    // Service schema prefetch
+    fetchServiceSchema,
     // Types
     type ApiRevision,
     type ApiVariant,
@@ -128,72 +134,9 @@ export {
     appRevisionSelectionConfig,
     type AppRevisionMolecule,
     type AppRevisionSelectionConfig,
-} from "./state"
-
-/**
- * Low-level store atoms for advanced use cases and OSS layer integration.
- *
- * @internal These atoms are implementation details and may change without notice.
- * Prefer using `appRevisionMolecule` API for most use cases.
- *
- * @example
- * ```typescript
- * // Prefer this (stable API):
- * const data = useAtomValue(appRevisionMolecule.atoms.data(id))
- *
- * // Over this (internal, may change):
- * const data = useAtomValue(appRevisionEntityAtomFamily(id))
- * ```
- */
-export {
-    // List atoms initialization (for OSS layer - apps only required, variants/revisions optional)
-    setAppsListAtom,
-    setVariantsListAtomFamily,
-    setRevisionsListAtomFamily,
-    // Query and entity atoms
-    appRevisionQueryAtomFamily,
-    appRevisionDraftAtomFamily,
-    appRevisionEntityAtomFamily,
-    appRevisionIsDirtyAtomFamily,
-    // List query atoms (self-contained in package)
-    appsQueryAtom,
-    appsListDataAtom,
-    variantsQueryAtomFamily,
-    variantsListDataAtomFamily,
-    revisionsQueryAtomFamily,
-    revisionsListDataAtomFamily,
-    // List atoms (all use package queries by default, with optional override)
-    appsListAtom,
-    variantsListAtomFamily,
-    revisionsListAtomFamily,
-    // Execution mode atoms
-    appRevisionExecutionModeAtomFamily,
-    appRevisionEndpointAtomFamily,
-    appRevisionInvocationUrlAtomFamily,
-    setExecutionModeAtom,
-    // Mutations
-    updateAppRevisionAtom,
-    discardAppRevisionDraftAtom,
-    updatePromptAtom,
-    updateMessageAtom,
-    addMessageAtom,
-    deleteMessageAtom,
-    reorderMessagesAtom,
-    // Schema atoms
-    appRevisionSchemaQueryAtomFamily,
-    revisionOpenApiSchemaAtomFamily,
-    revisionAgConfigSchemaAtomFamily,
-    revisionSchemaLoadingAtomFamily,
-    revisionPromptSchemaAtomFamily,
-    revisionCustomPropertiesSchemaAtomFamily,
-    revisionSchemaAtPathAtomFamily,
-    revisionEndpointsAtomFamily,
-    revisionAvailableEndpointsAtomFamily,
-    revisionIsChatVariantAtomFamily,
-    revisionInputsSchemaAtomFamily,
-    revisionMessagesSchemaAtomFamily,
-    revisionRuntimePrefixAtomFamily,
-    revisionRoutePathAtomFamily,
+    // Service schema prefetch atoms (mount in app root for eager fetch)
+    completionServiceSchemaAtom,
+    chatServiceSchemaAtom,
 } from "./state"
 
 // ============================================================================
@@ -212,3 +155,29 @@ export {
     formatKeyAsName,
     unwrapEnhanced,
 } from "./utils"
+
+// ============================================================================
+// ENTITY RELATIONS
+// ============================================================================
+
+/**
+ * Entity relations for the app revision hierarchy.
+ *
+ * - appToVariantRelation: app → variant
+ * - variantToRevisionRelation: variant → appRevision
+ *
+ * Relations are auto-registered when this module is imported.
+ * Use the registry to query hierarchies:
+ *
+ * ```typescript
+ * import { entityRelationRegistry } from '@agenta/entities/shared'
+ * const path = entityRelationRegistry.getPath("app", "appRevision")
+ * // Returns: ["app", "variant", "appRevision"]
+ * ```
+ */
+export {
+    appToVariantRelation,
+    variantToRevisionRelation,
+    registerAppRevisionRelations,
+    appsListAtom,
+} from "./relations"
