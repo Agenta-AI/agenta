@@ -17,7 +17,7 @@
  * ```
  */
 
-import {isPlainObject, tryParseAsObject} from "@agenta/shared"
+import {isPlainObject, tryParseAsObject} from "@agenta/shared/utils"
 
 import {isSystemField} from "./schema"
 import type {Column} from "./types"
@@ -112,6 +112,9 @@ export interface ExtractColumnsOptions {
  * Extract columns from an array of data objects.
  * Samples rows to discover column structure, handling nested objects and JSON strings.
  *
+ * Note: For Testcase entities, pass `testcase.data` (the nested data property),
+ * not the full testcase object. This function expects plain data objects.
+ *
  * @param data - Array of data objects to extract columns from
  * @param options - Extraction options
  * @returns Array of Column definitions compatible with groupColumns utility
@@ -119,8 +122,8 @@ export interface ExtractColumnsOptions {
  * @example
  * ```typescript
  * const rows = [
- *   { id: '1', name: 'Test', config: { model: 'gpt-4' } },
- *   { id: '2', name: 'Test 2', config: { model: 'gpt-3.5' } },
+ *   { name: 'Test', config: { model: 'gpt-4' } },
+ *   { name: 'Test 2', config: { model: 'gpt-3.5' } },
  * ]
  * const columns = extractColumnsFromData(rows)
  * // Returns: [
@@ -140,7 +143,15 @@ export function extractColumnsFromData(
     // Sample rows to discover columns
     for (const row of data.slice(0, sampleSize)) {
         if (!row) continue
-        collectColumnPaths(row, "", columnMap, 0, maxDepth)
+
+        // If the row has a `data` property (Testcase format), extract columns from there
+        // Otherwise use the row directly (flat format)
+        const dataSource =
+            row.data && typeof row.data === "object" && !Array.isArray(row.data)
+                ? (row.data as Record<string, unknown>)
+                : row
+
+        collectColumnPaths(dataSource, "", columnMap, 0, maxDepth)
     }
 
     // Convert to Column[] (compatible with groupColumns utility)
@@ -155,6 +166,9 @@ export function extractColumnsFromData(
  * Extract columns from testcase rows with a custom data accessor.
  * Useful when rows have different structures (e.g., local vs server rows).
  *
+ * Note: The accessor should return the data object to extract columns from.
+ * For Testcase entities, this would typically be `testcase.data`.
+ *
  * @param rows - Array of rows to extract columns from
  * @param getDataSource - Function to extract data object from a row
  * @param options - Extraction options
@@ -164,7 +178,7 @@ export function extractColumnsFromData(
  * ```typescript
  * const columns = extractColumnsWithAccessor(
  *   rows,
- *   (row) => row.__isNew ? molecule.get.data(row.id) : row,
+ *   (row) => row.__isNew ? molecule.get.data(row.id)?.data : row.data,
  *   { sampleSize: 10 }
  * )
  * ```

@@ -29,14 +29,14 @@ import {
     setValueAtPath,
     getItemsAtPath,
     type DataPath,
-} from "@agenta/shared"
+} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
 import {createMolecule, extendMolecule, createControllerAtomFamily} from "../../shared"
-import type {StoreOptions, PathItem} from "../../shared"
-import type {Column, FlattenedTestcase} from "../core"
+import type {StoreOptions, PathItem, LoadableRow, LoadableColumn} from "../../shared"
+import type {Column, Testcase} from "../core"
 import {createLocalTestcase} from "../core"
 
 import {testcasesRevisionIdAtom, initializeEmptyRevisionAtom} from "./paginatedStore"
@@ -82,34 +82,39 @@ function getStore(options?: StoreOptions) {
 // LOCAL ENTITY FACTORY
 // ============================================================================
 
-// Note: Local testcase creation now uses createLocalTestcase from ../core
-// which accepts flat input directly (e.g., { country: 'USA' }) and handles
-// the conversion to nested format internally. This is cleaner than the old
-// approach which required callers to wrap data in { data: {...} }.
+// Note: Local testcase creation uses createLocalTestcase from ../core
+// which accepts nested Testcase format with data in the `data` property
+// (e.g., { data: { country: 'USA' } }). The factory validates input and
+// generates a unique ID for local entities.
 
 // ============================================================================
 // DRILL-IN HELPERS
 // ============================================================================
 
 /**
- * Get value at path from testcase data
+ * Get value at path from testcase data.
+ * Reads from testcase.data property.
  */
-function getValueAtPath(data: FlattenedTestcase | null, path: DataPath): unknown {
-    if (!data) return undefined
-    return getValueAtPathUtil(data, path)
+function getValueAtPath(testcase: Testcase | null, path: DataPath): unknown {
+    if (!testcase) return undefined
+    // Read from testcase.data (nested format)
+    return getValueAtPathUtil(testcase.data ?? {}, path)
 }
 
 /**
  * Get root items for navigation.
  * Uses columns to determine what fields to show.
+ * Reads from testcase.data property.
  */
-function getRootItems(data: FlattenedTestcase | null, columns?: unknown): PathItem[] {
-    if (!data) return []
+function getRootItems(testcase: Testcase | null, columns?: unknown): PathItem[] {
+    if (!testcase) return []
+
+    const data = testcase.data ?? {}
 
     // If columns provided, use column keys as root items
     if (columns && Array.isArray(columns)) {
         return columns.map((col: Column) => {
-            const value = (data as Record<string, unknown>)[col.key]
+            const value = data[col.key]
             return {
                 key: col.key,
                 name: col.label || col.key,
@@ -119,33 +124,27 @@ function getRootItems(data: FlattenedTestcase | null, columns?: unknown): PathIt
         })
     }
 
-    // Fall back to object keys
+    // Fall back to object keys from testcase.data
     return getItemsAtPath(data, [])
 }
 
 /**
  * Convert path-based changes to draft format.
- * For testcases, the entire entity is draftable.
+ * For testcases, changes go into testcase.data.
  */
 function getChangesFromPath(
-    data: FlattenedTestcase | null,
+    testcase: Testcase | null,
     path: DataPath,
     value: unknown,
-): Partial<FlattenedTestcase> | null {
-    if (!data || path.length === 0) return null
+): {data: Record<string, unknown>} | null {
+    if (!testcase || path.length === 0) return null
 
-    // Build the update using setValueAtPath
-    const updated = setValueAtPath(data, path, value)
+    // Build the update using setValueAtPath on the data property
+    const currentData = testcase.data ?? {}
+    const updatedData = setValueAtPath(currentData, path, value)
 
-    // Extract the changes (top-level key that changed)
-    const topKey = path[0]
-    if (typeof topKey === "string") {
-        return {
-            [topKey]: (updated as Record<string, unknown>)[topKey],
-        } as Partial<FlattenedTestcase>
-    }
-
-    return null
+    // Return as data update
+    return {data: updatedData as Record<string, unknown>}
 }
 
 // ============================================================================
@@ -154,11 +153,12 @@ function getChangesFromPath(
 
 /**
  * Base molecule using createMolecule factory.
+ * Uses Testcase (nested format) - cell values accessed via testcase.data[columnKey].
  *
  * Note: We use the existing atom families from store.ts which have the
  * complex logic for pending column changes and dirty detection.
  */
-const baseMolecule = createMolecule<FlattenedTestcase, FlattenedTestcase>({
+const baseMolecule = createMolecule<Testcase, Testcase>({
     name: "testcase",
     queryAtomFamily: testcaseQueryAtomFamily,
     draftAtomFamily: testcaseDraftAtomFamily,
@@ -321,32 +321,128 @@ const initSelectionDraftAtom = atom(null, (get, set, revisionId: string, initial
 })
 
 // ============================================================================
+// LOADABLE CAPABILITY ATOMS
+// ============================================================================
+
+/**
+ * Transform testcase entity to LoadableRow format.
+ * Testcase is nested format - data comes from testcase.data.
+ */
+function testcaseToLoadableRow(entity: Testcase | null): LoadableRow {
+    if (!entity) {
+        return {id: "", data: {}}
+    }
+
+    // Data fields are already in testcase.data
+    return {
+        id: entity.id || "",
+        data: entity.data ?? {},
+    }
+}
+
+/**
+ * Loadable rows atom family - returns LoadableRow[] for the current revision context.
+ *
+ * NOTE: This requires the revision context to be set via setRevisionContextAtom.
+ * The revisionId parameter is used for cache keying and context verification.
+ *
+ * @param revisionId - The revision ID (used for cache keying)
+ */
+const loadableRowsAtomFamily = atomFamily((revisionId: string) =>
+    atom((get): LoadableRow[] => {
+        // Verify context matches
+        const currentRevId = get(currentRevisionIdAtom)
+        if (currentRevId !== revisionId) {
+            // Context mismatch - return empty (caller should set context first)
+            return []
+        }
+
+        const rowIds = get(displayRowIdsAtom)
+        const rows: LoadableRow[] = []
+
+        for (const id of rowIds) {
+            const entity = get(testcaseEntityAtomFamily(id))
+            rows.push(testcaseToLoadableRow(entity))
+        }
+
+        return rows
+    }),
+)
+
+/**
+ * Loadable columns atom family - returns LoadableColumn[] for the current revision context.
+ *
+ * @param revisionId - The revision ID (used for cache keying)
+ */
+const loadableColumnsAtomFamily = atomFamily((revisionId: string) =>
+    atom((get): LoadableColumn[] => {
+        // Verify context matches
+        const currentRevId = get(currentRevisionIdAtom)
+        if (currentRevId !== revisionId) {
+            return []
+        }
+
+        const columns = get(currentColumnsAtom)
+        return columns.map(
+            (col): LoadableColumn => ({
+                key: col.key,
+                name: col.label || col.key,
+                type: "string", // Default type, could be inferred from data
+            }),
+        )
+    }),
+)
+
+/**
+ * Loadable hasChanges atom family - returns whether the revision has unsaved changes.
+ *
+ * @param revisionId - The revision ID (used for cache keying)
+ */
+const loadableHasChangesAtomFamily = atomFamily((revisionId: string) =>
+    atom((get): boolean => {
+        // Verify context matches
+        const currentRevId = get(currentRevisionIdAtom)
+        if (currentRevId !== revisionId) {
+            return false
+        }
+
+        return get(hasUnsavedChangesAtom)
+    }),
+)
+
+// ============================================================================
 // ACTION ATOMS
 // ============================================================================
 
 /**
- * Add a new testcase action
- * Creates a validated local testcase from flat input (e.g., { country: 'USA' })
- * @returns {id: string, data: FlattenedTestcase} | null if validation fails
+ * Input type for creating new testcases.
+ * Accepts either nested Testcase format or flat data that will be wrapped.
  */
-const addTestcaseAtom = atom(null, (_get, set, initialData?: Partial<FlattenedTestcase>) => {
-    // createLocalTestcase accepts flat input directly and returns flattened output
-    const result = createLocalTestcase(initialData)
+type TestcaseCreateInput = Partial<Testcase> | {data?: Record<string, unknown>}
+
+/**
+ * Add a new testcase action.
+ * Creates a validated local testcase.
+ * @returns {id: string, data: Testcase} | null if validation fails
+ */
+const addTestcaseAtom = atom(null, (_get, set, initialData?: TestcaseCreateInput) => {
+    // createLocalTestcase accepts nested Testcase format with data property
+    const result = createLocalTestcase(initialData as Partial<Testcase>)
 
     if (result.success === false) {
         console.error("[testcase] Invalid data for new testcase:", result.errors)
         return null
     }
 
-    const flattened = result.data
+    const testcase = result.data
 
     // Add to new IDs tracking
-    set(addNewEntityIdAtom, flattened.id)
+    set(addNewEntityIdAtom, testcase.id)
 
-    // Initialize draft with flattened data
-    set(testcaseDraftAtomFamily(flattened.id), flattened)
+    // Initialize draft with Testcase data
+    set(testcaseDraftAtomFamily(testcase.id), testcase)
 
-    return {id: flattened.id, data: flattened}
+    return {id: testcase.id, data: testcase}
 })
 
 /**
@@ -368,26 +464,30 @@ const deleteTestcasesAtom = atom(null, (_get, set, ids: string | string[]) => {
 })
 
 /**
- * Append multiple testcases action
- * Creates multiple validated testcases from flat row data
+ * Append multiple testcases action.
+ * Creates multiple validated testcases from row data.
  * @returns Number of testcases successfully added
  */
 const appendTestcasesAtom = atom(null, (_get, set, rows: Record<string, unknown>[]) => {
     let count = 0
     for (const row of rows) {
-        // createLocalTestcase accepts flat input directly
-        const result = createLocalTestcase(row as Partial<FlattenedTestcase>)
+        // createLocalTestcase accepts nested Testcase format
+        // Wrap the row data in `data` property if it's raw row data
+        const input: Partial<Testcase> = row.data ? (row as Partial<Testcase>) : {data: row}
+        const result = createLocalTestcase(input)
 
         if (result.success === false) {
             console.error("[testcase] Skipping invalid row:", result.errors)
             continue
         }
 
-        // Add to new IDs tracking
-        set(addNewEntityIdAtom, result.data.id)
+        const testcase = result.data
 
-        // Initialize draft with flattened data
-        set(testcaseDraftAtomFamily(result.data.id), result.data)
+        // Add to new IDs tracking
+        set(addNewEntityIdAtom, testcase.id)
+
+        // Initialize draft with Testcase data
+        set(testcaseDraftAtomFamily(testcase.id), testcase)
 
         count++
     }
@@ -430,7 +530,7 @@ interface CreateTestcasesOptions {
 }
 
 /**
- * Create multiple validated testcases with options from flat row data
+ * Create multiple validated testcases with options from row data.
  * @returns {ids: string[], count: number, errors: number}
  */
 const createTestcasesAtom = atom(
@@ -445,8 +545,10 @@ const createTestcasesAtom = atom(
         let errors = 0
 
         for (const row of rows) {
-            // createLocalTestcase accepts flat input directly
-            const result = createLocalTestcase(row as Partial<FlattenedTestcase>)
+            // createLocalTestcase accepts nested Testcase format
+            // Wrap the row data in `data` property if it's raw row data
+            const input: Partial<Testcase> = row.data ? (row as Partial<Testcase>) : {data: row}
+            const result = createLocalTestcase(input)
 
             if (result.success === false) {
                 console.error("[testcase] Skipping invalid row:", result.errors)
@@ -454,15 +556,15 @@ const createTestcasesAtom = atom(
                 continue
             }
 
-            const flattened = result.data
+            const testcase = result.data
 
             // Add to new IDs tracking
-            set(addNewEntityIdAtom, flattened.id)
+            set(addNewEntityIdAtom, testcase.id)
 
-            // Initialize draft with flattened data
-            set(testcaseDraftAtomFamily(flattened.id), flattened)
+            // Initialize draft with Testcase data
+            set(testcaseDraftAtomFamily(testcase.id), testcase)
 
-            ids.push(flattened.id)
+            ids.push(testcase.id)
         }
 
         return {ids, count: ids.length, errors}
@@ -552,7 +654,7 @@ const extendedMolecule = extendMolecule(baseMolecule, {
         discardAll: (options?: StoreOptions) => getStore(options).set(discardAllDraftsAtom),
         /** Batch update */
         batchUpdate: (
-            updates: {id: string; updates: Partial<FlattenedTestcase>}[],
+            updates: {id: string; updates: {data?: Record<string, unknown>}}[],
             options?: StoreOptions,
         ) => getStore(options).set(batchUpdateTestcasesSyncAtom, updates),
         /** Delete testcases */
@@ -574,10 +676,11 @@ const extendedMolecule = extendMolecule(baseMolecule, {
 /**
  * Controller atom family using store's entity atom (with pending column changes applied)
  * and store's isDirty atom (with column-aware dirty detection).
+ * Uses Testcase (nested format) - cell values accessed via testcase.data[columnKey].
  */
 const testcaseControllerAtomFamily = createControllerAtomFamily<
-    FlattenedTestcase,
-    Partial<FlattenedTestcase>
+    Testcase,
+    {data?: Record<string, unknown>}
 >({
     dataAtom: testcaseEntityAtomFamily,
     isDirtyAtom: testcaseIsDirtyAtomFamily,
@@ -596,41 +699,140 @@ const testcaseControllerAtomFamily = createControllerAtomFamily<
 /**
  * Testcase molecule - unified API for testcase entity management
  *
- * Uses createMolecule + extendMolecule + createControllerAtomFamily pattern
- * for consistency with other entities (trace, testset, revision).
+ * ## Unified API
+ *
+ * The testcase molecule provides a unified API with these access patterns:
+ *
+ * ### Top-level (most common operations)
+ * ```typescript
+ * testcase.data(id)         // Reactive: merged entity data
+ * testcase.query(id)        // Reactive: query state with loading/error
+ * testcase.isDirty(id)      // Reactive: has unsaved changes
+ * testcase.ids              // Reactive: server entity IDs
+ * testcase.newIds           // Reactive: new entity IDs
+ * testcase.deletedIds       // Reactive: soft-deleted entity IDs
+ * ```
+ *
+ * ### Actions namespace (all write operations)
+ * ```typescript
+ * set(testcase.actions.update, id, changes)
+ * set(testcase.actions.add, initialData)
+ * set(testcase.actions.delete, ids)
+ * ```
+ *
+ * ### Loadable capability (for unified data loading)
+ * ```typescript
+ * testcase.loadable.rows(revisionId)
+ * testcase.loadable.columns(revisionId)
+ * testcase.loadable.hasChanges(revisionId)
+ * ```
+ *
+ * @example
+ * ```typescript
+ * import { testcase } from '@agenta/entities'
+ *
+ * // Reactive subscriptions (most common)
+ * const data = useAtomValue(testcase.data(id))
+ * const serverIds = useAtomValue(testcase.ids)
+ * const newIds = useAtomValue(testcase.newIds)
+ *
+ * // Write operations
+ * const addTestcase = useSetAtom(testcase.actions.add)
+ * const {id} = addTestcase({input: '', expected: ''})
+ *
+ * // Imperative reads (in callbacks)
+ * const data = testcase.get.data(id)
+ * ```
  */
 export const testcaseMolecule = {
     /** Entity name */
     name: "testcase" as const,
 
+    // =========================================================================
+    // TOP-LEVEL API (most common operations - flattened for ergonomics)
+    // =========================================================================
+
+    /**
+     * Get merged entity data (server + draft with pending column changes).
+     * Returns Testcase (nested format) - cell values accessed via testcase.data[columnKey].
+     * @param id - Testcase ID
+     * @returns Atom<Testcase | null>
+     * @example const data = useAtomValue(testcase.data(id))
+     */
+    data: testcaseEntityAtomFamily,
+
+    /**
+     * Get query state with loading/error status.
+     * Returns Testcase (nested format).
+     * @param id - Testcase ID
+     * @returns Atom<QueryState<Testcase>>
+     * @example const {data, isPending, isError} = useAtomValue(testcase.query(id))
+     */
+    query: testcaseQueryAtomFamily,
+
+    /**
+     * Check if entity has unsaved changes (column-aware).
+     * @param id - Testcase ID
+     * @returns Atom<boolean>
+     * @example const isDirty = useAtomValue(testcase.isDirty(id))
+     */
+    isDirty: testcaseIsDirtyAtomFamily,
+
+    /**
+     * Server entity IDs.
+     * @example const serverIds = useAtomValue(testcase.ids)
+     */
+    ids: testcaseIdsAtom,
+
+    /**
+     * New (local) entity IDs.
+     * @example const newIds = useAtomValue(testcase.newIds)
+     */
+    newIds: newEntityIdsAtom,
+
+    /**
+     * Soft-deleted entity IDs.
+     * @example const deletedIds = useAtomValue(testcase.deletedIds)
+     */
+    deletedIds: deletedEntityIdsAtom,
+
     // Controller for EntityDrillInView compatibility
     controller: testcaseControllerAtomFamily,
 
-    // Selectors - aliases for common atoms
-    selectors: {
-        /** Merged data atom (server + draft with pending column changes) */
-        data: testcaseEntityAtomFamily,
-        /** Server data only */
-        serverData: baseMolecule.atoms.serverData,
-        /** Draft data atom */
-        draft: testcaseDraftAtomFamily,
-        /** isDirty atom (column-aware) */
-        isDirty: testcaseIsDirtyAtomFamily,
-        /** Query state */
-        query: testcaseQueryAtomFamily,
-        /** Current columns derived from all entities */
-        columns: currentColumnsAtom,
-        /** New entity IDs (local only) */
-        newEntityIds: newEntityIdsAtom,
-        /** Local columns per revision (writable) */
-        localColumnsFamily: localColumnsAtomFamily,
-        /** Selection draft per revision (for TestsetSelectionModal) */
-        selectionDraft: testcaseSelectionDraftAtomFamily,
-        /** Current selection (draft if exists, else displayRowIds) */
-        currentSelection: currentSelectionAtomFamily,
+    // =========================================================================
+    // LOADABLE CAPABILITY
+    // =========================================================================
+
+    /**
+     * Loadable capability - provides unified data loading interface.
+     *
+     * NOTE: These selectors require the revision context to be set first
+     * via `testcase.actions.setRevisionContext(revisionId)`.
+     *
+     * @example
+     * ```typescript
+     * // Set context first
+     * set(testcase.actions.setRevisionContext, revisionId)
+     *
+     * // Then read loadable data
+     * const rows = useAtomValue(testcase.loadable.rows(revisionId))
+     * const columns = useAtomValue(testcase.loadable.columns(revisionId))
+     * const hasChanges = useAtomValue(testcase.loadable.hasChanges(revisionId))
+     * ```
+     */
+    loadable: {
+        /** Get all rows as LoadableRow[] for the revision */
+        rows: loadableRowsAtomFamily,
+        /** Get column definitions as LoadableColumn[] for the revision */
+        columns: loadableColumnsAtomFamily,
+        /** Check if the revision has unsaved changes */
+        hasChanges: loadableHasChangesAtomFamily,
     },
 
-    // Atoms from extended molecule
+    // =========================================================================
+    // ATOMS namespace (additional/less common reactive atoms)
+    // =========================================================================
+
     atoms: {
         ...extendedMolecule.atoms,
         /** Override data to use store's entity atom with pending column changes */
@@ -643,19 +845,21 @@ export const testcaseMolecule = {
         draft: testcaseDraftAtomFamily,
     },
 
-    // Reducers - include base + extended
-    reducers: {
-        ...extendedMolecule.reducers,
-        /** Update testcase (overridden to use store's update) */
-        update: updateTestcaseAtom,
-        /** Discard draft (overridden to use store's discard) */
-        discard: discardDraftAtom,
-    },
+    // =========================================================================
+    // ACTIONS namespace (all write operations)
+    // =========================================================================
 
-    // Backward-compatible actions alias
+    /**
+     * Action atoms for mutations.
+     * Use with `useSetAtom` in components or `set()` in atom compositions.
+     */
     actions: {
+        /** Update testcase draft */
         update: updateTestcaseAtom,
+        /** Discard testcase draft */
         discard: discardDraftAtom,
+        /** Discard all drafts */
+        discardAll: discardAllDraftsAtom,
         /** Add a new testcase - returns {id, data} */
         add: addTestcaseAtom,
         /** Delete testcases by ID(s) - soft delete for server entities, full remove for local */
@@ -664,6 +868,8 @@ export const testcaseMolecule = {
         append: appendTestcasesAtom,
         /** Create multiple testcases with options - returns {ids, count} */
         create: createTestcasesAtom,
+        /** Batch update multiple testcases */
+        batchUpdate: batchUpdateTestcasesSyncAtom,
         /** Set revision context for testcase operations (sets both context and paginated store) */
         setRevisionContext: setRevisionContextAtom,
         /** Initialize selection draft from current displayRowIds */
@@ -678,6 +884,45 @@ export const testcaseMolecule = {
         initializeEmptyRevision: initializeEmptyRevisionAtom,
     },
 
+    /**
+     * Selectors - DEPRECATED: Use top-level aliases instead
+     * @deprecated Use testcase.data(id), testcase.query(id), testcase.isDirty(id)
+     */
+    selectors: {
+        /** @deprecated Use testcase.data(id) */
+        data: testcaseEntityAtomFamily,
+        /** Server data only */
+        serverData: baseMolecule.atoms.serverData,
+        /** @deprecated Use testcase.atoms.draft(id) */
+        draft: testcaseDraftAtomFamily,
+        /** @deprecated Use testcase.isDirty(id) */
+        isDirty: testcaseIsDirtyAtomFamily,
+        /** @deprecated Use testcase.query(id) */
+        query: testcaseQueryAtomFamily,
+        /** Current columns derived from all entities */
+        columns: currentColumnsAtom,
+        /** New entity IDs (local only) */
+        newEntityIds: newEntityIdsAtom,
+        /** Local columns per revision (writable) */
+        localColumnsFamily: localColumnsAtomFamily,
+        /** Selection draft per revision (for TestsetSelectionModal) */
+        selectionDraft: testcaseSelectionDraftAtomFamily,
+        /** Current selection (draft if exists, else displayRowIds) */
+        currentSelection: currentSelectionAtomFamily,
+    },
+
+    /**
+     * Reducers - DEPRECATED: Use actions namespace instead
+     * @deprecated Use testcase.actions.*
+     */
+    reducers: {
+        ...extendedMolecule.reducers,
+        /** @deprecated Use testcase.actions.update */
+        update: updateTestcaseAtom,
+        /** @deprecated Use testcase.actions.discard */
+        discard: discardDraftAtom,
+    },
+
     // DrillIn utilities for path-based navigation and editing
     drillIn: {
         getValueAtPath,
@@ -686,19 +931,19 @@ export const testcaseMolecule = {
         valueMode: "native" as const,
         /**
          * Extract root data for navigation.
-         * For testcases, the entity itself is the root data.
+         * For testcases, returns the .data property (nested format).
          */
-        getRootData: (entity: FlattenedTestcase | null) => entity,
+        getRootData: (entity: Testcase | null) => entity?.data ?? null,
         /**
          * Convert path-based changes back to entity draft format.
-         * For testcases, the path[0] is the column key.
+         * For testcases, changes go into testcase.data.
          */
         getChangesFromRoot: (
-            entity: FlattenedTestcase | null,
+            entity: Testcase | null,
             _rootData: unknown,
             path: DataPath,
             value: unknown,
-        ): Partial<FlattenedTestcase> | null => {
+        ): {data: Record<string, unknown>} | null => {
             return getChangesFromPath(entity, path, value)
         },
     },
