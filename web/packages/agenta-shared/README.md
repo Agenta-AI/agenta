@@ -143,6 +143,81 @@ const testcase = { messages: '{"content": "hello"}' }
 getValueAtPath(testcase, ['messages', 'content']) // 'hello'
 ```
 
+### Typed Path Utilities
+
+Extract and combine paths with type information for UI selection components:
+
+```typescript
+import {
+  extractTypedPaths,
+  combineTypedPaths,
+  buildTestcaseColumnPaths,
+  type TypedPathInfo,
+} from '@agenta/shared'
+
+// Extract paths from nested data with type info
+const data = { user: { name: 'Alice', age: 25 }, items: [1, 2, 3] }
+const paths = extractTypedPaths(data, { source: 'output', maxDepth: 3 })
+// [
+//   { path: 'user', label: 'user', valueType: 'object', source: 'output' },
+//   { path: 'user.name', label: 'name', valueType: 'string', source: 'output' },
+//   { path: 'user.age', label: 'age', valueType: 'number', source: 'output' },
+//   { path: 'items', label: 'items', valueType: 'array', source: 'output' },
+// ]
+
+// Combine paths from multiple sources with deduplication
+const combinedPaths = combineTypedPaths(schemaPaths, runtimePaths, testcasePaths)
+
+// Build paths from testcase columns
+const columnPaths = buildTestcaseColumnPaths([
+  { key: 'prompt', name: 'Prompt', type: 'string' },
+  { key: 'expected', name: 'Expected Output' },
+])
+// [
+//   { path: 'testcase.prompt', label: 'Prompt', source: 'testcase', valueType: 'string' },
+//   { path: 'testcase.expected', label: 'Expected Output', source: 'testcase' },
+// ]
+```
+
+### Mapping Utilities
+
+Determine and validate mapping status for input/output connections:
+
+```typescript
+import {
+  determineMappingStatus,
+  getMappingStatusConfig,
+  validateMappings,
+  isMappingError,
+  type MappingStatus,
+} from '@agenta/shared'
+
+// Determine status of a single mapping
+const status = determineMappingStatus(mapping, isRequired)
+// Returns: 'auto' | 'manual' | 'missing' | 'invalid_path' | 'type_mismatch' | 'optional'
+
+// Get UI configuration for a status
+const config = getMappingStatusConfig('auto')
+// { status: 'auto', color: 'blue', label: 'Auto', severity: 'info' }
+
+// Validate a set of mappings
+const result = validateMappings(
+  { input1: { isAutoMapped: true }, input2: undefined },
+  ['input1', 'input2']
+)
+// {
+//   isValid: false,
+//   isComplete: false,
+//   errorCount: 1,
+//   errors: [{ key: 'input2', status: 'missing' }],
+//   ...
+// }
+
+// Check status type
+isMappingError('missing') // true
+isMappingError('auto')    // false
+```
+
 ### Formatting Utilities
 
 Format numbers, currency, latency, and more for display:
@@ -193,12 +268,74 @@ if (schema) {
 
 ## Subpath Exports
 
-Import from specific subpaths for tree-shaking:
+**Always use subpath imports for better tree-shaking.** Importing from the root barrel (`@agenta/shared`) pulls the entire dependency graph, which increases bundle size.
+
+### Available Subpaths
+
+| Subpath | Description | Key Exports |
+|---------|-------------|-------------|
+| `@agenta/shared/api` | API utilities | `axios`, `getAgentaApiUrl`, `getEnv`, `configureAxios` |
+| `@agenta/shared/state` | Jotai atoms | `projectIdAtom`, `setProjectIdAtom` |
+| `@agenta/shared/utils` | Pure utilities | `dayjs`, `createBatchFetcher`, `isValidUUID`, `dereferenceSchema`, path utils, mapping utils, formatters |
+| `@agenta/shared/hooks` | React hooks | `useDebounceInput` |
+| `@agenta/shared/schemas` | Zod schemas | `MESSAGE_CONTENT_SCHEMA`, `CHAT_MESSAGE_SCHEMA`, `CHAT_MESSAGES_ARRAY_SCHEMA` |
+| `@agenta/shared/types` | TypeScript types | `SimpleChatMessage`, `MessageContent`, `TextContentPart`, `ToolCall` |
+
+### Usage Examples
 
 ```typescript
-import { axios, getEnv } from '@agenta/shared/api'
-import { projectIdAtom } from '@agenta/shared/state'
-import { isValidUUID, createBatchFetcher, dayjs } from '@agenta/shared/utils'
+// API utilities
+import {axios, getAgentaApiUrl, getEnv} from "@agenta/shared/api"
+
+// State atoms
+import {projectIdAtom, setProjectIdAtom} from "@agenta/shared/state"
+
+// Utilities (most common)
+import {
+  dayjs,
+  createBatchFetcher,
+  isValidUUID,
+  dereferenceSchema,
+  getValueAtPath,
+  setValueAtPath,
+  extractTypedPaths,
+  determineMappingStatus,
+  formatNumber,
+  formatLatency,
+} from "@agenta/shared/utils"
+
+// React hooks
+import {useDebounceInput} from "@agenta/shared/hooks"
+
+// Schemas (for validation)
+import {
+  MESSAGE_CONTENT_SCHEMA,
+  CHAT_MESSAGE_SCHEMA,
+  CHAT_MESSAGES_ARRAY_SCHEMA,
+} from "@agenta/shared/schemas"
+
+// Types (use `import type` for type-only imports)
+import type {
+  SimpleChatMessage,
+  MessageContent,
+  TextContentPart,
+  ImageContentPart,
+  ToolCall,
+} from "@agenta/shared/types"
+```
+
+### Migration from Root Import
+
+If you have code importing from `@agenta/shared`:
+
+```typescript
+// Before (pulls entire package)
+import {axios, SimpleChatMessage, MESSAGE_CONTENT_SCHEMA} from "@agenta/shared"
+
+// After (tree-shakeable)
+import {axios} from "@agenta/shared/api"
+import type {SimpleChatMessage} from "@agenta/shared/types"
+import {MESSAGE_CONTENT_SCHEMA} from "@agenta/shared/schemas"
 ```
 
 ## Development
