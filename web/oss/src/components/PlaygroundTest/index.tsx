@@ -12,7 +12,7 @@
  * 4. Execute and see results
  *
  * This file provides the OSS-specific implementation wrapper around
- * the @agenta/playground package components, injecting OSS-specific
+ * the @agenta/playground-ui components, injecting OSS-specific
  * components via the PlaygroundUIProvider context.
  */
 
@@ -22,7 +22,7 @@ import {
     EntitySelectorProvider,
     type PlaygroundUIProviders,
     type SaveModeConfig,
-} from "@agenta/playground"
+} from "@agenta/playground-ui"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -51,54 +51,9 @@ const CommitVariantChangesButton = dynamic(
     {ssr: false},
 )
 
-// Re-export components and types from @agenta/playground
-export {
-    // Main components
-    PlaygroundContent,
-    EmptyState,
-    ConfigurationSection,
-    ConfigPanel,
-    TestcasePanel,
-    RunnableEntityPanel,
-    RunnableColumnsLayout,
-    InputMappingModalWrapper,
-    LoadableEntityPanel,
-    LoadableRowCard,
-    LoadEvaluatorPresetModal,
-    // Entity selector
-    EntitySelectorProvider,
-    EntitySelector,
-    EntitySelectorModal,
-    useEntitySelector,
-    // Input mapping utilities
-    useMappingState,
-    getMappingStatus,
-    extractPathsFromValue,
-    buildAvailablePaths,
-    MappingLegend,
-    ObjectMappingRow,
-    PathSelector,
-    ScalarMappingRow,
-    TestRunPreview,
-    // Types
-    type ConfigPanelProps,
-    type OutputReceiverInfo,
-    type ConfigurationSectionProps,
-    type RunnableEntityPanelProps,
-    type RunnableColumnsLayoutProps,
-    type RunnableNode,
-    type InputMappingModalProps,
-    type InputMappingModalWrapperProps,
-    type EntityInfo,
-    type LoadableEntityPanelProps,
-    type LoadableRowCardProps,
-    type TestcasePanelProps,
-    type LoadEvaluatorPresetModalProps,
-} from "@agenta/playground"
-
 /**
  * OSS Playground wrapper that provides OSS-specific components
- * to the @agenta/playground components via context injection.
+ * to the @agenta/playground-ui components via context injection.
  */
 function PlaygroundTestInner() {
     const initializeSaveMode = useSetAtom(initializeSaveModeAtom)
