@@ -23,7 +23,7 @@
 
 import type {ReactNode} from "react"
 
-import {DrillInUIProvider} from "@agenta/entity-ui"
+import {DrillInUIProvider} from "@agenta/entity-ui/drill-in"
 
 import SelectLLMProvider from "@/oss/components/SelectLLMProvider"
 
