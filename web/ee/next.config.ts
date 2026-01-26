@@ -13,13 +13,21 @@ const config = {
     ...ossConfig,
     outputFileTracingRoot: path.resolve(__dirname, ".."),
     turbopack: {
-        // root: path.resolve(__dirname, ".."),
+        root: path.resolve(__dirname, ".."),
         resolveAlias: {
             "@/oss/*": ["@/agenta-oss-common/*"],
         },
     },
     experimental: {
-        optimizePackageImports: ["@agenta/oss"],
+        optimizePackageImports: [
+            "@agenta/oss",
+            "@agenta/shared",
+            "@agenta/ui",
+            "@agenta/entities",
+            "@agenta/entity-ui",
+            "@agenta/playground",
+            "@agenta/playground-ui",
+        ],
     },
     typescript: {
         ignoreBuildErrors: true,
