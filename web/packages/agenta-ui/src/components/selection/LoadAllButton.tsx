@@ -23,6 +23,7 @@ import React from "react"
 import {Button, Spin, Progress} from "antd"
 import {Download} from "lucide-react"
 
+import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
 import {cn, flexLayouts, gapClasses, linkColors, textColors} from "../../utils/styles"
 
 // ============================================================================
@@ -30,6 +31,12 @@ import {cn, flexLayouts, gapClasses, linkColors, textColors} from "../../utils/s
 // ============================================================================
 
 export interface LoadAllButtonProps {
+    /**
+     * Optional: EntityListCounts object from paginated store.
+     * When provided, overrides loadedCount, totalCount, and hasMore props.
+     */
+    counts?: EntityListCounts
+
     /**
      * Callback to load all remaining pages
      * Should return a promise that resolves when all pages are loaded
@@ -94,17 +101,23 @@ export interface LoadAllButtonProps {
  * Button that loads all remaining pages in a paginated list
  */
 export function LoadAllButton({
+    counts,
     onLoadAll,
     isLoading = false,
-    hasMore = true,
+    hasMore: hasMoreProp = true,
     label = "Load all",
     loadingLabel = "Loading all...",
-    totalCount,
-    loadedCount,
+    totalCount: totalCountProp,
+    loadedCount: loadedCountProp,
     size = "small",
     className = "",
     block = false,
 }: LoadAllButtonProps) {
+    // Use counts object if provided, otherwise fall back to individual props
+    const hasMore = counts?.hasMore ?? hasMoreProp
+    const totalCount = counts?.totalCount ?? totalCountProp
+    const loadedCount = counts?.loadedCount ?? loadedCountProp
+
     // Don't render if no more items or already fully loaded
     if (!hasMore && !isLoading) {
         return null
