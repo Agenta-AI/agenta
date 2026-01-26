@@ -1,10 +1,27 @@
 /**
- * Evaluator Revision Selection Adapter
+ * Evaluator Revision Selection Adapter (Legacy Runtime Configuration)
  *
  * Adapter for selecting evaluator revisions through the hierarchy:
  * Evaluator → Variant → Revision
  *
- * Uses the evaluatorRevision controller from @/oss/state/entities/evaluatorRevision
+ * ## Current Implementation
+ *
+ * This adapter uses **runtime configuration** via `setEvaluatorRevisionAtoms()`
+ * because the backend does not yet expose dedicated APIs for:
+ * - `GET /evaluators/{evaluatorId}/variants`
+ * - `GET /evaluator-variants/{variantId}/revisions`
+ *
+ * The consuming application must provide the atoms during initialization.
+ *
+ * ## Migration Plan
+ *
+ * When the backend APIs are available, this will be migrated to use the
+ * relation-based pattern (like testset and appRevision adapters) via
+ * `createThreeLevelAdapter()`. See:
+ * - `@agenta/entities/evaluatorRevision/README.md` for the migration path
+ * - `./appRevisionRelationAdapter.ts` for the target pattern
+ *
+ * @see {@link setEvaluatorRevisionAtoms} for configuration
  */
 
 import {atom, type Atom} from "jotai"
@@ -43,16 +60,28 @@ let atomConfig: EvaluatorRevisionAtomConfig | null = null
 
 /**
  * Configure the adapter with actual atoms from the app.
- * This should be called during app initialization.
+ *
+ * This is a **legacy pattern** required because the backend does not expose
+ * dedicated APIs for evaluator variants and revisions. The consuming application
+ * must provide atoms that implement the hierarchy.
+ *
+ * This should be called during app initialization, typically in `initializeSelectionSystem()`.
+ *
+ * @param config - Atom configuration for the evaluator hierarchy
+ * @param config.evaluatorsAtom - Atom that returns list of evaluators
+ * @param config.variantsByEvaluatorFamily - Factory returning variants for an evaluator
+ * @param config.revisionsByVariantFamily - Factory returning revisions for a variant
  *
  * @example
  * ```typescript
- * import { evaluatorRevision } from '@/oss/state/entities/evaluatorRevision'
+ * import { initializeSelectionSystem } from '@agenta/entity-ui/selection'
  *
- * setEvaluatorRevisionAtoms({
- *   evaluatorsAtom: evaluatorRevision.selectors.evaluators,
- *   variantsByEvaluatorFamily: evaluatorRevision.selectors.variantsByEvaluator,
- *   revisionsByVariantFamily: evaluatorRevision.selectors.revisions,
+ * initializeSelectionSystem({
+ *   evaluatorRevision: {
+ *     evaluatorsAtom: myEvaluatorsListAtom,
+ *     variantsByEvaluatorFamily: (evaluatorId) => myVariantsAtom(evaluatorId),
+ *     revisionsByVariantFamily: (variantId) => myRevisionsAtom(variantId),
+ *   },
  * })
  * ```
  */
@@ -102,16 +131,21 @@ function revisionsByVariantListAtom(variantId: string): Atom<ListQueryState<unkn
 // ============================================================================
 
 /**
- * Evaluator Revision selection adapter
+ * Evaluator Revision selection adapter (legacy runtime-configured)
  *
  * Hierarchy: Evaluator → Variant → Revision
+ *
+ * **Note:** This adapter requires runtime configuration via `setEvaluatorRevisionAtoms()`
+ * before use. Unlike the relation-based `testsetAdapter` and `appRevisionAdapter`,
+ * this adapter cannot be auto-configured because the backend lacks the required APIs.
  *
  * @example
  * ```typescript
  * import { evaluatorRevisionAdapter } from '@agenta/entity-ui/selection'
- * import { useHierarchicalSelection } from '@agenta/entity-ui/selection'
+ * import { useCascadingMode } from '@agenta/entity-ui/selection'
  *
- * const { items, navigateDown, select } = useHierarchicalSelection({
+ * // Note: setEvaluatorRevisionAtoms must be called first!
+ * const { levels, selection } = useCascadingMode({
  *   adapter: evaluatorRevisionAdapter,
  *   instanceId: 'my-selector',
  *   onSelect: (selection) => console.log('Selected evaluator revision:', selection),

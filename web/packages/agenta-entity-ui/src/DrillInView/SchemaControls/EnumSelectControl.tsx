@@ -8,7 +8,9 @@
 import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
-import {cn, LabeledField, SimpleDropdownSelect} from "@agenta/ui"
+import {formatEnumLabel} from "@agenta/shared/utils"
+import {LabeledField, SimpleDropdownSelect} from "@agenta/ui/components/presentational"
+import {cn} from "@agenta/ui/styles"
 import {Select} from "antd"
 
 export interface EnumSelectControlProps {
@@ -39,24 +41,9 @@ export interface EnumSelectControlProps {
 }
 
 /**
- * Format enum value as readable label
- */
-function formatEnumLabel(value: unknown): string {
-    if (typeof value !== "string") return String(value)
-
-    // Convert snake_case or camelCase to Title Case
-    return value
-        .replace(/_/g, " ")
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .split(" ")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(" ")
-}
-
-/**
  * Extract options from schema enum
  */
-function getOptionsFromSchema(
+function getEnumOptions(
     schema: SchemaProperty | null | undefined,
 ): {value: string; label: string}[] {
     if (!schema?.enum || !Array.isArray(schema.enum)) {
@@ -99,7 +86,7 @@ export const EnumSelectControl = memo(function EnumSelectControl({
         if (overrideOptions && overrideOptions.length > 0) {
             return overrideOptions
         }
-        return getOptionsFromSchema(schema)
+        return getEnumOptions(schema)
     }, [overrideOptions, schema])
 
     // Get description from schema or prop

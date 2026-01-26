@@ -5,10 +5,16 @@
  * Supports version info, changes summary, and diff view via adapter.
  */
 
-import {formatCount} from "@agenta/shared"
-import {cn, DiffView, textColors, VersionBadge} from "@agenta/ui"
-import {Input, Alert, Typography} from "antd"
+import {lazy, Suspense} from "react"
+
+import {formatCount} from "@agenta/shared/utils"
+import {VersionBadge} from "@agenta/ui/components/presentational"
+import {cn, textColors} from "@agenta/ui/styles"
+import {Input, Alert, Typography, Skeleton} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+
+// Lazy load DiffView to avoid bundling Lexical editor in _app chunk
+const DiffView = lazy(() => import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})))
 
 import {
     commitModalEntityNameAtom,
@@ -189,15 +195,23 @@ export function EntityCommitContent() {
                         </Text>
                     </div>
                     <div className="flex-1 overflow-auto">
-                        <DiffView
-                            key={`${context.diffData?.original.length}-${context.diffData?.modified.length}`}
-                            original={context.diffData?.original ?? ""}
-                            modified={context.diffData?.modified ?? ""}
-                            language={context.diffData?.language === "yaml" ? "yaml" : "json"}
-                            className="h-full"
-                            showErrors
-                            enableFolding
-                        />
+                        <Suspense
+                            fallback={
+                                <div className="p-4">
+                                    <Skeleton active paragraph={{rows: 8}} />
+                                </div>
+                            }
+                        >
+                            <DiffView
+                                key={`${context.diffData?.original.length}-${context.diffData?.modified.length}`}
+                                original={context.diffData?.original ?? ""}
+                                modified={context.diffData?.modified ?? ""}
+                                language={context.diffData?.language === "yaml" ? "yaml" : "json"}
+                                className="h-full"
+                                showErrors
+                                enableFolding
+                            />
+                        </Suspense>
                     </div>
                 </div>
             )}

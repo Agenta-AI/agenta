@@ -7,7 +7,7 @@
 
 import type {CSSProperties, ComponentType, ReactNode} from "react"
 
-import type {DataPath, PathItem} from "@agenta/shared"
+import type {DataPath, PathItem} from "@agenta/shared/utils"
 
 // ============================================================================
 // MOLECULE-LEVEL CONFIGURATION

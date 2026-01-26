@@ -7,7 +7,7 @@
 
 import {createContext, useContext, useMemo, useState, useCallback, type ReactNode} from "react"
 
-import {type DataPath, setValueAtPath, deleteValueAtPath} from "@agenta/shared"
+import {type DataPath, setValueAtPath, deleteValueAtPath} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {defaultFieldBehaviors} from "../context"

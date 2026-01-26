@@ -186,7 +186,59 @@ export {
 export type {EntityState, SaveOrCommitOptions, UseSaveOrCommitReturn} from "./useSaveOrCommit"
 
 // ============================================================================
-// SHARED COMPONENTS
+// SHARED COMPONENTS & HOOK FACTORIES
 // ============================================================================
 
 export {EnhancedModal, type EnhancedModalProps, type EnhancedModalStyles} from "./shared"
+
+// Hook factories for creating entity action hooks
+export {
+    createEntityActionHook,
+    createTypedEntityActionHook,
+    type CreateEntityActionHookConfig,
+    type UseEntityActionReturn,
+    type UseTypedEntityActionReturn,
+} from "./shared"
+
+// ============================================================================
+// UNIFIED ACTION DISPATCH
+// ============================================================================
+
+export {
+    // Provider
+    EntityActionProvider,
+    // Hooks
+    useEntityActionDispatch,
+    useEntityActionState,
+    useEntityActionGuard,
+    // Reducer
+    reduceEntityModalAction,
+    // Action creators
+    commitAction,
+    saveAction,
+    createAction,
+    deleteAction,
+    saveOrCommitAction,
+} from "./actions"
+export type {
+    // Action types
+    EntityModalAction,
+    CommitAction,
+    SaveAction,
+    CreateAction,
+    DeleteAction,
+    SaveOrCommitAction,
+    ActiveModal,
+    EntityActionState,
+    // Context types
+    EntityActionDispatch,
+    EntityActionContextValue,
+    EntityActionProviderProps,
+    EntityActionHelpers,
+} from "./actions"
+
+// ============================================================================
+// COMBINED PROVIDER (recommended)
+// ============================================================================
+
+export {EntityModalsProvider, type EntityModalsProviderProps} from "./EntityActionProvider"

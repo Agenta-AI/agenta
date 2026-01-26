@@ -1,14 +1,17 @@
 /**
  * ChildPopoverContent Component
  *
- * Renders children in a popover with search and selection highlighting.
+ * Adapter that fetches children data and renders using SearchablePopoverList.
  * Used by ListPopoverVariant to show child entities for selection.
+ *
+ * Architecture:
+ * - Handles data fetching via useChildrenData hook
+ * - Delegates all rendering to SearchablePopoverList from @agenta/ui
  */
 
-import React, {useMemo, useState} from "react"
+import React, {useCallback, useMemo} from "react"
 
-import {EntityListItem, SearchInput} from "@agenta/ui"
-import {Empty, Spin, Tooltip} from "antd"
+import {SearchablePopoverList} from "@agenta/ui/components/selection"
 
 import {useChildrenData} from "../../../hooks"
 import type {HierarchyLevel} from "../../../types"
@@ -55,16 +58,6 @@ export interface ChildPopoverContentProps {
 }
 
 // ============================================================================
-// HELPER: Filter items by search term
-// ============================================================================
-
-function filterItems<T>(items: T[], searchTerm: string, getLabel: (item: T) => string): T[] {
-    if (!searchTerm.trim()) return items
-    const term = searchTerm.toLowerCase().trim()
-    return items.filter((item) => getLabel(item).toLowerCase().includes(term))
-}
-
-// ============================================================================
 // COMPONENT
 // ============================================================================
 
@@ -80,97 +73,51 @@ function filterItems<T>(items: T[], searchTerm: string, getLabel: (item: T) => s
  */
 export function ChildPopoverContent({
     parentId,
-    parentLabel,
     childLevelConfig,
     selectedChildId,
     disabledChildIds,
     disabledChildTooltip = "Already connected",
     onSelect,
 }: ChildPopoverContentProps) {
-    const [searchTerm, setSearchTerm] = useState("")
-
     // Fetch children using the hook
     const {items: children, query} = useChildrenData(childLevelConfig, parentId, true)
 
-    // Filter children by search
-    const filteredChildren = useMemo(() => {
-        return filterItems(children, searchTerm, (item) => childLevelConfig.getLabel(item))
-    }, [children, searchTerm, childLevelConfig])
+    // Create getter functions that use the config
+    const getItemId = useCallback(
+        (item: unknown) => childLevelConfig.getId(item),
+        [childLevelConfig],
+    )
 
-    // Loading state
-    if (query.isPending) {
-        return (
-            <div className="flex items-center justify-center py-4 px-6 min-w-[200px]">
-                <Spin size="small" />
-                <span className="ml-2 text-zinc-600">Loading...</span>
-            </div>
-        )
-    }
+    const getItemLabel = useCallback(
+        (item: unknown) => childLevelConfig.getLabel(item),
+        [childLevelConfig],
+    )
 
-    // Empty state
-    if (filteredChildren.length === 0) {
-        return (
-            <div className="py-4 px-6 min-w-[200px]">
-                <Empty
-                    description={searchTerm ? "No matches" : "No items"}
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                />
-            </div>
-        )
-    }
+    const getItemLabelNode = useMemo(
+        () =>
+            childLevelConfig.getLabelNode
+                ? (item: unknown) => childLevelConfig.getLabelNode!(item)
+                : undefined,
+        [childLevelConfig],
+    )
+
+    // Build search placeholder
+    const searchPlaceholder = `Search ${childLevelConfig.type}s...`
 
     return (
-        <div className="min-w-[220px] max-w-[320px]">
-            {/* Search input (show if >5 items) */}
-            {children.length > 5 && (
-                <div className="p-2 border-b border-zinc-200 dark:border-zinc-700">
-                    <SearchInput
-                        value={searchTerm}
-                        onChange={setSearchTerm}
-                        placeholder={`Search ${childLevelConfig.type}s...`}
-                        autoFocus={false}
-                    />
-                </div>
-            )}
-
-            {/* Children list */}
-            <div className="max-h-[300px] overflow-y-auto py-1 px-1">
-                {filteredChildren.map((child) => {
-                    const childId = childLevelConfig.getId(child)
-                    const label = childLevelConfig.getLabel(child)
-                    const labelNode = childLevelConfig.getLabelNode?.(child)
-                    const isSelected = childId === selectedChildId
-                    const isDisabled = disabledChildIds?.has(childId) ?? false
-
-                    // Disabled children: show tooltip, grayed out, not clickable
-                    if (isDisabled) {
-                        return (
-                            <Tooltip key={childId} title={disabledChildTooltip}>
-                                <div className="opacity-50 cursor-not-allowed">
-                                    <EntityListItem
-                                        label={label}
-                                        labelNode={labelNode}
-                                        isSelectable={false}
-                                        isSelected={false}
-                                    />
-                                </div>
-                            </Tooltip>
-                        )
-                    }
-
-                    return (
-                        <EntityListItem
-                            key={childId}
-                            label={label}
-                            labelNode={labelNode}
-                            isSelectable
-                            isSelected={isSelected}
-                            onClick={() => onSelect(child)}
-                            onSelect={() => onSelect(child)}
-                        />
-                    )
-                })}
-            </div>
-        </div>
+        <SearchablePopoverList
+            items={children}
+            selectedId={selectedChildId}
+            onSelect={onSelect}
+            getItemId={getItemId}
+            getItemLabel={getItemLabel}
+            getItemLabelNode={getItemLabelNode}
+            disabledIds={disabledChildIds}
+            disabledTooltip={disabledChildTooltip}
+            isLoading={query.isPending}
+            searchPlaceholder={searchPlaceholder}
+            minWidth={220}
+            maxWidth={320}
+        />
     )
 }

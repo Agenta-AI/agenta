@@ -56,6 +56,38 @@ Unified system for selecting entities through multi-level hierarchies:
   - `list-popover` - List with hover popovers (2-level)
 - Pre-built adapters for common entities (appRevision, evaluatorRevision, testset)
 
+### Entity Table
+
+Generic table component for displaying entity lists with selection, grouping, and pagination:
+
+- `EntityTable` - Generic component backed by `EntityDataController` from `@agenta/entities/shared`
+- `TestcaseTable` - Testcase-specific thin wrapper over `EntityTable`
+- Uses `buildEntityColumns` from `@agenta/ui` for column construction
+- Built-in selection management with external/internal control modes
+
+```typescript
+import { EntityTable } from '@agenta/entity-ui'
+import { testcaseDataController, type TestcaseDataConfig } from '@agenta/entities/testcase'
+
+// Generic usage with any data controller
+<EntityTable
+  controller={testcaseDataController}
+  config={config}
+  getRowData={(record) => record as Record<string, unknown>}
+  selectable
+  grouping
+/>
+
+// Or use the testcase-specific wrapper
+import { TestcaseTable } from '@agenta/entity-ui'
+
+<TestcaseTable
+  config={{ scopeId: 'my-table', revisionId: 'rev-123' }}
+  selectable
+  onSelectionChange={(ids) => console.log('Selected:', ids)}
+/>
+```
+
 ## Architecture
 
 This package provides entity-specific UI components that integrate with the entity state management layer:
@@ -65,7 +97,7 @@ This package provides entity-specific UI components that integrate with the enti
        ↑
 @agenta/ui           ← Presentational components
        ↑
-@agenta/entities     ← Entity state management (molecules, schemas)
+@agenta/entities     ← Entity state management (controllers, schemas)
        ↑
 @agenta/entity-ui    ← Entity-specific UI (this package)
        ↑
@@ -74,32 +106,88 @@ This package provides entity-specific UI components that integrate with the enti
 
 ## Adapter Pattern
 
-UI components use adapters to work with any entity type. Adapters are defined in this package and integrate with molecules from `@agenta/entities`:
+UI components use adapters to work with any entity type.
+
+### Modal Adapters
+
+For entity action modals (delete, save, commit):
 
 ```typescript
 import { createAndRegisterEntityAdapter } from '@agenta/entity-ui'
-import { myMolecule } from '@agenta/entities/myEntity'
+import { testset } from '@agenta/entities'
 
-// Create and register adapter for your entity
-export const myAdapter = createAndRegisterEntityAdapter({
-  type: 'myEntity',
+export const testsetAdapter = createAndRegisterEntityAdapter({
+  type: 'testset',
   getDisplayName: (entity) => entity?.name ?? 'Untitled',
-  getDisplayLabel: (count) => count === 1 ? 'Entity' : 'Entities',
-  deleteAtom: myMolecule.reducers.delete,
-  dataAtom: (id) => myMolecule.atoms.data(id),
+  getDisplayLabel: (count) => count === 1 ? 'Testset' : 'Testsets',
+  deleteAtom: testset.actions.delete,
+  dataAtom: (id) => testset.atoms.data(id),
   canDelete: () => true,
 })
 ```
 
-### Pre-built Adapters
+### Selection Adapters (Relation-Based)
 
-This package includes adapters for testset entities:
+For hierarchical entity selection (EntityPicker), adapters are derived from `EntityRelation` definitions. The testset and appRevision adapters are pre-built and auto-configured from `@agenta/entities` - no runtime configuration required:
 
 ```typescript
-import { testsetModalAdapter, revisionModalAdapter } from '@agenta/entity-ui'
+// Pre-built adapters (auto-configured from entity relations)
+import { testsetAdapter, appRevisionAdapter } from '@agenta/entity-ui'
+
+// These are registered during initializeSelectionSystem()
 ```
 
-These adapters are auto-registered when imported and enable the entity modals to work with testsets and revisions.
+To create custom selection adapters, use the relation-based factories:
+
+```typescript
+import { createAdapterFromRelations, createTwoLevelAdapter } from '@agenta/entity-ui'
+
+// Simple 2-level hierarchy (testset -> revision)
+export const testsetAdapter = createTwoLevelAdapter({
+  name: 'testset',
+  parentType: 'testset',
+  parentListAtom: testsetsListAtom,
+  childType: 'revision',
+  childRelationKey: 'testset->revision',
+  selectionType: 'revision',
+})
+
+// Complex 3-level hierarchy with overrides (app -> variant -> revision)
+export const appRevisionAdapter = createAdapterFromRelations({
+  name: 'appRevision',
+  rootLevel: {
+    type: 'app',
+    label: 'Application',
+    listAtom: appsListAtom,
+  },
+  childLevels: [
+    {
+      type: 'variant',
+      relationKey: 'app->variant',
+      overrides: { autoSelectSingle: true },
+    },
+    {
+      type: 'appRevision',
+      relationKey: 'variant->appRevision',
+      overrides: { autoSelectSingle: true },
+    },
+  ],
+  selectionType: 'appRevision',
+  extractMetadata: (path, leaf) => ({
+    appId: path[0]?.id,
+    appName: path[0]?.label,
+    variantId: path[1]?.id,
+    variantName: path[1]?.label,
+    revision: (leaf as any).revision ?? 0,
+  }),
+})
+```
+
+The factories reduce adapter code from ~200+ lines to ~20 lines by:
+
+1. Deriving level config from `EntityRelation` definitions
+2. Using `relation.selection` for UI configuration
+3. Providing default accessors for common entity field patterns
 
 ## Quick Start
 
@@ -148,20 +236,56 @@ const handleDelete = () => {
 
 ```typescript
 import { MoleculeDrillInView } from '@agenta/entity-ui'
-import { traceSpanMolecule } from '@agenta/entities/trace'
+// Use clean named exports from main package
+import { traceSpan } from '@agenta/entities'
 
 <MoleculeDrillInView
-  molecule={traceSpanMolecule}
+  molecule={traceSpan}
   entityId={spanId}
   editable={false}
 />
 ```
 
+## Import Best Practices
+
+### Lazy Loading Modals
+
+The `EntityModalsProvider` uses `React.lazy` to code-split entity modals (commit, delete, save). This reduces the initial bundle size since modals are only loaded when needed:
+
+```typescript
+// Inside EntityModalsProvider - modals are lazy loaded
+const EntityCommitModal = lazy(() =>
+    import("./commit").then((mod) => ({default: mod.EntityCommitModal})),
+)
+```
+
+When creating new heavy components or modals, follow the same pattern:
+
+```typescript
+// GOOD: React.lazy for modals and heavy components
+import {lazy, Suspense} from "react"
+
+const HeavyModal = lazy(() => import("./HeavyModal"))
+
+function MyProvider({children}) {
+    return (
+        <>
+            {children}
+            <Suspense fallback={null}>
+                <HeavyModal />
+            </Suspense>
+        </>
+    )
+}
+```
+
+See the [import-lazy rule](../../.claude/skills/agenta-package-practices/rules/import-lazy.md) for detailed guidelines.
+
 ## Dependencies
 
 - `@agenta/shared` - Path utilities, types
 - `@agenta/ui` - EnhancedModal, Editor, styling utilities
-- `@agenta/entities` - Molecule types, schemas, selection configs
+- `@agenta/entities` - Entity controllers, schemas, selection configs
 - `jotai` - State management (peer dependency)
 - `antd` - UI components (peer dependency)
 

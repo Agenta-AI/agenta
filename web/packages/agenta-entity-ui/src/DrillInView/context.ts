@@ -5,7 +5,7 @@
  * This avoids prop drilling and enables consistent behavior across the tree.
  */
 
-import type {DataPath} from "@agenta/shared"
+import type {DataPath} from "@agenta/shared/utils"
 
 import type {DrillInClassNames, DrillInFieldBehaviors, DrillInSlots, DrillInStyles} from "./types"
 

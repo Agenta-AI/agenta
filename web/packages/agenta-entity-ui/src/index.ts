@@ -60,7 +60,7 @@ export {
     getLastSegment,
     isChildPath,
     collectPaths,
-} from "@agenta/shared"
+} from "@agenta/shared/utils"
 
 // ============================================================================
 // DRILL-IN VIEW (Molecule-first API)
@@ -345,6 +345,32 @@ export {
     type EntityState,
     type SaveOrCommitOptions,
     type UseSaveOrCommitReturn,
+    // Unified action dispatch
+    EntityActionProvider,
+    useEntityActionDispatch,
+    useEntityActionState,
+    useEntityActionGuard,
+    reduceEntityModalAction,
+    commitAction,
+    saveAction,
+    createAction,
+    deleteAction,
+    saveOrCommitAction,
+    type EntityModalAction,
+    type CommitAction,
+    type SaveAction,
+    type CreateAction,
+    type DeleteAction,
+    type SaveOrCommitAction,
+    type ActiveModal,
+    type EntityActionState,
+    type EntityActionDispatch,
+    type EntityActionContextValue,
+    type EntityActionProviderProps,
+    type EntityActionHelpers,
+    // Combined provider (recommended)
+    EntityModalsProvider,
+    type EntityModalsProviderProps,
 } from "./modals"
 
 // ============================================================================
@@ -385,11 +411,9 @@ export {
     resolveAdapter as resolveSelectionAdapter,
     // Pre-built adapters
     appRevisionAdapter,
-    setAppRevisionAtoms,
     evaluatorRevisionAdapter,
     setEvaluatorRevisionAtoms,
     testsetAdapter,
-    setTestsetAtoms,
     // State
     selectionMolecule,
     entitySelectorController,
@@ -453,10 +477,14 @@ export {
     resetSelectionSystem,
     isSelectionSystemInitialized,
     type SelectionSystemConfig,
-    type TestsetSelectionConfig,
-    type AppRevisionSelectionConfig,
     type EvaluatorRevisionSelectionConfig,
 } from "./selection"
+
+// ============================================================================
+// ENTITY TABLE (Generic entity list table)
+// ============================================================================
+
+export {EntityTable, type EntityTableProps} from "./shared"
 
 // ============================================================================
 // ENTITY ADAPTERS (registration for entity modals)

@@ -8,7 +8,7 @@
 import {memo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
-import {LabeledField, SliderInput} from "@agenta/ui"
+import {LabeledField, SliderInput} from "@agenta/ui/components/presentational"
 
 export interface NumberSliderControlProps {
     /** The schema property defining constraints (min, max, type) */

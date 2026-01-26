@@ -8,7 +8,8 @@
 import {memo, useCallback, useEffect, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
-import {cn, LabeledField} from "@agenta/ui"
+import {LabeledField} from "@agenta/ui/components/presentational"
+import {cn} from "@agenta/ui/styles"
 import {Input, Typography} from "antd"
 
 const {TextArea} = Input

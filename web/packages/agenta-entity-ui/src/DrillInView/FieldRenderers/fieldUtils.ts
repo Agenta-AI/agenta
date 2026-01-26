@@ -5,8 +5,8 @@
  * These are used by both the package components and can be imported by OSS.
  */
 
-import {tryParseAsObject, tryParseAsArray} from "@agenta/shared"
-import type {SimpleChatMessage, MessageContent} from "@agenta/shared"
+import type {SimpleChatMessage, MessageContent} from "@agenta/shared/types"
+import {tryParseAsObject, tryParseAsArray} from "@agenta/shared/utils"
 
 import type {DataType} from "../coreTypes"
 
