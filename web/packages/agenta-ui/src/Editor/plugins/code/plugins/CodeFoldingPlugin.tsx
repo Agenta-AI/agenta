@@ -1,6 +1,6 @@
 import {useEffect, useState, useCallback, useRef} from "react"
 
-import {createLogger} from "@agenta/shared"
+import {createLogger} from "@agenta/shared/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {LexicalEditor} from "lexical"
 

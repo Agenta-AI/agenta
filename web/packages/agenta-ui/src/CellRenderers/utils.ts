@@ -49,7 +49,7 @@ export const safeJsonStringify = (value: unknown): string => {
  * Try to parse a JSON string, returns the parsed value and whether it's JSON.
  * Re-exported from @agenta/shared for convenience.
  */
-export {tryParseJsonValue as tryParseJson} from "@agenta/shared"
+export {tryParseJsonValue as tryParseJson} from "@agenta/shared/utils"
 
 /**
  * Normalize value to display string

@@ -3,6 +3,8 @@ export type {InfiniteTableStore} from "./createInfiniteTableStore"
 export {createInfiniteDatasetStore} from "./createInfiniteDatasetStore"
 export type {InfiniteDatasetStore, InfiniteDatasetStoreConfig} from "./createInfiniteDatasetStore"
 export {createTableColumns} from "./columns/createTableColumns"
+export {buildEntityColumns} from "./columns/buildEntityColumns"
+export type {BuildEntityColumnsOptions} from "./columns/buildEntityColumns"
 export {
     createTextCell,
     createComponentCell,
@@ -100,7 +102,6 @@ export type {RowHeightFeatureConfig, UseRowHeightFeatureResult} from "./hooks/us
 export {RowHeightContext, useRowHeightContext} from "./context/RowHeightContext"
 export type {RowHeightContextValue} from "./context/RowHeightContext"
 export * from "./types"
-export type {ExpandableRowConfig, ExpandIconRenderProps} from "./types"
 export type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"
 
 // Additional exports
@@ -139,6 +140,10 @@ export {
     type PaginatedControllerAction,
     type PaginatedState,
     type PaginatedCombinedState,
+    // List counts types
+    type TotalCountMode,
+    type ListCountsConfig,
+    type EntityListCounts,
 } from "./paginated"
 
 // ============================================================================

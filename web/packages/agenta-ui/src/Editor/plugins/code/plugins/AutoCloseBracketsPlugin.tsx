@@ -14,7 +14,7 @@
  */
 import {useEffect, useRef} from "react"
 
-import {createLogger} from "@agenta/shared"
+import {createLogger} from "@agenta/shared/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {
     $getSelection,

@@ -108,7 +108,7 @@
 
 import React, {useState, useEffect} from "react"
 
-import {getContentLanguage} from "@agenta/shared"
+import {getContentLanguage} from "@agenta/shared/utils"
 import yaml from "js-yaml"
 
 import EditorWrapper from "./Editor"

@@ -8,7 +8,8 @@
 
 import React from "react"
 
-import {type MessageContent, getAttachments} from "@agenta/shared"
+import type {MessageContent} from "@agenta/shared/types"
+import {getAttachments} from "@agenta/shared/utils"
 
 import {
     AttachmentGrid,

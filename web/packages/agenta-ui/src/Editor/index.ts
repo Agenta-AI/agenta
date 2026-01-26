@@ -58,7 +58,7 @@ export {$getEditorCodeAsString} from "./plugins/code/plugins/RealTimeValidationP
 export {DrillInProvider} from "./plugins/code/context/DrillInContext"
 
 // JSON parsing utilities - Re-exported from @agenta/shared
-export {tryParsePartialJson, safeJson5Parse} from "@agenta/shared"
+export {tryParsePartialJson, safeJson5Parse} from "@agenta/shared/utils"
 
 // Markdown utilities
 export {TOGGLE_MARKDOWN_VIEW} from "./plugins/markdown/commands"

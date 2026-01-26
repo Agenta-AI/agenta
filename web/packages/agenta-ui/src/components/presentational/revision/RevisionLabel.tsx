@@ -124,7 +124,7 @@ export function RevisionLabel({
 
     // Compact mode - just version badge
     if (compact) {
-        return <VersionBadge version={version} variant="bold" className={className} />
+        return <VersionBadge version={version} variant="chip" className={className} />
     }
 
     // Message element - show actual message or invisible spacer for consistent height
@@ -153,7 +153,7 @@ export function RevisionLabel({
         <div className={cn(flexLayouts.column, "gap-0.5", className)}>
             {/* Version and date row */}
             <div className={cn(flexLayouts.rowCenter, "gap-2")}>
-                <VersionBadge version={version} variant="bold" />
+                <VersionBadge version={version} variant="chip" />
                 {showDateInline && (formattedDate || reserveSubtitleSpace) && (
                     <span className={cn(textColors.muted, !formattedDate && "invisible")}>
                         {formattedDate || "Jan 1, 2024"}
@@ -184,7 +184,7 @@ export function RevisionLabelInline({
 }: Pick<RevisionLabelProps, "version" | "message" | "className">) {
     return (
         <span className={cn(flexLayouts.inlineCenter, "gap-1", className)}>
-            <VersionBadge version={version} variant="bold" size="small" />
+            <VersionBadge version={version} variant="chip" size="small" />
             {message && (
                 <>
                     <span className={textColors.separator}>-</span>
