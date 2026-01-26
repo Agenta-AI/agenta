@@ -8,18 +8,32 @@ from .http_client import AsyncHttpClient, HttpClient
 
 class BaseClientWrapper:
     def __init__(
-        self, *, api_key: str, base_url: str, timeout: typing.Optional[float] = None
+        self,
+        *,
+        api_key: str,
+        headers: typing.Optional[typing.Dict[str, str]] = None,
+        base_url: str,
+        timeout: typing.Optional[float] = None,
     ):
         self.api_key = api_key
+        self._headers = headers
         self._base_url = base_url
         self._timeout = timeout
 
     def get_headers(self) -> typing.Dict[str, str]:
+        import platform
+
         headers: typing.Dict[str, str] = {
             "X-Fern-Language": "Python",
+            "X-Fern-Runtime": f"python/{platform.python_version()}",
+            "X-Fern-Platform": f"{platform.system().lower()}/{platform.release()}",
+            **(self.get_custom_headers() or {}),
         }
         headers["Authorization"] = self.api_key
         return headers
+
+    def get_custom_headers(self) -> typing.Optional[typing.Dict[str, str]]:
+        return self._headers
 
     def get_base_url(self) -> str:
         return self._base_url
@@ -33,11 +47,12 @@ class SyncClientWrapper(BaseClientWrapper):
         self,
         *,
         api_key: str,
+        headers: typing.Optional[typing.Dict[str, str]] = None,
         base_url: str,
         timeout: typing.Optional[float] = None,
         httpx_client: httpx.Client,
     ):
-        super().__init__(api_key=api_key, base_url=base_url, timeout=timeout)
+        super().__init__(api_key=api_key, headers=headers, base_url=base_url, timeout=timeout)
         self.httpx_client = HttpClient(
             httpx_client=httpx_client,
             base_headers=self.get_headers,
@@ -51,14 +66,25 @@ class AsyncClientWrapper(BaseClientWrapper):
         self,
         *,
         api_key: str,
+        headers: typing.Optional[typing.Dict[str, str]] = None,
         base_url: str,
         timeout: typing.Optional[float] = None,
+        async_token: typing.Optional[typing.Callable[[], typing.Awaitable[str]]] = None,
         httpx_client: httpx.AsyncClient,
     ):
-        super().__init__(api_key=api_key, base_url=base_url, timeout=timeout)
+        super().__init__(api_key=api_key, headers=headers, base_url=base_url, timeout=timeout)
+        self._async_token = async_token
         self.httpx_client = AsyncHttpClient(
             httpx_client=httpx_client,
             base_headers=self.get_headers,
             base_timeout=self.get_timeout,
             base_url=self.get_base_url,
+            async_base_headers=self.async_get_headers,
         )
+
+    async def async_get_headers(self) -> typing.Dict[str, str]:
+        headers = self.get_headers()
+        if self._async_token is not None:
+            token = await self._async_token()
+            headers["Authorization"] = f"Bearer {token}"
+        return headers

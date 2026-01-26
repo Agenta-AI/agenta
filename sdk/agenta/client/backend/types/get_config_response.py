@@ -9,12 +9,10 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 class GetConfigResponse(UniversalBaseModel):
     config_name: str
     current_version: int
-    parameters: typing.Dict[str, typing.Optional[typing.Any]]
+    parameters: typing.Dict[str, typing.Any]
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:

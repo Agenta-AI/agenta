@@ -16,6 +16,7 @@ from ..types.create_app_output import CreateAppOutput
 from ..types.environment_output import EnvironmentOutput
 from ..types.environment_output_extended import EnvironmentOutputExtended
 from ..types.http_validation_error import HttpValidationError
+from ..types.read_app_output import ReadAppOutput
 from ..types.update_app_output import UpdateAppOutput
 
 # this is used as the default value for optional parameters
@@ -78,23 +79,11 @@ class RawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def get_variant_by_env(
-        self,
-        *,
-        app_id: str,
-        environment: str,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, *, app_id: str, environment: str, request_options: typing.Optional[RequestOptions] = None
     ) -> HttpResponse[AppVariantResponse]:
         """
         Retrieve the app variant based on the provided app_id and environment.
@@ -155,22 +144,11 @@ class RawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def list_apps(
-        self,
-        *,
-        app_name: typing.Optional[str] = None,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, *, app_name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None
     ) -> HttpResponse[typing.List[App]]:
         """
         Retrieve a list of apps filtered by app_name.
@@ -227,16 +205,8 @@ class RawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def create_app(
         self,
@@ -245,6 +215,7 @@ class RawAppsClient:
         template_key: typing.Optional[str] = OMIT,
         project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[CreateAppOutput]:
@@ -270,6 +241,8 @@ class RawAppsClient:
 
         workspace_id : typing.Optional[str]
 
+        folder_id : typing.Optional[str]
+
         organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
@@ -288,6 +261,7 @@ class RawAppsClient:
                 "template_key": template_key,
                 "project_id": project_id,
                 "workspace_id": workspace_id,
+                "folder_id": folder_id,
                 "organization_id": organization_id,
             },
             headers={
@@ -319,25 +293,23 @@ class RawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
-    def remove_app(
+    def read_app(
         self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[ReadAppOutput]:
         """
-        Remove app, all its variant.
+        Retrieve an app by its ID.
 
-        Arguments:
-            app -- App to remove
+        Args:
+            app_id (str): The ID of the app to retrieve.
+
+        Returns:
+            ReadAppOutput: The output containing the app's ID and name.
+
+        Raises:
+            HTTPException: If there is an error retrieving the app or the user does not have permission to access the app.
 
         Parameters
         ----------
@@ -348,22 +320,20 @@ class RawAppsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[ReadAppOutput]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
             f"apps/{jsonable_encoder(app_id)}",
-            method="DELETE",
+            method="GET",
             request_options=request_options,
         )
         try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    ReadAppOutput,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=ReadAppOutput,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -381,22 +351,69 @@ class RawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+
+    def remove_app(
+        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[typing.Any]:
+        """
+        Remove app, all its variant.
+
+        Arguments:
+            app -- App to remove
+
+        Parameters
+        ----------
+        app_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"apps/{jsonable_encoder(app_id)}",
+            method="DELETE",
+            request_options=request_options,
         )
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_=typing.Any,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def update_app(
         self,
         app_id: str,
         *,
-        app_name: str,
+        app_name: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[UpdateAppOutput]:
         """
@@ -416,7 +433,9 @@ class RawAppsClient:
         ----------
         app_id : str
 
-        app_name : str
+        app_name : typing.Optional[str]
+
+        folder_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -431,6 +450,7 @@ class RawAppsClient:
             method="PATCH",
             json={
                 "app_name": app_name,
+                "folder_id": folder_id,
             },
             headers={
                 "content-type": "application/json",
@@ -461,16 +481,8 @@ class RawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def add_variant_from_url(
         self,
@@ -482,7 +494,7 @@ class RawAppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -503,7 +515,7 @@ class RawAppsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -527,9 +539,9 @@ class RawAppsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -547,16 +559,8 @@ class RawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def add_variant_from_key(
         self,
@@ -568,7 +572,7 @@ class RawAppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -589,7 +593,7 @@ class RawAppsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -613,9 +617,9 @@ class RawAppsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -633,16 +637,8 @@ class RawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def list_environments(
         self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -696,30 +692,18 @@ class RawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def environment_revisions(
-        self,
-        app_id: str,
-        environment_name: typing.Optional[typing.Any],
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, app_id: str, environment_name: typing.Any, *, request_options: typing.Optional[RequestOptions] = None
     ) -> HttpResponse[EnvironmentOutputExtended]:
         """
         Parameters
         ----------
         app_id : str
 
-        environment_name : typing.Optional[typing.Any]
+        environment_name : typing.Any
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -757,16 +741,8 @@ class RawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
 
 class AsyncRawAppsClient:
@@ -825,23 +801,11 @@ class AsyncRawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def get_variant_by_env(
-        self,
-        *,
-        app_id: str,
-        environment: str,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, *, app_id: str, environment: str, request_options: typing.Optional[RequestOptions] = None
     ) -> AsyncHttpResponse[AppVariantResponse]:
         """
         Retrieve the app variant based on the provided app_id and environment.
@@ -902,22 +866,11 @@ class AsyncRawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def list_apps(
-        self,
-        *,
-        app_name: typing.Optional[str] = None,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, *, app_name: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None
     ) -> AsyncHttpResponse[typing.List[App]]:
         """
         Retrieve a list of apps filtered by app_name.
@@ -974,16 +927,8 @@ class AsyncRawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def create_app(
         self,
@@ -992,6 +937,7 @@ class AsyncRawAppsClient:
         template_key: typing.Optional[str] = OMIT,
         project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[CreateAppOutput]:
@@ -1017,6 +963,8 @@ class AsyncRawAppsClient:
 
         workspace_id : typing.Optional[str]
 
+        folder_id : typing.Optional[str]
+
         organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
@@ -1035,6 +983,7 @@ class AsyncRawAppsClient:
                 "template_key": template_key,
                 "project_id": project_id,
                 "workspace_id": workspace_id,
+                "folder_id": folder_id,
                 "organization_id": organization_id,
             },
             headers={
@@ -1066,25 +1015,23 @@ class AsyncRawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
-    async def remove_app(
+    async def read_app(
         self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[ReadAppOutput]:
         """
-        Remove app, all its variant.
+        Retrieve an app by its ID.
 
-        Arguments:
-            app -- App to remove
+        Args:
+            app_id (str): The ID of the app to retrieve.
+
+        Returns:
+            ReadAppOutput: The output containing the app's ID and name.
+
+        Raises:
+            HTTPException: If there is an error retrieving the app or the user does not have permission to access the app.
 
         Parameters
         ----------
@@ -1095,22 +1042,20 @@ class AsyncRawAppsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[ReadAppOutput]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
             f"apps/{jsonable_encoder(app_id)}",
-            method="DELETE",
+            method="GET",
             request_options=request_options,
         )
         try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    ReadAppOutput,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=ReadAppOutput,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1128,22 +1073,69 @@ class AsyncRawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+
+    async def remove_app(
+        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> AsyncHttpResponse[typing.Any]:
+        """
+        Remove app, all its variant.
+
+        Arguments:
+            app -- App to remove
+
+        Parameters
+        ----------
+        app_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        AsyncHttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"apps/{jsonable_encoder(app_id)}",
+            method="DELETE",
+            request_options=request_options,
         )
+        try:
+            if _response is None or not _response.text.strip():
+                return AsyncHttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_=typing.Any,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def update_app(
         self,
         app_id: str,
         *,
-        app_name: str,
+        app_name: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[UpdateAppOutput]:
         """
@@ -1163,7 +1155,9 @@ class AsyncRawAppsClient:
         ----------
         app_id : str
 
-        app_name : str
+        app_name : typing.Optional[str]
+
+        folder_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1178,6 +1172,7 @@ class AsyncRawAppsClient:
             method="PATCH",
             json={
                 "app_name": app_name,
+                "folder_id": folder_id,
             },
             headers={
                 "content-type": "application/json",
@@ -1208,16 +1203,8 @@ class AsyncRawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def add_variant_from_url(
         self,
@@ -1229,7 +1216,7 @@ class AsyncRawAppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -1250,7 +1237,7 @@ class AsyncRawAppsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1274,9 +1261,9 @@ class AsyncRawAppsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1294,16 +1281,8 @@ class AsyncRawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def add_variant_from_key(
         self,
@@ -1315,7 +1294,7 @@ class AsyncRawAppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -1336,7 +1315,7 @@ class AsyncRawAppsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1360,9 +1339,9 @@ class AsyncRawAppsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1380,16 +1359,8 @@ class AsyncRawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def list_environments(
         self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
@@ -1443,30 +1414,18 @@ class AsyncRawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def environment_revisions(
-        self,
-        app_id: str,
-        environment_name: typing.Optional[typing.Any],
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, app_id: str, environment_name: typing.Any, *, request_options: typing.Optional[RequestOptions] = None
     ) -> AsyncHttpResponse[EnvironmentOutputExtended]:
         """
         Parameters
         ----------
         app_id : str
 
-        environment_name : typing.Optional[typing.Any]
+        environment_name : typing.Any
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1504,13 +1463,5 @@ class AsyncRawAppsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)

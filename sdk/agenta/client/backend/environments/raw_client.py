@@ -26,7 +26,7 @@ class RawEnvironmentsClient:
         variant_id: str,
         commit_message: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Deploys a given variant to an environment
 
@@ -50,7 +50,7 @@ class RawEnvironmentsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -72,9 +72,9 @@ class RawEnvironmentsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -92,16 +92,8 @@ class RawEnvironmentsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
 
 class AsyncRawEnvironmentsClient:
@@ -115,7 +107,7 @@ class AsyncRawEnvironmentsClient:
         variant_id: str,
         commit_message: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Deploys a given variant to an environment
 
@@ -139,7 +131,7 @@ class AsyncRawEnvironmentsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -161,9 +153,9 @@ class AsyncRawEnvironmentsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -181,13 +173,5 @@ class AsyncRawEnvironmentsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)

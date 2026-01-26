@@ -4,23 +4,21 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .data import Data
 from .header import Header
-from .lifecycle_dto import LifecycleDto
+from .legacy_lifecycle_dto import LegacyLifecycleDto
 from .secret_kind import SecretKind
+from .secret_response_dto_data import SecretResponseDtoData
 
 
 class SecretResponseDto(UniversalBaseModel):
     kind: SecretKind
-    data: Data
+    data: SecretResponseDtoData
     id: typing.Optional[str] = None
     header: Header
-    lifecycle: typing.Optional[LifecycleDto] = None
+    lifecycle: typing.Optional[LegacyLifecycleDto] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:

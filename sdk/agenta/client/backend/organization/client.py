@@ -5,8 +5,8 @@ import typing
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
 from ..types.invite_request import InviteRequest
-from ..types.organization import Organization
 from ..types.organization_details import OrganizationDetails
+from ..types.oss_src_models_api_organization_models_organization import OssSrcModelsApiOrganizationModelsOrganization
 from .raw_client import AsyncRawOrganizationClient, RawOrganizationClient
 
 # this is used as the default value for optional parameters
@@ -29,10 +29,7 @@ class OrganizationClient:
         return self._raw_client
 
     def fetch_organization_details(
-        self,
-        organization_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> OrganizationDetails:
         """
         Return the details of the organization.
@@ -60,14 +57,12 @@ class OrganizationClient:
             organization_id="organization_id",
         )
         """
-        _response = self._raw_client.fetch_organization_details(
-            organization_id, request_options=request_options
-        )
+        _response = self._raw_client.fetch_organization_details(organization_id, request_options=request_options)
         return _response.data
 
     def list_organizations(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[Organization]:
+    ) -> typing.List[OssSrcModelsApiOrganizationModelsOrganization]:
         """
         Returns a list of organizations associated with the user's session.
 
@@ -84,7 +79,7 @@ class OrganizationClient:
 
         Returns
         -------
-        typing.List[Organization]
+        typing.List[OssSrcModelsApiOrganizationModelsOrganization]
             Successful Response
 
         Examples
@@ -106,7 +101,7 @@ class OrganizationClient:
         *,
         request: typing.Sequence[InviteRequest],
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Assigns a role to a user in an organization.
 
@@ -135,7 +130,7 @@ class OrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -156,10 +151,7 @@ class OrganizationClient:
         )
         """
         _response = self._raw_client.invite_user_to_workspace(
-            organization_id,
-            workspace_id,
-            request=request,
-            request_options=request_options,
+            organization_id, workspace_id, request=request, request_options=request_options
         )
         return _response.data
 
@@ -170,7 +162,7 @@ class OrganizationClient:
         *,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Resend an invitation to a user to an Organization.
 
@@ -195,7 +187,7 @@ class OrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -225,7 +217,7 @@ class OrganizationClient:
         token: str,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Accept an invitation to an organization.
 
@@ -254,7 +246,7 @@ class OrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -299,10 +291,7 @@ class AsyncOrganizationClient:
         return self._raw_client
 
     async def fetch_organization_details(
-        self,
-        organization_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, organization_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> OrganizationDetails:
         """
         Return the details of the organization.
@@ -338,14 +327,12 @@ class AsyncOrganizationClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_organization_details(
-            organization_id, request_options=request_options
-        )
+        _response = await self._raw_client.fetch_organization_details(organization_id, request_options=request_options)
         return _response.data
 
     async def list_organizations(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[Organization]:
+    ) -> typing.List[OssSrcModelsApiOrganizationModelsOrganization]:
         """
         Returns a list of organizations associated with the user's session.
 
@@ -362,7 +349,7 @@ class AsyncOrganizationClient:
 
         Returns
         -------
-        typing.List[Organization]
+        typing.List[OssSrcModelsApiOrganizationModelsOrganization]
             Successful Response
 
         Examples
@@ -382,9 +369,7 @@ class AsyncOrganizationClient:
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.list_organizations(
-            request_options=request_options
-        )
+        _response = await self._raw_client.list_organizations(request_options=request_options)
         return _response.data
 
     async def invite_user_to_workspace(
@@ -394,7 +379,7 @@ class AsyncOrganizationClient:
         *,
         request: typing.Sequence[InviteRequest],
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Assigns a role to a user in an organization.
 
@@ -423,7 +408,7 @@ class AsyncOrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -452,10 +437,7 @@ class AsyncOrganizationClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.invite_user_to_workspace(
-            organization_id,
-            workspace_id,
-            request=request,
-            request_options=request_options,
+            organization_id, workspace_id, request=request, request_options=request_options
         )
         return _response.data
 
@@ -466,7 +448,7 @@ class AsyncOrganizationClient:
         *,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Resend an invitation to a user to an Organization.
 
@@ -491,7 +473,7 @@ class AsyncOrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -529,7 +511,7 @@ class AsyncOrganizationClient:
         token: str,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Accept an invitation to an organization.
 
@@ -558,7 +540,7 @@ class AsyncOrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples

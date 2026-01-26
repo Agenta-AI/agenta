@@ -8,13 +8,11 @@ from .workflow_variant import WorkflowVariant
 
 
 class WorkflowVariantResponse(UniversalBaseModel):
-    count: int
-    variant: typing.Optional[WorkflowVariant] = None
+    count: typing.Optional[int] = None
+    workflow_variant: typing.Optional[WorkflowVariant] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:

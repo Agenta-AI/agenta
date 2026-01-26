@@ -7,14 +7,13 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 
 class OrganizationRequest(UniversalBaseModel):
-    name: str
-    description: str
-    is_paying: bool
+    name: typing.Optional[str] = None
+    description: typing.Optional[str] = None
+    is_demo: typing.Optional[bool] = None
+    owner_id: str
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:

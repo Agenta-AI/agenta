@@ -2,22 +2,9 @@
 
 # nopycln: file
 import datetime as dt
+import inspect
 from collections import defaultdict
-from typing import (
-    Any,
-    Callable,
-    ClassVar,
-    Dict,
-    List,
-    Mapping,
-    Optional,
-    Set,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import Any, Callable, ClassVar, Dict, List, Mapping, Optional, Set, Tuple, Type, TypeVar, Union, cast
 
 import pydantic
 
@@ -51,18 +38,43 @@ Model = TypeVar("Model", bound=pydantic.BaseModel)
 
 
 def parse_obj_as(type_: Type[T], object_: Any) -> T:
-    dealiased_object = convert_and_respect_annotation_metadata(
-        object_=object_, annotation=type_, direction="read"
-    )
+    # convert_and_respect_annotation_metadata is required for TypedDict aliasing.
+    #
+    # For Pydantic models, whether we should pre-dealias depends on how the model encodes aliasing:
+    # - If the model uses real Pydantic aliases (pydantic.Field(alias=...)), then we must pass wire keys through
+    #   unchanged so Pydantic can validate them.
+    # - If the model encodes aliasing only via FieldMetadata annotations, then we MUST pre-dealias because Pydantic
+    #   will not recognize those aliases during validation.
+    if inspect.isclass(type_) and issubclass(type_, pydantic.BaseModel):
+        has_pydantic_aliases = False
+        if IS_PYDANTIC_V2:
+            for field_name, field_info in getattr(type_, "model_fields", {}).items():  # type: ignore[attr-defined]
+                alias = getattr(field_info, "alias", None)
+                if alias is not None and alias != field_name:
+                    has_pydantic_aliases = True
+                    break
+        else:
+            for field in getattr(type_, "__fields__", {}).values():
+                alias = getattr(field, "alias", None)
+                name = getattr(field, "name", None)
+                if alias is not None and name is not None and alias != name:
+                    has_pydantic_aliases = True
+                    break
+
+        dealiased_object = (
+            object_
+            if has_pydantic_aliases
+            else convert_and_respect_annotation_metadata(object_=object_, annotation=type_, direction="read")
+        )
+    else:
+        dealiased_object = convert_and_respect_annotation_metadata(object_=object_, annotation=type_, direction="read")
     if IS_PYDANTIC_V2:
         adapter = pydantic.TypeAdapter(type_)  # type: ignore[attr-defined]
         return adapter.validate_python(dealiased_object)
     return pydantic.parse_obj_as(type_, dealiased_object)
 
 
-def to_jsonable_with_fallback(
-    obj: Any, fallback_serializer: Callable[[Any], Any]
-) -> Any:
+def to_jsonable_with_fallback(obj: Any, fallback_serializer: Callable[[Any], Any]) -> Any:
     if IS_PYDANTIC_V2:
         from pydantic_core import to_jsonable_python
 
@@ -77,15 +89,47 @@ class UniversalBaseModel(pydantic.BaseModel):
             protected_namespaces=(),
         )
 
-        @pydantic.model_serializer(mode="wrap", when_used="json")  # type: ignore[attr-defined]
-        def serialize_model(
-            self, handler: pydantic.SerializerFunctionWrapHandler
-        ) -> Any:  # type: ignore[name-defined]
-            serialized = handler(self)
-            data = {
-                k: serialize_datetime(v) if isinstance(v, dt.datetime) else v
-                for k, v in serialized.items()
-            }
+        @pydantic.model_validator(mode="before")  # type: ignore[attr-defined]
+        @classmethod
+        def _coerce_field_names_to_aliases(cls, data: Any) -> Any:
+            """
+            Accept Python field names in input by rewriting them to their Pydantic aliases,
+            while avoiding silent collisions when a key could refer to multiple fields.
+            """
+            if not isinstance(data, Mapping):
+                return data
+
+            fields = getattr(cls, "model_fields", {})  # type: ignore[attr-defined]
+            name_to_alias: Dict[str, str] = {}
+            alias_to_name: Dict[str, str] = {}
+
+            for name, field_info in fields.items():
+                alias = getattr(field_info, "alias", None) or name
+                name_to_alias[name] = alias
+                if alias != name:
+                    alias_to_name[alias] = name
+
+            # Detect ambiguous keys: a key that is an alias for one field and a name for another.
+            ambiguous_keys = set(alias_to_name.keys()).intersection(set(name_to_alias.keys()))
+            for key in ambiguous_keys:
+                if key in data and name_to_alias[key] not in data:
+                    raise ValueError(
+                        f"Ambiguous input key '{key}': it is both a field name and an alias. "
+                        "Provide the explicit alias key to disambiguate."
+                    )
+
+            original_keys = set(data.keys())
+            rewritten: Dict[str, Any] = dict(data)
+            for name, alias in name_to_alias.items():
+                if alias != name and name in original_keys and alias not in rewritten:
+                    rewritten[alias] = rewritten.pop(name)
+
+            return rewritten
+
+        @pydantic.model_serializer(mode="plain", when_used="json")  # type: ignore[attr-defined]
+        def serialize_model(self) -> Any:  # type: ignore[name-defined]
+            serialized = self.dict()  # type: ignore[attr-defined]
+            data = {k: serialize_datetime(v) if isinstance(v, dt.datetime) else v for k, v in serialized.items()}
             return data
 
     else:
@@ -94,22 +138,48 @@ class UniversalBaseModel(pydantic.BaseModel):
             smart_union = True
             json_encoders = {dt.datetime: serialize_datetime}
 
+        @pydantic.root_validator(pre=True)
+        def _coerce_field_names_to_aliases(cls, values: Any) -> Any:
+            """
+            Pydantic v1 equivalent of _coerce_field_names_to_aliases.
+            """
+            if not isinstance(values, Mapping):
+                return values
+
+            fields = getattr(cls, "__fields__", {})
+            name_to_alias: Dict[str, str] = {}
+            alias_to_name: Dict[str, str] = {}
+
+            for name, field in fields.items():
+                alias = getattr(field, "alias", None) or name
+                name_to_alias[name] = alias
+                if alias != name:
+                    alias_to_name[alias] = name
+
+            ambiguous_keys = set(alias_to_name.keys()).intersection(set(name_to_alias.keys()))
+            for key in ambiguous_keys:
+                if key in values and name_to_alias[key] not in values:
+                    raise ValueError(
+                        f"Ambiguous input key '{key}': it is both a field name and an alias. "
+                        "Provide the explicit alias key to disambiguate."
+                    )
+
+            original_keys = set(values.keys())
+            rewritten: Dict[str, Any] = dict(values)
+            for name, alias in name_to_alias.items():
+                if alias != name and name in original_keys and alias not in rewritten:
+                    rewritten[alias] = rewritten.pop(name)
+
+            return rewritten
+
     @classmethod
-    def model_construct(
-        cls: Type["Model"], _fields_set: Optional[Set[str]] = None, **values: Any
-    ) -> "Model":
-        dealiased_object = convert_and_respect_annotation_metadata(
-            object_=values, annotation=cls, direction="read"
-        )
+    def model_construct(cls: Type["Model"], _fields_set: Optional[Set[str]] = None, **values: Any) -> "Model":
+        dealiased_object = convert_and_respect_annotation_metadata(object_=values, annotation=cls, direction="read")
         return cls.construct(_fields_set, **dealiased_object)
 
     @classmethod
-    def construct(
-        cls: Type["Model"], _fields_set: Optional[Set[str]] = None, **values: Any
-    ) -> "Model":
-        dealiased_object = convert_and_respect_annotation_metadata(
-            object_=values, annotation=cls, direction="read"
-        )
+    def construct(cls: Type["Model"], _fields_set: Optional[Set[str]] = None, **values: Any) -> "Model":
+        dealiased_object = convert_and_respect_annotation_metadata(object_=values, annotation=cls, direction="read")
         if IS_PYDANTIC_V2:
             return super().model_construct(_fields_set, **dealiased_object)  # type: ignore[misc]
         return super().construct(_fields_set, **dealiased_object)
@@ -163,9 +233,7 @@ class UniversalBaseModel(pydantic.BaseModel):
                     # If the default values are non-null act like they've been set
                     # This effectively allows exclude_unset to work like exclude_none where
                     # the latter passes through intentionally set none values.
-                    if default is not None or (
-                        "exclude_unset" in kwargs and not kwargs["exclude_unset"]
-                    ):
+                    if default is not None or ("exclude_unset" in kwargs and not kwargs["exclude_unset"]):
                         _fields_set.add(name)
 
                         if default is not None:
@@ -178,35 +246,28 @@ class UniversalBaseModel(pydantic.BaseModel):
                 **kwargs,
             }
 
-            dict_dump = super().dict(
-                **kwargs_with_defaults_exclude_unset_include_fields
-            )
+            dict_dump = super().dict(**kwargs_with_defaults_exclude_unset_include_fields)
 
-        return convert_and_respect_annotation_metadata(
-            object_=dict_dump, annotation=self.__class__, direction="write"
+        return cast(
+            Dict[str, Any],
+            convert_and_respect_annotation_metadata(object_=dict_dump, annotation=self.__class__, direction="write"),
         )
 
 
-def _union_list_of_pydantic_dicts(
-    source: List[Any], destination: List[Any]
-) -> List[Any]:
+def _union_list_of_pydantic_dicts(source: List[Any], destination: List[Any]) -> List[Any]:
     converted_list: List[Any] = []
     for i, item in enumerate(source):
         destination_value = destination[i]
         if isinstance(item, dict):
             converted_list.append(deep_union_pydantic_dicts(item, destination_value))
         elif isinstance(item, list):
-            converted_list.append(
-                _union_list_of_pydantic_dicts(item, destination_value)
-            )
+            converted_list.append(_union_list_of_pydantic_dicts(item, destination_value))
         else:
             converted_list.append(item)
     return converted_list
 
 
-def deep_union_pydantic_dicts(
-    source: Dict[str, Any], destination: Dict[str, Any]
-) -> Dict[str, Any]:
+def deep_union_pydantic_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str, Any]:
     for key, value in source.items():
         node = destination.setdefault(key, {})
         if isinstance(value, dict):
@@ -233,9 +294,7 @@ else:
 
 
 def encode_by_type(o: Any) -> Any:
-    encoders_by_class_tuples: Dict[Callable[[Any], Any], Tuple[Any, ...]] = defaultdict(
-        tuple
-    )
+    encoders_by_class_tuples: Dict[Callable[[Any], Any], Tuple[Any, ...]] = defaultdict(tuple)
     for type_, encoder in encoders_by_type.items():
         encoders_by_class_tuples[encoder] += (type_,)
 
@@ -262,26 +321,18 @@ def universal_root_validator(
 ) -> Callable[[AnyCallable], AnyCallable]:
     def decorator(func: AnyCallable) -> AnyCallable:
         if IS_PYDANTIC_V2:
-            return cast(
-                AnyCallable,
-                pydantic.model_validator(mode="before" if pre else "after")(func),
-            )  # type: ignore[attr-defined]
+            # In Pydantic v2, for RootModel we always use "before" mode
+            # The custom validators transform the input value before the model is created
+            return cast(AnyCallable, pydantic.model_validator(mode="before")(func))  # type: ignore[attr-defined]
         return cast(AnyCallable, pydantic.root_validator(pre=pre)(func))  # type: ignore[call-overload]
 
     return decorator
 
 
-def universal_field_validator(
-    field_name: str, pre: bool = False
-) -> Callable[[AnyCallable], AnyCallable]:
+def universal_field_validator(field_name: str, pre: bool = False) -> Callable[[AnyCallable], AnyCallable]:
     def decorator(func: AnyCallable) -> AnyCallable:
         if IS_PYDANTIC_V2:
-            return cast(
-                AnyCallable,
-                pydantic.field_validator(field_name, mode="before" if pre else "after")(
-                    func
-                ),
-            )  # type: ignore[attr-defined]
+            return cast(AnyCallable, pydantic.field_validator(field_name, mode="before" if pre else "after")(func))  # type: ignore[attr-defined]
         return cast(AnyCallable, pydantic.validator(field_name, pre=pre)(func))
 
     return decorator

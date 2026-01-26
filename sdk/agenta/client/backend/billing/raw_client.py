@@ -17,9 +17,7 @@ class RawBillingClient:
     def __init__(self, *, client_wrapper: SyncClientWrapper):
         self._client_wrapper = client_wrapper
 
-    def handle_events(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    def handle_events(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -28,7 +26,7 @@ class RawBillingClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -41,29 +39,19 @@ class RawBillingClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
-    def create_portal(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    def create_portal(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -72,7 +60,7 @@ class RawBillingClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -85,33 +73,21 @@ class RawBillingClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def create_checkout(
-        self,
-        *,
-        plan: Plan,
-        success_url: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+        self, *, plan: Plan, success_url: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -124,7 +100,7 @@ class RawBillingClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -141,9 +117,9 @@ class RawBillingClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -161,20 +137,10 @@ class RawBillingClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
-    def fetch_plans(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    def fetch_plans(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -183,7 +149,7 @@ class RawBillingClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -196,29 +162,21 @@ class RawBillingClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def switch_plans(
         self, *, plan: Plan, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -229,7 +187,7 @@ class RawBillingClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -245,9 +203,9 @@ class RawBillingClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -265,20 +223,12 @@ class RawBillingClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def fetch_subscription(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -287,7 +237,7 @@ class RawBillingClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -300,29 +250,19 @@ class RawBillingClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
-    def cancel_plan(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    def cancel_plan(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -331,7 +271,7 @@ class RawBillingClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -344,29 +284,19 @@ class RawBillingClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
-    def fetch_usage(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    def fetch_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -375,7 +305,7 @@ class RawBillingClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -388,25 +318,17 @@ class RawBillingClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return HttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
 
 class AsyncRawBillingClient:
@@ -415,7 +337,7 @@ class AsyncRawBillingClient:
 
     async def handle_events(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -424,7 +346,7 @@ class AsyncRawBillingClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -437,29 +359,21 @@ class AsyncRawBillingClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def create_portal(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -468,7 +382,7 @@ class AsyncRawBillingClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -481,33 +395,21 @@ class AsyncRawBillingClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def create_checkout(
-        self,
-        *,
-        plan: Plan,
-        success_url: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+        self, *, plan: Plan, success_url: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -520,7 +422,7 @@ class AsyncRawBillingClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -537,9 +439,9 @@ class AsyncRawBillingClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -557,20 +459,12 @@ class AsyncRawBillingClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def fetch_plans(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -579,7 +473,7 @@ class AsyncRawBillingClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -592,29 +486,21 @@ class AsyncRawBillingClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def switch_plans(
         self, *, plan: Plan, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -625,7 +511,7 @@ class AsyncRawBillingClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -641,9 +527,9 @@ class AsyncRawBillingClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -661,20 +547,12 @@ class AsyncRawBillingClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def fetch_subscription(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -683,7 +561,7 @@ class AsyncRawBillingClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -696,29 +574,21 @@ class AsyncRawBillingClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def cancel_plan(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -727,7 +597,7 @@ class AsyncRawBillingClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -740,29 +610,21 @@ class AsyncRawBillingClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def fetch_usage(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -771,7 +633,7 @@ class AsyncRawBillingClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -784,22 +646,14 @@ class AsyncRawBillingClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
                 return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)

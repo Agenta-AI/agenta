@@ -76,23 +76,12 @@ class RawConfigsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def get_config_deployment_revision(
-        self,
-        deployment_revision_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+        self, deployment_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -103,7 +92,7 @@ class RawConfigsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -116,9 +105,9 @@ class RawConfigsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -136,23 +125,12 @@ class RawConfigsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def revert_deployment_revision(
-        self,
-        deployment_revision_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+        self, deployment_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -163,7 +141,7 @@ class RawConfigsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -176,9 +154,9 @@ class RawConfigsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -196,16 +174,8 @@ class RawConfigsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
 
 class AsyncRawConfigsClient:
@@ -270,23 +240,12 @@ class AsyncRawConfigsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def get_config_deployment_revision(
-        self,
-        deployment_revision_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+        self, deployment_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -297,7 +256,7 @@ class AsyncRawConfigsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -310,9 +269,9 @@ class AsyncRawConfigsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -330,23 +289,12 @@ class AsyncRawConfigsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def revert_deployment_revision(
-        self,
-        deployment_revision_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+        self, deployment_revision_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -357,7 +305,7 @@ class AsyncRawConfigsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -370,9 +318,9 @@ class AsyncRawConfigsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -390,13 +338,5 @@ class AsyncRawConfigsClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)

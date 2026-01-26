@@ -4,19 +4,17 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .reference import Reference
+from .ee_src_services_admin_manager_reference import EeSrcServicesAdminManagerReference
 
 
 class WorkspaceRequest(UniversalBaseModel):
-    name: str
-    description: str
+    name: typing.Optional[str] = None
+    description: typing.Optional[str] = None
     is_default: bool
-    organization_ref: Reference
+    organization_ref: EeSrcServicesAdminManagerReference
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:

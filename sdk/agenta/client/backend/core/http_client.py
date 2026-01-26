@@ -5,7 +5,6 @@ import email.utils
 import re
 import time
 import typing
-import urllib.parse
 from contextlib import asynccontextmanager, contextmanager
 from random import random
 
@@ -14,13 +13,13 @@ from .file import File, convert_file_dict_to_httpx_tuples
 from .force_multipart import FORCE_MULTIPART
 from .jsonable_encoder import jsonable_encoder
 from .query_encoder import encode_query
-from .remove_none_from_dict import remove_none_from_dict
+from .remove_none_from_dict import remove_none_from_dict as remove_none_from_dict
 from .request_options import RequestOptions
 from httpx._types import RequestFiles
 
-INITIAL_RETRY_DELAY_SECONDS = 0.5
-MAX_RETRY_DELAY_SECONDS = 10
-MAX_RETRY_DELAY_SECONDS_FROM_HEADER = 30
+INITIAL_RETRY_DELAY_SECONDS = 1.0
+MAX_RETRY_DELAY_SECONDS = 60.0
+JITTER_FACTOR = 0.2  # 20% random jitter
 
 
 def _parse_retry_after(response_headers: httpx.Headers) -> typing.Optional[float]:
@@ -64,6 +63,38 @@ def _parse_retry_after(response_headers: httpx.Headers) -> typing.Optional[float
     return seconds
 
 
+def _add_positive_jitter(delay: float) -> float:
+    """Add positive jitter (0-20%) to prevent thundering herd."""
+    jitter_multiplier = 1 + random() * JITTER_FACTOR
+    return delay * jitter_multiplier
+
+
+def _add_symmetric_jitter(delay: float) -> float:
+    """Add symmetric jitter (±10%) for exponential backoff."""
+    jitter_multiplier = 1 + (random() - 0.5) * JITTER_FACTOR
+    return delay * jitter_multiplier
+
+
+def _parse_x_ratelimit_reset(response_headers: httpx.Headers) -> typing.Optional[float]:
+    """
+    Parse the X-RateLimit-Reset header (Unix timestamp in seconds).
+    Returns seconds to wait, or None if header is missing/invalid.
+    """
+    reset_time_str = response_headers.get("x-ratelimit-reset")
+    if reset_time_str is None:
+        return None
+
+    try:
+        reset_time = int(reset_time_str)
+        delay = reset_time - time.time()
+        if delay > 0:
+            return delay
+    except (ValueError, TypeError):
+        pass
+
+    return None
+
+
 def _retry_timeout(response: httpx.Response, retries: int) -> float:
     """
     Determine the amount of time to wait before retrying a request.
@@ -71,24 +102,63 @@ def _retry_timeout(response: httpx.Response, retries: int) -> float:
     with a jitter to determine the number of seconds to wait.
     """
 
-    # If the API asks us to wait a certain amount of time (and it's a reasonable amount), just do what it says.
+    # 1. Check Retry-After header first
     retry_after = _parse_retry_after(response.headers)
-    if retry_after is not None and retry_after <= MAX_RETRY_DELAY_SECONDS_FROM_HEADER:
-        return retry_after
+    if retry_after is not None and retry_after > 0:
+        return min(retry_after, MAX_RETRY_DELAY_SECONDS)
 
-    # Apply exponential backoff, capped at MAX_RETRY_DELAY_SECONDS.
-    retry_delay = min(
-        INITIAL_RETRY_DELAY_SECONDS * pow(2.0, retries), MAX_RETRY_DELAY_SECONDS
-    )
+    # 2. Check X-RateLimit-Reset header (with positive jitter)
+    ratelimit_reset = _parse_x_ratelimit_reset(response.headers)
+    if ratelimit_reset is not None:
+        return _add_positive_jitter(min(ratelimit_reset, MAX_RETRY_DELAY_SECONDS))
 
-    # Add a randomness / jitter to the retry delay to avoid overwhelming the server with retries.
-    timeout = retry_delay * (1 - 0.25 * random())
-    return timeout if timeout >= 0 else 0
+    # 3. Fall back to exponential backoff (with symmetric jitter)
+    backoff = min(INITIAL_RETRY_DELAY_SECONDS * pow(2.0, retries), MAX_RETRY_DELAY_SECONDS)
+    return _add_symmetric_jitter(backoff)
 
 
 def _should_retry(response: httpx.Response) -> bool:
     retryable_400s = [429, 408, 409]
     return response.status_code >= 500 or response.status_code in retryable_400s
+
+
+def _build_url(base_url: str, path: typing.Optional[str]) -> str:
+    """
+    Build a full URL by joining a base URL with a path.
+
+    This function correctly handles base URLs that contain path prefixes (e.g., tenant-based URLs)
+    by using string concatenation instead of urllib.parse.urljoin(), which would incorrectly
+    strip path components when the path starts with '/'.
+
+    Example:
+        >>> _build_url("https://cloud.example.com/org/tenant/api", "/users")
+        'https://cloud.example.com/org/tenant/api/users'
+
+    Args:
+        base_url: The base URL, which may contain path prefixes.
+        path: The path to append. Can be None or empty string.
+
+    Returns:
+        The full URL with base_url and path properly joined.
+    """
+    if not path:
+        return base_url
+    return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
+
+
+def _maybe_filter_none_from_multipart_data(
+    data: typing.Optional[typing.Any],
+    request_files: typing.Optional[RequestFiles],
+    force_multipart: typing.Optional[bool],
+) -> typing.Optional[typing.Any]:
+    """
+    Filter None values from data body for multipart/form requests.
+    This prevents httpx from converting None to empty strings in multipart encoding.
+    Only applies when files are present or force_multipart is True.
+    """
+    if data is not None and isinstance(data, typing.Mapping) and (request_files or force_multipart):
+        return remove_none_from_dict(data)
+    return data
 
 
 def remove_omit_from_dict(
@@ -111,8 +181,7 @@ def maybe_filter_request_body(
 ) -> typing.Optional[typing.Any]:
     if data is None:
         return (
-            jsonable_encoder(request_options.get("additional_body_parameters", {}))
-            or {}
+            jsonable_encoder(request_options.get("additional_body_parameters", {})) or {}
             if request_options is not None
             else None
         )
@@ -122,8 +191,7 @@ def maybe_filter_request_body(
         data_content = {
             **(jsonable_encoder(remove_omit_from_dict(data, omit))),  # type: ignore
             **(
-                jsonable_encoder(request_options.get("additional_body_parameters", {}))
-                or {}
+                jsonable_encoder(request_options.get("additional_body_parameters", {})) or {}
                 if request_options is not None
                 else {}
             ),
@@ -147,10 +215,19 @@ def get_request_body(
         # If both data and json are None, we send json data in the event extra properties are specified
         json_body = maybe_filter_request_body(json, request_options, omit)
 
-    # If you have an empty JSON body, you should just send None
-    return (json_body if json_body != {} else None), (
-        data_body if data_body != {} else None
+    has_additional_body_parameters = bool(
+        request_options is not None and request_options.get("additional_body_parameters")
     )
+
+    # Only collapse empty dict to None when the body was not explicitly provided
+    # and there are no additional body parameters. This preserves explicit empty
+    # bodies (e.g., when an endpoint has a request body type but all fields are optional).
+    if json_body == {} and json is None and not has_additional_body_parameters:
+        json_body = None
+    if data_body == {} and data is None and not has_additional_body_parameters:
+        data_body = None
+
+    return json_body, data_body
 
 
 class HttpClient:
@@ -173,9 +250,7 @@ class HttpClient:
             base_url = self.base_url()
 
         if base_url is None:
-            raise ValueError(
-                "A base_url is required to make this request, please provide one and try again."
-            )
+            raise ValueError("A base_url is required to make this request, please provide one and try again.")
         return base_url
 
     def request(
@@ -187,39 +262,30 @@ class HttpClient:
         params: typing.Optional[typing.Dict[str, typing.Any]] = None,
         json: typing.Optional[typing.Any] = None,
         data: typing.Optional[typing.Any] = None,
-        content: typing.Optional[
-            typing.Union[bytes, typing.Iterator[bytes], typing.AsyncIterator[bytes]]
-        ] = None,
+        content: typing.Optional[typing.Union[bytes, typing.Iterator[bytes], typing.AsyncIterator[bytes]]] = None,
         files: typing.Optional[
             typing.Union[
-                typing.Dict[
-                    str, typing.Optional[typing.Union[File, typing.List[File]]]
-                ],
+                typing.Dict[str, typing.Optional[typing.Union[File, typing.List[File]]]],
                 typing.List[typing.Tuple[str, File]],
             ]
         ] = None,
         headers: typing.Optional[typing.Dict[str, typing.Any]] = None,
         request_options: typing.Optional[RequestOptions] = None,
-        retries: int = 2,
+        retries: int = 0,
         omit: typing.Optional[typing.Any] = None,
         force_multipart: typing.Optional[bool] = None,
     ) -> httpx.Response:
         base_url = self.get_base_url(base_url)
         timeout = (
             request_options.get("timeout_in_seconds")
-            if request_options is not None
-            and request_options.get("timeout_in_seconds") is not None
+            if request_options is not None and request_options.get("timeout_in_seconds") is not None
             else self.base_timeout()
         )
 
-        json_body, data_body = get_request_body(
-            json=json, data=data, request_options=request_options, omit=omit
-        )
+        json_body, data_body = get_request_body(json=json, data=data, request_options=request_options, omit=omit)
 
         request_files: typing.Optional[RequestFiles] = (
-            convert_file_dict_to_httpx_tuples(
-                remove_omit_from_dict(remove_none_from_dict(files), omit)
-            )
+            convert_file_dict_to_httpx_tuples(remove_omit_from_dict(remove_none_from_dict(files), omit))
             if (files is not None and files is not omit and isinstance(files, dict))
             else None
         )
@@ -227,42 +293,41 @@ class HttpClient:
         if (request_files is None or len(request_files) == 0) and force_multipart:
             request_files = FORCE_MULTIPART
 
+        data_body = _maybe_filter_none_from_multipart_data(data_body, request_files, force_multipart)
+
+        # Compute encoded params separately to avoid passing empty list to httpx
+        # (httpx strips existing query params from URL when params=[] is passed)
+        _encoded_params = encode_query(
+            jsonable_encoder(
+                remove_none_from_dict(
+                    remove_omit_from_dict(
+                        {
+                            **(params if params is not None else {}),
+                            **(
+                                request_options.get("additional_query_parameters", {}) or {}
+                                if request_options is not None
+                                else {}
+                            ),
+                        },
+                        omit,
+                    )
+                )
+            )
+        )
+
         response = self.httpx_client.request(
             method=method,
-            url=urllib.parse.urljoin(f"{base_url}/", path),
+            url=_build_url(base_url, path),
             headers=jsonable_encoder(
                 remove_none_from_dict(
                     {
                         **self.base_headers(),
                         **(headers if headers is not None else {}),
-                        **(
-                            request_options.get("additional_headers", {}) or {}
-                            if request_options is not None
-                            else {}
-                        ),
+                        **(request_options.get("additional_headers", {}) or {} if request_options is not None else {}),
                     }
                 )
             ),
-            params=encode_query(
-                jsonable_encoder(
-                    remove_none_from_dict(
-                        remove_omit_from_dict(
-                            {
-                                **(params if params is not None else {}),
-                                **(
-                                    request_options.get(
-                                        "additional_query_parameters", {}
-                                    )
-                                    or {}
-                                    if request_options is not None
-                                    else {}
-                                ),
-                            },
-                            omit,
-                        )
-                    )
-                )
-            ),
+            params=_encoded_params if _encoded_params else None,
             json=json_body,
             data=data_body,
             content=content,
@@ -270,11 +335,9 @@ class HttpClient:
             timeout=timeout,
         )
 
-        max_retries: int = (
-            request_options.get("max_retries", 0) if request_options is not None else 0
-        )
+        max_retries: int = request_options.get("max_retries", 2) if request_options is not None else 2
         if _should_retry(response=response):
-            if max_retries > retries:
+            if retries < max_retries:
                 time.sleep(_retry_timeout(response=response, retries=retries))
                 return self.request(
                     path=path,
@@ -302,35 +365,28 @@ class HttpClient:
         params: typing.Optional[typing.Dict[str, typing.Any]] = None,
         json: typing.Optional[typing.Any] = None,
         data: typing.Optional[typing.Any] = None,
-        content: typing.Optional[
-            typing.Union[bytes, typing.Iterator[bytes], typing.AsyncIterator[bytes]]
-        ] = None,
+        content: typing.Optional[typing.Union[bytes, typing.Iterator[bytes], typing.AsyncIterator[bytes]]] = None,
         files: typing.Optional[
             typing.Union[
-                typing.Dict[
-                    str, typing.Optional[typing.Union[File, typing.List[File]]]
-                ],
+                typing.Dict[str, typing.Optional[typing.Union[File, typing.List[File]]]],
                 typing.List[typing.Tuple[str, File]],
             ]
         ] = None,
         headers: typing.Optional[typing.Dict[str, typing.Any]] = None,
         request_options: typing.Optional[RequestOptions] = None,
-        retries: int = 2,
+        retries: int = 0,
         omit: typing.Optional[typing.Any] = None,
         force_multipart: typing.Optional[bool] = None,
     ) -> typing.Iterator[httpx.Response]:
         base_url = self.get_base_url(base_url)
         timeout = (
             request_options.get("timeout_in_seconds")
-            if request_options is not None
-            and request_options.get("timeout_in_seconds") is not None
+            if request_options is not None and request_options.get("timeout_in_seconds") is not None
             else self.base_timeout()
         )
 
         request_files: typing.Optional[RequestFiles] = (
-            convert_file_dict_to_httpx_tuples(
-                remove_omit_from_dict(remove_none_from_dict(files), omit)
-            )
+            convert_file_dict_to_httpx_tuples(remove_omit_from_dict(remove_none_from_dict(files), omit))
             if (files is not None and files is not omit and isinstance(files, dict))
             else None
         )
@@ -338,45 +394,43 @@ class HttpClient:
         if (request_files is None or len(request_files) == 0) and force_multipart:
             request_files = FORCE_MULTIPART
 
-        json_body, data_body = get_request_body(
-            json=json, data=data, request_options=request_options, omit=omit
+        json_body, data_body = get_request_body(json=json, data=data, request_options=request_options, omit=omit)
+
+        data_body = _maybe_filter_none_from_multipart_data(data_body, request_files, force_multipart)
+
+        # Compute encoded params separately to avoid passing empty list to httpx
+        # (httpx strips existing query params from URL when params=[] is passed)
+        _encoded_params = encode_query(
+            jsonable_encoder(
+                remove_none_from_dict(
+                    remove_omit_from_dict(
+                        {
+                            **(params if params is not None else {}),
+                            **(
+                                request_options.get("additional_query_parameters", {})
+                                if request_options is not None
+                                else {}
+                            ),
+                        },
+                        omit,
+                    )
+                )
+            )
         )
 
         with self.httpx_client.stream(
             method=method,
-            url=urllib.parse.urljoin(f"{base_url}/", path),
+            url=_build_url(base_url, path),
             headers=jsonable_encoder(
                 remove_none_from_dict(
                     {
                         **self.base_headers(),
                         **(headers if headers is not None else {}),
-                        **(
-                            request_options.get("additional_headers", {})
-                            if request_options is not None
-                            else {}
-                        ),
+                        **(request_options.get("additional_headers", {}) if request_options is not None else {}),
                     }
                 )
             ),
-            params=encode_query(
-                jsonable_encoder(
-                    remove_none_from_dict(
-                        remove_omit_from_dict(
-                            {
-                                **(params if params is not None else {}),
-                                **(
-                                    request_options.get(
-                                        "additional_query_parameters", {}
-                                    )
-                                    if request_options is not None
-                                    else {}
-                                ),
-                            },
-                            omit,
-                        )
-                    )
-                )
-            ),
+            params=_encoded_params if _encoded_params else None,
             json=json_body,
             data=data_body,
             content=content,
@@ -394,11 +448,18 @@ class AsyncHttpClient:
         base_timeout: typing.Callable[[], typing.Optional[float]],
         base_headers: typing.Callable[[], typing.Dict[str, str]],
         base_url: typing.Optional[typing.Callable[[], str]] = None,
+        async_base_headers: typing.Optional[typing.Callable[[], typing.Awaitable[typing.Dict[str, str]]]] = None,
     ):
         self.base_url = base_url
         self.base_timeout = base_timeout
         self.base_headers = base_headers
+        self.async_base_headers = async_base_headers
         self.httpx_client = httpx_client
+
+    async def _get_headers(self) -> typing.Dict[str, str]:
+        if self.async_base_headers is not None:
+            return await self.async_base_headers()
+        return self.base_headers()
 
     def get_base_url(self, maybe_base_url: typing.Optional[str]) -> str:
         base_url = maybe_base_url
@@ -406,9 +467,7 @@ class AsyncHttpClient:
             base_url = self.base_url()
 
         if base_url is None:
-            raise ValueError(
-                "A base_url is required to make this request, please provide one and try again."
-            )
+            raise ValueError("A base_url is required to make this request, please provide one and try again.")
         return base_url
 
     async def request(
@@ -420,35 +479,28 @@ class AsyncHttpClient:
         params: typing.Optional[typing.Dict[str, typing.Any]] = None,
         json: typing.Optional[typing.Any] = None,
         data: typing.Optional[typing.Any] = None,
-        content: typing.Optional[
-            typing.Union[bytes, typing.Iterator[bytes], typing.AsyncIterator[bytes]]
-        ] = None,
+        content: typing.Optional[typing.Union[bytes, typing.Iterator[bytes], typing.AsyncIterator[bytes]]] = None,
         files: typing.Optional[
             typing.Union[
-                typing.Dict[
-                    str, typing.Optional[typing.Union[File, typing.List[File]]]
-                ],
+                typing.Dict[str, typing.Optional[typing.Union[File, typing.List[File]]]],
                 typing.List[typing.Tuple[str, File]],
             ]
         ] = None,
         headers: typing.Optional[typing.Dict[str, typing.Any]] = None,
         request_options: typing.Optional[RequestOptions] = None,
-        retries: int = 2,
+        retries: int = 0,
         omit: typing.Optional[typing.Any] = None,
         force_multipart: typing.Optional[bool] = None,
     ) -> httpx.Response:
         base_url = self.get_base_url(base_url)
         timeout = (
             request_options.get("timeout_in_seconds")
-            if request_options is not None
-            and request_options.get("timeout_in_seconds") is not None
+            if request_options is not None and request_options.get("timeout_in_seconds") is not None
             else self.base_timeout()
         )
 
         request_files: typing.Optional[RequestFiles] = (
-            convert_file_dict_to_httpx_tuples(
-                remove_omit_from_dict(remove_none_from_dict(files), omit)
-            )
+            convert_file_dict_to_httpx_tuples(remove_omit_from_dict(remove_none_from_dict(files), omit))
             if (files is not None and files is not omit and isinstance(files, dict))
             else None
         )
@@ -456,47 +508,47 @@ class AsyncHttpClient:
         if (request_files is None or len(request_files) == 0) and force_multipart:
             request_files = FORCE_MULTIPART
 
-        json_body, data_body = get_request_body(
-            json=json, data=data, request_options=request_options, omit=omit
+        json_body, data_body = get_request_body(json=json, data=data, request_options=request_options, omit=omit)
+
+        data_body = _maybe_filter_none_from_multipart_data(data_body, request_files, force_multipart)
+
+        # Get headers (supports async token providers)
+        _headers = await self._get_headers()
+
+        # Compute encoded params separately to avoid passing empty list to httpx
+        # (httpx strips existing query params from URL when params=[] is passed)
+        _encoded_params = encode_query(
+            jsonable_encoder(
+                remove_none_from_dict(
+                    remove_omit_from_dict(
+                        {
+                            **(params if params is not None else {}),
+                            **(
+                                request_options.get("additional_query_parameters", {}) or {}
+                                if request_options is not None
+                                else {}
+                            ),
+                        },
+                        omit,
+                    )
+                )
+            )
         )
 
         # Add the input to each of these and do None-safety checks
         response = await self.httpx_client.request(
             method=method,
-            url=urllib.parse.urljoin(f"{base_url}/", path),
+            url=_build_url(base_url, path),
             headers=jsonable_encoder(
                 remove_none_from_dict(
                     {
-                        **self.base_headers(),
+                        **_headers,
                         **(headers if headers is not None else {}),
-                        **(
-                            request_options.get("additional_headers", {}) or {}
-                            if request_options is not None
-                            else {}
-                        ),
+                        **(request_options.get("additional_headers", {}) or {} if request_options is not None else {}),
                     }
                 )
             ),
-            params=encode_query(
-                jsonable_encoder(
-                    remove_none_from_dict(
-                        remove_omit_from_dict(
-                            {
-                                **(params if params is not None else {}),
-                                **(
-                                    request_options.get(
-                                        "additional_query_parameters", {}
-                                    )
-                                    or {}
-                                    if request_options is not None
-                                    else {}
-                                ),
-                            },
-                            omit,
-                        )
-                    )
-                )
-            ),
+            params=_encoded_params if _encoded_params else None,
             json=json_body,
             data=data_body,
             content=content,
@@ -504,11 +556,9 @@ class AsyncHttpClient:
             timeout=timeout,
         )
 
-        max_retries: int = (
-            request_options.get("max_retries", 0) if request_options is not None else 0
-        )
+        max_retries: int = request_options.get("max_retries", 2) if request_options is not None else 2
         if _should_retry(response=response):
-            if max_retries > retries:
+            if retries < max_retries:
                 await asyncio.sleep(_retry_timeout(response=response, retries=retries))
                 return await self.request(
                     path=path,
@@ -535,35 +585,28 @@ class AsyncHttpClient:
         params: typing.Optional[typing.Dict[str, typing.Any]] = None,
         json: typing.Optional[typing.Any] = None,
         data: typing.Optional[typing.Any] = None,
-        content: typing.Optional[
-            typing.Union[bytes, typing.Iterator[bytes], typing.AsyncIterator[bytes]]
-        ] = None,
+        content: typing.Optional[typing.Union[bytes, typing.Iterator[bytes], typing.AsyncIterator[bytes]]] = None,
         files: typing.Optional[
             typing.Union[
-                typing.Dict[
-                    str, typing.Optional[typing.Union[File, typing.List[File]]]
-                ],
+                typing.Dict[str, typing.Optional[typing.Union[File, typing.List[File]]]],
                 typing.List[typing.Tuple[str, File]],
             ]
         ] = None,
         headers: typing.Optional[typing.Dict[str, typing.Any]] = None,
         request_options: typing.Optional[RequestOptions] = None,
-        retries: int = 2,
+        retries: int = 0,
         omit: typing.Optional[typing.Any] = None,
         force_multipart: typing.Optional[bool] = None,
     ) -> typing.AsyncIterator[httpx.Response]:
         base_url = self.get_base_url(base_url)
         timeout = (
             request_options.get("timeout_in_seconds")
-            if request_options is not None
-            and request_options.get("timeout_in_seconds") is not None
+            if request_options is not None and request_options.get("timeout_in_seconds") is not None
             else self.base_timeout()
         )
 
         request_files: typing.Optional[RequestFiles] = (
-            convert_file_dict_to_httpx_tuples(
-                remove_omit_from_dict(remove_none_from_dict(files), omit)
-            )
+            convert_file_dict_to_httpx_tuples(remove_omit_from_dict(remove_none_from_dict(files), omit))
             if (files is not None and files is not omit and isinstance(files, dict))
             else None
         )
@@ -571,45 +614,46 @@ class AsyncHttpClient:
         if (request_files is None or len(request_files) == 0) and force_multipart:
             request_files = FORCE_MULTIPART
 
-        json_body, data_body = get_request_body(
-            json=json, data=data, request_options=request_options, omit=omit
+        json_body, data_body = get_request_body(json=json, data=data, request_options=request_options, omit=omit)
+
+        data_body = _maybe_filter_none_from_multipart_data(data_body, request_files, force_multipart)
+
+        # Get headers (supports async token providers)
+        _headers = await self._get_headers()
+
+        # Compute encoded params separately to avoid passing empty list to httpx
+        # (httpx strips existing query params from URL when params=[] is passed)
+        _encoded_params = encode_query(
+            jsonable_encoder(
+                remove_none_from_dict(
+                    remove_omit_from_dict(
+                        {
+                            **(params if params is not None else {}),
+                            **(
+                                request_options.get("additional_query_parameters", {})
+                                if request_options is not None
+                                else {}
+                            ),
+                        },
+                        omit=omit,
+                    )
+                )
+            )
         )
 
         async with self.httpx_client.stream(
             method=method,
-            url=urllib.parse.urljoin(f"{base_url}/", path),
+            url=_build_url(base_url, path),
             headers=jsonable_encoder(
                 remove_none_from_dict(
                     {
-                        **self.base_headers(),
+                        **_headers,
                         **(headers if headers is not None else {}),
-                        **(
-                            request_options.get("additional_headers", {})
-                            if request_options is not None
-                            else {}
-                        ),
+                        **(request_options.get("additional_headers", {}) if request_options is not None else {}),
                     }
                 )
             ),
-            params=encode_query(
-                jsonable_encoder(
-                    remove_none_from_dict(
-                        remove_omit_from_dict(
-                            {
-                                **(params if params is not None else {}),
-                                **(
-                                    request_options.get(
-                                        "additional_query_parameters", {}
-                                    )
-                                    if request_options is not None
-                                    else {}
-                                ),
-                            },
-                            omit=omit,
-                        )
-                    )
-                )
-            ),
+            params=_encoded_params if _encoded_params else None,
             json=json_body,
             data=data_body,
             content=content,

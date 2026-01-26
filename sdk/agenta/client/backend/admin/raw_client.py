@@ -31,6 +31,296 @@ class RawAdminClient:
     def __init__(self, *, client_wrapper: SyncClientWrapper):
         self._client_wrapper = client_wrapper
 
+    def create_portal(
+        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[typing.Any]:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "admin/billing/stripe/portals/",
+            method="POST",
+            params={
+                "organization_id": organization_id,
+            },
+            request_options=request_options,
+        )
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_=typing.Any,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+
+    def create_checkout(
+        self,
+        *,
+        organization_id: str,
+        plan: Plan,
+        success_url: str,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> HttpResponse[typing.Any]:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        plan : Plan
+
+        success_url : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "admin/billing/stripe/checkouts/",
+            method="POST",
+            params={
+                "organization_id": organization_id,
+                "plan": plan,
+                "success_url": success_url,
+            },
+            request_options=request_options,
+        )
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_=typing.Any,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+
+    def switch_plans(
+        self, *, organization_id: str, plan: Plan, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[typing.Any]:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        plan : Plan
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "admin/billing/plans/switch",
+            method="POST",
+            params={
+                "organization_id": organization_id,
+                "plan": plan,
+            },
+            request_options=request_options,
+        )
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_=typing.Any,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+
+    def cancel_subscription(
+        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[typing.Any]:
+        """
+        Parameters
+        ----------
+        organization_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "admin/billing/subscription/cancel",
+            method="POST",
+            params={
+                "organization_id": organization_id,
+            },
+            request_options=request_options,
+        )
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_=typing.Any,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+
+    def report_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+        """
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "admin/billing/usage/report",
+            method="POST",
+            request_options=request_options,
+        )
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_=typing.Any,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return HttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+
+    def flush_usage(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+        """
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "admin/billing/usage/flush",
+            method="POST",
+            request_options=request_options,
+        )
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_=typing.Any,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return HttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+
     def create_accounts(
         self,
         *,
@@ -73,24 +363,16 @@ class RawAdminClient:
             method="POST",
             json={
                 "users": convert_and_respect_annotation_metadata(
-                    object_=users,
-                    annotation=typing.Dict[str, UserRequest],
-                    direction="write",
+                    object_=users, annotation=typing.Dict[str, UserRequest], direction="write"
                 ),
                 "organizations": convert_and_respect_annotation_metadata(
-                    object_=organizations,
-                    annotation=typing.Dict[str, OrganizationRequest],
-                    direction="write",
+                    object_=organizations, annotation=typing.Dict[str, OrganizationRequest], direction="write"
                 ),
                 "workspaces": convert_and_respect_annotation_metadata(
-                    object_=workspaces,
-                    annotation=typing.Dict[str, WorkspaceRequest],
-                    direction="write",
+                    object_=workspaces, annotation=typing.Dict[str, WorkspaceRequest], direction="write"
                 ),
                 "projects": convert_and_respect_annotation_metadata(
-                    object_=projects,
-                    annotation=typing.Dict[str, ProjectRequest],
-                    direction="write",
+                    object_=projects, annotation=typing.Dict[str, ProjectRequest], direction="write"
                 ),
                 "organization_memberships": convert_and_respect_annotation_metadata(
                     object_=organization_memberships,
@@ -137,16 +419,8 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     def create_account(
         self,
@@ -171,7 +445,7 @@ class RawAdminClient:
             "admin/account",
             method="POST",
             json=convert_and_respect_annotation_metadata(
-                object_=request, annotation=AccountRequest, direction="write"
+                object_=request, annotation=typing.Optional[AccountRequest], direction="write"
             ),
             headers={
                 "content-type": "application/json",
@@ -202,23 +476,17 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
-    def create_portal(
-        self,
-        *,
-        organization_id: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+
+class AsyncRawAdminClient:
+    def __init__(self, *, client_wrapper: AsyncClientWrapper):
+        self._client_wrapper = client_wrapper
+
+    async def create_portal(
+        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -229,10 +497,10 @@ class RawAdminClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
-        _response = self._client_wrapper.httpx_client.request(
+        _response = await self._client_wrapper.httpx_client.request(
             "admin/billing/stripe/portals/",
             method="POST",
             params={
@@ -242,16 +510,16 @@ class RawAdminClient:
         )
         try:
             if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
+                return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
-                return HttpResponse(response=_response, data=_data)
+                return AsyncHttpResponse(response=_response, data=_data)
             if _response.status_code == 422:
                 raise UnprocessableEntityError(
                     headers=dict(_response.headers),
@@ -265,25 +533,17 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
-    def create_checkout(
+    async def create_checkout(
         self,
         *,
         organization_id: str,
         plan: Plan,
         success_url: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -298,10 +558,10 @@ class RawAdminClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
-        _response = self._client_wrapper.httpx_client.request(
+        _response = await self._client_wrapper.httpx_client.request(
             "admin/billing/stripe/checkouts/",
             method="POST",
             params={
@@ -313,16 +573,16 @@ class RawAdminClient:
         )
         try:
             if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
+                return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
-                return HttpResponse(response=_response, data=_data)
+                return AsyncHttpResponse(response=_response, data=_data)
             if _response.status_code == 422:
                 raise UnprocessableEntityError(
                     headers=dict(_response.headers),
@@ -336,24 +596,12 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
-    def switch_plans(
-        self,
-        *,
-        organization_id: str,
-        plan: Plan,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    async def switch_plans(
+        self, *, organization_id: str, plan: Plan, request_options: typing.Optional[RequestOptions] = None
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -366,10 +614,10 @@ class RawAdminClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
-        _response = self._client_wrapper.httpx_client.request(
+        _response = await self._client_wrapper.httpx_client.request(
             "admin/billing/plans/switch",
             method="POST",
             params={
@@ -380,16 +628,16 @@ class RawAdminClient:
         )
         try:
             if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
+                return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
-                return HttpResponse(response=_response, data=_data)
+                return AsyncHttpResponse(response=_response, data=_data)
             if _response.status_code == 422:
                 raise UnprocessableEntityError(
                     headers=dict(_response.headers),
@@ -403,23 +651,12 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
-    def cancel_subscription(
-        self,
-        *,
-        organization_id: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    async def cancel_subscription(
+        self, *, organization_id: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -430,10 +667,10 @@ class RawAdminClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
-        _response = self._client_wrapper.httpx_client.request(
+        _response = await self._client_wrapper.httpx_client.request(
             "admin/billing/subscription/cancel",
             method="POST",
             params={
@@ -443,16 +680,16 @@ class RawAdminClient:
         )
         try:
             if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
+                return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
-                return HttpResponse(response=_response, data=_data)
+                return AsyncHttpResponse(response=_response, data=_data)
             if _response.status_code == 422:
                 raise UnprocessableEntityError(
                     headers=dict(_response.headers),
@@ -466,20 +703,12 @@ class RawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
-    def report_usage(
+    async def report_usage(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -488,43 +717,66 @@ class RawAdminClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
-        _response = self._client_wrapper.httpx_client.request(
+        _response = await self._client_wrapper.httpx_client.request(
             "admin/billing/usage/report",
             method="POST",
             request_options=request_options,
         )
         try:
             if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
+                return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
-                return HttpResponse(response=_response, data=_data)
+                return AsyncHttpResponse(response=_response, data=_data)
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+
+    async def flush_usage(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> AsyncHttpResponse[typing.Any]:
+        """
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        AsyncHttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "admin/billing/usage/flush",
+            method="POST",
+            request_options=request_options,
         )
-
-
-class AsyncRawAdminClient:
-    def __init__(self, *, client_wrapper: AsyncClientWrapper):
-        self._client_wrapper = client_wrapper
+        try:
+            if _response is None or not _response.text.strip():
+                return AsyncHttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_=typing.Any,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def create_accounts(
         self,
@@ -568,24 +820,16 @@ class AsyncRawAdminClient:
             method="POST",
             json={
                 "users": convert_and_respect_annotation_metadata(
-                    object_=users,
-                    annotation=typing.Dict[str, UserRequest],
-                    direction="write",
+                    object_=users, annotation=typing.Dict[str, UserRequest], direction="write"
                 ),
                 "organizations": convert_and_respect_annotation_metadata(
-                    object_=organizations,
-                    annotation=typing.Dict[str, OrganizationRequest],
-                    direction="write",
+                    object_=organizations, annotation=typing.Dict[str, OrganizationRequest], direction="write"
                 ),
                 "workspaces": convert_and_respect_annotation_metadata(
-                    object_=workspaces,
-                    annotation=typing.Dict[str, WorkspaceRequest],
-                    direction="write",
+                    object_=workspaces, annotation=typing.Dict[str, WorkspaceRequest], direction="write"
                 ),
                 "projects": convert_and_respect_annotation_metadata(
-                    object_=projects,
-                    annotation=typing.Dict[str, ProjectRequest],
-                    direction="write",
+                    object_=projects, annotation=typing.Dict[str, ProjectRequest], direction="write"
                 ),
                 "organization_memberships": convert_and_respect_annotation_metadata(
                     object_=organization_memberships,
@@ -632,16 +876,8 @@ class AsyncRawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 
     async def create_account(
         self,
@@ -666,7 +902,7 @@ class AsyncRawAdminClient:
             "admin/account",
             method="POST",
             json=convert_and_respect_annotation_metadata(
-                object_=request, annotation=AccountRequest, direction="write"
+                object_=request, annotation=typing.Optional[AccountRequest], direction="write"
             ),
             headers={
                 "content-type": "application/json",
@@ -697,321 +933,5 @@ class AsyncRawAdminClient:
                 )
             _response_json = _response.json()
         except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
-
-    async def create_portal(
-        self,
-        *,
-        organization_id: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "admin/billing/stripe/portals/",
-            method="POST",
-            params={
-                "organization_id": organization_id,
-            },
-            request_options=request_options,
-        )
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Optional[typing.Any],
-                    parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    headers=dict(_response.headers),
-                    body=typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    ),
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
-
-    async def create_checkout(
-        self,
-        *,
-        organization_id: str,
-        plan: Plan,
-        success_url: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        plan : Plan
-
-        success_url : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "admin/billing/stripe/checkouts/",
-            method="POST",
-            params={
-                "organization_id": organization_id,
-                "plan": plan,
-                "success_url": success_url,
-            },
-            request_options=request_options,
-        )
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Optional[typing.Any],
-                    parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    headers=dict(_response.headers),
-                    body=typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    ),
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
-
-    async def switch_plans(
-        self,
-        *,
-        organization_id: str,
-        plan: Plan,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        plan : Plan
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "admin/billing/plans/switch",
-            method="POST",
-            params={
-                "organization_id": organization_id,
-                "plan": plan,
-            },
-            request_options=request_options,
-        )
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Optional[typing.Any],
-                    parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    headers=dict(_response.headers),
-                    body=typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    ),
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
-
-    async def cancel_subscription(
-        self,
-        *,
-        organization_id: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
-        """
-        Parameters
-        ----------
-        organization_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "admin/billing/subscription/cancel",
-            method="POST",
-            params={
-                "organization_id": organization_id,
-            },
-            request_options=request_options,
-        )
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Optional[typing.Any],
-                    parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    headers=dict(_response.headers),
-                    body=typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    ),
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
-
-    async def report_usage(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
-        """
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
-            Successful Response
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "admin/billing/usage/report",
-            method="POST",
-            request_options=request_options,
-        )
-        try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
-            if 200 <= _response.status_code < 300:
-                _data = typing.cast(
-                    typing.Optional[typing.Any],
-                    parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-                return AsyncHttpResponse(response=_response, data=_data)
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(
-                status_code=_response.status_code,
-                headers=dict(_response.headers),
-                body=_response.text,
-            )
-        raise ApiError(
-            status_code=_response.status_code,
-            headers=dict(_response.headers),
-            body=_response_json,
-        )
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)

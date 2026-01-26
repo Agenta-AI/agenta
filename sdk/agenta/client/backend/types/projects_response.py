@@ -13,14 +13,12 @@ class ProjectsResponse(UniversalBaseModel):
     workspace_name: typing.Optional[str] = None
     project_id: str
     project_name: str
-    is_default_project: bool = False
+    is_default_project: typing.Optional[bool] = None
     user_role: typing.Optional[str] = None
     is_demo: typing.Optional[bool] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:
