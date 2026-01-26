@@ -22,6 +22,7 @@
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
         "@agenta/playground": "workspace:../packages/agenta-playground",
+        "@agenta/playground-ui": "workspace:../packages/agenta-playground-ui",
         "@agenta/shared": "workspace:../packages/agenta-shared",
         "@agenta/ui": "workspace:../packages/agenta-ui",
         "@agenta/web-tests": "workspace:../tests",
