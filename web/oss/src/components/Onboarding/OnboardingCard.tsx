@@ -441,8 +441,13 @@ const OnboardingCard = ({
             if (autoAdvanceTriggeredRef.current) return
             autoAdvanceTriggeredRef.current = true
 
-            const {waitForSelector, waitForSelectorVisible, waitForHiddenSelector, waitTimeoutMs, waitPollInterval} =
-                step.nextAction ?? {}
+            const {
+                waitForSelector,
+                waitForSelectorVisible,
+                waitForHiddenSelector,
+                waitTimeoutMs,
+                waitPollInterval,
+            } = step.nextAction ?? {}
 
             if (waitForSelector) {
                 const ready = await waitForSelectorReady(
