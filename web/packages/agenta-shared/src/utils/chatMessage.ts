@@ -83,7 +83,13 @@ export function getAttachmentInfo(content: MessageContent): {
 }
 
 /**
- * Update text content while preserving attachments
+ * Update text content while preserving attachments.
+ *
+ * @remarks
+ * If the content array has multiple text parts, ALL text parts will be updated
+ * to the same `newText` value. This treats multiple text parts as a single
+ * logical text block. If you need to preserve distinct text parts, handle
+ * the content array directly.
  */
 export function updateTextInContent(content: MessageContent, newText: string): MessageContent {
     if (typeof content === "string") {
