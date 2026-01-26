@@ -5,7 +5,8 @@
  * Includes batch fetching and cache redirect patterns.
  */
 
-import {axios, getAgentaApiUrl, dereferenceSchema} from "@agenta/shared"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {dereferenceSchema} from "@agenta/shared/utils"
 
 import type {AppRevisionData, PromptConfig, RawAgConfig} from "../core"
 

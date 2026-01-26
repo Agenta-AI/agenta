@@ -6,19 +6,20 @@ State management for **app revision** entities - versioned configurations of app
 
 ```text
 appRevision/
-├── index.ts              # Public exports
-├── README.md             # This file
-├── core.ts               # Zod schemas and types
-├── api/                  # HTTP functions
-│   ├── api.ts            # Fetch functions and transformers
-│   ├── schema.ts         # OpenAPI schema extraction
-│   └── index.ts          # Re-exports
-└── state/                # State management
-    ├── store.ts          # Query and draft atom families
-    ├── schemaAtoms.ts    # OpenAPI schema atoms
-    ├── runnableSetup.ts  # Runnable extension (execution mode, invocation)
-    ├── molecule.ts       # Unified molecule API
-    └── index.ts          # Re-exports
+├── index.ts                # Public exports
+├── README.md               # This file
+├── core.ts                 # Zod schemas, types, service type utilities
+├── api/                    # HTTP functions
+│   ├── api.ts              # Fetch functions and transformers
+│   ├── schema.ts           # OpenAPI schema extraction + service prefetch
+│   └── index.ts            # Re-exports
+└── state/                  # State management
+    ├── store.ts            # Query and draft atom families
+    ├── schemaAtoms.ts      # Schema router atom + selectors
+    ├── serviceSchemaAtoms.ts # Service schema prefetch (Layer 1)
+    ├── runnableSetup.ts    # Runnable extension (execution mode, invocation)
+    ├── molecule.ts         # Unified molecule API
+    └── index.ts            # Re-exports
 ```
 
 ## Quick Start
@@ -153,6 +154,64 @@ App
 │  │  data, isDirty, inputPorts, outputPorts, invocationUrl     ││
 │  └─────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────┘
+```
+
+### Service Schema Prefetch
+
+For **completion** and **chat** apps (the majority of user apps), the OpenAPI schema
+is identical across all revisions of the same service type. This enables a two-layer
+optimization that makes schema data available at app-selection time:
+
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│  Layer 1: Service Schema (prefetched)                            │
+│  ┌───────────────────────────┐ ┌──────────────────────────────┐  │
+│  │ completionServiceSchema   │ │ chatServiceSchema             │  │
+│  │ /services/completion/     │ │ /services/chat/               │  │
+│  │ openapi.json              │ │ openapi.json                  │  │
+│  └───────────────────────────┘ └──────────────────────────────┘  │
+│                                                                  │
+│  Layer 2: Per-Revision Schema (fallback for custom apps)         │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │ directSchemaQueryAtomFamily(revisionId)                   │    │
+│  │ Fetches from {revision.uri}/openapi.json                  │    │
+│  └──────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  Router: appRevisionSchemaQueryAtomFamily(revisionId)            │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │ IF app_type is "completion" or "chat":                    │    │
+│  │   → Use prefetched service schema + revision runtime ctx  │    │
+│  │ ELSE (custom):                                            │    │
+│  │   → Use per-revision schema fetch (existing behavior)     │    │
+│  └──────────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Timing comparison:**
+
+| Flow | Without prefetch | With prefetch |
+|------|------------------|---------------|
+| Schema availability | After revision URI + OpenAPI fetch | At app selection |
+| `isChatVariant` | After schema fetch | At app selection |
+| `messagesSchema` | After schema fetch | At app selection |
+| Custom apps | After revision URI + OpenAPI fetch | Same (no change) |
+
+**Key files:**
+
+| File | Purpose |
+|------|---------|
+| `state/serviceSchemaAtoms.ts` | Prefetch atoms, app type lookup, composition |
+| `state/schemaAtoms.ts` | Router atom, per-revision fallback, selectors |
+| `api/schema.ts` | `fetchServiceSchema()` — service endpoint fetch |
+| `core.ts` | `resolveServiceType()`, `APP_SERVICE_TYPES`, `SERVICE_ROUTE_PATHS` |
+
+**Usage (downstream consumers unchanged):**
+
+```typescript
+// These all work exactly the same — routing is transparent
+const schema = useAtomValue(appRevisionMolecule.atoms.agConfigSchema(revisionId))
+const isChatVariant = useAtomValue(appRevisionMolecule.atoms.isChatVariant(revisionId))
+const messagesSchema = useAtomValue(appRevisionMolecule.atoms.messagesSchema(revisionId))
 ```
 
 ### Input Ports Derivation

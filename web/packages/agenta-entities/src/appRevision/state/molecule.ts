@@ -22,7 +22,11 @@
  * ```
  */
 
-import {getValueAtPath as getValueAtPathUtil, setValueAtPath, type DataPath} from "@agenta/shared"
+import {
+    getValueAtPath as getValueAtPathUtil,
+    setValueAtPath,
+    type DataPath,
+} from "@agenta/shared/utils"
 import type {Atom} from "jotai"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -493,6 +497,43 @@ export const appRevisionMolecule = {
         // Execution mode (from runnable)
         executionMode: (revisionId: string, mode: ExecutionMode, options?: StoreOptions) =>
             runnableSet.executionMode(revisionId, mode, options),
+    },
+
+    // ========================================================================
+    // RUNNABLE CAPABILITY (RunnableCapability interface)
+    // ========================================================================
+    /**
+     * Runnable capability - provides unified access to input/output ports,
+     * configuration, and invocation URL.
+     *
+     * @example
+     * ```typescript
+     * const ports = useAtomValue(appRevision.runnable.inputPorts(id))
+     * const config = useAtomValue(appRevision.runnable.config(id))
+     * const url = useAtomValue(appRevision.runnable.invocationUrl(id))
+     * ```
+     */
+    runnable: {
+        /**
+         * Input port definitions for this runnable.
+         * Derived from the agConfig prompt template variables.
+         */
+        inputPorts: appRevisionInputPortsAtomFamily,
+        /**
+         * Output port definitions for this runnable.
+         * Derived from the OpenAPI schema response.
+         */
+        outputPorts: appRevisionOutputPortsAtomFamily,
+        /**
+         * Configuration object (agConfig) for this runnable.
+         * This is the schema that defines the runnable's parameters.
+         */
+        config: revisionAgConfigSchemaAtomFamily,
+        /**
+         * URL to invoke this runnable.
+         * Depends on execution mode (draft: /test, deployed: /run).
+         */
+        invocationUrl: runnableAtoms.invocationUrl,
     },
 }
 

@@ -52,6 +52,8 @@ export {
     buildRevisionSchemaState,
     // Schema path navigation
     getSchemaPropertyAtPath,
+    // Service schema prefetch
+    fetchServiceSchema,
     // Types
     type OpenAPISpec,
     type SchemaFetchResult,
