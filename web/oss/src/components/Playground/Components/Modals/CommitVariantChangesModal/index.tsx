@@ -1,11 +1,11 @@
 import {type ReactElement, useCallback, useEffect, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {FloppyDiskBack} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {Resizable} from "react-resizable"
 
-import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {
     revisionListAtom,

@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {
     MinusCircleOutlined,
     PlusCircleOutlined,
@@ -39,8 +40,6 @@ import {
 } from "@/oss/services/testsets/api"
 import {fetchRevisionsList, testset, type TestsetTableRow} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
-
-import {message} from "../AppMessageContext"
 
 const TestsetModal: any = dynamic(() => import("@/oss/components/pages/testset/modals"))
 const DeleteTestsetModal: any = dynamic(

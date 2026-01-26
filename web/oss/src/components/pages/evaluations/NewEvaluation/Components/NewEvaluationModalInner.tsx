@@ -1,10 +1,10 @@
 import {useCallback, memo, useEffect, useMemo, useRef, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {message} from "@/oss/components/AppMessageContext"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"

@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useState, type ChangeEvent, type Key} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {DeleteOutlined, PlusOutlined} from "@ant-design/icons"
 import {ChartDonutIcon, ListChecksIcon} from "@phosphor-icons/react"
 import {Button, Input, Space} from "antd"
@@ -7,7 +8,6 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
 
-import {message} from "@/oss/components/AppMessageContext"
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {AnnotateDrawerSteps} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/enum"
 import {useQueryParam} from "@/oss/hooks/useQuery"

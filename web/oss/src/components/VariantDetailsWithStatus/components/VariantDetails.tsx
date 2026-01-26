@@ -1,5 +1,6 @@
 // no react hooks needed here beyond Jotai
 
+import {message} from "@agenta/ui/app-message"
 import {PencilSimpleLine} from "@phosphor-icons/react"
 import {Dropdown, Space, Tag, Typography} from "antd"
 import type {MenuProps} from "antd"
@@ -13,8 +14,6 @@ import {
     clearLocalTransformedPromptsForRevisionAtomFamily,
 } from "@/oss/state/newPlayground/core/prompts"
 import {latestAppRevisionIdAtom} from "@/oss/state/variant/selectors/variant"
-
-import {message} from "../../AppMessageContext"
 
 interface VariantDetailsProps {
     variantName?: string

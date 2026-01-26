@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
 import {Code, Table} from "@phosphor-icons/react"
 import {Alert, Button, Form, Input, Popover, Typography, Upload, UploadFile} from "antd"
@@ -7,7 +8,6 @@ import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import useURL from "@/oss/hooks/useURL"
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"

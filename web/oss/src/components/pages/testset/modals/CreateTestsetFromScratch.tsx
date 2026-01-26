@@ -1,12 +1,12 @@
 import {useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Input, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import useURL from "@/oss/hooks/useURL"
 import {JSSTheme, KeyValuePair, TestsetCreationMode} from "@/oss/lib/Types"

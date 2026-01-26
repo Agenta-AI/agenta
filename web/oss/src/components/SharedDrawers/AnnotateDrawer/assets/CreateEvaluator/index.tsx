@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
 import {Alert, Button, Form, Input, Typography} from "antd"
 import {useDebounceValue} from "usehooks-ts"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
