@@ -1,10 +1,10 @@
 import {type FC, useState, useCallback, useMemo} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
 import groupBy from "lodash/groupBy"
 import dynamic from "next/dynamic"
 
-import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {
     revisionListAtom,

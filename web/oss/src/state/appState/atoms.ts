@@ -1,4 +1,4 @@
-import {setProjectIdAtom as setSharedProjectIdAtom} from "@agenta/shared"
+import {setProjectIdAtom as setSharedProjectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
 import {createInitialParsedLocation} from "./parse"

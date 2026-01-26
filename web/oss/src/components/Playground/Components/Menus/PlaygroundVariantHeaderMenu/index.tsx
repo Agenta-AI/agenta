@@ -1,11 +1,11 @@
 import {useCallback, useMemo} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {MoreOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {selectedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"

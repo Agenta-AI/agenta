@@ -1,8 +1,8 @@
+import {message} from "@agenta/ui/app-message"
 import {produce} from "immer"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {drawerVariantIdAtom} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"

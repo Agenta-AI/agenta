@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Spin, Typography} from "antd"
 import {getDefaultStore, useSetAtom} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {
     deleteVariantMutationAtom,
     variantByRevisionIdAtomFamily,

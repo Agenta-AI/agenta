@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {CaretLeft, Plus} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Typography} from "antd"
@@ -7,7 +8,6 @@ import deepEqual from "fast-deep-equal"
 import {useRouter} from "next/router"
 import {useSWRConfig} from "swr"
 
-import {message} from "@/oss/components/AppMessageContext"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
