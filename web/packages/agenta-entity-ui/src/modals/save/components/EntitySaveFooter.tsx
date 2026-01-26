@@ -6,7 +6,8 @@
 
 import {useCallback} from "react"
 
-import {message, ModalFooter} from "@agenta/ui"
+import {message} from "@agenta/ui/app-message"
+import {ModalFooter} from "@agenta/ui/components/modal"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {saveModalLoadingAtom, saveModalCanProceedAtom, executeSaveAtom} from "../state"

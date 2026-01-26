@@ -7,7 +7,7 @@
 
 import {useCallback, useEffect} from "react"
 
-import {EnhancedModal} from "@agenta/ui"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {EntityDeleteModalProps, EntityReference} from "../../types"
