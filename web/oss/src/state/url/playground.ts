@@ -123,7 +123,11 @@ export const ensurePlaygroundDefaults = (store: Store) => {
     if (!isBrowser) return
 
     const appState = store.get(appStateSnapshotAtom)
-    if (!appState.pathname?.includes("/playground")) return
+    if (
+        !appState.pathname?.includes("/playground") ||
+        appState.pathname?.includes("/playground-test")
+    )
+        return
 
     const selected = sanitizeRevisionList(store.get(selectedVariantsAtom))
     const urlSelection = sanitizeRevisionList(store.get(urlRevisionsAtom))
@@ -144,7 +148,8 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
     try {
         const store = getDefaultStore()
         const url = new URL(nextUrl ?? window.location.href, window.location.origin)
-        const isPlaygroundRoute = url.pathname.includes("/playground")
+        const isPlaygroundRoute =
+            url.pathname.includes("/playground") && !url.pathname.includes("/playground-test")
         const appState = store.get(appStateSnapshotAtom)
         const currentAppId = appState.appId ?? null
 
