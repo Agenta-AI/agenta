@@ -4,22 +4,24 @@ Data source management for entities that provide inputs to runnables.
 
 A **loadable** represents a data source (like a testset or trace) that provides input rows for execution. Loadables can operate in local mode (manual data entry) or connected mode (synced with an entity).
 
-## Quick Start (New API)
+## Quick Start
 
 ```typescript
-import { loadableBridge } from '@agenta/entities/loadable'
+import { loadableController } from '@agenta/entities/loadable'
 import { useAtomValue, useSetAtom } from 'jotai'
 
-// Read rows
-const rows = useAtomValue(loadableBridge.selectors.rows(loadableId))
+// Read rows (flat, entity-agnostic API)
+const rows = useAtomValue(loadableController.selectors.rows(loadableId))
+const columns = useAtomValue(loadableController.selectors.columns(loadableId))
+const isDirty = useAtomValue(loadableController.selectors.isDirty(loadableId))
 
 // Add a row
-const addRow = useSetAtom(loadableBridge.actions.addRow)
+const addRow = useSetAtom(loadableController.actions.addRow)
 addRow(loadableId, { prompt: 'Hello, world!' })
 
-// Connect to a testset
-const connect = useSetAtom(loadableBridge.actions.connectToSource)
-connect(loadableId, testsetRevisionId, 'MyTestset v1', 'testcase')
+// Connect to a testset (sets connectedSourceType: 'testcase')
+const connect = useSetAtom(loadableController.actions.connectToSource)
+connect(loadableId, testsetRevisionId, 'MyTestset v1', testcases)
 ```
 
 ## Architecture
@@ -55,7 +57,7 @@ The loadable system uses a **bridge pattern** with clear abstraction layers:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Key principle:** UI components should use the highest-level API available (`loadableBridge`), not reach down to molecules directly. This enables:
+**Key principle:** UI components should use the flat controller API (`loadableController.selectors.*` / `loadableController.actions.*`), not reach down to molecules or entity-specific APIs. This enables:
 
 - **Unified API** across different data sources (testsets, traces, future sources)
 - **Decoupled data layer** - UI doesn't know about entity implementation details
@@ -128,8 +130,9 @@ Connects to testset testcases via `testcaseMolecule`.
 
 ```typescript
 // When connected, rows are derived from testcaseMolecule
-const connect = useSetAtom(loadableBridge.actions.connectToSource)
-connect(loadableId, revisionId, 'TestsetName v1', 'testcase')
+// The connectToSource action sets connectedSourceType: 'testcase'
+const connect = useSetAtom(loadableController.actions.connectToSource)
+connect(loadableId, revisionId, 'TestsetName v1', testcases)
 ```
 
 ### trace (Future)
@@ -192,6 +195,7 @@ interface LoadableState {
     name: string | null  // For new testset creation
     connectedSourceId: string | null
     connectedSourceName: string | null
+    connectedSourceType: LoadableSourceType | null  // 'testcase' | 'trace' (for entity dispatch)
     linkedRunnableType: RunnableType | null
     linkedRunnableId: string | null
     executionResults: Record<string, RowExecutionResult>
@@ -204,21 +208,26 @@ interface LoadableState {
 // The loadable is a view/context layer over testcase entities.
 ```
 
-## Legacy API (Backwards Compatible)
+## Controller API
 
-The following exports are maintained for backwards compatibility:
+The `loadableController` provides a flat, entity-agnostic API that internally dispatches
+to the appropriate entity implementation based on `connectedSourceType`.
 
 ```typescript
-// Deprecated - use loadableBridge instead
-import { loadableController, testsetLoadable, useLoadable } from '@agenta/entities/loadable'
+import { loadableController } from '@agenta/entities/loadable'
 
-// Controller usage (deprecated)
-const rows = useAtomValue(loadableController.testset.selectors.rows(loadableId))
+// Flat API (entity-agnostic) - PREFERRED
+const rows = useAtomValue(loadableController.selectors.rows(loadableId))
+const isDirty = useAtomValue(loadableController.selectors.isDirty(loadableId))
 
-// Hook usage (still supported)
-const loadable = useLoadable(loadableId)
-loadable.rows
-loadable.addRow({ input: 'test' })
+// Actions
+const addRow = useSetAtom(loadableController.actions.addRow)
+addRow(loadableId, { input: 'test' })
+
+// For entity-specific features not in the flat API
+const testcaseSpecific = useAtomValue(
+    loadableController.entities.testset.selectors.newColumnKeys(loadableId)
+)
 ```
 
 ## Integration with Testcase Molecule
@@ -240,6 +249,25 @@ This allows the loadable to:
 - Track dirty state via testcaseMolecule
 - Fall back to local state when disconnected
 
+### Identity-Only Row Pattern
+
+Loadable tables follow the same identity-only row pattern as `TestcaseTable`:
+
+```typescript
+// Rows contain only identifiers - no entity data duplicated
+interface LoadableTableRow {
+    id: string
+    key: string
+    __isSkeleton?: boolean
+}
+
+// Cell data is accessed via testcase molecule
+const cellValue = testcase.get.cell(record.id, columnKey)
+```
+
+This ensures consistent data access regardless of whether data is local-only or server-synced.
+See `LoadableDataTable` for the reference implementation.
+
 ## Best Practices
 
 ### Reactive Column Derivation
@@ -259,7 +287,7 @@ useEffect(() => {
 
 // ✅ CORRECT - Columns derived automatically in atom
 // loadableColumnsFromRunnableAtomFamily reads inputPorts reactively
-const columns = useAtomValue(loadableBridge.selectors.columns(loadableId))
+const columns = useAtomValue(loadableController.selectors.columns(loadableId))
 ```
 
 The derivation flow:
@@ -278,13 +306,14 @@ State synchronization should happen **within atoms**, not in React components:
 ```typescript
 // ❌ ANTI-PATTERN - Component responsible for keeping state in sync
 function PlaygroundContent() {
-    const runnable = useRunnable(revisionId)
-    const loadable = useLoadable(loadableId)
+    const inputPorts = useAtomValue(runnableBridge.inputPorts(revisionId))
+    const setColumns = useSetAtom(loadableController.actions.setColumns)
 
     // This couples state correctness to component lifecycle!
     useEffect(() => {
-        loadable.syncColumnsFromRunnable(runnable)
-    }, [runnable.inputPorts])
+        const columns = inputPorts.map(port => ({ key: port.key, name: port.name, type: port.type }))
+        setColumns(loadableId, columns)
+    }, [inputPorts])
 
     return <Content />
 }
@@ -292,7 +321,7 @@ function PlaygroundContent() {
 // ✅ CORRECT - State derived reactively in atoms
 // Components just read the derived state
 function PlaygroundContent() {
-    const columns = useAtomValue(loadableBridge.selectors.columns(loadableId))
+    const columns = useAtomValue(loadableController.selectors.columns(loadableId))
     // columns automatically include derived columns from runnable
     return <Content columns={columns} />
 }
@@ -346,7 +375,7 @@ const handleConnect = () => {
 }
 
 // ✅ CORRECT - Single compound action
-const connectToSource = useSetAtom(loadableBridge.actions.connectToSource)
+const connectToSource = useSetAtom(loadableController.actions.connectToSource)
 connectToSource(loadableId, sourceId, sourceName, 'testcase')
 // Internally bundles all state updates atomically
 ```
@@ -422,9 +451,5 @@ loadable/
 ├── store.ts                  # Pure Jotai atoms (no entity deps)
 ├── controller.ts             # Entity-aware atoms, actions, and bridge logic
 ├── bridge.ts                 # Minimal bridge wrapper (delegates to controller)
-├── useLoadable.ts            # React hook (legacy, still supported)
-├── utils.ts                  # Path extraction and output mapping utilities
-└── state/
-    ├── index.ts              # State exports
-    └── paginatedStore.ts     # Paginated data access for InfiniteVirtualTable
+└── utils.ts                  # Path extraction and output mapping utilities
 ```
