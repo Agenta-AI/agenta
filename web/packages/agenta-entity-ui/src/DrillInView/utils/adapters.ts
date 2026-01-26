@@ -20,7 +20,7 @@
  * ```
  */
 
-import type {DataPath} from "@agenta/shared"
+import type {DataPath} from "@agenta/shared/utils"
 import type {Atom, WritableAtom} from "jotai"
 
 import type {

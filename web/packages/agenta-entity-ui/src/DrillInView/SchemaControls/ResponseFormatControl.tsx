@@ -16,7 +16,8 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
-import {EditorProvider, SharedEditor} from "@agenta/ui"
+import {EditorProvider} from "@agenta/ui/editor"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Button, Modal, Select, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom, type PrimitiveAtom} from "jotai"
