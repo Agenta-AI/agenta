@@ -18,6 +18,10 @@ export {
     type PaginatedControllerAction,
     type PaginatedState,
     type PaginatedCombinedState,
+    // List counts types
+    type TotalCountMode,
+    type ListCountsConfig,
+    type EntityListCounts,
 } from "./createPaginatedEntityStore"
 
 // Re-export table types needed for paginated stores

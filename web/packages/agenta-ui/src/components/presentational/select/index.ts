@@ -10,3 +10,9 @@ export {
     type SimpleDropdownSelectProps,
     type DropdownMenuItem,
 } from "./SimpleDropdownSelect"
+
+export {
+    PathSelectorDropdown,
+    type PathSelectorDropdownProps,
+    type PathSelectorItem,
+} from "./PathSelectorDropdown"

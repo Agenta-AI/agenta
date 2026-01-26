@@ -1,7 +1,7 @@
 // plugins/AutoFormatAndValidateOnPastePlugin.tsx
 import {useEffect} from "react"
 
-import {createLogger} from "@agenta/shared"
+import {createLogger} from "@agenta/shared/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import JSON5 from "json5"
 import {

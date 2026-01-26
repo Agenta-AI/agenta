@@ -274,11 +274,9 @@ export {
     ToolMessageHeader,
     MessageAttachments,
     AttachmentButton,
-    SimpleDropdownSelect,
     // Component Types
     type ChatMessageEditorProps,
     type ChatMessageListProps,
-    type SimpleDropdownSelectProps,
 } from "./ChatMessage"
 
 // ============================================================================
