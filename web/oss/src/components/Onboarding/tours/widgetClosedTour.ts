@@ -16,7 +16,7 @@ const widgetClosedTour: OnboardingTour = {
             icon: "🚀",
             title: "Need help getting started?",
             content: "You can always reopen the onboarding guide by clicking here in the sidebar.",
-            selector: "#sidebar-get-started-guide",
+            selector: '[data-menu-id="rc-menu-uuid-get-started-guide-link"]',
             side: "right",
             showControls: true,
             showSkip: false,
