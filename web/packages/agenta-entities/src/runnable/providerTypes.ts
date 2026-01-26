@@ -8,7 +8,7 @@
  * ## Usage
  *
  * These types are consumed by:
- * - `useRunnable.ts` for creating default providers
+ * - `runnableBridge.ts` for entity-specific features
  * - Playground package for the React context implementation
  *
  * @module runnable/providerTypes
