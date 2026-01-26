@@ -1,9 +1,5 @@
-import {getDefaultStore} from "jotai"
-
-import {openDeploymentsDrawerAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
-import {recordWidgetEventAtom, tourRegistry} from "@/oss/lib/onboarding"
+import {tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
-import {variantTableSelectionAtomFamily} from "@/oss/state/variant/atoms/selection"
 
 /**
  * Deploy Prompt Tour
@@ -11,8 +7,6 @@ import {variantTableSelectionAtomFamily} from "@/oss/state/variant/atoms/selecti
  * Guides users through deploying a prompt version and accessing the API snippet.
  */
 export const DEPLOY_PROMPT_TOUR_ID = "deploy-prompt"
-
-const SELECTION_SCOPE = "variants/dashboard"
 
 const deployPromptTour: OnboardingTour = {
     id: DEPLOY_PROMPT_TOUR_ID,

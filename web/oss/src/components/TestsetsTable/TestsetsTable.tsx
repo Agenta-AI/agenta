@@ -845,6 +845,16 @@ const TestsetsTable = ({
                 tableProps={{
                     ...table.shellProps.tableProps,
                     expandable: treeExpandable,
+                    onRow: (record, index) => {
+                        const base = table.shellProps.tableProps?.onRow?.(record, index) ?? {}
+                        return {
+                            ...base,
+                            "data-tour":
+                                index === 0
+                                    ? "testset-row"
+                                    : (base as Record<string, unknown>)["data-tour"],
+                        }
+                    },
                 }}
                 tableClassName="agenta-testsets-table"
                 className="flex-1 min-h-0"

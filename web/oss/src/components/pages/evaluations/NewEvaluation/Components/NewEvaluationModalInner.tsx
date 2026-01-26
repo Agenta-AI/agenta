@@ -21,6 +21,13 @@ import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
 import {buildEvaluationNavigationUrl} from "../../utils"
 import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
 import {newEvaluationActivePanelAtom} from "../state/panel"
+import {
+    selectedEvalConfigsAtom,
+    selectedTestsetIdAtom,
+    selectedTestsetNameAtom,
+    selectedTestsetRevisionIdAtom,
+    selectedTestsetVersionAtom,
+} from "../state/selection"
 import type {LLMRunRateLimitWithCorrectAnswer, NewEvaluationModalInnerProps} from "../types"
 
 const NewEvaluationModalContent = dynamic(() => import("./NewEvaluationModalContent"), {
@@ -106,15 +113,32 @@ const NewEvaluationModalInner = ({
             evaluationData.evaluatorConfigsSwr?.isLoading,
         ])
 
-    const [selectedTestsetId, setSelectedTestsetId] = useState("")
-    const [selectedTestsetRevisionId, setSelectedTestsetRevisionId] = useState("")
-    const [selectedTestsetName, setSelectedTestsetName] = useState("")
-    const [selectedTestsetVersion, setSelectedTestsetVersion] = useState<number | null>(null)
+    const [selectedTestsetId, setSelectedTestsetId] = useAtom(selectedTestsetIdAtom)
+    const [selectedTestsetRevisionId, setSelectedTestsetRevisionId] = useAtom(
+        selectedTestsetRevisionIdAtom,
+    )
+    const [selectedTestsetName, setSelectedTestsetName] = useAtom(selectedTestsetNameAtom)
+    const [selectedTestsetVersion, setSelectedTestsetVersion] = useAtom(selectedTestsetVersionAtom)
+    const [selectedEvalConfigs, setSelectedEvalConfigs] = useAtom(selectedEvalConfigsAtom)
+
+    // Reset testset selection on mount to match previous local state behavior
+    useEffect(() => {
+        setSelectedTestsetId("")
+        setSelectedTestsetRevisionId("")
+        setSelectedTestsetName("")
+        setSelectedTestsetVersion(null)
+        setSelectedEvalConfigs([])
+    }, [
+        setSelectedEvalConfigs,
+        setSelectedTestsetId,
+        setSelectedTestsetName,
+        setSelectedTestsetRevisionId,
+        setSelectedTestsetVersion,
+    ])
     // Initialize with pre-selected variants (e.g., from playground comparison mode)
     const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>(() =>
         preSelectedVariantIds?.length ? [...preSelectedVariantIds] : [],
     )
-    const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
     const activeTourId = useAtomValue(activeTourIdAtom)
     const currentStepState = useAtomValue(currentStepStateAtom)
     // If variants are pre-selected, start on testset panel; otherwise follow normal flow

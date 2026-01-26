@@ -123,6 +123,7 @@ export const useSidebarConfig = () => {
             isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <ChartDonut size={16} />,
             disabled: !hasProjectURL,
+            dataTour: "evaluations-nav",
         },
         {
             key: "app-traces-link",

@@ -39,6 +39,7 @@ export interface OnboardingStep extends Step {
         waitForHiddenSelector?: string
         waitTimeoutMs?: number
         waitPollInterval?: number
+        advanceOnActionClick?: boolean
     }
     /** Action to perform when user clicks Previous */
     prevAction?: {

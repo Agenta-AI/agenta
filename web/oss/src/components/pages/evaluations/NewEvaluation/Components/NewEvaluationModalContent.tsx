@@ -357,6 +357,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         onChange={(e) => {
                             setEvaluationName(e.target.value)
                         }}
+                        data-tour="evaluation-name-input"
                     />
                 </div>
 

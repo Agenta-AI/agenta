@@ -1,6 +1,10 @@
 import {getDefaultStore} from "jotai"
 
 import {newEvaluationActivePanelAtom} from "@/oss/components/pages/evaluations/NewEvaluation/state/panel"
+import {
+    selectedEvalConfigsAtom,
+    selectedTestsetIdAtom,
+} from "@/oss/components/pages/evaluations/NewEvaluation/state/selection"
 import {recordWidgetEventAtom, tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
 
@@ -60,8 +64,29 @@ const firstEvaluationTour: OnboardingTour = {
             nextAction: {
                 selector: '[data-tour="run-evaluation-button"]',
                 type: "click",
-                waitForSelector: '[data-tour="testset-select"]',
-                waitTimeoutMs: 3000,
+                waitForSelector: '[data-tour="evaluation-name-input"]',
+                waitForSelectorVisible: true,
+                waitTimeoutMs: 6000,
+            },
+            onNext: async () => {
+                await new Promise((resolve) => window.setTimeout(resolve, 400))
+            },
+            selectorRetryAttempts: 10,
+            selectorRetryDelay: 200,
+        },
+        {
+            icon: "📝",
+            title: "Name Your Evaluation",
+            content: "Give this evaluation a clear, descriptive name.",
+            selector: '[data-tour="evaluation-name-input"]',
+            side: "bottom",
+            showControls: true,
+            showSkip: true,
+            prevAction: {
+                selector: '[data-tour="new-eval-modal-close"]',
+                type: "click",
+                waitForHiddenSelector: '[data-tour="evaluation-name-input"]',
+                waitTimeoutMs: 4000,
             },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
@@ -75,11 +100,18 @@ const firstEvaluationTour: OnboardingTour = {
             showControls: true,
             showSkip: true,
             panelKey: "testsetPanel",
-            prevAction: {
-                selector: '[data-tour="new-eval-modal-close"]',
-                type: "click",
-                waitForHiddenSelector: '[data-tour="testset-select"]',
-                waitTimeoutMs: 2000,
+            onNext: async () => {
+                const store = getDefaultStore()
+                const hasSelection = Boolean(store.get(selectedTestsetIdAtom))
+
+                if (!hasSelection) {
+                    const row = document.querySelector(
+                        '[data-tour="testset-row"]',
+                    ) as HTMLElement | null
+                    row?.click()
+                }
+
+                store.set(newEvaluationActivePanelAtom, "evaluatorPanel")
             },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
@@ -99,6 +131,17 @@ const firstEvaluationTour: OnboardingTour = {
                 store.set(newEvaluationActivePanelAtom, "testsetPanel")
                 await waitForSelectorVisible('[data-tour="testset-select"]')
             },
+            onNext: async () => {
+                const store = getDefaultStore()
+                const hasSelection = store.get(selectedEvalConfigsAtom).length > 0
+
+                if (!hasSelection) {
+                    const row = document.querySelector(
+                        '[data-tour="evaluator-row"]',
+                    ) as HTMLElement | null
+                    row?.click()
+                }
+            },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
         },
@@ -110,6 +153,13 @@ const firstEvaluationTour: OnboardingTour = {
             side: "top",
             showControls: true,
             showSkip: true,
+            nextAction: {
+                selector: '[data-tour="run-eval-confirm"]',
+                type: "click",
+                waitForHiddenSelector: '[data-tour="run-eval-confirm"]',
+                waitTimeoutMs: 10000,
+                advanceOnActionClick: true,
+            },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
         },
@@ -117,13 +167,20 @@ const firstEvaluationTour: OnboardingTour = {
             icon: "📊",
             title: "View Your Results",
             content:
-                "Here are your results. You can see how each test case performed and the overall score.",
-            selector: '[data-tour="eval-results"]',
-            side: "top",
+                "Your evaluation is running. Open the Evaluations page from the sidebar to see progress and results.",
+            selector: '[data-tour="evaluations-nav"]',
+            side: "right",
             showControls: true,
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            prevAction: {
+                selector: '[data-tour="run-evaluation-button"]',
+                type: "click",
+                waitForSelector: '[data-tour="run-eval-confirm"]',
+                waitForSelectorVisible: true,
+                waitTimeoutMs: 6000,
+            },
             onNext: () => {
                 const store = getDefaultStore()
                 store.set(recordWidgetEventAtom, "evaluation_ran")

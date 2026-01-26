@@ -61,6 +61,7 @@ const OnboardingCard = ({
     const clampRafRef = useRef<number | null>(null)
     const clampTimeoutsRef = useRef<number[]>([])
     const lastScrollStepRef = useRef<number | null>(null)
+    const autoAdvanceTriggeredRef = useRef(false)
     const viewPadding = 12
 
     // Drag Handler: Mouse Down
@@ -220,6 +221,7 @@ const OnboardingCard = ({
 
         setCurrentStepState({step, currentStep, totalSteps})
         step.onEnter?.()
+        autoAdvanceTriggeredRef.current = false
 
         return () => {
             step.onExit?.()
@@ -315,8 +317,11 @@ const OnboardingCard = ({
                       selector: string
                       type?: "click"
                       waitForSelector?: string
+                      waitForSelectorVisible?: boolean
+                      waitForHiddenSelector?: string
                       waitTimeoutMs?: number
                       waitPollInterval?: number
+                      advanceOnActionClick?: boolean
                   }
                 | undefined,
         ) => {
@@ -376,6 +381,21 @@ const OnboardingCard = ({
         [],
     )
 
+    const advanceStep = useCallback(async () => {
+        try {
+            await step?.onNext?.()
+        } catch (error) {
+            console.error("[Onboarding] onNext handler error:", error)
+        }
+
+        if (currentStep >= totalSteps - 1) {
+            step.onCleanup?.()
+            skipTour?.()
+        } else {
+            nextStep()
+        }
+    }, [step, currentStep, totalSteps, nextStep, skipTour])
+
     const handlePrev = useCallback(async () => {
         try {
             await step?.onPrev?.()
@@ -396,20 +416,62 @@ const OnboardingCard = ({
         if (!actionReady) {
             return
         }
+        await advanceStep()
+    }, [performStepAction, step?.nextAction, advanceStep])
+
+    useEffect(() => {
+        if (!step?.nextAction?.advanceOnActionClick) return
+
+        let target: HTMLElement | null = null
         try {
-            await step?.onNext?.()
+            target = document.querySelector(step.nextAction.selector) as HTMLElement | null
         } catch (error) {
-            console.error("[Onboarding] onNext handler error:", error)
+            console.warn(
+                "[Onboarding] Invalid step action selector:",
+                step.nextAction.selector,
+                error,
+            )
+            return
         }
 
-        if (currentStep >= totalSteps - 1) {
-            // Last step - complete
-            step.onCleanup?.()
-            skipTour?.()
-        } else {
-            nextStep()
+        if (!target) return
+
+        const handleActionClick = async (event: Event) => {
+            if (!(event instanceof MouseEvent) || !event.isTrusted) return
+            if (autoAdvanceTriggeredRef.current) return
+            autoAdvanceTriggeredRef.current = true
+
+            const {waitForSelector, waitForSelectorVisible, waitForHiddenSelector, waitTimeoutMs, waitPollInterval} =
+                step.nextAction ?? {}
+
+            if (waitForSelector) {
+                const ready = await waitForSelectorReady(
+                    waitForSelector,
+                    waitForSelectorVisible ?? true,
+                    waitTimeoutMs ?? 2000,
+                    waitPollInterval ?? 100,
+                )
+                if (!ready) return
+            }
+
+            if (waitForHiddenSelector) {
+                const ready = await waitForSelectorHidden(
+                    waitForHiddenSelector,
+                    waitTimeoutMs ?? 2000,
+                    waitPollInterval ?? 100,
+                )
+                if (!ready) return
+            }
+
+            await advanceStep()
         }
-    }, [step, currentStep, totalSteps, nextStep, skipTour, performStepAction])
+
+        target.addEventListener("click", handleActionClick)
+
+        return () => {
+            target?.removeEventListener("click", handleActionClick)
+        }
+    }, [advanceStep, step, waitForSelectorReady, waitForSelectorHidden])
 
     // UI Helpers
     const labels = step?.controlLabels ?? {}

@@ -6,7 +6,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
-import {isNewUserAtom, onboardingWidgetStatusAtom} from "@/oss/lib/onboarding"
+import {onboardingWidgetStatusAtom} from "@/oss/lib/onboarding"
 
 import WelcomeCard from "./assets/components/WelcomeCard"
 import {welcomeCardsDismissedAtom} from "./assets/store/welcomeCards"
