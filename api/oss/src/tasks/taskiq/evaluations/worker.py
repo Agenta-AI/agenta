@@ -6,9 +6,9 @@ from taskiq import AsyncBroker
 
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import TestsetsService
-from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 
 from oss.src.core.queries.service import QueriesService
+from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluations.service import EvaluationsService
 
@@ -37,7 +37,7 @@ class EvaluationsWorker:
         broker: AsyncBroker,
         #
         tracing_router: TracingRouter,
-        simple_evaluators_router: SimpleEvaluatorsRouter,
+        simple_evaluators_service: SimpleEvaluatorsService,
         #
         testsets_service: TestsetsService,
         queries_service: QueriesService,
@@ -54,7 +54,7 @@ class EvaluationsWorker:
         #
         self.tracing_router = tracing_router
         self.testsets_service = testsets_service
-        self.simple_evaluators_router = simple_evaluators_router
+        self.simple_evaluators_service = simple_evaluators_service
         #
         self.queries_service = queries_service
         self.workflows_service = workflows_service
@@ -105,7 +105,7 @@ class EvaluationsWorker:
                 #
                 tracing_router=self.tracing_router,
                 testsets_service=self.testsets_service,
-                simple_evaluators_router=self.simple_evaluators_router,
+                simple_evaluators_service=self.simple_evaluators_service,
                 #
                 queries_service=self.queries_service,
                 workflows_service=self.workflows_service,

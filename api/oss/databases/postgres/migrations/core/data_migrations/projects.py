@@ -10,7 +10,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from oss.src.utils.env import env
-from oss.src.services import db_manager, evaluator_manager
+from oss.src.services import db_manager
+from oss.src.routers.evaluators_router import BUILTIN_EVALUATORS
 from oss.src.models.deprecated_models import (
     ProjectScopedAppDB as AppDB,
     DeprecatedProjectDB as ProjectDB,
@@ -117,9 +118,7 @@ def add_completion_testset_to_project(session: Session, project_id: str):
 def add_default_evaluators_to_project(session: Session, project_id: str):
     try:
         direct_use_evaluators = [
-            evaluator
-            for evaluator in evaluator_manager.get_evaluators()
-            if evaluator.direct_use
+            evaluator for evaluator in BUILTIN_EVALUATORS if evaluator.direct_use
         ]
 
         for evaluator in direct_use_evaluators:

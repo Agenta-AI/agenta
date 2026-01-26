@@ -68,7 +68,6 @@ from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsS
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
-from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
@@ -159,10 +158,6 @@ tracing_router = TracingRouter(
 
 simple_testsets_router = SimpleTestsetsRouter(
     simple_testsets_service=simple_testsets_service,
-)
-
-simple_evaluators_router = SimpleEvaluatorsRouter(
-    simple_evaluators_service=simple_evaluators_service,
 )
 
 router = APIRouter()
@@ -610,7 +605,7 @@ async def start_evaluation(
                 queries_service=queries_service,
                 workflows_service=workflows_service,
                 testsets_service=testsets_service,
-                simple_evaluators_router=simple_evaluators_router,
+                simple_evaluators_service=simple_evaluators_service,
                 tracing_router=tracing_router,
             )
 
