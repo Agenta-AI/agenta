@@ -2,63 +2,67 @@
 
 ## Overview
 
-This plan outlines an incremental migration approach that minimizes risk and allows for gradual rollout. The key principle is **transform at boundaries** - keep internal data shapes stable and only change API interactions.
+Full migration of the Evaluator Playground to the new workflow-based evaluator APIs. This plan follows **Plan B (Direct Migration)** - no adapters, internal shapes change to match the new `SimpleEvaluator` model.
 
 ## Migration Strategy
 
-Two viable strategies exist:
+**Two PRs, no adapters:**
 
-- Plan A (transitional): adapter pattern, keep internal legacy `EvaluatorConfig` shape
-- Plan B (preferred destination): direct migration, internal shapes become `SimpleEvaluator` + native invoke
+1. **PR 1:** Migrate CRUD to `SimpleEvaluator` endpoints (internal shapes change)
+2. **PR 2:** Migrate run to native workflow invoke (`/preview/workflows/invoke`)
 
-This file documents Plan A as the low-risk execution plan. For the direct plan, see `docs/design/migrate-evaluator-playground/migration-options.md`.
-
-## Plan A: Adapter Pattern
-
-Instead of changing data shapes throughout the codebase, we'll:
-1. Create adapter functions at the API boundary
-2. New endpoints return `SimpleEvaluator`, adapters convert to internal `EvaluatorConfig` shape
-3. Internal components continue working unchanged
-4. Gradually update internals later (optional)
+This keeps changes reviewable while avoiding tech debt from adapter layers.
 
 ```
-┌──────────────┐     ┌──────────────┐     ┌──────────────────┐
-│  New API     │ ──► │   Adapter    │ ──► │  Internal Shape  │
-│  Endpoints   │     │   Layer      │     │  (unchanged)     │
-└──────────────┘     └──────────────┘     └──────────────────┘
+PR 1: CRUD Migration
+┌─────────────────────────────────────────────────────────────────┐
+│  EvaluatorConfig → SimpleEvaluator                              │
+│  /evaluators/configs/* → /preview/simple/evaluators/*           │
+│  settings_values → data.parameters                              │
+│  evaluator_key → data.uri                                       │
+└─────────────────────────────────────────────────────────────────┘
+
+PR 2: Run Migration  
+┌─────────────────────────────────────────────────────────────────┐
+│  /evaluators/{key}/run → /preview/workflows/invoke              │
+│  EvaluatorInputInterface → WorkflowServiceRequest               │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Phase 1: Foundation (Low Risk)
+## PR 1: CRUD Migration
 
-**Goal:** Create adapter layer and new service functions without changing existing code
+**Goal:** Replace legacy evaluator config endpoints with new SimpleEvaluator endpoints. Change internal data model from `EvaluatorConfig` to `SimpleEvaluator`.
 
-### Tasks
+### Phase 1.1: Type Definitions
 
-#### 1.1 Create Type Definitions
-
-**File:** `web/oss/src/lib/Types.ts` or new file `web/oss/src/services/evaluators/types.ts`
+**File:** `web/oss/src/lib/Types.ts` (add to existing types)
 
 ```typescript
-// New API types
-interface SimpleEvaluatorData {
+// ============ SimpleEvaluator Types ============
+
+export interface SimpleEvaluatorData {
     version?: string
-    uri?: string
-    url?: string
+    uri?: string                              // e.g., "agenta:builtin:auto_exact_match:v0"
+    url?: string                              // for webhook evaluators
     headers?: Record<string, string>
-    schemas?: { outputs?: Record<string, any> }
+    schemas?: { 
+        outputs?: Record<string, any>
+        inputs?: Record<string, any>
+        parameters?: Record<string, any>
+    }
     script?: { content: string; runtime: string }
-    parameters?: Record<string, any>
+    parameters?: Record<string, any>          // replaces settings_values
 }
 
-interface SimpleEvaluatorFlags {
+export interface SimpleEvaluatorFlags {
     is_custom?: boolean
     is_evaluator?: boolean
     is_human?: boolean
 }
 
-interface SimpleEvaluator {
+export interface SimpleEvaluator {
     id: string
     slug: string
     name?: string
@@ -71,32 +75,54 @@ interface SimpleEvaluator {
     updated_at: string
 }
 
-interface SimpleEvaluatorResponse {
+export interface SimpleEvaluatorCreate {
+    slug: string
+    name?: string
+    description?: string
+    tags?: string[]
+    flags?: SimpleEvaluatorFlags
+    data?: SimpleEvaluatorData
+}
+
+export interface SimpleEvaluatorEdit {
+    id: string
+    name?: string
+    description?: string
+    tags?: string[]
+    data?: SimpleEvaluatorData
+}
+
+export interface SimpleEvaluatorResponse {
     count: number
     evaluator: SimpleEvaluator | null
 }
 
-interface SimpleEvaluatorsResponse {
+export interface SimpleEvaluatorsResponse {
     count: number
     evaluators: SimpleEvaluator[]
 }
 ```
 
-#### 1.2 Create Adapter Functions
+**Deliverables:**
+- [ ] Add `SimpleEvaluator*` types to Types.ts
+- [ ] Keep `EvaluatorConfig` temporarily for areas not yet migrated
 
-**File:** `web/oss/src/services/evaluators/adapters.ts`
+---
+
+### Phase 1.2: Service Layer Changes
+
+**File:** `web/oss/src/services/evaluators/index.ts`
+
+Replace legacy functions with new implementations:
 
 ```typescript
-import { EvaluatorConfig } from "@/oss/lib/Types"
-import { SimpleEvaluator, SimpleEvaluatorData } from "./types"
-import { getTagColors } from "@/oss/lib/helpers/colors"
-import { stringToNumberInRange } from "@/oss/lib/helpers/utils"
+// ============ Helper Functions ============
 
 /**
  * Extract evaluator_key from URI
  * URI format: "agenta:builtin:{key}:v0"
  */
-export function extractEvaluatorKey(uri: string | undefined): string {
+export function extractEvaluatorKeyFromUri(uri: string | undefined): string {
     if (!uri) return ""
     const parts = uri.split(":")
     if (parts.length >= 3 && parts[0] === "agenta" && parts[1] === "builtin") {
@@ -113,68 +139,22 @@ export function buildEvaluatorUri(evaluatorKey: string): string {
 }
 
 /**
- * Convert SimpleEvaluator to internal EvaluatorConfig shape
- */
-export function simpleEvaluatorToConfig(
-    simple: SimpleEvaluator,
-    projectId?: string
-): EvaluatorConfig {
-    const tagColors = getTagColors()
-    const evaluatorKey = extractEvaluatorKey(simple.data?.uri)
-    
-    return {
-        id: simple.id,
-        name: simple.name || "",
-        evaluator_key: evaluatorKey,
-        settings_values: simple.data?.parameters || {},
-        created_at: simple.created_at,
-        updated_at: simple.updated_at,
-        // Frontend additions
-        color: tagColors[stringToNumberInRange(evaluatorKey, 0, tagColors.length - 1)],
-        tags: simple.tags,
-    }
-}
-
-/**
- * Convert internal EvaluatorConfig to SimpleEvaluator create payload
- */
-export function configToSimpleEvaluatorCreate(
-    config: Omit<EvaluatorConfig, "id" | "created_at">,
-    outputsSchema?: Record<string, any>
-): SimpleEvaluatorCreate {
-    return {
-        slug: generateSlug(config.name),
-        name: config.name,
-        flags: { is_evaluator: true },
-        data: {
-            uri: buildEvaluatorUri(config.evaluator_key),
-            parameters: config.settings_values,
-            schemas: outputsSchema ? { outputs: outputsSchema } : undefined,
-        },
-    }
-}
-
-/**
  * Generate slug from name
  */
-function generateSlug(name: string): string {
+export function generateSlug(name: string): string {
     return name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "")
+        .substring(0, 50)  // limit length
 }
-```
 
-#### 1.3 Create New Service Functions
+// ============ CRUD Functions ============
 
-**File:** `web/oss/src/services/evaluators/index.ts` (add to existing)
-
-```typescript
-// === NEW ENDPOINT FUNCTIONS ===
-
-export const fetchAllEvaluatorConfigsV2 = async (
+export const fetchAllEvaluatorConfigs = async (
+    _appId?: string | null,  // kept for backward compat, ignored
     projectIdOverride?: string | null,
-): Promise<EvaluatorConfig[]> => {
+): Promise<SimpleEvaluator[]> => {
     const {projectId: projectIdFromStore} = getProjectValues()
     const projectId = projectIdOverride ?? projectIdFromStore
 
@@ -182,269 +162,561 @@ export const fetchAllEvaluatorConfigsV2 = async (
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/simple/evaluators/query?project_id=${projectId}`,
-        { flags: { is_evaluator: true } }
+        { evaluator: { flags: { is_evaluator: true } } }
     )
     
-    const evaluators = response.data?.evaluators || []
-    return evaluators.map((e: SimpleEvaluator) => simpleEvaluatorToConfig(e, projectId))
+    return response.data?.evaluators || []
 }
 
-export const createEvaluatorConfigV2 = async (
-    config: CreateEvaluationConfigData,
-): Promise<EvaluatorConfig> => {
+export const createEvaluatorConfig = async (
+    evaluatorKey: string,
+    name: string,
+    settingsValues: Record<string, any>,
+): Promise<SimpleEvaluator> => {
     const {projectId} = getProjectValues()
     
-    const payload = configToSimpleEvaluatorCreate(config)
+    const payload: SimpleEvaluatorCreate = {
+        slug: generateSlug(name),
+        name,
+        flags: { is_evaluator: true },
+        data: {
+            uri: buildEvaluatorUri(evaluatorKey),
+            parameters: settingsValues,
+        },
+    }
     
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/simple/evaluators/?project_id=${projectId}`,
-        payload,
+        { evaluator: payload },
     )
     
-    const simple = response.data?.evaluator
-    if (!simple) throw new Error("Failed to create evaluator")
+    const result = response.data?.evaluator
+    if (!result) throw new Error("Failed to create evaluator")
     
-    return simpleEvaluatorToConfig(simple, projectId)
+    return result
 }
 
-export const updateEvaluatorConfigV2 = async (
-    configId: string,
-    config: Partial<CreateEvaluationConfigData>,
-): Promise<EvaluatorConfig> => {
+export const updateEvaluatorConfig = async (
+    evaluatorId: string,
+    updates: { name?: string; settingsValues?: Record<string, any> },
+): Promise<SimpleEvaluator> => {
     const {projectId} = getProjectValues()
 
     const payload: SimpleEvaluatorEdit = {
-        id: configId,
-        name: config.name,
-        data: config.settings_values 
-            ? { parameters: config.settings_values }
+        id: evaluatorId,
+        name: updates.name,
+        data: updates.settingsValues 
+            ? { parameters: updates.settingsValues }
             : undefined,
     }
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/${configId}?project_id=${projectId}`,
-        payload,
+        `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
+        { evaluator: payload },
     )
     
-    const simple = response.data?.evaluator
-    if (!simple) throw new Error("Failed to update evaluator")
+    const result = response.data?.evaluator
+    if (!result) throw new Error("Failed to update evaluator")
     
-    return simpleEvaluatorToConfig(simple, projectId)
+    return result
 }
 
-export const deleteEvaluatorConfigV2 = async (configId: string): Promise<boolean> => {
+export const deleteEvaluatorConfig = async (evaluatorId: string): Promise<boolean> => {
     const {projectId} = getProjectValues()
 
     await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/${configId}/archive?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}/archive?project_id=${projectId}`,
     )
     
     return true
 }
+
+export const fetchEvaluatorById = async (evaluatorId: string): Promise<SimpleEvaluator | null> => {
+    const {projectId} = getProjectValues()
+
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
+    )
+    
+    return response.data?.evaluator || null
+}
 ```
 
 **Deliverables:**
-- [ ] Type definitions for new API shapes
-- [ ] Adapter functions (both directions)
-- [ ] New service functions with V2 suffix
-- [ ] Unit tests for adapters
-
-**Estimated Effort:** 1-2 days
+- [ ] Replace `fetchAllEvaluatorConfigs` implementation
+- [ ] Replace `createEvaluatorConfig` implementation
+- [ ] Replace `updateEvaluatorConfig` implementation
+- [ ] Replace `deleteEvaluatorConfig` implementation
+- [ ] Add helper functions for URI handling
+- [ ] Remove legacy endpoint calls
 
 ---
 
-## Phase 2: Feature Flag Integration (Low Risk)
+### Phase 1.3: State/Atoms Changes
 
-**Goal:** Add feature flag to toggle between old and new endpoints
+**File:** `web/oss/src/state/evaluators/atoms.ts`
 
-### Tasks
-
-#### 2.1 Add Feature Flag
-
-**File:** `web/oss/src/lib/helpers/featureFlags.ts` or environment config
+Update query atoms to return `SimpleEvaluator[]`:
 
 ```typescript
-export const USE_NEW_EVALUATOR_ENDPOINTS = 
-    process.env.NEXT_PUBLIC_USE_NEW_EVALUATOR_ENDPOINTS === "true"
+export const evaluatorConfigsQueryAtomFamily = atomFamily((projectId: string | null) =>
+    atomWithQuery(() => ({
+        queryKey: ["evaluator-configs", projectId],
+        queryFn: () => fetchAllEvaluatorConfigs(null, projectId),
+        enabled: !!projectId,
+    }))
+)
+
+// Derived atom for non-archived evaluators
+export const nonArchivedEvaluatorsAtom = atom((get) => {
+    const projectId = get(projectIdAtom)
+    if (!projectId) return []
+    
+    const query = get(evaluatorConfigsQueryAtomFamily(projectId))
+    const evaluators = query.data ?? []
+    
+    // Filter out archived (deleted_at is set)
+    return evaluators.filter((e) => !e.deleted_at)
+})
 ```
 
-#### 2.2 Create Unified Service Functions
+**File:** `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms.ts`
 
-**File:** `web/oss/src/services/evaluators/index.ts`
+Update playground atoms to use `SimpleEvaluator`:
 
 ```typescript
-// Unified functions that use feature flag
-export const fetchAllEvaluatorConfigs = async (...args) => {
-    if (USE_NEW_EVALUATOR_ENDPOINTS) {
-        return fetchAllEvaluatorConfigsV2(...args)
-    }
-    return fetchAllEvaluatorConfigsLegacy(...args)
+// Session now stores SimpleEvaluator instead of EvaluatorConfig
+export interface PlaygroundSession {
+    evaluator: Evaluator              // template (unchanged)
+    simpleEvaluator?: SimpleEvaluator // existing config being edited
+    mode: "create" | "edit" | "clone"
 }
 
-export const createEvaluatorConfig = async (...args) => {
-    if (USE_NEW_EVALUATOR_ENDPOINTS) {
-        return createEvaluatorConfigV2(...args)
-    }
-    return createEvaluatorConfigLegacy(...args)
-}
+export const playgroundSessionAtom = atom<PlaygroundSession | null>(null)
 
-// ... same for update and delete
+// Edit values now use SimpleEvaluator shape
+export const playgroundEditValuesAtom = atom<Partial<SimpleEvaluator> | null>(null)
+
+// Derived: get evaluator_key from URI
+export const playgroundEvaluatorKeyAtom = atom((get) => {
+    const session = get(playgroundSessionAtom)
+    if (!session) return null
+    
+    // From template
+    if (session.evaluator?.key) return session.evaluator.key
+    
+    // From existing SimpleEvaluator
+    if (session.simpleEvaluator?.data?.uri) {
+        return extractEvaluatorKeyFromUri(session.simpleEvaluator.data.uri)
+    }
+    
+    return null
+})
 ```
 
 **Deliverables:**
-- [ ] Feature flag configuration
-- [ ] Unified service functions with flag branching
-- [ ] Documentation for enabling flag
-
-**Estimated Effort:** 0.5 days
+- [ ] Update `evaluatorConfigsQueryAtomFamily` return type
+- [ ] Update playground session atoms
+- [ ] Update `playgroundEditValuesAtom` shape
+- [ ] Add derived atoms for backward-compatible access (e.g., `evaluator_key`)
 
 ---
 
-## Phase 3: Integration Testing (Medium Risk)
+### Phase 1.4: Component Changes
 
-**Goal:** Verify new endpoints work correctly with existing UI
+#### ConfigureEvaluator/index.tsx
 
-### Tasks
+Key changes:
+- Form fields read/write to `data.parameters` instead of `settings_values`
+- On commit, build `SimpleEvaluatorCreate` or `SimpleEvaluatorEdit`
+- Load existing config as `SimpleEvaluator`
 
-#### 3.1 Enable Feature Flag in Development
+```typescript
+// Before
+form.setFieldsValue({
+    name: editEvalEditValues.name,
+    settings_values: editEvalEditValues.settings_values,
+})
 
-- Set `NEXT_PUBLIC_USE_NEW_EVALUATOR_ENDPOINTS=true` in dev environment
-- Test all evaluator playground flows
+// After
+form.setFieldsValue({
+    name: simpleEvaluator.name,
+    parameters: simpleEvaluator.data?.parameters,
+})
+```
 
-#### 3.2 Test Cases
+#### useEvaluatorsRegistryData.ts
+
+Update to work with `SimpleEvaluator[]`:
+
+```typescript
+// Derive evaluator_key for display
+const enrichedEvaluators = evaluators.map((e) => ({
+    ...e,
+    evaluator_key: extractEvaluatorKeyFromUri(e.data?.uri),
+    settings_values: e.data?.parameters,  // for backward compat in UI
+}))
+```
+
+#### getColumns.tsx
+
+Update column accessors:
+
+```typescript
+// Before
+dataIndex: "evaluator_key"
+
+// After  
+dataIndex: ["data", "uri"],
+render: (uri) => extractEvaluatorKeyFromUri(uri)
+```
+
+**Deliverables:**
+- [ ] Update ConfigureEvaluator form bindings
+- [ ] Update commit logic to use new service functions
+- [ ] Update useEvaluatorsRegistryData hook
+- [ ] Update table columns in getColumns.tsx
+- [ ] Update any other components that read evaluator configs
+
+---
+
+### Phase 1.5: Testing
+
+**Test Cases:**
 
 1. **List Evaluators**
    - [ ] Registry shows all existing evaluator configs
-   - [ ] Correct names, types, and icons displayed
+   - [ ] Correct names, types, icons displayed
    - [ ] Filtering and search work
+   - [ ] Archived evaluators hidden
 
 2. **Create Evaluator**
-   - [ ] Select template → Configure → Commit
-   - [ ] Settings saved correctly
-   - [ ] Redirects to edit page after create
+   - [ ] Select template → Configure → Commit works
+   - [ ] Settings (parameters) saved correctly
+   - [ ] URI generated correctly from evaluator_key
+   - [ ] Slug generated from name
 
 3. **Edit Evaluator**
-   - [ ] Load existing config
-   - [ ] Form populated with current values
-   - [ ] Update settings
+   - [ ] Load existing config into form
+   - [ ] Form populated with current values from `data.parameters`
+   - [ ] Update name and settings
    - [ ] Changes persisted
 
 4. **Delete Evaluator**
-   - [ ] Delete confirmation works
+   - [ ] Archive endpoint called
    - [ ] Evaluator removed from list
    - [ ] No errors
 
-5. **Test Evaluator**
-   - [ ] Load testcase
-   - [ ] Run variant
-   - [ ] Run evaluator
+5. **Run Evaluator (legacy endpoint - still works)**
+   - [ ] Run evaluator button works
+   - [ ] Uses evaluator_key derived from URI
    - [ ] Results displayed correctly
 
 **Deliverables:**
-- [ ] Test results document
-- [ ] Bug fixes for any issues found
-- [ ] Performance comparison (if applicable)
-
-**Estimated Effort:** 2-3 days
+- [ ] Manual test all flows
+- [ ] Fix any bugs found
+- [ ] Document any edge cases
 
 ---
 
-## Phase 4: Gradual Rollout (Low Risk)
+### PR 1 Summary
 
-**Goal:** Enable new endpoints for subset of users
+| Task | Files | Effort |
+|------|-------|--------|
+| Type definitions | `Types.ts` | 0.5 day |
+| Service layer | `services/evaluators/index.ts` | 1 day |
+| State/atoms | `state/evaluators/atoms.ts`, playground atoms | 1 day |
+| Components | ConfigureEvaluator, Registry, columns | 1-2 days |
+| Testing | Manual testing | 1 day |
 
-### Tasks
-
-#### 4.1 Staged Rollout
-
-1. **Internal testing:** Enable for team members only
-2. **Beta users:** Enable for opt-in users
-3. **General availability:** Enable for all users
-
-#### 4.2 Monitoring
-
-- Monitor error rates for evaluator operations
-- Track API response times
-- Watch for unexpected 404/500 errors
-
-**Deliverables:**
-- [ ] Rollout schedule
-- [ ] Rollback procedure documented
-- [ ] Monitoring dashboards/alerts
-
-**Estimated Effort:** 1-2 weeks (elapsed time)
+**Total PR 1 Effort:** 4-5 days
 
 ---
 
-## Phase 5: Cleanup (Low Risk)
+## PR 2: Run Migration
 
-**Goal:** Remove legacy code and feature flag
+**Goal:** Replace legacy `/evaluators/{key}/run` with native workflow invoke `/preview/workflows/invoke`.
 
-### Tasks
+**Prerequisite:** PR 1 merged and stable.
 
-#### 5.1 Remove Legacy Functions
+### Phase 2.1: WorkflowService Types
 
-- Remove `fetchAllEvaluatorConfigsLegacy`
-- Remove `createEvaluatorConfigLegacy`
-- Remove `updateEvaluatorConfigLegacy`
-- Remove `deleteEvaluatorConfigLegacy`
+**File:** `web/oss/src/lib/Types.ts` (add)
 
-#### 5.2 Remove Feature Flag
+```typescript
+// ============ Workflow Service Types ============
 
-- Remove feature flag checks
-- Clean up V2 suffix from function names
+export interface WorkflowServiceRequestData {
+    revision?: Record<string, any>
+    parameters?: Record<string, any>    // evaluator settings
+    testcase?: Record<string, any>
+    inputs?: Record<string, any>        // merged testcase data
+    trace?: Record<string, any>
+    outputs?: any                        // prediction/output
+}
 
-#### 5.3 Update Documentation
+export interface WorkflowServiceInterface {
+    version?: string
+    uri?: string                         // e.g., "agenta:builtin:auto_exact_match:v0"
+    url?: string
+    headers?: Record<string, string>
+    schemas?: Record<string, any>
+}
 
-- Update API documentation
-- Update developer docs
+export interface WorkflowServiceConfiguration {
+    script?: Record<string, any>
+    parameters?: Record<string, any>
+}
+
+export interface WorkflowServiceRequest {
+    version?: string
+    flags?: Record<string, any>
+    interface?: WorkflowServiceInterface
+    configuration?: WorkflowServiceConfiguration
+    data?: WorkflowServiceRequestData
+    references?: Record<string, any>
+    links?: Record<string, any>
+}
+
+export interface WorkflowServiceStatus {
+    code?: number
+    message?: string
+    type?: string
+    stacktrace?: string | string[]
+}
+
+export interface WorkflowServiceResponseData {
+    outputs?: any
+}
+
+export interface WorkflowServiceBatchResponse {
+    version?: string
+    trace_id?: string
+    span_id?: string
+    status?: WorkflowServiceStatus
+    data?: WorkflowServiceResponseData
+}
+```
+
+---
+
+### Phase 2.2: Workflow Invoke Service
+
+**File:** `web/oss/src/services/workflows/invoke.ts` (new file)
+
+```typescript
+import axios from "@/oss/lib/api/assets/axiosConfig"
+import { getAgentaApiUrl } from "@/oss/lib/helpers/utils"
+import { getProjectValues } from "@/oss/contexts/project.context"
+import {
+    WorkflowServiceRequest,
+    WorkflowServiceBatchResponse,
+    SimpleEvaluator,
+} from "@/oss/lib/Types"
+
+export interface InvokeEvaluatorParams {
+    evaluator: SimpleEvaluator
+    inputs: Record<string, any>        // testcase data + any extra inputs
+    outputs: any                        // prediction/output from variant
+    parameters?: Record<string, any>   // override settings (optional)
+}
+
+/**
+ * Invoke an evaluator using native workflow service
+ */
+export const invokeEvaluator = async (
+    params: InvokeEvaluatorParams
+): Promise<WorkflowServiceBatchResponse> => {
+    const { projectId } = getProjectValues()
+    const { evaluator, inputs, outputs, parameters } = params
+
+    const uri = evaluator.data?.uri
+    if (!uri) {
+        throw new Error("Evaluator has no URI configured")
+    }
+
+    const request: WorkflowServiceRequest = {
+        version: "2025.07.14",
+        interface: {
+            uri,
+        },
+        configuration: {
+            parameters: parameters ?? evaluator.data?.parameters,
+        },
+        data: {
+            inputs,
+            outputs,
+            parameters: parameters ?? evaluator.data?.parameters,
+        },
+    }
+
+    const response = await axios.post<WorkflowServiceBatchResponse>(
+        `${getAgentaApiUrl()}/preview/workflows/invoke?project_id=${projectId}`,
+        request,
+    )
+
+    return response.data
+}
+
+/**
+ * Map workflow response to evaluator output format
+ */
+export function mapWorkflowResponseToEvaluatorOutput(
+    response: WorkflowServiceBatchResponse
+): { outputs: Record<string, any> } {
+    if (response.status?.code && response.status.code >= 400) {
+        throw new Error(response.status.message || "Evaluator execution failed")
+    }
+
+    return {
+        outputs: response.data?.outputs ?? {},
+    }
+}
+```
+
+---
+
+### Phase 2.3: Update DebugSection
+
+**File:** `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection.tsx`
+
+Replace `createEvaluatorRunExecution` with `invokeEvaluator`:
+
+```typescript
+// Before
+const runResponse = await createEvaluatorRunExecution(
+    selectedEvaluator.key,
+    {
+        inputs: outputs,
+        settings: formValues.settings_values,
+    }
+)
+
+// After
+import { invokeEvaluator, mapWorkflowResponseToEvaluatorOutput } from "@/oss/services/workflows/invoke"
+
+const workflowResponse = await invokeEvaluator({
+    evaluator: simpleEvaluator,  // from playground state
+    inputs: {
+        ...testcaseData,
+        prediction: variantOutput,
+    },
+    outputs: variantOutput,
+    parameters: formValues.parameters,  // current form settings
+})
+
+const runResponse = mapWorkflowResponseToEvaluatorOutput(workflowResponse)
+```
+
+**Error Handling:**
+
+```typescript
+try {
+    const workflowResponse = await invokeEvaluator(...)
+    
+    // Check for workflow-level errors
+    if (workflowResponse.status?.code && workflowResponse.status.code >= 400) {
+        message.error(workflowResponse.status.message || "Evaluator failed")
+        return
+    }
+    
+    const result = mapWorkflowResponseToEvaluatorOutput(workflowResponse)
+    setEvaluatorResult(result.outputs)
+    
+} catch (error) {
+    message.error(getErrorMessage(error))
+}
+```
+
+---
+
+### Phase 2.4: Update Evaluations Service (if needed)
+
+If other parts of the app use `createEvaluatorRunExecution`, update them too:
+
+**File:** `web/oss/src/services/evaluations/api_ee/index.ts`
+
+- Keep `createEvaluatorRunExecution` for now (batch evaluations may still use it via backend)
+- Or deprecate and point to new invoke
+
+---
+
+### Phase 2.5: Testing
+
+**Test Cases:**
+
+1. **Run Evaluator in Playground**
+   - [ ] Click "Run Evaluator" with testcase loaded
+   - [ ] Native invoke endpoint called
+   - [ ] Results displayed correctly
+   - [ ] Errors handled gracefully
+
+2. **Different Evaluator Types**
+   - [ ] Test exact_match evaluator
+   - [ ] Test regex evaluator
+   - [ ] Test AI critique evaluator (LLM-based)
+   - [ ] Test custom code evaluator
+
+3. **Error Scenarios**
+   - [ ] Invalid evaluator (no URI)
+   - [ ] Missing inputs
+   - [ ] Evaluator execution error
+   - [ ] Network error
+
+4. **Permissions**
+   - [ ] User with RUN_WORKFLOWS permission can run
+   - [ ] User without permission gets appropriate error
 
 **Deliverables:**
-- [ ] Legacy code removed
-- [ ] Feature flag removed
-- [ ] Documentation updated
-- [ ] PR for cleanup
+- [ ] Manual test all evaluator types
+- [ ] Fix any bugs found
+- [ ] Verify error messages are user-friendly
 
-**Estimated Effort:** 1 day
+---
+
+### PR 2 Summary
+
+| Task | Files | Effort |
+|------|-------|--------|
+| Workflow types | `Types.ts` | 0.5 day |
+| Invoke service | `services/workflows/invoke.ts` | 0.5 day |
+| DebugSection update | `DebugSection.tsx` | 1 day |
+| Error handling | Various | 0.5 day |
+| Testing | Manual testing | 1 day |
+
+**Total PR 2 Effort:** 3-4 days
 
 ---
 
 ## Timeline Summary
 
-| Phase | Duration | Risk | Dependencies |
-|-------|----------|------|--------------|
-| Phase 1: Foundation | 1-2 days | Low | None |
-| Phase 2: Feature Flag | 0.5 days | Low | Phase 1 |
-| Phase 3: Integration Testing | 2-3 days | Medium | Phase 2, Backend PR merged |
-| Phase 4: Gradual Rollout | 1-2 weeks | Low | Phase 3 |
-| Phase 5: Cleanup | 1 day | Low | Phase 4 complete |
+| PR | Tasks | Effort | Dependencies |
+|----|-------|--------|--------------|
+| PR 1: CRUD Migration | Types, services, atoms, components | 4-5 days | Backend PR #3527 merged |
+| PR 2: Run Migration | Workflow types, invoke service, DebugSection | 3-4 days | PR 1 merged and stable |
 
-**Total Implementation Time:** ~5-7 days
-**Total Rollout Time:** ~2-3 weeks
+**Total Implementation:** 7-9 days
 
 ---
 
 ## Rollback Plan
 
-If issues are discovered after deployment:
+### PR 1 Rollback
+- Revert PR 1 commit
+- Legacy endpoints still exist on backend for a period
 
-1. **Immediate:** Set feature flag to `false`
-2. **Short-term:** Deploy hotfix to disable new endpoints
-3. **Investigation:** Analyze issues with new endpoints
-4. **Resolution:** Fix and re-test before re-enabling
+### PR 2 Rollback
+- Revert PR 2 commit
+- Fall back to legacy `/evaluators/{key}/run` (still supported)
 
 ---
 
 ## Open Questions
 
-1. **Output Schema Generation:** Should the frontend generate output schemas when creating evaluators, or should the backend handle this?
-   - Current PR shows backend generates schemas during migration
-   - Frontend may need to include schema for new configs
+1. **Slug uniqueness:** Does backend enforce unique slugs? If collision, does it auto-suffix?
 
-2. **Slug Generation:** Should slugs be generated client-side or server-side?
-   - Server-side is safer (uniqueness checks)
-   - Client-side is faster (no round-trip)
+2. **Output schemas:** Should frontend pass `data.schemas.outputs` when creating? Or does backend derive from evaluator type?
 
-3. **Error Handling:** How should the frontend handle validation errors from new endpoints?
-   - New endpoints may return different error shapes
-   - Need to map to user-friendly messages
+3. **Permission model:** Is `RUN_WORKFLOWS` the right permission for evaluator playground? Or should there be `RUN_EVALUATORS`?
+
+4. **Trace linking:** Should the playground display trace_id from workflow response for debugging?

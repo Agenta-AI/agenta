@@ -24,34 +24,49 @@ The Evaluator Playground frontend currently uses legacy endpoints:
 The backend (PR #3527) has:
 1. Migrated all evaluator configs to the new workflow-based model via DB migrations
 2. Created new `SimpleEvaluators` endpoints at `/preview/simple/evaluators/`
-3. Kept legacy endpoints as thin wrappers that convert new model back to legacy format
+3. Native workflow execution available at `/preview/workflows/invoke`
+4. Kept legacy endpoints as thin wrappers (to be deprecated)
 
 **The frontend needs to migrate to use the new endpoints directly.**
 
 ## Goals
 
 1. **Replace legacy evaluator config CRUD** with new `SimpleEvaluator` endpoints
-2. **Update data models** in frontend to match new `SimpleEvaluator` shape
-3. **Maintain backward compatibility** during transition (feature flag or gradual rollout)
-4. **Keep the evaluator run endpoint** (`/evaluators/{key}/run/`) - this remains unchanged
-5. **Preserve UX** - no user-facing changes to the Evaluator Playground functionality
+2. **Replace legacy evaluator run** with native workflow invoke (`/preview/workflows/invoke`)
+3. **Update data models** in frontend to match new `SimpleEvaluator` shape (no adapters)
+4. **Preserve UX** - no user-facing changes to the Evaluator Playground functionality
+5. **Remove all legacy endpoint usage** - clean migration, no dual-path code
 
 ## Non-Goals
 
-1. **Not migrating the evaluator run endpoint** - The `/evaluators/{key}/run/` endpoint is still used and works the same way
-2. **Not changing the Evaluator Playground UI** - Only the data layer changes
-3. **Not migrating evaluation batch runs** - Those use evaluator revision IDs which are handled by the backend migration
-4. **Not introducing new evaluator features** - This is a pure backend migration
+1. **Not changing the Evaluator Playground UI** - Only the data layer changes
+2. **Not migrating evaluation batch runs** - Those already use the new workflow system internally
+3. **Not introducing new evaluator features** - This is a pure endpoint migration
 
 ## Success Criteria
 
-1. Evaluator Playground can create, edit, delete evaluators using new endpoints
-2. All existing evaluator configurations continue to work
-3. No regression in evaluator testing functionality
-4. Clean removal of legacy endpoint usage in frontend
+1. Evaluator Playground can create, edit, delete evaluators using new `SimpleEvaluator` endpoints
+2. Evaluator Playground can run evaluators using native workflow invoke
+3. All existing evaluator configurations continue to work
+4. No regression in evaluator testing functionality
+5. No legacy endpoint calls remain in frontend code
 
 ## Constraints
 
 1. Must not break existing evaluator configurations
-2. Must coordinate with backend team on endpoint availability
-3. Should be deployable incrementally (not big-bang)
+2. Must coordinate with backend team on endpoint availability (PR #3527)
+3. Split into two PRs for reviewability (CRUD first, then Run)
+
+## Migration Approach
+
+**Direct migration (no adapters):**
+
+| PR | Scope | Endpoints |
+|----|-------|-----------|
+| PR 1 | CRUD | `/preview/simple/evaluators/*` |
+| PR 2 | Run | `/preview/workflows/invoke` |
+
+This approach:
+- Avoids tech debt from adapter layers
+- Aligns internal types with backend models
+- Keeps changes reviewable by splitting into two PRs
