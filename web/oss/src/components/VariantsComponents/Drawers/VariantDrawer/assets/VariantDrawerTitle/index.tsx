@@ -143,6 +143,7 @@ const TitleActions = memo(
         variants,
         isLoading,
     }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "variants" | "isLoading">) => {
+        const [, updateQuery] = useQuery("replace")
         const appStatus = useAtomValue(currentVariantAppStatusAtom)
         const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
         const isDirty = useAtomValue(variantIsDirtyAtomFamily(variantId))
@@ -182,6 +183,10 @@ const TitleActions = memo(
                     size="small"
                     disabled={!isDirty || isLoading}
                     commitType={viewAs}
+                    onSuccess={({revisionId}) => {
+                        if (!revisionId) return
+                        updateQuery({revisionId, drawerType: "variant"})
+                    }}
                 />
             </div>
         )
