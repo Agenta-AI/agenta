@@ -1,10 +1,11 @@
 ---
 title: "Quick Start"
-description: "How to build a workflow with a chain of prompts using Agenta"
+description: "Build your first custom workflow with Agenta"
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
+
 ```
 
 <Image
@@ -14,68 +15,84 @@ import Image from "@theme/IdealImage";
   loading="lazy"
 />
 
-In this tutorial, you'll learn how to build a custom workflow with two prompts. By the end, you'll have an interactive playground to run and evaluate your chain of prompts.
+In this tutorial, you'll build a custom workflow with two prompts. By the end, you'll have an interactive playground to run and evaluate your chain of prompts.
 
 :::tip
 The complete code for this tutorial is available [here](https://github.com/Agenta-AI/agenta/tree/main/examples/python/custom_workflows/chain_of_prompts/).
 :::
 
-## Custom workflows in Agenta
+## What you will build
 
-Custom workflows are Python applications connected to Agenta via API endpoints. After linking your app, you can use Agenta's playground to:
+A chain-of-prompts application that:
 
-- Experiment with configurations
-- Run evaluations
-- Deploy the workflow
-- Monitor its performance
+1. Takes a blog post as input
+2. Summarizes it (first prompt)
+3. Writes a tweet from the summary (second prompt)
 
-## 1. Creating the application
+## 1. Create the application
 
-We will build an app that summarizes a blog post and generates a tweet based on the summary. The highlighted lines indicate integration with Agenta.
+We will build an app that summarizes a blog post and generates a tweet. The highlighted lines show Agenta integration.
 
-```python
-import os
+```python title="app.py"
 from openai import OpenAI
 from pydantic import BaseModel, Field
 # highlight-start
 import agenta as ag
-
-os.environ["AGENTA_API_KEY"] = "your_api_key"
-
-ag.init()
+from agenta.sdk.types import PromptTemplate, Message, ModelConfig
 # highlight-end
-
-client = OpenAI()
-prompt1 = "Summarize the following blog post: {blog_post}"
-prompt2 = "Write a tweet based on this: {output_1}"
-
-# highlight-start
-class CoPConfig(BaseModel):
-    prompt1: str = Field(default=prompt1)
-    prompt2: str = Field(default=prompt2)
-# highlight-end
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 
 # highlight-next-line
-@ag.route("/", config_schema=CoPConfig)
-def generate(blog_post: str):
-    # highlight-next-line
-    config = ag.ConfigManager.get_from_route(schema=CoPConfig)
-    formatted_prompt1 = config.prompt1.format(blog_post=blog_post)
-    completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": formatted_prompt1}]
-    )
-    output_1 = completion.choices[0].message.content
-    formatted_prompt2 = config.prompt2.format(output_1=output_1)
-    completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": formatted_prompt2}]
-    )
-    return completion.choices[0].message.content
+ag.init()
+client = OpenAI()
+OpenAIInstrumentor().instrument()
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("agenta:app", host="0.0.0.0", port=8000, reload=True)
+
+# highlight-start
+class Config(BaseModel):
+    prompt1: PromptTemplate = Field(
+        default=PromptTemplate(
+            messages=[
+                Message(role="system", content="You summarize blog posts concisely."),
+                Message(role="user", content="Summarize this:\n\n{{blog_post}}")
+            ],
+            template_format="curly",
+            input_keys=["blog_post"],
+            llm_config=ModelConfig(model="gpt-4o-mini", temperature=0.7)
+        )
+    )
+    prompt2: PromptTemplate = Field(
+        default=PromptTemplate(
+            messages=[
+                Message(role="user", content="Write a tweet based on this:\n\n{{summary}}")
+            ],
+            template_format="curly",
+            input_keys=["summary"],
+            llm_config=ModelConfig(model="gpt-4o-mini", temperature=0.9)
+        )
+    )
+# highlight-end
+
+
+# highlight-next-line
+@ag.route("/", config_schema=Config)
+@ag.instrument()
+async def generate(blog_post: str) -> str:
+    # highlight-next-line
+    config = ag.ConfigManager.get_from_route(schema=Config)
+
+    # Step 1: Summarize
+    # highlight-start
+    formatted1 = config.prompt1.format(blog_post=blog_post)
+    response1 = client.chat.completions.create(**formatted1.to_openai_kwargs())
+    # highlight-end
+    summary = response1.choices[0].message.content
+
+    # Step 2: Write tweet
+    formatted2 = config.prompt2.format(summary=summary)
+    response2 = client.chat.completions.create(**formatted2.to_openai_kwargs())
+
+    return response2.choices[0].message.content
 ```
 
 Let's explore each section:
@@ -83,74 +100,104 @@ Let's explore each section:
 ### Initialization
 
 ```python
-import os
 import agenta as ag
-
-os.environ["AGENTA_API_KEY"] = "your_api_key"
 ag.init()
 ```
 
-Initialize Agenta using `ag.init()`. Agenta automatically provides necessary environment variables (`AGENTA_API_KEY` and `AGENTA_HOST`) when serving your application.
+Initialize Agenta using `ag.init()`. This sets up the connection to Agenta's backend.
 
-### Workflow configuration
+### Configuration with PromptTemplate
 
 ```python
-class CoPConfig(BaseModel):
-    prompt1: str = Field(default=prompt1)
-    prompt2: str = Field(default=prompt2)
+class Config(BaseModel):
+    prompt1: PromptTemplate = Field(default=PromptTemplate(...))
 ```
 
-Workflows have configurable parameters you can edit and version directly in the playground. Agenta uses [Pydantic](https://docs.pydantic.dev/) models to define these configurations. Each field must have a default value. String fields appear as text areas; you can also include integers, floats, or booleans, which appear as sliders or checkboxes.
+`PromptTemplate` bundles everything needed for an LLM call: messages, model, temperature, and other settings. Agenta renders a rich editor for each `PromptTemplate` field in the playground.
 
 :::note
-This tutorial uses a simple configuration. In practice, you can add more parameters, such as model choice, temperature, or other advanced settings.
+Use `{{variable}}` syntax with `template_format="curly"`. The `input_keys` list tells Agenta which variables to expect.
 :::
 
-### Defining entry points
+### Entry point
 
 ```python
-@ag.route("/", config_schema=CoPConfig)
-def generate(blog_post: str):
+@ag.route("/", config_schema=Config)
+async def generate(blog_post: str) -> str:
 ```
 
-Agenta communicates with your workflow through defined entry points, creating an HTTP API for each one. The `config_schema` parameter specifies the expected configuration model for this entry point.
+The `@ag.route` decorator exposes your function to Agenta. The `config_schema` parameter tells Agenta what configuration to show in the playground.
 
-### Accessing configuration in your code
+### Accessing configuration
 
 ```python
-config = ag.ConfigManager.get_from_route(schema=CoPConfig)
+config = ag.ConfigManager.get_from_route(schema=Config)
 ```
 
-Access the configuration passed from the playground or evaluations using `ag.ConfigManager.get_from_route()`. This allows dynamic configuration changes without modifying your code.
+This retrieves the configuration from the current request. When you edit prompts in the playground, the new values arrive here.
 
-### Running the server
-
-Use [Uvicorn](https://www.uvicorn.org/) to serve your application:
+### Using PromptTemplate
 
 ```python
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("agenta:app", host="0.0.0.0", port=8000, reload=True)
+formatted = config.prompt1.format(blog_post=blog_post)
+response = client.chat.completions.create(**formatted.to_openai_kwargs())
 ```
 
-`agenta:app` defines your FastAPI server handling all requests from Agenta.
+`format()` substitutes variables and returns a new template. `to_openai_kwargs()` converts it to arguments for the OpenAI client.
 
 :::warning
-The application server (`http://localhost:8000`) must be accessible from the internet when running evaluations. Consider using [ngrok](https://ngrok.com/) for tunneling during tests.
+The `@ag.instrument()` decorator must come after `@ag.route()`.
 :::
 
-:::info
-The server includes middleware for authentication using Agenta's API key.
+## 2. Create the entry point
+
+```python title="main.py"
+from dotenv import load_dotenv
+load_dotenv()
+
+import app  # noqa: F401 - registers routes
+
+from agenta import app as application
+```
+
+This file loads environment variables and exports the FastAPI app for uvicorn.
+
+## 3. Add dependencies
+
+```text title="requirements.txt"
+agenta
+openai
+python-dotenv
+opentelemetry-instrumentation-openai
+```
+
+## 4. Set environment variables
+
+```bash title=".env"
+OPENAI_API_KEY=sk-...
+AGENTA_API_KEY=ag-...
+AGENTA_HOST=https://cloud.agenta.ai
+```
+
+## 5. Run and connect
+
+Start your server:
+
+```bash
+uvicorn main:application --host 0.0.0.0 --port 8000 --reload
+```
+
+Expose it with ngrok:
+
+```bash
+ngrok http 8000
+```
+
+:::warning
+Your server must be accessible from the internet for evaluations to work. Use ngrok or deploy to a public URL.
 :::
 
-## Linking your application to Agenta
-
-To connect your app:
-
-- Click **"Create Custom Workflow"**.
-- Enter the URL and application name.
-
-You will be redirected to the playground.
+Copy the ngrok URL (e.g., `https://abc123.ngrok.io`). In the Agenta UI, click **"Create Custom Workflow"** and provide this URL.
 
 <Image
   style={{ display: "block", margin: "10 auto" }}
@@ -159,63 +206,17 @@ You will be redirected to the playground.
   loading="lazy"
 />
 
-## Adding observability (optional)
+## Using the playground
 
-Initially, your workflow isn't automatically instrumented. To enable observability and debugging, instrument your application as follows:
+Once connected, you can:
 
-1. Add the `opentelemetry.instrumentation.openai` package to your `requirements.txt`.
+- Edit prompts in the UI
+- Change model parameters
+- Test with different inputs
+- Save new variants
+- Compare versions side by side
 
-2. Update your code:
-
-```python cop.py
-import os
-from openai import OpenAI
-import agenta as ag
-from pydantic import BaseModel, Field
-# highlight-start
-from opentelemetry.instrumentation.openai import OpenAIInstrumentor
-# highlight-end
-
-os.environ["AGENTA_API_KEY"] = "your_api_key"
-ag.init()
-
-client = OpenAI()
-prompt1 = "Summarize the following blog post: {blog_post}"
-prompt2 = "Write a tweet based on this: {output_1}"
-
-# highlight-start
-OpenAIInstrumentor().instrument()
-# highlight-end
-
-class CoPConfig(BaseModel):
-    prompt1: str = Field(default=prompt1)
-    prompt2: str = Field(default=prompt2)
-
-@ag.route("/", config_schema=CoPConfig)
-# highlight-start
-@ag.instrument()
-# highlight-end
-def generate(blog_post: str):
-    config = ag.ConfigManager.get_from_route(schema=CoPConfig)
-    formatted_prompt1 = config.prompt1.format(blog_post=blog_post)
-    completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": formatted_prompt1}]
-    )
-    output_1 = completion.choices[0].message.content
-    formatted_prompt2 = config.prompt2.format(output_1=output_1)
-    completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": formatted_prompt2}]
-    )
-    return completion.choices[0].message.content
-```
-
-:::warning
-Ensure the `@ag.instrument()` decorator is always placed after `@ag.route()`.
-:::
-
-You can now view traces in the playground for easier debugging.
+The traces panel shows each step of your workflow, including LLM calls and their inputs/outputs.
 
 <Image
   style={{ display: "block", margin: "10 auto" }}
@@ -224,3 +225,7 @@ You can now view traces in the playground for easier debugging.
   loading="lazy"
 />
 
+## Next steps
+
+- [Integration](/custom-workflows/integration): How Agenta integrates with your service in dev and prod
+- [Observability](/observability/overview): Add detailed tracing to your workflow
