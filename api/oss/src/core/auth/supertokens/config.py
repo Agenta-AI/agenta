@@ -62,16 +62,12 @@ def get_app_info() -> InputAppInfo:
     # Extract domain from full URL (e.g., "http://localhost/api" -> "http://localhost")
     api_parsed = urlparse(env.agenta.api_url)
     api_domain = f"{api_parsed.scheme}://{api_parsed.netloc}"
-    api_gateway_path = api_parsed.path or "/"
-    # Avoid double /api when app is already mounted under root_path="/api".
-    if api_gateway_path == "/api":
-        api_gateway_path = "/"
 
     app_info = InputAppInfo(
         app_name="Agenta",
         api_domain=api_domain,
         website_domain=env.agenta.web_url,
-        api_gateway_path=api_gateway_path,
+        api_gateway_path=env.agenta.api_url,
         api_base_path="/auth",
         website_base_path="/auth",
     )

@@ -26,6 +26,20 @@ export const shippedFeatures: ShippedFeature[] = [
   // Evaluation: 86B7FF
   // Integration: FFA500
   {
+    id: "testset-versioning",
+    title: "Test Set Versioning and New UI",
+    description:
+      "Track test set changes with versioning. Every edit creates a new version. Evaluations link to specific versions for reliable comparisons. Plus a rebuilt UI that scales to 100K+ rows with inline editing for chat messages and JSON.",
+    changelogPath: "/docs/changelog/testset-versioning",
+    shippedAt: "2026-01-20",
+    labels: [
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+    ],
+  },
+  {
     id: "chat-session-view",
     title: "Chat Sessions in Observability",
     description:
@@ -419,19 +433,7 @@ export const plannedFeatures: PlannedFeature[] = [
       },
     ],
   },
-  {
-    id: "test-set-view",
-    title: "Improving Testset View",
-    description:
-      "We are reworking the testset view to make it easier to visualize and edit testsets.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2733",
-    labels: [
-      {
-        name: "Evaluation",
-        color: "86B7FF",
-      },
-    ],
-  },
+
   {
     id: "prompt-caching-sdk",
     title: "Prompt Caching in the SDK",
@@ -444,19 +446,7 @@ export const plannedFeatures: PlannedFeature[] = [
       },
     ],
   },
-  {
-    id: "test-set-versioning",
-    title: "Testset Versioning",
-    description:
-      "We are adding the ability to version testsets. This is useful for correctly comparing evaluation results.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2735",
-    labels: [
-      {
-        name: "Evaluation",
-        color: "86B7FF",
-      },
-    ],
-  },
+
   {
     id: "tagging",
     title: "Tagging Traces, Testsets, Evaluations and Prompts",
