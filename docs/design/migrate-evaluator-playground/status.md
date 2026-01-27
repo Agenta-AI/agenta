@@ -1,8 +1,19 @@
 # Status: Evaluator Playground Migration
 
-## Current Phase: Research Complete
+## Current Phase: Planning Complete
 
 **Last Updated:** 2026-01-27
+
+---
+
+## Chosen Approach
+
+**Direct Migration (No Adapters)** - Split into two PRs:
+
+1. **PR 1:** CRUD migration to `SimpleEvaluator` endpoints
+2. **PR 2:** Run migration to native workflow invoke
+
+See [plan.md](./plan.md) for detailed implementation steps.
 
 ---
 
@@ -37,40 +48,44 @@
   - Service layer coupling (LOW-MEDIUM risk)
   - Created risk mitigation strategies
 
-- [x] Propose migration plan
-  - Adapter pattern approach
-  - Feature flag integration
-  - Phased rollout strategy
+- [x] Finalize migration plan
+  - Chose direct migration (no adapters)
+  - Split into PR 1 (CRUD) and PR 2 (Run)
+  - Documented all file changes needed
 
-### In Progress
+### Next Steps
 
-- [ ] Phase 1: Foundation - Not started
+- [ ] Wait for PR #3527 to be merged
+- [ ] Start PR 1: CRUD migration
+- [ ] After PR 1 stable, start PR 2: Run migration
 
-### Blocked
+---
 
-- [ ] Phase 3: Integration Testing - Blocked on PR #3527 merge
+## Key Decisions
+
+| Decision | Rationale | Date |
+|----------|-----------|------|
+| Direct migration (no adapters) | Avoids tech debt, aligns with new architecture | 2026-01-27 |
+| Two-PR approach | Keeps changes reviewable, allows CRUD to stabilize first | 2026-01-27 |
+| Internal shapes become `SimpleEvaluator` | Matches backend model, no translation layer | 2026-01-27 |
 
 ---
 
 ## Key Findings
 
-### 1. The `/evaluators/{key}/run/` endpoint works but is now a wrapper
+### 1. The `/evaluators/{key}/run/` endpoint is a thin wrapper
 
-**Important Discovery:** PR #3527 refactored the legacy run endpoint to use the native handler registry internally:
+PR #3527 refactored the legacy run endpoint to use the native handler registry internally:
 - It builds a URI from the evaluator_key: `agenta:builtin:{key}:v0`
 - Uses `retrieve_handler(uri)` to get the actual handler function
 - Directly invokes the handler
-
-**Implication:** The external interface is unchanged, but internally it uses the new architecture.
 
 ### 2. Native workflow invoke path exists
 
 There's a fully native way to run evaluators:
 - Endpoint: `POST /preview/workflows/invoke`
-- Uses `WorkflowServiceRequest` with URI in revision data
+- Uses `WorkflowServiceRequest` with URI in interface
 - Same mechanism used by batch evaluations
-
-**Recommendation:** Keep using legacy endpoint for now (simpler), consider native invoke for future custom evaluator support.
 
 ### 3. URI-based handler registry
 
@@ -79,48 +94,34 @@ The SDK maintains a `HANDLER_REGISTRY` that maps URIs to handler functions:
 - Supports custom evaluators: `user:custom:my_eval:latest`
 - Enables version management of evaluator implementations
 
-### 4. Adapter pattern minimizes risk
+### 4. Key mapping changes
 
-By transforming data at the API boundary, we can:
-- Keep internal data shapes unchanged
-- Minimize code changes
-- Enable easy rollback via feature flag
-
-### 5. Output schema handling
-
-The new `SimpleEvaluator` model includes explicit output schemas. The backend migration generates these from evaluator settings. For new configs:
-- Built-in evaluators: Schema can be derived from evaluator type
-- Custom evaluators: Schema should be provided by user
-
----
-
-## Decisions Made
-
-| Decision | Rationale | Date |
-|----------|-----------|------|
-| Use adapter pattern | Minimizes changes to internal code, enables gradual migration | 2026-01-27 |
-| Feature flag approach | Allows gradual rollout and easy rollback | 2026-01-27 |
-| Keep form structure as `settings_values` | Avoid cascading changes to form components | 2026-01-27 |
+| Legacy | New |
+|--------|-----|
+| `evaluator_key` | derived from `data.uri` |
+| `settings_values` | `data.parameters` |
+| `EvaluatorConfig` | `SimpleEvaluator` |
 
 ---
 
 ## Open Questions
 
-1. **Run migration target:** For full migration, do we want the playground to invoke by:
-   - built-in key -> URI (`agenta:builtin:{key}:v0`), or
-   - evaluator revision URI stored on `SimpleEvaluator.data.uri` (preferred), or
-   - a specific evaluator revision id (even more explicit)?
-2. **Output Schema:** Confirm whether frontend must provide `data.schemas.outputs` on create/edit, or backend will derive defaults.
-3. **Slug Generation:** Client-side or server-side?
+1. **Slug uniqueness:** Does backend enforce unique slugs? If collision, does it auto-suffix?
+
+2. **Output schemas:** Should frontend pass `data.schemas.outputs` when creating? Or does backend derive from evaluator type?
+
+3. **Permission model:** Is `RUN_WORKFLOWS` the right permission for evaluator playground? Or should there be `RUN_EVALUATORS`?
 
 ---
 
-## Next Steps
+## Effort Estimates
 
-1. Wait for PR #3527 to be merged
-2. Start Phase 1: Create type definitions and adapters
-3. Add feature flag infrastructure
-4. Test with new endpoints
+| PR | Effort | Dependencies |
+|----|--------|--------------|
+| PR 1: CRUD Migration | 4-5 days | Backend PR #3527 merged |
+| PR 2: Run Migration | 3-4 days | PR 1 merged and stable |
+
+**Total:** 7-9 days implementation
 
 ---
 
@@ -130,5 +131,7 @@ The new `SimpleEvaluator` model includes explicit output schemas. The backend mi
 - [context.md](./context.md) - Background and goals
 - [current-system.md](./current-system.md) - Current implementation details
 - [new-endpoints.md](./new-endpoints.md) - New endpoint documentation
+- [research.md](./research.md) - Handler registry and execution research
+- [migration-options.md](./migration-options.md) - Why we chose direct migration
 - [risk-analysis.md](./risk-analysis.md) - Coupling and risk analysis
-- [plan.md](./plan.md) - Migration execution plan
+- [plan.md](./plan.md) - Detailed implementation plan

@@ -25,9 +25,10 @@ interface EvaluatorConfig {
 - `playgroundEditValuesAtom` is read throughout ConfigureEvaluator and DebugSection
 - Form initialization relies on `settings_values` property name
 
-**Mitigation:**
-- Create adapter functions to convert between `SimpleEvaluator` and internal state
-- Or update atoms to use `SimpleEvaluator` shape and update all consumers
+**Mitigation (PR 1):**
+- Update atoms to use `SimpleEvaluator` shape directly
+- Add derived atoms for backward-compatible access (e.g., `evaluator_key` from URI)
+- Update all atom consumers in ConfigureEvaluator and DebugSection
 
 ---
 
@@ -53,9 +54,10 @@ if (editMode && editEvalEditValues) {
 - Changing to `data.parameters` would break form binding
 - DynamicFormField components use `["settings_values", field.key]` name paths
 
-**Mitigation:**
-- Keep internal form structure as `settings_values` 
-- Transform on API boundary (adapter pattern)
+**Mitigation (PR 1):**
+- Update form field names from `settings_values` to `parameters`
+- Update DynamicFormField name paths
+- Update form.getFieldsValue() to extract `parameters`
 
 ---
 
@@ -81,10 +83,10 @@ return axios.put(`/evaluators/configs/${configId}?project_id=${projectId}`, conf
 - Need to update URLs and payload transformation
 - Response handling needs to unwrap `{ evaluator: ... }` wrapper
 
-**Mitigation:**
-- Create new service functions for new endpoints
-- Keep old functions temporarily for gradual migration
-- Add response/request transformers
+**Mitigation (PR 1):**
+- Replace all service functions with new implementations
+- New functions build `SimpleEvaluator` payloads directly
+- Handle response wrapper in service layer
 
 ---
 
@@ -106,9 +108,10 @@ const {evaluatorConfigs} = useFetchEvaluatorsData()
 - Tag cells, type pills depend on config shape
 - Filtering/search operates on legacy property names
 
-**Mitigation:**
-- Update hook to handle new `SimpleEvaluator` shape
-- Transform data at fetch boundary, keep internal shape consistent
+**Mitigation (PR 1):**
+- Update hook to work with `SimpleEvaluator[]`
+- Derive `evaluator_key` from `data.uri` for display
+- Update column accessors in getColumns.tsx
 
 ---
 
@@ -116,12 +119,11 @@ const {evaluatorConfigs} = useFetchEvaluatorsData()
 
 **Location:** `web/oss/src/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection.tsx`
 
-**Risk Level:** LOW
+**Risk Level:** MEDIUM (PR 2)
 
-The evaluator run uses `evaluator_key` directly:
+The evaluator run uses legacy endpoint:
 
 ```typescript
-// Line 456
 const runResponse = await createEvaluatorRunExecution(
     selectedEvaluator.key,  // evaluator_key
     { inputs: outputs, settings: ... }
@@ -129,13 +131,14 @@ const runResponse = await createEvaluatorRunExecution(
 ```
 
 **Impact:**
-- This endpoint (`/evaluators/{key}/run/`) remains unchanged
-- Uses `selectedEvaluator.key` from template, not config
-- No direct coupling to `EvaluatorConfig` shape
+- Must migrate to `/preview/workflows/invoke`
+- Need to construct `WorkflowServiceRequest`
+- Different error handling (workflow status vs HTTP errors)
 
-**Mitigation:**
-- No changes needed for run functionality
-- Keep using evaluator templates for the `key` value
+**Mitigation (PR 2):**
+- Create new `invokeEvaluator()` service function
+- Build `WorkflowServiceRequest` with URI from `SimpleEvaluator.data.uri`
+- Map workflow response/errors to UI
 
 ---
 
@@ -160,10 +163,10 @@ const evaluatorConfigsQueryAtomFamily = atomFamily((projectId) =>
 - Multiple components may depend on these atoms
 - Changing shape could cascade through application
 
-**Mitigation:**
-- Update query functions to use new endpoints
-- Transform response at query boundary to maintain internal shape
-- Or update all consumers to handle new shape
+**Mitigation (PR 1):**
+- Update service function to return `SimpleEvaluator[]`
+- Update all consumers to handle new shape
+- Change in one place (service), ripple through atoms automatically
 
 ---
 
@@ -175,7 +178,7 @@ const evaluatorConfigsQueryAtomFamily = atomFamily((projectId) =>
 
 The frontend distinguishes between:
 - **Evaluator templates** (`Evaluator`): Built-in evaluator definitions with `settings_template`
-- **Evaluator configs** (`EvaluatorConfig`): User-created configurations with `settings_values`
+- **Evaluator configs** (`SimpleEvaluator`): User-created configurations with `data.parameters`
 
 **Impact:**
 - This distinction is maintained in the new system
@@ -184,26 +187,27 @@ The frontend distinguishes between:
 
 **Mitigation:**
 - No conceptual change needed
+- Templates API unchanged
 - Just update config handling
 
 ---
 
 ## Risk Summary Table
 
-| Component | Risk Level | Complexity | Priority |
-|-----------|-----------|------------|----------|
-| Service Layer | LOW-MEDIUM | LOW | HIGH (change first) |
-| State Atoms | MEDIUM | MEDIUM | HIGH |
-| ConfigureEvaluator Form | MEDIUM | MEDIUM | MEDIUM |
-| Evaluators Registry | MEDIUM | MEDIUM | MEDIUM |
-| Debug Section | LOW | LOW | LOW |
-| Global Query Atoms | MEDIUM | LOW | MEDIUM |
+| Component | Risk Level | PR | Priority |
+|-----------|-----------|-----|----------|
+| Service Layer | LOW-MEDIUM | PR 1 | HIGH (change first) |
+| State Atoms | MEDIUM | PR 1 | HIGH |
+| ConfigureEvaluator Form | MEDIUM | PR 1 | MEDIUM |
+| Evaluators Registry | MEDIUM | PR 1 | MEDIUM |
+| Global Query Atoms | MEDIUM | PR 1 | MEDIUM |
+| Debug Section (Run) | MEDIUM | PR 2 | MEDIUM |
 
 ## Concrete Breakage Scenarios
 
 ### Scenario 1: Form Submission Fails
 
-**Trigger:** Change `settings_values` to `data.parameters` without updating form
+**Trigger:** Form still uses `settings_values` but service expects `parameters`
 
 **Symptoms:**
 - Form submits but settings are lost
@@ -211,14 +215,15 @@ The frontend distinguishes between:
 - Evaluator created but doesn't work
 
 **Prevention:**
-- Transform at API boundary, not in form
+- Update form field names to `parameters`
 - Test form submission with real backend
+- Verify payload in network tab
 
 ---
 
 ### Scenario 2: Evaluator List Empty
 
-**Trigger:** Query endpoint returns new shape, UI expects old
+**Trigger:** Query endpoint returns `SimpleEvaluator[]`, UI expects `EvaluatorConfig[]`
 
 **Symptoms:**
 - Evaluators registry shows empty list
@@ -226,15 +231,15 @@ The frontend distinguishes between:
 - Console shows undefined property access
 
 **Prevention:**
-- Update data transformation in hook
-- Add null checks and fallbacks
+- Update all components to use `SimpleEvaluator` shape
+- Add null checks for `data?.uri`, `data?.parameters`
 - Log transformation errors
 
 ---
 
 ### Scenario 3: Edit Mode Fails to Load
 
-**Trigger:** `playgroundEditValuesAtom` receives `SimpleEvaluator`, expects `EvaluatorConfig`
+**Trigger:** Component expects `settings_values`, receives `data.parameters`
 
 **Symptoms:**
 - Navigate to edit page, form is empty
@@ -242,7 +247,7 @@ The frontend distinguishes between:
 - Save overwrites with empty config
 
 **Prevention:**
-- Transform at atom level
+- Update form initialization to read from `data.parameters`
 - Test edit flow with existing configs
 
 ---
@@ -262,26 +267,54 @@ The frontend distinguishes between:
 
 ---
 
+### Scenario 5: Evaluator Run Fails (PR 2)
+
+**Trigger:** Workflow invoke returns different response shape
+
+**Symptoms:**
+- Run button shows error
+- Results not displayed
+- Console shows parsing errors
+
+**Prevention:**
+- Map `WorkflowServiceBatchResponse` to expected output format
+- Handle `status.code` errors from workflow response
+- Test with all evaluator types
+
+---
+
 ## Recommended Testing Strategy
 
-### Unit Tests
-- [ ] Service layer transformers (old shape ↔ new shape)
+### PR 1 Testing
+
+**Unit Tests:**
 - [ ] URI parsing (`agenta:builtin:key:v0` → `key`)
 - [ ] Slug generation from name
+- [ ] Service function request/response handling
 
-### Integration Tests
+**Integration Tests:**
 - [ ] Create evaluator config flow
 - [ ] Edit evaluator config flow  
 - [ ] Delete (archive) evaluator config flow
 - [ ] List/query evaluator configs flow
 
-### E2E Tests
+**E2E Tests:**
 - [ ] Full playground flow: select template → configure → test → commit
 - [ ] Edit existing evaluator configuration
 - [ ] Clone evaluator configuration
 - [ ] Delete evaluator configuration
 
-### Regression Tests
-- [ ] Evaluator run still works
-- [ ] Batch evaluations still work (use config IDs)
-- [ ] Existing configs load correctly after migration
+### PR 2 Testing
+
+**Unit Tests:**
+- [ ] `WorkflowServiceRequest` construction
+- [ ] Response mapping to evaluator output format
+- [ ] Error status handling
+
+**Integration Tests:**
+- [ ] Run evaluator with different types (exact_match, regex, AI critique)
+- [ ] Error scenarios (invalid inputs, missing outputs)
+
+**Regression Tests:**
+- [ ] Existing configs load correctly
+- [ ] Batch evaluations still work (they use backend workflow invoke)
