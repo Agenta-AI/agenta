@@ -328,7 +328,7 @@ async def create_project(
 
         await create_default_human_evaluator(
             project_id=project.id,
-            user_id=request.state.user_id,
+            user_id=UUID(request.state.user_id),
         )
 
         membership = await _get_ee_membership_for_project(
@@ -358,7 +358,7 @@ async def create_project(
 
     await create_default_human_evaluator(
         project_id=project.id,
-        user_id=request.state.user_id,
+        user_id=UUID(request.state.user_id),
     )
 
     organization = await db_manager.fetch_organization_by_id(
