@@ -8,6 +8,7 @@ import {useSetAtom} from "jotai"
 import {ANNOTATE_TRACES_TOUR_ID} from "@/oss/components/Onboarding/tours/annotateTracesTour"
 import {DEPLOY_PROMPT_TOUR_ID} from "@/oss/components/Onboarding/tours/deployPromptTour"
 import {EXPLORE_PLAYGROUND_TOUR_ID} from "@/oss/components/Onboarding/tours/explorePlaygroundTour"
+import {TESTSET_FROM_TRACES_TOUR_ID} from "@/oss/components/Onboarding/tours/testsetFromTracesTour"
 import {
     tourRegistry,
     activeTourIdAtom,
@@ -55,6 +56,9 @@ const OnboardingInner = ({children}: {children: React.ReactNode}) => {
                 if (tourName === ANNOTATE_TRACES_TOUR_ID) {
                     recordWidgetEvent("trace_annotated")
                 }
+                if (tourName === TESTSET_FROM_TRACES_TOUR_ID) {
+                    recordWidgetEvent("testset_created_from_traces")
+                }
             }
             setActiveTourId(null)
         },
@@ -73,6 +77,9 @@ const OnboardingInner = ({children}: {children: React.ReactNode}) => {
                 }
                 if (tourName === ANNOTATE_TRACES_TOUR_ID) {
                     recordWidgetEvent("trace_annotated")
+                }
+                if (tourName === TESTSET_FROM_TRACES_TOUR_ID) {
+                    recordWidgetEvent("testset_created_from_traces")
                 }
             }
             setActiveTourId(null)
