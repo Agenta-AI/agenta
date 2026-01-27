@@ -14,7 +14,7 @@ export default function GetStartedPage() {
                     src="/assets/Agenta-logo-full-light.png"
                     alt="agenta-ai"
                     width={114}
-                    height={40}
+                    height={39}
                 />
 
                 <ListOfOrgs
