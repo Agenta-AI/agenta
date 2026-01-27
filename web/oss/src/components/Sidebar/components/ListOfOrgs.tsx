@@ -255,7 +255,7 @@ const ListOfOrgs = ({
         })
 
         return items
-    }, [effectiveSelectedId, interactive, organizations, user?.id])
+    }, [effectiveSelectedId, interactive, organizationSelectionEnabled, organizations, user?.id])
 
     const [organizationDropdownOpen, setOrganizationDropdownOpen] = useState(false)
 
