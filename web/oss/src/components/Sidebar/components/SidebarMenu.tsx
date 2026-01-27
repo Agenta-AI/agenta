@@ -97,7 +97,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 "!overflow-x-hidden",
                 "[&_.ant-menu-item]:flex [&_.ant-menu-item]:items-center",
                 "[&_.ant-menu-submenu-title]:flex [&_.ant-menu-submenu-title]:items-center",
-                "[&_.ant-menu-item-icon]:!shrink-0 [&_.ant-menu-item-icon]:!w-4 [&_.ant-menu-item-icon]:!h-4 [&_.ant-menu-item-icon_svg]:!w-4 [&_.ant-menu-item-icon_svg]:!h-4 [&_.ant-menu-item-icon_.anticon]:!text-[16px]",
+                "[&_.ant-menu-item-icon]:!shrink-0",
                 "!border-0 [&_.ant-menu-item-divider]:!w-full [&_.ant-menu-item-divider]:!my-2",
                 {
                     "[&_.ant-menu-item]:!w-[94%] [&_.ant-menu-item]:!mx-2 [&_.ant-menu-item]:!pl-3 [&_.ant-menu-submenu-title]:!pl-3 [&_.ant-menu-submenu-title]:!w-[94%] [&_.ant-menu-submenu-title]:!mx-2":
