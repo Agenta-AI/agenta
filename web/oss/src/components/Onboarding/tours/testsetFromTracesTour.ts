@@ -65,7 +65,7 @@ const testsetFromTracesTour: OnboardingTour = {
             title: "Click Create Test Set",
             content: "Click this button to create a test set from your selection.",
             selector: '[data-tour="create-testset-button"]',
-            side: "bottom",
+            side: "left",
             showControls: true,
             showSkip: true,
             nextAction: {
