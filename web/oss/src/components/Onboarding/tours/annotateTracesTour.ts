@@ -35,6 +35,7 @@ const annotateTracesTour: OnboardingTour = {
                 waitForSelector: '[data-tour="trace-drawer"]',
                 waitForSelectorVisible: true,
                 waitTimeoutMs: 6000,
+                advanceOnActionClick: true,
             },
             onNext: async () => {
                 await new Promise((resolve) => window.setTimeout(resolve, 400))
@@ -56,6 +57,7 @@ const annotateTracesTour: OnboardingTour = {
                 waitForSelector: '[data-tour="annotate-drawer"]',
                 waitForSelectorVisible: true,
                 waitTimeoutMs: 6000,
+                advanceOnActionClick: true,
             },
             onNext: async () => {
                 await new Promise((resolve) => window.setTimeout(resolve, 500))

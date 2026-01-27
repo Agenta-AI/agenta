@@ -267,7 +267,6 @@ const VariantsDashboard = () => {
                         label="Deploy"
                         disabled={!selectedRevisionId || selectedCount > 1}
                         revisionId={selectedRevisionId}
-                        data-tour="deploy-button"
                     />
 
                     <Button

@@ -173,6 +173,7 @@ const TitleActions = memo(
                     }
                     revisionId={selectedVariant?._parentVariant ? selectedVariant?.id : undefined}
                     disabled={isLoading}
+                    data-tour="deploy-button"
                 />
 
                 <CommitVariantChangesButton
@@ -201,7 +202,13 @@ const VariantDrawerTitle = ({
     return (
         <section className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-                <Button onClick={onClose} type="text" icon={<CloseOutlined />} size="small" />
+                <Button
+                    onClick={onClose}
+                    type="text"
+                    data-tour="variant-drawer-close-button"
+                    icon={<CloseOutlined />}
+                    size="small"
+                />
                 <Button
                     onClick={onToggleWidth}
                     type="text"

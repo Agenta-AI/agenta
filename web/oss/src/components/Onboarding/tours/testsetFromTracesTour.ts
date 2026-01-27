@@ -5,6 +5,7 @@ import type {OnboardingTour} from "@/oss/lib/onboarding"
 import {selectedRowKeysAtom} from "@/oss/state/newObservability/atoms/controls"
 import {tracesAtom} from "@/oss/state/newObservability/atoms/queries"
 import {selectTestsetAtom} from "@/oss/state/testsetSelection"
+
 import {waitForSelectorVisible} from "./firstEvaluationTour"
 
 /**
@@ -71,6 +72,7 @@ const testsetFromTracesTour: OnboardingTour = {
                 waitForSelector: '[data-tour="add-to-testset-drawer"]',
                 waitForSelectorVisible: true,
                 waitTimeoutMs: 6000,
+                advanceOnActionClick: true,
             },
             onNext: async () => {
                 const store = getDefaultStore()
@@ -110,6 +112,13 @@ const testsetFromTracesTour: OnboardingTour = {
             side: "top",
             showControls: true,
             showSkip: true,
+            nextAction: {
+                selector: '[data-tour="testset-confirm"]',
+                type: "click",
+                waitForHiddenSelector: '[data-tour="add-to-testset-drawer"]',
+                waitTimeoutMs: 10000,
+                advanceOnActionClick: true,
+            },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
             onNext: () => {

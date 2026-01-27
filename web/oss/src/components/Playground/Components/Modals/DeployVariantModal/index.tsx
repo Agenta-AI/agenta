@@ -99,6 +99,10 @@ const DeployVariantModal = ({
             okButtonProps={{
                 icon: <Rocket size={14} className="mt-0.5" />,
                 disabled: !selectedEnvName.length,
+                "data-tour": "deploy-variant-modal-deploy-button",
+            }}
+            cancelButtonProps={{
+                "data-tour": "deploy-variant-modal-cancel-button",
             }}
             classNames={{footer: "flex items-center justify-end"}}
             afterClose={() => onClose()}

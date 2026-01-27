@@ -2,11 +2,11 @@ import {memo, useEffect, useRef, useState} from "react"
 
 import {ArrowRight} from "@phosphor-icons/react"
 import {Input, Modal, Tooltip, Typography} from "antd"
+import {useSetAtom} from "jotai"
 
 import DiffView from "@/oss/components/Editor/DiffView"
 import {COMMIT_MESSAGE_MAX_LENGTH} from "@/oss/config/constants"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {useSetAtom} from "jotai"
 
 const {Text} = Typography
 

@@ -67,6 +67,7 @@ const firstEvaluationTour: OnboardingTour = {
                 waitForSelector: '[data-tour="evaluation-name-input"]',
                 waitForSelectorVisible: true,
                 waitTimeoutMs: 6000,
+                advanceOnActionClick: true,
             },
             onNext: async () => {
                 await new Promise((resolve) => window.setTimeout(resolve, 400))

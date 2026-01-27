@@ -131,13 +131,11 @@ body {
 
 [data-name="nextstep-prevent-click-overlay"] {
     z-index: 2001 !important;
-    pointer-events: none !important;
 }
 
 [data-name="nextstep-pointer"],
 [data-name="nextstep-card"] {
     z-index: 2002 !important;
-    pointer-events: auto !important;
 }
 
 .agenta-rich-text-editor {
