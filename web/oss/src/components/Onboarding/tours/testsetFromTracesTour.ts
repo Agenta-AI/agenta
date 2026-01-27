@@ -1,5 +1,7 @@
 import {getDefaultStore} from "jotai"
 
+import {cascaderValueAtom} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/atoms/cascaderState"
+import {onTestsetSelectAtom} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/atoms/drawerState"
 import {recordWidgetEventAtom, tourRegistry} from "@/oss/lib/onboarding"
 import type {OnboardingTour} from "@/oss/lib/onboarding"
 import {selectedRowKeysAtom} from "@/oss/state/newObservability/atoms/controls"
@@ -81,8 +83,12 @@ const testsetFromTracesTour: OnboardingTour = {
                     testsetName: "Create New",
                     autoSelectLatest: false,
                 })
+                // Also update cascader value to show "Create New" in the UI
+                await store.set(cascaderValueAtom, ["create"])
+                // Trigger auto-mapping to enable the create button
+                await store.set(onTestsetSelectAtom)
                 await waitForSelectorVisible('[data-tour="testset-name-input"]')
-                await new Promise((resolve) => window.setTimeout(resolve, 1000))
+                await new Promise((resolve) => window.setTimeout(resolve, 500))
             },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,

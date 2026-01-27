@@ -2,11 +2,12 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {WarningCircle} from "@phosphor-icons/react"
 import {Button, Input, Typography} from "antd"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import GenericDrawer from "@/oss/components/GenericDrawer"
 import useResizeObserver from "@/oss/hooks/useResizeObserver"
 
+import {effectiveTestsetNameAtom} from "./atoms/cascaderState"
 import {initializeWithSpanIdsAtom, isDrawerOpenAtom} from "./atoms/drawerState"
 import {
     ConfirmSaveModal,
@@ -31,6 +32,7 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
     const setIsDrawerOpen = useSetAtom(isDrawerOpenAtom)
     const initializeWithSpanIds = useSetAtom(initializeWithSpanIdsAtom)
     const drawer = useTestsetDrawer()
+    const effectiveTestsetName = useAtomValue(effectiveTestsetNameAtom)
 
     // State for focusing drill-in view on a specific path
     const [focusPath, setFocusPath] = useState<string | undefined>(undefined)
@@ -131,7 +133,7 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                                         : drawer.onSaveTestset(onClose)
                                 }
                                 disabled={
-                                    !drawer.testset.name ||
+                                    !effectiveTestsetName ||
                                     !drawer.isMapColumnExist ||
                                     drawer.hasDuplicateColumns
                                 }
