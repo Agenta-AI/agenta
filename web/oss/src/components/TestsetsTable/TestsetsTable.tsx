@@ -19,6 +19,7 @@ import {Button, Dropdown, Modal, Space, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import {
     InfiniteVirtualTableFeatureShell,
@@ -87,6 +88,7 @@ const TestsetsTable = ({
     onSelectRevision,
     selectedRevisionId,
 }: TestsetsTableProps) => {
+    const router = useRouter()
     const {projectURL} = useURL()
     const projectId = useAtomValue(projectIdAtom)
 
@@ -192,7 +194,7 @@ const TestsetsTable = ({
 
             // If it's a revision, navigate to it directly
             if (isRevision) {
-                window.location.href = `${projectURL}/testsets/${record.id}`
+                router.push(`${projectURL}/testsets/${record.id}`)
                 return
             }
 
@@ -202,7 +204,7 @@ const TestsetsTable = ({
             if (cachedChildren && cachedChildren.length > 0) {
                 // Navigate to the first child (latest revision)
                 const latestRevision = cachedChildren[0]
-                window.location.href = `${projectURL}/testsets/${latestRevision.id}`
+                router.push(`${projectURL}/testsets/${latestRevision.id}`)
                 return
             }
 
@@ -216,13 +218,13 @@ const TestsetsTable = ({
                 )
                 if (revisions.length > 0) {
                     // Navigate to the first revision (latest)
-                    window.location.href = `${projectURL}/testsets/${revisions[0].id}`
+                    router.push(`${projectURL}/testsets/${revisions[0].id}`)
                 }
             } catch (error) {
                 console.error("[TestsetsTable] Failed to fetch revisions for navigation:", error)
             }
         },
-        [projectURL, childrenCache, isSelectMode, onSelectRevision],
+        [projectURL, childrenCache, isSelectMode, onSelectRevision, router],
     )
 
     // Action handlers - consolidated
