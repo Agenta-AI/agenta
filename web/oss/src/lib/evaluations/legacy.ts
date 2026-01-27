@@ -118,7 +118,7 @@ export const checkIfResourceValidForDeletion = async (
         if (response.data.length > 0) {
             const name =
                 (data.resourceType === "testset"
-                    ? "Testset"
+                    ? "Test set"
                     : data.resourceType === "evaluator_config"
                       ? "Evaluator"
                       : "Variant") + (data.resourceIds.length > 1 ? "s" : "")

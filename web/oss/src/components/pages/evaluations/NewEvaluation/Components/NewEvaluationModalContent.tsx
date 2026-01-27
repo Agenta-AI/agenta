@@ -80,6 +80,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     selectedAppId,
     onSelectApp,
     appSelectionDisabled,
+    allowTestsetAutoAdvance,
     onSelectTemplate,
     onEvaluatorCreated,
     ...props
@@ -211,7 +212,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "testsetPanel",
                 label: (
-                    <TabLabel tabTitle="Testset" completed={Boolean(selectedTestsetName)}>
+                    <TabLabel tabTitle="Test set" completed={Boolean(selectedTestsetName)}>
                         {selectedTestsetName ? (
                             <Tag
                                 closeIcon={<CloseCircleOutlined />}
@@ -247,6 +248,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         selectedVariantRevisionIds={selectedVariantRevisionIds}
                         selectedVariants={selectedVariants}
                         className="pt-2"
+                        allowAutoAdvance={allowTestsetAutoAdvance}
                     />
                 ) : (
                     requireAppMessage
@@ -340,6 +342,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         handleCreateApp,
         handleSelectTemplate,
         handleCreateHumanEvaluator,
+        allowTestsetAutoAdvance,
     ])
 
     return (
@@ -354,6 +357,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         onChange={(e) => {
                             setEvaluationName(e.target.value)
                         }}
+                        data-tour="evaluation-name-input"
                     />
                 </div>
 

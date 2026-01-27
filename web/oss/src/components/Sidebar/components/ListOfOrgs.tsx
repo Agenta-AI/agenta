@@ -13,6 +13,7 @@ import {
     Modal,
     Select,
     Tag,
+    Typography,
     message,
 } from "antd"
 import clsx from "clsx"
@@ -116,6 +117,18 @@ const ListOfOrgs = ({
     const [isTransferModalOpen, setTransferModalOpen] = useState(false)
     const [orgToTransfer, setOrgToTransfer] = useState<string | null>(null)
     const [newOwnerId, setNewOwnerId] = useState<string | null>(null)
+
+    const [isDeleteModalOpen, setDeleteModalOpen] = useState(false)
+    const [orgToDelete, setOrgToDelete] = useState<string | null>(null)
+    const [deleteConfirmInput, setDeleteConfirmInput] = useState("")
+
+    const orgToDeleteName = useMemo(
+        () => organizations.find((organization) => organization.id === orgToDelete)?.name ?? "",
+        [organizations, orgToDelete],
+    )
+
+    const isDeleteNameMatch = Boolean(orgToDeleteName) && deleteConfirmInput === orgToDeleteName
+
     const [authUpgradeOpen, setAuthUpgradeOpen] = useState(false)
     const [authUpgradeDetail, setAuthUpgradeDetail] = useState<AuthUpgradeDetail | null>(null)
     const [authUpgradeOrgId, setAuthUpgradeOrgId] = useState<string | null>(null)
@@ -327,9 +340,12 @@ const ListOfOrgs = ({
         </Button>
     )
 
-    const isPostSignupPage = router.pathname === "/post-signup"
+    const isPostSignupPage =
+        router.pathname === "/post-signup" || router.pathname === "/get-started"
     const canShow = Boolean(
-        (project?.project_id || effectiveSelectedId || selectedOrganization?.id) && user?.id,
+        (project?.project_id || effectiveSelectedId || selectedOrganization?.id) &&
+        user?.id &&
+        !isPostSignupPage,
     )
 
     const createMutation = useMutation({
@@ -492,40 +508,9 @@ const ListOfOrgs = ({
             const organizationId = keyString.split(":")[1]
             const org = organizations.find((o) => o.id === organizationId)
             if (org) {
-                AlertPopup({
-                    title: "Delete organization",
-                    message: (
-                        <div className="space-y-2">
-                            <p>
-                                Are you sure you want to delete <strong>{org.name}</strong>?
-                            </p>
-                            <p className="text-xs text-neutral-500">
-                                This action cannot be undone.
-                            </p>
-                        </div>
-                    ),
-                    okText: "Delete",
-                    okType: "danger",
-                    onOk: async () => {
-                        await deleteMutation.mutateAsync(organizationId)
-                        const deletedOrg = organizations.find((org) => org.id === organizationId)
-                        const deletedWorkspaceId = deletedOrg?.default_workspace?.id || null
-                        clearWorkspaceOrgCache(deletedWorkspaceId)
-                        clearLastUsedProjectId(deletedWorkspaceId)
-                        // If we deleted the current org, select another one
-                        if (effectiveSelectedId === organizationId) {
-                            const remainingOrgs = organizations.filter(
-                                (o) => o.id !== organizationId,
-                            )
-                            if (remainingOrgs.length > 0) {
-                                await changeSelectedOrg(remainingOrgs[0].id)
-                            }
-                        }
-                        resetOrganizationData()
-                        resetProjectData()
-                        await refetch()
-                    },
-                })
+                setOrgToDelete(organizationId)
+                setDeleteConfirmInput("")
+                setDeleteModalOpen(true)
             }
             setOrganizationDropdownOpen(false)
             return
@@ -841,6 +826,87 @@ const ListOfOrgs = ({
                         />
                     </Form.Item>
                 </Form>
+            </Modal>
+
+            <Modal
+                title="Delete Organization"
+                open={isDeleteModalOpen}
+                okText="Delete"
+                okType="danger"
+                okButtonProps={{
+                    icon: <Trash size={14} />,
+                    disabled: !isDeleteNameMatch,
+                }}
+                onCancel={() => {
+                    setDeleteModalOpen(false)
+                    setOrgToDelete(null)
+                    setDeleteConfirmInput("")
+                }}
+                onOk={async () => {
+                    if (!orgToDelete) return
+                    if (!isDeleteNameMatch) return
+
+                    await deleteMutation.mutateAsync(orgToDelete)
+                    const deletedOrg = organizations.find((org) => org.id === orgToDelete)
+                    const deletedWorkspaceId = deletedOrg?.default_workspace?.id || null
+                    clearWorkspaceOrgCache(deletedWorkspaceId)
+                    clearLastUsedProjectId(deletedWorkspaceId)
+                    // If we deleted the current org, select another one
+                    if (effectiveSelectedId === orgToDelete) {
+                        const remainingOrgs = organizations.filter((o) => o.id !== orgToDelete)
+                        if (remainingOrgs.length > 0) {
+                            await changeSelectedOrg(remainingOrgs[0].id)
+                        }
+                    }
+                    resetOrganizationData()
+                    resetProjectData()
+                    await refetch()
+
+                    setDeleteModalOpen(false)
+                    setOrgToDelete(null)
+                    setDeleteConfirmInput("")
+                }}
+                confirmLoading={deleteMutation.isPending}
+                destroyOnHidden
+                centered
+                width={450}
+            >
+                <div className="flex flex-col gap-3">
+                    <div className="rounded-lg border border-[var(--ant-color-error-border)] bg-[var(--ant-color-error-bg)] px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                            <Typography.Text strong className="!text-[var(--ant-color-error)]">
+                                This action cannot be undone.
+                            </Typography.Text>
+                            <Typography.Paragraph className="!mb-0 text-[var(--ant-color-text)]">
+                                Permanently deletes{" "}
+                                <Typography.Text strong>{orgToDeleteName}</Typography.Text>,
+                                including all workspaces, projects, applications, and data.
+                            </Typography.Paragraph>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-[var(--ant-color-text)]">
+                            <span>Type</span>
+                            <Typography.Text
+                                code
+                                className="!text-[var(--ant-color-error)] !bg-[var(--ant-color-error-bg)] !border-[var(--ant-color-error-border)]"
+                            >
+                                {orgToDeleteName}
+                            </Typography.Text>
+                            <span>to confirm:</span>
+                        </div>
+                        <Input
+                            value={deleteConfirmInput}
+                            onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                            placeholder="Organization name"
+                            autoComplete="off"
+                            spellCheck={false}
+                            status={deleteConfirmInput && !isDeleteNameMatch ? "error" : undefined}
+                            autoFocus
+                        />
+                    </div>
+                </div>
             </Modal>
         </div>
     )

@@ -17,13 +17,14 @@ import {
     HouseIcon,
     RocketLaunch,
 } from "@phosphor-icons/react"
-import {useSetAtom, useAtomValue} from "jotai"
+import {useSetAtom} from "jotai"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
+import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {isNewUserAtom, openWidgetAtom} from "@/oss/lib/onboarding"
+import {openWidgetAtom} from "@/oss/lib/onboarding"
 import {useAppsData} from "@/oss/state/app"
 import {useOrgData} from "@/oss/state/org"
 
@@ -33,11 +34,10 @@ export const useSidebarConfig = () => {
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
+    const {canInviteMembers} = useWorkspacePermissions()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const openWidget = useSetAtom(openWidgetAtom)
-    const isNewUser = useAtomValue(isNewUserAtom)
-
     const hasProjectURL = Boolean(projectURL)
 
     const sidebarConfig: SidebarConfig[] = [
@@ -57,7 +57,7 @@ export const useSidebarConfig = () => {
         },
         {
             key: "app-testsets-link",
-            title: "Testsets",
+            title: "Test sets",
             link: `${projectURL}/testsets`,
             icon: <DatabaseOutlined size={16} />,
             disabled: !hasProjectURL,
@@ -114,6 +114,7 @@ export const useSidebarConfig = () => {
             isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <Lightning size={16} />,
             disabled: !hasProjectURL,
+            dataTour: "registry-nav",
         },
         {
             key: "app-evaluations-link",
@@ -122,6 +123,7 @@ export const useSidebarConfig = () => {
             isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <ChartDonut size={16} />,
             disabled: !hasProjectURL,
+            dataTour: "evaluations-nav",
         },
         {
             key: "app-traces-link",
@@ -147,7 +149,7 @@ export const useSidebarConfig = () => {
             icon: <PaperPlane size={16} />,
             isBottom: true,
             tooltip: "Invite Teammate",
-            isHidden: !doesSessionExist || !selectedOrg,
+            isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
             disabled: !hasProjectURL,
         },
         {
@@ -160,7 +162,7 @@ export const useSidebarConfig = () => {
             ),
             isBottom: true,
             tooltip: "Open the onboarding guide",
-            isHidden: !doesSessionExist || !isNewUser,
+            isHidden: !doesSessionExist,
             onClick: (e) => {
                 e.preventDefault()
                 openWidget()

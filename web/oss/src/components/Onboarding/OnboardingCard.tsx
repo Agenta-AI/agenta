@@ -6,6 +6,7 @@ import {
     isValidElement,
     useCallback,
     useEffect,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -53,9 +54,15 @@ const OnboardingCard = ({
     const cardRef = useRef<HTMLDivElement>(null)
 
     // Simplified Drag State
-    const [offset, setOffset] = useState({x: 0, y: 0})
+    const [userOffset, setUserOffset] = useState({x: 0, y: 0})
+    const [autoOffset, setAutoOffset] = useState({x: 0, y: 0})
     const isDraggingRef = useRef(false)
     const dragStartRef = useRef({x: 0, y: 0, offsetX: 0, offsetY: 0})
+    const clampRafRef = useRef<number | null>(null)
+    const clampTimeoutsRef = useRef<number[]>([])
+    const lastScrollStepRef = useRef<number | null>(null)
+    const autoAdvanceTriggeredRef = useRef(false)
+    const viewPadding = 12
 
     // Drag Handler: Mouse Down
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -69,7 +76,7 @@ const OnboardingCard = ({
         }
 
         // Update drag start based on current React state
-        setOffset((prev) => {
+        setUserOffset((prev) => {
             dragStartRef.current.offsetX = prev.x
             dragStartRef.current.offsetY = prev.y
             return prev
@@ -77,6 +84,58 @@ const OnboardingCard = ({
     }, [])
 
     // Drag Logic: Global Listeners
+    const getTargetElement = useCallback(() => {
+        const selector = step?.selector
+        if (!selector) return null
+
+        try {
+            return document.querySelector(selector)
+        } catch (error) {
+            console.warn("[Onboarding] Invalid step selector:", selector, error)
+            return null
+        }
+    }, [step?.selector])
+
+    const adjustIntoView = useCallback(() => {
+        if (isDraggingRef.current) return
+        if (!cardRef.current || typeof window === "undefined") return
+
+        const rect = cardRef.current.getBoundingClientRect()
+        const maxX = window.innerWidth - viewPadding
+        const maxY = window.innerHeight - viewPadding
+        let dx = 0
+        let dy = 0
+
+        if (rect.left < viewPadding) {
+            dx = viewPadding - rect.left
+        } else if (rect.right > maxX) {
+            dx = maxX - rect.right
+        }
+
+        if (rect.top < viewPadding) {
+            dy = viewPadding - rect.top
+        } else if (rect.bottom > maxY) {
+            dy = maxY - rect.bottom
+        }
+
+        if (dx === 0 && dy === 0) return
+
+        if (lastScrollStepRef.current !== currentStep) {
+            const target = getTargetElement()
+            if (target) {
+                lastScrollStepRef.current = currentStep
+                target.scrollIntoView({
+                    block: "center",
+                    inline: "center",
+                    behavior: "smooth",
+                })
+                return
+            }
+        }
+
+        setAutoOffset((prev) => ({x: prev.x + dx, y: prev.y + dy}))
+    }, [currentStep, getTargetElement, viewPadding])
+
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
             if (!isDraggingRef.current) return
@@ -84,15 +143,16 @@ const OnboardingCard = ({
             const dx = e.clientX - dragStartRef.current.x
             const dy = e.clientY - dragStartRef.current.y
 
-            // Allow unrestricted movement for smoother feel, boundary check can be added if really needed
-            setOffset({
+            setUserOffset({
                 x: dragStartRef.current.offsetX + dx,
                 y: dragStartRef.current.offsetY + dy,
             })
         }
 
         const handleMouseUp = () => {
+            if (!isDraggingRef.current) return
             isDraggingRef.current = false
+            requestAnimationFrame(adjustIntoView)
         }
 
         window.addEventListener("mousemove", handleMouseMove)
@@ -102,12 +162,58 @@ const OnboardingCard = ({
             window.removeEventListener("mousemove", handleMouseMove)
             window.removeEventListener("mouseup", handleMouseUp)
         }
-    }, [])
+    }, [adjustIntoView])
 
     // Reset offset on step change
     useEffect(() => {
-        setOffset({x: 0, y: 0})
+        setUserOffset({x: 0, y: 0})
+        setAutoOffset({x: 0, y: 0})
+        lastScrollStepRef.current = null
     }, [currentStep])
+
+    const startClampPasses = useCallback(() => {
+        if (clampRafRef.current) {
+            cancelAnimationFrame(clampRafRef.current)
+            clampRafRef.current = null
+        }
+        clampTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
+        clampTimeoutsRef.current = []
+
+        clampRafRef.current = requestAnimationFrame(adjustIntoView)
+        clampTimeoutsRef.current.push(
+            window.setTimeout(() => requestAnimationFrame(adjustIntoView), 160),
+        )
+        clampTimeoutsRef.current.push(
+            window.setTimeout(() => requestAnimationFrame(adjustIntoView), 360),
+        )
+    }, [adjustIntoView])
+
+    useLayoutEffect(() => {
+        startClampPasses()
+        return () => {
+            if (clampRafRef.current) {
+                cancelAnimationFrame(clampRafRef.current)
+                clampRafRef.current = null
+            }
+            clampTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
+            clampTimeoutsRef.current = []
+        }
+    }, [currentStep, step, startClampPasses])
+
+    useEffect(() => {
+        const handleResize = () => {
+            requestAnimationFrame(adjustIntoView)
+        }
+
+        window.addEventListener("resize", handleResize)
+        window.addEventListener("scroll", adjustIntoView, true)
+        requestAnimationFrame(adjustIntoView)
+
+        return () => {
+            window.removeEventListener("resize", handleResize)
+            window.removeEventListener("scroll", adjustIntoView, true)
+        }
+    }, [adjustIntoView])
 
     // Step Lifecycle & Cleanup Management
     useEffect(() => {
@@ -115,6 +221,7 @@ const OnboardingCard = ({
 
         setCurrentStepState({step, currentStep, totalSteps})
         step.onEnter?.()
+        autoAdvanceTriggeredRef.current = false
 
         return () => {
             step.onExit?.()
@@ -128,8 +235,153 @@ const OnboardingCard = ({
         skipTour?.()
     }, [skipTour, step])
 
-    // Handle next step
-    const handleNext = useCallback(async () => {
+    const isElementVisible = (element: Element | null) => {
+        if (!element || !(element instanceof HTMLElement)) return false
+        const style = window.getComputedStyle(element)
+        if (style.display === "none" || style.visibility === "hidden") return false
+        return element.getClientRects().length > 0
+    }
+
+    const waitForSelectorReady = async (
+        selector: string,
+        requireVisible: boolean,
+        timeoutMs = 2000,
+        pollInterval = 100,
+    ): Promise<boolean> => {
+        const start = Date.now()
+
+        return new Promise((resolve) => {
+            const check = () => {
+                try {
+                    const element = document.querySelector(selector)
+                    const isReady = requireVisible ? isElementVisible(element) : Boolean(element)
+                    if (isReady) {
+                        resolve(true)
+                        return
+                    }
+                } catch (error) {
+                    console.warn("[Onboarding] Invalid waitForSelector:", selector, error)
+                    resolve(false)
+                    return
+                }
+
+                if (Date.now() - start >= timeoutMs) {
+                    resolve(false)
+                    return
+                }
+
+                window.setTimeout(check, pollInterval)
+            }
+
+            check()
+        })
+    }
+
+    const waitForSelectorHidden = async (
+        selector: string,
+        timeoutMs = 2000,
+        pollInterval = 100,
+    ): Promise<boolean> => {
+        const start = Date.now()
+
+        return new Promise((resolve) => {
+            const check = () => {
+                try {
+                    const element = document.querySelector(selector)
+                    if (!isElementVisible(element)) {
+                        resolve(true)
+                        return
+                    }
+                } catch (error) {
+                    console.warn("[Onboarding] Invalid waitForHiddenSelector:", selector, error)
+                    resolve(false)
+                    return
+                }
+
+                if (Date.now() - start >= timeoutMs) {
+                    resolve(false)
+                    return
+                }
+
+                window.setTimeout(check, pollInterval)
+            }
+
+            check()
+        })
+    }
+
+    const performStepAction = useCallback(
+        async (
+            action:
+                | {
+                      selector: string
+                      type?: "click"
+                      waitForSelector?: string
+                      waitForSelectorVisible?: boolean
+                      waitForHiddenSelector?: string
+                      waitTimeoutMs?: number
+                      waitPollInterval?: number
+                      advanceOnActionClick?: boolean
+                  }
+                | undefined,
+        ) => {
+            if (!action) return true
+
+            const {
+                selector,
+                type = "click",
+                waitForSelector,
+                waitForSelectorVisible = true,
+                waitForHiddenSelector,
+                waitTimeoutMs,
+                waitPollInterval,
+            } = action
+
+            let target: HTMLElement | null = null
+            try {
+                target = document.querySelector(selector) as HTMLElement | null
+            } catch (error) {
+                console.warn("[Onboarding] Invalid step action selector:", selector, error)
+                return false
+            }
+
+            if (!target) {
+                console.warn("[Onboarding] Step action target not found:", selector)
+                return false
+            }
+
+            if (target instanceof HTMLButtonElement && target.disabled) {
+                console.warn("[Onboarding] Step action target is disabled:", selector)
+                return false
+            }
+
+            if (type === "click") {
+                target.click()
+            }
+
+            if (waitForSelector) {
+                return waitForSelectorReady(
+                    waitForSelector,
+                    waitForSelectorVisible,
+                    waitTimeoutMs ?? 2000,
+                    waitPollInterval ?? 100,
+                )
+            }
+
+            if (waitForHiddenSelector) {
+                return waitForSelectorHidden(
+                    waitForHiddenSelector,
+                    waitTimeoutMs ?? 2000,
+                    waitPollInterval ?? 100,
+                )
+            }
+
+            return true
+        },
+        [],
+    )
+
+    const advanceStep = useCallback(async () => {
         try {
             await step?.onNext?.()
         } catch (error) {
@@ -137,13 +389,94 @@ const OnboardingCard = ({
         }
 
         if (currentStep >= totalSteps - 1) {
-            // Last step - complete
             step.onCleanup?.()
             skipTour?.()
         } else {
             nextStep()
         }
     }, [step, currentStep, totalSteps, nextStep, skipTour])
+
+    const handlePrev = useCallback(async () => {
+        try {
+            await step?.onPrev?.()
+        } catch (error) {
+            console.error("[Onboarding] onPrev handler error:", error)
+            return
+        }
+        const actionReady = await performStepAction(step?.prevAction)
+        if (!actionReady) {
+            return
+        }
+        prevStep()
+    }, [performStepAction, prevStep, step])
+
+    // Handle next step
+    const handleNext = useCallback(async () => {
+        const actionReady = await performStepAction(step?.nextAction)
+        if (!actionReady) {
+            return
+        }
+        await advanceStep()
+    }, [performStepAction, step?.nextAction, advanceStep])
+
+    useEffect(() => {
+        if (!step?.nextAction?.advanceOnActionClick) return
+
+        let target: HTMLElement | null = null
+        try {
+            target = document.querySelector(step.nextAction.selector) as HTMLElement | null
+        } catch (error) {
+            console.warn(
+                "[Onboarding] Invalid step action selector:",
+                step.nextAction.selector,
+                error,
+            )
+            return
+        }
+
+        if (!target) return
+
+        const handleActionClick = async (event: Event) => {
+            if (!(event instanceof MouseEvent) || !event.isTrusted) return
+            if (autoAdvanceTriggeredRef.current) return
+            autoAdvanceTriggeredRef.current = true
+
+            const {
+                waitForSelector,
+                waitForSelectorVisible,
+                waitForHiddenSelector,
+                waitTimeoutMs,
+                waitPollInterval,
+            } = step.nextAction ?? {}
+
+            if (waitForSelector) {
+                const ready = await waitForSelectorReady(
+                    waitForSelector,
+                    waitForSelectorVisible ?? true,
+                    waitTimeoutMs ?? 2000,
+                    waitPollInterval ?? 100,
+                )
+                if (!ready) return
+            }
+
+            if (waitForHiddenSelector) {
+                const ready = await waitForSelectorHidden(
+                    waitForHiddenSelector,
+                    waitTimeoutMs ?? 2000,
+                    waitPollInterval ?? 100,
+                )
+                if (!ready) return
+            }
+
+            await advanceStep()
+        }
+
+        target.addEventListener("click", handleActionClick)
+
+        return () => {
+            target?.removeEventListener("click", handleActionClick)
+        }
+    }, [advanceStep, step, waitForSelectorReady, waitForSelectorHidden])
 
     // UI Helpers
     const labels = step?.controlLabels ?? {}
@@ -170,13 +503,17 @@ const OnboardingCard = ({
 
     const showControls = step?.showControls ?? true
     const showSkip = step?.showSkip ?? true
+    const totalOffset = useMemo(
+        () => ({x: userOffset.x + autoOffset.x, y: userOffset.y + autoOffset.y}),
+        [autoOffset.x, autoOffset.y, userOffset.x, userOffset.y],
+    )
 
     return (
         <section
             ref={cardRef}
-            className="w-[340px]"
+            className="w-[340px] max-w-[calc(100vw-24px)]"
             style={{
-                transform: `translate(${offset.x}px, ${offset.y}px)`,
+                transform: `translate(${totalOffset.x}px, ${totalOffset.y}px)`,
                 // Add explicit 'will-change' for performance hint
                 willChange: "transform",
                 // Only animate when NOT dragging to avoid lag
@@ -220,7 +557,7 @@ const OnboardingCard = ({
 
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <Button
-                                    onClick={prevStep}
+                                    onClick={handlePrev}
                                     icon={<ArrowLeft size={14} className="mt-0.5" />}
                                     disabled={currentStep === 0}
                                     className="!text-xs !h-[26px] rounded-lg !border-colorBorder hover:!border-colorBorder bg-white text-colorText hover:!text-colorTextSecondary"
@@ -258,7 +595,7 @@ const OnboardingCard = ({
                 )}
 
                 {/* Arrow - hide if user has moved the card */}
-                {adjustedArrow && offset.x === 0 && offset.y === 0 && (
+                {adjustedArrow && userOffset.x === 0 && userOffset.y === 0 && (
                     <div className="mt-2 flex w-full justify-center !bg-white">{adjustedArrow}</div>
                 )}
             </Card>

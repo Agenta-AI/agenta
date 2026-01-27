@@ -119,7 +119,10 @@ async def evaluator_run(
                     exc_info=True,
                 )
                 raise HTTPException(
-                    status_code=424 if "401" in str(e) else 500, detail=str(e)
+                    status_code=424
+                    if any(code in str(e) for code in ["401", "403", "429"])
+                    else 500,
+                    detail=str(e),
                 )
 
             return result

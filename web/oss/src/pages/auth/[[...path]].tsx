@@ -426,7 +426,7 @@ const Auth = () => {
                     src="/assets/Agenta-logo-full-light.png"
                     alt="agenta-ai"
                     width={114}
-                    height={40}
+                    height={39}
                     className={clsx(["absolute", "top-4 lg:top-14", "left-4 lg:left-14"])}
                 />
                 <div className="h-[680px] w-[400px] flex flex-col justify-start gap-8 mx-auto mt-10">
@@ -474,7 +474,7 @@ const Auth = () => {
                                 />
                                 <div className="flex gap-3 justify-center">
                                     <Button onClick={() => router.replace("/w")}>
-                                        Go to your workspaces
+                                        Go to your organizations
                                     </Button>
                                     <Button
                                         type="primary"
