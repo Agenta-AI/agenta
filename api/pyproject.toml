@@ -28,7 +28,7 @@ gunicorn = "^23"
 httpx = "^0.28"
 structlog = "^25"
 python-dotenv = "^1"
-python-multipart = "^0.0.21"
+python-multipart = "^0.0.22"
 
 # Database dependencies
 sqlalchemy = "^2"
