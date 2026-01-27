@@ -45,7 +45,7 @@ const ApplicationManagementSection = ({
     return (
         <>
             <div className="flex flex-col gap-2">
-                <Title level={2} className="!my-0 !text-[20px] !leading-[28px] !font-medium">
+                <Title level={2} className="!my-0">
                     Applications
                 </Title>
 

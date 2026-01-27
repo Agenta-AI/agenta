@@ -489,9 +489,9 @@ const PostSignupForm = () => {
                 <ListOfOrgs
                     collapsed={false}
                     interactive={true}
-                    organizationSelectionEnabled={false}
+                    orgSelectionEnabled={false}
                     buttonProps={{className: "w-[236px] !p-1 !h-10 rounded"}}
-                    overrideOrganizationId={orgs && orgs.length > 0 ? orgs[0]?.id : undefined}
+                    overrideOrgId={orgs && orgs.length > 0 ? orgs[0]?.id : undefined}
                 />
             </section>
 

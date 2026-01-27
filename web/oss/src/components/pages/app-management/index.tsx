@@ -169,10 +169,7 @@ const AppManagement: React.FC = () => {
                     <>
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <Title
-                                    level={2}
-                                    className="!m-0 !text-[20px] !leading-[28px] !font-medium"
-                                >
+                                <Title level={2} className="!m-0">
                                     Home
                                 </Title>
 

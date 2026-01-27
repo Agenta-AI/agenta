@@ -67,7 +67,7 @@ const GetStartedSection = ({
 
     return (
         <div className="flex flex-col gap-4">
-            <Title level={2} className="!my-0 !text-[20px] !leading-[28px] !font-medium">
+            <Title level={2} className="!my-0">
                 Get Started
             </Title>
 
