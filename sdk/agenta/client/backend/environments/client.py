@@ -32,7 +32,7 @@ class EnvironmentsClient:
         variant_id: str,
         commit_message: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Deploys a given variant to an environment
 
@@ -56,7 +56,7 @@ class EnvironmentsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -102,7 +102,7 @@ class AsyncEnvironmentsClient:
         variant_id: str,
         commit_message: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Deploys a given variant to an environment
 
@@ -126,7 +126,7 @@ class AsyncEnvironmentsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples

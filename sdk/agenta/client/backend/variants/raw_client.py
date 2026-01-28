@@ -15,6 +15,7 @@ from ..types.app_variant_response import AppVariantResponse
 from ..types.app_variant_revision import AppVariantRevision
 from ..types.config_dto import ConfigDto
 from ..types.config_response_model import ConfigResponseModel
+from ..types.configs_response_model import ConfigsResponseModel
 from ..types.http_validation_error import HttpValidationError
 from ..types.reference_dto import ReferenceDto
 from ..types.reference_request_model import ReferenceRequestModel
@@ -36,7 +37,7 @@ class RawVariantsClient:
         base_id: str,
         new_variant_name: str,
         new_config_name: str,
-        parameters: typing.Dict[str, typing.Optional[typing.Any]],
+        parameters: typing.Dict[str, typing.Any],
         commit_message: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[AddVariantFromBaseAndConfigResponse]:
@@ -61,7 +62,7 @@ class RawVariantsClient:
 
         new_config_name : str
 
-        parameters : typing.Dict[str, typing.Optional[typing.Any]]
+        parameters : typing.Dict[str, typing.Any]
 
         commit_message : typing.Optional[str]
 
@@ -186,7 +187,7 @@ class RawVariantsClient:
         variant_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Mark a variant as hidden from the UI.
 
@@ -205,7 +206,7 @@ class RawVariantsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -218,9 +219,9 @@ class RawVariantsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -253,10 +254,10 @@ class RawVariantsClient:
         self,
         variant_id: str,
         *,
-        parameters: typing.Dict[str, typing.Optional[typing.Any]],
+        parameters: typing.Dict[str, typing.Any],
         commit_message: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[AppVariantRevision]:
         """
         Updates the parameters for an app variant.
 
@@ -274,7 +275,7 @@ class RawVariantsClient:
         ----------
         variant_id : str
 
-        parameters : typing.Dict[str, typing.Optional[typing.Any]]
+        parameters : typing.Dict[str, typing.Any]
 
         commit_message : typing.Optional[str]
 
@@ -283,7 +284,7 @@ class RawVariantsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[AppVariantRevision]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -300,13 +301,11 @@ class RawVariantsClient:
             omit=OMIT,
         )
         try:
-            if _response is None or not _response.text.strip():
-                return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    AppVariantRevision,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=AppVariantRevision,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -343,7 +342,7 @@ class RawVariantsClient:
         update_variant_url_payload_variant_id: str,
         commit_message: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Updates the URL used in an app variant.
 
@@ -372,7 +371,7 @@ class RawVariantsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -394,9 +393,9 @@ class RawVariantsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -550,7 +549,7 @@ class RawVariantsClient:
         revision_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Mark a variant revision as hidden from the UI.
 
@@ -572,7 +571,7 @@ class RawVariantsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -585,9 +584,9 @@ class RawVariantsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -741,17 +740,17 @@ class RawVariantsClient:
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
                     object_=variant_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
                 "environment_ref": convert_and_respect_annotation_metadata(
                     object_=environment_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
             },
@@ -826,17 +825,17 @@ class RawVariantsClient:
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
                     object_=variant_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
                 "environment_ref": convert_and_respect_annotation_metadata(
                     object_=environment_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
             },
@@ -852,6 +851,83 @@ class RawVariantsClient:
                     ConfigResponseModel,
                     parse_obj_as(
                         type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    def configs_query(
+        self,
+        *,
+        variant_refs: typing.Optional[typing.Sequence[ReferenceRequestModel]] = OMIT,
+        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> HttpResponse[ConfigsResponseModel]:
+        """
+        Parameters
+        ----------
+        variant_refs : typing.Optional[typing.Sequence[ReferenceRequestModel]]
+
+        application_ref : typing.Optional[ReferenceRequestModel]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HttpResponse[ConfigsResponseModel]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "variants/configs/query",
+            method="POST",
+            json={
+                "variant_refs": convert_and_respect_annotation_metadata(
+                    object_=variant_refs,
+                    annotation=typing.Optional[typing.Sequence[ReferenceRequestModel]],
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
+                ),
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ConfigsResponseModel,
+                    parse_obj_as(
+                        type_=ConfigsResponseModel,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -988,7 +1064,7 @@ class RawVariantsClient:
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
             },
@@ -1065,7 +1141,7 @@ class RawVariantsClient:
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
             },
@@ -1209,7 +1285,7 @@ class RawVariantsClient:
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
             },
@@ -1264,7 +1340,7 @@ class AsyncRawVariantsClient:
         base_id: str,
         new_variant_name: str,
         new_config_name: str,
-        parameters: typing.Dict[str, typing.Optional[typing.Any]],
+        parameters: typing.Dict[str, typing.Any],
         commit_message: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[AddVariantFromBaseAndConfigResponse]:
@@ -1289,7 +1365,7 @@ class AsyncRawVariantsClient:
 
         new_config_name : str
 
-        parameters : typing.Dict[str, typing.Optional[typing.Any]]
+        parameters : typing.Dict[str, typing.Any]
 
         commit_message : typing.Optional[str]
 
@@ -1414,7 +1490,7 @@ class AsyncRawVariantsClient:
         variant_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Mark a variant as hidden from the UI.
 
@@ -1433,7 +1509,7 @@ class AsyncRawVariantsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1446,9 +1522,9 @@ class AsyncRawVariantsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1481,10 +1557,10 @@ class AsyncRawVariantsClient:
         self,
         variant_id: str,
         *,
-        parameters: typing.Dict[str, typing.Optional[typing.Any]],
+        parameters: typing.Dict[str, typing.Any],
         commit_message: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[AppVariantRevision]:
         """
         Updates the parameters for an app variant.
 
@@ -1502,7 +1578,7 @@ class AsyncRawVariantsClient:
         ----------
         variant_id : str
 
-        parameters : typing.Dict[str, typing.Optional[typing.Any]]
+        parameters : typing.Dict[str, typing.Any]
 
         commit_message : typing.Optional[str]
 
@@ -1511,7 +1587,7 @@ class AsyncRawVariantsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[AppVariantRevision]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1528,13 +1604,11 @@ class AsyncRawVariantsClient:
             omit=OMIT,
         )
         try:
-            if _response is None or not _response.text.strip():
-                return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    AppVariantRevision,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=AppVariantRevision,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1571,7 +1645,7 @@ class AsyncRawVariantsClient:
         update_variant_url_payload_variant_id: str,
         commit_message: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Updates the URL used in an app variant.
 
@@ -1600,7 +1674,7 @@ class AsyncRawVariantsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1622,9 +1696,9 @@ class AsyncRawVariantsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1778,7 +1852,7 @@ class AsyncRawVariantsClient:
         revision_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Mark a variant revision as hidden from the UI.
 
@@ -1800,7 +1874,7 @@ class AsyncRawVariantsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1813,9 +1887,9 @@ class AsyncRawVariantsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1969,17 +2043,17 @@ class AsyncRawVariantsClient:
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
                     object_=variant_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
                 "environment_ref": convert_and_respect_annotation_metadata(
                     object_=environment_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
             },
@@ -2054,17 +2128,17 @@ class AsyncRawVariantsClient:
             json={
                 "variant_ref": convert_and_respect_annotation_metadata(
                     object_=variant_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
                 "environment_ref": convert_and_respect_annotation_metadata(
                     object_=environment_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
             },
@@ -2080,6 +2154,83 @@ class AsyncRawVariantsClient:
                     ConfigResponseModel,
                     parse_obj_as(
                         type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
+    async def configs_query(
+        self,
+        *,
+        variant_refs: typing.Optional[typing.Sequence[ReferenceRequestModel]] = OMIT,
+        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> AsyncHttpResponse[ConfigsResponseModel]:
+        """
+        Parameters
+        ----------
+        variant_refs : typing.Optional[typing.Sequence[ReferenceRequestModel]]
+
+        application_ref : typing.Optional[ReferenceRequestModel]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        AsyncHttpResponse[ConfigsResponseModel]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "variants/configs/query",
+            method="POST",
+            json={
+                "variant_refs": convert_and_respect_annotation_metadata(
+                    object_=variant_refs,
+                    annotation=typing.Optional[typing.Sequence[ReferenceRequestModel]],
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=typing.Optional[ReferenceRequestModel],
+                    direction="write",
+                ),
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ConfigsResponseModel,
+                    parse_obj_as(
+                        type_=ConfigsResponseModel,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -2216,7 +2367,7 @@ class AsyncRawVariantsClient:
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
             },
@@ -2293,7 +2444,7 @@ class AsyncRawVariantsClient:
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
             },
@@ -2437,7 +2588,7 @@ class AsyncRawVariantsClient:
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref,
-                    annotation=ReferenceRequestModel,
+                    annotation=typing.Optional[ReferenceRequestModel],
                     direction="write",
                 ),
             },

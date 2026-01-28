@@ -8,6 +8,7 @@ from .annotation import Annotation
 
 
 class AnnotationResponse(UniversalBaseModel):
+    count: typing.Optional[int] = None
     annotation: typing.Optional[Annotation] = None
 
     if IS_PYDANTIC_V2:

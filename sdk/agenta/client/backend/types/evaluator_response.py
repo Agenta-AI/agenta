@@ -8,7 +8,7 @@ from .evaluator import Evaluator
 
 
 class EvaluatorResponse(UniversalBaseModel):
-    count: int
+    count: typing.Optional[int] = None
     evaluator: typing.Optional[Evaluator] = None
 
     if IS_PYDANTIC_V2:

@@ -31,7 +31,7 @@ class AccessControlClient:
         resource_type: typing.Optional[str] = None,
         resource_id: typing.Optional[str] = None,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -50,7 +50,7 @@ class AccessControlClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -97,7 +97,7 @@ class AsyncAccessControlClient:
         resource_type: typing.Optional[str] = None,
         resource_id: typing.Optional[str] = None,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -116,7 +116,7 @@ class AsyncAccessControlClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples

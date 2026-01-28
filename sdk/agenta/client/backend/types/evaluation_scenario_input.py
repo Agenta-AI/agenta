@@ -9,7 +9,7 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 class EvaluationScenarioInput(UniversalBaseModel):
     name: str
     type: str
-    value: typing.Optional[typing.Any] = None
+    value: typing.Any
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

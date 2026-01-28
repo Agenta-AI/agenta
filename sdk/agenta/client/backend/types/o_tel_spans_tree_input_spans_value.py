@@ -2,6 +2,6 @@
 
 import typing
 
-from .o_tel_span import OTelSpan
+from .o_tel_span_input import OTelSpanInput
 
-OTelSpansTreeInputSpansValue = typing.Union[OTelSpan, typing.List[OTelSpan]]
+OTelSpansTreeInputSpansValue = typing.Union[OTelSpanInput, typing.List[OTelSpanInput]]

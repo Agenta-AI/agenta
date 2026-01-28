@@ -8,8 +8,8 @@ from .workflow_revision import WorkflowRevision
 
 
 class WorkflowRevisionResponse(UniversalBaseModel):
-    count: int
-    revision: typing.Optional[WorkflowRevision] = None
+    count: typing.Optional[int] = None
+    workflow_revision: typing.Optional[WorkflowRevision] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

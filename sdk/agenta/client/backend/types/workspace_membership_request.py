@@ -4,15 +4,15 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .reference import Reference
-from .role import Role
+from .ee_src_services_admin_manager_reference import EeSrcServicesAdminManagerReference
+from .workspace_membership_request_role import WorkspaceMembershipRequestRole
 
 
 class WorkspaceMembershipRequest(UniversalBaseModel):
-    role: Role
+    role: WorkspaceMembershipRequestRole
     is_demo: bool
-    user_ref: Reference
-    workspace_ref: Reference
+    user_ref: EeSrcServicesAdminManagerReference
+    workspace_ref: EeSrcServicesAdminManagerReference
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

@@ -72,7 +72,7 @@ class ConfigsClient:
         deployment_revision_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -83,7 +83,7 @@ class ConfigsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -107,7 +107,7 @@ class ConfigsClient:
         deployment_revision_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -118,7 +118,7 @@ class ConfigsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -210,7 +210,7 @@ class AsyncConfigsClient:
         deployment_revision_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -221,7 +221,7 @@ class AsyncConfigsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -253,7 +253,7 @@ class AsyncConfigsClient:
         deployment_revision_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -264,7 +264,7 @@ class AsyncConfigsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples

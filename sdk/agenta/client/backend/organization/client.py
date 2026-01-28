@@ -5,8 +5,10 @@ import typing
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
 from ..types.invite_request import InviteRequest
-from ..types.organization import Organization
 from ..types.organization_details import OrganizationDetails
+from ..types.oss_src_models_api_organization_models_organization import (
+    OssSrcModelsApiOrganizationModelsOrganization,
+)
 from .raw_client import AsyncRawOrganizationClient, RawOrganizationClient
 
 # this is used as the default value for optional parameters
@@ -67,7 +69,7 @@ class OrganizationClient:
 
     def list_organizations(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[Organization]:
+    ) -> typing.List[OssSrcModelsApiOrganizationModelsOrganization]:
         """
         Returns a list of organizations associated with the user's session.
 
@@ -84,7 +86,7 @@ class OrganizationClient:
 
         Returns
         -------
-        typing.List[Organization]
+        typing.List[OssSrcModelsApiOrganizationModelsOrganization]
             Successful Response
 
         Examples
@@ -106,7 +108,7 @@ class OrganizationClient:
         *,
         request: typing.Sequence[InviteRequest],
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Assigns a role to a user in an organization.
 
@@ -135,7 +137,7 @@ class OrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -170,7 +172,7 @@ class OrganizationClient:
         *,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Resend an invitation to a user to an Organization.
 
@@ -195,7 +197,7 @@ class OrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -225,7 +227,7 @@ class OrganizationClient:
         token: str,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Accept an invitation to an organization.
 
@@ -254,7 +256,7 @@ class OrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -345,7 +347,7 @@ class AsyncOrganizationClient:
 
     async def list_organizations(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[Organization]:
+    ) -> typing.List[OssSrcModelsApiOrganizationModelsOrganization]:
         """
         Returns a list of organizations associated with the user's session.
 
@@ -362,7 +364,7 @@ class AsyncOrganizationClient:
 
         Returns
         -------
-        typing.List[Organization]
+        typing.List[OssSrcModelsApiOrganizationModelsOrganization]
             Successful Response
 
         Examples
@@ -394,7 +396,7 @@ class AsyncOrganizationClient:
         *,
         request: typing.Sequence[InviteRequest],
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Assigns a role to a user in an organization.
 
@@ -423,7 +425,7 @@ class AsyncOrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -466,7 +468,7 @@ class AsyncOrganizationClient:
         *,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Resend an invitation to a user to an Organization.
 
@@ -491,7 +493,7 @@ class AsyncOrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -529,7 +531,7 @@ class AsyncOrganizationClient:
         token: str,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Accept an invitation to an organization.
 
@@ -558,7 +560,7 @@ class AsyncOrganizationClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
