@@ -1,5 +1,4 @@
 import {useMemo} from "react"
-import {useMemo} from "react"
 
 import {SelectProps} from "antd"
 
