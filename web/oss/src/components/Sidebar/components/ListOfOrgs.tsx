@@ -623,6 +623,7 @@ const ListOfOrgs = ({
                                 items: organizationMenuItems,
                                 selectedKeys: selectedOrganizationKey,
                                 onClick: handleOrganizationMenuClick,
+                                className: "min-w-[150px]",
                             }}
                         >
                             <div data-org-selector>
