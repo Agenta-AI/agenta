@@ -5,6 +5,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
+import {extractEvaluatorKeyFromUri} from "@/oss/lib/evaluators/utils"
 import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
 import {
     EvaluatorDto,
@@ -13,7 +14,7 @@ import {
     EvaluatorRevisionsResponseDto,
     EvaluatorsResponseDto,
 } from "@/oss/lib/hooks/useEvaluators/types"
-import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
+import {Evaluator, SimpleEvaluator} from "@/oss/lib/Types"
 import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/oss/services/evaluators"
 import {selectedAppIdAtom} from "@/oss/state/app"
 import {selectedOrgAtom} from "@/oss/state/org"
@@ -26,16 +27,15 @@ import {EvaluatorConfigsParams, EvaluatorsParams} from "./types"
 
 const extractKeyFromUri = (uri: unknown): string | undefined => {
     if (typeof uri !== "string") return undefined
-    const match = uri.match(/[:/](auto_[a-z0-9_]+)/i)
-    if (match?.[1]) return match[1]
-    const parts = uri.split(":").filter(Boolean)
-    if (parts.length) {
-        const candidate = parts[parts.length - 1]
-        if (candidate) {
-            return candidate.replace(/-v\d+$/i, "")
-        }
-    }
-    return undefined
+    return (
+        extractEvaluatorKeyFromUri(uri) ||
+        uri.match(/[:/](auto_[a-z0-9_]+)/i)?.[1] ||
+        uri
+            .split(":")
+            .filter(Boolean)
+            .slice(-1)[0]
+            ?.replace(/-v\d+$/i, "")
+    )
 }
 
 const isPlainObject = (value: unknown): value is Record<string, any> => {
@@ -102,7 +102,7 @@ const extractRequiresLlmApiKeys = (source: unknown): boolean | undefined => {
 
 export const evaluatorConfigsQueryAtomFamily = atomFamily(
     ({projectId: overrideProjectId, appId: overrideAppId, preview}: EvaluatorConfigsParams = {}) =>
-        atomWithQuery<EvaluatorConfig[]>((get) => {
+        atomWithQuery<SimpleEvaluator[]>((get) => {
             const projectId = overrideProjectId || get(projectIdAtom)
             const appId = overrideAppId || get(selectedAppIdAtom)
             const user = get(userAtom) as {id?: string} | null

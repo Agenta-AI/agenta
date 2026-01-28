@@ -2,7 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
-import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
+import {Evaluator, SimpleEvaluator} from "@/oss/lib/Types"
 
 import {EvaluatorCategory, EvaluatorPreview, EvaluatorRegistryRow} from "../assets/types"
 import {
@@ -33,7 +33,7 @@ const useEvaluatorsRegistryData = (category: EvaluatorCategory) => {
             const humanEvaluators = (humanEvaluatorsSwr.data || []) as EvaluatorPreview[]
             unsortedRows = transformEvaluatorsToRows(humanEvaluators, "human")
         } else {
-            const evaluatorConfigs = (evaluatorConfigsSwr.data || []) as EvaluatorConfig[]
+            const evaluatorConfigs = (evaluatorConfigsSwr.data || []) as SimpleEvaluator[]
             const baseEvaluators = (baseEvaluatorsSwr.data || []) as Evaluator[]
 
             unsortedRows = transformEvaluatorConfigsToRows(

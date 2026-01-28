@@ -9,7 +9,7 @@ import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
-import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
+import {Evaluator, SimpleEvaluator} from "@/oss/lib/Types"
 
 import ConfigureEvaluator from "./ConfigureEvaluator"
 import {initPlaygroundAtom, resetPlaygroundAtom} from "./ConfigureEvaluator/state/atoms"
@@ -39,7 +39,7 @@ const EvaluatorsModal = ({
         useFetchEvaluatorsData({appId: appId ?? ""})
     const [editMode, setEditMode] = useState(false)
     const [cloneConfig, setCloneConfig] = useState(false)
-    const [editEvalEditValues, setEditEvalEditValues] = useState<EvaluatorConfig | null>(null)
+    const [editEvalEditValues, setEditEvalEditValues] = useState<SimpleEvaluator | null>(null)
     const [evaluatorsDisplay, setEvaluatorsDisplay] = useLocalStorage<"card" | "list">(
         "evaluator_view",
         "list",

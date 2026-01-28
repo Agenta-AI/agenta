@@ -5,11 +5,11 @@ import {Modal, Space, theme, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
-import {EvaluatorConfig, JSSTheme} from "@/oss/lib/Types"
+import {JSSTheme, SimpleEvaluator} from "@/oss/lib/Types"
 import {deleteEvaluatorConfig} from "@/oss/services/evaluations/api"
 
 type DeleteModalProps = {
-    selectedEvalConfig: EvaluatorConfig
+    selectedEvalConfig: SimpleEvaluator
     onSuccess: () => void
 } & React.ComponentProps<typeof Modal>
 

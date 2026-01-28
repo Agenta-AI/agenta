@@ -7,17 +7,18 @@ import {ColumnsType} from "antd/es/table"
 import {useAtom} from "jotai"
 
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
-import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
+import {Evaluator, SimpleEvaluator} from "@/oss/lib/Types"
 
 import DeleteModal from "./DeleteModal"
 
 interface EvaluatorListProps {
-    evaluatorConfigs: EvaluatorConfig[]
+    evaluatorConfigs: SimpleEvaluator[]
     setEditMode: React.Dispatch<React.SetStateAction<boolean>>
     setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
-    setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
+    setEditEvalEditValues: React.Dispatch<React.SetStateAction<SimpleEvaluator | null>>
     onSuccess: () => void
 }
 
@@ -32,9 +33,9 @@ const EvaluatorList = ({
 }: EvaluatorListProps) => {
     const evaluators = useAtom(evaluatorsAtom)[0]
     const [openDeleteModal, setOpenDeleteModal] = useState(false)
-    const [selectedDelEval, setSelectedDelEval] = useState<EvaluatorConfig | null>(null)
+    const [selectedDelEval, setSelectedDelEval] = useState<SimpleEvaluator | null>(null)
 
-    const columns: ColumnsType<EvaluatorConfig> = [
+    const columns: ColumnsType<SimpleEvaluator> = [
         // {
         //     title: "Version",
         //     dataIndex: "version",
@@ -56,7 +57,8 @@ const EvaluatorList = ({
             dataIndex: "type",
             key: "type",
             render: (_, record) => {
-                const evaluator = evaluators.find((item) => item.key === record.evaluator_key)
+                const evaluatorKey = resolveEvaluatorKey(record)
+                const evaluator = evaluators.find((item) => item.key === evaluatorKey)
                 return <Tag color={record.color}>{evaluator?.name}</Tag>
             },
         },
@@ -84,8 +86,9 @@ const EvaluatorList = ({
                                     icon: <Note size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
+                                        const evaluatorKey = resolveEvaluatorKey(record)
                                         const selectedEval = evaluators.find(
-                                            (e) => e.key === record.evaluator_key,
+                                            (e) => e.key === evaluatorKey,
                                         )
                                         if (selectedEval) {
                                             setEditMode(true)
@@ -101,8 +104,9 @@ const EvaluatorList = ({
                                     icon: <Copy size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
+                                        const evaluatorKey = resolveEvaluatorKey(record)
                                         const selectedEval = evaluators.find(
-                                            (e) => e.key === record.evaluator_key,
+                                            (e) => e.key === evaluatorKey,
                                         )
                                         if (selectedEval) {
                                             setCloneConfig(true)
@@ -151,7 +155,8 @@ const EvaluatorList = ({
                 onRow={(record) => ({
                     style: {cursor: "pointer"},
                     onClick: () => {
-                        const selectedEval = evaluators.find((e) => e.key === record.evaluator_key)
+                        const evaluatorKey = resolveEvaluatorKey(record)
+                        const selectedEval = evaluators.find((e) => e.key === evaluatorKey)
                         if (selectedEval) {
                             setEditMode(true)
                             setSelectedEvaluator(selectedEval)

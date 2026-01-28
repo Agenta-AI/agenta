@@ -8,21 +8,22 @@ import {createUseStyles} from "react-jss"
 
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"
-import {Evaluator, EvaluatorConfig, JSSTheme} from "@/oss/lib/Types"
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
+import {Evaluator, JSSTheme, SimpleEvaluator} from "@/oss/lib/Types"
 import {nonArchivedEvaluatorsAtom} from "@/oss/state/evaluators"
 
 import EvaluatorCard from "./EvaluatorCard"
 import EvaluatorList from "./EvaluatorList"
 
 interface EvaluatorsProps {
-    evaluatorConfigs: EvaluatorConfig[]
+    evaluatorConfigs: SimpleEvaluator[]
     handleOnCancel: () => void
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
     fetchingEvalConfigs: boolean
     setEditMode: React.Dispatch<React.SetStateAction<boolean>>
     setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
-    setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
+    setEditEvalEditValues: React.Dispatch<React.SetStateAction<SimpleEvaluator | null>>
     onSuccess: () => void
     setEvaluatorsDisplay: any
     evaluatorsDisplay: string
@@ -95,10 +96,13 @@ const Evaluators = ({
 
     const updatedEvaluatorConfigs = useMemo(() => {
         return evaluatorConfigs.map((config) => {
-            const matchingEvaluator = evaluators.find(
-                (evaluator) => evaluator.key === config.evaluator_key,
+            const evaluatorKey = resolveEvaluatorKey(config)
+            const matchingEvaluator = evaluators.find((evaluator) => evaluator.key === evaluatorKey)
+            if (!matchingEvaluator) return config
+            const nextTags = Array.from(
+                new Set([...(config.tags || []), ...(matchingEvaluator.tags || [])]),
             )
-            return matchingEvaluator ? {...config, tags: matchingEvaluator.tags} : config
+            return {...config, tags: nextTags}
         })
     }, [evaluatorConfigs, evaluators])
 
@@ -111,7 +115,7 @@ const Evaluators = ({
 
         if (searchTerm) {
             filtered = filtered.filter((item) =>
-                item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+                (item.name || "").toLowerCase().includes(searchTerm.toLowerCase()),
             )
         }
 
