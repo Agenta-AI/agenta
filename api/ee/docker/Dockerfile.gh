@@ -24,7 +24,12 @@ COPY ./ee /app/ee/
 COPY ./oss /app/oss/
 COPY ./entrypoints /app/entrypoints/
 
-ENV PYTHONPATH=/app
+# Copy local SDK if present (synced by build.sh before docker build)
+# Uses glob pattern sd[k] to avoid failure if sdk/ doesn't exist (for OSS users)
+COPY ./sd[k] /app/sdk/
+
+# PYTHONPATH includes /app/sdk - if local SDK exists it takes precedence over PyPI version
+ENV PYTHONPATH=/app:/app/sdk
 
 COPY ./oss/src/crons/queries.sh /queries.sh
 COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron

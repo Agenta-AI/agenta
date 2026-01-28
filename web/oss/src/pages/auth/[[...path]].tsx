@@ -429,7 +429,7 @@ const Auth = () => {
                     height={40}
                     className={clsx(["absolute", "top-4 lg:top-14", "left-4 lg:left-14"])}
                 />
-                <div className="h-[680px] w-[400px] flex flex-col justify-start gap-8 mx-auto mt-10">
+                <div className="w-full max-w-[400px] flex flex-col justify-start gap-8 mx-auto">
                     <div>
                         <Title level={2} className="font-bold">
                             Welcome to Agenta AI
