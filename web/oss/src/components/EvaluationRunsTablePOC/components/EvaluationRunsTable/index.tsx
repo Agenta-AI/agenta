@@ -1,8 +1,9 @@
-import type {Key, MouseEvent} from "react"
+import type {Key, MouseEvent, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useQueryClient} from "@tanstack/react-query"
 import {Grid} from "antd"
+import type {TableProps} from "antd/es/table"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
@@ -19,6 +20,11 @@ import useTableExport, {
     EXPORT_RESOLVE_SKIP,
     type TableExportColumnContext,
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
+import EmptyStateAllEvaluations from "@/oss/components/pages/evaluations/allEvaluations/EmptyStateAllEvaluations"
+import EmptyStateEvaluation from "@/oss/components/pages/evaluations/autoEvaluation/EmptyStateEvaluation"
+import EmptyStateHumanEvaluation from "@/oss/components/pages/evaluations/humanEvaluation/EmptyStateHumanEvaluation"
+import EmptyStateOnlineEvaluation from "@/oss/components/pages/evaluations/onlineEvaluation/EmptyStateOnlineEvaluation"
+import EmptyStateSdkEvaluation from "@/oss/components/pages/evaluations/sdkEvaluation/EmptyStateSdkEvaluation"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {
     onboardingWidgetActivationAtom,
@@ -411,7 +417,37 @@ const EvaluationRunsTableActive = ({
         }
     }, [contextEvaluationKind, createEvaluationType, setSelectedCreateType])
 
-    const tableProps = useMemo(
+    const isEmptyState = useMemo(
+        () => pagination.paginationInfo.totalCount === 0 && !pagination.paginationInfo.isFetching,
+        [pagination.paginationInfo.isFetching, pagination.paginationInfo.totalCount],
+    )
+
+    const emptyStateComponent = useMemo((): ReactNode => {
+        if (!isEmptyState) return null
+
+        const openCreateModal = () => setIsCreateModalOpen(true)
+
+        const openSdkSetupModal = () => {
+            setSelectedCreateType("custom")
+            setIsCreateModalOpen(true)
+        }
+
+        switch (evaluationKind) {
+            case "auto":
+                return <EmptyStateEvaluation onRunEvaluation={openCreateModal} />
+            case "human":
+                return <EmptyStateHumanEvaluation onCreateEvaluation={openCreateModal} />
+            case "online":
+                return <EmptyStateOnlineEvaluation onCreateEvaluation={openCreateModal} />
+            case "custom":
+                return <EmptyStateSdkEvaluation onOpenSetupModal={openSdkSetupModal} />
+            case "all":
+            default:
+                return <EmptyStateAllEvaluations onCreateEvaluation={openCreateModal} />
+        }
+    }, [evaluationKind, isEmptyState, setIsCreateModalOpen, setSelectedCreateType])
+
+    const tableProps = useMemo<TableProps<EvaluationRunTableRow>>(
         () => ({
             size: "small" as const,
             sticky: true,
@@ -654,6 +690,43 @@ const EvaluationRunsTableActive = ({
         ),
         [],
     )
+
+    if (isEmptyState && emptyStateComponent) {
+        return (
+            <div
+                className={clsx(
+                    "flex flex-col pt-8",
+                    autoHeight ? "h-full min-h-0" : "min-h-0",
+                    className,
+                )}
+            >
+                {emptyStateComponent}
+
+                {createSupported ? (
+                    selectedCreateType === "custom" ? (
+                        <SetupEvaluationModal
+                            open={isCreateModalOpen}
+                            onCancel={closeCreateModal}
+                        />
+                    ) : selectedCreateType === "online" ? (
+                        <OnlineEvaluationDrawer
+                            open={isCreateModalOpen}
+                            onClose={closeCreateModal}
+                            onCreate={handleCreateSuccess}
+                        />
+                    ) : (
+                        <NewEvaluationModal
+                            preview={selectedCreateType === "human"}
+                            open={isCreateModalOpen}
+                            evaluationType={selectedCreateType}
+                            onCancel={closeCreateModal}
+                            onSuccess={handleCreateSuccess}
+                        />
+                    )
+                ) : null}
+            </div>
+        )
+    }
 
     return (
         <div

@@ -179,6 +179,7 @@ const ObservabilityTable = () => {
     }
 
     const showTableLoading = isLoading && traces.length === 0
+    const isEmptyState = traces.length === 0 && !isLoading
 
     const handleResize =
         (key: string) =>
@@ -201,6 +202,10 @@ const ObservabilityTable = () => {
             }),
         }))
     }, [columns, editColumns])
+
+    if (isEmptyState) {
+        return <EmptyObservability />
+    }
 
     return (
         <div className="flex flex-col gap-2">
@@ -274,9 +279,6 @@ const ObservabilityTable = () => {
                     }}
                     pagination={false}
                     scroll={{x: "max-content"}}
-                    locale={{
-                        emptyText: <EmptyObservability />,
-                    }}
                 />
                 {hasMoreTraces && (
                     <Button
