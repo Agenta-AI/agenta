@@ -7,6 +7,7 @@ import {useRouter} from "next/router"
 import {message} from "@/oss/components/AppMessageContext"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
 import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
@@ -289,7 +290,7 @@ const NewEvaluationModalInner = ({
             !preview &&
             selectedEvalConfigs.some(
                 (id) =>
-                    evaluatorConfigs.find((config) => config.id === id)?.evaluator_key ===
+                    resolveEvaluatorKey(evaluatorConfigs.find((config) => config.id === id)) ===
                     "auto_ai_critique",
             ) &&
             (await redirectIfNoLLMKeys({secrets}))

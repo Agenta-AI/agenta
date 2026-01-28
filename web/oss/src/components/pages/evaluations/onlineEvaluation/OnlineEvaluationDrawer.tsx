@@ -63,7 +63,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     const filterColumns = useMemo(() => getFilterColumns(), [])
     const [filters, setFilters] = useAtom(onlineEvalFiltersAtom)
     const resetFilters = useSetAtom(resetOnlineEvalFiltersAtom)
-    // Load preview evaluators (with IDs) to map evaluator_config.evaluator_key -> evaluator.id
+    // Load preview evaluators (with IDs) to map config URI key -> evaluator.id
     const previewEvaluatorsSwr = useEvaluators({preview: true, queries: {is_human: false}})
     const baseEvaluators = (baseEvaluatorsSwr.data as Evaluator[] | undefined) ?? []
     const evaluators = useAtomValue(evaluatorConfigsAtom)

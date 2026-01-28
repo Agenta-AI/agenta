@@ -25,6 +25,7 @@ import {
     resetPlaygroundAtom,
 } from "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
 import useURL from "@/oss/hooks/useURL"
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {Evaluator} from "@/oss/lib/Types"
 import {evaluatorByKeyAtomFamily} from "@/oss/state/evaluators"
@@ -63,7 +64,7 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
         )
     }, [evaluatorConfigs, evaluatorId, stagedConfig])
 
-    const evaluatorKey = existingConfig?.evaluator_key ?? evaluatorId ?? null
+    const evaluatorKey = resolveEvaluatorKey(existingConfig) ?? evaluatorId ?? null
 
     const evaluatorQuery = useAtomValue(evaluatorByKeyAtomFamily(evaluatorKey))
     const evaluatorFromRegular = evaluators.find((item) => item.key === evaluatorKey)

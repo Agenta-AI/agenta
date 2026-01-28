@@ -259,6 +259,8 @@ Response: SimpleEvaluatorsResponse
 }
 ```
 
+**Note:** For the Evaluator Registry (automatic configs), pass `flags.is_human = false` and `include_archived = false` so archived or human evaluators don't show up.
+
 ### Create Evaluator Config
 
 **Old:**
@@ -284,7 +286,7 @@ Request: SimpleEvaluatorCreateRequest
     evaluator: {
         slug: string       # Generated from name
         name: string
-        flags: { is_evaluator: true }
+        flags: { is_evaluator: true, is_human: false }
         data: {
             uri: "agenta:builtin:{evaluator_key}:v0"
             parameters: object  # settings_values
@@ -299,6 +301,8 @@ Response: SimpleEvaluatorResponse
     evaluator: SimpleEvaluator
 }
 ```
+
+**Note:** Workflow slugs are unique per project. We append a short random suffix when generating slugs to avoid collisions when names repeat.
 
 ### Update Evaluator Config
 
@@ -332,6 +336,8 @@ Request: SimpleEvaluatorEditRequest
 
 Response: SimpleEvaluatorResponse
 ```
+
+**Note:** `SimpleEvaluatorEdit.data` is treated as the full revision payload. When updating, include the existing `data.uri` (and any schemas) along with `data.parameters` to avoid clearing the URI.
 
 ### Delete Evaluator Config
 

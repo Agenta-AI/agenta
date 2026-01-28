@@ -1,6 +1,6 @@
 # Status: Evaluator Playground Migration
 
-## Current Phase: Planning Complete
+## Current Phase: PR 1 (CRUD) In Progress
 
 **Last Updated:** 2026-01-27
 
@@ -55,8 +55,7 @@ See [plan.md](./plan.md) for detailed implementation steps.
 
 ### Next Steps
 
-- [ ] Wait for PR #3527 to be merged
-- [ ] Start PR 1: CRUD migration
+- [ ] Complete PR 1: CRUD migration (stacked on PR #3527)
 - [ ] After PR 1 stable, start PR 2: Run migration
 
 ---
@@ -106,7 +105,7 @@ The SDK maintains a `HANDLER_REGISTRY` that maps URIs to handler functions:
 
 ## Open Questions
 
-1. **Slug uniqueness:** Does backend enforce unique slugs? If collision, does it auto-suffix?
+1. **Slug uniqueness:** Backend enforces unique slugs per project; generate a short suffix client-side to avoid collisions.
 
 2. **Output schemas:** Should frontend pass `data.schemas.outputs` when creating? Or does backend derive from evaluator type?
 

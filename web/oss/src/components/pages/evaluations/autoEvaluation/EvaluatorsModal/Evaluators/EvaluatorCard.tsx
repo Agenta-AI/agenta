@@ -7,18 +7,19 @@ import {useAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {Evaluator, EvaluatorConfig, JSSTheme} from "@/oss/lib/Types"
+import {Evaluator, JSSTheme, SimpleEvaluator} from "@/oss/lib/Types"
 
 import DeleteModal from "./DeleteModal"
 
 interface EvaluatorCardProps {
-    evaluatorConfigs: EvaluatorConfig[]
+    evaluatorConfigs: SimpleEvaluator[]
     setEditMode: React.Dispatch<React.SetStateAction<boolean>>
     setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
-    setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
+    setEditEvalEditValues: React.Dispatch<React.SetStateAction<SimpleEvaluator | null>>
     onSuccess: () => void
 }
 
@@ -88,22 +89,21 @@ const EvaluatorCard = ({
     const classes = useStyles()
     const evaluators = useAtom(evaluatorsAtom)[0]
     const [openDeleteModal, setOpenDeleteModal] = useState(false)
-    const [selectedDelEval, setSelectedDelEval] = useState<EvaluatorConfig | null>(null)
+    const [selectedDelEval, setSelectedDelEval] = useState<SimpleEvaluator | null>(null)
 
     return (
         <div className={classes.container}>
             {evaluatorConfigs.length ? (
                 evaluatorConfigs.map((item) => {
-                    const evaluator = evaluators.find((e) => e.key === item.evaluator_key)
+                    const evaluatorKey = resolveEvaluatorKey(item)
+                    const evaluator = evaluators.find((e) => e.key === evaluatorKey)
 
                     return (
                         <Card
                             key={item.id}
                             className={classes.evaluatorCard}
                             onClick={() => {
-                                const selectedEval = evaluators.find(
-                                    (e) => e.key === item.evaluator_key,
-                                )
+                                const selectedEval = evaluators.find((e) => e.key === evaluatorKey)
                                 if (selectedEval) {
                                     setEditMode(true)
                                     setSelectedEvaluator(selectedEval)
@@ -130,7 +130,7 @@ const EvaluatorCard = ({
                                                 onClick: (e: any) => {
                                                     e.domEvent.stopPropagation()
                                                     const selectedEval = evaluators.find(
-                                                        (e) => e.key === item.evaluator_key,
+                                                        (e) => e.key === evaluatorKey,
                                                     )
                                                     if (selectedEval) {
                                                         setEditMode(true)
@@ -147,7 +147,7 @@ const EvaluatorCard = ({
                                                 onClick: (e: any) => {
                                                     e.domEvent.stopPropagation()
                                                     const selectedEval = evaluators.find(
-                                                        (e) => e.key === item.evaluator_key,
+                                                        (e) => e.key === evaluatorKey,
                                                     )
                                                     if (selectedEval) {
                                                         setCloneConfig(true)

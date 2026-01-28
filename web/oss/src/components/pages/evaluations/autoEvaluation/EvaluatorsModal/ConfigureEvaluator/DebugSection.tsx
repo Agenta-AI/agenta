@@ -372,8 +372,8 @@ const DebugSection = () => {
             setEvalOutputStatus({success: false, error: false})
             setIsLoadingResult(true)
 
-            const settingsValues = form.getFieldValue("settings_values") || {}
-            let normalizedSettings = {...settingsValues}
+            const parameters = form.getFieldValue("parameters") || {}
+            let normalizedSettings = {...parameters}
 
             if (typeof normalizedSettings.json_schema === "string") {
                 try {
@@ -419,7 +419,7 @@ const DebugSection = () => {
             }
 
             if (!selectedEvaluator.key.startsWith("rag_")) {
-                const correctAnswerKey = settingsValues.correct_answer_key
+                const correctAnswerKey = parameters.correct_answer_key
                 const groundTruthKey =
                     typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
                         ? correctAnswerKey.split(".")[1]

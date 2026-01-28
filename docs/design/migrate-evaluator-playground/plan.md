@@ -139,14 +139,17 @@ export function buildEvaluatorUri(evaluatorKey: string): string {
 }
 
 /**
- * Generate slug from name
+ * Generate slug from name (append suffix to avoid collisions)
  */
 export function generateSlug(name: string): string {
-    return name
+    const base = name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "")
-        .substring(0, 50)  // limit length
+
+    const suffix = Math.random().toString(36).slice(2, 8)
+    const maxBaseLength = Math.max(1, 50 - suffix.length - 1)
+    return `${base.slice(0, maxBaseLength)}-${suffix}`
 }
 
 // ============ CRUD Functions ============
@@ -162,7 +165,10 @@ export const fetchAllEvaluatorConfigs = async (
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/simple/evaluators/query?project_id=${projectId}`,
-        { evaluator: { flags: { is_evaluator: true } } }
+        {
+            evaluator: { flags: { is_evaluator: true, is_human: false } },
+            include_archived: false,
+        }
     )
     
     return response.data?.evaluators || []
@@ -178,7 +184,7 @@ export const createEvaluatorConfig = async (
     const payload: SimpleEvaluatorCreate = {
         slug: generateSlug(name),
         name,
-        flags: { is_evaluator: true },
+        flags: { is_evaluator: true, is_human: false },
         data: {
             uri: buildEvaluatorUri(evaluatorKey),
             parameters: settingsValues,
@@ -199,15 +205,21 @@ export const createEvaluatorConfig = async (
 export const updateEvaluatorConfig = async (
     evaluatorId: string,
     updates: { name?: string; settingsValues?: Record<string, any> },
+    existing?: SimpleEvaluator,
 ): Promise<SimpleEvaluator> => {
     const {projectId} = getProjectValues()
 
+    // IMPORTANT: include existing data (uri/schemas) when editing
     const payload: SimpleEvaluatorEdit = {
         id: evaluatorId,
-        name: updates.name,
-        data: updates.settingsValues 
-            ? { parameters: updates.settingsValues }
-            : undefined,
+        name: updates.name ?? existing?.name,
+        data: {
+            ...(existing?.data ?? {}),
+            ...(updates.settingsValues ? {parameters: updates.settingsValues} : {}),
+        },
+        tags: existing?.tags,
+        meta: existing?.meta,
+        flags: existing?.flags,
     }
 
     const response = await axios.put(
@@ -338,7 +350,7 @@ form.setFieldsValue({
     settings_values: editEvalEditValues.settings_values,
 })
 
-// After
+// After (use parameters field to match SimpleEvaluator)
 form.setFieldsValue({
     name: simpleEvaluator.name,
     parameters: simpleEvaluator.data?.parameters,
@@ -354,7 +366,7 @@ Update to work with `SimpleEvaluator[]`:
 const enrichedEvaluators = evaluators.map((e) => ({
     ...e,
     evaluator_key: extractEvaluatorKeyFromUri(e.data?.uri),
-    settings_values: e.data?.parameters,  // for backward compat in UI
+    parameters: e.data?.parameters,
 }))
 ```
 
@@ -588,7 +600,7 @@ const runResponse = await createEvaluatorRunExecution(
     selectedEvaluator.key,
     {
         inputs: outputs,
-        settings: formValues.settings_values,
+        settings: formValues.parameters,
     }
 )
 
@@ -713,7 +725,7 @@ If other parts of the app use `createEvaluatorRunExecution`, update them too:
 
 ## Open Questions
 
-1. **Slug uniqueness:** Does backend enforce unique slugs? If collision, does it auto-suffix?
+1. **Slug uniqueness:** Backend enforces unique slugs per project; generate a short suffix client-side to avoid collisions.
 
 2. **Output schemas:** Should frontend pass `data.schemas.outputs` when creating? Or does backend derive from evaluator type?
 

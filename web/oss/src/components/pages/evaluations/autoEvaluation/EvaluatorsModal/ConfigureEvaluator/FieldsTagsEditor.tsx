@@ -55,7 +55,7 @@ export const FieldsTagsEditor: React.FC<FieldsTagsEditorProps> = ({
 
     // Watch the correct_answer_key from form to react to changes
     // Using Form.useWatch instead of form.getFieldValue for reactivity
-    const formCorrectAnswerKey = Form.useWatch(["settings_values", "correct_answer_key"], form)
+    const formCorrectAnswerKey = Form.useWatch(["parameters", "correct_answer_key"], form)
     const effectiveKey = formCorrectAnswerKey || correctAnswerKey
 
     // Check if we can detect fields from testcase
