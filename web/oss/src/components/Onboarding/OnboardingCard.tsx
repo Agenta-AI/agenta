@@ -496,9 +496,7 @@ const OnboardingCard = ({
 
     // UI Helpers
     const labels = step?.controlLabels ?? {}
-    const progressPercent = hasValidStep
-        ? Math.round(((currentStep + 1) / totalSteps) * 100)
-        : 0
+    const progressPercent = hasValidStep ? Math.round(((currentStep + 1) / totalSteps) * 100) : 0
 
     // Arrow Styling
     // We clone the arrow element to apply custom styles (white color)
