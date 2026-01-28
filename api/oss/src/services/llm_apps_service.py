@@ -296,14 +296,31 @@ async def invoke_app(
             )
 
         except aiohttp.ClientResponseError as e:
-            error_message = app_response.get("detail", {}).get(
-                "error", f"HTTP error {e.status}: {e.message}"
-            )
-            stacktrace = app_response.get("detail", {}).get(
-                "message"
-            ) or app_response.get("detail", {}).get(
-                "traceback", "".join(traceback.format_exception_only(type(e), e))
-            )
+            detail = app_response.get("detail", {})
+
+            if isinstance(detail, dict):
+                # Get detail.message as the primary error message
+                if "message" in detail and detail["message"]:
+                    error_message = detail["message"]
+                elif "error" in detail and detail["error"]:
+                    error_message = detail["error"]
+                else:
+                    error_message = f"HTTP error {e.status}: {e.message}"
+            else:
+                # Fallback to HTTP error info
+                error_message = f"HTTP error {e.status}: {e.message}"
+
+            # Extract stacktrace from detail, fallback to exception traceback
+            if isinstance(detail, dict):
+                raw_stacktrace = (detail.get("stacktrace") or detail.get("traceback"))
+                if not raw_stacktrace:
+                    stacktrace = "".join(traceback.format_exception_only(type(e), e))
+                elif isinstance(raw_stacktrace, list):
+                    stacktrace = "".join(str(item) for item in raw_stacktrace)
+                else:
+                    stacktrace = str(raw_stacktrace)
+            else:
+                stacktrace = "".join(traceback.format_exception_only(type(e), e))
             log.error(f"HTTP error occurred during request: {error_message}")
         except aiohttp.ServerTimeoutError as e:
             error_message = "Request timed out"
