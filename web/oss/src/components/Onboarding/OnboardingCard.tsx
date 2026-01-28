@@ -50,6 +50,7 @@ const OnboardingCard = ({
     skipTour,
     arrow,
 }: Props) => {
+    const hasValidStep = Boolean(step && totalSteps > 0)
     const setCurrentStepState = useSetAtom(currentStepStateAtom)
     const cardRef = useRef<HTMLDivElement>(null)
 
@@ -229,6 +230,12 @@ const OnboardingCard = ({
         }
     }, [step, currentStep, totalSteps, setCurrentStepState])
 
+    useEffect(() => {
+        if (!hasValidStep) {
+            skipTour?.()
+        }
+    }, [hasValidStep, skipTour])
+
     // Handle skip/complete
     const handleSkip = useCallback(() => {
         step.onCleanup?.()
@@ -382,6 +389,10 @@ const OnboardingCard = ({
     )
 
     const advanceStep = useCallback(async () => {
+        if (!hasValidStep) {
+            skipTour?.()
+            return
+        }
         try {
             await step?.onNext?.()
         } catch (error) {
@@ -389,14 +400,15 @@ const OnboardingCard = ({
         }
 
         if (currentStep >= totalSteps - 1) {
-            step.onCleanup?.()
+            step?.onCleanup?.()
             skipTour?.()
         } else {
             nextStep()
         }
-    }, [step, currentStep, totalSteps, nextStep, skipTour])
+    }, [currentStep, hasValidStep, nextStep, skipTour, step, totalSteps])
 
     const handlePrev = useCallback(async () => {
+        if (!hasValidStep) return
         try {
             await step?.onPrev?.()
         } catch (error) {
@@ -408,16 +420,20 @@ const OnboardingCard = ({
             return
         }
         prevStep()
-    }, [performStepAction, prevStep, step])
+    }, [hasValidStep, performStepAction, prevStep, step])
 
     // Handle next step
     const handleNext = useCallback(async () => {
+        if (!hasValidStep) {
+            skipTour?.()
+            return
+        }
         const actionReady = await performStepAction(step?.nextAction)
         if (!actionReady) {
             return
         }
         await advanceStep()
-    }, [performStepAction, step?.nextAction, advanceStep])
+    }, [advanceStep, hasValidStep, performStepAction, skipTour, step?.nextAction])
 
     useEffect(() => {
         if (!step?.nextAction?.advanceOnActionClick) return
@@ -480,7 +496,9 @@ const OnboardingCard = ({
 
     // UI Helpers
     const labels = step?.controlLabels ?? {}
-    const progressPercent = Math.round(((currentStep + 1) / totalSteps) * 100)
+    const progressPercent = hasValidStep
+        ? Math.round(((currentStep + 1) / totalSteps) * 100)
+        : 0
 
     // Arrow Styling
     // We clone the arrow element to apply custom styles (white color)
@@ -507,6 +525,10 @@ const OnboardingCard = ({
         () => ({x: userOffset.x + autoOffset.x, y: userOffset.y + autoOffset.y}),
         [autoOffset.x, autoOffset.y, userOffset.x, userOffset.y],
     )
+
+    if (!hasValidStep) {
+        return null
+    }
 
     return (
         <section
