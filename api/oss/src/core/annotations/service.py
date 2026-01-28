@@ -37,6 +37,7 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorQueryFlags,
     #
     SimpleEvaluatorData,
+    EvaluatorRevisionEdit,
 )
 
 
@@ -114,18 +115,40 @@ class AnnotationsService:
             evaluator_revision_ref=annotation_create.references.evaluator_revision,
         )
 
-        if evaluator_revision is None:
-            builder = SchemaBuilder()
-            builder.add_object(annotation_create.data)
-            evaluator_outputs_schema: Dict[str, Any] = builder.to_schema()
+        outputs_schema = None
+        format_schema = None
+        needs_outputs_schema = (
+            evaluator_revision is None
+            or not evaluator_revision.data
+            or not evaluator_revision.data.schemas
+            or not evaluator_revision.data.schemas.get("outputs")
+        )
 
+        if needs_outputs_schema:
+            data_builder = SchemaBuilder()
+            data_builder.add_object(annotation_create.data)
+            format_schema = data_builder.to_schema()
+
+            outputs_data = (
+                annotation_create.data.get("outputs")
+                if isinstance(annotation_create.data, dict)
+                else None
+            )
+            if isinstance(outputs_data, dict):
+                outputs_builder = SchemaBuilder()
+                outputs_builder.add_object(outputs_data)
+                outputs_schema = outputs_builder.to_schema()
+            else:
+                outputs_schema = format_schema
+
+        if evaluator_revision is None:
             simple_evaluator_data = SimpleEvaluatorData(
                 schemas=dict(
-                    outputs=evaluator_outputs_schema,
+                    outputs=outputs_schema,
                 ),
                 service=dict(
                     agenta="v0.1.0",
-                    format=evaluator_outputs_schema,
+                    format=format_schema,
                 ),
             )
 
@@ -161,6 +184,44 @@ class AnnotationsService:
             )
         else:
             simple_evaluator = None
+
+        if (
+            outputs_schema
+            and format_schema
+            and evaluator_revision
+            and evaluator_revision.data
+            and (
+                not evaluator_revision.data.schemas
+                or not evaluator_revision.data.schemas.get("outputs")
+            )
+        ):
+            updated_data = evaluator_revision.data.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            )
+            schemas = updated_data.get("schemas") or {}
+            if not schemas.get("outputs"):
+                schemas["outputs"] = outputs_schema
+            updated_data["schemas"] = schemas
+
+            service = updated_data.get("service") or {}
+            if not service.get("format"):
+                service["agenta"] = service.get("agenta", "v0.1.0")
+                service["format"] = format_schema
+            updated_data["service"] = service
+
+            evaluator_revision_edit = EvaluatorRevisionEdit(
+                id=evaluator_revision.id,
+                data=updated_data,
+            )
+            evaluator_revision = (
+                await self.evaluators_service.edit_evaluator_revision(
+                    project_id=project_id,
+                    user_id=user_id,
+                    evaluator_revision_edit=evaluator_revision_edit,
+                )
+            )
 
         if not evaluator_revision or not evaluator_revision.data:
             return None

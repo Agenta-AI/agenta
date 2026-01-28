@@ -1058,6 +1058,8 @@ class GitDAO(GitDAOInterface):
             revision_dbe.deleted_at = None
             revision_dbe.updated_by_id = user_id
             revision_dbe.deleted_by_id = None
+            if revision_edit.data is not None:
+                revision_dbe.data = revision_edit.data
 
             await session.commit()
 

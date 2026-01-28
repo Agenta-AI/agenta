@@ -937,7 +937,8 @@ class EvaluationsService:
 
                     steps_metrics_keys[step.key] += [
                         {
-                            "path": "attributes.ag.data." + metric_key.get("path", ""),
+                            "path": "attributes.ag.data.outputs."
+                            + metric_key.get("path", ""),
                             "type": metric_key.get("type", ""),
                         }
                         for metric_key in metrics_keys

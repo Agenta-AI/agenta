@@ -70,7 +70,7 @@ class RevisionCreate(Slug, Header, Metadata):
 
 
 class RevisionEdit(Identifier, Header, Metadata):
-    pass
+    data: Optional[Data] = None
 
 
 class RevisionQuery(Header, Metadata):
