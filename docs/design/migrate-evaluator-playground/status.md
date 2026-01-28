@@ -1,8 +1,8 @@
 # Status: Evaluator Playground Migration
 
-## Current Phase: PR 1 (CRUD) In Progress
+## Current Phase: PR 2 (Run) In Progress
 
-**Last Updated:** 2026-01-27
+**Last Updated:** 2026-01-28
 
 ---
 
@@ -10,8 +10,8 @@
 
 **Direct Migration (No Adapters)** - Split into two PRs:
 
-1. **PR 1:** CRUD migration to `SimpleEvaluator` endpoints
-2. **PR 2:** Run migration to native workflow invoke
+1. **PR 1:** CRUD migration to `SimpleEvaluator` endpoints (draft PR)
+2. **PR 2:** Run migration to native workflow invoke (in progress)
 
 See [plan.md](./plan.md) for detailed implementation steps.
 
@@ -55,8 +55,8 @@ See [plan.md](./plan.md) for detailed implementation steps.
 
 ### Next Steps
 
-- [ ] Complete PR 1: CRUD migration (stacked on PR #3527)
-- [ ] After PR 1 stable, start PR 2: Run migration
+- [ ] Finalize PR 1: CRUD migration (stacked on PR #3527)
+- [ ] Finish PR 2: Run migration
 
 ---
 

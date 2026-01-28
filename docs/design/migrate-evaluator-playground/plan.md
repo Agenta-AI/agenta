@@ -518,18 +518,21 @@ export interface WorkflowServiceBatchResponse {
 
 ```typescript
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import { getAgentaApiUrl } from "@/oss/lib/helpers/utils"
-import { getProjectValues } from "@/oss/contexts/project.context"
-import {
-    WorkflowServiceRequest,
-    WorkflowServiceBatchResponse,
-    SimpleEvaluator,
-} from "@/oss/lib/Types"
+import type { SimpleEvaluator } from "@/oss/lib/Types"
+import axios from "@/oss/lib/api/assets/axiosConfig"
+import { getAgentaApiUrl } from "@/oss/lib/helpers/api"
+import { buildEvaluatorUri, resolveEvaluatorKey } from "@/oss/lib/evaluators/utils"
+import { getProjectValues } from "@/oss/state/project"
+
+export interface WorkflowServiceBatchResponse {
+    status?: { code?: number; message?: string }
+    data?: { outputs?: any }
+}
 
 export interface InvokeEvaluatorParams {
-    evaluator: SimpleEvaluator
-    inputs: Record<string, any>        // testcase data + any extra inputs
-    outputs: any                        // prediction/output from variant
+    evaluator?: Partial<SimpleEvaluator> | null
+    inputs?: Record<string, any>        // testcase data + any extra inputs
+    outputs?: any                        // prediction/output from variant
     parameters?: Record<string, any>   // override settings (optional)
 }
 
@@ -542,16 +545,12 @@ export const invokeEvaluator = async (
     const { projectId } = getProjectValues()
     const { evaluator, inputs, outputs, parameters } = params
 
-    const uri = evaluator.data?.uri
-    if (!uri) {
-        throw new Error("Evaluator has no URI configured")
-    }
+    const evaluatorKey = resolveEvaluatorKey(evaluator)
+    const uri = evaluator?.data?.uri || (evaluatorKey ? buildEvaluatorUri(evaluatorKey) : undefined)
+    if (!uri) throw new Error("Evaluator URI is missing")
 
-    const request: WorkflowServiceRequest = {
-        version: "2025.07.14",
-        interface: {
-            uri,
-        },
+    const request = {
+        interface: { uri },
         configuration: {
             parameters: parameters ?? evaluator.data?.parameters,
         },
@@ -608,11 +607,8 @@ const runResponse = await createEvaluatorRunExecution(
 import { invokeEvaluator, mapWorkflowResponseToEvaluatorOutput } from "@/oss/services/workflows/invoke"
 
 const workflowResponse = await invokeEvaluator({
-    evaluator: simpleEvaluator,  // from playground state
-    inputs: {
-        ...testcaseData,
-        prediction: variantOutput,
-    },
+    evaluator: simpleEvaluator ?? { data: { uri: buildEvaluatorUri(selectedEvaluator.key) } },
+    inputs: evaluatorInputs,
     outputs: variantOutput,
     parameters: formValues.parameters,  // current form settings
 })
