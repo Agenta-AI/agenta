@@ -38,9 +38,10 @@ const EmptyState = ({
 }: EmptyStateProps) => {
     const [videoLoaded, setVideoLoaded] = useState(false)
     const [imageLoaded, setImageLoaded] = useState(false)
+    const [loadError, setLoadError] = useState(false)
 
     const hasPreview = !!(videoId || previewUrl)
-    const isLoading = hasPreview && !videoLoaded && !imageLoaded
+    const isLoading = hasPreview && !videoLoaded && !imageLoaded && !loadError
 
     const renderPreview = () => {
         // Cloudflare Stream video
@@ -56,6 +57,7 @@ const EmptyState = ({
                     preload="auto"
                     onCanPlay={() => setVideoLoaded(true)}
                     onPlaying={() => setVideoLoaded(true)}
+                    onError={() => setLoadError(true)}
                 />
             )
         }
@@ -76,6 +78,7 @@ const EmptyState = ({
                     width={768}
                     height={432}
                     onLoadedData={() => setVideoLoaded(true)}
+                    onError={() => setLoadError(true)}
                 />
             )
         }
@@ -91,6 +94,7 @@ const EmptyState = ({
                     width={768}
                     height={432}
                     onLoad={() => setImageLoaded(true)}
+                    onError={() => setLoadError(true)}
                 />
             )
         }
@@ -149,7 +153,7 @@ const EmptyState = ({
                 </div>
 
                 {/* Video / Image Preview with fixed aspect ratio container */}
-                {hasPreview && (
+                {hasPreview && !loadError && (
                     <div
                         className="relative w-full max-w-3xl overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
                         style={{aspectRatio: VIDEO_ASPECT_RATIO}}
