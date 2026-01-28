@@ -173,6 +173,9 @@ const ObservabilityTable = () => {
             setSelectedRowKeys(keys)
         },
         columnWidth: 48,
+        getCheckboxProps: (record: TraceSpanNode) => ({
+            "data-tour": record.span_id === traces[0]?.span_id ? "trace-checkbox" : undefined,
+        }),
     }
 
     const showTableLoading = isLoading && traces.length === 0
@@ -225,7 +228,7 @@ const ObservabilityTable = () => {
                         offsetHeader: 0,
                         offsetScroll: 0,
                     }}
-                    onRow={(record) => ({
+                    onRow={(record, index) => ({
                         onClick: () => {
                             setSelectedNode(record.span_id)
                             const isSpanView = traceTabs === "span"
@@ -262,6 +265,7 @@ const ObservabilityTable = () => {
                                 setSpanParam(undefined)
                             }
                         },
+                        "data-tour": index === 0 ? "trace-row" : undefined,
                     })}
                     components={{
                         header: {

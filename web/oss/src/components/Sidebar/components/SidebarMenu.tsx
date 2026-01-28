@@ -65,6 +65,14 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         </span>
                     )
 
+                    const labelNode = item.dataTour ? (
+                        <span className="w-full" data-tour={item.dataTour}>
+                            {node}
+                        </span>
+                    ) : (
+                        node
+                    )
+
                     const menuItem = {
                         icon: item.icon,
                         key: item.key,
@@ -72,11 +80,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         label: collapsed ? (
                             <Tooltip title={item.tooltip} placement="right" mouseEnterDelay={0.8}>
                                 <div className="flex items-center justify-center w-full">
-                                    {node}
+                                    {labelNode}
                                 </div>
                             </Tooltip>
                         ) : (
-                            node
+                            labelNode
                         ),
                     }
 

@@ -1,10 +1,11 @@
 import {useCallback} from "react"
 
-import {useSetAtom} from "jotai"
+import {message} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
-import {recentAppIdAtom} from "@/oss/state/app/atoms/fetcher"
+import {appsQueryAtom, recentAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {useAppNavigation} from "@/oss/state/appState"
 
 interface VariantLike {
@@ -54,11 +55,23 @@ export const usePlaygroundNavigation = () => {
     const appId = useAppId()
     const {push} = useAppNavigation()
     const {baseAppURL} = useURL()
+    const appsQuery = useAtomValue(appsQueryAtom)
+    const recentAppId = useAtomValue(recentAppIdAtom)
     const setRecentAppId = useSetAtom(recentAppIdAtom)
 
     const goToPlayground = useCallback(
         (target?: PlaygroundTarget, options?: GoToPlaygroundOptions) => {
-            const resolvedAppId = options?.appId ?? appId
+            let resolvedAppId = options?.appId ?? appId ?? recentAppId ?? null
+            const apps = appsQuery?.data ?? []
+
+            if (!resolvedAppId && appsQuery?.isSuccess) {
+                if (apps.length === 0) {
+                    message.info("Create an application to explore the playground.")
+                    return
+                }
+                resolvedAppId = apps[0]?.app_id ?? null
+            }
+
             if (!resolvedAppId) return
             const selectedKeys = Array.from(
                 new Set(
@@ -69,6 +82,8 @@ export const usePlaygroundNavigation = () => {
             )
             if (options?.appId) {
                 setRecentAppId(options.appId)
+            } else if (!appId && resolvedAppId && resolvedAppId !== recentAppId) {
+                setRecentAppId(resolvedAppId)
             }
             const querySuffix =
                 selectedKeys.length > 0
@@ -77,7 +92,7 @@ export const usePlaygroundNavigation = () => {
 
             push(`${baseAppURL}/${resolvedAppId}/playground${querySuffix}`)
         },
-        [appId, baseAppURL, push, setRecentAppId],
+        [appId, appsQuery, baseAppURL, push, recentAppId, setRecentAppId],
     )
 
     return {goToPlayground}
