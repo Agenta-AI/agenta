@@ -31,6 +31,10 @@ import {
 import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
 import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/TestsetsHeaderFilters"
 import useURL from "@/oss/hooks/useURL"
+import {
+    onboardingWidgetActivationAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@/oss/lib/onboarding"
 import type {TestsetCreationMode} from "@/oss/lib/Types"
 import {
     archiveTestsetRevision,
@@ -91,6 +95,8 @@ const TestsetsTable = ({
     const router = useRouter()
     const {projectURL} = useURL()
     const projectId = useAtomValue(projectIdAtom)
+    const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
+    const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
 
     // Refresh trigger for the table
     const setRefreshTrigger = useSetAtom(testset.paginated.refreshAtom)
@@ -102,6 +108,22 @@ const TestsetsTable = ({
     const [current, setCurrent] = useState(0)
     const [selectedTestsetToDelete, setSelectedTestsetToDelete] = useState<TestsetTableRow[]>([])
     const [isDeleteTestsetModalOpen, setIsDeleteTestsetModalOpen] = useState(false)
+
+    useEffect(() => {
+        if (onboardingWidgetActivation !== "create-testset") return
+        setTestsetCreationMode("create")
+        setEditTestsetValues(null)
+        setCurrent(0)
+        setIsCreateTestsetModalOpen(true)
+        setOnboardingWidgetActivation(null)
+    }, [
+        onboardingWidgetActivation,
+        setOnboardingWidgetActivation,
+        setCurrent,
+        setEditTestsetValues,
+        setIsCreateTestsetModalOpen,
+        setTestsetCreationMode,
+    ])
 
     // Refresh table data
     const mutate = useCallback(() => {
@@ -679,7 +701,7 @@ const TestsetsTable = ({
     const headerTitle = useMemo(
         () => (
             <div className="flex flex-col gap-1">
-                <Typography.Title level={3} style={{margin: 0}}>
+                <Typography.Title level={5} style={{margin: 0}}>
                     Testsets
                 </Typography.Title>
                 <TableDescription>Manage your testsets for evaluations.</TableDescription>
@@ -825,6 +847,16 @@ const TestsetsTable = ({
                 tableProps={{
                     ...table.shellProps.tableProps,
                     expandable: treeExpandable,
+                    onRow: (record, index) => {
+                        const base = table.shellProps.tableProps?.onRow?.(record, index) ?? {}
+                        return {
+                            ...base,
+                            "data-tour":
+                                index === 0
+                                    ? "testset-row"
+                                    : (base as Record<string, unknown>)["data-tour"],
+                        }
+                    },
                 }}
                 tableClassName="agenta-testsets-table"
                 className="flex-1 min-h-0"

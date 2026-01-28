@@ -15,13 +15,16 @@ import {
     ChatCircle,
     Gauge,
     HouseIcon,
+    RocketLaunch,
 } from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {openWidgetAtom} from "@/oss/lib/onboarding"
 import {useAppsData} from "@/oss/state/app"
 import {useOrgData} from "@/oss/state/org"
 
@@ -34,7 +37,7 @@ export const useSidebarConfig = () => {
     const {canInviteMembers} = useWorkspacePermissions()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
-
+    const openWidget = useSetAtom(openWidgetAtom)
     const hasProjectURL = Boolean(projectURL)
 
     const sidebarConfig: SidebarConfig[] = [
@@ -111,6 +114,7 @@ export const useSidebarConfig = () => {
             isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <Lightning size={14} />,
             disabled: !hasProjectURL,
+            dataTour: "registry-nav",
         },
         {
             key: "app-evaluations-link",
@@ -119,6 +123,7 @@ export const useSidebarConfig = () => {
             isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <ChartDonut size={14} />,
             disabled: !hasProjectURL,
+            dataTour: "evaluations-nav",
         },
         {
             key: "app-traces-link",
@@ -146,6 +151,22 @@ export const useSidebarConfig = () => {
             tooltip: "Invite Teammate",
             isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
             disabled: !hasProjectURL,
+        },
+        {
+            key: "get-started-guide-link",
+            title: "Get Started Guide",
+            icon: (
+                <span id="sidebar-get-started-guide">
+                    <RocketLaunch size={16} />
+                </span>
+            ),
+            isBottom: true,
+            tooltip: "Open the onboarding guide",
+            isHidden: !doesSessionExist,
+            onClick: (e) => {
+                e.preventDefault()
+                openWidget()
+            },
         },
         {
             key: "support-chat-link",
