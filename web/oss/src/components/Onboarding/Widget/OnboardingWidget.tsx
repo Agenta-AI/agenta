@@ -225,6 +225,10 @@ const OnboardingWidget = () => {
                 }
                 return
             } else if (item.activationHint === "tracing-snippet") {
+                if (!projectURL) {
+                    message.info("Create or open a project to configure tracing.")
+                    return
+                }
                 try {
                     await router.push(`${projectURL}/observability`)
                 } catch (error) {
@@ -233,6 +237,10 @@ const OnboardingWidget = () => {
                 }
                 return
             } else if (item.activationHint === "trace-annotations") {
+                if (!projectURL) {
+                    message.info("Create or open a project to view observability.")
+                    return
+                }
                 try {
                     await router.push(`${projectURL}/observability`)
                     setPendingTraceTourId(item.tourId || ANNOTATE_TRACES_TOUR_ID)
@@ -242,6 +250,10 @@ const OnboardingWidget = () => {
                     return
                 }
             } else if (item.activationHint === "trace-to-testset") {
+                if (!projectURL) {
+                    message.info("Create or open a project to view observability.")
+                    return
+                }
                 try {
                     await router.push(`${projectURL}/observability`)
                     setPendingTraceTourId(item.tourId || TESTSET_FROM_TRACES_TOUR_ID)

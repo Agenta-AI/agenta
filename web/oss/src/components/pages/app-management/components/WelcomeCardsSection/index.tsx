@@ -60,7 +60,7 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
                 hidden: true,
             },
         ]
-    }, [projectURL, handleNavigate, onCreatePrompt])
+    }, [projectURL, handleNavigate, onCreatePrompt, onSetupTracing])
 
     const dismissWelcomeCards = useCallback(() => {
         setWelcomeCardsDismissed(true)
