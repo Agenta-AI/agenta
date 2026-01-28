@@ -184,7 +184,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
                             ? [
                                   {
                                       key: "focus",
-                                      label: "Focus",
+                                      label: "Annotate",
                                       children: (
                                           <div className="h-full min-h-0">
                                               <FocusView runId={runId} />
