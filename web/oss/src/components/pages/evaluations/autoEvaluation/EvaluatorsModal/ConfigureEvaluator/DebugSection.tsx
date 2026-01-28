@@ -36,6 +36,7 @@ import type {LoadTestsetSelectionPayload} from "@/oss/components/Playground/Comp
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
+import {buildEvaluatorUri, resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
 import {
     extractChatMessages,
@@ -58,11 +59,12 @@ import {
 } from "@/oss/lib/transformers"
 import {BaseResponse, ChatMessage, JSSTheme, Parameter, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
-import {
-    createEvaluatorDataMapping,
-    createEvaluatorRunExecution,
-} from "@/oss/services/evaluations/api_ee"
+import {createEvaluatorDataMapping} from "@/oss/services/evaluations/api_ee"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
+import {
+    invokeEvaluator,
+    mapWorkflowResponseToEvaluatorOutput,
+} from "@/oss/services/workflows/invoke"
 import {useAppsData} from "@/oss/state/app/hooks"
 import {revision} from "@/oss/state/entities/testset"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
@@ -76,6 +78,7 @@ import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {
     playgroundEvaluatorAtom,
+    playgroundEditValuesAtom,
     playgroundFormRefAtom,
     playgroundLastAppIdAtom,
     playgroundLastVariantIdAtom,
@@ -159,6 +162,7 @@ const DebugSection = () => {
     const traceTree = useAtomValue(playgroundTraceTreeAtom)
     const setTraceTree = useSetAtom(playgroundTraceTreeAtom)
     const selectedEvaluator = useAtomValue(playgroundEvaluatorAtom)
+    const evaluatorConfig = useAtomValue(playgroundEditValuesAtom)
     const form = useAtomValue(playgroundFormRefAtom)
     const [lastAppId, setLastAppId] = useAtom(playgroundLastAppIdAtom)
     const [lastVariantId, setLastVariantId] = useAtom(playgroundLastVariantIdAtom)
@@ -453,14 +457,29 @@ const DebugSection = () => {
                 }
             }
 
-            const runResponse = await createEvaluatorRunExecution(
-                selectedEvaluator.key,
-                {
-                    inputs: outputs,
-                    settings: transformTraceKeysInSettings(normalizedSettings),
-                },
-                {signal: controller.signal},
-            )
+            const evaluatorKey = resolveEvaluatorKey(evaluatorConfig) || selectedEvaluator?.key
+            const evaluatorUri =
+                evaluatorConfig?.data?.uri ||
+                (evaluatorKey ? buildEvaluatorUri(evaluatorKey) : undefined)
+
+            if (!evaluatorUri) {
+                setOutputResult("Evaluator URI is missing. Save the evaluator and try again.")
+                setEvalOutputStatus({success: false, error: true})
+                return
+            }
+
+            const evaluatorParameters = transformTraceKeysInSettings(normalizedSettings)
+            const workflowOutputs =
+                baseResponseData?.data ?? safeParse(variantResult, variantResult)
+
+            const workflowResponse = await invokeEvaluator({
+                evaluator: evaluatorConfig ?? {data: {uri: evaluatorUri}},
+                inputs: outputs,
+                outputs: workflowOutputs,
+                parameters: evaluatorParameters,
+                options: {signal: controller.signal},
+            })
+            const runResponse = mapWorkflowResponseToEvaluatorOutput(workflowResponse)
             setEvalOutputStatus({success: true, error: false})
 
             setOutputResult(getStringOrJson(runResponse.outputs))
