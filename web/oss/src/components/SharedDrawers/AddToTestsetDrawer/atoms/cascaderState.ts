@@ -53,6 +53,19 @@ export const cascaderValueAtom = atom<string[]>([])
 /** New testset name input (for create mode) */
 export const newTestsetNameAtom = atom<string>("")
 
+/** Effective testset name for the current selection */
+export const effectiveTestsetNameAtom = atom((get) => {
+    const isNewTestset = get(isNewTestsetAtom)
+    const newTestsetName = get(newTestsetNameAtom)
+    const testsetInfo = get(selectedTestsetInfoAtom)
+
+    if (isNewTestset) {
+        return newTestsetName
+    }
+
+    return testsetInfo.name
+})
+
 /**
  * Loaded children state - maps testsetId to loaded revision children
  * This is the mutable state that stores loaded revisions per testset

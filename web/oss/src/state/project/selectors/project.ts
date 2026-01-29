@@ -1,4 +1,5 @@
 import {atom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
@@ -12,6 +13,30 @@ import {sessionExistsAtom} from "@/oss/state/session"
 import {logAtom} from "@/oss/state/utils/logAtom"
 
 const LAST_USED_PROJECTS_KEY = "lastUsedProjectsByWorkspace"
+const LAST_NON_DEMO_PROJECT_KEY = "agenta:last-non-demo-project"
+const DEMO_RETURN_HINT_DISMISSED_KEY = "agenta:demo-return-hint-dismissed"
+const DEMO_RETURN_HINT_PENDING_KEY = "agenta:demo-return-hint-pending"
+
+export interface LastNonDemoProject {
+    workspaceId: string
+    projectId: string
+    organizationId: string | null
+}
+
+export const lastNonDemoProjectAtom = atomWithStorage<LastNonDemoProject | null>(
+    LAST_NON_DEMO_PROJECT_KEY,
+    null,
+)
+
+export const demoReturnHintDismissedAtom = atomWithStorage<boolean>(
+    DEMO_RETURN_HINT_DISMISSED_KEY,
+    false,
+)
+
+export const demoReturnHintPendingAtom = atomWithStorage<boolean>(
+    DEMO_RETURN_HINT_PENDING_KEY,
+    false,
+)
 
 const readLastUsedProjectId = (workspaceId: string | null): string | null => {
     if (typeof window === "undefined" || !workspaceId) return null

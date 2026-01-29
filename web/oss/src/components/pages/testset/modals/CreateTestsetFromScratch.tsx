@@ -9,6 +9,7 @@ import {createUseStyles} from "react-jss"
 import {message} from "@/oss/components/AppMessageContext"
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import useURL from "@/oss/hooks/useURL"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {JSSTheme, KeyValuePair, TestsetCreationMode} from "@/oss/lib/Types"
 import {cloneTestset, renameTestset} from "@/oss/services/testsets/api"
 import {invalidateTestsetsListCache, type TestsetTableRow} from "@/oss/state/entities/testset"
@@ -51,6 +52,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     )
     const [isLoading, setIsLoading] = useState(false)
     const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
 
     const handleCreateTestset = async (_data?: KeyValuePair[]) => {
         // Navigate to testset page with "new" as the ID and testset name as query param
@@ -69,6 +71,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
             invalidateTestsetsListCache()
             setRefreshTrigger((prev) => prev + 1)
             message.success("Testset cloned successfully")
+            recordWidgetEvent("testset_created")
 
             // Navigate to the new revision
             const revisionId = response.data?.revisionId

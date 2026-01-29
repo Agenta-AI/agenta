@@ -416,6 +416,7 @@ const ObservabilityHeader = ({
                                     icon={<DatabaseIcon size={14} />}
                                     disabled={traces.length === 0 || selectedRowKeys.length === 0}
                                     tooltipProps={{title: "Add to testset"}}
+                                    data-tour="create-testset-button"
                                 />
                             </>
                         ) : null}
@@ -480,6 +481,7 @@ const ObservabilityHeader = ({
                                 onClick={() => getTestsetTraceData()}
                                 icon={<DatabaseIcon size={14} />}
                                 disabled={traces.length === 0 || selectedRowKeys.length === 0}
+                                data-tour="create-testset-button"
                             >
                                 Add to testset
                             </Button>
