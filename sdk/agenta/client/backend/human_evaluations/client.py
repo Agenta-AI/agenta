@@ -10,9 +10,11 @@ from ..types.human_evaluation import HumanEvaluation
 from ..types.human_evaluation_scenario import HumanEvaluationScenario
 from ..types.human_evaluation_scenario_input import HumanEvaluationScenarioInput
 from ..types.human_evaluation_scenario_output import HumanEvaluationScenarioOutput
-from ..types.score import Score
 from ..types.simple_evaluation_output import SimpleEvaluationOutput
 from .raw_client import AsyncRawHumanEvaluationsClient, RawHumanEvaluationsClient
+from .types.human_evaluation_scenario_update_score import (
+    HumanEvaluationScenarioUpdateScore,
+)
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -232,7 +234,7 @@ class HumanEvaluationsClient:
         *,
         status: typing.Optional[EvaluationStatusEnum] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Updates an evaluation's status.
 
@@ -253,7 +255,7 @@ class HumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -325,14 +327,14 @@ class HumanEvaluationsClient:
         evaluation_type: EvaluationType,
         *,
         vote: typing.Optional[str] = OMIT,
-        score: typing.Optional[Score] = OMIT,
+        score: typing.Optional[HumanEvaluationScenarioUpdateScore] = OMIT,
         correct_answer: typing.Optional[str] = OMIT,
         outputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]] = OMIT,
         inputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]] = OMIT,
         is_pinned: typing.Optional[bool] = OMIT,
         note: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Updates an evaluation scenario's vote or score based on its type.
 
@@ -352,7 +354,7 @@ class HumanEvaluationsClient:
 
         vote : typing.Optional[str]
 
-        score : typing.Optional[Score]
+        score : typing.Optional[HumanEvaluationScenarioUpdateScore]
 
         correct_answer : typing.Optional[str]
 
@@ -369,7 +371,7 @@ class HumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -449,7 +451,7 @@ class HumanEvaluationsClient:
         *,
         score: float,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Updates the score of an evaluation scenario.
 
@@ -470,7 +472,7 @@ class HumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -495,7 +497,7 @@ class HumanEvaluationsClient:
         evaluation_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Fetch all the results for one the comparison table
 
@@ -514,7 +516,7 @@ class HumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -780,7 +782,7 @@ class AsyncHumanEvaluationsClient:
         *,
         status: typing.Optional[EvaluationStatusEnum] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Updates an evaluation's status.
 
@@ -801,7 +803,7 @@ class AsyncHumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -889,14 +891,14 @@ class AsyncHumanEvaluationsClient:
         evaluation_type: EvaluationType,
         *,
         vote: typing.Optional[str] = OMIT,
-        score: typing.Optional[Score] = OMIT,
+        score: typing.Optional[HumanEvaluationScenarioUpdateScore] = OMIT,
         correct_answer: typing.Optional[str] = OMIT,
         outputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]] = OMIT,
         inputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]] = OMIT,
         is_pinned: typing.Optional[bool] = OMIT,
         note: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Updates an evaluation scenario's vote or score based on its type.
 
@@ -916,7 +918,7 @@ class AsyncHumanEvaluationsClient:
 
         vote : typing.Optional[str]
 
-        score : typing.Optional[Score]
+        score : typing.Optional[HumanEvaluationScenarioUpdateScore]
 
         correct_answer : typing.Optional[str]
 
@@ -933,7 +935,7 @@ class AsyncHumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -1029,7 +1031,7 @@ class AsyncHumanEvaluationsClient:
         *,
         score: float,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Updates the score of an evaluation scenario.
 
@@ -1050,7 +1052,7 @@ class AsyncHumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -1083,7 +1085,7 @@ class AsyncHumanEvaluationsClient:
         evaluation_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Fetch all the results for one the comparison table
 
@@ -1102,7 +1104,7 @@ class AsyncHumanEvaluationsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
