@@ -9,6 +9,7 @@ from ..types.app_variant_response import AppVariantResponse
 from ..types.create_app_output import CreateAppOutput
 from ..types.environment_output import EnvironmentOutput
 from ..types.environment_output_extended import EnvironmentOutputExtended
+from ..types.read_app_output import ReadAppOutput
 from ..types.update_app_output import UpdateAppOutput
 from .raw_client import AsyncRawAppsClient, RawAppsClient
 
@@ -173,6 +174,7 @@ class AppsClient:
         template_key: typing.Optional[str] = OMIT,
         project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> CreateAppOutput:
@@ -197,6 +199,8 @@ class AppsClient:
         project_id : typing.Optional[str]
 
         workspace_id : typing.Optional[str]
+
+        folder_id : typing.Optional[str]
 
         organization_id : typing.Optional[str]
 
@@ -224,14 +228,56 @@ class AppsClient:
             template_key=template_key,
             project_id=project_id,
             workspace_id=workspace_id,
+            folder_id=folder_id,
             organization_id=organization_id,
             request_options=request_options,
         )
         return _response.data
 
+    def read_app(
+        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> ReadAppOutput:
+        """
+        Retrieve an app by its ID.
+
+        Args:
+            app_id (str): The ID of the app to retrieve.
+
+        Returns:
+            ReadAppOutput: The output containing the app's ID and name.
+
+        Raises:
+            HTTPException: If there is an error retrieving the app or the user does not have permission to access the app.
+
+        Parameters
+        ----------
+        app_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ReadAppOutput
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.apps.read_app(
+            app_id="app_id",
+        )
+        """
+        _response = self._raw_client.read_app(app_id, request_options=request_options)
+        return _response.data
+
     def remove_app(
         self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Remove app, all its variant.
 
@@ -247,7 +293,7 @@ class AppsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -268,7 +314,8 @@ class AppsClient:
         self,
         app_id: str,
         *,
-        app_name: str,
+        app_name: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> UpdateAppOutput:
         """
@@ -288,7 +335,9 @@ class AppsClient:
         ----------
         app_id : str
 
-        app_name : str
+        app_name : typing.Optional[str]
+
+        folder_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -307,11 +356,13 @@ class AppsClient:
         )
         client.apps.update_app(
             app_id="app_id",
-            app_name="app_name",
         )
         """
         _response = self._raw_client.update_app(
-            app_id, app_name=app_name, request_options=request_options
+            app_id,
+            app_name=app_name,
+            folder_id=folder_id,
+            request_options=request_options,
         )
         return _response.data
 
@@ -325,7 +376,7 @@ class AppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -346,7 +397,7 @@ class AppsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -383,7 +434,7 @@ class AppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -404,7 +455,7 @@ class AppsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -474,7 +525,7 @@ class AppsClient:
     def environment_revisions(
         self,
         app_id: str,
-        environment_name: typing.Optional[typing.Any],
+        environment_name: typing.Any,
         *,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> EnvironmentOutputExtended:
@@ -483,7 +534,7 @@ class AppsClient:
         ----------
         app_id : str
 
-        environment_name : typing.Optional[typing.Any]
+        environment_name : typing.Any
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -692,6 +743,7 @@ class AsyncAppsClient:
         template_key: typing.Optional[str] = OMIT,
         project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> CreateAppOutput:
@@ -716,6 +768,8 @@ class AsyncAppsClient:
         project_id : typing.Optional[str]
 
         workspace_id : typing.Optional[str]
+
+        folder_id : typing.Optional[str]
 
         organization_id : typing.Optional[str]
 
@@ -751,14 +805,66 @@ class AsyncAppsClient:
             template_key=template_key,
             project_id=project_id,
             workspace_id=workspace_id,
+            folder_id=folder_id,
             organization_id=organization_id,
             request_options=request_options,
         )
         return _response.data
 
+    async def read_app(
+        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> ReadAppOutput:
+        """
+        Retrieve an app by its ID.
+
+        Args:
+            app_id (str): The ID of the app to retrieve.
+
+        Returns:
+            ReadAppOutput: The output containing the app's ID and name.
+
+        Raises:
+            HTTPException: If there is an error retrieving the app or the user does not have permission to access the app.
+
+        Parameters
+        ----------
+        app_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ReadAppOutput
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.apps.read_app(
+                app_id="app_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.read_app(
+            app_id, request_options=request_options
+        )
+        return _response.data
+
     async def remove_app(
         self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Remove app, all its variant.
 
@@ -774,7 +880,7 @@ class AsyncAppsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -805,7 +911,8 @@ class AsyncAppsClient:
         self,
         app_id: str,
         *,
-        app_name: str,
+        app_name: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> UpdateAppOutput:
         """
@@ -825,7 +932,9 @@ class AsyncAppsClient:
         ----------
         app_id : str
 
-        app_name : str
+        app_name : typing.Optional[str]
+
+        folder_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -849,14 +958,16 @@ class AsyncAppsClient:
         async def main() -> None:
             await client.apps.update_app(
                 app_id="app_id",
-                app_name="app_name",
             )
 
 
         asyncio.run(main())
         """
         _response = await self._raw_client.update_app(
-            app_id, app_name=app_name, request_options=request_options
+            app_id,
+            app_name=app_name,
+            folder_id=folder_id,
+            request_options=request_options,
         )
         return _response.data
 
@@ -870,7 +981,7 @@ class AsyncAppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -891,7 +1002,7 @@ class AsyncAppsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -936,7 +1047,7 @@ class AsyncAppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -957,7 +1068,7 @@ class AsyncAppsClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -1043,7 +1154,7 @@ class AsyncAppsClient:
     async def environment_revisions(
         self,
         app_id: str,
-        environment_name: typing.Optional[typing.Any],
+        environment_name: typing.Any,
         *,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> EnvironmentOutputExtended:
@@ -1052,7 +1163,7 @@ class AsyncAppsClient:
         ----------
         app_id : str
 
-        environment_name : typing.Optional[typing.Any]
+        environment_name : typing.Any
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.

@@ -105,7 +105,7 @@ const PreviewEvalRunTabs = ({
         ]
 
         if (evalType === "human") {
-            base.push({label: "Focus", value: "focus"})
+            base.push({label: "Annotate", value: "focus"})
         }
 
         return base
