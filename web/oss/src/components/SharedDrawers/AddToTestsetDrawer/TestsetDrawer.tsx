@@ -2,11 +2,12 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {WarningCircle} from "@phosphor-icons/react"
 import {Button, Input, Typography} from "antd"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import GenericDrawer from "@/oss/components/GenericDrawer"
 import useResizeObserver from "@/oss/hooks/useResizeObserver"
 
+import {effectiveTestsetNameAtom} from "./atoms/cascaderState"
 import {initializeWithSpanIdsAtom, isDrawerOpenAtom} from "./atoms/drawerState"
 import {
     ConfirmSaveModal,
@@ -31,6 +32,7 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
     const setIsDrawerOpen = useSetAtom(isDrawerOpenAtom)
     const initializeWithSpanIds = useSetAtom(initializeWithSpanIdsAtom)
     const drawer = useTestsetDrawer()
+    const effectiveTestsetName = useAtomValue(effectiveTestsetNameAtom)
 
     // State for focusing drill-in view on a specific path
     const [focusPath, setFocusPath] = useState<string | undefined>(undefined)
@@ -97,6 +99,7 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                 expandable
                 initialWidth={640}
                 headerExtra="Add to testset"
+                closeButtonProps={{"data-tour": "add-to-testset-close"}}
                 footer={
                     <div className="flex flex-col gap-3 py-2 px-3">
                         {/* Commit message input */}
@@ -130,10 +133,11 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                                         : drawer.onSaveTestset(onClose)
                                 }
                                 disabled={
-                                    !drawer.testset.name ||
+                                    !effectiveTestsetName ||
                                     !drawer.isMapColumnExist ||
                                     drawer.hasDuplicateColumns
                                 }
+                                data-tour="testset-confirm"
                             >
                                 {drawer.isNewTestset ? "Create" : "Commit"}
                             </Button>
@@ -141,7 +145,11 @@ const TestsetDrawer = ({open, spanIds, onClose, initialPath = "ag.data"}: Testse
                     </div>
                 }
                 mainContent={
-                    <section ref={elemRef} className="w-full flex flex-col gap-6">
+                    <section
+                        ref={elemRef}
+                        className="w-full flex flex-col gap-6"
+                        data-tour="add-to-testset-drawer"
+                    >
                         {drawer.isDifferStructureExist && (
                             <Typography.Text
                                 className="mb-1 flex items-center gap-1"

@@ -13,7 +13,7 @@ class ProjectsResponse(UniversalBaseModel):
     workspace_name: typing.Optional[str] = None
     project_id: str
     project_name: str
-    is_default_project: bool = False
+    is_default_project: typing.Optional[bool] = None
     user_role: typing.Optional[str] = None
     is_demo: typing.Optional[bool] = None
 

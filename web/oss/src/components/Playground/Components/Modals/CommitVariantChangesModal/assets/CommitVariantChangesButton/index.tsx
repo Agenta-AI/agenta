@@ -2,10 +2,11 @@ import {cloneElement, isValidElement, useState} from "react"
 
 import {FloppyDiskBack} from "@phosphor-icons/react"
 import {Button} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 import {CommitVariantChangesButtonProps} from "../types"
 const CommitVariantChangesModal = dynamic(() => import("../.."), {ssr: false})
@@ -21,6 +22,11 @@ const CommitVariantChangesButton = ({
 }: CommitVariantChangesButtonProps) => {
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
     const disabled = !useAtomValue(variantIsDirtyAtomFamily(variantId || ""))
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
+    const handleSuccess = () => {
+        recordWidgetEvent("playground_committed_change")
+        onSuccess?.()
+    }
 
     return (
         <>
@@ -51,7 +57,7 @@ const CommitVariantChangesButton = ({
                 open={isDeployModalOpen}
                 onCancel={() => setIsDeployModalOpen(false)}
                 variantId={variantId}
-                onSuccess={onSuccess}
+                onSuccess={handleSuccess}
                 commitType={commitType}
             />
         </>

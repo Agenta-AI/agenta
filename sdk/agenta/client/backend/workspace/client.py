@@ -103,7 +103,7 @@ class WorkspaceClient:
         *,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Remove a user from a workspace.
 
@@ -122,7 +122,7 @@ class WorkspaceClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -256,7 +256,7 @@ class AsyncWorkspaceClient:
         *,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Remove a user from a workspace.
 
@@ -275,7 +275,7 @@ class AsyncWorkspaceClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
