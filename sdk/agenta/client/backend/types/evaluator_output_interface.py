@@ -7,7 +7,7 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 
 class EvaluatorOutputInterface(UniversalBaseModel):
-    outputs: typing.Dict[str, typing.Optional[typing.Any]]
+    outputs: typing.Dict[str, typing.Any]
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

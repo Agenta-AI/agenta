@@ -8,6 +8,7 @@ import {createUseStyles} from "react-jss"
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import {useTestsetFileUpload} from "@/oss/hooks/useTestsetFileUpload"
 import useURL from "@/oss/hooks/useURL"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {JSSTheme} from "@/oss/lib/Types"
 import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"
 
@@ -60,6 +61,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
     const [form] = Form.useForm()
     const testsetFile = Form.useWatch("file", form)
     const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
 
     const {
         uploadType,
@@ -77,6 +79,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
             // Revalidate testsets data
             invalidateTestsetsListCache()
             setRefreshTrigger((prev) => prev + 1)
+            recordWidgetEvent("testset_created")
 
             // Get the revision ID from the response and navigate to it
             const revisionId = response.data?.testset?.revision_id
