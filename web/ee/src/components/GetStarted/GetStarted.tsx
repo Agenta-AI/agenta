@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {ArrowLeft, Code, TreeView, Rocket, Sparkle} from "@phosphor-icons/react"
+import {ArrowLeftIcon, CodeIcon, TreeViewIcon, RocketIcon, SparkleIcon} from "@phosphor-icons/react"
 import {Typography, Card, Button, message} from "antd"
 import {useRouter} from "next/router"
 
@@ -9,6 +9,7 @@ import {
     useStyles as useTracingStyles,
 } from "@/oss/components/pages/app-management/modals/SetupTracingModal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {useProjectData} from "@/oss/state/project/hooks"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
@@ -25,6 +26,8 @@ const GetStarted = () => {
     const {projects} = useProjectData()
 
     const demoProject = useMemo(() => projects.find((project) => project.is_demo), [projects])
+    const demoWorkspaceId = demoProject?.workspace_id || demoProject?.organization_id || undefined
+    const demoOrganizationId = demoProject?.organization_id || undefined
 
     const view = useMemo<ViewState>(() => {
         const path = router.query.path
@@ -64,13 +67,18 @@ const GetStarted = () => {
             selection: "demo",
         })
 
-        if (!demoProject) {
+        if (!demoProject || !demoWorkspaceId || !demoOrganizationId) {
             message.error("Demo project is not available.")
             return
         }
 
-        router.push(`/w/${demoProject.workspace_id}/p/${demoProject.project_id}/apps`)
-    }, [demoProject, posthog, router])
+        cacheWorkspaceOrgPair(demoWorkspaceId, demoOrganizationId)
+        router.push(
+            `/w/${encodeURIComponent(demoWorkspaceId)}/p/${encodeURIComponent(
+                demoProject.project_id,
+            )}/apps`,
+        )
+    }, [demoOrganizationId, demoProject, demoWorkspaceId, posthog, router])
 
     const handleSelection = useCallback(
         async (selection: "trace" | "eval" | "test_prompt") => {
@@ -129,7 +137,11 @@ const GetStarted = () => {
                     isPostLogin={true}
                 />
                 <div className="flex justify-between mt-6">
-                    <Button type="text" icon={<ArrowLeft />} onClick={() => setView("selection")}>
+                    <Button
+                        type="text"
+                        icon={<ArrowLeftIcon />}
+                        onClick={() => setView("selection")}
+                    >
                         Back
                     </Button>
                     <Button type="primary" onClick={() => handleNext("observability")}>
@@ -145,7 +157,11 @@ const GetStarted = () => {
             <div className="w-full max-w-[800px] mx-auto p-6 bg-[var(--ant-color-bg-container)] rounded-lg border border-[var(--ant-color-border-secondary)] mb-10">
                 <RunEvaluationView />
                 <div className="flex justify-between mt-6">
-                    <Button type="text" icon={<ArrowLeft />} onClick={() => setView("selection")}>
+                    <Button
+                        type="text"
+                        icon={<ArrowLeftIcon />}
+                        onClick={() => setView("selection")}
+                    >
                         Back
                     </Button>
                     <Button
@@ -171,7 +187,7 @@ const GetStarted = () => {
                     onClick={() => handleSelection("trace")}
                 >
                     <div className="h-1/2 w-full flex items-end justify-center pb-6">
-                        <TreeView size={48} />
+                        <TreeViewIcon size={48} />
                     </div>
                     <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
                         <div className="text-lg font-semibold mb-2">Trace your application</div>
@@ -186,7 +202,7 @@ const GetStarted = () => {
                     onClick={() => handleSelection("test_prompt")}
                 >
                     <div className="h-1/2 w-full flex items-end justify-center pb-6">
-                        <Rocket size={48} />
+                        <RocketIcon size={48} />
                     </div>
                     <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
                         <div className="text-lg font-semibold mb-2">Create and test prompts</div>
@@ -201,7 +217,7 @@ const GetStarted = () => {
                     onClick={() => handleSelection("eval")}
                 >
                     <div className="h-1/2 w-full flex items-end justify-center pb-6">
-                        <Code size={48} />
+                        <CodeIcon size={48} />
                     </div>
                     <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
                         <div className="text-lg font-semibold mb-2">Run an evaluation from SDK</div>
@@ -224,7 +240,7 @@ const GetStarted = () => {
                 className="flex items-center gap-2 text-[var(--ant-color-text-secondary)] text-base cursor-pointer transition-colors duration-200 hover:text-[var(--ant-color-primary)] bg-transparent border-none p-0"
                 onClick={handleDemoSelection}
             >
-                <Sparkle size={18} />
+                <SparkleIcon size={18} />
                 <span>Explore demo workspace</span>
             </button>
 
