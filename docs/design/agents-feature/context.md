@@ -27,6 +27,22 @@ Users want to build agent-based applications but:
 - Custom tool development IDE
 - Agent-to-agent communication
 
+## Key Constraint: Open Source Compatibility
+
+**Agenta is open source.** The tools/integrations feature must be **optional** and degrade gracefully:
+
+- **Composio is optional** - If no Composio API key is configured, the feature should:
+  - Hide the "Tools" / "Integrations" UI elements, OR
+  - Show them as "Not configured" / "Coming soon" with instructions
+  - Not break any existing functionality
+- **Self-hosted users** may not want/need external tool integrations
+- **Cloud users** get full Composio integration out of the box
+
+This means:
+1. Backend: Check for Composio API key in env, return appropriate responses
+2. Frontend: Conditionally render tools UI based on feature availability
+3. No hard dependency on Composio for core Agenta functionality
+
 ## Key Questions to Answer
 
 1. **Scope**: What is the minimum viable agent feature?

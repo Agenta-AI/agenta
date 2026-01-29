@@ -18,7 +18,7 @@ What we need:
 3. Observable (works with our tracing)
 4. Minimal dependencies
 5. NOT a heavy framework that takes over
-6. **Avoid:** LangChain (competitor), W&B products
+6. **Avoid:** Competitor D's framework (competitor), W&B products
 
 ---
 
@@ -671,7 +671,7 @@ If users need advanced features (MCP, human-in-the-loop, multi-agent), we could:
 
 | Framework | Reason Excluded |
 |-----------|-----------------|
-| LangChain/LangGraph | Competitor (LangSmith) |
+| Competitor D Framework | Competitor (Competitor D) |
 | Weights & Biases products | Competitor |
 | AutoGen (Microsoft) | Too heavy, enterprise-focused |
 | CrewAI | Too opinionated, role-based |

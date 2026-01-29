@@ -1,13 +1,13 @@
-# Vellum's Composio Integration - API Analysis
+# Competitor A's Composio Integration - API Analysis
 
-This document captures the API patterns Vellum uses to integrate Composio tools into their UI, based on reverse-engineering their network requests.
+This document captures the API patterns Competitor A (visual workflow builder) uses to integrate Composio tools into their UI, based on reverse-engineering their network requests.
 
 ## Key Concepts
 
-Vellum wraps Composio with their own API layer:
+Competitor A wraps Composio with their own API layer:
 
-| Vellum Concept | Composio Equivalent | Description |
-|----------------|---------------------|-------------|
+| Competitor A Concept | Composio Equivalent | Description |
+|----------------------|---------------------|-------------|
 | `integration` | Toolkit | e.g., GMAIL, SLACK, GITHUB |
 | `integration_auth_config` | Auth Config | How to authenticate (OAuth2 vs API_KEY) |
 | `integration_credentials` | Connected Account | User's actual connection |
@@ -282,7 +282,7 @@ POST /api/integration-credentials/initiate-auth
 
 ### Special Flags
 
-- `system_credential_eligible: true` - Vellum can provide a default API key (e.g., SERPAPI, FIRECRAWL)
+- `system_credential_eligible: true` - Platform can provide a default API key (e.g., SERPAPI, FIRECRAWL)
 - `default_access_type: "USER"` - Each user needs their own credentials
 
 ---
@@ -354,13 +354,13 @@ GET /api/tools/credentials/{id}/status         # Check OAuth completion
 
 ### cURL: List Tools
 ```bash
-curl 'https://app.vellum.ai/api/integration-providers/COMPOSIO/tools?integration_name=GMAIL' \
+curl 'https://app.example.com/api/integration-providers/COMPOSIO/tools?integration_name=GMAIL' \
   -H 'Accept: application/json'
 ```
 
 ### cURL: Initiate OAuth
 ```bash
-curl 'https://app.vellum.ai/api/integration-credentials/initiate-auth' \
+curl 'https://app.example.com/api/integration-credentials/initiate-auth' \
   -X POST \
   -H 'Content-Type: application/json' \
   -d '{"integration_auth_config_id":"d54b852d-f20b-45ef-9883-90c866d79b35","additional_parameters":{}}'
@@ -368,4 +368,4 @@ curl 'https://app.vellum.ai/api/integration-credentials/initiate-auth' \
 
 ---
 
-*Captured from Vellum UI: January 2026*
+*Captured from Competitor A UI: January 2026*

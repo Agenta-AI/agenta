@@ -1,5 +1,19 @@
 # Research: Feature Scope & PRD
 
+## Competitor Mapping
+
+For anonymization, competitors are referred to as:
+- **Competitor A** - Visual workflow builder platform
+- **Competitor B** - API-first agent platform
+- **Competitor C** - Evaluation-focused platform
+- **Competitor D** - Framework ecosystem platform
+- **Competitor E** - Open-source observability platform
+- **Competitor F** - Gateway/routing platform
+- **Competitor G** - AI gateway platform
+- **Competitor H** - Prompt management platform
+
+---
+
 ## Objective
 
 Define clear boundaries for the agents feature MVP.
@@ -33,8 +47,8 @@ Based on competitive analysis, the most common use cases are:
 
 Based on competitive analysis, these are typically advanced/enterprise features:
 
-- **Human-in-the-loop approval workflows** (Orq.ai has this "coming soon")
-- **Multi-agent orchestration** (Vellum has this but it's complex)
+- **Human-in-the-loop approval workflows** (Competitor B has this "coming soon")
+- **Multi-agent orchestration** (Competitor A has this but it's complex)
 - **Custom OAuth tool connections** (Composio integration pattern)
 - **Long-running background agents** (async execution patterns)
 
@@ -45,9 +59,9 @@ Based on competitive analysis, these are typically advanced/enterprise features:
 Based on competitive analysis, MVP should include:
 
 1. **Tool/Function Definition in UI**
-   - JSON Schema-based tool definitions (like Vellum, Orq.ai)
-   - Upload JSON/YAML or define via form (Vellum pattern)
-   - Built-in tools: current_date, web_scraper (Orq.ai pattern)
+   - JSON Schema-based tool definitions (like Competitor A, Competitor B)
+   - Upload JSON/YAML or define via form (Competitor A pattern)
+   - Built-in tools: current_date, web_scraper (Competitor B pattern)
 
 2. **Agent Configuration**
    - System prompt / instructions
@@ -67,7 +81,7 @@ Based on competitive analysis, MVP should include:
 
 ### Out of Scope (Future)
 
-- Visual workflow builder (Vellum's main differentiator)
+- Visual workflow builder (Competitor A's main differentiator)
 - Multi-agent orchestration
 - Knowledge base integration
 - Memory stores / persistent context
@@ -79,8 +93,7 @@ Based on competitive analysis, MVP should include:
 
 ### Platform Summaries
 
-#### 1. Orq.ai
-**Website:** https://orq.ai
+#### 1. Competitor B (API-First Platform)
 
 **Agent Capabilities:**
 - **Full Agent API** - Create agents programmatically with role, description, instructions, model configuration
@@ -107,8 +120,7 @@ Based on competitive analysis, MVP should include:
 
 ---
 
-#### 2. Vellum
-**Website:** https://vellum.ai
+#### 2. Competitor A (Visual Workflow Builder)
 
 **Agent Capabilities:**
 - **Visual Workflow Builder** - Drag-and-drop interface for building agent workflows
@@ -147,8 +159,7 @@ Based on competitive analysis, MVP should include:
 
 ---
 
-#### 3. Humanloop
-**Website:** https://humanloop.com
+#### 3. Competitor C (Evaluation-Focused Platform)
 
 **Agent Capabilities:**
 - **Agents as first-class entities** - Separate from Prompts
@@ -175,14 +186,13 @@ Based on competitive analysis, MVP should include:
 
 ---
 
-#### 4. LangSmith (LangChain)
-**Website:** https://smith.langchain.com
+#### 4. Competitor D (Framework Ecosystem)
 
 **Agent Capabilities:**
-- **LangSmith Deployment** - Deploy agents as Agent Servers
+- **Deployment** - Deploy agents as Agent Servers
 - **Agent Builder** - No-code visual interface for agent design
 - **Studio** - Visual interface for design, test, and refinement
-- **Deep LangGraph Integration** - For complex agent workflows
+- **Deep Framework Integration** - For complex agent workflows
 
 **UI/UX Patterns:**
 - Trace visualization with nested spans
@@ -191,17 +201,16 @@ Based on competitive analysis, MVP should include:
 - Prompt testing and versioning
 
 **Strengths:**
-- Best-in-class observability for LangChain/LangGraph
+- Best-in-class observability for their framework ecosystem
 - Strong evaluation framework
 
 **What's Missing:**
-- Tightly coupled to LangChain ecosystem
-- Less useful for non-LangChain agents
+- Tightly coupled to their framework ecosystem
+- Less useful for non-framework agents
 
 ---
 
-#### 5. Langfuse
-**Website:** https://langfuse.com
+#### 5. Competitor E (Open-Source Observability)
 
 **Agent Capabilities:**
 - **Observability-focused** - Not an agent builder, but excellent for agent tracing
@@ -221,14 +230,13 @@ Based on competitive analysis, MVP should include:
 
 ---
 
-#### 6. Portkey
-**Website:** https://portkey.ai
+#### 6. Competitor F (Gateway/Routing Platform)
 
 **Agent Capabilities:**
 - **Gateway-focused** - Routes requests through their platform
 - **Agent Framework Integrations** - Supports many frameworks:
   - OpenAI Agents
-  - Autogen, CrewAI, LangChain, LangGraph
+  - Autogen, CrewAI, various frameworks
   - LlamaIndex, Pydantic AI
   - AWS AgentCore
 
@@ -248,8 +256,7 @@ Based on competitive analysis, MVP should include:
 
 ---
 
-#### 7. Helicone
-**Website:** https://helicone.ai
+#### 7. Competitor G (AI Gateway)
 
 **Agent Capabilities:**
 - **AI Gateway** - Unified API for 100+ models
@@ -262,8 +269,7 @@ Based on competitive analysis, MVP should include:
 
 ---
 
-#### 8. PromptLayer
-**Website:** https://promptlayer.com
+#### 8. Competitor H (Prompt Management)
 
 **Agent Capabilities:**
 - **Prompt Registry** - Version and manage prompts
@@ -277,38 +283,38 @@ Based on competitive analysis, MVP should include:
 
 ### Feature Comparison Table
 
-| Feature | Orq.ai | Vellum | Humanloop | LangSmith | Langfuse | Portkey |
-|---------|--------|--------|-----------|-----------|----------|---------|
+| Feature | Competitor B | Competitor A | Competitor C | Competitor D | Competitor E | Competitor F |
+|---------|--------------|--------------|--------------|--------------|--------------|--------------|
 | **Agent Creation UI** | API only | Visual Builder | Limited | Agent Builder | No | No |
 | **Visual Workflow Builder** | No | Yes (main feature) | No | Studio | No | No |
 | **Tool Definition UI** | API | Form + JSON | Form + JSON | N/A | No | No |
 | **Built-in Tools** | Yes | Yes (Composio) | Snippets | N/A | No | No |
-| **Custom Function Tools** | Yes | Yes | Yes | Via LangGraph | No | No |
+| **Custom Function Tools** | Yes | Yes | Yes | Via Framework | No | No |
 | **Agent Playground** | API | Workflow sandbox | Editor | Studio | Prompt only | No |
 | **Tool Call Tracing** | Yes | Yes | Yes | Yes | Yes | Yes |
-| **Knowledge Base/RAG** | Yes | Yes | Via Tools | Via LangGraph | No | No |
-| **Memory/Persistence** | Yes | Via Code | No | Via LangGraph | Sessions | No |
-| **Multi-Agent** | Yes | Yes | No | Via LangGraph | No | Frameworks |
+| **Knowledge Base/RAG** | Yes | Yes | Via Tools | Via Framework | No | No |
+| **Memory/Persistence** | Yes | Via Code | No | Via Framework | Sessions | No |
+| **Multi-Agent** | Yes | Yes | No | Via Framework | No | Frameworks |
 | **Evaluations** | Yes | Yes | Yes (strong) | Yes (strong) | Yes | No |
-| **Framework Agnostic** | Yes | Yes | Yes | No (LangChain) | Yes | Yes |
+| **Framework Agnostic** | Yes | Yes | Yes | No (own framework) | Yes | Yes |
 
 ---
 
 ### UI/UX Patterns Worth Adopting
 
-#### 1. Tool Definition Interface (Vellum Pattern)
+#### 1. Tool Definition Interface (Competitor A Pattern)
 - **Form mode**: Fill in name, description, parameters with types
 - **JSON upload mode**: Paste or upload OpenAPI-style schema
 - **"Forced" toggle**: Always use this tool vs let model decide
 - **Inline testing**: Test tool definition in playground
 
-#### 2. Agent Configuration (Orq.ai Pattern)
+#### 2. Agent Configuration (Competitor B Pattern)
 - Clear agent properties: key, role, description, instructions
 - Model settings: model ID, parameters (temperature, etc.)
 - Execution limits: max_iterations, max_execution_time
 - Tool selection: checkboxes for available tools
 
-#### 3. Trace Visualization (Langfuse Pattern)
+#### 3. Trace Visualization (Competitor E Pattern)
 - Nested span view showing agent loop iterations
 - Timeline view for latency analysis
 - Clear distinction between:
@@ -316,12 +322,12 @@ Based on competitive analysis, MVP should include:
   - Tool calls (input, output, duration)
   - Agent reasoning (thought, action, observation)
 
-#### 4. Workflow Testing (Vellum Pattern)
+#### 4. Workflow Testing (Competitor A Pattern)
 - Chat history simulation with multi-turn conversations
 - Conditional output handling (text vs function call)
 - Clear output types for downstream handling
 
-#### 5. Tool Execution Feedback (Orq.ai Pattern)
+#### 5. Tool Execution Feedback (Competitor B Pattern)
 - Task states: submitted → working → input_required → completed
 - Clear error states with recovery options
 - Streaming updates via SSE
@@ -333,12 +339,12 @@ Based on competitive analysis, MVP should include:
 #### What's Missing in the Market
 
 1. **Simple Agent UI for Non-Technical Users**
-   - Vellum is powerful but complex
-   - Orq.ai is API-only
+   - Competitor A is powerful but complex
+   - Competitor B is API-only
    - Opportunity: Simple form-based agent creation
 
 2. **Framework-Agnostic Agent Playground**
-   - LangSmith is LangChain-only
+   - Competitor D is framework-only
    - Opportunity: Test any agent implementation
 
 3. **Unified Tool Library**
@@ -370,16 +376,16 @@ Given Agenta's focus on **evaluation and observability**, the opportunity is:
 
 ### Reference Links
 
-| Platform | Docs | Key Pages |
-|----------|------|-----------|
-| Orq.ai | https://docs.orq.ai | Agents API, Tools Overview |
-| Vellum | https://docs.vellum.ai | Agent Node, Function Calling, Agent Builder |
-| Humanloop | https://humanloop.com/docs | Agents, Tools, Flows |
-| LangSmith | https://docs.smith.langchain.com | Observability, Deployment |
-| Langfuse | https://langfuse.com/docs | Observability, Prompt Management |
-| Portkey | https://docs.portkey.ai | Agent Integrations |
-| Helicone | https://docs.helicone.ai | AI Gateway |
-| PromptLayer | https://docs.promptlayer.com | Prompt Registry |
+| Platform | Key Features |
+|----------|--------------|
+| Competitor B | Agents API, Tools Overview |
+| Competitor A | Agent Node, Function Calling, Agent Builder |
+| Competitor C | Agents, Tools, Flows |
+| Competitor D | Observability, Deployment |
+| Competitor E | Observability, Prompt Management |
+| Competitor F | Agent Integrations |
+| Competitor G | AI Gateway |
+| Competitor H | Prompt Registry |
 
 ---
 
@@ -388,8 +394,8 @@ Given Agenta's focus on **evaluation and observability**, the opportunity is:
 ### Key Insights from Research
 
 1. **Two Approaches to Agents:**
-   - **Builder Approach** (Vellum, LangSmith): Visual workflow builders, complex but powerful
-   - **API Approach** (Orq.ai): Programmatic agent creation, flexible but requires code
+   - **Builder Approach** (Competitor A, Competitor D): Visual workflow builders, complex but powerful
+   - **API Approach** (Competitor B): Programmatic agent creation, flexible but requires code
 
 2. **Tools are Central:**
    - Every platform supports function calling / tool use
@@ -438,7 +444,7 @@ Based on competitive analysis, recommend:
 
 ### Out of Scope for MVP
 
-- Visual workflow builder (too complex, Vellum's territory)
+- Visual workflow builder (too complex, Competitor A's territory)
 - Multi-agent orchestration
 - Memory/persistence
 - Third-party tool integrations (Composio, etc.)
@@ -450,9 +456,8 @@ Based on competitive analysis, recommend:
 
 This section documents how competitors structure their APIs for agents and tools.
 
-### Orq.ai API
+### Competitor B API
 
-**Base URL:** `https://api.orq.ai`  
 **Auth:** Bearer token via `Authorization: Bearer $API_KEY`
 
 #### Agent Endpoints
@@ -571,7 +576,7 @@ POST /v2/agents/weather-assistant/responses
 }
 ```
 
-#### Tool Types in Orq.ai
+#### Tool Types in Competitor B
 
 | Type | Description |
 |------|-------------|
@@ -586,11 +591,7 @@ POST /v2/agents/weather-assistant/responses
 
 ---
 
-### Vellum API
-
-**Base URLs:**
-- Execution: `https://predict.vellum.ai`
-- Management: `https://api.vellum.ai`
+### Competitor A API
 
 **Auth:** `X-API-KEY` header
 
@@ -659,7 +660,7 @@ POST /v1/execute-workflow
 }
 ```
 
-#### Vellum Input Types
+#### Competitor A Input Types
 
 | Type | Description |
 |------|-------------|
@@ -671,7 +672,7 @@ POST /v1/execute-workflow
 | `AUDIO` | Audio data |
 | `DOCUMENT` | PDF/document |
 
-#### Vellum Function Definition (in Prompt Node)
+#### Competitor A Function Definition (in Prompt Node)
 
 ```json
 {
@@ -712,9 +713,8 @@ data: {"state": "FULFILLED", "outputs": [...]}
 
 ---
 
-### Humanloop API
+### Competitor C API
 
-**Base URL:** `https://api.humanloop.com/v5`  
 **Auth:** `X-API-KEY` header
 
 #### Core Endpoints
@@ -836,12 +836,12 @@ POST /v5/agents/continue
 }
 ```
 
-#### Tool Types in Humanloop
+#### Tool Types in Competitor C
 
 | Type | Description |
 |------|-------------|
 | `json_schema` | Schema-only (user executes) |
-| `python` | Executable Python on Humanloop runtime |
+| `python` | Executable Python on their runtime |
 | `snippet` | Reusable text snippets |
 | `pinecone_search` | Pinecone RAG integration |
 | `google` | Google Search |
@@ -857,8 +857,8 @@ POST /v5/agents/continue
 
 ### API Design Patterns Comparison
 
-| Pattern | Orq.ai | Vellum | Humanloop |
-|---------|--------|--------|-----------|
+| Pattern | Competitor B | Competitor A | Competitor C |
+|---------|--------------|--------------|--------------|
 | **Entity model** | Agent + Task | Workflow + Execution | Agent + Log |
 | **Tool definition** | Inline in agent | In prompt node | Linked or inline |
 | **Continuation** | `task_id` | N/A (workflow handles) | `log_id` + `/continue` |
