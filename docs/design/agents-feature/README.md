@@ -10,12 +10,14 @@ Research and planning workspace for adding agent capabilities to Agenta - enabli
 - **plan.md** - High-level execution plan and milestones
 - **status.md** - Current progress, blockers, and decisions
 
-### Research
-- **research-scope.md** - Feature scope exploration and boundaries
-- **research-tools.md** - Tools/function calling: Composio, native integrations, other options
-- **research-playground.md** - How playground handles tools for completion/chat
-- **research-frameworks.md** - Minimal agent frameworks (LiteLLM-like approach)
+### Pre-Research (Completed)
+Located in `pre-research/`:
+- **research-scope.md** - Feature scope, competitive analysis, API documentation
+- **research-tools.md** - Tool integration platforms (Composio, Arcade, ACI.dev)
+- **research-playground.md** - Current playground architecture, tool data model
+- **research-frameworks.md** - Agent frameworks evaluation (LiteLLM, Pydantic AI, etc.)
+- **research-composio-oauth.md** - Deep dive on Composio OAuth flow and connection management
 
 ## Status
 
-**Phase:** Research & Scoping
+**Phase:** Research Complete → Ready for Design

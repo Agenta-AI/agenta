@@ -4,44 +4,66 @@
 
 ## Current Phase
 
-**Research & Scoping**
+**Research Complete → Ready for Design**
 
 ## What's Done
 
 - [x] Created planning workspace scaffold
 - [x] Defined initial research areas
+- [x] **Scope & competitive analysis** - Orq.ai, Vellum, Humanloop, LangSmith, Langfuse, Portkey
+- [x] **API documentation** - Detailed API analysis for Orq.ai, Vellum, Humanloop
+- [x] **Tools integration research** - Composio (recommended), Arcade, ACI.dev evaluated
+- [x] **Composio OAuth deep dive** - Data model, API, OAuth flow, frontend patterns
+- [x] **Playground analysis** - Tool support already exists, identified gaps
+- [x] **Agent frameworks** - LiteLLM + custom loop recommended (~200 LOC)
 
-## In Progress
-
-- [ ] Scope and PRD research
-- [ ] Tools integration research (Composio, etc.)
-- [ ] Playground tools support research
-- [ ] Agent frameworks research
-
-## Blockers
-
-None currently.
-
-## Recent Decisions
+## Key Decisions Made
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-01-29 | Start with research phase | Feature scope unclear, need exploration |
+| 2026-01-29 | Recommend Composio for tool integrations | 800+ tools, MIT license, managed OAuth, meta-tool pattern |
+| 2026-01-29 | Build minimal agent loop on LiteLLM | Full control, zero new deps, perfect observability |
+| 2026-01-29 | Tools scoped per organization | Simpler than per-user, can extend later |
+
+## Research Summary
+
+### Tool Integration
+- **Winner: Composio** - MIT license, 26.5k stars, 800+ tools, handles OAuth
+- Alternatives: Arcade (MCP-focused), ACI.dev (fully OSS)
+- Custom MCPs not supported by Composio (one-way provider)
+
+### Agent Framework  
+- **Winner: Build custom on LiteLLM** (~200 lines)
+- Alternative: Pydantic AI if need more features later
+- Avoid: LangChain (competitor), heavy frameworks
+
+### Playground
+- Tool support already exists (PlaygroundTool, tools.specs.json)
+- Missing: External tool browser, multi-turn execution, OAuth flow UI
+
+### Competitive Landscape
+- Vellum: Visual workflow builder (complex)
+- Orq.ai: API-first, A2A protocol
+- Humanloop: Evaluation-focused
+- **Agenta opportunity**: Simple UI + strong evaluation
 
 ## Next Steps
 
-1. Research scope boundaries - what is an "agent" in Agenta?
-2. Investigate Composio and other tool integration options
-3. Analyze how playground currently handles completions/chat
-4. Survey minimal agent frameworks
+1. **Design API** - Tools management, connections, agent execution
+2. **Design UI** - Tool browser modal, connection management
+3. **Write PRD** - User stories based on research
+4. **Architecture** - Data models, backend endpoints
 
-## Open Questions
+## Open Questions (Resolved)
 
-- What's the minimum viable agent feature?
-- Build tools integration vs. integrate existing providers?
-- How does tool calling affect the playground UX?
-- Do we need a framework or can we build minimal?
+| Question | Answer |
+|----------|--------|
+| What's the minimum viable agent? | Prompt + tools + execution loop + tracing |
+| Build vs. integrate tools? | Integrate (Composio), build agent loop |
+| Framework needed? | No, build minimal on LiteLLM |
+| Tool calling UX? | Extend existing dropdown + add browser modal |
 
-## Notes
+## Blockers
 
-_Add research findings and notes here as work progresses_
+None currently.
