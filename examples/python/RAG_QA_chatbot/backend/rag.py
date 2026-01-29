@@ -138,7 +138,7 @@ async def get_prompt_config() -> Optional[Tuple]:
     """
     try:
         config = await SharedManager.afetch(
-            app_slug="query-prompt",
+            app_slug="support-rag-prompt",
             environment_slug="production",
         )
 

@@ -2,7 +2,7 @@
 name = "rag-qa-chatbot"
 version = "0.1.0"
 description = "RAG chatbot for documentation Q&A"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     # Ingestion
     "qdrant-client>=1.7.0",
@@ -15,7 +15,7 @@ dependencies = [
     "uvicorn>=0.27.0",
     "sse-starlette>=2.0.0",
     # Observability
-    "agenta>=0.1.0",
+    "agenta>=0.80.0",
     "openinference-instrumentation-litellm>=0.1.28",
 ]
 
