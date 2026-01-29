@@ -994,9 +994,14 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                         const matchingAnnotation = allAnnotations.find((ann: AnnotationDto) => {
                             const annEvaluatorSlug = ann?.references?.evaluator?.slug
                             const annEvaluatorId = ann?.references?.evaluator?.id
+                            const annEvaluatorRevisionSlug =
+                                ann?.references?.evaluator_revision?.slug
 
                             // Match by evaluator slug from step key
                             if (evaluatorSlug && annEvaluatorSlug === evaluatorSlug) return true
+                            // Match by evaluator revision slug from step key (for SDK evaluators)
+                            if (evaluatorSlug && annEvaluatorRevisionSlug === evaluatorSlug)
+                                return true
                             // Match by evaluator ID
                             if (
                                 evaluatorId &&
@@ -1005,6 +1010,12 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                                 return true
                             // Match by column's evaluator slug
                             if (column.evaluatorSlug && annEvaluatorSlug === column.evaluatorSlug)
+                                return true
+                            // Match by column's evaluator slug against revision slug (for SDK evaluators)
+                            if (
+                                column.evaluatorSlug &&
+                                annEvaluatorRevisionSlug === column.evaluatorSlug
+                            )
                                 return true
 
                             return false

@@ -33,6 +33,12 @@ export interface EvaluatorDto {
     name?: string
     description?: string
     data?: {
+        schemas?: {
+            outputs?: {
+                properties?: Record<string, unknown>
+                required?: string[]
+            }
+        }
         service?: {
             format?: {
                 properties?: {
