@@ -262,12 +262,12 @@ export function useAnnotationState({
 
     // Track the scenarioId to reset edits when it changes
     const prevScenarioIdRef = useRef(scenarioId)
-    if (prevScenarioIdRef.current !== scenarioId) {
+    useEffect(() => {
+        if (prevScenarioIdRef.current === scenarioId) return
         prevScenarioIdRef.current = scenarioId
-        // Reset edits when scenario changes (synchronous state update)
         setMetricEdits({})
         setErrors([])
-    }
+    }, [scenarioId])
 
     // Track previous baseline to detect when it updates after a save
     const prevBaselineRef = useRef<string>("")
@@ -302,17 +302,21 @@ export function useAnnotationState({
         }
 
         // Add empty metrics for unannotated evaluators
-        const annotatedSlugs = new Set(
-            annotations.map((a) => a.references?.evaluator?.slug).filter(Boolean),
+        const annotatedKeys = new Set(
+            annotations
+                .flatMap((a) => [a.references?.evaluator?.slug, a.references?.evaluator?.id])
+                .filter(Boolean) as string[],
         )
-        for (const [slug, evaluator] of evaluatorMap) {
-            if (!annotatedSlugs.has(slug)) {
-                result[slug] = getMetricFieldsFromEvaluator(evaluator)
-            }
+        for (const evaluator of evaluators) {
+            const slug = evaluator.slug
+            if (!slug) continue
+            if (annotatedKeys.has(slug)) continue
+            if (evaluator.id && annotatedKeys.has(evaluator.id)) continue
+            result[slug] = getMetricFieldsFromEvaluator(evaluator)
         }
 
         return result
-    }, [annotations, evaluatorMap])
+    }, [annotations, evaluatorMap, evaluators])
 
     // When baseline updates (e.g., after save + refetch), clear edits that now match baseline
     // This allows new changes to be detected properly
@@ -429,13 +433,13 @@ export function useAnnotationState({
                 .filter(Boolean) as string[],
         )
         return evaluators
-            .map((e) => e.slug)
-            .filter(
-                (slug): slug is string =>
-                    Boolean(slug) &&
-                    !annotatedKeys.has(slug) &&
-                    !annotatedKeys.has(evaluators.find((e) => e.slug === slug)?.id ?? ""),
-            )
+            .filter((e) => {
+                if (!e.slug) return false
+                if (annotatedKeys.has(e.slug)) return false
+                if (e.id && annotatedKeys.has(e.id)) return false
+                return true
+            })
+            .map((e) => e.slug as string)
     }, [annotations, evaluators])
 
     // Extract trace/span IDs
