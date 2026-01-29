@@ -16,6 +16,7 @@ from ..types.create_app_output import CreateAppOutput
 from ..types.environment_output import EnvironmentOutput
 from ..types.environment_output_extended import EnvironmentOutputExtended
 from ..types.http_validation_error import HttpValidationError
+from ..types.read_app_output import ReadAppOutput
 from ..types.update_app_output import UpdateAppOutput
 
 # this is used as the default value for optional parameters
@@ -245,6 +246,7 @@ class RawAppsClient:
         template_key: typing.Optional[str] = OMIT,
         project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[CreateAppOutput]:
@@ -270,6 +272,8 @@ class RawAppsClient:
 
         workspace_id : typing.Optional[str]
 
+        folder_id : typing.Optional[str]
+
         organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
@@ -288,6 +292,7 @@ class RawAppsClient:
                 "template_key": template_key,
                 "project_id": project_id,
                 "workspace_id": workspace_id,
+                "folder_id": folder_id,
                 "organization_id": organization_id,
             },
             headers={
@@ -330,9 +335,75 @@ class RawAppsClient:
             body=_response_json,
         )
 
+    def read_app(
+        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> HttpResponse[ReadAppOutput]:
+        """
+        Retrieve an app by its ID.
+
+        Args:
+            app_id (str): The ID of the app to retrieve.
+
+        Returns:
+            ReadAppOutput: The output containing the app's ID and name.
+
+        Raises:
+            HTTPException: If there is an error retrieving the app or the user does not have permission to access the app.
+
+        Parameters
+        ----------
+        app_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HttpResponse[ReadAppOutput]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"apps/{jsonable_encoder(app_id)}",
+            method="GET",
+            request_options=request_options,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ReadAppOutput,
+                    parse_obj_as(
+                        type_=ReadAppOutput,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return HttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
     def remove_app(
         self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Remove app, all its variant.
 
@@ -348,7 +419,7 @@ class RawAppsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -361,9 +432,9 @@ class RawAppsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -396,7 +467,8 @@ class RawAppsClient:
         self,
         app_id: str,
         *,
-        app_name: str,
+        app_name: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[UpdateAppOutput]:
         """
@@ -416,7 +488,9 @@ class RawAppsClient:
         ----------
         app_id : str
 
-        app_name : str
+        app_name : typing.Optional[str]
+
+        folder_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -431,6 +505,7 @@ class RawAppsClient:
             method="PATCH",
             json={
                 "app_name": app_name,
+                "folder_id": folder_id,
             },
             headers={
                 "content-type": "application/json",
@@ -482,7 +557,7 @@ class RawAppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -503,7 +578,7 @@ class RawAppsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -527,9 +602,9 @@ class RawAppsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -568,7 +643,7 @@ class RawAppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -589,7 +664,7 @@ class RawAppsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -613,9 +688,9 @@ class RawAppsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -710,7 +785,7 @@ class RawAppsClient:
     def environment_revisions(
         self,
         app_id: str,
-        environment_name: typing.Optional[typing.Any],
+        environment_name: typing.Any,
         *,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[EnvironmentOutputExtended]:
@@ -719,7 +794,7 @@ class RawAppsClient:
         ----------
         app_id : str
 
-        environment_name : typing.Optional[typing.Any]
+        environment_name : typing.Any
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -992,6 +1067,7 @@ class AsyncRawAppsClient:
         template_key: typing.Optional[str] = OMIT,
         project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[CreateAppOutput]:
@@ -1017,6 +1093,8 @@ class AsyncRawAppsClient:
 
         workspace_id : typing.Optional[str]
 
+        folder_id : typing.Optional[str]
+
         organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
@@ -1035,6 +1113,7 @@ class AsyncRawAppsClient:
                 "template_key": template_key,
                 "project_id": project_id,
                 "workspace_id": workspace_id,
+                "folder_id": folder_id,
                 "organization_id": organization_id,
             },
             headers={
@@ -1077,9 +1156,75 @@ class AsyncRawAppsClient:
             body=_response_json,
         )
 
+    async def read_app(
+        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> AsyncHttpResponse[ReadAppOutput]:
+        """
+        Retrieve an app by its ID.
+
+        Args:
+            app_id (str): The ID of the app to retrieve.
+
+        Returns:
+            ReadAppOutput: The output containing the app's ID and name.
+
+        Raises:
+            HTTPException: If there is an error retrieving the app or the user does not have permission to access the app.
+
+        Parameters
+        ----------
+        app_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        AsyncHttpResponse[ReadAppOutput]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"apps/{jsonable_encoder(app_id)}",
+            method="GET",
+            request_options=request_options,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    ReadAppOutput,
+                    parse_obj_as(
+                        type_=ReadAppOutput,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    headers=dict(_response.headers),
+                    body=typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(
+                status_code=_response.status_code,
+                headers=dict(_response.headers),
+                body=_response.text,
+            )
+        raise ApiError(
+            status_code=_response.status_code,
+            headers=dict(_response.headers),
+            body=_response_json,
+        )
+
     async def remove_app(
         self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Remove app, all its variant.
 
@@ -1095,7 +1240,7 @@ class AsyncRawAppsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1108,9 +1253,9 @@ class AsyncRawAppsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1143,7 +1288,8 @@ class AsyncRawAppsClient:
         self,
         app_id: str,
         *,
-        app_name: str,
+        app_name: typing.Optional[str] = OMIT,
+        folder_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[UpdateAppOutput]:
         """
@@ -1163,7 +1309,9 @@ class AsyncRawAppsClient:
         ----------
         app_id : str
 
-        app_name : str
+        app_name : typing.Optional[str]
+
+        folder_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1178,6 +1326,7 @@ class AsyncRawAppsClient:
             method="PATCH",
             json={
                 "app_name": app_name,
+                "folder_id": folder_id,
             },
             headers={
                 "content-type": "application/json",
@@ -1229,7 +1378,7 @@ class AsyncRawAppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -1250,7 +1399,7 @@ class AsyncRawAppsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1274,9 +1423,9 @@ class AsyncRawAppsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1315,7 +1464,7 @@ class AsyncRawAppsClient:
         base_name: typing.Optional[str] = OMIT,
         config_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Parameters
         ----------
@@ -1336,7 +1485,7 @@ class AsyncRawAppsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1360,9 +1509,9 @@ class AsyncRawAppsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1457,7 +1606,7 @@ class AsyncRawAppsClient:
     async def environment_revisions(
         self,
         app_id: str,
-        environment_name: typing.Optional[typing.Any],
+        environment_name: typing.Any,
         *,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[EnvironmentOutputExtended]:
@@ -1466,7 +1615,7 @@ class AsyncRawAppsClient:
         ----------
         app_id : str
 
-        environment_name : typing.Optional[typing.Any]
+        environment_name : typing.Any
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
