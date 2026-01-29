@@ -3,9 +3,10 @@ import {useEffect} from "react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
-import {signOut} from "supertokens-auth-react/recipe/session"
+import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
 
+import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {resetOrganizationData} from "@/oss/state/org"
 import {resetProfileData} from "@/oss/state/profile"
 import {resetProjectData} from "@/oss/state/project"
@@ -21,6 +22,7 @@ export const useSession: () => {
     const setSessionLoading = useSetAtom(sessionLoadingAtom)
     const setAuthFlow = useSetAtom(authFlowAtom)
     const authFlow = useAtomValue(authFlowAtom)
+    const setOnboardingStorageUserId = useSetAtom(onboardingStorageUserIdAtom)
     const router = useRouter()
     const queryClient = useQueryClient()
 
@@ -40,6 +42,25 @@ export const useSession: () => {
         setAuthFlow,
         authFlow,
     ])
+
+    useEffect(() => {
+        if (res.loading) return
+
+        const doesSessionExist = Boolean((res as any).doesSessionExist)
+        if (!doesSessionExist) {
+            setOnboardingStorageUserId(null)
+            return
+        }
+
+        ;(async () => {
+            try {
+                const userId = await Session.getUserId()
+                setOnboardingStorageUserId(userId)
+            } catch {
+                // ignore user id lookup failures
+            }
+        })()
+    }, [res.loading, (res as any).doesSessionExist, setOnboardingStorageUserId])
 
     return {
         loading: res.loading,
@@ -73,6 +94,7 @@ export const useSession: () => {
             // Update session state
             setSessionExists(false)
             setAuthFlow("unauthed")
+            setOnboardingStorageUserId(null)
 
             // Redirect to auth page
             await router.replace("/auth")

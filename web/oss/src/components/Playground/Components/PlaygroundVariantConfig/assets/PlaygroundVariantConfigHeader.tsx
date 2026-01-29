@@ -125,6 +125,7 @@ const PlaygroundVariantConfigHeader = ({
                         label="Commit"
                         type="primary"
                         size="small"
+                        data-tour="commit-button"
                     />
 
                     <PlaygroundVariantHeaderMenu variantId={variantId} />

@@ -24,7 +24,7 @@ class ContainersClient:
 
     def container_templates(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Returns a list of templates available for creating new containers.
 
@@ -35,7 +35,7 @@ class ContainersClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -70,7 +70,7 @@ class AsyncContainersClient:
 
     async def container_templates(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Returns a list of templates available for creating new containers.
 
@@ -81,7 +81,7 @@ class AsyncContainersClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
