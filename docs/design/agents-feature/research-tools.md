@@ -1,522 +1,255 @@
-# Research: Tool Integration Platforms for LLM Applications
+# Tool Integration Platforms (Composio vs Arcade vs ACI)
+
+This document focuses on platforms that let an LLM/agent call real tools (Gmail, Slack, GitHub, etc.) while handling:
+
+- OAuth for end-users (including token refresh)
+- per-user credential storage
+- tool catalog discovery
+- safe tool execution patterns
 
 ## Executive Summary
 
-This research evaluates tool integration platforms that provide pre-built integrations with OAuth handling and per-user credential management for LLM applications. The goal is to enable Agenta's agents to execute real-world actions (send emails, create calendar events, etc.) on behalf of users.
+What changed since the first pass:
 
-**Key Findings:**
-- **Composio** is the most mature solution with 800+ toolkits, excellent OAuth handling, and is open source (MIT license) with 26.5k GitHub stars
-- **Arcade AI** is a strong alternative focused on MCP (Model Context Protocol) with enterprise-grade auth
-- **Zapier NLA** has been deprecated - their API endpoints return 404
-- **Building from scratch** would require significant effort (OAuth flows, token refresh, per-user credential storage)
-- **Self-hosting Composio** is possible but requires running their backend infrastructure
+- Composio’s **SDK/CLI is open source** (MIT), but the **hosted backend** (Connect Links, credential vault, tool catalog service) is not “just run it from the repo”.
+- Arcade has **public pricing** and a clear two-layer auth model.
+- ACI.dev (Aipotheosis Labs) is a serious **open-source** contender and maps very well to the “meta-tool router” pattern (search/execute).
 
----
+Key options:
+
+- **Composio**: biggest catalog (public catalog shows 877 toolkits / 11,000+ tools) + strong “meta-tool” approach.
+- **Arcade**: strong security/auth posture + MCP runtime framing + deployability.
+- **ACI.dev**: best open-source story in this category; unified MCP meta tools; 600+ integrations.
+
+## What “Managed OAuth” Means (for Agenta)
+
+We want a provider to:
+
+- host (or help host) the OAuth consent flow
+- store & refresh OAuth tokens
+- map tokens to our user/workspace identifiers
+- provide “connection status” and revocation/rotation
+
+In practice: user clicks a “Connect” button in Agenta UI, completes OAuth, and from then on tool calls execute under that user’s authorization.
+
+## Funding Snapshot (public posts)
+
+| Company | Funding (public) | Source |
+|---|---:|---|
+| Composio | $29M (funding announcement post) | https://composio.dev/blog/series-a |
+| Arcade | $12M seed | https://blog.arcade.dev/arcade-dev-raises-12m-to-solve-the-biggest-security-challenge-in-ai-agents |
+| Aipotheosis / ACI.dev | Not found in sources reviewed (needs follow-up) | N/A |
 
 ## 1. Composio Deep Dive
 
-### Overview
-Composio is the leading tool integration platform for AI agents with 26.5k GitHub stars and MIT license. It provides 800+ pre-built toolkits with automatic OAuth handling and credential management.
+### What it is
 
-**Website:** https://composio.dev  
-**GitHub:** https://github.com/composioHQ/composio  
-**Docs:** https://docs.composio.dev
+- Website: https://composio.dev
+- Docs: https://docs.composio.dev
+- SDK repo (MIT): https://github.com/ComposioHQ/composio
+- Toolkits catalog: https://composio.dev/toolkits
 
-### Architecture
+Composio provides:
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Your Agent    │────▶│   Composio SDK  │────▶│  Composio API   │
-│   (Agenta)      │     │   (Python/TS)   │     │  (Hosted/Self)  │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                                                        │
-                        ┌───────────────────────────────┤
-                        ▼                               ▼
-                ┌───────────────┐             ┌───────────────┐
-                │  OAuth Flows  │             │ Tool Execution│
-                │  Token Mgmt   │             │ (Gmail, Slack)│
-                └───────────────┘             └───────────────┘
-```
+- a hosted platform/API for tool catalog + auth + execution orchestration
+- SDKs that format tools for common LLM providers/frameworks (OpenAI, Anthropic, LangChain, etc.)
 
-**Key Components:**
-1. **Sessions**: Per-user context that tracks authenticated connections
-2. **Meta Tools**: 5 tools that discover, authenticate, and execute actions
-3. **Toolkits**: Collections of tools for each service (GitHub, Gmail, etc.)
-4. **Connected Accounts**: Per-user credential storage with automatic token refresh
+### Open source vs hosted
 
-### How Authentication Works
+The GitHub repo is explicitly the **SDKs** (“Composio SDK”). It references pulling OpenAPI specs from a hosted backend (`https://backend.composio.dev/api/v3/openapi.json`). That is a strong signal the backend is a hosted service (even if enterprise offers VPC/on-prem).
 
-Composio uses **Connect Links** - hosted pages where users securely connect their accounts.
+Repo: https://github.com/ComposioHQ/composio
 
-**Flow:**
-1. Agent needs to access Gmail for a user
-2. Composio generates a Connect Link: `https://connect.composio.dev/link/ln_abc123`
-3. User clicks link, goes through OAuth consent
-4. Composio stores tokens, handles refresh automatically
-5. All future requests use stored credentials
+### Catalog scale
 
-**Auth Config Types:**
-- **Composio Managed OAuth**: Default - uses Composio's registered OAuth apps
-- **Custom OAuth Credentials**: Bring your own OAuth client ID/secret for white-labeling
-- **API Keys**: User provides API key directly via Connect Link
+The public toolkits page currently states:
 
-### Code Examples
+- 877 toolkits
+- 11,000+ tools
 
-#### Python - Basic Setup with OpenAI
+Ref: https://composio.dev/toolkits
 
-```python
-from composio import Composio
-from composio_openai import OpenAIProvider
-from openai import OpenAI
+### Authentication model
 
-# Initialize Composio with OpenAI provider
-composio = Composio(provider=OpenAIProvider())
-openai_client = OpenAI()
+Composio docs describe:
 
-# Create a session for a specific user
-user_id = "user_123"  # Your internal user ID
-session = composio.create(user_id=user_id)
+- **Connect Links** (hosted pages) for end-user auth
+- **Auth configs** as reusable blueprints per toolkit (auth method, scopes, managed vs BYO OAuth credentials)
+- **Connected accounts** as per-user credential records (multiple accounts per toolkit allowed)
+- automatic token refresh
 
-# Get tools formatted for OpenAI function calling
-tools = session.tools()
+Ref: https://docs.composio.dev/docs/authentication
 
-# Use with OpenAI
-response = openai_client.chat.completions.create(
-    model="gpt-4",
-    messages=[{"role": "user", "content": "Send an email to john@example.com"}],
-    tools=tools,
-    tool_choice="auto"
-)
+### Meta-tool pattern (important)
 
-# Handle tool calls - Composio executes them automatically
-if response.choices[0].message.tool_calls:
-    for tool_call in response.choices[0].message.tool_calls:
-        result = session.execute(
-            tool_call.function.name,
-            tool_call.function.arguments
-        )
-```
+Instead of loading thousands of tools into an LLM context, Composio provides 5 meta tools:
 
-#### Python - Manual Authentication Flow
+- `COMPOSIO_SEARCH_TOOLS`
+- `COMPOSIO_MANAGE_CONNECTIONS`
+- `COMPOSIO_MULTI_EXECUTE_TOOL`
+- `COMPOSIO_REMOTE_WORKBENCH`
+- `COMPOSIO_REMOTE_BASH_TOOL`
 
-```python
-from composio import Composio
-
-composio = Composio()
-
-# Create session for user
-user_id = "user_123"
-session = composio.create(user_id=user_id)
-
-# Generate auth link for a specific toolkit
-auth_response = session.authorize(
-    toolkit="gmail",
-    scopes=["gmail.readonly", "gmail.send"]
-)
-
-if auth_response.status != "completed":
-    # Send this URL to your user
-    print(f"Please authorize: {auth_response.url}")
-    
-    # Wait for user to complete auth (or poll)
-    auth_response = session.wait_for_completion(auth_response)
-
-# Now user is connected, tools will work
-tools = session.tools(toolkits=["gmail"])
-```
-
-#### TypeScript - Full Example
-
-```typescript
-import { Composio } from "@composio/core";
-import { OpenAIProvider } from "@composio/openai";
-import OpenAI from "openai";
-
-const composio = new Composio({ provider: new OpenAIProvider() });
-const openai = new OpenAI();
-
-async function sendEmailForUser(userId: string, prompt: string) {
-  // Create session for this user
-  const session = await composio.create(userId);
-  
-  // Get OpenAI-formatted tools
-  const tools = await session.tools({ toolkits: ["GMAIL"] });
-  
-  // Check if user is connected
-  const connections = await session.getConnections();
-  if (!connections.find(c => c.toolkit === "gmail")) {
-    // Generate auth URL
-    const authUrl = await session.authorize({ toolkit: "gmail" });
-    return { needsAuth: true, authUrl };
-  }
-  
-  // User is connected - proceed with LLM call
-  const response = await openai.chat.completions.create({
-    model: "gpt-4",
-    messages: [{ role: "user", content: prompt }],
-    tools,
-    tool_choice: "auto"
-  });
-  
-  // Execute tool calls
-  for (const toolCall of response.choices[0].message.tool_calls || []) {
-    const result = await session.execute(
-      toolCall.function.name,
-      JSON.parse(toolCall.function.arguments)
-    );
-    console.log("Tool result:", result);
-  }
-  
-  return response;
-}
-```
+Ref: https://docs.composio.dev/docs/tools-and-toolkits
 
 ### Pricing
 
-| Tier | Price | Tool Calls | Connected Accounts |
-|------|-------|------------|-------------------|
-| Free | $0/mo | 20K/mo | 1K |
-| Starter | $29/mo | 200K/mo (+$0.299/1K extra) | 30K (+$2/1K) |
-| Business | $229/mo | 2M/mo (+$0.249/1K extra) | 100K (+$1/1K) |
-| Enterprise | Custom | Custom | Custom + VPC/On-prem |
+Public pricing is usage-based (tool calls + connected accounts).
 
-**Premium Tool Calls** (3x cost): Search APIs, code execution, web scraping, AI inference
+Ref: https://composio.dev/pricing
 
-### Self-Hosting Options
+### Fit for Agenta
 
-Composio is **open source (MIT)** and can be self-hosted:
+Best for:
 
-```bash
-# Clone and run with Docker
-git clone https://github.com/ComposioHQ/composio.git
-cd composio/docker
-docker compose up
-```
+- broad SaaS integrations quickly
+- “agent auth” UX via Connect Links
+- keeping LLM tool context small via meta-tool routing
 
-**Self-hosting considerations:**
-- You need to register your own OAuth apps with each provider
-- Handle your own secrets management
-- No premium tools (search, code execution) unless you add those services
-- Enterprise tier includes VPC/on-prem deployment support
+Trade-offs:
 
----
+- backend is not straightforward OSS self-host from GitHub
+- enterprise VPC/on-prem must be validated (contract/product, not OSS)
 
-## 2. Alternatives Comparison
+## 2. Arcade Deep Dive
 
-### Arcade AI
+### What it is
 
-**Website:** https://arcade.dev  
-**GitHub:** https://github.com/ArcadeAI/arcade-mcp (MIT license, 794 stars)
+- Website: https://arcade.dev
+- Docs: https://docs.arcade.dev/home
+- Pricing: https://arcade.dev/pricing
+- Tools catalog: https://arcade.dev/tools
+- Open-source MCP server framework (MIT): https://github.com/ArcadeAI/arcade-mcp
 
-**What it is:** MCP runtime for secure tool execution with agent auth. Focuses on enterprise-grade authentication and MCP protocol.
+Arcade positions itself as the **runtime between AI and action**.
 
-**Architecture:**
-- Provides SDK for creating MCP servers
-- Agent Auth system for OAuth with granular permissions
-- Pre-built connectors for major services
-- Tool evaluations for benchmarking LLM-tool interactions
+### Auth model (two layers)
 
-**Code Example:**
-```python
-from arcadepy import Arcade
+Arcade documents two authorization layers:
 
-client = Arcade()
-user_id = "user@example.com"
+- **Tool-level authorization**: per-tool OAuth scopes; Arcade manages OAuth + token storage; tool code receives token via context.
+- **Server-level (resource server) auth**: front-door bearer-token validation for HTTP MCP servers (Arcade can handle this if you deploy via their tooling).
 
-# Start OAuth flow
-auth_response = client.auth.start(
-    user_id, "google", 
-    scopes=["https://www.googleapis.com/auth/gmail.readonly"]
-)
+Ref: https://docs.arcade.dev/en/learn/server-level-vs-tool-level-auth
 
-if auth_response.status != "completed":
-    print(f"Auth URL: {auth_response.url}")
-    auth_response = client.auth.wait_for_completion(auth_response)
+### Tool catalog scale
 
-# Use the token
-token = auth_response.context.token
-```
+- Tools page claims: “over 8,000 enterprise tools”
+- Docs list 129 MCP servers in their catalog
 
-**Pricing:** Not publicly listed - contact for enterprise pricing
+Refs:
 
-**Pros:**
-- MCP-native (good for Claude, Cursor integration)
-- Strong focus on security and auth
-- Self-hostable (Docker, K8s, macOS, Linux)
+- https://arcade.dev/tools
+- https://docs.arcade.dev/en/resources/integrations
 
-**Cons:**
-- Smaller ecosystem than Composio
-- Less mature (794 vs 26.5k stars)
-- Pricing not transparent
+### Pricing
 
-### Toolhouse.ai
+Arcade pricing is public:
 
-**Website:** https://toolhouse.ai
+- Hobby: Free
+- Growth: $25/month + usage
+- Enterprise: Custom
 
-**What it is:** AI agent builder platform with built-in tools
+Ref: https://arcade.dev/pricing
 
-**Key Points:**
-- More focused on no-code agent building than developer SDK
-- Pricing: Free (50 runs/mo), Pro ($20/mo for 2,500 runs)
-- **Not open source**
-- Less suitable for backend integration - more of a consumer product
+### Fit for Agenta
 
-**Verdict:** Not a good fit for Agenta - designed for end-users building agents, not for embedding in platforms
+Best for:
 
-### Zapier NLA (Natural Language Actions)
+- “auth and governance” heavy environments
+- MCP ecosystem interoperability
+- clear separation between securing the MCP server (front-door) vs securing external tool calls
 
-**Status:** **DEPRECATED** - API endpoints return 404
+Trade-offs:
 
-Zapier has moved away from their NLA API. Their current offering is focused on their AI Actions product which is tightly integrated with their automation platform and not designed for third-party LLM platforms.
+- unclear what portion of the overall runtime is OSS beyond the MCP framework repo
+- pricing model includes multiple dimensions (executions, “user challenges”, hosted workers)
 
-### GPTScript
+## 3. ACI.dev / Aipotheosis Labs Deep Dive
 
-**Website:** https://gptscript.ai  
-**GitHub:** https://github.com/gptscript-ai/gptscript (Apache 2.0, 3.3k stars)
+### What it is
 
-**What it is:** Framework for LLMs to interact with systems via natural language scripts
+- Platform repo (Apache-2.0): https://github.com/aipotheosis-labs/aci
+- MCP server(s) (MIT): https://github.com/aipotheosis-labs/aci-mcp
+- Agent examples: https://github.com/aipotheosis-labs/aci-agents
+- Product page (Embedded iPaaS): https://aci.dev/products/embedded-ipaas
 
-**Key Points:**
-- More of an agent framework than a tool integration platform
-- Written in Go, provides CLI tool
-- Doesn't handle OAuth/credential management
-- Better for local automation than multi-user SaaS
+The ACI.dev repo claims:
 
-**Verdict:** Different category - not suitable for multi-tenant tool integrations
+- 600+ integrations
+- multi-tenant auth
+- dynamic tool discovery
+- “100% open source” under Apache-2.0 (backend + dev portal + integrations)
 
-### Naptha SDK
+Ref: https://github.com/aipotheosis-labs/aci
 
-**Website:** https://naptha.ai  
-**GitHub:** https://github.com/NapthaAI/naptha-sdk (180 stars)
+### Unified MCP meta-tool pattern
 
-**What it is:** Framework for multi-agent systems with tools, knowledge bases, and memories
+Their `aci-mcp-unified` server exposes two meta tools:
 
-**Key Points:**
-- Focus on multi-agent orchestration
-- Knowledge base and memory management
-- Less mature for pure tool integrations
-- No built-in OAuth management
+- `ACI_SEARCH_FUNCTIONS`
+- `ACI_EXECUTE_FUNCTION`
 
-**Verdict:** Interesting for agent orchestration but not solving the tool/auth problem
+Ref: https://github.com/aipotheosis-labs/aci-mcp
 
----
+### Agent patterns (practical usage)
 
-## 3. Comparison Matrix
+`aci-agents` describes:
 
-| Criteria | Composio | Arcade AI | Toolhouse | Custom Build |
-|----------|----------|-----------|-----------|--------------|
-| **Pre-built Integrations** | 800+ | 50+ | 30+ | 0 |
-| **OAuth Handling** | Excellent | Good | Basic | Must build |
-| **Per-user Credentials** | Yes | Yes | Yes | Must build |
-| **OpenAI Integration** | Native | Yes | Limited | Manual |
-| **Open Source** | Yes (MIT) | Yes (MIT) | No | N/A |
-| **Self-Hostable** | Yes | Yes | No | Yes |
-| **GitHub Stars** | 26.5k | 794 | N/A | N/A |
-| **Pricing (Starter)** | $29/mo | Contact | $20/mo | Dev time |
-| **MCP Support** | Yes | Native | No | Must build |
-| **Documentation** | Excellent | Good | Basic | N/A |
-| **SDK Languages** | Python, TS | Python, TS | N/A | Any |
-
----
-
-## 4. Build vs Buy Analysis
-
-### What Building In-House Requires
-
-1. **OAuth Flow Implementation** (per provider)
-   - Register OAuth apps with Google, GitHub, Slack, etc.
-   - Implement authorization code flow
-   - Handle token exchange and refresh
-   - Estimated: 2-3 days per integration
-
-2. **Credential Storage**
-   - Secure token storage with encryption
-   - Per-user token management
-   - Token refresh job/daemon
-   - Estimated: 1-2 weeks
-
-3. **Tool Definitions**
-   - Create JSON schemas for each tool
-   - Implement API wrappers
-   - Handle error cases, rate limits
-   - Estimated: 1-2 days per tool
-
-4. **Maintenance**
-   - API changes from providers
-   - OAuth scope changes
-   - Token format changes
-   - Estimated: Ongoing burden
-
-**Total Initial Build:** 2-4 months for 10-20 integrations  
-**Ongoing Maintenance:** 0.5-1 FTE
-
-### Using Composio
-
-**Initial Integration:** 1-2 weeks
-- Add SDK dependency
-- Implement session creation per user
-- Add auth flow to UI
-- Connect tool execution to LLM output
-
-**Ongoing Costs:**
-- $29-229/month for SaaS
-- Or self-host with infrastructure costs
-
-### Recommendation
-
-**Use Composio** for Agenta because:
-
-1. **Time to Market:** 10x faster than building in-house
-2. **Open Source:** MIT license, can self-host if needed
-3. **Proven at Scale:** 26.5k stars, 128+ enterprise customers
-4. **Framework Support:** Native OpenAI, Anthropic, LangChain integration
-5. **Cost Effective:** $29/mo covers 200K tool calls - plenty for MVP
-6. **Exit Strategy:** Self-host option if SaaS becomes too expensive
-
----
-
-## 5. Implementation Recommendations for Agenta
-
-### Phase 1: MVP Integration
-
-1. **Add Composio as a provider option** in agent configurations
-2. **Per-workspace sessions** - each Agenta workspace gets a Composio user ID
-3. **Auth UI component** - embed Connect Links in Agenta UI when tools need auth
-4. **Tool discovery** - let users search/select from Composio's toolkit catalog
-
-### Phase 2: Enhanced Integration
-
-1. **Custom OAuth apps** - allow enterprise customers to use their own OAuth credentials
-2. **Tool execution logging** - track tool calls in Agenta's observability
-3. **Caching** - cache tool schemas to reduce latency
-4. **Self-hosting option** - for enterprise customers with data residency requirements
-
-### Architecture Sketch
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                     Agenta Platform                       │
-├─────────────────────────────────────────────────────────┤
-│  ┌───────────┐  ┌───────────┐  ┌───────────────────┐   │
-│  │ Playground│  │   SDK     │  │ Agent Runner      │   │
-│  │    UI     │  │  (Python) │  │ (Tool Execution)  │   │
-│  └─────┬─────┘  └─────┬─────┘  └─────────┬─────────┘   │
-│        │              │                  │              │
-│        ▼              ▼                  ▼              │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │            Tool Integration Layer                │   │
-│  │  - Session management per workspace              │   │
-│  │  - Auth URL generation                          │   │
-│  │  - Tool schema caching                          │   │
-│  └─────────────────────┬───────────────────────────┘   │
-└────────────────────────┼───────────────────────────────┘
-                         │
-                         ▼
-              ┌─────────────────────┐
-              │   Composio API      │
-              │   (SaaS or Self)    │
-              └─────────────────────┘
-```
-
-### Code: Integration Pattern for Agenta
-
-```python
-# agenta/services/tool_service.py
-from composio import Composio
-from typing import Optional, List, Dict, Any
-
-class ToolService:
-    """Service for managing tool integrations via Composio"""
-    
-    def __init__(self, api_key: str):
-        self.composio = Composio(api_key=api_key)
-    
-    def get_session(self, workspace_id: str) -> ComposioSession:
-        """Get or create a Composio session for a workspace"""
-        return self.composio.create(user_id=f"agenta-workspace-{workspace_id}")
-    
-    async def get_tools_for_agent(
-        self,
-        workspace_id: str,
-        toolkits: Optional[List[str]] = None
-    ) -> List[Dict[str, Any]]:
-        """Get OpenAI-formatted tools for an agent"""
-        session = self.get_session(workspace_id)
-        return await session.tools(toolkits=toolkits)
-    
-    async def get_auth_url(
-        self,
-        workspace_id: str,
-        toolkit: str,
-        scopes: Optional[List[str]] = None
-    ) -> str:
-        """Generate an auth URL for a user to connect a service"""
-        session = self.get_session(workspace_id)
-        auth = await session.authorize(toolkit=toolkit, scopes=scopes)
-        return auth.url
-    
-    async def execute_tool(
-        self,
-        workspace_id: str,
-        tool_name: str,
-        arguments: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Execute a tool and return the result"""
-        session = self.get_session(workspace_id)
-        return await session.execute(tool_name, arguments)
-    
-    async def list_connections(
-        self,
-        workspace_id: str
-    ) -> List[Dict[str, Any]]:
-        """List all connected services for a workspace"""
-        session = self.get_session(workspace_id)
-        return await session.get_connections()
-```
-
----
-
-## 6. Security Considerations
-
-### Composio Security Model
-
-1. **Credentials stored by Composio** - tokens never touch your servers (in SaaS mode)
-2. **Automatic token refresh** - reduces token exposure window
-3. **Scoped access** - request only needed OAuth scopes
-4. **SOC-2 compliant** (Enterprise tier)
-5. **Audit logs** (Business+ tiers)
-
-### Self-Hosting Security
-
-If self-hosting:
-- Encrypt tokens at rest
-- Use secrets manager (Vault, AWS Secrets Manager)
-- Implement RBAC for multi-tenant isolation
-- Regular security audits of credential storage
-
-### Agenta-Specific Considerations
-
-1. **Workspace isolation** - ensure tools from one workspace can't access another's credentials
-2. **User consent** - always show which permissions will be granted before OAuth
-3. **Revocation UI** - let users disconnect services easily
-4. **Audit trail** - log which tools were called, by whom, with what data
-
----
-
-## 7. Conclusion
-
-**Primary Recommendation:** Integrate Composio as the tool integration layer for Agenta.
-
-**Rationale:**
-- Fastest path to production with 800+ pre-built integrations
-- Open source with self-hosting option for enterprises
-- Native support for OpenAI function calling format
-- Automatic OAuth and credential management
-- Proven at scale with enterprise customers
-
-**Alternative:** Arcade AI could be considered if MCP-native architecture becomes critical, but Composio's larger ecosystem and more mature documentation make it the safer choice for initial integration.
-
-**Not Recommended:**
-- Toolhouse (consumer-focused, not embeddable)
-- Zapier NLA (deprecated)
-- Custom build (too much effort vs benefit)
+- static tool list agents
+- dynamic discovery agents using `ACI_SEARCH_FUNCTIONS` + either:
+  - tool list expansion (more reliable)
+  - text-context + execute indirection (less reliable)
+
+Ref: https://github.com/aipotheosis-labs/aci-agents
+
+### Fit for Agenta
+
+Best for:
+
+- open-source-first strategy
+- meta-tool routing that keeps LLM context small
+- building an “external tools” provider layer without hard vendor lock-in
+
+Trade-offs:
+
+- need deeper validation of real-world integration maturity/coverage vs Composio
+
+## 4. Comparison Matrix (Agenta-centric)
+
+| Dimension | Composio | Arcade | ACI.dev |
+|---|---|---|---|
+| Core value prop | tool catalog + meta-tools + Connect Links | MCP runtime + auth + governance posture | open-source tool-calling + unified MCP + meta-tools |
+| Catalog scale (claimed) | 877 toolkits / 11,000+ tools | 8,000+ tools; 129 MCP servers | 600+ integrations |
+| OSS status | SDK/CLI OSS (MIT); backend hosted | MCP framework OSS (MIT); runtime includes SaaS + deployable workers | platform repo claims full OSS (Apache-2.0); MCP servers OSS |
+| Discovery pattern | 5 meta tools (search/connect/execute/workbench) | catalog + MCP servers; strong auth primitives | 2 meta tools (search/execute) |
+| Managed OAuth UX | Connect Links; auth configs; connected accounts | user challenges; tool scopes; token injection | multi-tenant auth + linked accounts (per marketing/docs) |
+| “Keep context small” | yes (meta tools) | depends (can be many tools); has MCP gateway patterns | yes (meta tools) |
+| Pricing | public tiers + usage | public tiers + usage | Gate22 pricing public; embedded iPaaS sales-led |
+
+## 5. Implications for Agenta’s Design
+
+### Prefer meta-tool routing
+
+Agenta should support a “provider router” mode where the model sees a small, fixed tool list (search/connect/execute) rather than 1,000+ tool schemas. Composio and ACI both provide this out of the box.
+
+### Provider abstraction we likely need
+
+To keep Agenta flexible:
+
+- `list_catalog()` (apps/toolkits)
+- `list_connections(user)`
+- `start_oauth(user, toolkit)` -> redirect_url
+- `get_model_tools(user, selection)` -> meta tools and/or direct schemas
+- `execute(user, tool_call)`
+
+This lets us start with one provider (likely ACI if OSS-first, or Composio if catalog-first) and add others later.
+
+## Notes on using “Exa” for research
+
+You asked me to use Exa and to check `code/repo_tracker` for skills/endpoints. In this Agenta repo/worktree I do not see any `repo_tracker` folder or an Exa-search integration to call.
+
+If you want me to use Exa’s API for future research passes, I’ll need either:
+
+- the location of your `repo_tracker` code (different repo/worktree), or
+- an Exa API key + the intended endpoint/wrapper you want used.
