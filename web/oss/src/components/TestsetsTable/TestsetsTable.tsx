@@ -19,6 +19,7 @@ import {Button, Dropdown, Modal, Space, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import {
     InfiniteVirtualTableFeatureShell,
@@ -30,6 +31,10 @@ import {
 import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
 import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/TestsetsHeaderFilters"
 import useURL from "@/oss/hooks/useURL"
+import {
+    onboardingWidgetActivationAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@/oss/lib/onboarding"
 import type {TestsetCreationMode} from "@/oss/lib/Types"
 import {
     archiveTestsetRevision,
@@ -87,8 +92,11 @@ const TestsetsTable = ({
     onSelectRevision,
     selectedRevisionId,
 }: TestsetsTableProps) => {
+    const router = useRouter()
     const {projectURL} = useURL()
     const projectId = useAtomValue(projectIdAtom)
+    const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
+    const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
 
     // Refresh trigger for the table
     const setRefreshTrigger = useSetAtom(testset.paginated.refreshAtom)
@@ -100,6 +108,22 @@ const TestsetsTable = ({
     const [current, setCurrent] = useState(0)
     const [selectedTestsetToDelete, setSelectedTestsetToDelete] = useState<TestsetTableRow[]>([])
     const [isDeleteTestsetModalOpen, setIsDeleteTestsetModalOpen] = useState(false)
+
+    useEffect(() => {
+        if (onboardingWidgetActivation !== "create-testset") return
+        setTestsetCreationMode("create")
+        setEditTestsetValues(null)
+        setCurrent(0)
+        setIsCreateTestsetModalOpen(true)
+        setOnboardingWidgetActivation(null)
+    }, [
+        onboardingWidgetActivation,
+        setOnboardingWidgetActivation,
+        setCurrent,
+        setEditTestsetValues,
+        setIsCreateTestsetModalOpen,
+        setTestsetCreationMode,
+    ])
 
     // Refresh table data
     const mutate = useCallback(() => {
@@ -192,7 +216,7 @@ const TestsetsTable = ({
 
             // If it's a revision, navigate to it directly
             if (isRevision) {
-                window.location.href = `${projectURL}/testsets/${record.id}`
+                router.push(`${projectURL}/testsets/${record.id}`)
                 return
             }
 
@@ -202,7 +226,7 @@ const TestsetsTable = ({
             if (cachedChildren && cachedChildren.length > 0) {
                 // Navigate to the first child (latest revision)
                 const latestRevision = cachedChildren[0]
-                window.location.href = `${projectURL}/testsets/${latestRevision.id}`
+                router.push(`${projectURL}/testsets/${latestRevision.id}`)
                 return
             }
 
@@ -216,13 +240,13 @@ const TestsetsTable = ({
                 )
                 if (revisions.length > 0) {
                     // Navigate to the first revision (latest)
-                    window.location.href = `${projectURL}/testsets/${revisions[0].id}`
+                    router.push(`${projectURL}/testsets/${revisions[0].id}`)
                 }
             } catch (error) {
                 console.error("[TestsetsTable] Failed to fetch revisions for navigation:", error)
             }
         },
-        [projectURL, childrenCache, isSelectMode, onSelectRevision],
+        [projectURL, childrenCache, isSelectMode, onSelectRevision, router],
     )
 
     // Action handlers - consolidated
@@ -677,7 +701,7 @@ const TestsetsTable = ({
     const headerTitle = useMemo(
         () => (
             <div className="flex flex-col gap-1">
-                <Typography.Title level={3} style={{margin: 0}}>
+                <Typography.Title level={5} style={{margin: 0}}>
                     Testsets
                 </Typography.Title>
                 <TableDescription>Manage your testsets for evaluations.</TableDescription>
@@ -823,6 +847,16 @@ const TestsetsTable = ({
                 tableProps={{
                     ...table.shellProps.tableProps,
                     expandable: treeExpandable,
+                    onRow: (record, index) => {
+                        const base = table.shellProps.tableProps?.onRow?.(record, index) ?? {}
+                        return {
+                            ...base,
+                            "data-tour":
+                                index === 0
+                                    ? "testset-row"
+                                    : (base as Record<string, unknown>)["data-tour"],
+                        }
+                    },
                 }}
                 tableClassName="agenta-testsets-table"
                 className="flex-1 min-h-0"

@@ -15,6 +15,7 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useQueryParamState} from "@/oss/state/appState"
 import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
@@ -64,6 +65,7 @@ const VariantsDashboard = () => {
     const {data: envRevisions} = useAtomValue(deploymentRevisionsAtom)
     const setEnvRevisions = useSetAtom(envRevisionsAtom)
     const openDeploymentsDrawer = useSetAtom(openDeploymentsDrawerAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const selectionScope = "variants/dashboard"
     const selectedRowKeys = useAtomValue(variantTableSelectionAtomFamily(selectionScope))
     const selectedRevisionId = useMemo(() => {
@@ -94,6 +96,10 @@ const VariantsDashboard = () => {
     useEffect(() => {
         setEnvRevisions(envRevisions)
     }, [envRevisions, setEnvRevisions])
+
+    useEffect(() => {
+        recordWidgetEvent("registry_page_viewed")
+    }, [recordWidgetEvent])
 
     const baseRows = useMemo(() => {
         const store = getDefaultStore()
@@ -267,13 +273,15 @@ const VariantsDashboard = () => {
                         type="primary"
                         disabled={!envRevisions}
                         icon={<CodeSimpleIcon size={14} />}
-                        onClick={() =>
+                        data-tour="api-code-button"
+                        onClick={() => {
                             openDeploymentsDrawer({
                                 initialWidth: 1200,
                                 revisionId: selectedRevisionId,
                                 mode: "variant",
                             })
-                        }
+                            recordWidgetEvent("integration_snippet_viewed")
+                        }}
                     >
                         Use API
                     </Button>
