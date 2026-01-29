@@ -151,7 +151,7 @@ class TestSecretsLifecycle:
                 try:
                     ag.api.secrets.delete_secret(secret_id=secret_id)
                 except Exception as e:
-                    print(f"Warning: Failed to delete test secret {secret_id}: {e}")
+                    print(f"Warning: Failed to delete test secret during cleanup: {e}")
 
     def test_create_and_delete_secret_removes_from_list(self, agenta_init):
         """
