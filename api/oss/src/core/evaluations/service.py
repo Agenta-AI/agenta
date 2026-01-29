@@ -4,6 +4,8 @@ from asyncio import sleep
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
+from genson import SchemaBuilder
+
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta
@@ -12,7 +14,6 @@ from oss.src.core.evaluations.types import (
     EvaluationStatus,
     # EVALUATION RUN
     EvaluationRunFlags,
-    EvaluationRunQueryFlags,
     EvaluationRunDataMappingColumn,
     EvaluationRunDataMappingStep,
     EvaluationRunDataMapping,
@@ -895,6 +896,8 @@ class EvaluationsService:
             return []
 
         steps_metrics_keys: Dict[str, List[Dict[str, str]]] = dict()
+        steps_missing_schema: List[str] = []
+        inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
 
         for step in run.data.steps:
             steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
@@ -917,31 +920,35 @@ class EvaluationsService:
                     log.warning("Evaluator revision not found")
                     continue
 
-                if evaluator_revision.data and evaluator_revision.data.schemas:
-                    metrics_keys = get_metrics_keys_from_schema(
-                        schema=(evaluator_revision.data.schemas.get("outputs")),
-                    )
+                outputs_schema = None
+                service_format = None
 
-                    steps_metrics_keys[step.key] += [
-                        {
-                            "path": "attributes.ag.data.outputs."
-                            + metric_key.get("path", ""),
-                            "type": metric_key.get("type", ""),
-                        }
-                        for metric_key in metrics_keys
-                    ]
-                elif evaluator_revision.data and evaluator_revision.data.service:
-                    metrics_keys = get_metrics_keys_from_schema(
-                        schema=(evaluator_revision.data.service.get("format")),
-                    )
+                if evaluator_revision.data:
+                    if evaluator_revision.data.schemas:
+                        outputs_schema = evaluator_revision.data.schemas.get("outputs")
+                    if evaluator_revision.data.service:
+                        service_format = evaluator_revision.data.service.get("format")
 
-                    steps_metrics_keys[step.key] += [
-                        {
-                            "path": "attributes.ag.data." + metric_key.get("path", ""),
-                            "type": metric_key.get("type", ""),
-                        }
-                        for metric_key in metrics_keys
-                    ]
+                if outputs_schema:
+                    metrics_keys = get_metrics_keys_from_schema(
+                        schema=outputs_schema,
+                    )
+                elif service_format:
+                    metrics_keys = get_metrics_keys_from_schema(
+                        schema=service_format,
+                    )
+                else:
+                    steps_missing_schema.append(step.key)
+                    continue
+
+                steps_metrics_keys[step.key] += [
+                    {
+                        "path": "attributes.ag.data.outputs."
+                        + metric_key.get("path", ""),
+                        "type": metric_key.get("type", ""),
+                    }
+                    for metric_key in metrics_keys
+                ]
 
         if not steps_metrics_keys:
             log.warning("No steps metrics keys found")
@@ -989,6 +996,117 @@ class EvaluationsService:
             log.warning("[METRICS] No trace_ids found! Cannot extract metrics.")
             return []
 
+        if steps_missing_schema:
+            for step_key in steps_missing_schema:
+                trace_ids = steps_trace_ids.get(step_key)
+                if not trace_ids:
+                    continue
+
+                inferred_schema = await self._infer_evaluator_schema_from_traces(
+                    project_id=project_id,
+                    trace_ids=trace_ids,
+                )
+                if not inferred_schema:
+                    log.warning(
+                        f"[METRICS] Step '{step_key}': could not infer outputs schema"
+                    )
+                    continue
+
+                metrics_keys = get_metrics_keys_from_schema(schema=inferred_schema)
+                inferred_metrics_keys_by_step[step_key] = metrics_keys
+                steps_metrics_keys[step_key] += [
+                    {
+                        "path": "attributes.ag.data.outputs."
+                        + metric_key.get("path", ""),
+                        "type": metric_key.get("type", ""),
+                    }
+                    for metric_key in metrics_keys
+                ]
+
+        if inferred_metrics_keys_by_step and run and run.data:
+            existing_mappings = list(run.data.mappings or [])
+            updated_mappings: List[EvaluationRunDataMapping] = []
+            seen_mapping_keys: set[tuple[str, str, str, str]] = set()
+
+            def mapping_key(
+                mapping: EvaluationRunDataMapping,
+            ) -> Optional[tuple[str, str, str, str]]:
+                if not mapping.step or not mapping.column:
+                    return None
+                return (
+                    mapping.step.key,
+                    mapping.column.kind,
+                    mapping.column.name,
+                    mapping.step.path,
+                )
+
+            for mapping in existing_mappings:
+                if (
+                    mapping.step
+                    and mapping.column
+                    and mapping.column.kind == "annotation"
+                    and mapping.step.key in inferred_metrics_keys_by_step
+                    and (
+                        mapping.column.name == "outputs"
+                        or mapping.step.path.endswith("outputs.outputs")
+                    )
+                ):
+                    continue
+                key = mapping_key(mapping)
+                if key and key in seen_mapping_keys:
+                    continue
+                if key:
+                    seen_mapping_keys.add(key)
+                updated_mappings.append(mapping)
+
+            for step_key, metrics_keys in inferred_metrics_keys_by_step.items():
+                for metric_key in metrics_keys:
+                    path_suffix = metric_key.get("path", "")
+                    new_key = (
+                        step_key,
+                        "annotation",
+                        path_suffix,
+                        "attributes.ag.data.outputs"
+                        + (f".{path_suffix}" if path_suffix else ""),
+                    )
+                    if new_key in seen_mapping_keys:
+                        continue
+                    seen_mapping_keys.add(new_key)
+                    updated_mappings.append(
+                        EvaluationRunDataMapping(
+                            column=EvaluationRunDataMappingColumn(
+                                kind="annotation",
+                                name=path_suffix,
+                            ),
+                            step=EvaluationRunDataMappingStep(
+                                key=step_key,
+                                path=(
+                                    "attributes.ag.data.outputs"
+                                    + (f".{path_suffix}" if path_suffix else "")
+                                ),
+                            ),
+                        )
+                    )
+
+            if updated_mappings != existing_mappings:
+                run_data = EvaluationRunData(
+                    steps=run.data.steps,
+                    repeats=run.data.repeats,
+                    mappings=updated_mappings,
+                )
+                await self.edit_run(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run=EvaluationRunEdit(
+                        id=run.id,
+                        name=run.name,
+                        description=run.description,
+                        status=run.status,
+                        flags=run.flags,
+                        data=run_data,
+                    ),
+                )
+
         steps_specs: Dict[str, List[MetricSpec]] = dict()
 
         intersection = steps_metrics_keys.keys() & steps_trace_ids.keys()
@@ -1031,11 +1149,6 @@ class EvaluationsService:
                         path=metric.get("path") or "*",
                     )
                     for metric in step_metrics_keys
-                ] + [
-                    MetricSpec(
-                        type=MetricType.JSON,
-                        path="attributes.ag",
-                    )
                 ]
 
                 # log.info(f"[METRICS] Step '{step_key}': {len(specs)} metric specs")
@@ -1081,7 +1194,7 @@ class EvaluationsService:
                 metrics_data |= {step_key: bucket.metrics}
                 # log.info(f"[METRICS] Step '{step_key}': added to metrics_data")
 
-            except Exception as e:
+            except Exception:
                 log.error(
                     f"[METRICS] Step '{step_key}': Exception during analytics",
                     exc_info=True,
@@ -1112,6 +1225,75 @@ class EvaluationsService:
         )
 
         return metrics
+
+    async def _infer_evaluator_schema_from_traces(
+        self,
+        *,
+        project_id: UUID,
+        trace_ids: List[str],
+    ) -> Optional[Dict[str, Any]]:
+        """Infer the outputs schema from trace attributes."""
+        try:
+            if not trace_ids:
+                return None
+
+            # Use a sample of trace IDs (first 5) to infer schema
+            sample_trace_ids = trace_ids[:5]
+
+            query = TracingQuery(
+                windowing=Windowing(
+                    oldest=datetime(1970, 1, 1, tzinfo=timezone.utc),
+                    newest=None,
+                ),
+                filtering=Filtering(
+                    conditions=[
+                        Condition(
+                            field="trace_id",
+                            operator=ListOperator.IN,
+                            value=sample_trace_ids,
+                        )
+                    ]
+                ),
+            )
+
+            spans = await self.tracing_service.query(
+                project_id=project_id,
+                query=query,
+            )
+
+            # Build schema from trace outputs
+            builder = SchemaBuilder()
+            found_outputs = False
+
+            for span in spans:
+                attributes = span.attributes
+                if not isinstance(attributes, dict):
+                    continue
+
+                ag_attributes = attributes.get("ag")
+                if not isinstance(ag_attributes, dict):
+                    continue
+
+                data = ag_attributes.get("data")
+                if not isinstance(data, dict):
+                    continue
+
+                outputs = data.get("outputs")
+                if outputs is None:
+                    continue
+
+                builder.add_object(outputs)
+                found_outputs = True
+
+            if not found_outputs:
+                return None
+
+            schema = builder.to_schema()
+            return schema
+
+        except Exception as e:
+            log.warning(f"[METRICS] Failed to infer evaluator schema from traces: {e}")
+            return None
 
     # - EVALUATION QUEUE -------------------------------------------------------
 
