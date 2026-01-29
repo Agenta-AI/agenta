@@ -67,12 +67,14 @@ const GetStarted = () => {
             selection: "demo",
         })
 
-        if (!demoProject || !demoWorkspaceId || !demoOrganizationId) {
+        if (!demoProject || !demoWorkspaceId) {
             message.error("Demo project is not available.")
             return
         }
 
-        cacheWorkspaceOrgPair(demoWorkspaceId, demoOrganizationId)
+        if (demoOrganizationId) {
+            cacheWorkspaceOrgPair(demoWorkspaceId, demoOrganizationId)
+        }
         router.push(
             `/w/${encodeURIComponent(demoWorkspaceId)}/p/${encodeURIComponent(
                 demoProject.project_id,

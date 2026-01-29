@@ -69,11 +69,13 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
                 title: "Explore demo project",
                 subtitle: "How Agenta looks with real example data (view-only)",
                 onClick: () => {
-                    if (!demoProjectLink || !demoOrganizationId) {
+                    if (!demoProjectLink) {
                         message.error("Demo project is not available.")
                         return
                     }
-                    cacheWorkspaceOrgPair(demoWorkspaceId, demoOrganizationId)
+                    if (demoOrganizationId) {
+                        cacheWorkspaceOrgPair(demoWorkspaceId, demoOrganizationId)
+                    }
                     handleNavigate(demoProjectLink)
                 },
             },
