@@ -17,7 +17,7 @@ const EmptyStateHumanEvaluation = ({onCreateEvaluation}: {onCreateEvaluation: ()
             }}
             secondaryCta={{
                 label: "Learn More",
-                href: "https://docs.agenta.ai/evaluation/human-evaluation",
+                href: "https://agenta.ai/docs/evaluation/human-evaluation/quick-start",
             }}
         />
     )

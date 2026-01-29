@@ -17,7 +17,7 @@ const EmptyStateOnlineEvaluation = ({onCreateEvaluation}: {onCreateEvaluation: (
             }}
             secondaryCta={{
                 label: "Learn More",
-                href: "https://docs.agenta.ai/evaluation/online-evaluation",
+                href: "https://agenta.ai/docs/evaluation/concepts#evaluation-workflows",
             }}
         />
     )
