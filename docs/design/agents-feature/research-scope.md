@@ -446,4 +446,505 @@ Based on competitive analysis, recommend:
 
 ---
 
+## API Documentation Analysis
+
+This section documents how competitors structure their APIs for agents and tools.
+
+### Orq.ai API
+
+**Base URL:** `https://api.orq.ai`  
+**Auth:** Bearer token via `Authorization: Bearer $API_KEY`
+
+#### Agent Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/v2/agents` | Create agent |
+| GET | `/v2/agents/{key}` | Get agent |
+| GET | `/v2/agents` | List agents |
+| PATCH | `/v2/agents/{key}` | Update agent |
+| DELETE | `/v2/agents/{key}` | Delete agent |
+| POST | `/v2/agents/{key}/responses` | Execute agent (invoke) |
+| POST | `/v2/agents/{key}/stream-task` | Execute with SSE streaming |
+
+#### Create Agent Request
+
+```json
+POST /v2/agents
+{
+  "key": "weather-assistant",
+  "role": "Assistant",
+  "description": "Helps with weather queries",
+  "instructions": "Be helpful and concise",
+  "path": "Default/agents",
+  "model": {
+    "id": "openai/gpt-4o",
+    "parameters": {
+      "temperature": 0.5
+    }
+  },
+  "settings": {
+    "max_iterations": 5,
+    "max_execution_time": 300,
+    "tools": [
+      { "type": "current_date" },
+      {
+        "type": "function",
+        "key": "get_weather",
+        "display_name": "Get Weather",
+        "description": "Get weather for a location",
+        "function": {
+          "name": "get_weather",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "location": { "type": "string" }
+            },
+            "required": ["location"]
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+#### Execute Agent Request (A2A Protocol)
+
+```json
+POST /v2/agents/weather-assistant/responses
+{
+  "message": {
+    "role": "user",
+    "parts": [
+      { "kind": "text", "text": "What's the weather in NYC?" }
+    ]
+  },
+  "background": false,
+  "stream": false
+}
+```
+
+#### Execute Agent Response
+
+```json
+{
+  "_id": "response-id",
+  "task_id": "01K6D8QESESZ6SAXQPJPFQXPFT",
+  "output": [
+    {
+      "messageId": "msg-id",
+      "role": "agent",
+      "parts": [
+        { "kind": "text", "text": "The weather in NYC is 72°F and sunny." }
+      ]
+    }
+  ],
+  "finish_reason": "stop",
+  "model": "openai/gpt-4o",
+  "usage": {
+    "prompt_tokens": 50,
+    "completion_tokens": 25,
+    "total_tokens": 75
+  }
+}
+```
+
+#### Tool Call Response (Needs User Execution)
+
+When `finish_reason: "function_call"`, send tool result:
+
+```json
+POST /v2/agents/weather-assistant/responses
+{
+  "task_id": "01K6D8QESESZ6SAXQPJPFQXPFT",
+  "message": {
+    "role": "tool",
+    "parts": [
+      {
+        "kind": "tool_result",
+        "tool_call_id": "call_abc123",
+        "result": { "temperature": 72, "conditions": "sunny" }
+      }
+    ]
+  }
+}
+```
+
+#### Tool Types in Orq.ai
+
+| Type | Description |
+|------|-------------|
+| `current_date` | Built-in: current date |
+| `google_search` | Built-in: web search |
+| `web_scraper` | Built-in: scrape URLs |
+| `function` | Custom JSON Schema function |
+| `retrieve_knowledge_bases` | RAG: discover KBs |
+| `query_knowledge_base` | RAG: query KB |
+| `query_memory_store` | Memory: search |
+| `write_memory_store` | Memory: store |
+
+---
+
+### Vellum API
+
+**Base URLs:**
+- Execution: `https://predict.vellum.ai`
+- Management: `https://api.vellum.ai`
+
+**Auth:** `X-API-KEY` header
+
+#### Workflow Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/v1/execute-workflow` | Sync execution |
+| POST | `/v1/execute-workflow-stream` | SSE streaming |
+| POST | `/v1/execute-workflow-async` | Async (returns execution_id) |
+| POST | `/v1/execute-prompt` | Execute single prompt |
+| POST | `/v1/execute-prompt-stream` | Stream prompt response |
+
+#### Execute Workflow Request
+
+```json
+POST /v1/execute-workflow
+{
+  "workflow_deployment_name": "customer-support-bot",
+  "inputs": [
+    {
+      "name": "user_query",
+      "type": "STRING",
+      "value": "What's the status of my order?"
+    },
+    {
+      "name": "chat_history",
+      "type": "CHAT_HISTORY",
+      "value": [
+        { "role": "USER", "text": "Hello" },
+        { "role": "ASSISTANT", "text": "Hi! How can I help?" }
+      ]
+    }
+  ],
+  "release_tag": "LATEST",
+  "external_id": "session-123",
+  "metadata": { "user_id": "user_abc" }
+}
+```
+
+#### Execute Workflow Response
+
+```json
+{
+  "execution_id": "exec_abc123",
+  "run_id": "run_xyz789",
+  "data": {
+    "state": "FULFILLED",
+    "outputs": [
+      {
+        "name": "response",
+        "type": "STRING",
+        "value": "Your order #12345 has shipped..."
+      },
+      {
+        "name": "function_call",
+        "type": "FUNCTION_CALL",
+        "value": {
+          "name": "get_order_status",
+          "arguments": { "order_id": "12345" },
+          "id": "call_abc123"
+        }
+      }
+    ]
+  }
+}
+```
+
+#### Vellum Input Types
+
+| Type | Description |
+|------|-------------|
+| `STRING` | Plain text |
+| `NUMBER` | Numeric (double) |
+| `JSON` | Arbitrary JSON object |
+| `CHAT_HISTORY` | Array of chat messages |
+| `IMAGE` | Image (URL, base64, file ref) |
+| `AUDIO` | Audio data |
+| `DOCUMENT` | PDF/document |
+
+#### Vellum Function Definition (in Prompt Node)
+
+```json
+{
+  "name": "get_weather",
+  "description": "Get weather for a location",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "location": {
+        "type": "string",
+        "description": "City and state"
+      },
+      "unit": {
+        "type": "string",
+        "enum": ["celsius", "fahrenheit"]
+      }
+    },
+    "required": ["location"]
+  }
+}
+```
+
+#### Streaming Events (SSE)
+
+```
+event: workflow
+data: {"state": "INITIATED"}
+
+event: node
+data: {"state": "STREAMING", "delta": "The weather ", "name": "response"}
+
+event: node
+data: {"state": "STREAMING", "delta": "is sunny", "name": "response"}
+
+event: workflow
+data: {"state": "FULFILLED", "outputs": [...]}
+```
+
+---
+
+### Humanloop API
+
+**Base URL:** `https://api.humanloop.com/v5`  
+**Auth:** `X-API-KEY` header
+
+#### Core Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/v5/prompts` | Create/upsert prompt |
+| POST | `/v5/prompts/call` | Execute prompt |
+| POST | `/v5/prompts/log` | Log external execution |
+| POST | `/v5/agents` | Create/upsert agent |
+| POST | `/v5/agents/call` | Execute agent |
+| POST | `/v5/agents/continue` | Continue after tool call |
+| POST | `/v5/tools` | Create/upsert tool |
+| POST | `/v5/tools/call` | Execute tool |
+| POST | `/v5/flows/log` | Log flow trace |
+
+#### Create Agent Request
+
+```json
+POST /v5/agents
+{
+  "path": "Banking/Teller Agent",
+  "model": "claude-3-7-sonnet-latest",
+  "provider": "anthropic",
+  "endpoint": "chat",
+  "max_iterations": 10,
+  "template": [
+    {
+      "role": "system",
+      "content": "You are a bank teller. Guidelines: {{personality}}"
+    }
+  ],
+  "tools": [
+    {
+      "type": "file",
+      "link": { "file_id": "tl_123", "version_id": "tlv_456" },
+      "on_agent_call": "continue"
+    },
+    {
+      "type": "inline",
+      "json_schema": {
+        "name": "transfer_funds",
+        "description": "Transfer money between accounts",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "from_account": { "type": "string" },
+            "to_account": { "type": "string" },
+            "amount": { "type": "number" }
+          },
+          "required": ["from_account", "to_account", "amount"]
+        }
+      },
+      "on_agent_call": "continue"
+    },
+    {
+      "type": "inline",
+      "json_schema": {
+        "name": "complete_task",
+        "description": "Call when task is finished",
+        "parameters": {
+          "type": "object",
+          "properties": { "output": { "type": "string" } }
+        }
+      },
+      "on_agent_call": "stop"
+    }
+  ]
+}
+```
+
+#### Execute Agent Request
+
+```json
+POST /v5/agents/call
+{
+  "path": "Banking/Teller Agent",
+  "messages": [
+    { "role": "user", "content": "I need to withdraw $1000" }
+  ],
+  "inputs": { "personality": "friendly and professional" },
+  "stream": false,
+  "include_trace_children": true
+}
+```
+
+#### Execute Agent Response
+
+```json
+{
+  "id": "log_abc123",
+  "output": "I've processed your withdrawal...",
+  "output_message": {
+    "role": "assistant",
+    "content": "I've processed your withdrawal..."
+  },
+  "finish_reason": "stopping_tool_called",
+  "stopping_tool_names": ["complete_task"],
+  "trace_children": [
+    { "id": "log_child1", "type": "prompt" },
+    { "id": "log_child2", "type": "tool" }
+  ]
+}
+```
+
+#### Continue After Tool Call
+
+```json
+POST /v5/agents/continue
+{
+  "log_id": "log_abc123",
+  "messages": [
+    {
+      "role": "tool",
+      "tool_call_id": "call_xyz",
+      "content": "{\"status\": \"success\", \"balance\": 5000}"
+    }
+  ]
+}
+```
+
+#### Tool Types in Humanloop
+
+| Type | Description |
+|------|-------------|
+| `json_schema` | Schema-only (user executes) |
+| `python` | Executable Python on Humanloop runtime |
+| `snippet` | Reusable text snippets |
+| `pinecone_search` | Pinecone RAG integration |
+| `google` | Google Search |
+
+#### Agent Tool Behavior
+
+| `on_agent_call` | Behavior |
+|-----------------|----------|
+| `continue` | Agent keeps looping after tool |
+| `stop` | Agent terminates when tool called |
+
+---
+
+### API Design Patterns Comparison
+
+| Pattern | Orq.ai | Vellum | Humanloop |
+|---------|--------|--------|-----------|
+| **Entity model** | Agent + Task | Workflow + Execution | Agent + Log |
+| **Tool definition** | Inline in agent | In prompt node | Linked or inline |
+| **Continuation** | `task_id` | N/A (workflow handles) | `log_id` + `/continue` |
+| **Streaming** | SSE via `/stream-task` | SSE via `-stream` suffix | SSE via `stream: true` |
+| **Tool execution** | User sends `tool_result` | Workflow auto-handles | User sends to `/continue` |
+| **Stopping** | `max_iterations`, `finish_reason` | Node logic | `on_agent_call: stop` |
+
+---
+
+### Implications for Agenta API Design
+
+Based on competitive analysis, Agenta's agent/tool API should consider:
+
+#### 1. Resource Structure
+```
+/api/agents                    # Agent configurations
+/api/agents/{id}/runs          # Agent executions
+/api/tools                     # Tool definitions (org-level)
+/api/tools/connections         # Composio connections (per org/user)
+```
+
+#### 2. Agent Configuration Schema
+```json
+{
+  "id": "agent_123",
+  "name": "Customer Support",
+  "system_prompt": "You are a helpful assistant...",
+  "model": "gpt-4o",
+  "model_params": { "temperature": 0.7 },
+  "max_iterations": 10,
+  "max_execution_time": 300,
+  "tools": [
+    { "type": "builtin", "name": "current_date" },
+    { "type": "function", "schema": { /* JSON Schema */ } },
+    { "type": "composio", "toolkit": "gmail", "action": "send_email" }
+  ]
+}
+```
+
+#### 3. Tool Schema (Universal)
+```json
+{
+  "id": "tool_123",
+  "name": "get_weather",
+  "description": "Get weather for a location",
+  "type": "function",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "location": { "type": "string", "description": "City name" }
+    },
+    "required": ["location"]
+  },
+  "source": "inline" | "composio" | "builtin",
+  "composio_config": {  // Only if source=composio
+    "toolkit": "weather",
+    "action": "get_current"
+  }
+}
+```
+
+#### 4. Execution Flow
+```
+POST /api/agents/{id}/runs
+{
+  "messages": [{ "role": "user", "content": "..." }],
+  "stream": true
+}
+
+Response (streaming):
+event: started
+data: {"run_id": "run_123"}
+
+event: tool_call
+data: {"tool": "get_weather", "arguments": {...}, "call_id": "call_1"}
+
+event: tool_result  
+data: {"call_id": "call_1", "result": {...}}
+
+event: message
+data: {"role": "assistant", "content": "The weather..."}
+
+event: completed
+data: {"finish_reason": "stop", "usage": {...}}
+```
+
+---
+
 *Research completed: January 2026*
