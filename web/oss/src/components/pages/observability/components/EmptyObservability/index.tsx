@@ -15,6 +15,7 @@ const EmptyObservability = () => {
 
     return (
         <EmptyState
+            className="py-4"
             videoId={EMPTY_STATE_VIDEOS.observability}
             previewAlt="Observability demo showing trace visualization"
             title="No traces yet"

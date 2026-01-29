@@ -203,12 +203,8 @@ const ObservabilityTable = () => {
         }))
     }, [columns, editColumns])
 
-    if (isEmptyState) {
-        return <EmptyObservability />
-    }
-
     return (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-6">
             <ObservabilityHeader
                 columns={columns}
                 componentType="traces"
@@ -216,81 +212,85 @@ const ObservabilityTable = () => {
                 refreshTrigger={refreshTrigger}
             />
 
-            <div className="flex flex-col gap-2">
-                <Table
-                    rowSelection={{
-                        type: "checkbox",
-                        columnWidth: 48,
-                        selectedRowKeys,
-                        ...rowSelection,
-                    }}
-                    loading={showTableLoading}
-                    columns={mergedColumns as TableColumnType<TraceSpanNode>[]}
-                    dataSource={traces}
-                    bordered
-                    style={{cursor: "pointer"}}
-                    sticky={{
-                        offsetHeader: 0,
-                        offsetScroll: 0,
-                    }}
-                    onRow={(record, index) => ({
-                        onClick: () => {
-                            setSelectedNode(record.span_id)
-                            const isSpanView = traceTabs === "span"
+            {isEmptyState ? (
+                <EmptyObservability />
+            ) : (
+                <div className="flex flex-col gap-2">
+                    <Table
+                        rowSelection={{
+                            type: "checkbox",
+                            columnWidth: 48,
+                            selectedRowKeys,
+                            ...rowSelection,
+                        }}
+                        loading={showTableLoading}
+                        columns={mergedColumns as TableColumnType<TraceSpanNode>[]}
+                        dataSource={traces}
+                        bordered
+                        style={{cursor: "pointer"}}
+                        sticky={{
+                            offsetHeader: 0,
+                            offsetScroll: 0,
+                        }}
+                        onRow={(record, index) => ({
+                            onClick: () => {
+                                setSelectedNode(record.span_id)
+                                const isSpanView = traceTabs === "span"
 
-                            const targetTraceId = String(
-                                record.trace_id ||
-                                    (record as any)?.invocationIds?.trace_id ||
-                                    (record as any)?.node?.trace_id ||
-                                    (record as any)?.root?.id ||
-                                    (record as any)?.traceId ||
-                                    (record as any)?.trace?.id ||
-                                    record.span_id ||
-                                    "",
-                            )
-
-                            const targetSpanId = isSpanView
-                                ? String(record.span_id || "")
-                                : String(record.span_id || "")
-
-                            if (!targetTraceId) {
-                                console.warn(
-                                    "TraceDrawer: unable to determine trace id for record",
-                                    record,
+                                const targetTraceId = String(
+                                    record.trace_id ||
+                                        (record as any)?.invocationIds?.trace_id ||
+                                        (record as any)?.node?.trace_id ||
+                                        (record as any)?.root?.id ||
+                                        (record as any)?.traceId ||
+                                        (record as any)?.trace?.id ||
+                                        record.span_id ||
+                                        "",
                                 )
-                                return
-                            }
 
-                            setSelectedTraceId(targetTraceId)
-                            setTraceDrawerActiveSpan(targetSpanId || null)
-                            setTraceParam(targetTraceId)
-                            if (targetSpanId) {
-                                setSpanParam(targetSpanId)
-                            } else {
-                                setSpanParam(undefined)
-                            }
-                        },
-                        "data-tour": index === 0 ? "trace-row" : undefined,
-                    })}
-                    components={{
-                        header: {
-                            cell: ResizableTitle,
-                        },
-                    }}
-                    pagination={false}
-                    scroll={{x: "max-content"}}
-                />
-                {hasMoreTraces && (
-                    <Button
-                        onClick={handleLoadMore}
-                        disabled={isFetchingMore}
-                        type="text"
-                        size="large"
-                    >
-                        {isFetchingMore ? "Loading…" : "Click here to load more"}
-                    </Button>
-                )}
-            </div>
+                                const targetSpanId = isSpanView
+                                    ? String(record.span_id || "")
+                                    : String(record.span_id || "")
+
+                                if (!targetTraceId) {
+                                    console.warn(
+                                        "TraceDrawer: unable to determine trace id for record",
+                                        record,
+                                    )
+                                    return
+                                }
+
+                                setSelectedTraceId(targetTraceId)
+                                setTraceDrawerActiveSpan(targetSpanId || null)
+                                setTraceParam(targetTraceId)
+                                if (targetSpanId) {
+                                    setSpanParam(targetSpanId)
+                                } else {
+                                    setSpanParam(undefined)
+                                }
+                            },
+                            "data-tour": index === 0 ? "trace-row" : undefined,
+                        })}
+                        components={{
+                            header: {
+                                cell: ResizableTitle,
+                            },
+                        }}
+                        pagination={false}
+                        scroll={{x: "max-content"}}
+                    />
+                    {hasMoreTraces && (
+                        <Button
+                            onClick={handleLoadMore}
+                            disabled={isFetchingMore}
+                            type="text"
+                            size="large"
+                        >
+                            {isFetchingMore ? "Loading…" : "Click here to load more"}
+                        </Button>
+                    )}
+                </div>
+            )}
 
             <TestsetDrawer
                 open={testsetDrawerData.length > 0}

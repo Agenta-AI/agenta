@@ -4,6 +4,7 @@ import {useState} from "react"
 import {Stream} from "@cloudflare/stream-react"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Skeleton, Typography} from "antd"
+import clsx from "clsx"
 
 export interface EmptyStateProps {
     /** Cloudflare Stream video ID (preferred) */
@@ -23,6 +24,7 @@ export interface EmptyStateProps {
         label: string
         href: string
     }
+    className?: string
 }
 
 const VIDEO_ASPECT_RATIO = 16 / 9
@@ -35,6 +37,7 @@ const EmptyState = ({
     description,
     primaryCta,
     secondaryCta,
+    className,
 }: EmptyStateProps) => {
     const [videoLoaded, setVideoLoaded] = useState(false)
     const [imageLoaded, setImageLoaded] = useState(false)
@@ -103,7 +106,7 @@ const EmptyState = ({
     }
 
     return (
-        <div className="mx-auto w-full max-w-4xl px-8 py-8">
+        <div className={clsx("mx-auto w-full max-w-4xl px-8 py-8", className)}>
             <div className="flex w-full flex-col items-center text-center">
                 {/* Title + Description */}
                 <div className="mb-6">
