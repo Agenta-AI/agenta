@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "services"
-version = "0.81.1"
+version = "0.81.2"
 description = "Agenta Services (Chat & Completion)"
 authors = [
     "Mahmoud Mabrouk <mahmoud@agenta.ai>",
