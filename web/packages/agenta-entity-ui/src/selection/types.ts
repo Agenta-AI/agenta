@@ -22,9 +22,13 @@ export type SelectableEntityType =
     | "app"
     | "variant"
     | "appRevision"
+    | "ossVariant"
+    | "ossAppRevision"
     | "evaluator"
     | "evaluatorVariant"
     | "evaluatorRevision"
+    | "playgroundVariant"
+    | "playgroundRevision"
 
 // ============================================================================
 // SELECTION RESULT
@@ -238,6 +242,18 @@ export interface HierarchyLevel<T = unknown> {
      * Get description text for entity
      */
     getDescription?: (entity: T) => string | undefined
+
+    /**
+     * Filter function to exclude items from the list.
+     * Return true to include the item, false to exclude it.
+     *
+     * @example
+     * ```typescript
+     * // Exclude revision 0 items
+     * filterItems: (item) => (item as {revision?: number}).revision !== 0
+     * ```
+     */
+    filterItems?: (entity: T) => boolean
 }
 
 /**

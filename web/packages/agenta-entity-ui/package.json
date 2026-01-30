@@ -12,6 +12,7 @@
     },
     "exports": {
         ".": "./src/index.ts",
+        "./adapters": "./src/adapters/index.ts",
         "./drill-in": "./src/DrillInView/index.ts",
         "./modals": "./src/modals/index.ts",
         "./selection": "./src/selection/index.ts",
