@@ -17,6 +17,25 @@ import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/promp
 
 import {CommitVariantChangesModalContentProps} from "../types"
 
+// ===== Diff helpers (field-level diff) =====
+type DiffInput = Record<string, unknown>
+
+function buildPromptDiffInput(params?: Record<string, any>): DiffInput {
+    if (!params) return {}
+    return {
+        prompt: params.prompt,
+    }
+}
+
+function stringifyForDiff(input: DiffInput): string {
+    try {
+        return JSON.stringify(input, null, 2)
+    } catch {
+        return ""
+    }
+}
+
+
 const {Text} = Typography
 
 const CommitVariantChangesModalContent = ({
@@ -80,10 +99,14 @@ const CommitVariantChangesModalContent = ({
     // Compute snapshot lazily on first render after mount
     if (variant && initialOriginalRef.current === null && initialModifiedRef.current === null) {
         try {
-            initialOriginalRef.current = JSON.stringify(sanitizedOldParams)
+            initialOriginalRef.current = stringifyForDiff(
+                buildPromptDiffInput(sanitizedOldParams),
+            )
             // Use the same transformed local prompts ag_config that drives dirty-state
             if (params !== undefined) {
-                initialModifiedRef.current = JSON.stringify(sanitizedParams)
+                initialModifiedRef.current = stringifyForDiff(
+                    buildPromptDiffInput(sanitizedParams),
+                )
             }
         } catch {
             // Keep refs null; we will fall back to live values below
@@ -98,9 +121,13 @@ const CommitVariantChangesModalContent = ({
     }))
 
     // Ensure DiffView gets strings even when params are undefined
-    const originalForDiff = initialOriginalRef.current ?? JSON.stringify(sanitizedOldParams ?? {})
+    const originalForDiff =
+        initialOriginalRef.current ??
+        stringifyForDiff(buildPromptDiffInput(sanitizedOldParams))
+
     const modifiedForDiff =
-        initialModifiedRef.current ?? JSON.stringify(sanitizedParams ?? sanitizedOldParams ?? {})
+        initialModifiedRef.current ??
+        stringifyForDiff(buildPromptDiffInput(sanitizedParams ?? sanitizedOldParams))
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-6 md:flex-row">
