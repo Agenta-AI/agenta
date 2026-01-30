@@ -2,7 +2,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, Request, Query, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -596,7 +596,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/runs/query
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationRunsResponse())
+    @suppress_exceptions(default=EvaluationRunsResponse(), exclude=[HTTPException])
     async def query_runs(
         self,
         request: Request,
@@ -695,7 +695,7 @@ class EvaluationsRouter:
 
     # GET /evaluations/runs/{run_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationRunResponse())
+    @suppress_exceptions(default=EvaluationRunResponse(), exclude=[HTTPException])
     async def fetch_run(
         self,
         request: Request,
@@ -948,7 +948,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/scenarios/query
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationScenariosResponse())
+    @suppress_exceptions(default=EvaluationScenariosResponse(), exclude=[HTTPException])
     async def query_scenarios(
         self,
         request: Request,
@@ -980,7 +980,7 @@ class EvaluationsRouter:
 
     # GET /evaluations/scenarios/{scenario_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationScenarioResponse())
+    @suppress_exceptions(default=EvaluationScenarioResponse(), exclude=[HTTPException])
     async def fetch_scenario(
         self,
         request: Request,
@@ -1169,7 +1169,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/results/query
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationResultsResponse())
+    @suppress_exceptions(default=EvaluationResultsResponse(), exclude=[HTTPException])
     async def query_results(
         self,
         request: Request,
@@ -1201,7 +1201,7 @@ class EvaluationsRouter:
 
     # GET /evaluations/results/{result_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationResultResponse())
+    @suppress_exceptions(default=EvaluationResultResponse(), exclude=[HTTPException])
     async def fetch_result(
         self,
         request: Request,
@@ -1299,7 +1299,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/metrics/refresh
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationMetricsResponse())
+    @suppress_exceptions(default=EvaluationMetricsResponse(), exclude=[HTTPException])
     async def refresh_metrics(
         self,
         request: Request,
@@ -1422,7 +1422,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/metrics/query
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationMetricsResponse())
+    @suppress_exceptions(default=EvaluationMetricsResponse(), exclude=[HTTPException])
     async def query_metrics(
         self,
         request: Request,
@@ -1548,7 +1548,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/queues/query
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationQueuesResponse())
+    @suppress_exceptions(default=EvaluationQueuesResponse(), exclude=[HTTPException])
     async def query_queues(
         self,
         request: Request,
@@ -1580,7 +1580,7 @@ class EvaluationsRouter:
 
     # GET /evaluations/queues/{queue_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationQueueResponse())
+    @suppress_exceptions(default=EvaluationQueueResponse(), exclude=[HTTPException])
     async def fetch_queue(
         self,
         request: Request,
@@ -1676,7 +1676,9 @@ class EvaluationsRouter:
 
     # GET /evaluations/queues/{queue_id}/scenarios
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationQueueScenarioIdsResponse())
+    @suppress_exceptions(
+        default=EvaluationQueueScenarioIdsResponse(), exclude=[HTTPException]
+    )
     async def fetch_queue_scenarios(
         self,
         request: Request,
@@ -1836,7 +1838,7 @@ class SimpleEvaluationsRouter:
 
     # GET /api/simple/evaluations/{evaluation_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleEvaluationResponse())
+    @suppress_exceptions(default=SimpleEvaluationResponse(), exclude=[HTTPException])
     async def fetch_evaluation(
         self,
         request: Request,
@@ -1930,7 +1932,7 @@ class SimpleEvaluationsRouter:
 
     # POST /api/simple/evaluations/query
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleEvaluationsResponse())
+    @suppress_exceptions(default=SimpleEvaluationsResponse(), exclude=[HTTPException])
     async def query_evaluations(
         self,
         request: Request,

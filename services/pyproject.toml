@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "services"
-version = "0.81.0"
+version = "0.81.2"
 description = "Agenta Services (Chat & Completion)"
 authors = [
     "Mahmoud Mabrouk <mahmoud@agenta.ai>",
@@ -29,6 +29,9 @@ newrelic = "^11"
 # LiteLLM providers
 boto3 = "^1"
 google-cloud-aiplatform = "^1"
+
+# Serialization (required by litellm for OpenAI responses)
+orjson = "^3"
 
 [tool.poetry.group.dev.dependencies]
 watchdog = { extras = ["watchmedo"], version = "^3" }

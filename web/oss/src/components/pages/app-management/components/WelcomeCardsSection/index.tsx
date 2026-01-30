@@ -1,12 +1,15 @@
 import {useCallback, useMemo} from "react"
 
 import {XIcon} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
 import {onboardingWidgetStatusAtom} from "@/oss/lib/onboarding"
+import {ProjectsResponse} from "@/oss/services/project/types"
+import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
+import {projectsAtom} from "@/oss/state/project"
 
 import WelcomeCard from "./assets/components/WelcomeCard"
 import {welcomeCardsDismissedAtom} from "./assets/store/welcomeCards"
@@ -20,6 +23,7 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
     const onboardingWidgetStatus = useAtomValue(onboardingWidgetStatusAtom)
     const welcomeCardsDismissed = useAtomValue(welcomeCardsDismissedAtom)
     const setWelcomeCardsDismissed = useSetAtom(welcomeCardsDismissedAtom)
+    const projects = useAtomValue(projectsAtom)
     const router = useRouter()
     const {projectURL} = useURL()
 
@@ -33,6 +37,17 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
 
     const welcomeCards = useMemo(() => {
         const evaluationsLink = projectURL ? `${projectURL}/evaluations` : undefined
+        const demoProject: ProjectsResponse | undefined = projects.find(
+            (project: ProjectsResponse) => project.is_demo,
+        )
+        const demoWorkspaceId = demoProject?.workspace_id || demoProject?.organization_id || null
+        const demoOrganizationId = demoProject?.organization_id || null
+        const demoProjectLink =
+            demoProject && demoWorkspaceId
+                ? `/w/${encodeURIComponent(demoWorkspaceId)}/p/${encodeURIComponent(
+                      demoProject.project_id,
+                  )}/apps`
+                : undefined
 
         return [
             {
@@ -53,14 +68,19 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
             {
                 title: "Explore demo project",
                 subtitle: "How Agenta looks with real example data (view-only)",
-                onClick: () =>
-                    handleNavigate(
-                        "https://agenta.ai/docs/evaluation/evaluation-from-sdk/quick-start",
-                    ),
-                hidden: true,
+                onClick: () => {
+                    if (!demoProjectLink) {
+                        message.error("Demo project is not available.")
+                        return
+                    }
+                    if (demoOrganizationId) {
+                        cacheWorkspaceOrgPair(demoWorkspaceId, demoOrganizationId)
+                    }
+                    handleNavigate(demoProjectLink)
+                },
             },
         ]
-    }, [projectURL, handleNavigate, onCreatePrompt, onSetupTracing])
+    }, [projectURL, projects, handleNavigate, onCreatePrompt, onSetupTracing])
 
     const dismissWelcomeCards = useCallback(() => {
         setWelcomeCardsDismissed(true)

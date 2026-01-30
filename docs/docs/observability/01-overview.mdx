@@ -8,10 +8,14 @@ sidebar_position: 2
 ```mdx-code-block
 import CustomDocCard from '@site/src/components/CustomDocCard';
 import clsx from 'clsx';
-import Image from "@theme/IdealImage";
+import { Stream } from '@cloudflare/stream-react';
 ```
 
 Observability is the practice of monitoring and understanding the behavior of your LLM application. With Agenta, you can add a few lines of code to start tracking all inputs, outputs, and metadata of your application.
+
+<Stream controls src="bef869beb65a269388b806a79cd77109" height="400px" />
+
+<br />
 
 This allows you to:
 
@@ -20,13 +24,6 @@ This allows you to:
 - **Find Edge Cases**: Identify latency spikes and cost increases. Understand performance bottlenecks to optimize your app's speed and cost-effectiveness.
 - **Track Costs and Latency Over Time**: Monitor how your app's expenses and response times change.
 - **Compare App Versions**: Compare the behavior in production of different versions of your application to see which performs better.
-
-<Image
-  style={{ display: "block", margin: "10 auto" }}
-  img={require("/images/observability/observability-mockup.png")}
-  alt="Illustration of observability"
-  loading="lazy"
-/>
 
 ## Observability in Agenta
 
