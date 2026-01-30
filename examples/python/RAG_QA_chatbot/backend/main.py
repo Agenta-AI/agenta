@@ -4,9 +4,9 @@ import json
 from typing import List
 
 import agenta as ag
+import litellm
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
@@ -16,8 +16,8 @@ from .rag import generate, retrieve
 # Initialize Agenta for observability
 ag.init(api_key=settings.AGENTA_API_KEY, host=settings.AGENTA_HOST)
 
-# Instrument LiteLLM for tracing
-LiteLLMInstrumentor().instrument()
+# Set the Agenta LiteLLM callback for token/cost tracking
+litellm.callbacks = [ag.callbacks.litellm_handler()]
 
 app = FastAPI(
     title="RAG QA Chatbot API",

@@ -86,9 +86,14 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
     const activeTrace = getTraceById(activeId)
 
     return (
-        <div className="h-full w-full flex flex-col">
+        <div className="h-full w-full flex flex-col" data-tour="trace-drawer">
             <div className="flex items-center gap-3 px-4 py-3 border-0 border-b border-solid border-colorSplit">
-                <Button onClick={onClose} type="text" icon={<CloseOutlined />} />
+                <Button
+                    onClick={onClose}
+                    type="text"
+                    icon={<CloseOutlined />}
+                    data-tour="trace-drawer-close"
+                />
                 <Button
                     onClick={onToggleWidth}
                     type="text"

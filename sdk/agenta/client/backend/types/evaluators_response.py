@@ -8,8 +8,8 @@ from .evaluator import Evaluator
 
 
 class EvaluatorsResponse(UniversalBaseModel):
-    count: int
-    evaluator: typing.Optional[typing.List[Evaluator]] = None
+    count: typing.Optional[int] = None
+    evaluators: typing.Optional[typing.List[Evaluator]] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
