@@ -147,6 +147,18 @@ export interface CreateHierarchyLevelOptions<T = unknown> {
      * Use this for lazy-enabled queries that require explicit activation.
      */
     onBeforeLoad?: (parentId: string) => void
+
+    /**
+     * Filter function to exclude items from the list.
+     * Return true to include the item, false to exclude it.
+     *
+     * @example
+     * ```typescript
+     * // Exclude revision 0 items
+     * filterItems: (item) => (item as {revision?: number}).revision !== 0
+     * ```
+     */
+    filterItems?: (entity: T) => boolean
 }
 
 /**
