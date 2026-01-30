@@ -12,11 +12,7 @@ import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
 import {PromptsSourceProvider} from "@/oss/components/Playground/context/PromptsSource"
-import {
-    parametersOverrideAtomFamily,
-    variantByRevisionIdAtomFamily,
-} from "@/oss/components/Playground/state/atoms"
-import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms/dirtyState"
+import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
@@ -24,7 +20,11 @@ import {
     deriveCustomPropertiesFromSpec,
     derivePromptsFromSpec,
 } from "@/oss/lib/shared/variant/transformer/transformer"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
+    revisionIsDirtyAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {
     appSchemaAtom,
     appStatusLoadingAtom,
@@ -56,7 +56,7 @@ export const drawerVariantIsLoadingAtomFamily = atomFamily((revisionId: string) 
             return schemaLoading
         }
 
-        const selectedVariant = get(variantByRevisionIdAtomFamily(revisionId)) as any
+        const selectedVariant = get(moleculeBackedVariantAtomFamily(revisionId)) as any
         if (!selectedVariant) {
             return true
         }
@@ -91,21 +91,24 @@ const VariantDrawerContent = ({
     const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
 
     // Focused selected variant by revision ID
-    const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
+    const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
 
     // App-level: app status is true when OpenAPI schema is available
     const appSchema = useAtomValue(appSchemaAtom)
-    const appStatus = !!appSchema
     const uriInfo = useAtomValue(appUriInfoAtom)
 
-    const prompts = useAtomValue(promptsAtomFamily(variantId))
+    const prompts = useAtomValue(moleculeBackedPromptsAtomFamily(variantId))
     const promptIds = prompts?.map((p: any) => p?.__id as string)
+
+    // Show Overview tab if we have app schema OR if we have prompts/variant data
+    // This allows the drawer to work even when app context isn't fully set up
+    const appStatus = !!appSchema || (promptIds && promptIds.length > 0) || !!selectedVariant
 
     // Focused deployed environments by revision ID
     const deployedIn = useAtomValue(revisionDeploymentAtomFamily(variantId)) || []
     const commitMsg = selectedVariant?.commitMessage
     const isDirty = useAtomValue(
-        variantIsDirtyAtomFamily((selectedVariant as any)?.id || variantId),
+        revisionIsDirtyAtomFamily((selectedVariant as any)?.id || variantId),
     )
 
     // Ensure clean revisions don't get stuck in Original mode
