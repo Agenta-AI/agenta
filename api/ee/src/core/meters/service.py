@@ -135,9 +135,9 @@ class MetersService:
                         customer_id = meter.subscription.customer_id
 
                         if not subscription_id:
-                            log.warn(
-                                f"[report] Skipping meter {meter.organization_id}/{meter.key} - missing subscription_id"
-                            )
+                            # log.warn(
+                            #     f"[report] Skipping meter {meter.organization_id}/{meter.key} - missing subscription_id"
+                            # )
                             skipped_count += 1
                             continue
 
