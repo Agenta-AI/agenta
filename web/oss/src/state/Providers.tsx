@@ -2,6 +2,8 @@ import {PropsWithChildren} from "react"
 
 import {appRevisionSelectionConfig} from "@agenta/entities/appRevision"
 import {testsetSelectionConfig} from "@agenta/entities/testset"
+// Register entity modal adapters (auto-registers on import)
+import "@agenta/entity-ui/adapters"
 import {initializeSelectionSystem} from "@agenta/entity-ui/selection"
 import {useQueryClient} from "@tanstack/react-query"
 import {Provider, getDefaultStore} from "jotai"
