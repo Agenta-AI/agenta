@@ -183,7 +183,7 @@ export const variantToRevisionRelation: EntityRelation<VariantListItem, Revision
         autoSelectSingle: true, // Auto-select if only one revision
         displayName: (entity: unknown) => {
             const revision = entity as RevisionListItem
-            return `v${revision.version ?? 0}`
+            return `v${revision.revision ?? 0}`
         },
     },
 }

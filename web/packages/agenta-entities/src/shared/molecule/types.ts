@@ -728,6 +728,25 @@ export interface RelationBindingConfig {
  * - Entity binding (for loadable-runnable connections)
  * - List atom families (for hierarchical navigation)
  *
+ * ## Type Assertions
+ *
+ * In some cases, type assertions (`as any`) are needed:
+ *
+ * 1. **Intermediate entities** (e.g., variants) don't have molecules:
+ *    ```typescript
+ *    childMolecule: undefined as any
+ *    ```
+ *
+ * 2. **List items differ from full entities** (e.g., RevisionListItem vs Revision):
+ *    ```typescript
+ *    childMolecule: revisionMolecule as any
+ *    ```
+ *
+ * These assertions are safe because:
+ * - The registry stores relations as `EntityRelation<unknown, unknown>`
+ * - Runtime code uses type guards before accessing childMolecule
+ * - The listAtomFamily provides the correct list item type for UI
+ *
  * @example
  * ```typescript
  * const testcaseRelation: EntityRelation<Revision, Testcase> = {
@@ -781,6 +800,17 @@ export function hasBindingConfig<TParent, TChild>(
     relation: EntityRelation<TParent, TChild>,
 ): relation is EntityRelation<TParent, TChild> & {binding: RelationBindingConfig} {
     return relation.binding !== undefined
+}
+
+/**
+ * Type guard to check if a relation has a child molecule
+ */
+export function hasChildMolecule<TParent, TChild>(
+    relation: EntityRelation<TParent, TChild>,
+): relation is EntityRelation<TParent, TChild> & {
+    childMolecule: Molecule<TChild, unknown> | LocalMolecule<TChild>
+} {
+    return relation.childMolecule !== undefined
 }
 
 // ============================================================================
