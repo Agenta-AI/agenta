@@ -8,6 +8,7 @@ overrides:
   prismjs@<1.30.0: '>=1.30.0'
   '@babel/runtime@<7.26.10': '>=7.26.10'
   mdast-util-to-hast@<13.2.1: '>=13.2.1'
+  lodash@<4.17.23: '>=4.17.23'
 
 importers:
 
@@ -213,8 +214,8 @@ importers:
         specifier: ^3.13.0
         version: 3.13.0
       lodash:
-        specifier: ^4.17.21
-        version: 4.17.21
+        specifier: '>=4.17.23'
+        version: 4.17.23
       postcss:
         specifier: ^8.5.6
         version: 8.5.6
@@ -505,8 +506,8 @@ importers:
         specifier: ^0.38.2
         version: 0.38.2
       lodash:
-        specifier: ^4.17.21
-        version: 4.17.21
+        specifier: ^4.17.23
+        version: 4.17.23
       lucide-react:
         specifier: ^0.475.0
         version: 0.475.0(react@19.0.0)
@@ -3966,8 +3967,8 @@ packages:
   lodash.merge@4.6.2:
     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
 
-  lodash@4.17.21:
-    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
+  lodash@4.17.23:
+    resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
 
   loglevel-colored-level-prefix@1.0.0:
     resolution: {integrity: sha512-u45Wcxxc+SdAlh4yeF/uKlC1SPUPCy0gullSNKXod5I4bmifzk+Q4lSLExNEVn19tGaJipbZ4V4jbFn79/6mVA==}
@@ -7563,7 +7564,7 @@ snapshots:
 
   browser-tabs-lock@1.3.0:
     dependencies:
-      lodash: 4.17.21
+      lodash: 4.17.23
 
   browserslist@4.24.4:
     dependencies:
@@ -9042,7 +9043,7 @@ snapshots:
 
   lodash.merge@4.6.2: {}
 
-  lodash@4.17.21: {}
+  lodash@4.17.23: {}
 
   loglevel-colored-level-prefix@1.0.0:
     dependencies:
@@ -9672,7 +9673,7 @@ snapshots:
     dependencies:
       clsx: 2.1.1
       eventemitter3: 4.0.7
-      lodash: 4.17.21
+      lodash: 4.17.23
       react: 19.0.0
       react-dom: 19.0.0(react@19.0.0)
       react-is: 18.3.1
@@ -10524,7 +10525,7 @@ snapshots:
       eslint-visitor-keys: 3.4.3
       espree: 9.6.1
       esquery: 1.6.0
-      lodash: 4.17.21
+      lodash: 4.17.23
       semver: 7.7.3
     transitivePeerDependencies:
       - supports-color
