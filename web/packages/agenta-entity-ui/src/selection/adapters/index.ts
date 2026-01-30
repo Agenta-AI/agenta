@@ -78,6 +78,15 @@ export type {TestsetSelectionResult} from "./testsetRelationAdapter"
 export {appRevisionAdapter} from "./appRevisionRelationAdapter"
 export type {AppRevisionSelectionResult} from "./appRevisionRelationAdapter"
 
+// OSS App revision adapter (3-level: App → Variant → Revision)
+// Uses atoms and relations from @agenta/entities/ossAppRevision (legacy API)
+// Also exports createOssAppRevisionAdapter for configurable 2-level mode
+export {ossAppRevisionAdapter, createOssAppRevisionAdapter} from "./ossAppRevisionRelationAdapter"
+export type {
+    OssAppRevisionSelectionResult,
+    CreateOssAppRevisionAdapterOptions,
+} from "./ossAppRevisionRelationAdapter"
+
 // Evaluator revision adapter (3-level: Evaluator → Variant → Revision)
 // Uses legacy runtime configuration pattern (no evaluator relations yet)
 export {evaluatorRevisionAdapter, setEvaluatorRevisionAtoms} from "./evaluatorRevisionAdapter"
