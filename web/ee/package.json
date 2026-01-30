@@ -55,6 +55,7 @@
         "immer": "^10.1.1",
         "jotai": "^2.16.1",
         "jotai-eager": "^0.2.3",
+        "jotai-family": "^1.0.1",
         "jotai-immer": "^0.4.1",
         "jotai-scheduler": "^0.0.5",
         "jotai-tanstack-query": "^0.11.0",
