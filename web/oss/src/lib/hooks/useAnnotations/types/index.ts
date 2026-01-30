@@ -13,6 +13,7 @@ interface AnnotationReference {
 
 interface AnnotationReferences {
     evaluator: AnnotationReference
+    evaluator_revision?: AnnotationReference
     testset?: AnnotationReference
     testcase?: AnnotationReference
 }
