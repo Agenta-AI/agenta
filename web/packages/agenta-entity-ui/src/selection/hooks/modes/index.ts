@@ -30,3 +30,13 @@ export {
     type UseListPopoverModeResult,
     type UseAutoSelectLatestChildOptions,
 } from "./useListPopoverMode"
+
+// Tree-select mode (Playground SelectVariant style)
+export {
+    useTreeSelectMode,
+    useChildDataForParent,
+    type TreeSelectItemAction,
+    type TreeSelectNode,
+    type UseTreeSelectModeOptions,
+    type UseTreeSelectModeResult,
+} from "./useTreeSelectMode"
