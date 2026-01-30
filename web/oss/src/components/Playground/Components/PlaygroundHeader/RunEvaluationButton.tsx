@@ -39,6 +39,7 @@ const RunEvaluationButton: React.FC<RunEvaluationButtonProps> = ({className}) =>
                 icon={<Play size={14} />}
                 className={clsx("self-start", className)}
                 disabled={!hasVariants}
+                data-tour="run-evaluation-button"
                 onClick={() => setIsModalOpen(true)}
                 size="small"
             >

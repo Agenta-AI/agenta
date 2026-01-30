@@ -13,8 +13,10 @@ from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
 from ..types.invite_request import InviteRequest
-from ..types.organization import Organization
 from ..types.organization_details import OrganizationDetails
+from ..types.oss_src_models_api_organization_models_organization import (
+    OssSrcModelsApiOrganizationModelsOrganization,
+)
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -86,7 +88,7 @@ class RawOrganizationClient:
 
     def list_organizations(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.List[Organization]]:
+    ) -> HttpResponse[typing.List[OssSrcModelsApiOrganizationModelsOrganization]]:
         """
         Returns a list of organizations associated with the user's session.
 
@@ -103,7 +105,7 @@ class RawOrganizationClient:
 
         Returns
         -------
-        HttpResponse[typing.List[Organization]]
+        HttpResponse[typing.List[OssSrcModelsApiOrganizationModelsOrganization]]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -114,9 +116,11 @@ class RawOrganizationClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.List[Organization],
+                    typing.List[OssSrcModelsApiOrganizationModelsOrganization],
                     parse_obj_as(
-                        type_=typing.List[Organization],  # type: ignore
+                        type_=typing.List[
+                            OssSrcModelsApiOrganizationModelsOrganization
+                        ],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -141,7 +145,7 @@ class RawOrganizationClient:
         *,
         request: typing.Sequence[InviteRequest],
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Assigns a role to a user in an organization.
 
@@ -170,7 +174,7 @@ class RawOrganizationClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -192,9 +196,9 @@ class RawOrganizationClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -230,7 +234,7 @@ class RawOrganizationClient:
         *,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Resend an invitation to a user to an Organization.
 
@@ -255,7 +259,7 @@ class RawOrganizationClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -275,9 +279,9 @@ class RawOrganizationClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -315,7 +319,7 @@ class RawOrganizationClient:
         token: str,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Accept an invitation to an organization.
 
@@ -344,7 +348,7 @@ class RawOrganizationClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -368,9 +372,9 @@ class RawOrganizationClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -466,7 +470,7 @@ class AsyncRawOrganizationClient:
 
     async def list_organizations(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.List[Organization]]:
+    ) -> AsyncHttpResponse[typing.List[OssSrcModelsApiOrganizationModelsOrganization]]:
         """
         Returns a list of organizations associated with the user's session.
 
@@ -483,7 +487,7 @@ class AsyncRawOrganizationClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.List[Organization]]
+        AsyncHttpResponse[typing.List[OssSrcModelsApiOrganizationModelsOrganization]]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -494,9 +498,11 @@ class AsyncRawOrganizationClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.List[Organization],
+                    typing.List[OssSrcModelsApiOrganizationModelsOrganization],
                     parse_obj_as(
-                        type_=typing.List[Organization],  # type: ignore
+                        type_=typing.List[
+                            OssSrcModelsApiOrganizationModelsOrganization
+                        ],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -521,7 +527,7 @@ class AsyncRawOrganizationClient:
         *,
         request: typing.Sequence[InviteRequest],
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Assigns a role to a user in an organization.
 
@@ -550,7 +556,7 @@ class AsyncRawOrganizationClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -572,9 +578,9 @@ class AsyncRawOrganizationClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -610,7 +616,7 @@ class AsyncRawOrganizationClient:
         *,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Resend an invitation to a user to an Organization.
 
@@ -635,7 +641,7 @@ class AsyncRawOrganizationClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -655,9 +661,9 @@ class AsyncRawOrganizationClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -695,7 +701,7 @@ class AsyncRawOrganizationClient:
         token: str,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Accept an invitation to an organization.
 
@@ -724,7 +730,7 @@ class AsyncRawOrganizationClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -748,9 +754,9 @@ class AsyncRawOrganizationClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )

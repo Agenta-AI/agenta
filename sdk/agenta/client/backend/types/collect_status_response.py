@@ -7,7 +7,6 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 
 class CollectStatusResponse(UniversalBaseModel):
-    version: str
     status: str
 
     if IS_PYDANTIC_V2:

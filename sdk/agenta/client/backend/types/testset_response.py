@@ -8,7 +8,7 @@ from .testset import Testset
 
 
 class TestsetResponse(UniversalBaseModel):
-    count: int
+    count: typing.Optional[int] = None
     testset: typing.Optional[Testset] = None
 
     if IS_PYDANTIC_V2:

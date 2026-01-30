@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.80.8",
+    "version": "0.81.2",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -24,6 +24,7 @@
         "@ant-design/colors": "^7.2.1",
         "@ant-design/cssinjs": "^2.0.1",
         "@ant-design/icons": "^6.1.0",
+        "@cloudflare/stream-react": "^1.9.3",
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/modifiers": "^9.0.0",
         "@dnd-kit/sortable": "^10.0.0",
@@ -45,7 +46,7 @@
         "@lexical/table": "^0.38.2",
         "@lexical/utils": "^0.38.2",
         "@monaco-editor/react": "^4.7.0-rc.0",
-        "@next/bundle-analyzer": "15.5.9",
+        "@next/bundle-analyzer": "15.5.10",
         "@phosphor-icons/react": "^2.1.10",
         "@scalar/openapi-parser": "^0.9.0",
         "@scalar/openapi-types": "^0.1.5",
@@ -87,10 +88,10 @@
         "js-yaml": "^4.1.1",
         "jsonrepair": "^3.13.0",
         "lexical": "^0.38.2",
-        "lodash": "^4.17.21",
+        "lodash": "^4.17.23",
         "lucide-react": "^0.475.0",
         "motion": "^12.0.0",
-        "next": "15.5.9",
+        "next": "15.5.10",
         "papaparse": "^5.5.3",
         "postcss": "^8.5.6",
         "postcss-antd-fixes": "^0.2.0",
