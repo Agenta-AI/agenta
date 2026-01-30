@@ -1,6 +1,6 @@
 {
     "name": "@agenta/shared",
-    "version": "0.75.0",
+    "version": "0.80.0",
     "private": true,
     "sideEffects": false,
     "main": "./src/index.ts",
