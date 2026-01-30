@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {DraftTag} from "@agenta/ui/components"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
 import {PlusCircle, Timer, X} from "@phosphor-icons/react"
@@ -12,10 +13,11 @@ import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {generationLogicalTurnIdsAtom as compatRowIdsAtom} from "@/oss/state/generation/compat"
 import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
+import {isLocalDraft} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import Version from "../../../../../assets/Version"
 import {
-    variantByRevisionIdAtomFamily,
+    moleculeBackedVariantAtomFamily,
     generationResultAtomFamily,
     appChatModeAtom,
 } from "../../../../../state/atoms"
@@ -33,8 +35,8 @@ const VariantNavigationCard = ({
 }: VariantNavigationCardProps) => {
     const classes = useStyles()
 
-    // Read only the specific variant by revisionId
-    const variant = useAtomValue(variantByRevisionIdAtomFamily(revisionId)) as any
+    // Use molecule-backed variant for single source of truth
+    const variant = useAtomValue(moleculeBackedVariantAtomFamily(revisionId)) as any
     const removeVariantFromSelection = useSetAtom(removeVariantFromSelectionMutationAtom)
 
     // Aggregate visible trace results for this revision across current rows
@@ -46,16 +48,26 @@ const VariantNavigationCard = ({
                 const results: any[] = []
                 // Read run status map up-front so changes trigger recompute even if other deps don't
                 const statusMap = get(runStatusByRowRevisionAtom) || {}
+
                 for (const rowId of rowIds) {
+                    // Try run-status map first (works for both chat and completion, including local drafts)
+                    const key = `${rowId}:${revisionId}`
+                    const statusEntry = (statusMap as any)[key]
+
+                    if (statusEntry?.resultHash) {
+                        const res = getResponseLazy(statusEntry.resultHash)
+                        if (res) {
+                            results.push(res)
+                            continue
+                        }
+                    }
+
                     if (isChat) {
-                        const key = `${rowId}:${revisionId}`
-                        const {resultHash} = (statusMap as any)[key] || {}
-                        const res = getResponseLazy(resultHash)
-                        if (res) results.push(res)
+                        // Chat mode already tried via statusMap above
                         continue
                     }
 
-                    // Completion: use canonical selector
+                    // Completion: use canonical selector as fallback
                     const {resultHash} = get(
                         generationResultAtomFamily({variantId: revisionId, rowId}),
                     )
@@ -64,14 +76,6 @@ const VariantNavigationCard = ({
                         results.push(res)
                         continue
                     }
-
-                    // // Last-resort: use run-status map resultHash
-                    // const key = `${rowId}:${revisionId}`
-                    // const hash = (statusMap as any)[key]?.resultHash
-                    // if (hash) {
-                    //     const rs = getResponseLazy(hash)
-                    //     if (rs) results.push(rs)
-                    // }
                 }
 
                 // Reduce metrics across results (prefer acc, fallback to unit)
@@ -153,8 +157,26 @@ const VariantNavigationCard = ({
             >
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">
-                        <Text>{variant?.variantName}</Text>
-                        <Version revision={variant?.revision as number} />
+                        {isLocalDraft(revisionId) ? (
+                            // Local draft: show Draft tag then source revision info
+                            <>
+                                <DraftTag />
+                                <Text className="text-gray-500">
+                                    from{" "}
+                                    {String(variant?.variantName ?? "").replace(
+                                        /\s*\(Draft\)$/,
+                                        "",
+                                    )}{" "}
+                                    v{variant?.revision}
+                                </Text>
+                            </>
+                        ) : (
+                            // Regular revision: show name and version tag
+                            <>
+                                <Text>{variant?.variantName}</Text>
+                                <Version revision={variant?.revision as number} />
+                            </>
+                        )}
                     </div>
                     <Button
                         type="text"

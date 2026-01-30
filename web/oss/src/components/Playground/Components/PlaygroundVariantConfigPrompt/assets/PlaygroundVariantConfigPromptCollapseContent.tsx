@@ -7,10 +7,8 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
-import {
-    promptsAtomFamily,
-    promptVariablesByPromptAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
+import {promptVariablesByPromptAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import type {PromptCollapseContentProps} from "../types"
 
@@ -42,7 +40,8 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     const compoundKey = `${variantId}:${promptId}`
 
     // Seed local prompts cache once to avoid first-edit race between derived and local state
-    const seedPrompts = useSetAtom(promptsAtomFamily(variantId))
+    // Use molecule-backed prompts for single source of truth
+    const seedPrompts = useSetAtom(moleculeBackedPromptsAtomFamily(variantId))
     useEffect(() => {
         seedPrompts((draft: any) => draft)
         // run once per variantId mount
@@ -70,7 +69,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
             {!isCustom && !hasVariable && !viewOnly && (
                 <Alert
                     closable
-                    message={
+                    title={
                         <>
                             Insert a <span className="font-semibold">{"{{variable}}"}</span> in your
                             template to create an input.

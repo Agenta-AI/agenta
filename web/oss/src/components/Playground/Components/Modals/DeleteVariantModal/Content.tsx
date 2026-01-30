@@ -1,19 +1,22 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    revisionsListWithDraftsAtomFamily,
+    variantsListWithDraftsAtomFamily,
+} from "@agenta/entities/ossAppRevision"
 import {message} from "@agenta/ui/app-message"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Spin, Typography} from "antd"
-import {getDefaultStore, useSetAtom} from "jotai"
+import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {
     deleteVariantMutationAtom,
-    variantByRevisionIdAtomFamily,
+    moleculeBackedVariantAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {deleteSingleVariant} from "@/oss/services/playground/api"
-import {revisionsByVariantIdAtomFamily} from "@/oss/state/variant/atoms/fetcher"
-import {parentVariantDisplayNameAtomFamily} from "@/oss/state/variant/selectors/variant"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
 const {Text} = Typography
 
@@ -37,6 +40,17 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
     const [checking, setChecking] = useState(true)
     const [canDelete, setCanDelete] = useState<boolean | null>(null)
     const [isMutating, setIsMutating] = useState(false)
+    const appId = useAtomValue(selectedAppIdAtom)
+    const emptyListAtom = useMemo(
+        () => atom({data: [], isPending: false, isError: false, error: null}),
+        [],
+    )
+    const variantsListAtom = useMemo(
+        () => (appId ? variantsListWithDraftsAtomFamily(appId) : emptyListAtom),
+        [appId, emptyListAtom],
+    )
+    const variantsQuery = useAtomValue(variantsListAtom)
+    const variants = variantsQuery.data ?? []
 
     const uniqueRevisionIds = useMemo(
         () => Array.from(new Set([revisionIds].flat().filter(Boolean))) as string[],
@@ -46,10 +60,20 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
     const resolvedRevisions = useMemo(
         () =>
             uniqueRevisionIds
-                .map((id) => store.get(variantByRevisionIdAtomFamily(id)))
+                // Use molecule-backed variant for single source of truth
+                .map((id) => store.get(moleculeBackedVariantAtomFamily(id)))
                 .filter(Boolean) as any[],
         [store, uniqueRevisionIds],
     )
+
+    const variantNameMap = useMemo(() => {
+        const map: Record<string, string> = {}
+        variants.forEach((variant: any) => {
+            if (!variant?.id) return
+            map[variant.id] = (variant.name as string) || (variant.baseName as string) || variant.id
+        })
+        return map
+    }, [variants])
 
     const variantGroups = useMemo(() => {
         const groups: Record<string, VariantGroup> = {}
@@ -63,9 +87,7 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
                 Boolean,
             ) as string[]
             const totalIds = existing?.totalIds || []
-            const displayName =
-                existing?.displayName ??
-                ((store.get(parentVariantDisplayNameAtomFamily(variantId)) as string) || "-")
+            const displayName = existing?.displayName ?? variantNameMap[variantId] ?? "-"
 
             groups[variantId] = {
                 variantId,
@@ -77,8 +99,8 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
         })
 
         Object.values(groups).forEach((group) => {
-            const allRevisions = (store.get(revisionsByVariantIdAtomFamily(group.variantId)) ||
-                []) as any[]
+            const allRevisions = (store.get(revisionsListWithDraftsAtomFamily(group.variantId))
+                ?.data || []) as any[]
             const totalIds = allRevisions.map((r: any) => r.id).filter(Boolean) as string[]
             group.totalIds = totalIds.length > 0 ? totalIds : group.selectedIds
             const selectedSet = new Set(group.selectedIds)
@@ -87,7 +109,7 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
         })
 
         return groups
-    }, [resolvedRevisions, store])
+    }, [resolvedRevisions, store, variantNameMap])
 
     useEffect(() => {
         let mounted = true
