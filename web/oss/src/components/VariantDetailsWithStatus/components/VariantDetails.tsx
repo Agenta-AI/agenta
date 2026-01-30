@@ -1,18 +1,14 @@
 // no react hooks needed here beyond Jotai
 
 import {message} from "@agenta/ui/app-message"
-import {PencilSimpleLine} from "@phosphor-icons/react"
+import {DraftTag} from "@agenta/ui/components"
 import {Dropdown, Space, Tag, Typography} from "antd"
 import type {MenuProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {Variant} from "@/oss/lib/Types"
-import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {
-    clearLocalPromptsForRevisionAtomFamily,
-    clearLocalTransformedPromptsForRevisionAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
+import {discardRevisionDraftAtom} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {latestAppRevisionIdAtom} from "@/oss/state/variant/selectors/variant"
 
 interface VariantDetailsProps {
@@ -35,15 +31,7 @@ const VariantDetails = ({
     const latestAppRevisionId = useAtomValue(latestAppRevisionIdAtom)
     const currentRevisionId = (variant as any)?.id as string | undefined
     const isAppLatest = !!currentRevisionId && currentRevisionId === latestAppRevisionId
-    const clearLocalPrompts = useSetAtom(
-        clearLocalPromptsForRevisionAtomFamily(currentRevisionId || "") as any,
-    )
-    const clearLocalTransformed = useSetAtom(
-        clearLocalTransformedPromptsForRevisionAtomFamily(currentRevisionId || "") as any,
-    )
-    const clearLocalCustomProps = useSetAtom(
-        clearLocalCustomPropsForRevisionAtomFamily(currentRevisionId || "") as any,
-    )
+    const discardDraft = useSetAtom(discardRevisionDraftAtom)
     const setParamsOverride = useSetAtom(
         parametersOverrideAtomFamily(currentRevisionId || "") as any,
     )
@@ -51,16 +39,11 @@ const VariantDetails = ({
     const handleDiscardDraft = () => {
         if (!currentRevisionId) return
         try {
-            // Clear local prompt edits and JSON override for this revision
-            clearLocalPrompts()
-            clearLocalTransformed()
-            clearLocalCustomProps()
+            discardDraft(currentRevisionId)
             setParamsOverride(null)
             message.success("Draft changes discarded")
         } catch (e) {
-            // Non-blocking: ensure UX feedback even if something goes wrong
             message.error("Failed to discard draft changes")
-
             console.error(e)
         }
     }
@@ -83,7 +66,7 @@ const VariantDetails = ({
             {variantName ? <Typography>{variantName}</Typography> : null}
             {revision !== undefined &&
                 (showRevisionAsTag ? (
-                    <Tag className={`bg-[rgba(5,23,41,0.06)]`} bordered={false}>
+                    <Tag className={`bg-[rgba(5,23,41,0.06)]`} variant="filled">
                         v{revision}
                     </Tag>
                 ) : (
@@ -96,12 +79,7 @@ const VariantDetails = ({
                     menu={{items: draftMenuItems, onClick: onDraftMenuClick}}
                     placement="bottomLeft"
                 >
-                    <Tag
-                        variant="filled"
-                        className="flex items-center gap-1 font-normal cursor-pointer bg-[#586673] text-white"
-                    >
-                        <PencilSimpleLine size={14} /> Draft
-                    </Tag>
+                    <DraftTag className="cursor-pointer" />
                 </Dropdown>
             ) : (
                 isAppLatest &&
