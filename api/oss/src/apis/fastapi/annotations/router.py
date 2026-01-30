@@ -1,7 +1,7 @@
 from typing import Optional, Union
 from uuid import UUID
 
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, Request, Response, status, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -165,7 +165,7 @@ class AnnotationsRouter:
         return annotation_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=AnnotationResponse())
+    @suppress_exceptions(default=AnnotationResponse(), exclude=[HTTPException])
     async def fetch_annotation(
         self,
         request: Request,
@@ -264,7 +264,7 @@ class AnnotationsRouter:
         return annotation_link_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=AnnotationsResponse())
+    @suppress_exceptions(default=AnnotationsResponse(), exclude=[HTTPException])
     async def query_annotations(
         self,
         request: Request,

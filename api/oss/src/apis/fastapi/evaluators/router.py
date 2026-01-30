@@ -1,7 +1,7 @@
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status, Depends
+from fastapi import APIRouter, Request, status, Depends, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -352,7 +352,7 @@ class EvaluatorsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluatorResponse())
+    @suppress_exceptions(default=EvaluatorResponse(), exclude=[HTTPException])
     async def fetch_evaluator(
         self,
         request: Request,
@@ -465,7 +465,7 @@ class EvaluatorsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluatorsResponse())
+    @suppress_exceptions(default=EvaluatorsResponse(), exclude=[HTTPException])
     async def query_evaluators(
         self,
         request: Request,
@@ -750,9 +750,8 @@ class EvaluatorsRouter:
     ) -> EvaluatorRevisionResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
-                project_id=request.state.project_id,
                 user_uid=request.state.user_id,
-                #
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATORS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -824,7 +823,7 @@ class EvaluatorsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluatorRevisionResponse())
+    @suppress_exceptions(default=EvaluatorRevisionResponse(), exclude=[HTTPException])
     async def fetch_evaluator_revision(
         self,
         request: Request,
@@ -939,7 +938,7 @@ class EvaluatorsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluatorRevisionsResponse())
+    @suppress_exceptions(default=EvaluatorRevisionsResponse(), exclude=[HTTPException])
     async def query_evaluator_revisions(
         self,
         request: Request,
@@ -1148,7 +1147,7 @@ class SimpleEvaluatorsRouter:
         return simple_evaluator_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleEvaluatorResponse())
+    @suppress_exceptions(default=SimpleEvaluatorResponse(), exclude=[HTTPException])
     async def fetch_simple_evaluator(
         self,
         request: Request,
@@ -1397,7 +1396,7 @@ class SimpleEvaluatorsRouter:
         return simple_evaluator_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleEvaluatorsResponse())
+    @suppress_exceptions(default=SimpleEvaluatorsResponse(), exclude=[HTTPException])
     async def list_simple_evaluators(
         self,
         request: Request,
@@ -1417,7 +1416,7 @@ class SimpleEvaluatorsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleEvaluatorsResponse())
+    @suppress_exceptions(default=SimpleEvaluatorsResponse(), exclude=[HTTPException])
     async def query_simple_evaluators(  # TODO: FIX ME
         self,
         request: Request,

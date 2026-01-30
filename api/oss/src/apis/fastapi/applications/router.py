@@ -1,7 +1,7 @@
 from uuid import UUID
 from typing import Optional
 
-from fastapi import APIRouter, status, Request, Depends
+from fastapi import APIRouter, status, Request, Depends, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -97,7 +97,7 @@ class LegacyApplicationsRouter:
     # APPLICATION REVISIONS ----------------------------------------------------
 
     @intercept_exceptions()
-    @suppress_exceptions(default=ApplicationRevisionResponse())
+    @suppress_exceptions(default=ApplicationRevisionResponse(), exclude=[HTTPException])
     async def retrieve_application_revision(
         self,
         request: Request,
@@ -106,9 +106,8 @@ class LegacyApplicationsRouter:
     ):
         if is_ee():
             if not await check_action_access(  # type: ignore
-                project_id=request.state.project_id,
                 user_uid=request.state.user_id,
-                #
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -163,9 +162,8 @@ class LegacyApplicationsRouter:
     ):
         if is_ee():
             if not await check_action_access(  # type: ignore
-                project_id=request.state.project_id,
                 user_uid=request.state.user_id,
-                #
+                project_id=request.state.project_id,
                 permission=Permission.EDIT_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -185,7 +183,7 @@ class LegacyApplicationsRouter:
         return legacy_application_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=LegacyApplicationResponse())
+    @suppress_exceptions(default=LegacyApplicationResponse(), exclude=[HTTPException])
     async def fetch_legacy_application(
         self,
         request: Request,
@@ -194,9 +192,8 @@ class LegacyApplicationsRouter:
     ):
         if is_ee():
             if not await check_action_access(  # type: ignore
-                project_id=request.state.project_id,
                 user_uid=request.state.user_id,
-                #
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -225,9 +222,8 @@ class LegacyApplicationsRouter:
     ):
         if is_ee():
             if not await check_action_access(  # type: ignore
-                project_id=request.state.project_id,
                 user_uid=request.state.user_id,
-                #
+                project_id=request.state.project_id,
                 permission=Permission.EDIT_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
