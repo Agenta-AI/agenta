@@ -411,6 +411,7 @@ export {
     resolveAdapter as resolveSelectionAdapter,
     // Pre-built adapters
     appRevisionAdapter,
+    ossAppRevisionAdapter,
     evaluatorRevisionAdapter,
     setEvaluatorRevisionAtoms,
     testsetAdapter,
