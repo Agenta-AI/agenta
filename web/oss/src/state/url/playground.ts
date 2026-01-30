@@ -1,3 +1,4 @@
+import {isLocalDraftId} from "@agenta/entities/shared"
 import {getDefaultStore} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 import Router from "next/router"
@@ -7,8 +8,8 @@ import {
     viewTypeAtom,
     urlRevisionsAtom,
 } from "@/oss/components/Playground/state/atoms"
+import {revisionListAtom} from "@/oss/components/Playground/state/atoms"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
-import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 const isBrowser = typeof window !== "undefined"
 const PLAYGROUND_PARAM = "playgroundRevisions"
@@ -78,7 +79,9 @@ export const writePlaygroundSelectionToQuery = async (selection: string[]) => {
     if (!isBrowser) return
 
     try {
-        const sanitized = sanitizeRevisionList(selection)
+        // Filter out local draft IDs - they won't work on page reload
+        const withoutLocalDrafts = selection.filter((id) => !isLocalDraftId(id))
+        const sanitized = sanitizeRevisionList(withoutLocalDrafts)
         const url = new URL(window.location.href)
         const serialized = serializeSelection(sanitized)
         const current = url.searchParams.get(PLAYGROUND_PARAM)
