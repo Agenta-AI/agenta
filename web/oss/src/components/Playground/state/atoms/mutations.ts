@@ -2,9 +2,9 @@ import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-import {variantsAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {selectedVariantsAtom} from "./core"
+import {revisionListAtom} from "./variants"
 
 // Add/remove variant from comparison view
 export const toggleVariantDisplayMutationAtom = atom(
@@ -18,9 +18,9 @@ export const toggleVariantDisplayMutationAtom = atom(
             void writePlaygroundSelectionToQuery(newSelected)
 
             // Get variant name for success message
-            const variants = get(variantsAtom)
-            const variant = variants.find((v) => v.id === variantId)
-            const variantName = variant?.variantName || "Unknown"
+            const revisions = get(revisionListAtom) as any[]
+            const revision = revisions.find((rev) => rev.id === variantId)
+            const variantName = revision?.variantName || "Unknown"
 
             message.success(`Variant named ${variantName} added to comparison`)
         } else {
@@ -28,9 +28,9 @@ export const toggleVariantDisplayMutationAtom = atom(
             void writePlaygroundSelectionToQuery(newSelected)
 
             // Get variant name for success message
-            const variants = get(variantsAtom)
-            const variant = variants.find((v) => v.id === variantId)
-            const variantName = variant?.variantName || "Unknown"
+            const revisions = get(revisionListAtom) as any[]
+            const revision = revisions.find((rev) => rev.id === variantId)
+            const variantName = revision?.variantName || "Unknown"
 
             message.success(`Variant named ${variantName} removed from comparison`)
         }

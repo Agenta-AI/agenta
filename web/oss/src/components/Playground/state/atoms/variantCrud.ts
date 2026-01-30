@@ -1,3 +1,4 @@
+import {variantsListWithDraftsAtomFamily} from "@agenta/entities/ossAppRevision"
 import {message} from "@agenta/ui/app-message"
 import {produce} from "immer"
 import {atom} from "jotai"
@@ -8,16 +9,15 @@ import {queryClient} from "@/oss/lib/api/queryClient"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
-import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
+import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {duplicateChatHistoryForRevision} from "@/oss/state/generation/utils"
-import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
+import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {
-    promptsAtomFamily,
-    clearLocalPromptsForRevisionAtomFamily,
-    transformedPromptsAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
+    discardRevisionDraftAtom,
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-import {variantsAtom as parentVariantsAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {VariantAPI} from "../../services/api"
 import type {
@@ -30,7 +30,6 @@ import type {
 
 import {selectedVariantsAtom} from "./core"
 import {parametersOverrideAtomFamily} from "./parametersOverride"
-import {variantByRevisionIdAtomFamily} from "./propertySelectors"
 import {invalidatePlaygroundQueriesAtom, waitForNewRevisionAfterMutationAtom} from "./queries"
 import {revisionListAtom} from "./variants"
 
@@ -48,10 +47,10 @@ export const addVariantMutationAtom = atom(
             const variantName = params.newVariantName
 
             // Resolve the baseline revision:
-            // 1) If revisionId provided, get directly.
+            // 1) If revisionId provided, get directly from molecule (includes draft state).
             // 2) Otherwise, derive it from the newest revision matching baseVariantName.
             let currentBaseRevision = revisionId
-                ? get(variantByRevisionIdAtomFamily(revisionId))
+                ? get(moleculeBackedVariantAtomFamily(revisionId))
                 : null
 
             if (!currentBaseRevision) {
@@ -85,9 +84,8 @@ export const addVariantMutationAtom = atom(
                 }
             }
 
-            // Build ag_config from promptsAtomFamily + baseline non-prompt params
-            // const variant = get(variantByRevisionIdAtomFamily(currentBaseRevision.id)) as any
-            const prompts = get(promptsAtomFamily(currentBaseRevision.id))
+            // Build ag_config from molecule-backed prompts + baseline non-prompt params
+            const prompts = get(moleculeBackedPromptsAtomFamily(currentBaseRevision.id))
             const variantForTransform = {
                 ...(currentBaseRevision as any),
                 prompts,
@@ -102,8 +100,11 @@ export const addVariantMutationAtom = atom(
             // Resolve baseId robustly: prefer adapted revision.baseId, fallback to parent variant
             const parentBaseId = (() => {
                 try {
-                    const parents = get(parentVariantsAtom) as any[]
-                    const pv = parents.find((p) => p.variantId === currentBaseRevision.variantId)
+                    const appId = get(selectedAppIdAtom)
+                    if (!appId) return undefined
+                    const parents =
+                        get(variantsListWithDraftsAtomFamily(appId))?.data ?? ([] as any[])
+                    const pv = parents.find((p: any) => p.id === currentBaseRevision.variantId)
                     return pv?.baseId
                 } catch {
                     return undefined
@@ -167,15 +168,13 @@ export const addVariantMutationAtom = atom(
                 set(selectedVariantsAtom, updatedVariants)
                 void writePlaygroundSelectionToQuery(updatedVariants)
 
-                // Clear draft state for the base revision used to create the new variant
+                // Clear draft state for the revision used to create the new variant
+                // Use revisionId (the local draft ID passed to the mutation) for cleanup
                 try {
-                    const baseRevisionIdForClear = (currentBaseRevision as any)?.id as
-                        | string
-                        | undefined
-                    if (baseRevisionIdForClear) {
-                        set(clearLocalPromptsForRevisionAtomFamily(baseRevisionIdForClear))
-                        set(clearLocalCustomPropsForRevisionAtomFamily(baseRevisionIdForClear))
-                        set(parametersOverrideAtomFamily(baseRevisionIdForClear), null)
+                    const revisionIdForClear = revisionId || (currentBaseRevision as any)?.id
+                    if (revisionIdForClear) {
+                        set(discardRevisionDraftAtom, revisionIdForClear)
+                        set(parametersOverrideAtomFamily(revisionIdForClear), null)
                     }
                 } catch {}
 
@@ -217,8 +216,8 @@ export const saveVariantMutationAtom = atom(
         try {
             const {variantId, config, variantName} = params
 
-            // Get current baseline revision by ID using focused selector
-            const currentVariant = get(variantByRevisionIdAtomFamily(variantId)) as
+            // Get current baseline revision by ID using molecule-backed selector (includes draft state)
+            const currentVariant = get(moleculeBackedVariantAtomFamily(variantId)) as
                 | EnhancedVariant
                 | undefined
 
@@ -294,11 +293,9 @@ export const saveVariantMutationAtom = atom(
                     targetRevisionId: newRevisionId,
                     displayedVariantsAfterSwap: updatedVariants,
                 })
-                // Clear local prompts cache for the previous revision to revert live edits
-                set(clearLocalPromptsForRevisionAtomFamily(variantId))
-                // Clear any JSON editor override for the previous revision
+                // Clear draft state for the previous revision
+                set(discardRevisionDraftAtom, variantId)
                 set(parametersOverrideAtomFamily(variantId), null)
-                set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
                 return {
                     success: true,
                     // Ensure consumers (e.g. Commit modal) get the *new revision id*
@@ -312,12 +309,9 @@ export const saveVariantMutationAtom = atom(
                 }
             }
 
-            // Clear any JSON editor override if present (no revision swap case)
-            set(parametersOverrideAtomFamily(variantId), null)
             // No revision swap detected – clear any local edits for this revision
-            set(clearLocalPromptsForRevisionAtomFamily(variantId))
+            set(discardRevisionDraftAtom, variantId)
             set(parametersOverrideAtomFamily(variantId), null)
-            set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
             return {
                 success: true,
                 // No revision swap detected; keep the current revision id stable for callers.
