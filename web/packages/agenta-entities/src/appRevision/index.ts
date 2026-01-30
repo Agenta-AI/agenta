@@ -99,7 +99,6 @@ export {
     transformAppToListItem,
     extractAgConfigFromEnhanced,
     extractAgConfigFromApi,
-    isValidUUID,
     // List API functions
     fetchVariantsList,
     fetchRevisionsList,

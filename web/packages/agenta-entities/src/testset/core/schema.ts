@@ -24,7 +24,12 @@
 
 import {z} from "zod"
 
-import {createEntitySchemaSet, timestampFieldsSchema, safeParseWithLogging} from "../../shared"
+import {
+    createEntitySchemaSet,
+    timestampFieldsSchema,
+    safeParseWithLogging,
+    getVersionLabel,
+} from "../../shared"
 
 // ============================================================================
 // REVISION SCHEMA
@@ -337,9 +342,10 @@ export function isV0Revision(revision: Revision | RevisionListItem): boolean {
 
 /**
  * Get display version string
+ * @deprecated Use `getVersionLabel` from `@agenta/entities/shared` instead
  */
 export function getVersionDisplay(revision: Revision | RevisionListItem): string {
-    return `v${revision.version}`
+    return getVersionLabel(revision.version)
 }
 
 /**

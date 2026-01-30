@@ -26,6 +26,7 @@ import {atomFamily} from "jotai-family"
 import {appRevisionMolecule} from "../appRevision"
 import {evaluatorRevisionMolecule} from "../evaluatorRevision"
 import {loadableStateAtomFamily, loadableColumnsAtomFamily} from "../loadable/store"
+import {ossAppRevisionMolecule} from "../ossAppRevision"
 import {createRunnableBridge, type RunnableData, type RunnablePort} from "../shared"
 
 import type {PathItem, RunnableType, TestsetColumn} from "./types"
@@ -155,6 +156,53 @@ function getAppRevisionOutputPorts(entity: unknown): RunnablePort[] {
 }
 
 // ============================================================================
+// LEGACY APP REVISION CONFIGURATION
+// ============================================================================
+
+interface OssAppRevisionEntity {
+    id: string
+    variantName?: string
+    appName?: string
+    revision?: number
+    parameters?: Record<string, unknown>
+    uri?: string
+    variantId?: string
+    appId?: string
+}
+
+function ossAppRevisionToRunnable(entity: unknown): RunnableData {
+    const e = entity as OssAppRevisionEntity
+    return {
+        id: e.id,
+        name: e.variantName,
+        version: e.revision,
+        slug: e.variantName,
+        configuration: e.parameters,
+        invocationUrl: e.uri,
+        // OSS model doesn't have structured schemas
+        schemas: undefined,
+    }
+}
+
+function getOssAppRevisionInputPorts(entity: unknown): RunnablePort[] {
+    // OSS model derives input ports from template variables in prompts
+    // This is handled by the molecule's inputPorts selector
+    // Return empty array as fallback - selector is preferred
+    return []
+}
+
+function getOssAppRevisionOutputPorts(_entity: unknown): RunnablePort[] {
+    // OSS model has a single string output
+    return [
+        {
+            key: "output",
+            name: "Output",
+            type: "string",
+        },
+    ]
+}
+
+// ============================================================================
 // EVALUATOR REVISION CONFIGURATION
 // ============================================================================
 
@@ -213,7 +261,8 @@ function getEvaluatorRevisionOutputPorts(entity: unknown): RunnablePort[] {
  * Runnable bridge configured with available runnable types
  *
  * Currently supports:
- * - **appRevision**: App revision via appRevisionMolecule
+ * - **appRevision**: App revision via appRevisionMolecule (revision-config model)
+ * - **ossAppRevision**: OSS app revision via ossAppRevisionMolecule (variant model for OSS playground)
  * - **evaluatorRevision**: Evaluator revision via evaluatorRevisionMolecule (stub in OSS)
  */
 export const runnableBridge = createRunnableBridge({
@@ -227,6 +276,16 @@ export const runnableBridge = createRunnableBridge({
             inputPortsSelector: (id: string) => appRevisionMolecule.selectors.inputPorts(id),
             outputPortsSelector: (id: string) => appRevisionMolecule.selectors.outputPorts(id),
             invocationUrlSelector: (id: string) => appRevisionMolecule.atoms.invocationUrl(id),
+        },
+        ossAppRevision: {
+            molecule: ossAppRevisionMolecule,
+            toRunnable: ossAppRevisionToRunnable,
+            getInputPorts: getOssAppRevisionInputPorts,
+            getOutputPorts: getOssAppRevisionOutputPorts,
+            // Use molecule selectors for reactive derivation
+            inputPortsSelector: (id: string) => ossAppRevisionMolecule.selectors.inputPorts(id),
+            outputPortsSelector: (id: string) => ossAppRevisionMolecule.selectors.outputPorts(id),
+            invocationUrlSelector: (id: string) => ossAppRevisionMolecule.atoms.invocationUrl(id),
         },
         evaluatorRevision: {
             molecule: evaluatorRevisionMolecule,
@@ -259,6 +318,7 @@ export const runnableBridge = createRunnableBridge({
  * the columns automatically update without any React effects.
  *
  * For appRevision: Uses appRevisionMolecule.selectors.inputPorts (consolidated)
+ * For ossAppRevision: Uses ossAppRevisionMolecule.selectors.inputPorts (template vars)
  * For evaluatorRevision: Reads from evaluator schema directly
  */
 export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: string) =>
@@ -276,6 +336,17 @@ export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: str
             // Use inputPorts selector - single source of truth for revision inputs
             // This selector already handles extraction from agConfig prompt messages
             const inputPorts = get(appRevisionMolecule.selectors.inputPorts(linkedRunnableId))
+
+            if (inputPorts.length > 0) {
+                return inputPorts.map((port) => ({
+                    key: port.key,
+                    name: port.name,
+                    type: port.type,
+                }))
+            }
+        } else if (linkedRunnableType === "ossAppRevision") {
+            // Use inputPorts selector - extracts template variables from prompts
+            const inputPorts = get(ossAppRevisionMolecule.selectors.inputPorts(linkedRunnableId))
 
             if (inputPorts.length > 0) {
                 return inputPorts.map((port) => ({
