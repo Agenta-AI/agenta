@@ -78,7 +78,7 @@ export function RunnableEntityPanel({
     const isDirty = useAtomValue(isDirtyAtom)
 
     // Use chain execution hook for running testcases
-    const {executeRow} = useChainExecution(loadableId)
+    const {runStep} = useChainExecution()
 
     // Get the latest execution result for display (first row's result as summary)
     const executionResultsAtom = useMemo(
@@ -106,9 +106,9 @@ export function RunnableEntityPanel({
     // Execute a single row
     const handleExecuteRow = useCallback(
         (rowId: string, rowData: Record<string, unknown>) => {
-            executeRow(rowId, rowData)
+            runStep({stepId: rowId, data: rowData})
         },
-        [executeRow],
+        [runStep],
     )
 
     const getStatusTag = () => {

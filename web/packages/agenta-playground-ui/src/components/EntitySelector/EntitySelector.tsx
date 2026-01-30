@@ -213,10 +213,17 @@ function SpanSelector({onSelect}: {onSelect: (selection: EntitySelection) => voi
 // MODAL CONTENT
 // ============================================================================
 
-const ALL_ENTITY_TYPES: EntityType[] = ["appRevision", "evaluatorRevision", "testcase", "span"]
+const ALL_ENTITY_TYPES: EntityType[] = [
+    "appRevision",
+    "ossAppRevision",
+    "evaluatorRevision",
+    "testcase",
+    "span",
+]
 
 const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
     appRevision: "App Revision",
+    ossAppRevision: "OSS App Revision",
     evaluatorRevision: "Evaluator Revision",
     testcase: "Testcase",
     span: "Span",
