@@ -488,7 +488,7 @@ const serverRowIdsAtomFamily = atomFamily((revisionId: string) =>
 )
 
 // ============================================================================
-// RELATION-DERIVED ATOMS (Phase 2: Molecule Extension)
+// RELATION-DERIVED ATOMS
 // ============================================================================
 
 /**
@@ -777,7 +777,7 @@ const extendedRevisionMolecule = extendMolecule(baseRevisionMolecule, {
         isLoading: isLoadingAtomFamily as AtomFamily<boolean>,
 
         // ================================================================
-        // RELATION-DERIVED ATOMS (Phase 2: Molecule Extension)
+        // RELATION-DERIVED ATOMS
         // ================================================================
 
         /**

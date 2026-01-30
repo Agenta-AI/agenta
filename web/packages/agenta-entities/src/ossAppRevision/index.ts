@@ -266,7 +266,7 @@ export {
 } from "./state"
 
 // ============================================================================
-// COMMIT - Legacy commit abstraction (temporary until migration to appRevision)
+// COMMIT
 // ============================================================================
 
 export {
