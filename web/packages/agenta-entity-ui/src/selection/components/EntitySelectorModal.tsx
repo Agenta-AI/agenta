@@ -206,9 +206,13 @@ function formatEntityTypeLabel(type: SelectableEntityType): string {
         app: "App",
         variant: "Variant",
         appRevision: "App Revision",
+        ossVariant: "Variant",
+        ossAppRevision: "App Revision",
         evaluator: "Evaluator",
         evaluatorVariant: "Evaluator Variant",
         evaluatorRevision: "Evaluator Revision",
+        playgroundVariant: "Variant",
+        playgroundRevision: "Revision",
     }
 
     return labels[type] ?? type
