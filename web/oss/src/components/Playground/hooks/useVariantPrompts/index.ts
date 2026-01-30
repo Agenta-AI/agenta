@@ -1,12 +1,16 @@
 import {useEffect, useMemo} from "react"
 
+import {ossAppRevisionMolecule} from "@agenta/entities/ossAppRevision"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import {revisionListAtom, variantByRevisionIdAtomFamily} from "../../state/atoms"
+import {
+    revisionListAtom,
+    moleculeBackedVariantAtomFamily,
+    moleculeBackedPromptsAtomFamily,
+} from "../../state/atoms"
 
 /**
  * Lightweight hook that only subscribes to a specific variant's prompt IDs.
@@ -40,7 +44,7 @@ export function useVariantPrompts(variantId: string | undefined): {
 
     const variantAtom = useMemo(() => {
         if (!variantId) return atom(null)
-        return variantByRevisionIdAtomFamily(variantId)
+        return moleculeBackedVariantAtomFamily(variantId)
     }, [variantId])
 
     const variantPromptIdsAtom = useMemo(() => {
@@ -48,8 +52,8 @@ export function useVariantPrompts(variantId: string | undefined): {
 
         let previousIds: string[] = []
         return atom<string[]>((get) => {
-            // const variant = get(variantByRevisionIdAtomFamily(variantId)) as any
-            const prompts = get(promptsAtomFamily(variantId)) as any[]
+            // Use molecule-backed prompts for single source of truth
+            const prompts = get(moleculeBackedPromptsAtomFamily(variantId)) as any[]
             // Always use the prompt's stable __id as the identifier.
             // __name is a display label and not guaranteed to be unique or uuid-like
             const currentIds = (prompts || [])
@@ -69,17 +73,23 @@ export function useVariantPrompts(variantId: string | undefined): {
     }, [variantId])
 
     const variant = useAtomValue(variantAtom)
+    const moleculeData = useAtomValue(
+        variantId ? ossAppRevisionMolecule.atoms.data(variantId) : atom(null),
+    ) as any
+    // Check merged data for prompts (includes enriched data from variant context)
+    const hasMoleculePrompts = Array.isArray(moleculeData?.enhancedPrompts)
     const promptIds = useAtomValue(variantPromptIdsAtom)
-    const setPrompts = useSetAtom(variantId ? promptsAtomFamily(variantId) : atom([]))
+    const setPrompts = useSetAtom(variantId ? moleculeBackedPromptsAtomFamily(variantId) : atom([]))
 
     useEffect(() => {
         if (!variantId || !variant || !spec) return
-        if (promptIds.length > 0) return
+        // Skip seeding if molecule already has prompts (from draft or enriched data)
+        if (hasMoleculePrompts) return
         const derived = derivePromptsFromSpec(variant as any, spec as any, routePath)
         if (Array.isArray(derived) && derived.length > 0) {
             setPrompts(derived as any)
         }
-    }, [variantId, promptIds.length, variant, spec, routePath, setPrompts])
+    }, [variantId, hasMoleculePrompts, variant, spec, routePath, setPrompts])
 
     const debug = useMemo(
         () => ({
