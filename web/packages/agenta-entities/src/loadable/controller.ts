@@ -1924,9 +1924,6 @@ const defaultOutputMappingsAtomFamily = atomFamily((loadableId: string) =>
             // Use the molecule's outputPorts selector (derives from schema query)
             outputPorts = get(appRevisionMolecule.selectors.outputPorts(linkedRunnableId))
         }
-        // TODO(evaluator-output-ports): Add evaluatorRevision support when backend provides
-        // evaluator output schema. Will need evaluatorRevisionMolecule.selectors.outputPorts
-        // similar to appRevisionMolecule. Blocked on backend API support.
 
         // For simple outputs, use data.outputs directly
         // The trace data typically stores the output at data.outputs (not data.outputs.{key})
