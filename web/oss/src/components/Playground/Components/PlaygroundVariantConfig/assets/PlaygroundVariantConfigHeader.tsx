@@ -1,15 +1,23 @@
 import {useCallback, useMemo} from "react"
 
+import {DraftTag} from "@agenta/ui/components"
+import {Trash} from "@phosphor-icons/react"
+import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {
-    enhancedRevisionByIdAtomFamily,
-    revisionDeploymentAtomFamily,
-} from "@/oss/state/variant/atoms/fetcher"
+    isLocalDraft,
+    discardLocalDraft,
+    getSourceRevisionId,
+    ossAppRevisionMolecule,
+    moleculeBackedVariantAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
+import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
+import {selectedVariantsAtom} from "../../../state/atoms/core"
 // import {baselineVariantAtomFamily} from "../../../state/atoms/dirtyState"
 import {switchVariantAtom} from "../../../state/atoms/urlSync"
 import SelectVariant from "../../Menus/SelectVariant"
@@ -33,25 +41,44 @@ const PlaygroundVariantConfigHeader = ({
     ...divProps
 }: PlaygroundVariantConfigHeaderProps & {embedded?: boolean}) => {
     const classes = useStyles()
+    const setSelectedVariants = useSetAtom(selectedVariantsAtom)
+
+    // Check if this is a local draft
+    const isLocalDraftVariant = variantId ? isLocalDraft(variantId) : false
 
     // Read baseline revision directly from the source of truth (revisionListAtom)
-    const baseline = useAtomValue(enhancedRevisionByIdAtomFamily(variantId || ""))
+    // For local drafts, use molecule data instead
+    const baseline = useAtomValue(moleculeBackedVariantAtomFamily(variantId || ""))
+    const moleculeData = useAtomValue(ossAppRevisionMolecule.atoms.data(variantId || ""))
     const deployment = useAtomValue(
         revisionDeploymentAtomFamily((baseline?.id as string) || ""),
     ) as any
 
+    // For local drafts, get data from molecule
+    const effectiveData = isLocalDraftVariant ? moleculeData : baseline
+    const _sourceRevisionId = isLocalDraftVariant ? getSourceRevisionId(variantId || "") : null
+
     // Extract revision display data with fallbacks for embedded usage
-    const _variantId = baseline?.id ?? variantId
-    const variantRevision = revisionOverride ?? baseline?.revision ?? null
-    const displayName =
+    const _variantId = effectiveData?.id ?? variantId
+    const variantRevision = revisionOverride ?? (effectiveData as any)?.revision ?? null
+    // For local drafts, strip the "(Draft)" suffix from variant name since we show DraftTag separately
+    const rawVariantName =
         variantNameOverride ??
-        (baseline as any)?.variantName ??
-        (baseline as any)?.name ??
+        (effectiveData as any)?.variantName ??
+        (effectiveData as any)?.name ??
         _variantId
-    const isLatestRevision = baseline?.isLatestRevision
+    const displayName = isLocalDraftVariant
+        ? String(rawVariantName).replace(/\s*\(Draft\)$/, "")
+        : rawVariantName
+    const isLatestRevision = (effectiveData as any)?.isLatestRevision
     // Keep the full deployment objects so downstream components (e.g., EnvironmentStatus)
     // can access env.name and other fields.
-    const deployedIn = Array.isArray(deployment) ? (deployment as any[]) : []
+    // Local drafts have no deployments
+    const deployedIn = isLocalDraftVariant
+        ? []
+        : Array.isArray(deployment)
+          ? (deployment as any[])
+          : []
 
     // Stable minimal variant shape for presentational children
     const variantMin = useMemo(
@@ -76,6 +103,14 @@ const PlaygroundVariantConfigHeader = ({
         [switchVariant, variantId],
     )
 
+    const handleDiscardDraft = useCallback(() => {
+        if (!variantId || !isLocalDraftVariant) return
+        // Remove from selection first
+        setSelectedVariants((prev) => prev.filter((id) => id !== variantId))
+        // Then discard the draft
+        discardLocalDraft(variantId)
+    }, [variantId, isLocalDraftVariant, setSelectedVariants])
+
     return (
         <section
             className={clsx(
@@ -89,46 +124,88 @@ const PlaygroundVariantConfigHeader = ({
             {...divProps}
         >
             <div className="flex items-center gap-2 grow">
-                {!embedded && (
+                {!embedded && !isLocalDraftVariant && (
                     <SelectVariant
                         onChange={(value) => handleSwitchVariant?.(value)}
                         value={_variantId}
                     />
                 )}
-                {embedded && !baseline ? (
-                    <div className="flex items-center gap-2 grow mr-4">
-                        <span className="text-sm text-gray-700 truncate">{displayName as any}</span>
+                {/* Local draft: show Draft tag then source revision info */}
+                {isLocalDraftVariant && (
+                    <div className="flex items-center gap-2">
+                        <DraftTag />
                         {variantRevision !== null && variantRevision !== undefined && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                                rev {String(variantRevision)}
+                            <span className="text-gray-500">
+                                from {displayName} v{variantRevision}
                             </span>
                         )}
                     </div>
-                ) : (
-                    <VariantDetailsWithStatus
-                        className="grow mr-4"
-                        revision={variantRevision ?? null}
-                        variant={variantMin}
-                        showBadges
-                        hideName={!embedded}
-                        variantName={displayName as any}
-                        showRevisionAsTag={true}
-                    />
+                )}
+                {/* Don't show VariantDetailsWithStatus for local drafts - we already show source info above */}
+                {!isLocalDraftVariant && (
+                    <>
+                        {embedded && !effectiveData ? (
+                            <div className="flex items-center gap-2 grow mr-4">
+                                <span className="text-sm text-gray-700 truncate">
+                                    {displayName as any}
+                                </span>
+                                {variantRevision !== null && variantRevision !== undefined && (
+                                    <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                                        rev {String(variantRevision)}
+                                    </span>
+                                )}
+                            </div>
+                        ) : (
+                            <VariantDetailsWithStatus
+                                className="grow mr-4"
+                                revision={variantRevision ?? null}
+                                variant={variantMin}
+                                showBadges={true}
+                                hideName={!embedded}
+                                variantName={displayName as any}
+                                showRevisionAsTag={true}
+                            />
+                        )}
+                    </>
                 )}
             </div>
             {!embedded && (
                 <div className="flex items-center gap-2">
-                    <DeployVariantButton revisionId={variantId} />
+                    {isLocalDraftVariant ? (
+                        // Local draft actions
+                        <>
+                            <CommitVariantChangesButton
+                                variantId={variantId}
+                                label="Commit"
+                                type="primary"
+                                size="small"
+                            />
+                            <Tooltip title="Discard draft">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    danger
+                                    icon={<Trash size={16} />}
+                                    onClick={handleDiscardDraft}
+                                />
+                            </Tooltip>
+                        </>
+                    ) : (
+                        // Regular revision actions
+                        <>
+                            <DeployVariantButton revisionId={variantId} />
 
-                    <CommitVariantChangesButton
-                        variantId={variantId}
-                        label="Commit"
-                        type="primary"
-                        size="small"
-                        data-tour="commit-button"
-                    />
+                            <CommitVariantChangesButton
+                                variantId={variantId}
+                                label="Commit"
+                                type="primary"
+                                size="small"
+                                data-tour="commit-button"
+                            />
 
-                    <PlaygroundVariantHeaderMenu variantId={variantId} />
+                            <PlaygroundVariantHeaderMenu variantId={variantId} />
+                        </>
+                    )}
                 </div>
             )}
         </section>
