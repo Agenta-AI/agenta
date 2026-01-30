@@ -13,9 +13,38 @@
  */
 
 // Core atoms
-export {playgroundConfigAtom, displayedVariantsAtom} from "./core/config"
-
 export {pendingWebWorkerRequestsAtom} from "./mutations/execution"
+
+// Legacy entity bridge (for @agenta/entities integration)
+export {
+    // Variant context hook
+    useSetRevisionVariantContext,
+    // Adapter atoms (for legacy compatibility)
+    legacyRevisionDataAdapterAtomFamily,
+    adaptRevisionToLegacyFormat,
+    // Molecule re-exports for convenience
+    ossAppRevisionMolecule,
+    ossRevision,
+    // Drop-in replacement selectors (molecule-backed)
+    moleculeBackedVariantAtomFamily,
+    revisionIsDirtyAtomFamily,
+    revisionQueryStateAtomFamily,
+    // Molecule-backed prompts (single source of truth)
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedCustomPropertiesAtomFamily,
+    // Mutation redirect (route updates to molecule)
+    moleculePropertyUpdateAtom,
+    // Debug utilities (available at window.__legacyEntityBridge in dev)
+    debugBridge,
+    // Local draft utilities
+    localDraftIdsAtom,
+    localDraftsListAtom,
+    hasUnsavedLocalDraftsAtom,
+    isLocalDraft,
+    getSourceRevisionId,
+    cloneAsLocalDraft,
+    discardLocalDraft,
+} from "./legacyEntityBridge"
 
 // Types
 export type {
