@@ -35,14 +35,14 @@ opentelemetry-instrumentation = "^0.60b1"
 opentelemetry-exporter-otlp-proto-http = "^1"
 
 # Lazy-loaded dependencies (imported only when used)
-fastapi = ">=0.127"
+fastapi = ">=0.128"
 pyyaml = "^6"
 litellm = "^1"
 openai = "^2"
 jinja2 = "^3"
 orjson = "^3"
 python-jsonpath = "^2"
-daytona = "^0.129"
+daytona = "^0.136"
 
 
 [tool.poetry.group.dev.dependencies]
