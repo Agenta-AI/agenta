@@ -16,8 +16,6 @@ export {
     // AgConfig extraction
     extractAgConfigFromEnhanced,
     extractAgConfigFromApi,
-    // Validation
-    isValidUUID,
     // List API functions
     fetchAppsList,
     fetchVariantsList,

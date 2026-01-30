@@ -8,7 +8,45 @@
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {dereferenceSchema} from "@agenta/shared/utils"
 
-import type {AppRevisionData, PromptConfig, RawAgConfig} from "../core"
+import {
+    // Type guards
+    isArray,
+    isRecord,
+    toArray,
+    // URI parsing
+    parseRevisionUri,
+    // agConfig extraction
+    extractAgConfig,
+    extractAgConfigFromApiRevision,
+    // List item types (re-export)
+    type AppListItem,
+    type VariantListItem,
+    type RevisionListItem,
+    // API response types (re-export)
+    type ApiVariant,
+    type ApiRevisionListItem,
+    type ApiApp,
+    // Transform utilities
+    transformAppToListItem,
+    transformVariantToListItem,
+    transformRevisionToListItem,
+    // Enhanced variant types
+    type EnhancedVariantLike,
+    extractUriFromEnhanced,
+} from "../../shared"
+import type {AppRevisionData, PromptConfig} from "../core"
+
+// Re-export shared types and utilities for consumers
+export type {
+    AppListItem,
+    VariantListItem,
+    RevisionListItem,
+    ApiVariant,
+    ApiRevisionListItem,
+    ApiApp,
+    EnhancedVariantLike,
+}
+export {transformAppToListItem}
 
 // ============================================================================
 // TYPES
@@ -28,38 +66,7 @@ export interface ApiRevision {
     updated_at?: string
 }
 
-/**
- * Enhanced variant structure (from variant revisions cache)
- *
- * This interface represents the cached variant data that may include
- * WorkflowRevisionData fields from the backend.
- */
-export interface EnhancedVariantLike {
-    id: string
-    variantId?: string
-    appId?: string
-    revision: number | string
-    prompts?: unknown[]
-    parameters?: Record<string, unknown>
-    uri?: string
-    url?: string
-    uriObject?: {
-        routePath?: string
-        runtimePrefix?: string
-    }
-    createdAt?: string
-    created_at?: string
-    updatedAt?: string
-    updated_at?: string
-    // WorkflowServiceConfiguration fields
-    headers?: Record<string, unknown>
-    schemas?: Record<string, unknown>
-    script?: Record<string, unknown>
-    runtime?: string | null
-    // Legacy fields
-    service?: Record<string, unknown>
-    configuration?: Record<string, unknown>
-}
+// EnhancedVariantLike imported from shared/utils/revisionUtils
 
 /**
  * Batch request for revision fetching
@@ -69,33 +76,7 @@ export interface RevisionRequest {
     revisionId: string
 }
 
-// ============================================================================
-// TYPE GUARDS
-// ============================================================================
-
-/**
- * Type guard to check if a value is an array
- * Used for safely handling dynamic API response structures
- */
-function isArray(value: unknown): value is unknown[] {
-    return Array.isArray(value)
-}
-
-/**
- * Type guard to check if a value is a non-null object (not array)
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-/**
- * Safely get array from a value that might be an array or object with value property
- */
-function toArray(value: unknown): unknown[] {
-    if (isArray(value)) return value
-    if (isRecord(value) && isArray(value.value)) return value.value
-    return []
-}
+// Type guards imported from shared/utils/revisionUtils
 
 // ============================================================================
 // DATA TRANSFORMATION
@@ -121,14 +102,14 @@ export function transformEnhancedVariant(enhanced: EnhancedVariantLike): AppRevi
     // Also get parameters from the original config if available
     const params = enhanced.parameters || {}
 
-    // Extract raw agConfig for schema-driven approach
-    const agConfig = extractAgConfigFromEnhanced(enhanced)
+    // Extract raw agConfig for schema-driven approach using shared utility
+    const agConfig = extractAgConfig(params)
 
-    // Extract URI/runtime info for schema fetching and invocation
+    // Extract URI/runtime info using shared utility
+    const uriInfo = extractUriFromEnhanced(enhanced)
     const uri = enhanced.uri
-    const uriObject = enhanced.uriObject
-    const runtimePrefix = uriObject?.runtimePrefix
-    const routePath = uriObject?.routePath
+    const runtimePrefix = uriInfo?.runtimePrefix
+    const routePath = uriInfo?.routePath
 
     return {
         id: enhanced.id,
@@ -303,7 +284,7 @@ export function transformApiRevision(apiRevision: ApiRevision): AppRevisionData 
     const prompts: PromptConfig[] = []
 
     // Extract raw ag_config for schema-driven approach
-    const rawAgConfig = extractAgConfigFromApi(apiRevision)
+    const rawAgConfig = extractAgConfigFromApiRevision(apiRevision)
 
     // Extract prompts from parameters.ag_config (legacy transformed format)
     const agConfig = params.ag_config as Record<string, unknown> | undefined
@@ -339,116 +320,12 @@ export function transformApiRevision(apiRevision: ApiRevision): AppRevisionData 
     }
 }
 
-// ============================================================================
-// AG_CONFIG EXTRACTION
-// ============================================================================
+// AG_CONFIG EXTRACTION - using shared utilities from ../../shared/utils/revisionUtils
+// Re-export for backward compatibility
+export {extractAgConfig as extractAgConfigFromEnhanced} from "../../shared"
+export {extractAgConfigFromApiRevision as extractAgConfigFromApi} from "../../shared"
 
-/**
- * Extract raw ag_config from EnhancedVariant (cache redirect path)
- *
- * The `parameters` field IS the ag_config - it's not nested inside ag_config
- * Structure: enhanced.parameters = { prompt: {...}, llm_config: {...}, ... }
- */
-export function extractAgConfigFromEnhanced(enhanced: EnhancedVariantLike): RawAgConfig {
-    const parameters = enhanced?.parameters
-
-    if (parameters && typeof parameters === "object" && Object.keys(parameters).length > 0) {
-        return parameters
-    }
-
-    return {}
-}
-
-/**
- * Extract raw ag_config from API revision response
- *
- * API response structure: revision.config.parameters = { prompt: {...}, ... }
- * The `parameters` field IS the ag_config directly.
- */
-export function extractAgConfigFromApi(apiRevision: ApiRevision): RawAgConfig {
-    // Try multiple paths for the parameters
-    // Some API responses have parameters directly on the revision object (not in ApiRevision type)
-    const revisionAsRecord = apiRevision as unknown as Record<string, unknown>
-    const directParams = isRecord(revisionAsRecord.parameters) ? revisionAsRecord.parameters : null
-    const configParams = apiRevision?.config?.parameters
-
-    return directParams || configParams || {}
-}
-
-// ============================================================================
-// VALIDATION UTILITIES
-// ============================================================================
-
-/**
- * Check if a string is a valid UUID
- */
-export function isValidUUID(id: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    return uuidRegex.test(id)
-}
-
-// ============================================================================
-// LIST API FUNCTIONS
-// ============================================================================
-
-/**
- * Raw variant response from API (snake_case)
- */
-export interface ApiVariant {
-    variant_id: string
-    variant_name: string
-    base_id: string
-    base_name: string
-    app_id: string
-    revision?: number
-    created_at?: string
-    updated_at?: string
-}
-
-/**
- * Raw revision list item from API
- */
-export interface ApiRevisionListItem {
-    id: string
-    revision: number
-    commit_message?: string
-    created_at?: string
-    modified_by?: string // API returns author name, not ID
-}
-
-/**
- * Variant list item (camelCase, for selection)
- */
-export interface VariantListItem {
-    id: string
-    name: string
-    appId: string
-    baseId?: string
-    baseName?: string
-}
-
-/**
- * Revision list item (camelCase, for selection)
- */
-export interface RevisionListItem {
-    id: string
-    version: number
-    variantId: string
-    commitMessage?: string
-    createdAt?: string
-    author?: string // API returns author name directly (modified_by)
-}
-
-/**
- * App list item (camelCase, for selection)
- * Has index signature for flexibility with additional fields
- */
-export interface AppListItem {
-    id: string
-    name: string
-    appType?: string
-    [key: string]: unknown
-}
+// LIST API FUNCTIONS - types imported from shared/utils/revisionUtils
 
 /**
  * Fetch variants for an app
@@ -470,13 +347,7 @@ export async function fetchVariantsList(
     const data = response.data as ApiVariant[] | undefined
     if (!data || !Array.isArray(data)) return []
 
-    return data.map((variant) => ({
-        id: variant.variant_id,
-        name: variant.variant_name || variant.variant_id,
-        appId: variant.app_id || appId,
-        baseId: variant.base_id,
-        baseName: variant.base_name,
-    }))
+    return data.map((variant) => transformVariantToListItem(variant, appId))
 }
 
 /**
@@ -499,46 +370,10 @@ export async function fetchRevisionsList(
     const data = response.data as ApiRevisionListItem[] | undefined
     if (!data || !Array.isArray(data)) return []
 
-    return data.map((rev) => ({
-        id: rev.id,
-        version: rev.revision,
-        variantId,
-        commitMessage: rev.commit_message,
-        createdAt: rev.created_at,
-        author: rev.modified_by,
-    }))
+    return data.map((rev) => transformRevisionToListItem(rev, variantId))
 }
 
-/**
- * Transform raw app data (snake_case) to AppListItem (camelCase)
- *
- * @param app - Raw app object with snake_case fields
- * @returns Normalized AppListItem
- */
-export function transformAppToListItem(app: {
-    app_id?: string
-    id?: string
-    app_name?: string
-    name?: string
-    app_type?: string
-}): AppListItem {
-    return {
-        id: app.app_id || app.id || "",
-        name: app.app_name || app.name || "",
-        appType: app.app_type,
-    }
-}
-
-/**
- * Raw app response from API (snake_case)
- */
-export interface ApiApp {
-    app_id: string
-    app_name: string
-    app_type?: string
-    created_at?: string
-    updated_at?: string
-}
+// transformAppToListItem imported from shared/utils/revisionUtils
 
 /**
  * Fetch apps list for a project
@@ -639,18 +474,10 @@ export async function fetchRevisionConfig(
         // Use url field (preferred) or uri field
         const uri = data.url || data.uri || undefined
 
-        // Extract runtime prefix and route path from URI if available
-        let runtimePrefix: string | undefined
-        let routePath: string | undefined
-        if (uri) {
-            try {
-                const parsedUrl = new URL(uri)
-                runtimePrefix = `${parsedUrl.protocol}//${parsedUrl.host}`
-                routePath = parsedUrl.pathname.replace(/^\//, "").replace(/\/$/, "") || undefined
-            } catch {
-                // Invalid URL, skip extraction
-            }
-        }
+        // Extract runtime prefix and route path from URI using shared utility
+        const uriInfo = parseRevisionUri(uri)
+        const runtimePrefix = uriInfo?.runtimePrefix
+        const routePath = uriInfo?.routePath
 
         const appRevisionData: AppRevisionData = {
             id: variantRef.id || revisionId,
