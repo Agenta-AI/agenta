@@ -55,6 +55,7 @@ export {
     CascadingVariant,
     BreadcrumbVariant,
     ListPopoverVariant,
+    TreeSelectPopupContent,
     // Shared components (for customization)
     LevelSelect,
     ChildPopoverContent,
@@ -68,6 +69,7 @@ export type {
     CascadingVariantProps,
     BreadcrumbVariantProps,
     ListPopoverVariantProps,
+    TreeSelectPopupContentProps,
     LevelSelectProps,
     ChildPopoverContentProps,
     AutoSelectHandlerProps,

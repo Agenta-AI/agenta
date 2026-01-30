@@ -27,7 +27,13 @@ export type {
 } from "./types"
 
 // Variants (for advanced usage/customization)
-export {CascadingVariant, BreadcrumbVariant, ListPopoverVariant} from "./variants"
+export {
+    CascadingVariant,
+    BreadcrumbVariant,
+    ListPopoverVariant,
+    TreeSelectPopupContent,
+    type TreeSelectPopupContentProps,
+} from "./variants"
 
 // Shared components (for advanced usage/customization)
 export {
