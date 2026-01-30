@@ -31,7 +31,7 @@ const EvalRunTestPage = ({type = "auto"}: {type?: EvalRunKind}) => {
     }
 
     return (
-        <div className="w-full h-full overflow-hidden flex flex-col">
+        <div className="w-full h-full overflow-hidden flex flex-col" data-tour="eval-results">
             <EvalResultsOnboarding isReady={!!runId} />
             <EvalRunPreviewPage
                 evaluationType={evaluationType}

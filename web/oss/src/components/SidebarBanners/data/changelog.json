@@ -1,5 +1,17 @@
 [
     {
+        "id": "changelog-2026-01-28-trace-navigation",
+        "title": "Navigate from Traces to Configs",
+        "description": "Click from any trace to the app, variant, or environment that generated it.",
+        "link": "https://agenta.ai/docs/changelog/trace-navigation-links"
+    },
+    {
+        "id": "changelog-2026-01-20-testset-versioning",
+        "title": "Test Set Versioning",
+        "description": "Track test set changes and link evaluations to specific versions.",
+        "link": "https://agenta.ai/docs/changelog/testset-versioning"
+    },
+    {
         "id": "changelog-2026-01-13-playground-ux",
         "title": "Playground UX Improvements",
         "description": "See provider costs, run evaluations directly, and collapse test cases.",

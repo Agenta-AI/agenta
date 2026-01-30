@@ -11,10 +11,11 @@ from ..core.pydantic_utilities import (
     UniversalBaseModel,
     update_forward_refs,
 )
-from .annotation_kind import AnnotationKind
-from .annotation_link import AnnotationLink
-from .annotation_references import AnnotationReferences
-from .annotation_source import AnnotationSource
+from .annotation_links import AnnotationLinks
+from .simple_trace_channel import SimpleTraceChannel
+from .simple_trace_kind import SimpleTraceKind
+from .simple_trace_origin import SimpleTraceOrigin
+from .simple_trace_references import SimpleTraceReferences
 
 
 class Annotation(UniversalBaseModel):
@@ -24,16 +25,16 @@ class Annotation(UniversalBaseModel):
     created_by_id: typing.Optional[str] = None
     updated_by_id: typing.Optional[str] = None
     deleted_by_id: typing.Optional[str] = None
-    span_id: str
-    trace_id: str
-    kind: typing.Optional[AnnotationKind] = None
-    source: typing.Optional[AnnotationSource] = None
+    span_id: typing.Optional[str] = None
+    trace_id: typing.Optional[str] = None
+    origin: typing.Optional[SimpleTraceOrigin] = None
+    kind: typing.Optional[SimpleTraceKind] = None
+    channel: typing.Optional[SimpleTraceChannel] = None
+    tags: typing.Optional[typing.Dict[str, typing.Optional["LabelJsonOutput"]]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = None
     data: typing.Dict[str, typing.Optional["FullJsonOutput"]]
-    metadata: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
-        None
-    )
-    references: AnnotationReferences
-    links: typing.Dict[str, AnnotationLink]
+    references: SimpleTraceReferences
+    links: AnnotationLinks
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
@@ -47,6 +48,9 @@ class Annotation(UniversalBaseModel):
             extra = pydantic.Extra.allow
 
 
-from .full_json_output import FullJsonOutput  # noqa: E402, F401, I001
+from .label_json_output import LabelJsonOutput  # noqa: E402, I001
+from .full_json_output import FullJsonOutput  # noqa: E402, I001
 
-update_forward_refs(Annotation)
+update_forward_refs(
+    Annotation, FullJsonOutput=FullJsonOutput, LabelJsonOutput=LabelJsonOutput
+)

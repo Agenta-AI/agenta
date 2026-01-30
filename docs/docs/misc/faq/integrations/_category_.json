@@ -1,0 +1,10 @@
+{
+  "label": "Integrations",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "title": "Integrations",
+    "description": "Questions about language support, LLM providers, and third party integrations.",
+    "slug": "/faq/integrations"
+  }
+}

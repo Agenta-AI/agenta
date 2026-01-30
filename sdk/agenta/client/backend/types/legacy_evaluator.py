@@ -10,11 +10,13 @@ class LegacyEvaluator(UniversalBaseModel):
     name: str
     key: str
     direct_use: bool
-    settings_template: typing.Dict[str, typing.Optional[typing.Any]]
+    settings_presets: typing.Optional[typing.List[typing.Dict[str, typing.Any]]] = None
+    settings_template: typing.Dict[str, typing.Any]
     description: typing.Optional[str] = None
     oss: typing.Optional[bool] = None
     requires_llm_api_keys: typing.Optional[bool] = None
     tags: typing.List[str]
+    archived: typing.Optional[bool] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

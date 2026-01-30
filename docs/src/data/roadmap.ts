@@ -26,6 +26,48 @@ export const shippedFeatures: ShippedFeature[] = [
   // Evaluation: 86B7FF
   // Integration: FFA500
   {
+    id: "trace-linking",
+    title: "Navigation Links from Traces to App/Environment/Variant",
+    description:
+      "Clickable links in observability traces to navigate to the application, variant, version, and environment used in each trace. Jump directly to the configuration that generated a specific trace.",
+    changelogPath: "/docs/changelog/trace-navigation-links",
+    shippedAt: "2026-01-28",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+  {
+    id: "date-range-filtering",
+    title: "Date Range Filtering in Metrics Dashboard",
+    description:
+      "Filter traces by date range in the metrics dashboard. View metrics for the last 6 hours, 24 hours, 7 days, or 30 days.",
+    changelogPath: "/docs/changelog/chat-sessions-observability",
+    shippedAt: "2026-01-09",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+  {
+    id: "testset-versioning",
+    title: "Test Set Versioning and New UI",
+    description:
+      "Track test set changes with versioning. Every edit creates a new version. Evaluations link to specific versions for reliable comparisons. Plus a rebuilt UI that scales to 100K+ rows with inline editing for chat messages and JSON.",
+    changelogPath: "/docs/changelog/testset-versioning",
+    shippedAt: "2026-01-20",
+    labels: [
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+    ],
+  },
+  {
     id: "chat-session-view",
     title: "Chat Sessions in Observability",
     description:
@@ -309,15 +351,15 @@ export const shippedFeatures: ShippedFeature[] = [
 ];
 export const inProgressFeatures: PlannedFeature[] = [
   {
-    id: "trace-linking",
-    title: "Navigation Links from Traces to App/Environment/Variant",
+    id: "navigation-in-the-playground",
+    title: "Improving Navigation between Testsets in the Playground",
     description:
-      "Add clickable links in the observability trace and drawer view to navigate to the application, variant, version, and environment used in each trace. Makes it easy to jump directly to the configuration that generated a specific trace.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2699",
+      "We are making it easy to use and navigate in the playground with large testsets.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2731",
     labels: [
       {
-        name: "Observability",
-        color: "DE74FF",
+        name: "Playground",
+        color: "BCFF78",
       },
     ],
   },
@@ -344,19 +386,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       {
         name: "Playground",
         color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "date-range-filtering",
-    title: "Date Range Filtering in Metrics Dashboard",
-    description:
-      "We are adding the ability to filter traces by date range in the metrics dashboard.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2774",
-    labels: [
-      {
-        name: "Observability",
-        color: "DE74FF",
       },
     ],
   },
@@ -394,45 +423,6 @@ export const plannedFeatures: PlannedFeature[] = [
     ],
   },
   {
-    id: "navigation-in-the-playground",
-    title: "Improving Navigation between Testsets in the Playground",
-    description:
-      "We are making it easy to use and navigate in the playground with large testsets  .",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2731",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "appending-single-test-cases",
-    title: "Appending Single Testcases in the Playground",
-    description:
-      "Using testcases from different testsets is not possible right now in the Playground. We are adding the ability to append a single testcase to a testset.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2732",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "test-set-view",
-    title: "Improving Testset View",
-    description:
-      "We are reworking the testset view to make it easier to visualize and edit testsets.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2733",
-    labels: [
-      {
-        name: "Evaluation",
-        color: "86B7FF",
-      },
-    ],
-  },
-  {
     id: "prompt-caching-sdk",
     title: "Prompt Caching in the SDK",
     description: "We are adding the ability to cache prompts in the SDK.",
@@ -444,19 +434,7 @@ export const plannedFeatures: PlannedFeature[] = [
       },
     ],
   },
-  {
-    id: "test-set-versioning",
-    title: "Testset Versioning",
-    description:
-      "We are adding the ability to version testsets. This is useful for correctly comparing evaluation results.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2735",
-    labels: [
-      {
-        name: "Evaluation",
-        color: "86B7FF",
-      },
-    ],
-  },
+
   {
     id: "tagging",
     title: "Tagging Traces, Testsets, Evaluations and Prompts",
