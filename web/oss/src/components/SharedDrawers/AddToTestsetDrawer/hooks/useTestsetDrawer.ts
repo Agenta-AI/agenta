@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -168,6 +168,41 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
         [mappingData],
     )
 
+    // All available data paths from trace data (derived from atom)
+    const allAvailablePaths = useAtomValue(allTracePathsSelectOptionsAtom)
+
+    // Auto-map first available path when no mappings exist and data is available
+    useEffect(() => {
+        if (!isMapColumnExist && allAvailablePaths.length > 0 && mappingData.length === 0) {
+            const firstPath = allAvailablePaths[0].value
+            const pathLabel = allAvailablePaths[0].label
+
+            // Auto-map to a reasonable column name based on the path
+            let columnName = pathLabel
+
+            // Clean up the column name
+            columnName = columnName
+                .replace(/[^a-zA-Z0-9_]/g, "_")
+                .replace(/^[^a-zA-Z_]/, "_")
+                .replace(/_+/g, "_")
+                .toLowerCase()
+
+            // Ensure it's not empty
+            if (!columnName || columnName === "_") {
+                columnName = "field_1"
+            }
+
+            setMappingData([
+                {
+                    id: createMappingId(),
+                    data: firstPath,
+                    column: "create",
+                    newColumn: columnName,
+                },
+            ])
+        }
+    }, [isMapColumnExist, allAvailablePaths, mappingData.length, setMappingData])
+
     // Compute map of data paths to column names for visual indication in drill-in view
     const mappedPaths = useMemo(() => {
         const paths = new Map<string, string>()
@@ -234,9 +269,6 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
         if (!jsonObject) return ""
         return getYamlOrJson(editorFormat, jsonObject)
     }, [editorFormat, traceData, selectedTraceData])
-
-    // All available data paths from trace data (derived from atom)
-    const allAvailablePaths = useAtomValue(allTracePathsSelectOptionsAtom)
 
     // Derive column options from entity atoms + columns created via mappings
     const columnOptions = useMemo(() => {

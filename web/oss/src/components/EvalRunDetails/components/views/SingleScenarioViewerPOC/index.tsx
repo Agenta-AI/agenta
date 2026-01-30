@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {Card, Tag, Typography} from "antd"
@@ -7,12 +7,9 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
-import {uuidToSpanId} from "@/oss/lib/traces/helpers"
 
 import {scenarioAnnotationsQueryAtomFamily} from "../../../atoms/annotations"
-import {evaluationMetricQueryAtomFamily} from "../../../atoms/metrics"
 import {runningInvocationsAtom, triggerRunInvocationAtom} from "../../../atoms/runInvocationAction"
-import {invalidatePreviewRunMetricStatsAtom} from "../../../atoms/runMetrics"
 import {scenarioStepsQueryFamily} from "../../../atoms/scenarioSteps"
 import type {EvaluationTableColumn} from "../../../atoms/table"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../atoms/table/evaluators"
@@ -47,6 +44,8 @@ const EMPTY_ARRAY: any[] = []
 const PAGE_SIZE = 50
 
 const normalizeStatus = (status: string | undefined): string => status?.toLowerCase() ?? ""
+const INVOCATION_SUCCESS_STATUSES = new Set(["success", "succeeded", "completed", "done"])
+const INVOCATION_IN_FLIGHT_STATUSES = new Set(["running", "in_progress"])
 
 const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
     const router = useRouter()
@@ -55,9 +54,6 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
     // Run invocation action
     const runningInvocations = useAtomValue(runningInvocationsAtom)
     const triggerRunInvocation = useSetAtom(triggerRunInvocationAtom)
-
-    // Invalidate run-level metric stats after annotation updates
-    const invalidateRunMetricStats = useSetAtom(invalidatePreviewRunMetricStatsAtom)
 
     // Data fetching
     const {rows, paginationInfo, loadNextPage} = useInfiniteTablePagination({
@@ -167,6 +163,16 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         [steps, inputKeysSet],
     )
 
+    const hasInputDataReady = useMemo(() => {
+        if (!inputSteps.length) return false
+        return inputSteps.some((step: any) => {
+            const testcaseId = step?.testcaseId ?? step?.testcase_id
+            if (testcaseId) return true
+            const inputs = step?.inputs ?? step?.data
+            return inputs && Object.keys(inputs).length > 0
+        })
+    }, [inputSteps])
+
     const invocationSteps = useMemo(
         () =>
             filterStepsByKeySet(steps, invocationKeysSet, (step, key) => {
@@ -249,17 +255,18 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
     )
     const annotationsQuery = useAtomValue(annotationsQueryAtom)
 
-    const metricsQuery = useAtomValue(
-        useMemo(
-            () => evaluationMetricQueryAtomFamily({scenarioId: activeId ?? "", runId}),
-            [activeId, runId],
-        ),
-    )
-
-    // Use ref to preserve previous annotations during refetch
-    const prevAnnotationsRef = useRef<any[]>([])
+    // Use ref to preserve previous annotations during refetch (within same scenario only)
+    const prevAnnotationsRef = useRef<{activeId: string | null; annotations: any[]}>({
+        activeId: null,
+        annotations: [],
+    })
 
     const existingAnnotations = useMemo(() => {
+        // Clear cache if activeId changed to prevent stale annotations from previous scenario
+        if (prevAnnotationsRef.current.activeId !== activeId) {
+            prevAnnotationsRef.current = {activeId, annotations: []}
+        }
+
         const fromQuery = annotationsQuery?.data?.length ? annotationsQuery.data : null
         const fromSteps = annotationSteps
             .map((step: any) => step?.annotation ?? step?.annotations ?? step?.data?.annotations)
@@ -270,54 +277,15 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         // If we have new data, update the ref
         // If result is empty but we had previous data, return previous to prevent flash
         if (result.length > 0) {
-            prevAnnotationsRef.current = result
+            prevAnnotationsRef.current = {activeId, annotations: result}
             return result
-        } else if (prevAnnotationsRef.current.length > 0) {
+        } else if (prevAnnotationsRef.current.annotations.length > 0) {
             // Keep previous annotations during refetch to prevent UI flash
-            return prevAnnotationsRef.current
+            return prevAnnotationsRef.current.annotations
         }
 
         return result
     }, [annotationsQuery?.data, annotationSteps, activeId])
-
-    // Local annotation state
-    const [localAnnotations, setLocalAnnotations] = useState<any[]>([])
-    const [_annotationErrors, _setAnnotationErrors] = useState<string[]>([])
-    const [annotationMetrics, setAnnotationMetrics] = useState<Record<string, any>>({})
-    const [_isSubmitting, _setIsSubmitting] = useState(false)
-
-    // Reset annotation state when scenario changes
-    useEffect(() => {
-        // Always reset when activeId changes
-        setAnnotationMetrics({})
-        setLocalAnnotations([])
-        _setAnnotationErrors([])
-        // Clear the previous annotations ref when switching scenarios
-        prevAnnotationsRef.current = []
-    }, [activeId])
-
-    // Combined annotations (existing + local optimistic updates)
-    const combinedAnnotations = useMemo(() => {
-        const bySlug = new Map<string, any>()
-        ;(existingAnnotations ?? []).forEach((ann: any) => {
-            const slug = ann?.references?.evaluator?.slug
-            if (slug) bySlug.set(slug, ann)
-        })
-        ;(localAnnotations ?? []).forEach((ann: any) => {
-            const slug = ann?.references?.evaluator?.slug
-            if (slug) bySlug.set(slug, ann)
-        })
-        return Array.from(bySlug.values())
-    }, [existingAnnotations, localAnnotations])
-
-    const annotatedSlugs = useMemo(() => {
-        const slugs = new Set<string>()
-        combinedAnnotations?.forEach((ann: any) => {
-            const slug = ann?.references?.evaluator?.slug
-            if (slug) slugs.add(slug)
-        })
-        return slugs
-    }, [combinedAnnotations])
 
     // Evaluators
     const evaluatorQuery = useAtomValue(
@@ -329,144 +297,28 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         return list.map((e: any) => e?.raw ?? e).filter(Boolean)
     }, [evaluatorQuery])
 
-    const _annotationsForAnnotate = useMemo(() => [...combinedAnnotations], [combinedAnnotations])
-
-    const selectedEvaluators = useMemo(
-        () =>
-            evaluatorDtos
-                .map((e: any) => e.slug)
-                .filter((slug: any) => Boolean(slug) && !annotatedSlugs.has(slug)),
-        [evaluatorDtos, annotatedSlugs],
-    )
-
-    // Baseline for change detection
-    const baselineMetrics = useMemo(() => {
-        try {
-            return getInitialMetricsFromAnnotations({
-                annotations: combinedAnnotations ?? [],
-                evaluators: evaluatorDtos as any[],
-            })
-        } catch {
-            return {}
-        }
-    }, [combinedAnnotations, evaluatorDtos])
-
-    // Create a stable key for the Annotate component based on actual values
-    const _annotateComponentKey = useMemo(() => {
-        const metricsHash = JSON.stringify(baselineMetrics)
-        return `${activeId}-${metricsHash.slice(0, 50)}`
-    }, [activeId, baselineMetrics])
-
-    const hasPendingAnnotationChanges = useMemo(() => {
-        if (!annotationMetrics || Object.keys(annotationMetrics).length === 0) return false
-        return Object.entries(annotationMetrics).some(([slug, fields]) => {
-            const baseline = (baselineMetrics as any)?.[slug] || {}
-            return Object.entries(fields || {}).some(([key, field]) => {
-                const nextVal = (field as any)?.value
-                const prevVal = (baseline as any)?.[key]?.value
-                return !deepEqual(prevVal, nextVal)
-            })
-        })
-    }, [annotationMetrics, baselineMetrics])
-
-    const hasNewAnnotationMetrics = useMemo(
-        () =>
-            selectedEvaluators.some((slug) => {
-                const fields = annotationMetrics?.[slug]
-                if (!fields || Object.keys(fields).length === 0) return false
-                return Object.values(fields).some((field: any) => {
-                    const val = field?.value
-                    if (Array.isArray(val)) return val.length > 0
-                    return val !== undefined && val !== null && val !== ""
-                })
-            }),
-        [annotationMetrics, selectedEvaluators],
-    )
-
-    // Build a map from evaluator slug to existing annotation step key
-    const annotationStepKeyBySlug = useMemo(() => {
-        const map = new Map<string, string>()
-        const allSteps = scenarioStepsQuery?.data?.steps ?? []
-        allSteps.forEach((step: any) => {
-            const stepKey = step?.stepKey ?? step?.step_key ?? step?.key
-            if (!stepKey || !stepKey.includes(".")) return
-            const parts = stepKey.split(".")
-            const slug = parts.length > 1 ? parts[parts.length - 1] : null
-            if (slug) {
-                map.set(slug, stepKey)
-            }
-        })
-        return map
-    }, [scenarioStepsQuery?.data?.steps])
-
-    // Find the step that has a trace_id for linking annotations
-    const stepWithTraceId = useMemo(() => {
-        const allSteps = scenarioStepsQuery?.data?.steps ?? []
-        const invocationWithTrace = invocationSteps.find(
-            (step: any) => step?.traceId || step?.trace_id,
-        )
-        if (invocationWithTrace) return invocationWithTrace
-        const nonAnnotationWithTrace = allSteps.find((step: any) => {
-            const stepKey = step?.stepKey ?? step?.step_key ?? step?.key ?? ""
-            const looksLikeAnnotation = stepKey.includes(".")
-            return !looksLikeAnnotation && (step?.traceId || step?.trace_id)
-        })
-        return nonAnnotationWithTrace ?? primaryInvocation
-    }, [invocationSteps, scenarioStepsQuery?.data?.steps, primaryInvocation])
-
-    // Compute trace/span IDs for annotation linking
-    const traceSpanIds = useMemo(() => {
-        const annotationTrace = combinedAnnotations?.[0]?.trace_id
-        const annotationSpan =
-            combinedAnnotations?.[0]?.span_id ??
-            combinedAnnotations?.[0]?.links?.invocation?.span_id
-        const sourceStep = stepWithTraceId ?? primaryInvocation
-        const resolvedTraceId =
-            sourceStep?.traceId ?? sourceStep?.trace_id ?? annotationTrace ?? traceIds[0] ?? ""
-        const resolvedSpanId =
-            sourceStep?.spanId ??
-            sourceStep?.span_id ??
-            (combinedAnnotations?.[0]?.links as any)?.invocation?.span_id ??
-            annotationSpan ??
-            (resolvedTraceId ? uuidToSpanId(resolvedTraceId) : undefined)
-        return {traceId: resolvedTraceId, spanId: resolvedSpanId}
-    }, [combinedAnnotations, stepWithTraceId, primaryInvocation, traceIds])
-
-    // Get the invocation step key for annotation linking
-    const invocationStepKey = useMemo(
-        () =>
-            stepWithTraceId?.stepKey ??
-            stepWithTraceId?.step_key ??
-            stepWithTraceId?.key ??
-            primaryInvocation?.stepKey ??
-            primaryInvocation?.step_key ??
-            primaryInvocation?.key ??
-            "",
-        [stepWithTraceId, primaryInvocation],
-    )
-
-    // Get testcase/testset IDs
-    const testcaseId =
-        (primaryInvocation as any)?.testcaseId ??
-        (primaryInvocation as any)?.testcase_id ??
-        (primaryInvocation as any)?.testcase?.id
-    const testsetId =
-        (primaryInvocation as any)?.testsetId ??
-        (primaryInvocation as any)?.testset_id ??
-        (primaryInvocation as any)?.testset?.id
-
     const hasInvocationOutput =
         invocationSteps.some((step) => Boolean(extractOutputs(step))) || outputColumns.length > 0
-
-    const canSubmitAnnotations =
-        !!traceSpanIds.traceId &&
-        hasInvocationOutput &&
-        (hasPendingAnnotationChanges || hasNewAnnotationMetrics)
 
     // Check if all invocations are successful
     const allInvocationsSuccessful = useMemo(() => {
         if (invocationSteps.length === 0) return false
-        return invocationSteps.every((step) => normalizeStatus(step.status) === "success")
+        return invocationSteps.every((step) =>
+            INVOCATION_SUCCESS_STATUSES.has(normalizeStatus(step.status)),
+        )
+    }, [invocationSteps])
+
+    const hasInvocationTrace = useMemo(() => {
+        if (!invocationSteps.length) return false
+        return invocationSteps.some((step) =>
+            Boolean(
+                step?.traceId ||
+                step?.trace_id ||
+                step?.trace ||
+                step?.traceData ||
+                step?.trace_data,
+            ),
+        )
     }, [invocationSteps])
 
     // Find the first pending (non-successful) invocation step key for the Run button
@@ -475,9 +327,10 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         const invocationKeys = Array.from(runIndex.invocationKeys)
         for (const key of invocationKeys) {
             const step = invocationSteps.find((s) => (s.stepKey ?? s.step_key) === key)
-            if (!step || normalizeStatus(step.status) !== "success") {
-                return key
-            }
+            if (!step) return key
+            const status = normalizeStatus(step.status)
+            if (INVOCATION_IN_FLIGHT_STATUSES.has(status)) return null
+            if (!INVOCATION_SUCCESS_STATUSES.has(status)) return key
         }
         return null
     }, [runIndex?.invocationKeys, invocationSteps])
@@ -517,264 +370,47 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         return () => window.removeEventListener("keydown", handleKeyDown)
     }, [pendingInvocationStepKey, isRunningInvocation, handleRunInvocation])
 
-    // Handle annotation save - mirrors VirtualizedScenarioTableAnnotateDrawer logic
-    // NOTE: This is now handled by ScenarioAnnotationPanel, kept for reference
-    const _handleAnnotationSave = useCallback(async () => {
-        if (!canSubmitAnnotations || !activeId) return
+    // Track which scenario we've already initiated auto-run for
+    // This prevents re-triggering after cache invalidation/refetch cycles
+    const autoRunInitiatedRef = useRef<string | null>(null)
 
-        setIsSubmitting(true)
-        setAnnotationErrors([])
+    // Auto-run invocation when a new scenario is opened and needs invocation
+    // This eliminates the need for users to manually click "Run" each time
+    useEffect(() => {
+        // Skip if no scenario selected or no pending invocation needed
+        if (!activeId || !pendingInvocationStepKey) return
 
-        try {
-            const {payload: updatePayload, requiredMetrics: requiredExisting} =
-                generateAnnotationPayloadData({
-                    annotations: (combinedAnnotations as any[]) ?? [],
-                    updatedMetrics: annotationMetrics,
-                    evaluators: evaluatorDtos as any[],
-                    invocationStepKey,
-                    testsetId,
-                    testcaseId,
-                })
+        // Skip if we've already initiated auto-run for this scenario
+        // This prevents re-triggering after cache invalidation/refetch cycles
+        if (autoRunInitiatedRef.current === activeId) return
 
-            const {payload: newPayload, requiredMetrics: requiredNew} =
-                generateNewAnnotationPayloadData({
-                    updatedMetrics: annotationMetrics,
-                    selectedEvaluators,
-                    evaluators: evaluatorDtos as any[],
-                    traceSpanIds,
-                    invocationStepKey,
-                    testsetId,
-                    testcaseId,
-                })
+        // Skip if scenario steps data is still loading
+        // This prevents triggering before input data (testcase IDs) is available
+        if (scenarioStepsQuery?.status !== "success") return
 
-            const requiredMetrics = {...requiredExisting, ...requiredNew}
-            if (Object.keys(requiredMetrics).length > 0) {
-                const errors = Object.entries(requiredMetrics).map(([key, data]) => {
-                    const val = (data as any)?.value
-                    const type = (data as any)?.type
-                    return `Value ${val === "" ? "empty string" : val} is not assignable to type ${type} in ${key}`
-                })
-                setAnnotationErrors(errors)
-                return
-            }
+        // Skip if we don't have input steps yet (data not fully loaded)
+        // Input steps contain the testcase IDs needed to fetch input data for the invocation
+        if (!hasInputDataReady) return
 
-            // Track annotation requests with their evaluator slugs for step result updates
-            const updateRequests: {
-                promise: Promise<any>
-                slug: string
-                traceId: string
-                spanId: string
-                isNew: false
-            }[] = []
-            const createRequests: {
-                promise: Promise<any>
-                slug: string
-                isNew: true
-            }[] = []
+        // Skip if an invocation trace already exists (likely running or completed)
+        if (hasInvocationTrace) return
 
-            updatePayload.forEach((entry) => {
-                const entryTraceId = entry.trace_id || traceSpanIds.traceId
-                const isValidSpanId = (id: string | undefined) =>
-                    id && id !== "missing" && id.length > 0
-                const spanId = isValidSpanId(entry.span_id)
-                    ? entry.span_id
-                    : isValidSpanId(traceSpanIds.spanId)
-                      ? traceSpanIds.spanId
-                      : uuidToSpanId(entryTraceId)
-                if (!entryTraceId || !spanId) return
+        // Skip if already running to prevent duplicate triggers
+        if (isRunningInvocation) return
 
-                const ann = combinedAnnotations.find(
-                    (a: any) =>
-                        (a.trace_id === entry.trace_id && a.span_id === entry.span_id) ||
-                        (a.trace_id === entryTraceId && a.span_id === spanId),
-                )
-                const slug = ann?.references?.evaluator?.slug || ""
+        // Mark that we've initiated auto-run for this scenario
+        autoRunInitiatedRef.current = activeId
 
-                updateRequests.push({
-                    promise: updateAnnotation({
-                        payload: {annotation: entry.annotation},
-                        traceId: entryTraceId,
-                        spanId,
-                    }),
-                    slug,
-                    traceId: entryTraceId,
-                    spanId,
-                    isNew: false,
-                })
-            })
-
-            newPayload.forEach((entry) => {
-                const slug = (entry as any)?.annotation?.references?.evaluator?.slug || ""
-                createRequests.push({
-                    promise: createAnnotation(entry as any),
-                    slug,
-                    isNew: true,
-                })
-            })
-
-            if (!updateRequests.length && !createRequests.length) {
-                message.info("No annotation changes to submit")
-                return
-            }
-
-            const allRequests = [...updateRequests, ...createRequests]
-            const responses = await Promise.all(allRequests.map((r) => r.promise))
-
-            // Update step results with annotation references
-            try {
-                const stepResultUpdates: Promise<void>[] = []
-
-                responses.forEach((response, index) => {
-                    const request = allRequests[index]
-                    if (!request.slug || !invocationStepKey) return
-
-                    let annotationTraceId: string | undefined
-                    let annotationSpanId: string | undefined
-
-                    if (request.isNew) {
-                        const annData = response?.data?.annotation || response?.data
-                        annotationTraceId = annData?.trace_id || annData?.traceId
-                        annotationSpanId = annData?.span_id || annData?.spanId
-                    } else {
-                        annotationTraceId = request.traceId
-                        annotationSpanId = request.spanId
-                    }
-
-                    if (annotationTraceId && annotationSpanId) {
-                        const existingStepKey = annotationStepKeyBySlug.get(request.slug)
-                        const annotationStepKey =
-                            existingStepKey ?? `${invocationStepKey}.${request.slug}`
-                        stepResultUpdates.push(
-                            upsertStepResultWithAnnotation({
-                                runId,
-                                scenarioId: activeId,
-                                stepKey: annotationStepKey,
-                                annotationTraceId,
-                                annotationSpanId,
-                                status: "success",
-                            }),
-                        )
-                    }
-                })
-
-                if (stepResultUpdates.length > 0) {
-                    await Promise.all(stepResultUpdates)
-                }
-            } catch (stepError) {
-                console.warn("[SingleScenarioViewerPOC] Failed to update step results", stepError)
-            }
-
-            // Build and save scenario metrics from the annotation data
-            try {
-                let allMetricData: Record<string, Record<string, unknown>> = {}
-
-                for (const ann of combinedAnnotations) {
-                    const slug = ann?.references?.evaluator?.slug
-                    const updatedMetric = annotationMetrics[slug]
-                    if (!slug || !updatedMetric) continue
-
-                    const outputs: Record<string, unknown> = {}
-                    for (const [key, property] of Object.entries(updatedMetric)) {
-                        const value = (property as any)?.value
-                        if (value !== undefined && value !== null && value !== "") {
-                            outputs[key] = value
-                        }
-                    }
-
-                    if (Object.keys(outputs).length > 0) {
-                        const metricData = buildScenarioMetricDataFromAnnotation({
-                            outputs,
-                            invocationStepKey,
-                            evaluatorSlug: slug,
-                        })
-                        allMetricData = {...allMetricData, ...metricData}
-                    }
-                }
-
-                for (const slug of selectedEvaluators) {
-                    const updatedMetric = annotationMetrics[slug]
-                    if (!updatedMetric) continue
-
-                    const outputs: Record<string, unknown> = {}
-                    for (const [key, property] of Object.entries(updatedMetric)) {
-                        const value = (property as any)?.value
-                        if (value !== undefined && value !== null && value !== "") {
-                            outputs[key] = value
-                        }
-                    }
-
-                    if (Object.keys(outputs).length > 0) {
-                        const metricData = buildScenarioMetricDataFromAnnotation({
-                            outputs,
-                            invocationStepKey,
-                            evaluatorSlug: slug,
-                        })
-                        allMetricData = {...allMetricData, ...metricData}
-                    }
-                }
-
-                if (Object.keys(allMetricData).length > 0) {
-                    await upsertScenarioMetricData({
-                        runId,
-                        scenarioId: activeId,
-                        data: allMetricData,
-                    })
-                }
-            } catch (metricError) {
-                console.warn(
-                    "[SingleScenarioViewerPOC] Failed to update scenario metrics",
-                    metricError,
-                )
-            }
-
-            message.success("Annotations saved successfully")
-
-            // Invalidate caches to force fresh data fetch
-            invalidateAnnotationBatcherCache()
-            invalidateScenarioStepsBatcherCache()
-            invalidateMetricBatcherCache()
-            invalidateRunMetricStats(runId)
-
-            // Refetch all relevant data to update the UI
-            await Promise.all(
-                [
-                    annotationsQuery?.refetch?.(),
-                    scenarioStepsQuery?.refetch?.(),
-                    metricsQuery?.refetch?.(),
-                ].filter(Boolean),
-            )
-
-            setAnnotationMetrics({})
-            setLocalAnnotations([])
-        } catch (error: any) {
-            console.error("[SingleScenarioViewerPOC] Failed to submit annotations", error)
-            const apiErrors =
-                error?.response?.data?.detail?.map((err: any) => err.msg)?.filter(Boolean) || []
-            if (apiErrors.length) {
-                setAnnotationErrors(apiErrors)
-            } else {
-                message.error("Failed to submit annotations")
-            }
-        } finally {
-            setIsSubmitting(false)
-        }
+        // Auto-trigger the run
+        handleRunInvocation()
     }, [
-        canSubmitAnnotations,
         activeId,
-        combinedAnnotations,
-        annotationMetrics,
-        evaluatorDtos,
-        invocationStepKey,
-        testsetId,
-        testcaseId,
-        selectedEvaluators,
-        traceSpanIds,
-        annotationStepKeyBySlug,
-        runId,
-        annotationsQuery,
-        scenarioStepsQuery,
-        metricsQuery,
-        invalidateRunMetricStats,
+        pendingInvocationStepKey,
+        scenarioStepsQuery?.status,
+        hasInputDataReady,
+        hasInvocationTrace,
+        isRunningInvocation,
+        handleRunInvocation,
     ])
 
     // Early returns for loading/empty states

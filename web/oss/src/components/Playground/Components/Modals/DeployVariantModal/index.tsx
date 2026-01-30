@@ -8,6 +8,7 @@ import router from "next/router"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 import {
@@ -37,6 +38,7 @@ const DeployVariantModal = ({
     const resetDeploy = useSetAtom(deployResetAtom)
     const submitDeploy = useSetAtom(deploySubmitAtom)
     const setModalState = useSetAtom(deployVariantModalAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const {isPending: isLoading} = useAtomValue(publishMutationAtom)
 
     const appId = router.query.app_id as string
@@ -82,7 +84,8 @@ const DeployVariantModal = ({
         onClose()
         message.success(`Published ${variantName} to ${env}`)
         posthog?.capture?.("app_deployed", {app_id: appId, environment: env})
-    }, [submitDeploy, onClose, variantName, appId, posthog])
+        recordWidgetEvent("variant_deployed")
+    }, [submitDeploy, onClose, variantName, appId, posthog, recordWidgetEvent])
 
     return (
         <EnhancedModal
@@ -96,6 +99,10 @@ const DeployVariantModal = ({
             okButtonProps={{
                 icon: <Rocket size={14} className="mt-0.5" />,
                 disabled: !selectedEnvName.length,
+                "data-tour": "deploy-variant-modal-deploy-button",
+            }}
+            cancelButtonProps={{
+                "data-tour": "deploy-variant-modal-cancel-button",
             }}
             classNames={{footer: "flex items-center justify-end"}}
             afterClose={() => onClose()}

@@ -4,6 +4,7 @@ import {message} from "@agenta/ui/app-message"
 import {DeleteOutlined, PlusOutlined} from "@ant-design/icons"
 import {ChartDonutIcon, ListChecksIcon} from "@phosphor-icons/react"
 import {Button, Input, Space} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
@@ -14,6 +15,10 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
+import {
+    onboardingWidgetActivationAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@/oss/lib/onboarding"
 import {deleteEvaluatorConfig} from "@/oss/services/evaluations/api"
 import {deleteHumanEvaluator} from "@/oss/services/evaluators"
 import {useProjectData} from "@/oss/state/project/hooks"
@@ -52,6 +57,8 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
         DEFAULT_EVALUATOR_TAB,
     )
     const [tabState, setTabState] = useQueryParam("tab", activeTab)
+    const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
+    const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
 
     useEffect(() => {
         if (isValidEvaluatorTab(tabState)) {
@@ -71,6 +78,14 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
             setTabState(fallbackTab)
         }
     }, [tabState, activeTab])
+
+    useEffect(() => {
+        if (onboardingWidgetActivation !== "create-evaluator") return
+        setActiveTab("automatic")
+        setTabState("automatic")
+        setIsSelectEvaluatorModalOpen(true)
+        setOnboardingWidgetActivation(null)
+    }, [onboardingWidgetActivation, setActiveTab, setTabState, setOnboardingWidgetActivation])
 
     // states
     const [searchTerm, setSearchTerm] = useState("")

@@ -11,6 +11,31 @@ export type {
 // Registry
 export {tourRegistry} from "./registry"
 
+// Widget
+export {
+    onboardingWidgetCompletionAtom,
+    onboardingWidgetConfigAtom,
+    onboardingWidgetEventsAtom,
+    onboardingWidgetExpandedSectionsAtom,
+    onboardingWidgetStatusAtom,
+    onboardingWidgetUIStateAtom,
+    onboardingWidgetActivationAtom,
+    recordWidgetEventAtom,
+    setOnboardingWidgetConfigAtom,
+    setOnboardingWidgetActivationAtom,
+    setWidgetSectionExpandedAtom,
+    hasSeenCloseTooltipAtom,
+    openWidgetAtom,
+} from "./widget"
+export type {
+    OnboardingWidgetConfig,
+    OnboardingWidgetItem,
+    OnboardingWidgetSection,
+    OnboardingWidgetStatus,
+    OnboardingWidgetUIState,
+} from "./widget"
+export {defaultWidgetConfig} from "./widget"
+
 // Atoms
 export {
     isNewUserAtom,

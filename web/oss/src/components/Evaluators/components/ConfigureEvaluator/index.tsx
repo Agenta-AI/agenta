@@ -26,6 +26,7 @@ import {
 } from "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
 import useURL from "@/oss/hooks/useURL"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {Evaluator} from "@/oss/lib/Types"
 import {evaluatorByKeyAtomFamily} from "@/oss/state/evaluators"
 
@@ -54,6 +55,7 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
     const initPlayground = useSetAtom(initPlaygroundAtom)
     const resetPlayground = useSetAtom(resetPlaygroundAtom)
     const stagedConfig = useAtomValue(playgroundEditValuesAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
 
     const existingConfig = useMemo(() => {
         if (!evaluatorId) return null
@@ -103,8 +105,9 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
 
     const handleSuccess = useCallback(async () => {
         message.success("Evaluator configuration saved")
+        recordWidgetEvent("evaluator_created")
         await refetchAll()
-    }, [refetchAll])
+    }, [recordWidgetEvent, refetchAll])
 
     if (!router.isReady || isLoading) {
         return <ConfigureEvaluatorSkeleton />

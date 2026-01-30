@@ -115,6 +115,29 @@ body {
     margin: 0 auto;
 }
 
+.playground-splitter .ant-splitter-bar,
+.playground-splitter .ant-splitter-trigger,
+.playground-splitter .ant-splitter-bar-dragger,
+.playground-splitter .ant-splitter-bar::before,
+.playground-splitter .ant-splitter-bar::after {
+    z-index: 100;
+}
+
+/* Ensure onboarding overlay stays above modals */
+[data-name="nextstep-overlay"],
+[data-name="nextstep-overlay2"] {
+    z-index: 2000 !important;
+}
+
+[data-name="nextstep-prevent-click-overlay"] {
+    z-index: 2001 !important;
+}
+
+[data-name="nextstep-pointer"],
+[data-name="nextstep-card"] {
+    z-index: 2002 !important;
+}
+
 .agenta-rich-text-editor {
     &.disabled {
         cursor: not-allowed;

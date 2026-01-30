@@ -61,6 +61,7 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     selectedAppId: string
     onSelectApp: (value: string) => void
     appSelectionDisabled?: boolean
+    allowTestsetAutoAdvance?: boolean
     /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
     onSelectTemplate?: (evaluator: Evaluator) => void
     /** Callback when a new evaluator config is created via the inline drawer. Used to refresh the list and auto-select. */
@@ -92,6 +93,7 @@ export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
     selectedVariantRevisionIds: string[]
     /** Selected variant objects - used to extract input variables for testset compatibility checks */
     selectedVariants?: EnhancedVariant[]
+    allowAutoAdvance?: boolean
 }
 
 export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {

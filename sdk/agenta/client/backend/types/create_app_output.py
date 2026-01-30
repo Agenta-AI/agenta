@@ -9,6 +9,10 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 class CreateAppOutput(UniversalBaseModel):
     app_id: str
     app_name: str
+    app_type: typing.Optional[str] = None
+    created_at: typing.Optional[str] = None
+    updated_at: typing.Optional[str] = None
+    folder_id: typing.Optional[str] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
