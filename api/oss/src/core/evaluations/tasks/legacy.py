@@ -187,7 +187,8 @@ async def setup_evaluation(
             run=run_create,
         )
 
-        assert run is not None, "Failed to create evaluation run."
+        if run is None:
+            raise ValueError("Failed to create evaluation run.")
         # ----------------------------------------------------------------------
 
         # testset --------------------------------------------------------------
@@ -204,9 +205,8 @@ async def setup_evaluation(
                 testset_revision_ref=testset_revision_ref,
             )
 
-            assert testset_revision is not None, (
-                f"Testset revision with id {testset_revision_id} not found!"
-            )
+            if testset_revision is None:
+                raise ValueError(f"Testset revision with id {testset_revision_id} not found!")
 
             testset_ref = Reference(id=testset_revision.testset_id)
 
@@ -215,9 +215,8 @@ async def setup_evaluation(
                 testset_ref=testset_ref,
             )
 
-            assert testset is not None, (
-                f"Testset with id {testset_revision.testset_id} not found!"
-            )
+            if testset is None:
+                raise ValueError(f"Testset with id {testset_revision.testset_id} not found!")
 
             testcases = testset_revision.data.testcases
 
@@ -242,7 +241,8 @@ async def setup_evaluation(
                 query_ref=query_ref,
             )
 
-            assert query is not None, f"Query with id {query_id} not found!"
+            if query is None:
+                raise ValueError(f"Query with id {query_id} not found!")
 
             query_references["artifact"] = Reference(
                 id=query.id,
@@ -255,9 +255,8 @@ async def setup_evaluation(
                 query_ref=query_ref,
             )
 
-            assert query_revision is not None, (
-                f"Query revision with id {query_id} not found!"
-            )
+            if query_revision is None:
+                raise ValueError(f"Query revision with id {query_id} not found!")
 
             query_revision_ref = Reference(
                 id=query_revision.id,
@@ -273,9 +272,8 @@ async def setup_evaluation(
                 ),
             )
 
-            assert query_variant is not None, (
-                f"Query variant with id {query_revision.variant_id} not found!"
-            )
+            if query_variant is None:
+                raise ValueError(f"Query variant with id {query_revision.variant_id} not found!")
 
             query_variant_ref = Reference(
                 id=query_variant.id,
@@ -295,9 +293,8 @@ async def setup_evaluation(
         if revision_id:
             revision = await fetch_app_variant_revision_by_id(revision_id)
 
-            assert revision is not None, (
-                f"App revision with id {revision_id} not found!"
-            )
+            if revision is None:
+                raise ValueError(f"App revision with id {revision_id} not found!")
 
             application_references["revision"] = Reference(
                 id=UUID(str(revision.id)),
@@ -305,9 +302,8 @@ async def setup_evaluation(
 
             variant = await fetch_app_variant_by_id(str(revision.variant_id))
 
-            assert variant is not None, (
-                f"App variant with id {revision.variant_id} not found!"
-            )
+            if variant is None:
+                raise ValueError(f"App variant with id {revision.variant_id} not found!")
 
             application_references["variant"] = Reference(
                 id=UUID(str(variant.id)),
@@ -315,7 +311,8 @@ async def setup_evaluation(
 
             app = await fetch_app_by_id(str(variant.app_id))
 
-            assert app is not None, f"App with id {variant.app_id} not found!"
+            if app is None:
+                raise ValueError(f"App with id {variant.app_id} not found!")
 
             application_references["artifact"] = Reference(
                 id=UUID(str(app.id)),
@@ -323,19 +320,18 @@ async def setup_evaluation(
 
             deployment = await get_deployment_by_id(str(revision.base.deployment_id))
 
-            assert deployment is not None, (
-                f"Deployment with id {revision.base.deployment_id} not found!"
-            )
+            if deployment is None:
+                raise ValueError(f"Deployment with id {revision.base.deployment_id} not found!")
 
             uri = parse_url(url=deployment.uri)
 
-            assert uri is not None, f"Invalid URI for deployment {deployment.id}!"
+            if uri is None:
+                raise ValueError(f"Invalid URI for deployment {deployment.id}!")
 
             revision_parameters = revision.config_parameters
 
-            assert revision_parameters is not None, (
-                f"Revision parameters for variant {variant.id} not found!"
-            )
+            if revision_parameters is None:
+                raise ValueError(f"Revision parameters for variant {variant.id} not found!")
 
             invocation_steps_keys.append(
                 get_slug_from_name_and_id(app.app_name, revision.id)
@@ -371,7 +367,8 @@ async def setup_evaluation(
                 evaluator_id=UUID(autoeval_id),
             )
 
-            assert evaluator is not None, f"Evaluator with id {autoeval_id} not found!"
+            if evaluator is None:
+                raise ValueError(f"Evaluator with id {autoeval_id} not found!")
 
             evaluator_references[annotation_step_key] = {}
 
@@ -415,9 +412,8 @@ async def setup_evaluation(
                 workflow_ref=workflow_ref,
             )
 
-            assert workflow_revision is not None, (
-                f"Workflow revision with id {workflow_ref.id} not found!"
-            )
+            if workflow_revision is None:
+                raise ValueError(f"Workflow revision with id {workflow_ref.id} not found!")
 
             workflow_revision_ref = Reference(
                 id=workflow_revision.id,
@@ -437,9 +433,8 @@ async def setup_evaluation(
                 ),
             )
 
-            assert workflow_variant is not None, (
-                f"Workflow variant with id {workflow_revision.variant_id} not found!"
-            )
+            if workflow_variant is None:
+                raise ValueError(f"Workflow variant with id {workflow_revision.variant_id} not found!")
 
             workflow_variant_ref = Reference(
                 id=workflow_variant.id,
@@ -644,7 +639,8 @@ async def setup_evaluation(
             run=run_edit,
         )
 
-        assert run, f"Failed to edit evaluation run {run_edit.id}!"
+        if not run:
+            raise ValueError(f"Failed to edit evaluation run {run_edit.id}!")
         # ----------------------------------------------------------------------
 
         log.info("[DONE]      ", run_id=run.id)
@@ -753,11 +749,14 @@ async def evaluate_batch_testset(
             run_id=run_id,
         )
 
-        assert run, f"Evaluation run with id {run_id} not found!"
+        if not run:
+            raise ValueError(f"Evaluation run with id {run_id} not found!")
 
-        assert run.data, f"Evaluation run with id {run_id} has no data!"
+        if not run.data:
+            raise ValueError(f"Evaluation run with id {run_id} has no data!")
 
-        assert run.data.steps, f"Evaluation run with id {run_id} has no steps!"
+        if not run.data.steps:
+            raise ValueError(f"Evaluation run with id {run_id} has no steps!")
 
         steps = run.data.steps
 
@@ -778,9 +777,8 @@ async def evaluate_batch_testset(
             testset_revision_ref=testset_revision_ref,
         )
 
-        assert testset_revision is not None, (
-            f"Testset revision with id {testset_revision_id} not found!"
-        )
+        if testset_revision is None:
+            raise ValueError(f"Testset revision with id {testset_revision_id} not found!")
 
         testset_ref = Reference(id=testset_revision.testset_id)
 
@@ -789,9 +787,8 @@ async def evaluate_batch_testset(
             testset_ref=testset_ref,
         )
 
-        assert testset is not None, (
-            f"Testset with id {testset_revision.testset_id} not found!"
-        )
+        if testset is None:
+            raise ValueError(f"Testset with id {testset_revision.testset_id} not found!")
 
         testset_id = testset_revision.testset_id
 
@@ -807,33 +804,33 @@ async def evaluate_batch_testset(
         # fetch application ----------------------------------------------------
         revision = await fetch_app_variant_revision_by_id(revision_id)
 
-        assert revision is not None, f"App revision with id {revision_id} not found!"
+        if revision is None:
+            raise ValueError(f"App revision with id {revision_id} not found!")
 
         variant = await fetch_app_variant_by_id(str(revision.variant_id))
 
-        assert variant is not None, (
-            f"App variant with id {revision.variant_id} not found!"
-        )
+        if variant is None:
+            raise ValueError(f"App variant with id {revision.variant_id} not found!")
 
         app = await fetch_app_by_id(str(variant.app_id))
 
-        assert app is not None, f"App with id {variant.app_id} not found!"
+        if app is None:
+            raise ValueError(f"App with id {variant.app_id} not found!")
 
         deployment = await get_deployment_by_id(str(revision.base.deployment_id))
 
-        assert deployment is not None, (
-            f"Deployment with id {revision.base.deployment_id} not found!"
-        )
+        if deployment is None:
+            raise ValueError(f"Deployment with id {revision.base.deployment_id} not found!")
 
         uri = parse_url(url=deployment.uri)
 
-        assert uri is not None, f"Invalid URI for deployment {deployment.id}!"
+        if uri is None:
+            raise ValueError(f"Invalid URI for deployment {deployment.id}!")
 
         revision_parameters = revision.config_parameters
 
-        assert revision_parameters is not None, (
-            f"Revision parameters for variant {variant.id} not found!"
-        )
+        if revision_parameters is None:
+            raise ValueError(f"Revision parameters for variant {variant.id} not found!")
         # ----------------------------------------------------------------------
 
         # fetch evaluators -----------------------------------------------------
@@ -902,9 +899,8 @@ async def evaluate_batch_testset(
             scenarios=scenarios_create,
         )
 
-        assert len(scenarios) == nof_testcases, (
-            f"Failed to create evaluation scenarios for run {run_id}!"
-        )
+        if len(scenarios) != nof_testcases:
+            raise ValueError(f"Failed to create evaluation scenarios for run {run_id}!")
         # ----------------------------------------------------------------------
 
         # create input steps ---------------------------------------------------
@@ -928,9 +924,8 @@ async def evaluate_batch_testset(
             results=results_create,
         )
 
-        assert len(steps) == nof_testcases, (
-            f"Failed to create evaluation steps for run {run_id}!"
-        )
+        if len(steps) != nof_testcases:
+            raise ValueError(f"Failed to create evaluation steps for run {run_id}!")
         # ----------------------------------------------------------------------
 
         # flatten testcases ----------------------------------------------------
@@ -1001,9 +996,8 @@ async def evaluate_batch_testset(
             results=results_create,
         )
 
-        assert len(steps) == nof_testcases, (
-            f"Failed to create evaluation steps for run {run_id}!"
-        )
+        if len(steps) != nof_testcases:
+            raise ValueError(f"Failed to create evaluation steps for run {run_id}!")
         # ----------------------------------------------------------------------
 
         run_has_errors = 0
@@ -1326,9 +1320,8 @@ async def evaluate_batch_testset(
                         results=results_create,
                     )
 
-                    assert len(steps) == 1, (
-                        f"Failed to create evaluation step for scenario with id {scenario.id}!"
-                    )
+                    if len(steps) != 1:
+                        raise ValueError(f"Failed to create evaluation step for scenario with id {scenario.id}!")
             # ------------------------------------------------------------------
 
             scenario_edit = EvaluationScenarioEdit(
@@ -1345,9 +1338,8 @@ async def evaluate_batch_testset(
                 scenario=scenario_edit,
             )
 
-            assert scenario, (
-                f"Failed to edit evaluation scenario with id {scenario.id}!"
-            )
+            if not scenario:
+                raise ValueError(f"Failed to edit evaluation scenario with id {scenario.id}!")
 
             if scenario_status != EvaluationStatus.FAILURE:
                 try:

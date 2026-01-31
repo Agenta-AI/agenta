@@ -268,9 +268,9 @@ async def add_default_simple_evaluators(
     )
     from oss.src.core.evaluators.dtos import (
         SimpleEvaluatorCreate,
-        SimpleEvaluatorData,
         SimpleEvaluatorFlags,
     )
+    from oss.src.core.evaluators.utils import build_evaluator_data
     from oss.src.routers.evaluators_router import BUILTIN_EVALUATORS
 
     workflows_dao = GitDAO(
@@ -304,9 +304,6 @@ async def add_default_simple_evaluators(
                 and setting.get("default", "")
             }
 
-            # Build URI from evaluator key
-            uri = f"agenta:builtin:{evaluator.key}:v0"
-
             # Generate slug from name
             evaluator_slug = get_slug_from_name_and_id(evaluator.name, uuid.uuid4())
 
@@ -314,9 +311,9 @@ async def add_default_simple_evaluators(
                 slug=evaluator_slug,
                 name=evaluator.name,
                 flags=SimpleEvaluatorFlags(is_evaluator=True),
-                data=SimpleEvaluatorData(
-                    uri=uri,
-                    parameters=settings_values if settings_values else None,
+                data=build_evaluator_data(
+                    evaluator_key=evaluator.key,
+                    settings_values=settings_values if settings_values else None,
                 ),
             )
 

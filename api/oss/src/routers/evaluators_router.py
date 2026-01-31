@@ -1,6 +1,8 @@
+import re
+import uuid
 import inspect
 from typing import List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Request
 
@@ -20,6 +22,7 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorEdit,
     SimpleEvaluatorFlags,
 )
+from oss.src.core.evaluators.utils import build_evaluator_data
 from oss.src.models.api.evaluation_model import (
     EvaluatorConfig,
     EvaluatorInputInterface,
@@ -77,6 +80,12 @@ def _simple_evaluator_to_evaluator_config(
             parts = simple_evaluator.data.uri.split(":")
             if len(parts) >= 3 and parts[0] == "agenta" and parts[1] == "builtin":
                 evaluator_key = parts[2]
+            else:
+                log.error(
+                    "Unrecognized evaluator URI format",
+                    uri=simple_evaluator.data.uri,
+                    evaluator_id=str(simple_evaluator.id),
+                )
 
         # Get settings from parameters
         settings_values = simple_evaluator.data.parameters
@@ -173,9 +182,7 @@ async def evaluator_run(
                     exc_info=True,
                 )
                 raise HTTPException(
-                    status_code=424
-                    if any(code in str(e) for code in ["401", "403", "429"])
-                    else 500,
+                    status_code=424 if re.search(r"\b(401|403|429)\b", str(e)) else 500,
                     detail=str(e),
                 )
 
@@ -290,10 +297,10 @@ async def create_new_evaluator_config(
 
     simple_router = _get_simple_evaluators_router()
 
-    # Build URI from evaluator_key
-    uri = f"agenta:builtin:{payload.evaluator_key}:v0"
+    evaluator_slug = uuid4().hex[:-12]
 
     simple_evaluator_create = SimpleEvaluatorCreate(
+        slug=evaluator_slug,
         name=payload.name,
         description=None,
         #
@@ -301,9 +308,9 @@ async def create_new_evaluator_config(
         tags=None,
         meta=None,
         #
-        data=SimpleEvaluatorData(
-            uri=uri,
-            parameters=payload.settings_values,
+        data=build_evaluator_data(
+            evaluator_key=payload.evaluator_key,
+            settings_values=payload.settings_values,
         ),
     )
 
@@ -393,6 +400,14 @@ async def update_evaluator_config(
         meta=old_evaluator.meta,
         #
         data=SimpleEvaluatorData(
+            **(
+                old_evaluator.data.model_dump(
+                    mode="json",
+                    exclude={"uri", "parameters"},
+                )
+                if old_evaluator.data
+                else {}
+            ),
             uri=new_uri,
             parameters=new_parameters,
         ),
