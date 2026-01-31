@@ -79,7 +79,7 @@ class EvaluationsWorker:
             #
             testset_revision_id: str,
             revision_id: str,
-            autoeval_ids: Optional[List[str]],
+            evaluator_ids: Optional[List[str]],
             #
             run_config: Dict[str, int],
         ) -> Any:
@@ -99,7 +99,7 @@ class EvaluationsWorker:
                 #
                 testset_revision_id=testset_revision_id,
                 revision_id=revision_id,
-                autoeval_ids=autoeval_ids,
+                evaluator_ids=evaluator_ids,
                 #
                 run_config=run_config,
                 #
