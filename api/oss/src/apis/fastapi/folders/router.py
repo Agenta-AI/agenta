@@ -164,7 +164,7 @@ class FoldersRouter:
 
     # GET /folders/{folder_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=FolderResponse())
+    @suppress_exceptions(default=FolderResponse(), exclude=[HTTPException])
     async def fetch_folder(
         self,
         *,
@@ -259,7 +259,7 @@ class FoldersRouter:
 
     # POST /folders/query
     @intercept_exceptions()
-    @suppress_exceptions(default=FoldersResponse())
+    @suppress_exceptions(default=FoldersResponse(), exclude=[HTTPException])
     async def query_folders(
         self,
         *,
