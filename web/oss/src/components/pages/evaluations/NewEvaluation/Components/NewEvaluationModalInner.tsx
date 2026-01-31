@@ -1,10 +1,11 @@
 import {useCallback, memo, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
-import {useAtomValue} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {FIRST_EVALUATION_TOUR_ID} from "@/oss/components/Onboarding/tours/firstEvaluationTour"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
