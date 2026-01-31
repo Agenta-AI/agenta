@@ -312,4 +312,4 @@ class NewEvaluatorConfig(BaseModel):
 class UpdateEvaluatorConfig(BaseModel):
     name: Optional[str] = None
     evaluator_key: Optional[str] = None
-    settings_values: Optional[dict]
+    settings_values: Optional[dict] = None

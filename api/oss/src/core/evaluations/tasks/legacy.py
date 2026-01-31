@@ -645,7 +645,7 @@ async def setup_evaluation(
 
         log.info("[DONE]      ", run_id=run.id)
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=broad-exception-caught
         if run and run.id:
             log.error("[FAIL]      ", run_id=run.id, exc_info=True)
 
