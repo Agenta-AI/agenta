@@ -1201,10 +1201,14 @@ class GitDAO(GitDAOInterface):
             # Apply per-artifact limit using window function if specified
             if per_artifact_limit is not None:
                 # Use ROW_NUMBER() to get top N per artifact_id
-                row_number = func.row_number().over(
-                    partition_by=self.RevisionDBE.artifact_id,
-                    order_by=self.RevisionDBE.id.desc(),  # type: ignore
-                ).label("row_num")
+                row_number = (
+                    func.row_number()
+                    .over(
+                        partition_by=self.RevisionDBE.artifact_id,
+                        order_by=self.RevisionDBE.id.desc(),  # type: ignore
+                    )
+                    .label("row_num")
+                )
 
                 # Wrap in subquery with row number, then filter
                 subq = stmt.add_columns(row_number).subquery()
