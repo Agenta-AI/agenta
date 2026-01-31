@@ -703,6 +703,9 @@ importers:
       react:
         specifier: '>=18.0.0'
         version: 19.0.0
+      stable-hash:
+        specifier: ^0.0.6
+        version: 0.0.6
       uuid:
         specifier: '>=9.0.0'
         version: 11.1.0
