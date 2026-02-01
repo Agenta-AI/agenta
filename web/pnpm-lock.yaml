@@ -958,6 +958,9 @@ importers:
       react:
         specifier: '>=18.0.0'
         version: 19.0.0
+      uuid:
+        specifier: ^11.1.0
+        version: 11.1.0
     devDependencies:
       '@types/lz-string':
         specifier: ^1.5.0
