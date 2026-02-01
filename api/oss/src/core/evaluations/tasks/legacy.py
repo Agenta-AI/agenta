@@ -1250,6 +1250,22 @@ async def evaluate_batch_testset(
                         log.warn(
                             f"There is an error in annotation {annotation_step_key} for invocation {invocation.trace_id}."
                         )
+                        log.error(
+                            "[EVAL][ANNOTATION][ERROR]",
+                            scenario_id=scenario.id,
+                            invocation_trace_id=invocation.trace_id,
+                            evaluator_trace_id=workflows_service_response.trace_id,
+                            status=workflows_service_response.status.model_dump(
+                                mode="json"
+                            )
+                            if workflows_service_response.status
+                            else None,
+                            data=workflows_service_response.data.model_dump(
+                                mode="json", exclude_none=True
+                            )
+                            if workflows_service_response.data
+                            else None,
+                        )
 
                         step_has_errors += 1
                         scenario_has_errors += 1

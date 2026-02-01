@@ -110,7 +110,7 @@ my_llm_as_a_judge_evaluator = builtin.auto_ai_critique(
 
 async def run_evaluation():
     my_testset = await ag.testsets.aupsert(
-        name="Capitals",
+        name="Capitals (ltd)",
         #
         data=my_testcases_data,
     )
