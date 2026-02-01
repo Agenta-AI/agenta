@@ -37,7 +37,13 @@ export {
     outputConnectionController,
     entitySelectorController,
     executionController,
+    playgroundSnapshotController,
+    applyPendingHydration,
+    applyPendingHydrationsForRevision,
+    pendingHydrations,
 } from "./state"
+
+export type {CreateSnapshotResult, HydrateSnapshotResult, SnapshotSelectionInput} from "./state"
 
 export type {
     ConnectToTestsetPayload,

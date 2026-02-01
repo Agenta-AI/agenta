@@ -113,6 +113,17 @@ export {
     outputConnectionController,
     entitySelectorController,
     executionController,
+    playgroundSnapshotController,
+    applyPendingHydration,
+    applyPendingHydrationsForRevision,
+    clearPendingHydrations,
+    pendingHydrations,
+} from "./controllers"
+
+export type {
+    CreateSnapshotResult,
+    HydrateSnapshotResult,
+    SnapshotSelectionInput,
 } from "./controllers"
 
 // ============================================================================
