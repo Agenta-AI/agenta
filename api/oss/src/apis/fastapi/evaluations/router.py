@@ -84,15 +84,14 @@ from oss.src.apis.fastapi.evaluations.utils import (
 )
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.evaluations.types import (
+    EvaluationRun,
+    EvaluationRunCreate,
+    EvaluationRunEdit,
+    #
     SimpleEvaluation,
     SimpleEvaluationCreate,
     SimpleEvaluationEdit,
 )
-
-# When True, the router resolves evaluator artifact IDs to revision IDs on
-# write and maps them back on read.  The service/DB layer always works with
-# revision IDs; this flag keeps that translation in the router.
-JIT_EVALUATOR_RESOLVER = True
 
 if is_ee():
     from ee.src.models.shared_models import Permission
@@ -532,12 +531,28 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        jit = runs_create_request.jit
+
+        for run in runs_create_request.runs:
+            await self._resolve_run_request(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
+
         runs = await self.evaluations_service.create_runs(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             runs=runs_create_request.runs,
         )
+
+        for run in runs:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         runs_response = EvaluationRunsResponse(
             count=len(runs),
@@ -562,12 +577,28 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        jit = runs_edit_request.jit
+
+        for run in runs_edit_request.runs:
+            await self._resolve_run_request(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
+
         runs = await self.evaluations_service.edit_runs(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             runs=runs_edit_request.runs,
         )
+
+        for run in runs:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         runs_response = EvaluationRunsResponse(
             count=len(runs),
@@ -622,6 +653,8 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        jit = run_query_request.jit
+
         runs = await self.evaluations_service.query_runs(
             project_id=UUID(request.state.project_id),
             #
@@ -629,6 +662,13 @@ class EvaluationsRouter:
             #
             windowing=run_query_request.windowing,
         )
+
+        for run in runs:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         windowing = compute_next_windowing(
             entities=runs,
@@ -667,6 +707,12 @@ class EvaluationsRouter:
             run_ids=run_ids_request.run_ids,
         )
 
+        for run in runs:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+            )
+
         runs_response = EvaluationRunsResponse(
             count=len(runs),
             runs=runs,
@@ -697,6 +743,12 @@ class EvaluationsRouter:
             run_ids=run_ids_request.run_ids,
         )
 
+        for run in runs:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+            )
+
         runs_response = EvaluationRunsResponse(
             count=len(runs),
             runs=runs,
@@ -712,6 +764,8 @@ class EvaluationsRouter:
         request: Request,
         *,
         run_id: UUID,
+        #
+        jit: Optional[bool] = Query(True),
     ) -> EvaluationRunResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -726,6 +780,13 @@ class EvaluationsRouter:
             #
             run_id=run_id,
         )
+
+        if run:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
@@ -755,12 +816,27 @@ class EvaluationsRouter:
         if str(run_id) != str(run_edit_request.run.id):
             return EvaluationRunResponse()
 
+        jit = run_edit_request.jit
+
+        await self._resolve_run_request(
+            project_id=UUID(request.state.project_id),
+            run=run_edit_request.run,
+            jit=jit,
+        )
+
         run = await self.evaluations_service.edit_run(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             run=run_edit_request.run,
         )
+
+        if run:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
@@ -808,6 +884,7 @@ class EvaluationsRouter:
         run_id: UUID,
         #
         status: Optional[EvaluationStatus] = None,
+        jit: Optional[bool] = Query(True),
     ) -> EvaluationRunResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -826,6 +903,13 @@ class EvaluationsRouter:
             status=status,
         )
 
+        if run:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
+
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
             run=run,
@@ -840,6 +924,7 @@ class EvaluationsRouter:
         request: Request,
         *,
         run_id: UUID,
+        jit: Optional[bool] = Query(True),
     ) -> EvaluationRunResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -855,6 +940,13 @@ class EvaluationsRouter:
             #
             run_id=run_id,
         )
+
+        if run:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
@@ -1720,6 +1812,118 @@ class EvaluationsRouter:
 
         return scenario_ids_response
 
+    # -- helpers ---------------------------------------------------------------
+
+    async def _resolve_run_request(
+        self,
+        *,
+        project_id: UUID,
+        run: EvaluationRunCreate | EvaluationRunEdit,
+        jit: bool = True,
+    ) -> None:
+        """Resolve evaluator artifact IDs → full reference chain on inbound requests.
+
+        The frontend sends annotation steps with only an evaluator artifact ref.
+        The service/DB layer expects evaluator, evaluator_variant, and
+        evaluator_revision references.
+        Controlled by jit (defaults to True).
+        """
+        if not jit:
+            return
+
+        if not run.data or not run.data.steps:
+            return
+
+        evaluators_service = self.evaluations_service.evaluators_service
+
+        for step in run.data.steps:
+            if step.type != "annotation":
+                continue
+
+            if "evaluator_revision" in step.references:
+                continue
+
+            if "evaluator" not in step.references:
+                continue
+
+            evaluator_ref = step.references["evaluator"]
+
+            if not isinstance(evaluator_ref, Reference) or not evaluator_ref.id:
+                continue
+
+            evaluator_revision = (
+                await evaluators_service.fetch_evaluator_revision(
+                    project_id=project_id,
+                    evaluator_ref=Reference(id=evaluator_ref.id),
+                )
+            )
+
+            if evaluator_revision is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Could not resolve evaluator revision"
+                        f" for evaluator {evaluator_ref.id}"
+                    ),
+                )
+
+            evaluator_variant = (
+                await evaluators_service.fetch_evaluator_variant(
+                    project_id=project_id,
+                    evaluator_variant_ref=Reference(
+                        id=evaluator_revision.variant_id,
+                    ),
+                )
+            )
+
+            evaluator = await evaluators_service.fetch_evaluator(
+                project_id=project_id,
+                evaluator_ref=Reference(id=evaluator_ref.id),
+            )
+
+            step.references["evaluator"] = Reference(
+                id=evaluator.id,
+                slug=evaluator.slug,
+            )
+
+            if evaluator_variant:
+                step.references["evaluator_variant"] = Reference(
+                    id=evaluator_variant.id,
+                    slug=evaluator_variant.slug,
+                )
+
+            step.references["evaluator_revision"] = Reference(
+                id=evaluator_revision.id,
+                slug=evaluator_revision.slug,
+                version=evaluator_revision.version,
+            )
+
+    async def _unresolve_run_response(
+        self,
+        *,
+        project_id: UUID,
+        run: EvaluationRun,
+        jit: bool = True,
+    ) -> None:
+        """Strip evaluator_variant and evaluator_revision refs on outbound responses.
+
+        The service/DB layer stores full reference chains.
+        The frontend only needs the evaluator artifact ref.
+        Controlled by jit (defaults to True).
+        """
+        if not jit:
+            return
+
+        if not run.data or not run.data.steps:
+            return
+
+        for step in run.data.steps:
+            if step.type != "annotation":
+                continue
+
+            step.references.pop("evaluator_variant", None)
+            step.references.pop("evaluator_revision", None)
+
 
 class SimpleEvaluationsRouter:
     def __init__(
@@ -1834,10 +2038,12 @@ class SimpleEvaluationsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluation_create = evaluation_create_request.evaluation
+        jit = evaluation_create_request.jit
 
         await self._resolve_evaluation_request(
             project_id=UUID(request.state.project_id),
             evaluation=evaluation_create,
+            jit=jit,
         )
 
         evaluation = await self.simple_evaluations_service.create(
@@ -1851,6 +2057,7 @@ class SimpleEvaluationsRouter:
             await self._unresolve_evaluation_response(
                 project_id=UUID(request.state.project_id),
                 evaluation=evaluation,
+                jit=jit,
             )
 
         response = SimpleEvaluationResponse(
@@ -1918,10 +2125,12 @@ class SimpleEvaluationsRouter:
             return SimpleEvaluationResponse()
 
         evaluation_edit = evaluation_edit_request.evaluation
+        jit = evaluation_edit_request.jit
 
         await self._resolve_evaluation_request(
             project_id=UUID(request.state.project_id),
             evaluation=evaluation_edit,
+            jit=jit,
         )
 
         evaluation = await self.simple_evaluations_service.edit(
@@ -1935,6 +2144,7 @@ class SimpleEvaluationsRouter:
             await self._unresolve_evaluation_response(
                 project_id=UUID(request.state.project_id),
                 evaluation=evaluation,
+                jit=jit,
             )
 
         response = SimpleEvaluationResponse(
@@ -1990,6 +2200,8 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        jit = evaluation_query_request.jit
+
         evaluations = await self.simple_evaluations_service.query(
             project_id=UUID(request.state.project_id),
             #
@@ -2000,6 +2212,7 @@ class SimpleEvaluationsRouter:
             await self._unresolve_evaluation_response(
                 project_id=UUID(request.state.project_id),
                 evaluation=evaluation,
+                jit=jit,
             )
 
         response = SimpleEvaluationsResponse(
@@ -2160,14 +2373,15 @@ class SimpleEvaluationsRouter:
         *,
         project_id: UUID,
         evaluation: SimpleEvaluationCreate | SimpleEvaluationEdit,
+        jit: bool = True,
     ) -> None:
         """Resolve evaluator artifact IDs → revision IDs on inbound requests.
 
         The frontend sends evaluator artifact IDs in evaluator_steps.
         The service/DB layer expects revision IDs.
-        Controlled by JIT_EVALUATOR_RESOLVER.
+        Controlled by jit (defaults to True).
         """
-        if not JIT_EVALUATOR_RESOLVER:
+        if not jit:
             return
 
         if not evaluation.data or not evaluation.data.evaluator_steps:
@@ -2205,14 +2419,15 @@ class SimpleEvaluationsRouter:
         *,
         project_id: UUID,
         evaluation: SimpleEvaluation,
+        jit: bool = True,
     ) -> None:
         """Resolve evaluator revision IDs → artifact IDs on outbound responses.
 
         The service/DB layer stores revision IDs in evaluator_steps.
         The frontend expects the artifact IDs it originally wrote.
-        Controlled by JIT_EVALUATOR_RESOLVER.
+        Controlled by jit (defaults to True).
         """
-        if not JIT_EVALUATOR_RESOLVER:
+        if not jit:
             return
 
         if not evaluation.data or not evaluation.data.evaluator_steps:
