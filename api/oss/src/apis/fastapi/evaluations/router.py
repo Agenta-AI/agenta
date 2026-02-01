@@ -82,6 +82,17 @@ from oss.src.apis.fastapi.evaluations.models import (
 from oss.src.apis.fastapi.evaluations.utils import (
     handle_evaluation_closed_exception,
 )
+from oss.src.core.shared.dtos import Reference
+from oss.src.core.evaluations.types import (
+    SimpleEvaluation,
+    SimpleEvaluationCreate,
+    SimpleEvaluationEdit,
+)
+
+# When True, the router resolves evaluator artifact IDs to revision IDs on
+# write and maps them back on read.  The service/DB layer always works with
+# revision IDs; this flag keeps that translation in the router.
+JIT_EVALUATOR_RESOLVER = True
 
 if is_ee():
     from ee.src.models.shared_models import Permission
@@ -1822,12 +1833,25 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        evaluation_create = evaluation_create_request.evaluation
+
+        await self._resolve_evaluation_request(
+            project_id=UUID(request.state.project_id),
+            evaluation=evaluation_create,
+        )
+
         evaluation = await self.simple_evaluations_service.create(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluation=evaluation_create_request.evaluation,
+            evaluation=evaluation_create,
         )
+
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -1859,6 +1883,12 @@ class SimpleEvaluationsRouter:
             evaluation_id=evaluation_id,
         )
 
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
+
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
             evaluation=evaluation,
@@ -1887,12 +1917,25 @@ class SimpleEvaluationsRouter:
         if str(evaluation_id) != evaluation_edit_request.evaluation.id:
             return SimpleEvaluationResponse()
 
+        evaluation_edit = evaluation_edit_request.evaluation
+
+        await self._resolve_evaluation_request(
+            project_id=UUID(request.state.project_id),
+            evaluation=evaluation_edit,
+        )
+
         evaluation = await self.simple_evaluations_service.edit(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluation=evaluation_edit_request.evaluation,
+            evaluation=evaluation_edit,
         )
+
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -1953,6 +1996,12 @@ class SimpleEvaluationsRouter:
             query=evaluation_query_request.evaluation,
         )
 
+        for evaluation in evaluations:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
+
         response = SimpleEvaluationsResponse(
             count=len(evaluations),
             evaluations=evaluations,
@@ -1982,6 +2031,12 @@ class SimpleEvaluationsRouter:
             #
             evaluation_id=evaluation_id,
         )
+
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -2013,6 +2068,12 @@ class SimpleEvaluationsRouter:
             evaluation_id=evaluation_id,
         )
 
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
+
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
             evaluation=evaluation,
@@ -2042,6 +2103,12 @@ class SimpleEvaluationsRouter:
             #
             evaluation_id=evaluation_id,
         )
+
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -2073,9 +2140,105 @@ class SimpleEvaluationsRouter:
             evaluation_id=evaluation_id,
         )
 
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
+
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
             evaluation=evaluation,
         )
 
         return response
+
+    # -- helpers ---------------------------------------------------------------
+
+    async def _resolve_evaluation_request(
+        self,
+        *,
+        project_id: UUID,
+        evaluation: SimpleEvaluationCreate | SimpleEvaluationEdit,
+    ) -> None:
+        """Resolve evaluator artifact IDs → revision IDs on inbound requests.
+
+        The frontend sends evaluator artifact IDs in evaluator_steps.
+        The service/DB layer expects revision IDs.
+        Controlled by JIT_EVALUATOR_RESOLVER.
+        """
+        if not JIT_EVALUATOR_RESOLVER:
+            return
+
+        if not evaluation.data or not evaluation.data.evaluator_steps:
+            return
+
+        evaluator_steps = evaluation.data.evaluator_steps
+        evaluators_service = self.simple_evaluations_service.evaluators_service
+
+        if isinstance(evaluator_steps, list):
+            evaluator_steps = {eid: "auto" for eid in evaluator_steps}
+
+        resolved: dict[UUID, str] = {}
+
+        for evaluator_id, origin in evaluator_steps.items():
+            evaluator_revision = (
+                await evaluators_service.fetch_evaluator_revision(
+                    project_id=project_id,
+                    #
+                    evaluator_ref=Reference(id=evaluator_id),
+                )
+            )
+
+            if evaluator_revision is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Could not resolve evaluator revision for evaluator {evaluator_id}",
+                )
+
+            resolved[evaluator_revision.id] = origin
+
+        evaluation.data.evaluator_steps = resolved
+
+    async def _unresolve_evaluation_response(
+        self,
+        *,
+        project_id: UUID,
+        evaluation: SimpleEvaluation,
+    ) -> None:
+        """Resolve evaluator revision IDs → artifact IDs on outbound responses.
+
+        The service/DB layer stores revision IDs in evaluator_steps.
+        The frontend expects the artifact IDs it originally wrote.
+        Controlled by JIT_EVALUATOR_RESOLVER.
+        """
+        if not JIT_EVALUATOR_RESOLVER:
+            return
+
+        if not evaluation.data or not evaluation.data.evaluator_steps:
+            return
+
+        evaluator_steps = evaluation.data.evaluator_steps
+        evaluators_service = self.simple_evaluations_service.evaluators_service
+
+        if isinstance(evaluator_steps, list):
+            evaluator_steps = {eid: "auto" for eid in evaluator_steps}
+
+        resolved: dict[UUID, str] = {}
+
+        for revision_id, origin in evaluator_steps.items():
+            evaluator_revision = (
+                await evaluators_service.fetch_evaluator_revision(
+                    project_id=project_id,
+                    #
+                    evaluator_revision_ref=Reference(id=revision_id),
+                )
+            )
+
+            if evaluator_revision is None or evaluator_revision.evaluator_id is None:
+                resolved[revision_id] = origin
+                continue
+
+            resolved[evaluator_revision.evaluator_id] = origin
+
+        evaluation.data.evaluator_steps = resolved
