@@ -2,7 +2,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, Request, Query, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -81,6 +81,16 @@ from oss.src.apis.fastapi.evaluations.models import (
 )
 from oss.src.apis.fastapi.evaluations.utils import (
     handle_evaluation_closed_exception,
+)
+from oss.src.core.shared.dtos import Reference
+from oss.src.core.evaluations.types import (
+    EvaluationRun,
+    EvaluationRunCreate,
+    EvaluationRunEdit,
+    #
+    SimpleEvaluation,
+    SimpleEvaluationCreate,
+    SimpleEvaluationEdit,
 )
 
 if is_ee():
@@ -521,12 +531,28 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        jit = runs_create_request.jit
+
+        for run in runs_create_request.runs:
+            await self._resolve_run_request(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
+
         runs = await self.evaluations_service.create_runs(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             runs=runs_create_request.runs,
         )
+
+        for run in runs:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         runs_response = EvaluationRunsResponse(
             count=len(runs),
@@ -551,12 +577,28 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        jit = runs_edit_request.jit
+
+        for run in runs_edit_request.runs:
+            await self._resolve_run_request(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
+
         runs = await self.evaluations_service.edit_runs(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             runs=runs_edit_request.runs,
         )
+
+        for run in runs:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         runs_response = EvaluationRunsResponse(
             count=len(runs),
@@ -596,7 +638,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/runs/query
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationRunsResponse())
+    @suppress_exceptions(default=EvaluationRunsResponse(), exclude=[HTTPException])
     async def query_runs(
         self,
         request: Request,
@@ -611,6 +653,8 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        jit = run_query_request.jit
+
         runs = await self.evaluations_service.query_runs(
             project_id=UUID(request.state.project_id),
             #
@@ -618,6 +662,13 @@ class EvaluationsRouter:
             #
             windowing=run_query_request.windowing,
         )
+
+        for run in runs:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         windowing = compute_next_windowing(
             entities=runs,
@@ -656,6 +707,12 @@ class EvaluationsRouter:
             run_ids=run_ids_request.run_ids,
         )
 
+        for run in runs:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+            )
+
         runs_response = EvaluationRunsResponse(
             count=len(runs),
             runs=runs,
@@ -686,6 +743,12 @@ class EvaluationsRouter:
             run_ids=run_ids_request.run_ids,
         )
 
+        for run in runs:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+            )
+
         runs_response = EvaluationRunsResponse(
             count=len(runs),
             runs=runs,
@@ -695,12 +758,14 @@ class EvaluationsRouter:
 
     # GET /evaluations/runs/{run_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationRunResponse())
+    @suppress_exceptions(default=EvaluationRunResponse(), exclude=[HTTPException])
     async def fetch_run(
         self,
         request: Request,
         *,
         run_id: UUID,
+        #
+        jit: Optional[bool] = Query(True),
     ) -> EvaluationRunResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -715,6 +780,13 @@ class EvaluationsRouter:
             #
             run_id=run_id,
         )
+
+        if run:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
@@ -744,12 +816,27 @@ class EvaluationsRouter:
         if str(run_id) != str(run_edit_request.run.id):
             return EvaluationRunResponse()
 
+        jit = run_edit_request.jit
+
+        await self._resolve_run_request(
+            project_id=UUID(request.state.project_id),
+            run=run_edit_request.run,
+            jit=jit,
+        )
+
         run = await self.evaluations_service.edit_run(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             run=run_edit_request.run,
         )
+
+        if run:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
@@ -797,6 +884,7 @@ class EvaluationsRouter:
         run_id: UUID,
         #
         status: Optional[EvaluationStatus] = None,
+        jit: Optional[bool] = Query(True),
     ) -> EvaluationRunResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -815,6 +903,13 @@ class EvaluationsRouter:
             status=status,
         )
 
+        if run:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
+
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
             run=run,
@@ -829,6 +924,7 @@ class EvaluationsRouter:
         request: Request,
         *,
         run_id: UUID,
+        jit: Optional[bool] = Query(True),
     ) -> EvaluationRunResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -844,6 +940,13 @@ class EvaluationsRouter:
             #
             run_id=run_id,
         )
+
+        if run:
+            await self._unresolve_run_response(
+                project_id=UUID(request.state.project_id),
+                run=run,
+                jit=jit,
+            )
 
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
@@ -948,7 +1051,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/scenarios/query
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationScenariosResponse())
+    @suppress_exceptions(default=EvaluationScenariosResponse(), exclude=[HTTPException])
     async def query_scenarios(
         self,
         request: Request,
@@ -980,7 +1083,7 @@ class EvaluationsRouter:
 
     # GET /evaluations/scenarios/{scenario_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationScenarioResponse())
+    @suppress_exceptions(default=EvaluationScenarioResponse(), exclude=[HTTPException])
     async def fetch_scenario(
         self,
         request: Request,
@@ -1169,7 +1272,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/results/query
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationResultsResponse())
+    @suppress_exceptions(default=EvaluationResultsResponse(), exclude=[HTTPException])
     async def query_results(
         self,
         request: Request,
@@ -1201,7 +1304,7 @@ class EvaluationsRouter:
 
     # GET /evaluations/results/{result_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationResultResponse())
+    @suppress_exceptions(default=EvaluationResultResponse(), exclude=[HTTPException])
     async def fetch_result(
         self,
         request: Request,
@@ -1299,7 +1402,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/metrics/refresh
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationMetricsResponse())
+    @suppress_exceptions(default=EvaluationMetricsResponse(), exclude=[HTTPException])
     async def refresh_metrics(
         self,
         request: Request,
@@ -1422,7 +1525,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/metrics/query
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationMetricsResponse())
+    @suppress_exceptions(default=EvaluationMetricsResponse(), exclude=[HTTPException])
     async def query_metrics(
         self,
         request: Request,
@@ -1548,7 +1651,7 @@ class EvaluationsRouter:
 
     # POST /evaluations/queues/query
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationQueuesResponse())
+    @suppress_exceptions(default=EvaluationQueuesResponse(), exclude=[HTTPException])
     async def query_queues(
         self,
         request: Request,
@@ -1580,7 +1683,7 @@ class EvaluationsRouter:
 
     # GET /evaluations/queues/{queue_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationQueueResponse())
+    @suppress_exceptions(default=EvaluationQueueResponse(), exclude=[HTTPException])
     async def fetch_queue(
         self,
         request: Request,
@@ -1676,7 +1779,9 @@ class EvaluationsRouter:
 
     # GET /evaluations/queues/{queue_id}/scenarios
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluationQueueScenarioIdsResponse())
+    @suppress_exceptions(
+        default=EvaluationQueueScenarioIdsResponse(), exclude=[HTTPException]
+    )
     async def fetch_queue_scenarios(
         self,
         request: Request,
@@ -1706,6 +1811,114 @@ class EvaluationsRouter:
         )
 
         return scenario_ids_response
+
+    # -- helpers ---------------------------------------------------------------
+
+    async def _resolve_run_request(
+        self,
+        *,
+        project_id: UUID,
+        run: EvaluationRunCreate | EvaluationRunEdit,
+        jit: bool = True,
+    ) -> None:
+        """Resolve evaluator artifact IDs → full reference chain on inbound requests.
+
+        The frontend sends annotation steps with only an evaluator artifact ref.
+        The service/DB layer expects evaluator, evaluator_variant, and
+        evaluator_revision references.
+        Controlled by jit (defaults to True).
+        """
+        if not jit:
+            return
+
+        if not run.data or not run.data.steps:
+            return
+
+        evaluators_service = self.evaluations_service.evaluators_service
+
+        for step in run.data.steps:
+            if step.type != "annotation":
+                continue
+
+            if "evaluator_revision" in step.references:
+                continue
+
+            if "evaluator" not in step.references:
+                continue
+
+            evaluator_ref = step.references["evaluator"]
+
+            if not isinstance(evaluator_ref, Reference) or not evaluator_ref.id:
+                continue
+
+            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                evaluator_ref=Reference(id=evaluator_ref.id),
+            )
+
+            if evaluator_revision is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Could not resolve evaluator revision"
+                        f" for evaluator {evaluator_ref.id}"
+                    ),
+                )
+
+            evaluator_variant = await evaluators_service.fetch_evaluator_variant(
+                project_id=project_id,
+                evaluator_variant_ref=Reference(
+                    id=evaluator_revision.variant_id,
+                ),
+            )
+
+            evaluator = await evaluators_service.fetch_evaluator(
+                project_id=project_id,
+                evaluator_ref=Reference(id=evaluator_ref.id),
+            )
+
+            step.references["evaluator"] = Reference(
+                id=evaluator.id,
+                slug=evaluator.slug,
+            )
+
+            if evaluator_variant:
+                step.references["evaluator_variant"] = Reference(
+                    id=evaluator_variant.id,
+                    slug=evaluator_variant.slug,
+                )
+
+            step.references["evaluator_revision"] = Reference(
+                id=evaluator_revision.id,
+                slug=evaluator_revision.slug,
+                version=evaluator_revision.version,
+            )
+
+    async def _unresolve_run_response(
+        self,
+        *,
+        project_id: UUID,
+        run: EvaluationRun,
+        jit: bool = True,
+    ) -> None:
+        """Strip evaluator_variant and evaluator_revision refs on outbound responses.
+
+        The service/DB layer stores full reference chains.
+        The frontend only needs the evaluator artifact ref.
+        Controlled by jit (defaults to True).
+        """
+        if not jit:
+            return
+
+        if not run.data or not run.data.steps:
+            return
+
+        for step in run.data.steps:
+            if step.type != "annotation":
+                continue
+
+            step.references.pop("evaluator_variant", None)
+            step.references.pop("evaluator_revision", None)
 
 
 class SimpleEvaluationsRouter:
@@ -1820,12 +2033,28 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        evaluation_create = evaluation_create_request.evaluation
+        jit = evaluation_create_request.jit
+
+        await self._resolve_evaluation_request(
+            project_id=UUID(request.state.project_id),
+            evaluation=evaluation_create,
+            jit=jit,
+        )
+
         evaluation = await self.simple_evaluations_service.create(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluation=evaluation_create_request.evaluation,
+            evaluation=evaluation_create,
         )
+
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+                jit=jit,
+            )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -1836,7 +2065,7 @@ class SimpleEvaluationsRouter:
 
     # GET /api/simple/evaluations/{evaluation_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleEvaluationResponse())
+    @suppress_exceptions(default=SimpleEvaluationResponse(), exclude=[HTTPException])
     async def fetch_evaluation(
         self,
         request: Request,
@@ -1856,6 +2085,12 @@ class SimpleEvaluationsRouter:
             #
             evaluation_id=evaluation_id,
         )
+
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -1885,12 +2120,28 @@ class SimpleEvaluationsRouter:
         if str(evaluation_id) != evaluation_edit_request.evaluation.id:
             return SimpleEvaluationResponse()
 
+        evaluation_edit = evaluation_edit_request.evaluation
+        jit = evaluation_edit_request.jit
+
+        await self._resolve_evaluation_request(
+            project_id=UUID(request.state.project_id),
+            evaluation=evaluation_edit,
+            jit=jit,
+        )
+
         evaluation = await self.simple_evaluations_service.edit(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluation=evaluation_edit_request.evaluation,
+            evaluation=evaluation_edit,
         )
+
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+                jit=jit,
+            )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -1930,7 +2181,7 @@ class SimpleEvaluationsRouter:
 
     # POST /api/simple/evaluations/query
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleEvaluationsResponse())
+    @suppress_exceptions(default=SimpleEvaluationsResponse(), exclude=[HTTPException])
     async def query_evaluations(
         self,
         request: Request,
@@ -1945,11 +2196,20 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        jit = evaluation_query_request.jit
+
         evaluations = await self.simple_evaluations_service.query(
             project_id=UUID(request.state.project_id),
             #
             query=evaluation_query_request.evaluation,
         )
+
+        for evaluation in evaluations:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+                jit=jit,
+            )
 
         response = SimpleEvaluationsResponse(
             count=len(evaluations),
@@ -1981,6 +2241,12 @@ class SimpleEvaluationsRouter:
             evaluation_id=evaluation_id,
         )
 
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
+
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
             evaluation=evaluation,
@@ -2010,6 +2276,12 @@ class SimpleEvaluationsRouter:
             #
             evaluation_id=evaluation_id,
         )
+
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -2041,6 +2313,12 @@ class SimpleEvaluationsRouter:
             evaluation_id=evaluation_id,
         )
 
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
+
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
             evaluation=evaluation,
@@ -2071,9 +2349,103 @@ class SimpleEvaluationsRouter:
             evaluation_id=evaluation_id,
         )
 
+        if evaluation:
+            await self._unresolve_evaluation_response(
+                project_id=UUID(request.state.project_id),
+                evaluation=evaluation,
+            )
+
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
             evaluation=evaluation,
         )
 
         return response
+
+    # -- helpers ---------------------------------------------------------------
+
+    async def _resolve_evaluation_request(
+        self,
+        *,
+        project_id: UUID,
+        evaluation: SimpleEvaluationCreate | SimpleEvaluationEdit,
+        jit: bool = True,
+    ) -> None:
+        """Resolve evaluator artifact IDs → revision IDs on inbound requests.
+
+        The frontend sends evaluator artifact IDs in evaluator_steps.
+        The service/DB layer expects revision IDs.
+        Controlled by jit (defaults to True).
+        """
+        if not jit:
+            return
+
+        if not evaluation.data or not evaluation.data.evaluator_steps:
+            return
+
+        evaluator_steps = evaluation.data.evaluator_steps
+        evaluators_service = self.simple_evaluations_service.evaluators_service
+
+        if isinstance(evaluator_steps, list):
+            evaluator_steps = {eid: "auto" for eid in evaluator_steps}
+
+        resolved: dict[UUID, str] = {}
+
+        for evaluator_id, origin in evaluator_steps.items():
+            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_ref=Reference(id=evaluator_id),
+            )
+
+            if evaluator_revision is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Could not resolve evaluator revision for evaluator {evaluator_id}",
+                )
+
+            resolved[evaluator_revision.id] = origin
+
+        evaluation.data.evaluator_steps = resolved
+
+    async def _unresolve_evaluation_response(
+        self,
+        *,
+        project_id: UUID,
+        evaluation: SimpleEvaluation,
+        jit: bool = True,
+    ) -> None:
+        """Resolve evaluator revision IDs → artifact IDs on outbound responses.
+
+        The service/DB layer stores revision IDs in evaluator_steps.
+        The frontend expects the artifact IDs it originally wrote.
+        Controlled by jit (defaults to True).
+        """
+        if not jit:
+            return
+
+        if not evaluation.data or not evaluation.data.evaluator_steps:
+            return
+
+        evaluator_steps = evaluation.data.evaluator_steps
+        evaluators_service = self.simple_evaluations_service.evaluators_service
+
+        if isinstance(evaluator_steps, list):
+            evaluator_steps = {eid: "auto" for eid in evaluator_steps}
+
+        resolved: dict[UUID, str] = {}
+
+        for revision_id, origin in evaluator_steps.items():
+            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_revision_ref=Reference(id=revision_id),
+            )
+
+            if evaluator_revision is None or evaluator_revision.evaluator_id is None:
+                resolved[revision_id] = origin
+                continue
+
+            resolved[evaluator_revision.evaluator_id] = origin
+
+        evaluation.data.evaluator_steps = resolved

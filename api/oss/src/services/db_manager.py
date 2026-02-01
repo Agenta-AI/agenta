@@ -268,9 +268,9 @@ async def add_default_simple_evaluators(
     )
     from oss.src.core.evaluators.dtos import (
         SimpleEvaluatorCreate,
-        SimpleEvaluatorData,
         SimpleEvaluatorFlags,
     )
+    from oss.src.core.evaluators.utils import build_evaluator_data
     from oss.src.routers.evaluators_router import BUILTIN_EVALUATORS
 
     workflows_dao = GitDAO(
@@ -304,9 +304,6 @@ async def add_default_simple_evaluators(
                 and setting.get("default", "")
             }
 
-            # Build URI from evaluator key
-            uri = f"agenta:builtin:{evaluator.key}:v0"
-
             # Generate slug from name
             evaluator_slug = get_slug_from_name_and_id(evaluator.name, uuid.uuid4())
 
@@ -314,9 +311,9 @@ async def add_default_simple_evaluators(
                 slug=evaluator_slug,
                 name=evaluator.name,
                 flags=SimpleEvaluatorFlags(is_evaluator=True),
-                data=SimpleEvaluatorData(
-                    uri=uri,
-                    parameters=settings_values if settings_values else None,
+                data=build_evaluator_data(
+                    evaluator_key=evaluator.key,
+                    settings_values=settings_values if settings_values else None,
                 ),
             )
 
@@ -1143,8 +1140,74 @@ async def get_user(user_uid: str) -> UserDB:
         return user
 
 
+async def is_first_user_signup() -> bool:
+    """Check if this is the first user signing up (no users exist yet)."""
+    async with engine.core_session() as session:
+        total_users = (
+            await session.scalar(select(func.count()).select_from(UserDB)) or 0
+        )
+        return total_users == 0
+
+
+async def get_oss_organization() -> Optional[OrganizationDB]:
+    """Get the single OSS organization if it exists."""
+    organizations_db = await get_organizations()
+    if organizations_db:
+        return organizations_db[0]
+    return None
+
+
+async def setup_oss_organization_for_first_user(
+    user_id: uuid.UUID,
+    user_email: str,
+) -> OrganizationDB:
+    """
+    Setup the OSS organization for the first user.
+
+    This should only be called after the user has been created.
+
+    Args:
+        user_id: The UUID of the newly created user
+        user_email: The email of the user (for analytics)
+
+    Returns:
+        OrganizationDB: The created organization
+    """
+    organization_db = await create_organization(
+        name="Organization",
+        owner_id=user_id,
+        created_by_id=user_id,
+    )
+    workspace_db = await create_workspace(
+        name="Default",
+        organization_id=str(organization_db.id),
+    )
+
+    # update default project with organization and workspace ids
+    await create_or_update_default_project(
+        values_to_update={
+            "organization_id": organization_db.id,
+            "workspace_id": workspace_db.id,
+            "project_name": "Default",
+        }
+    )
+
+    analytics_service.capture_oss_deployment_created(
+        user_email=user_email,
+        organization_id=str(organization_db.id),
+    )
+
+    return organization_db
+
+
 async def check_if_user_exists_and_create_organization(user_email: str):
-    """Check if a user with the given email exists and if not, create a new organization for them."""
+    """
+    Check if a user with the given email exists and if not, create a new organization for them.
+
+    DEPRECATED: This function has a bug where it creates an organization before the user exists,
+    causing FK violations. Use is_first_user_signup() + setup_oss_organization_for_first_user() instead.
+    Kept for backward compatibility but should not be called for new signups.
+    """
 
     async with engine.core_session() as session:
         user_query = await session.execute(select(UserDB).filter_by(email=user_email))

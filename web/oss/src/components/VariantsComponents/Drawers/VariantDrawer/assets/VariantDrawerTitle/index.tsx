@@ -143,6 +143,7 @@ const TitleActions = memo(
         variants,
         isLoading,
     }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "variants" | "isLoading">) => {
+        const [, updateQuery] = useQuery("replace")
         const appStatus = useAtomValue(currentVariantAppStatusAtom)
         const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
         const isDirty = useAtomValue(variantIsDirtyAtomFamily(variantId))
@@ -173,6 +174,7 @@ const TitleActions = memo(
                     }
                     revisionId={selectedVariant?._parentVariant ? selectedVariant?.id : undefined}
                     disabled={isLoading}
+                    data-tour="deploy-button"
                 />
 
                 <CommitVariantChangesButton
@@ -182,6 +184,10 @@ const TitleActions = memo(
                     size="small"
                     disabled={!isDirty || isLoading}
                     commitType={viewAs}
+                    onSuccess={({revisionId}) => {
+                        if (!revisionId) return
+                        updateQuery({revisionId, drawerType: "variant"})
+                    }}
                 />
             </div>
         )
@@ -201,7 +207,13 @@ const VariantDrawerTitle = ({
     return (
         <section className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-                <Button onClick={onClose} type="text" icon={<CloseOutlined />} size="small" />
+                <Button
+                    onClick={onClose}
+                    type="text"
+                    data-tour="variant-drawer-close-button"
+                    icon={<CloseOutlined />}
+                    size="small"
+                />
                 <Button
                     onClick={onToggleWidth}
                     type="text"

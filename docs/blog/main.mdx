@@ -10,7 +10,27 @@ import Image from "@theme/IdealImage";
 
 <section class="changelog">
 
+### [Onboarding Widget and Guided Walkthroughs](/changelog/onboarding-widget-walkthroughs)
 
+_29 January 2026_
+
+**v0.81.1**
+
+New users now get an onboarding widget with guided walkthroughs. The widget appears in the sidebar and walks you through key features like the playground, evaluations, and observability. Each tour highlights UI elements as you go, so you learn by doing. Track your progress and revisit walkthroughs anytime.
+
+---
+
+### [Navigation Links from Traces to App/Environment/Variant](/changelog/trace-navigation-links)
+
+_28 January 2026_
+
+**v0.81.0**
+
+You can now click directly from any trace to the application, variant, or environment that generated it. Links appear in both the trace table and drawer view. This makes debugging faster since you can jump straight to the configuration that produced a specific output.
+
+To enable navigation links, store references in your traces using the Python SDK (`ag.tracing.store_refs()`) or OpenTelemetry span attributes. See the [reference prompt versions guide](/observability/trace-with-python-sdk/reference-prompt-versions) for details.
+
+---
 
 ### [Test Set Versioning and New Test Set UI](/changelog/testset-versioning)
 

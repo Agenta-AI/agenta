@@ -1,16 +1,18 @@
-import {useCallback, memo, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, memo, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
-import {useAtomValue} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {message} from "@/oss/components/AppMessageContext"
+import {FIRST_EVALUATION_TOUR_ID} from "@/oss/components/Onboarding/tours/firstEvaluationTour"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
 import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
+import {activeTourIdAtom, currentStepStateAtom} from "@/oss/lib/onboarding"
 import {createEvaluation} from "@/oss/services/evaluations/api"
 import {useAppsData} from "@/oss/state/app/hooks"
 import {appIdentifiersAtom} from "@/oss/state/appState"
@@ -18,6 +20,14 @@ import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
 
 import {buildEvaluationNavigationUrl} from "../../utils"
 import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
+import {newEvaluationActivePanelAtom} from "../state/panel"
+import {
+    selectedEvalConfigsAtom,
+    selectedTestsetIdAtom,
+    selectedTestsetNameAtom,
+    selectedTestsetRevisionIdAtom,
+    selectedTestsetVersionAtom,
+} from "../state/selection"
 import type {LLMRunRateLimitWithCorrectAnswer, NewEvaluationModalInnerProps} from "../types"
 
 const NewEvaluationModalContent = dynamic(() => import("./NewEvaluationModalContent"), {
@@ -103,24 +113,53 @@ const NewEvaluationModalInner = ({
             evaluationData.evaluatorConfigsSwr?.isLoading,
         ])
 
-    const [selectedTestsetId, setSelectedTestsetId] = useState("")
-    const [selectedTestsetRevisionId, setSelectedTestsetRevisionId] = useState("")
-    const [selectedTestsetName, setSelectedTestsetName] = useState("")
-    const [selectedTestsetVersion, setSelectedTestsetVersion] = useState<number | null>(null)
+    const [selectedTestsetId, setSelectedTestsetId] = useAtom(selectedTestsetIdAtom)
+    const [selectedTestsetRevisionId, setSelectedTestsetRevisionId] = useAtom(
+        selectedTestsetRevisionIdAtom,
+    )
+    const [selectedTestsetName, setSelectedTestsetName] = useAtom(selectedTestsetNameAtom)
+    const [selectedTestsetVersion, setSelectedTestsetVersion] = useAtom(selectedTestsetVersionAtom)
+    const [selectedEvalConfigs, setSelectedEvalConfigs] = useAtom(selectedEvalConfigsAtom)
+
+    // Reset testset selection on mount to match previous local state behavior
+    useEffect(() => {
+        setSelectedTestsetId("")
+        setSelectedTestsetRevisionId("")
+        setSelectedTestsetName("")
+        setSelectedTestsetVersion(null)
+        setSelectedEvalConfigs([])
+    }, [
+        setSelectedEvalConfigs,
+        setSelectedTestsetId,
+        setSelectedTestsetName,
+        setSelectedTestsetRevisionId,
+        setSelectedTestsetVersion,
+    ])
     // Initialize with pre-selected variants (e.g., from playground comparison mode)
     const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>(() =>
         preSelectedVariantIds?.length ? [...preSelectedVariantIds] : [],
     )
-    const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
+    const activeTourId = useAtomValue(activeTourIdAtom)
+    const currentStepState = useAtomValue(currentStepStateAtom)
     // If variants are pre-selected, start on testset panel; otherwise follow normal flow
     const hasPreSelectedVariants = Boolean(preSelectedVariantIds?.length)
-    const [activePanel, setActivePanel] = useState<string | null>(() =>
-        getInitialPanel(hasPreSelectedVariants, isAppScoped),
-    )
+    const [activePanel, setActivePanel] = useAtom(newEvaluationActivePanelAtom)
     const [evaluationName, setEvaluationName] = useState("")
     const [nameFocused, setNameFocused] = useState(false)
     const [advanceSettings, setAdvanceSettings] =
         useState<LLMRunRateLimitWithCorrectAnswer>(DEFAULT_ADVANCE_SETTINGS)
+
+    const allowTestsetAutoAdvance = !(
+        activeTourId === FIRST_EVALUATION_TOUR_ID &&
+        currentStepState.step?.panelKey === "testsetPanel"
+    )
+
+    useLayoutEffect(() => {
+        if (activeTourId !== FIRST_EVALUATION_TOUR_ID) return
+        const panelKey = currentStepState.step?.panelKey
+        if (!panelKey || panelKey === activePanel) return
+        setActivePanel(panelKey)
+    }, [activePanel, activeTourId, currentStepState.step?.panelKey, setActivePanel])
 
     useEffect(() => {
         if (isAppScoped) {
@@ -129,11 +168,19 @@ const NewEvaluationModalInner = ({
     }, [effectiveAppId, isAppScoped])
 
     useEffect(() => {
+        const initialPanel = getInitialPanel(hasPreSelectedVariants, isAppScoped)
+        setActivePanel(initialPanel)
+        return () => {
+            setActivePanel(null)
+        }
+    }, [hasPreSelectedVariants, isAppScoped, setActivePanel])
+
+    useEffect(() => {
         if (!isAppScoped) return
         if (!selectedAppId) return
         if (activePanel !== "appPanel") return
         setActivePanel("variantPanel")
-    }, [isAppScoped, selectedAppId, activePanel])
+    }, [isAppScoped, selectedAppId, activePanel, setActivePanel])
 
     const handleAppSelection = useCallback(
         (value: string) => {
@@ -399,7 +446,7 @@ const NewEvaluationModalInner = ({
                         testset_id: selectedTestsetId,
                         testset_revision_id: selectedTestsetRevisionId,
                         revisions_ids: selectedVariantRevisionIds,
-                        evaluators_configs: selectedEvalConfigs,
+                        evaluator_ids: selectedEvalConfigs,
                         rate_limit: rateLimitValues,
                         correct_answer_column: correct_answer_column,
                         name: evaluationName,
@@ -519,6 +566,7 @@ const NewEvaluationModalInner = ({
             onSelectApp={handleAppSelection}
             appSelectionDisabled={isAppScoped}
             onEvaluatorCreated={handleEvaluatorCreated}
+            allowTestsetAutoAdvance={allowTestsetAutoAdvance}
         />
     )
 }

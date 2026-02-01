@@ -160,7 +160,7 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
                 <Splitter
                     key={`${isComparisonView ? "comparison" : "single"}-splitter`}
-                    className="h-full"
+                    className="h-full playground-splitter"
                     orientation={isComparisonView ? "vertical" : "horizontal"}
                 >
                     <SplitterPanel

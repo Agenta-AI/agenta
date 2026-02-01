@@ -14,7 +14,6 @@ from oss.src.services.db_manager import (
     fetch_app_by_id,
     fetch_app_variant_by_id,
     fetch_app_variant_revision_by_id,
-    fetch_evaluator_config,
     get_deployment_by_id,
     get_project_by_id,
 )
@@ -137,14 +136,13 @@ async def setup_evaluation(
     #
     revision_id: Optional[str] = None,
     #
-    autoeval_ids: Optional[List[str]] = None,
+    evaluator_ids: Optional[List[str]] = None,
+    evaluator_revision_ids: Optional[List[str]] = None,
     #
-    tracing_router: TracingRouter,
     testsets_service: TestsetsService,
-    simple_evaluators_service: SimpleEvaluatorsService,
-    #
     queries_service: QueriesService,
     workflows_service: WorkflowsService,
+    evaluators_service: EvaluatorsService,
     evaluations_service: EvaluationsService,
 ) -> Optional[EvaluationRun]:
     request = Request(scope={"type": "http", "http_version": "1.1", "scheme": "http"})
@@ -154,11 +152,11 @@ async def setup_evaluation(
     run = None
 
     # --------------------------------------------------------------------------
-    log.info("[SETUP]     ", project_id=project_id, user_id=user_id)
-    log.info("[TESTSET]   ", ids=[testset_revision_id])
-    log.info("[QUERY]     ", ids=[query_id])
-    log.info("[INVOCATON] ", ids=[revision_id])
-    log.info("[ANNOTATION]", ids=autoeval_ids)
+    log.info("[SETUP]       ", project_id=project_id, user_id=user_id)
+    log.info("[TESTSET]     ", ids=[testset_revision_id])
+    log.info("[QUERY]       ", ids=[query_id])
+    log.info("[APPLICATION] ", ids=[revision_id])
+    log.info("[EVALUATOR]   ", ids=evaluator_ids)
     # --------------------------------------------------------------------------
 
     try:
@@ -187,7 +185,8 @@ async def setup_evaluation(
             run=run_create,
         )
 
-        assert run is not None, "Failed to create evaluation run."
+        if run is None:
+            raise ValueError("Failed to create evaluation run.")
         # ----------------------------------------------------------------------
 
         # testset --------------------------------------------------------------
@@ -204,9 +203,10 @@ async def setup_evaluation(
                 testset_revision_ref=testset_revision_ref,
             )
 
-            assert testset_revision is not None, (
-                f"Testset revision with id {testset_revision_id} not found!"
-            )
+            if testset_revision is None:
+                raise ValueError(
+                    f"Testset revision with id {testset_revision_id} not found!"
+                )
 
             testset_ref = Reference(id=testset_revision.testset_id)
 
@@ -215,9 +215,10 @@ async def setup_evaluation(
                 testset_ref=testset_ref,
             )
 
-            assert testset is not None, (
-                f"Testset with id {testset_revision.testset_id} not found!"
-            )
+            if testset is None:
+                raise ValueError(
+                    f"Testset with id {testset_revision.testset_id} not found!"
+                )
 
             testcases = testset_revision.data.testcases
 
@@ -242,7 +243,8 @@ async def setup_evaluation(
                 query_ref=query_ref,
             )
 
-            assert query is not None, f"Query with id {query_id} not found!"
+            if query is None:
+                raise ValueError(f"Query with id {query_id} not found!")
 
             query_references["artifact"] = Reference(
                 id=query.id,
@@ -255,9 +257,8 @@ async def setup_evaluation(
                 query_ref=query_ref,
             )
 
-            assert query_revision is not None, (
-                f"Query revision with id {query_id} not found!"
-            )
+            if query_revision is None:
+                raise ValueError(f"Query revision with id {query_id} not found!")
 
             query_revision_ref = Reference(
                 id=query_revision.id,
@@ -273,9 +274,10 @@ async def setup_evaluation(
                 ),
             )
 
-            assert query_variant is not None, (
-                f"Query variant with id {query_revision.variant_id} not found!"
-            )
+            if query_variant is None:
+                raise ValueError(
+                    f"Query variant with id {query_revision.variant_id} not found!"
+                )
 
             query_variant_ref = Reference(
                 id=query_variant.id,
@@ -295,9 +297,8 @@ async def setup_evaluation(
         if revision_id:
             revision = await fetch_app_variant_revision_by_id(revision_id)
 
-            assert revision is not None, (
-                f"App revision with id {revision_id} not found!"
-            )
+            if revision is None:
+                raise ValueError(f"App revision with id {revision_id} not found!")
 
             application_references["revision"] = Reference(
                 id=UUID(str(revision.id)),
@@ -305,9 +306,10 @@ async def setup_evaluation(
 
             variant = await fetch_app_variant_by_id(str(revision.variant_id))
 
-            assert variant is not None, (
-                f"App variant with id {revision.variant_id} not found!"
-            )
+            if variant is None:
+                raise ValueError(
+                    f"App variant with id {revision.variant_id} not found!"
+                )
 
             application_references["variant"] = Reference(
                 id=UUID(str(variant.id)),
@@ -315,7 +317,8 @@ async def setup_evaluation(
 
             app = await fetch_app_by_id(str(variant.app_id))
 
-            assert app is not None, f"App with id {variant.app_id} not found!"
+            if app is None:
+                raise ValueError(f"App with id {variant.app_id} not found!")
 
             application_references["artifact"] = Reference(
                 id=UUID(str(app.id)),
@@ -323,19 +326,22 @@ async def setup_evaluation(
 
             deployment = await get_deployment_by_id(str(revision.base.deployment_id))
 
-            assert deployment is not None, (
-                f"Deployment with id {revision.base.deployment_id} not found!"
-            )
+            if deployment is None:
+                raise ValueError(
+                    f"Deployment with id {revision.base.deployment_id} not found!"
+                )
 
             uri = parse_url(url=deployment.uri)
 
-            assert uri is not None, f"Invalid URI for deployment {deployment.id}!"
+            if uri is None:
+                raise ValueError(f"Invalid URI for deployment {deployment.id}!")
 
             revision_parameters = revision.config_parameters
 
-            assert revision_parameters is not None, (
-                f"Revision parameters for variant {variant.id} not found!"
-            )
+            if revision_parameters is None:
+                raise ValueError(
+                    f"Revision parameters for variant {variant.id} not found!"
+                )
 
             invocation_steps_keys.append(
                 get_slug_from_name_and_id(app.app_name, revision.id)
@@ -344,112 +350,89 @@ async def setup_evaluation(
 
         # fetch evaluators -----------------------------------------------------
         annotation_steps_keys = []
-
-        if autoeval_ids:
-            autoeval_configs = []
-
-            for autoeval_id in autoeval_ids:
-                autoeval_config = await fetch_evaluator_config(autoeval_id)
-
-                autoeval_configs.append(autoeval_config)
-
-            for autoeval_config in autoeval_configs:
-                annotation_steps_keys.append(
-                    get_slug_from_name_and_id(autoeval_config.name, autoeval_config.id)
-                )
-        # ----------------------------------------------------------------------
-
-        # fetch evaluator references -------------------------------------------
-        annotation_metrics_keys = {key: {} for key in annotation_steps_keys}
+        annotation_metrics_keys = dict()
         evaluator_references = dict()
 
-        for jdx, autoeval_id in enumerate(autoeval_ids):
-            annotation_step_key = annotation_steps_keys[jdx]
+        if evaluator_ids:
+            for evaluator_id in evaluator_ids:
+                # fetch evaluator (artifact)
+                evaluator = await evaluators_service.fetch_evaluator(
+                    project_id=project_id,
+                    evaluator_ref=Reference(id=UUID(evaluator_id)),
+                )
 
-            evaluator = await simple_evaluators_service.fetch(
-                project_id=project_id,
-                evaluator_id=UUID(autoeval_id),
-            )
+                if evaluator is None:
+                    raise ValueError(f"Evaluator with id {evaluator_id} not found!")
 
-            assert evaluator is not None, f"Evaluator with id {autoeval_id} not found!"
+                annotation_step_key = evaluator.slug
 
-            evaluator_references[annotation_step_key] = {}
+                # fetch evaluator variant
+                evaluator_variant = await evaluators_service.fetch_evaluator_variant(
+                    project_id=project_id,
+                    evaluator_ref=Reference(id=evaluator.id),
+                )
 
-            evaluator_references[annotation_step_key]["artifact"] = Reference(
-                id=evaluator.id,
-                slug=evaluator.slug,
-            )
+                if evaluator_variant is None:
+                    raise ValueError(
+                        f"Evaluator variant for evaluator {evaluator_id} not found!"
+                    )
 
-            metrics_keys = get_metrics_keys_from_schema(
-                schema=(evaluator.data.schemas.get("outputs")),
-            )
+                # fetch evaluator revision
+                evaluator_revision_ref = (
+                    Reference(
+                        id=UUID(evaluator_revision_ids[len(annotation_steps_keys)])
+                    )
+                    if evaluator_revision_ids
+                    else None
+                )
 
-            annotation_metrics_keys[annotation_step_key] = [
-                {
-                    "path": metric_key.get("path", "").replace("outputs.", "", 1),
-                    "type": metric_key.get("type", ""),
+                evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+                    project_id=project_id,
+                    evaluator_ref=Reference(id=evaluator.id),
+                    evaluator_variant_ref=Reference(id=evaluator_variant.id),
+                    evaluator_revision_ref=evaluator_revision_ref,
+                )
+
+                if evaluator_revision is None:
+                    raise ValueError(
+                        f"Evaluator revision for evaluator {evaluator_id} not found!"
+                    )
+
+                # collect step key
+                annotation_steps_keys.append(annotation_step_key)
+
+                # collect references
+                evaluator_references[annotation_step_key] = {
+                    "artifact": Reference(
+                        id=evaluator.id,
+                        slug=evaluator.slug,
+                    ),
+                    "variant": Reference(
+                        id=evaluator_variant.id,
+                        slug=evaluator_variant.slug,
+                    ),
+                    "revision": Reference(
+                        id=evaluator_revision.id,
+                        slug=evaluator_revision.slug,
+                    ),
                 }
-                for metric_key in metrics_keys
-            ]
-        # ----------------------------------------------------------------------
 
-        # fetch evaluator workflows --------------------------------------------
-        evaluators = dict()
+                # collect metrics
+                metrics_keys = get_metrics_keys_from_schema(
+                    schema=(
+                        evaluator_revision.data.schemas.get("outputs")
+                        if evaluator_revision.data
+                        else None
+                    ),
+                )
 
-        for annotation_step_key, references in evaluator_references.items():
-            evaluators[annotation_step_key] = {}
-
-            workflow_ref = references["artifact"]
-
-            workflow = await workflows_service.fetch_workflow(
-                project_id=project_id,
-                #
-                workflow_ref=workflow_ref,
-            )
-
-            evaluators[annotation_step_key]["workflow"] = workflow
-
-            workflow_revision = await workflows_service.fetch_workflow_revision(
-                project_id=project_id,
-                #
-                workflow_ref=workflow_ref,
-            )
-
-            assert workflow_revision is not None, (
-                f"Workflow revision with id {workflow_ref.id} not found!"
-            )
-
-            workflow_revision_ref = Reference(
-                id=workflow_revision.id,
-                slug=workflow_revision.slug,
-            )
-
-            evaluator_references[annotation_step_key]["revision"] = (
-                workflow_revision_ref
-            )
-
-            evaluators[annotation_step_key]["revision"] = workflow_revision
-
-            workflow_variant = await workflows_service.fetch_workflow_variant(
-                project_id=project_id,
-                workflow_variant_ref=Reference(
-                    id=workflow_revision.variant_id,
-                ),
-            )
-
-            assert workflow_variant is not None, (
-                f"Workflow variant with id {workflow_revision.variant_id} not found!"
-            )
-
-            workflow_variant_ref = Reference(
-                id=workflow_variant.id,
-                slug=workflow_variant.slug,
-            )
-
-            evaluator_references[annotation_step_key]["variant"] = workflow_variant_ref
-
-            evaluators[annotation_step_key]["variant"] = workflow_variant
-
+                annotation_metrics_keys[annotation_step_key] = [
+                    {
+                        "path": metric_key.get("path", "").replace("outputs.", "", 1),
+                        "type": metric_key.get("type", ""),
+                    }
+                    for metric_key in metrics_keys
+                ]
         # ----------------------------------------------------------------------
 
         # initialize steps/mappings in run -------------------------------------
@@ -644,12 +627,13 @@ async def setup_evaluation(
             run=run_edit,
         )
 
-        assert run, f"Failed to edit evaluation run {run_edit.id}!"
+        if not run:
+            raise ValueError(f"Failed to edit evaluation run {run_edit.id}!")
         # ----------------------------------------------------------------------
 
         log.info("[DONE]      ", run_id=run.id)
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=broad-exception-caught
         if run and run.id:
             log.error("[FAIL]      ", run_id=run.id, exc_info=True)
 
@@ -673,12 +657,6 @@ async def evaluate_batch_testset(
     #
     run_id: UUID,
     #
-    testset_revision_id: Optional[str],
-    revision_id: str,
-    autoeval_ids: Optional[List[str]],
-    #
-    run_config: Dict[str, int],
-    #
     tracing_router: TracingRouter,
     testsets_service: TestsetsService,
     simple_evaluators_service: SimpleEvaluatorsService,
@@ -690,15 +668,13 @@ async def evaluate_batch_testset(
     """
     Annotates an application revision applied to a testset using auto evaluator(s).
 
+    All testset, application, and evaluator information is extracted from the
+    evaluation run's data.steps references.
+
     Args:
-        self: The task instance.
-        project_id (str): The ID of the project.
-        user_id (str): The ID of the user.
-        run_id (str): The ID of the evaluation run.
-        testset_revision_id (str): The ID of the testset revision.
-        revision_id (str): The ID of the application revision.
-        autoeval_ids (List[str]): The IDs of the evaluators configurations.
-        run_config (Dict[str, int]): Configuration for evaluation run.
+        project_id (UUID): The ID of the project.
+        user_id (UUID): The ID of the user.
+        run_id (UUID): The ID of the evaluation run.
 
     Returns:
         None
@@ -717,10 +693,9 @@ async def evaluate_batch_testset(
 
     try:
         # ----------------------------------------------------------------------
-        log.info("[SCOPE]     ", run_id=run_id, project_id=project_id, user_id=user_id)
-        log.info("[TESTSET]   ", run_id=run_id, ids=[testset_revision_id])
-        log.info("[INVOCATON] ", run_id=run_id, ids=[revision_id])
-        log.info("[ANNOTATION]", run_id=run_id, ids=autoeval_ids)
+        log.info(
+            "[SCOPE]       ", run_id=run_id, project_id=project_id, user_id=user_id
+        )
         # ----------------------------------------------------------------------
 
         # fetch project --------------------------------------------------------
@@ -753,11 +728,14 @@ async def evaluate_batch_testset(
             run_id=run_id,
         )
 
-        assert run, f"Evaluation run with id {run_id} not found!"
+        if not run:
+            raise ValueError(f"Evaluation run with id {run_id} not found!")
 
-        assert run.data, f"Evaluation run with id {run_id} has no data!"
+        if not run.data:
+            raise ValueError(f"Evaluation run with id {run_id} has no data!")
 
-        assert run.data.steps, f"Evaluation run with id {run_id} has no steps!"
+        if not run.data.steps:
+            raise ValueError(f"Evaluation run with id {run_id} has no steps!")
 
         steps = run.data.steps
 
@@ -768,6 +746,30 @@ async def evaluate_batch_testset(
         annotation_steps_keys = [step.key for step in annotation_steps]
 
         nof_annotations = len(annotation_steps)
+
+        # extract references from run steps ------------------------------------
+        input_steps = [step for step in steps if step.type == "input"]
+
+        testset_revision_id = None
+        if input_steps and "testset_revision" in input_steps[0].references:
+            testset_revision_id = str(input_steps[0].references["testset_revision"].id)
+
+        revision_id = None
+        if (
+            invocation_steps
+            and "application_revision" in invocation_steps[0].references
+        ):
+            revision_id = str(invocation_steps[0].references["application_revision"].id)
+
+        run_config = {
+            "batch_size": 10,
+            "max_retries": 3,
+            "retry_delay": 3,
+            "delay_between_batches": 5,
+        }
+
+        log.info("[TESTSET]     ", run_id=run_id, ids=[testset_revision_id])
+        log.info("[APPLICATION] ", run_id=run_id, ids=[revision_id])
         # ----------------------------------------------------------------------
 
         # fetch testset --------------------------------------------------------
@@ -778,9 +780,10 @@ async def evaluate_batch_testset(
             testset_revision_ref=testset_revision_ref,
         )
 
-        assert testset_revision is not None, (
-            f"Testset revision with id {testset_revision_id} not found!"
-        )
+        if testset_revision is None:
+            raise ValueError(
+                f"Testset revision with id {testset_revision_id} not found!"
+            )
 
         testset_ref = Reference(id=testset_revision.testset_id)
 
@@ -789,9 +792,10 @@ async def evaluate_batch_testset(
             testset_ref=testset_ref,
         )
 
-        assert testset is not None, (
-            f"Testset with id {testset_revision.testset_id} not found!"
-        )
+        if testset is None:
+            raise ValueError(
+                f"Testset with id {testset_revision.testset_id} not found!"
+            )
 
         testset_id = testset_revision.testset_id
 
@@ -807,33 +811,35 @@ async def evaluate_batch_testset(
         # fetch application ----------------------------------------------------
         revision = await fetch_app_variant_revision_by_id(revision_id)
 
-        assert revision is not None, f"App revision with id {revision_id} not found!"
+        if revision is None:
+            raise ValueError(f"App revision with id {revision_id} not found!")
 
         variant = await fetch_app_variant_by_id(str(revision.variant_id))
 
-        assert variant is not None, (
-            f"App variant with id {revision.variant_id} not found!"
-        )
+        if variant is None:
+            raise ValueError(f"App variant with id {revision.variant_id} not found!")
 
         app = await fetch_app_by_id(str(variant.app_id))
 
-        assert app is not None, f"App with id {variant.app_id} not found!"
+        if app is None:
+            raise ValueError(f"App with id {variant.app_id} not found!")
 
         deployment = await get_deployment_by_id(str(revision.base.deployment_id))
 
-        assert deployment is not None, (
-            f"Deployment with id {revision.base.deployment_id} not found!"
-        )
+        if deployment is None:
+            raise ValueError(
+                f"Deployment with id {revision.base.deployment_id} not found!"
+            )
 
         uri = parse_url(url=deployment.uri)
 
-        assert uri is not None, f"Invalid URI for deployment {deployment.id}!"
+        if uri is None:
+            raise ValueError(f"Invalid URI for deployment {deployment.id}!")
 
         revision_parameters = revision.config_parameters
 
-        assert revision_parameters is not None, (
-            f"Revision parameters for variant {variant.id} not found!"
-        )
+        if revision_parameters is None:
+            raise ValueError(f"Revision parameters for variant {variant.id} not found!")
         # ----------------------------------------------------------------------
 
         # fetch evaluators -----------------------------------------------------
@@ -902,9 +908,8 @@ async def evaluate_batch_testset(
             scenarios=scenarios_create,
         )
 
-        assert len(scenarios) == nof_testcases, (
-            f"Failed to create evaluation scenarios for run {run_id}!"
-        )
+        if len(scenarios) != nof_testcases:
+            raise ValueError(f"Failed to create evaluation scenarios for run {run_id}!")
         # ----------------------------------------------------------------------
 
         # create input steps ---------------------------------------------------
@@ -928,9 +933,8 @@ async def evaluate_batch_testset(
             results=results_create,
         )
 
-        assert len(steps) == nof_testcases, (
-            f"Failed to create evaluation steps for run {run_id}!"
-        )
+        if len(steps) != nof_testcases:
+            raise ValueError(f"Failed to create evaluation steps for run {run_id}!")
         # ----------------------------------------------------------------------
 
         # flatten testcases ----------------------------------------------------
@@ -1001,9 +1005,8 @@ async def evaluate_batch_testset(
             results=results_create,
         )
 
-        assert len(steps) == nof_testcases, (
-            f"Failed to create evaluation steps for run {run_id}!"
-        )
+        if len(steps) != nof_testcases:
+            raise ValueError(f"Failed to create evaluation steps for run {run_id}!")
         # ----------------------------------------------------------------------
 
         run_has_errors = 0
@@ -1247,6 +1250,22 @@ async def evaluate_batch_testset(
                         log.warn(
                             f"There is an error in annotation {annotation_step_key} for invocation {invocation.trace_id}."
                         )
+                        log.error(
+                            "[EVAL][ANNOTATION][ERROR]",
+                            scenario_id=scenario.id,
+                            invocation_trace_id=invocation.trace_id,
+                            evaluator_trace_id=workflows_service_response.trace_id,
+                            status=workflows_service_response.status.model_dump(
+                                mode="json"
+                            )
+                            if workflows_service_response.status
+                            else None,
+                            data=workflows_service_response.data.model_dump(
+                                mode="json", exclude_none=True
+                            )
+                            if workflows_service_response.data
+                            else None,
+                        )
 
                         step_has_errors += 1
                         scenario_has_errors += 1
@@ -1326,9 +1345,10 @@ async def evaluate_batch_testset(
                         results=results_create,
                     )
 
-                    assert len(steps) == 1, (
-                        f"Failed to create evaluation step for scenario with id {scenario.id}!"
-                    )
+                    if len(steps) != 1:
+                        raise ValueError(
+                            f"Failed to create evaluation step for scenario with id {scenario.id}!"
+                        )
             # ------------------------------------------------------------------
 
             scenario_edit = EvaluationScenarioEdit(
@@ -1345,9 +1365,10 @@ async def evaluate_batch_testset(
                 scenario=scenario_edit,
             )
 
-            assert scenario, (
-                f"Failed to edit evaluation scenario with id {scenario.id}!"
-            )
+            if not scenario:
+                raise ValueError(
+                    f"Failed to edit evaluation scenario with id {scenario.id}!"
+                )
 
             if scenario_status != EvaluationStatus.FAILURE:
                 try:

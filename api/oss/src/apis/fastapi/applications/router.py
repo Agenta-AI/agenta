@@ -1,7 +1,7 @@
 from uuid import UUID
 from typing import Optional
 
-from fastapi import APIRouter, status, Request, Depends
+from fastapi import APIRouter, status, Request, Depends, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -728,6 +728,7 @@ class ApplicationsRouter:
     # APPLICATION REVISIONS ----------------------------------------------------
 
     @intercept_exceptions()
+    @suppress_exceptions(default=ApplicationRevisionResponse(), exclude=[HTTPException])
     async def retrieve_application_revision(
         self,
         request: Request,
@@ -736,9 +737,8 @@ class ApplicationsRouter:
     ) -> ApplicationRevisionResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
-                project_id=request.state.project_id,
                 user_uid=request.state.user_id,
-                #
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -810,7 +810,7 @@ class ApplicationsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=ApplicationRevisionResponse())
+    @suppress_exceptions(default=ApplicationRevisionResponse(), exclude=[HTTPException])
     async def fetch_application_revision(
         self,
         request: Request,

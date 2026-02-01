@@ -16,14 +16,13 @@ from fastapi import (
     File,
     Form,
     Query,
-    Depends,
     HTTPException,
 )
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import set_cache
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
@@ -35,27 +34,10 @@ from oss.src.core.testcases.dtos import (
 )
 from oss.src.core.testsets.dtos import (
     TestsetFlags,
-    Testset,
-    TestsetCreate,
-    TestsetEdit,
-    TestsetQuery,
-    #
-    TestsetVariant,
-    TestsetVariantCreate,
-    TestsetVariantEdit,
-    TestsetVariantQuery,
-    #
     TestsetRevisionData,
-    TestsetRevision,
-    TestsetRevisionCreate,
-    TestsetRevisionEdit,
-    TestsetRevisionQuery,
-    TestsetRevisionCommit,
-    #
     SimpleTestset,
     SimpleTestsetCreate,
     SimpleTestsetEdit,
-    SimpleTestsetQuery,
 )
 from oss.src.core.testsets.service import (
     TestsetsService,
@@ -91,9 +73,6 @@ from oss.src.apis.fastapi.testsets.models import (
     SimpleTestsetsResponse,
 )
 from oss.src.apis.fastapi.testsets.utils import (
-    parse_testset_revision_retrieve_request_from_params,
-    parse_testset_revision_retrieve_request_from_body,
-    #
     csv_file_to_json_array,
     json_file_to_json_array,
     json_array_to_json_object,
@@ -1448,7 +1427,7 @@ class SimpleTestsetsRouter:
         return simple_testset_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetResponse())
+    @suppress_exceptions(default=SimpleTestsetResponse(), exclude=[HTTPException])
     async def fetch_simple_testset(
         self,
         request: Request,
@@ -1540,7 +1519,24 @@ class SimpleTestsetsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(testset_id) != str(simple_testset_edit_request.testset.id):
-            return SimpleTestsetResponse()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Testset ID in path does not match testset ID in request body.",
+            )
+
+        # Check if testset exists before attempting to edit
+        existing_testset = (
+            await self.simple_testsets_service.testsets_service.fetch_testset(
+                project_id=UUID(request.state.project_id),
+                testset_ref=Reference(id=testset_id),
+            )
+        )
+
+        if existing_testset is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Testset with ID '{testset_id}' does not exist.",
+            )
 
         _normalize_testcase_dedup_ids_in_request(
             simple_testset_edit_request.testset.data.testcases
@@ -1665,7 +1661,7 @@ class SimpleTestsetsRouter:
         return simple_testset_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetsResponse())
+    @suppress_exceptions(default=SimpleTestsetsResponse(), exclude=[HTTPException])
     async def list_simple_testsets(
         self,
         request: Request,
@@ -1679,7 +1675,7 @@ class SimpleTestsetsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetsResponse())
+    @suppress_exceptions(default=SimpleTestsetsResponse(), exclude=[HTTPException])
     async def query_simple_testsets(
         self,
         request: Request,
@@ -2113,7 +2109,7 @@ class SimpleTestsetsRouter:
             )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetResponse())
+    @suppress_exceptions(default=SimpleTestsetResponse(), exclude=[HTTPException])
     async def transfer_simple_testset(
         self,
         request: Request,

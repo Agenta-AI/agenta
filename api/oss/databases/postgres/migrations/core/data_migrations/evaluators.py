@@ -19,13 +19,13 @@ from oss.src.dbs.postgres.workflows.dbes import (
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.core.evaluators.service import SimpleEvaluatorsService, EvaluatorsService
 from oss.src.core.evaluators.dtos import (
-    EvaluatorRevisionData,
     SimpleEvaluator,
     SimpleEvaluatorCreate,
     SimpleEvaluatorEdit,
     SimpleEvaluatorData,
     SimpleEvaluatorFlags,
 )
+from oss.src.core.evaluators.utils import build_evaluator_data
 from oss.src.models.deprecated_models import (
     DeprecatedAutoEvaluatorConfigDBwProject as DeprecatedEvaluatorConfigDBwProject,
     DeprecatedOrganizationDB,
@@ -58,102 +58,11 @@ simple_evaluators_service = SimpleEvaluatorsService(
 
 def _transfer_evaluator_revision_data(
     old_evaluator: EvaluatorConfigDB,
-) -> EvaluatorRevisionData:
-    """Convert old evaluator config to new EvaluatorRevisionData format."""
-    version = "2025.07.14"
-    uri = f"agenta:builtin:{old_evaluator.evaluator_key}:v0"
-    url = (
-        old_evaluator.settings_values.get("webhook_url", None)
-        if old_evaluator.evaluator_key == "auto_webhook_test"
-        else None
-    )
-    headers = None
-    outputs_schema = None
-    if str(old_evaluator.evaluator_key) == "auto_ai_critique":
-        json_schema = old_evaluator.settings_values.get("json_schema", None)
-        if json_schema and isinstance(json_schema, dict):
-            outputs_schema = json_schema.get("schema", None)
-    if str(old_evaluator.evaluator_key) == "json_multi_field_match":
-        fields = old_evaluator.settings_values.get("fields", [])
-        properties = {"aggregate_score": {"type": "number"}}
-        for field in fields:
-            properties[field] = {"type": "number"}
-        outputs_schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "type": "object",
-            "properties": properties,
-            "required": ["aggregate_score"],
-            "additionalProperties": False,
-        }
-    if not outputs_schema:
-        properties = (
-            {"score": {"type": "number"}, "success": {"type": "boolean"}}
-            if old_evaluator.evaluator_key
-            in (
-                "auto_levenshtein_distance",
-                "auto_semantic_similarity",
-                "auto_similarity_match",
-                "auto_json_diff",
-                "auto_webhook_test",
-                "auto_custom_code_run",
-                "auto_ai_critique",
-            )
-            else {"success": {"type": "boolean"}}
-        )
-        required = (
-            list(properties.keys())
-            if old_evaluator.evaluator_key
-            not in (
-                "auto_levenshtein_distance",
-                "auto_semantic_similarity",
-                "auto_similarity_match",
-                "auto_json_diff",
-                "auto_webhook_test",
-                "auto_custom_code_run",
-                "auto_ai_critique",
-            )
-            else []
-        )
-        outputs_schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "type": "object",
-            "properties": properties,
-            "required": required,
-            "additionalProperties": False,
-        }
-    schemas = {"outputs": outputs_schema}
-    script = (
-        {
-            "content": old_evaluator.settings_values.get("code", None),
-            "runtime": "python",
-        }
-        if old_evaluator.evaluator_key == "auto_custom_code_run"
-        else None
-    )
-    parameters = old_evaluator.settings_values
-    service = {
-        "agenta": "0.1.0",
-        "format": {
-            "type": "object",
-            "$schema": "http://json-schema.org/schema#",
-            "required": ["outputs"],
-            "properties": {
-                "outputs": schemas["outputs"],
-            },
-        },
-    }
-    configuration = parameters
-
-    return EvaluatorRevisionData(
-        version=version,
-        uri=uri,
-        url=url,
-        headers=headers,
-        schemas=schemas,
-        script=script,
-        parameters=parameters,  # type: ignore
-        service=service,
-        configuration=configuration,  # type: ignore
+) -> SimpleEvaluatorData:
+    """Convert old evaluator config to new SimpleEvaluatorData format."""
+    return build_evaluator_data(
+        evaluator_key=old_evaluator.evaluator_key,
+        settings_values=old_evaluator.settings_values,
     )
 
 
@@ -306,6 +215,7 @@ async def migration_old_evaluator_configs_to_new_evaluator_configs(
                 break
 
             # Process and transfer records to evaluator workflows
+            batch_succeeded = 0
             for old_evaluator in evaluator_configs_rows:
                 try:
                     # STEP 2: Get owner from project_id
@@ -339,6 +249,8 @@ async def migration_old_evaluator_configs_to_new_evaluator_configs(
                         )
                         continue
 
+                    batch_succeeded += 1
+
                 except Exception as e:
                     click.echo(
                         click.style(
@@ -351,24 +263,22 @@ async def migration_old_evaluator_configs_to_new_evaluator_configs(
                     continue
 
             # Update progress tracking for current batch
-            batch_migrated = len(evaluator_configs_rows)
+            batch_processed = len(evaluator_configs_rows)
             offset += DEFAULT_BATCH_SIZE
-            total_migrated += batch_migrated
+            total_migrated += batch_succeeded
 
             click.echo(
                 click.style(
-                    f"Processed {batch_migrated} records in this batch.",
+                    f"Processed {batch_processed} records in this batch ({batch_succeeded} succeeded).",
                     fg="yellow",
                 )
             )
 
         # Update progress tracking for all batches
-        remaining_records = total_evaluators - total_migrated
+        not_migrated = total_evaluators - total_migrated - skipped_records
         click.echo(click.style(f"Total migrated: {total_migrated}", fg="yellow"))
         click.echo(click.style(f"Skipped records: {skipped_records}", fg="yellow"))
-        click.echo(
-            click.style(f"Records left to migrate: {remaining_records}", fg="yellow")
-        )
+        click.echo(click.style(f"Not migrated: {not_migrated}", fg="yellow"))
 
     except Exception as e:
         click.echo(f"Error occurred: {e}")

@@ -16,6 +16,7 @@ export interface SidebarConfig {
     divider?: boolean
     header?: boolean
     disabled?: boolean
+    dataTour?: string
 }
 
 export interface SidebarMenuProps {

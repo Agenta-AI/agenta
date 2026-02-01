@@ -11,7 +11,7 @@ class WorkspaceResponse(UniversalBaseModel):
     created_at: typing.Optional[str] = None
     updated_at: typing.Optional[str] = None
     id: str
-    name: str
+    name: typing.Optional[str] = None
     description: typing.Optional[str] = None
     type: typing.Optional[str] = None
     organization: str

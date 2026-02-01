@@ -329,6 +329,7 @@ async def _fetch_environment(
                     project_id=UUID(project_id),
                     app_name=application_ref.slug,
                 )
+
                 if app:
                     application_ref.id = app.id
 

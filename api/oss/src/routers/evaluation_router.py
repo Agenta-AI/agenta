@@ -599,14 +599,13 @@ async def start_evaluation(
                 #
                 revision_id=payload.revisions_ids[i],
                 #
-                autoeval_ids=payload.evaluators_configs,
+                evaluator_ids=payload.evaluator_ids,
                 #
                 evaluations_service=evaluations_service,
+                evaluators_service=evaluators_service,
                 queries_service=queries_service,
                 workflows_service=workflows_service,
                 testsets_service=testsets_service,
-                simple_evaluators_service=simple_evaluators_service,
-                tracing_router=tracing_router,
             )
 
             if not run:
@@ -619,14 +618,6 @@ async def start_evaluation(
                 user_id=request.state.user_id,
                 #
                 run_id=run.id,
-                #
-                testset_revision_id=payload.testset_revision_id,
-                #
-                revision_id=payload.revisions_ids[i],
-                #
-                autoeval_ids=payload.evaluators_configs,
-                #
-                run_config=payload.rate_limit.model_dump(mode="json"),
             )
         # ----------------------------------------------------------------------
 

@@ -1,6 +1,7 @@
+import re
 import inspect
 from typing import List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Request
 
@@ -8,11 +9,6 @@ from agenta.sdk.contexts.running import RunningContext, running_context_manager
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
 from agenta.sdk.workflows.utils import retrieve_handler
 
-from oss.src.apis.fastapi.evaluators.models import (
-    SimpleEvaluatorCreateRequest,
-    SimpleEvaluatorEditRequest,
-    SimpleEvaluatorQueryRequest,
-)
 from oss.src.core.evaluators.dtos import (
     SimpleEvaluator,
     SimpleEvaluatorCreate,
@@ -20,6 +16,9 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorEdit,
     SimpleEvaluatorFlags,
 )
+from oss.src.core.evaluators.utils import build_evaluator_data
+from oss.src.core.shared.dtos import Reference
+from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.models.api.evaluation_model import (
     EvaluatorConfig,
     EvaluatorInputInterface,
@@ -48,18 +47,23 @@ BUILTIN_EVALUATORS: List[LegacyEvaluator] = [
     LegacyEvaluator(**evaluator_dict) for evaluator_dict in get_all_evaluators()
 ]
 
-# Lazy import to avoid circular dependency
-_simple_evaluators_router = None
+# Lazy imports to avoid circular dependency
+_simple_evaluators_service = None
+_evaluators_service = None
 
 
-def _get_simple_evaluators_router():
-    """Lazy getter for simple_evaluators router to avoid circular imports."""
-    global _simple_evaluators_router
-    if _simple_evaluators_router is None:
-        from entrypoints.routers import simple_evaluators
+def _get_services():
+    """Lazy getter for evaluator services to avoid circular imports."""
+    global _simple_evaluators_service, _evaluators_service
+    if _simple_evaluators_service is None:
+        from entrypoints.routers import (
+            simple_evaluators_service,
+            evaluators_service,
+        )
 
-        _simple_evaluators_router = simple_evaluators
-    return _simple_evaluators_router
+        _simple_evaluators_service = simple_evaluators_service
+        _evaluators_service = evaluators_service
+    return _simple_evaluators_service, _evaluators_service
 
 
 def _simple_evaluator_to_evaluator_config(
@@ -77,6 +81,14 @@ def _simple_evaluator_to_evaluator_config(
             parts = simple_evaluator.data.uri.split(":")
             if len(parts) >= 3 and parts[0] == "agenta" and parts[1] == "builtin":
                 evaluator_key = parts[2]
+            elif len(parts) >= 3 and parts[0] == "user" and parts[1] == "custom":
+                evaluator_key = "custom"
+            else:
+                log.error(
+                    "Unrecognized evaluator URI format",
+                    uri=simple_evaluator.data.uri,
+                    evaluator_id=str(simple_evaluator.id),
+                )
 
         # Get settings from parameters
         settings_values = simple_evaluator.data.parameters
@@ -173,9 +185,7 @@ async def evaluator_run(
                     exc_info=True,
                 )
                 raise HTTPException(
-                    status_code=424
-                    if any(code in str(e) for code in ["401", "403", "429"])
-                    else 500,
+                    status_code=424 if re.search(r"\b(401|403|429)\b", str(e)) else 500,
                     detail=str(e),
                 )
 
@@ -231,27 +241,21 @@ async def get_evaluator_configs(
     request: Request,
     app_id: Optional[str] = None,
 ):
-    # ADAPTER: Call SimpleEvaluatorsRouter.query_simple_evaluators
+    simple_evaluators_service, _ = _get_services()
 
-    simple_router = _get_simple_evaluators_router()
+    project_id = UUID(request.state.project_id)
 
-    simple_evaluator_query_request = SimpleEvaluatorQueryRequest()
-
-    response = await simple_router.query_simple_evaluators(
-        request=request,
-        #
-        simple_evaluator_query_request=simple_evaluator_query_request,
+    simple_evaluators = await simple_evaluators_service.query(
+        project_id=project_id,
     )
 
-    evaluator_configs = [
+    return [
         _simple_evaluator_to_evaluator_config(
             project_id=request.state.project_id,
             simple_evaluator=simple_evaluator,
         )
-        for simple_evaluator in response.evaluators
+        for simple_evaluator in simple_evaluators
     ]
-
-    return evaluator_configs
 
 
 @router.get("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
@@ -259,17 +263,16 @@ async def get_evaluator_config(
     evaluator_config_id: str,
     request: Request,
 ):
-    # ADAPTER: Call SimpleEvaluatorsRouter.fetch_simple_evaluator
+    simple_evaluators_service, _ = _get_services()
 
-    simple_router = _get_simple_evaluators_router()
+    project_id = UUID(request.state.project_id)
 
-    response = await simple_router.fetch_simple_evaluator(
-        request=request,
-        #
+    simple_evaluator = await simple_evaluators_service.fetch(
+        project_id=project_id,
         evaluator_id=UUID(evaluator_config_id),
     )
 
-    if response.evaluator is None:
+    if simple_evaluator is None:
         raise HTTPException(
             status_code=404,
             detail=f"Evaluator config {evaluator_config_id} not found",
@@ -277,7 +280,7 @@ async def get_evaluator_config(
 
     return _simple_evaluator_to_evaluator_config(
         project_id=request.state.project_id,
-        simple_evaluator=response.evaluator,
+        simple_evaluator=simple_evaluator,
     )
 
 
@@ -286,14 +289,15 @@ async def create_new_evaluator_config(
     payload: NewEvaluatorConfig,
     request: Request,
 ):
-    # ADAPTER: Convert to new format and call SimpleEvaluatorsRouter.create_simple_evaluator
+    simple_evaluators_service, _ = _get_services()
 
-    simple_router = _get_simple_evaluators_router()
+    project_id = UUID(request.state.project_id)
+    user_id = UUID(request.state.user_id)
 
-    # Build URI from evaluator_key
-    uri = f"agenta:builtin:{payload.evaluator_key}:v0"
+    evaluator_slug = get_slug_from_name_and_id(payload.name, uuid4())
 
     simple_evaluator_create = SimpleEvaluatorCreate(
+        slug=evaluator_slug,
         name=payload.name,
         description=None,
         #
@@ -301,23 +305,19 @@ async def create_new_evaluator_config(
         tags=None,
         meta=None,
         #
-        data=SimpleEvaluatorData(
-            uri=uri,
-            parameters=payload.settings_values,
+        data=build_evaluator_data(
+            evaluator_key=payload.evaluator_key,
+            settings_values=payload.settings_values,
         ),
     )
 
-    simple_evaluator_create_request = SimpleEvaluatorCreateRequest(
-        evaluator=simple_evaluator_create,
+    simple_evaluator = await simple_evaluators_service.create(
+        project_id=project_id,
+        user_id=user_id,
+        simple_evaluator_create=simple_evaluator_create,
     )
 
-    response = await simple_router.create_simple_evaluator(
-        request=request,
-        #
-        simple_evaluator_create_request=simple_evaluator_create_request,
-    )
-
-    if response.evaluator is None:
+    if simple_evaluator is None:
         raise HTTPException(
             status_code=500,
             detail="Failed to create evaluator config",
@@ -326,7 +326,7 @@ async def create_new_evaluator_config(
     return _simple_evaluator_to_evaluator_config(
         project_id=request.state.project_id,
         #
-        simple_evaluator=response.evaluator,
+        simple_evaluator=simple_evaluator,
     )
 
 
@@ -343,18 +343,16 @@ async def update_evaluator_config(
     Returns:
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
-    # ADAPTER: Fetch existing, merge updates, call SimpleEvaluatorsRouter.edit_simple_evaluator
+    simple_evaluators_service, _ = _get_services()
 
-    simple_router = _get_simple_evaluators_router()
+    project_id = UUID(request.state.project_id)
+    user_id = UUID(request.state.user_id)
 
     # First fetch the existing evaluator
-    fetch_response = await simple_router.fetch_simple_evaluator(
-        request=request,
-        #
+    old_evaluator = await simple_evaluators_service.fetch(
+        project_id=project_id,
         evaluator_id=UUID(evaluator_config_id),
     )
-
-    old_evaluator = fetch_response.evaluator
 
     if old_evaluator is None:
         raise HTTPException(
@@ -393,24 +391,26 @@ async def update_evaluator_config(
         meta=old_evaluator.meta,
         #
         data=SimpleEvaluatorData(
+            **(
+                old_evaluator.data.model_dump(
+                    mode="json",
+                    exclude={"uri", "parameters"},
+                )
+                if old_evaluator.data
+                else {}
+            ),
             uri=new_uri,
             parameters=new_parameters,
         ),
     )
 
-    simple_evaluator_edit_request = SimpleEvaluatorEditRequest(
-        evaluator=simple_evaluator_edit,
+    simple_evaluator = await simple_evaluators_service.edit(
+        project_id=project_id,
+        user_id=user_id,
+        simple_evaluator_edit=simple_evaluator_edit,
     )
 
-    response = await simple_router.edit_simple_evaluator(
-        request=request,
-        #
-        evaluator_id=UUID(evaluator_config_id),
-        #
-        simple_evaluator_edit_request=simple_evaluator_edit_request,
-    )
-
-    if response.evaluator is None:
+    if simple_evaluator is None:
         raise HTTPException(
             status_code=500,
             detail="Failed to update evaluator config",
@@ -419,7 +419,7 @@ async def update_evaluator_config(
     return _simple_evaluator_to_evaluator_config(
         project_id=request.state.project_id,
         #
-        simple_evaluator=response.evaluator,
+        simple_evaluator=simple_evaluator,
     )
 
 
@@ -429,14 +429,42 @@ async def delete_evaluator_config(
     *,
     evaluator_config_id: str,
 ):
-    # ADAPTER: Call SimpleEvaluatorsRouter.archive_simple_evaluator (soft delete)
+    _, evaluators_service = _get_services()
 
-    simple_router = _get_simple_evaluators_router()
+    project_id = UUID(request.state.project_id)
+    user_id = UUID(request.state.user_id)
+    evaluator_id = UUID(evaluator_config_id)
 
-    response = await simple_router.archive_simple_evaluator(
-        request=request,
-        #
-        evaluator_id=UUID(evaluator_config_id),
+    # Fetch the evaluator
+    evaluator = await evaluators_service.fetch_evaluator(
+        project_id=project_id,
+        evaluator_ref=Reference(id=evaluator_id),
     )
 
-    return response.evaluator is not None
+    if not evaluator or not evaluator.id:
+        return False
+
+    # Archive the evaluator
+    evaluator = await evaluators_service.archive_evaluator(
+        project_id=project_id,
+        user_id=user_id,
+        evaluator_id=evaluator.id,
+    )
+
+    if not evaluator or not evaluator.id:
+        return False
+
+    # Archive the associated variant
+    evaluator_variant = await evaluators_service.fetch_evaluator_variant(
+        project_id=project_id,
+        evaluator_ref=Reference(id=evaluator.id),
+    )
+
+    if evaluator_variant is not None:
+        await evaluators_service.archive_evaluator_variant(
+            project_id=project_id,
+            user_id=user_id,
+            evaluator_variant_id=evaluator_variant.id,
+        )
+
+    return True
