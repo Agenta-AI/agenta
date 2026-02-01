@@ -75,7 +75,7 @@ class EvaluationClosedException(HTTPException):
         self.queue_id = queue_id
 
 
-Jit = Optional[Union[bool, Dict]]
+JIT = Optional[Union[bool, Dict]]
 
 
 def _coerce_jit(v: Any) -> bool:
@@ -92,21 +92,21 @@ def _coerce_jit(v: Any) -> bool:
 
 class EvaluationRunsCreateRequest(BaseModel):
     runs: List[EvaluationRunCreate]
-    jit: Jit = True
+    jit: JIT = True
 
     _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunEditRequest(BaseModel):
     run: EvaluationRunEdit
-    jit: Jit = True
+    jit: JIT = True
 
     _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunsEditRequest(BaseModel):
     runs: List[EvaluationRunEdit]
-    jit: Jit = True
+    jit: JIT = True
 
     _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
@@ -115,7 +115,7 @@ class EvaluationRunQueryRequest(BaseModel):
     run: Optional[EvaluationRunQuery] = None
     #
     windowing: Optional[Windowing] = None
-    jit: Jit = True
+    jit: JIT = True
 
     _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
@@ -325,14 +325,14 @@ class EvaluationQueueScenarioIdsResponse(BaseModel):
 
 class SimpleEvaluationCreateRequest(BaseModel):
     evaluation: SimpleEvaluationCreate
-    jit: Jit = True
+    jit: JIT = True
 
     _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class SimpleEvaluationEditRequest(BaseModel):
     evaluation: SimpleEvaluationEdit
-    jit: Jit = True
+    jit: JIT = True
 
     _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
@@ -341,7 +341,7 @@ class SimpleEvaluationQueryRequest(BaseModel):
     evaluation: Optional[SimpleEvaluationQuery] = None
     #
     windowing: Optional[Windowing] = None
-    jit: Jit = True
+    jit: JIT = True
 
     _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
