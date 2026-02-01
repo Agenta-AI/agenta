@@ -755,7 +755,10 @@ async def evaluate_batch_testset(
             testset_revision_id = str(input_steps[0].references["testset_revision"].id)
 
         revision_id = None
-        if invocation_steps and "application_revision" in invocation_steps[0].references:
+        if (
+            invocation_steps
+            and "application_revision" in invocation_steps[0].references
+        ):
             revision_id = str(invocation_steps[0].references["application_revision"].id)
 
         run_config = {

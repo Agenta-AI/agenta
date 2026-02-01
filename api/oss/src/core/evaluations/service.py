@@ -1908,7 +1908,8 @@ class SimpleEvaluationsService:
 
                 # SDK evaluations set status="running" — the loop runs locally,
                 # so do NOT dispatch the legacy worker.
-                if _evaluation.data.status == "running":                    _evaluation = await self._parse_evaluation_run(run=run)
+                if _evaluation.data.status == "running":
+                    _evaluation = await self._parse_evaluation_run(run=run)
                     return _evaluation
 
                 if self.evaluations_worker is None:

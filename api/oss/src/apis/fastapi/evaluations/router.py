@@ -1851,11 +1851,9 @@ class EvaluationsRouter:
             if not isinstance(evaluator_ref, Reference) or not evaluator_ref.id:
                 continue
 
-            evaluator_revision = (
-                await evaluators_service.fetch_evaluator_revision(
-                    project_id=project_id,
-                    evaluator_ref=Reference(id=evaluator_ref.id),
-                )
+            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                evaluator_ref=Reference(id=evaluator_ref.id),
             )
 
             if evaluator_revision is None:
@@ -1867,13 +1865,11 @@ class EvaluationsRouter:
                     ),
                 )
 
-            evaluator_variant = (
-                await evaluators_service.fetch_evaluator_variant(
-                    project_id=project_id,
-                    evaluator_variant_ref=Reference(
-                        id=evaluator_revision.variant_id,
-                    ),
-                )
+            evaluator_variant = await evaluators_service.fetch_evaluator_variant(
+                project_id=project_id,
+                evaluator_variant_ref=Reference(
+                    id=evaluator_revision.variant_id,
+                ),
             )
 
             evaluator = await evaluators_service.fetch_evaluator(
@@ -2396,12 +2392,10 @@ class SimpleEvaluationsRouter:
         resolved: dict[UUID, str] = {}
 
         for evaluator_id, origin in evaluator_steps.items():
-            evaluator_revision = (
-                await evaluators_service.fetch_evaluator_revision(
-                    project_id=project_id,
-                    #
-                    evaluator_ref=Reference(id=evaluator_id),
-                )
+            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_ref=Reference(id=evaluator_id),
             )
 
             if evaluator_revision is None:
@@ -2442,12 +2436,10 @@ class SimpleEvaluationsRouter:
         resolved: dict[UUID, str] = {}
 
         for revision_id, origin in evaluator_steps.items():
-            evaluator_revision = (
-                await evaluators_service.fetch_evaluator_revision(
-                    project_id=project_id,
-                    #
-                    evaluator_revision_ref=Reference(id=revision_id),
-                )
+            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_revision_ref=Reference(id=revision_id),
             )
 
             if evaluator_revision is None or evaluator_revision.evaluator_id is None:

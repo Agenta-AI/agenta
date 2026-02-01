@@ -279,9 +279,7 @@ async def migration_old_evaluator_configs_to_new_evaluator_configs(
         not_migrated = total_evaluators - total_migrated - skipped_records
         click.echo(click.style(f"Total migrated: {total_migrated}", fg="yellow"))
         click.echo(click.style(f"Skipped records: {skipped_records}", fg="yellow"))
-        click.echo(
-            click.style(f"Not migrated: {not_migrated}", fg="yellow")
-        )
+        click.echo(click.style(f"Not migrated: {not_migrated}", fg="yellow"))
 
     except Exception as e:
         click.echo(f"Error occurred: {e}")
