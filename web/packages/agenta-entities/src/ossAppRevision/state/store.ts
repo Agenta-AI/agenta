@@ -36,6 +36,11 @@ import {
     type VariantDetail,
 } from "../api"
 import type {OssAppRevisionData} from "../core"
+import {
+    stripVolatileKeys,
+    enhancedPromptsToParameters,
+    enhancedCustomPropertiesToParameters,
+} from "../utils"
 
 // ============================================================================
 // INPUT PORTS TYPE
@@ -238,25 +243,6 @@ function getDraftAtom(
         [OssAppRevisionData | null],
         void
     >
-}
-
-const stripVolatileKeys = (value: unknown): unknown => {
-    if (Array.isArray(value)) {
-        return value.map(stripVolatileKeys)
-    }
-    if (value && typeof value === "object") {
-        return Object.entries(value as Record<string, unknown>).reduce(
-            (acc, [key, val]) => {
-                if (key === "__id" || key === "__test") {
-                    return acc
-                }
-                acc[key] = stripVolatileKeys(val)
-                return acc
-            },
-            {} as Record<string, unknown>,
-        )
-    }
-    return value
 }
 
 // ============================================================================
@@ -766,7 +752,11 @@ export const ossAppRevisionServerDataSelectorFamily = atomFamily((revisionId: st
 
 /**
  * Check if revision has unsaved changes.
- * Compares draft with enriched server data.
+ * Compares draft parameters with server parameters.
+ *
+ * IMPORTANT: We compare parameters (the source of truth) rather than the entire
+ * object, because enhanced prompts/properties are derived and may have different
+ * structure even when the underlying data is the same.
  */
 export const ossAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revisionId: string) =>
     atom<boolean>((get) => {
@@ -781,9 +771,35 @@ export const ossAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revisionId:
             return true // New entity
         }
 
-        const draftStr = JSON.stringify(stripVolatileKeys(draft))
-        const serverStr = JSON.stringify(stripVolatileKeys(serverData))
-        return draftStr !== serverStr
+        // IMPORTANT: Compare PARAMETERS only, not enhanced prompts/properties.
+        // Enhanced prompts/properties are DERIVED from parameters and stored in draft
+        // when user edits, but server data doesn't have them (they're empty []).
+        // We need to convert enhanced data back to parameters for comparison.
+
+        // Start with draft parameters
+        let draftParams = {...(draft.parameters ?? {})}
+        const serverParams = serverData.parameters ?? {}
+
+        // If draft has enhanced prompts, convert them back to parameters
+        // This captures any edits the user made through the enhanced prompt UI
+        if (draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)) {
+            draftParams = enhancedPromptsToParameters(draft.enhancedPrompts, draftParams)
+        }
+
+        // If draft has enhanced custom properties, convert them back to parameters
+        if (draft.enhancedCustomProperties && typeof draft.enhancedCustomProperties === "object") {
+            draftParams = enhancedCustomPropertiesToParameters(
+                draft.enhancedCustomProperties as Record<string, unknown>,
+                draftParams,
+            )
+        }
+
+        // Compare parameters (the source of truth)
+        // preserveNulls=true because null values are meaningful changes
+        const draftParamsStr = JSON.stringify(stripVolatileKeys(draftParams, true))
+        const serverParamsStr = JSON.stringify(stripVolatileKeys(serverParams, true))
+
+        return draftParamsStr !== serverParamsStr
     }),
 )
 

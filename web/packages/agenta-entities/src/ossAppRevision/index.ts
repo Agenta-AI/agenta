@@ -157,6 +157,19 @@ export {
     type OssAppRevisionSelectionConfig,
 } from "./state"
 
+// ============================================================================
+// SNAPSHOT - Draft Patch Helpers for URL Sharing
+// ============================================================================
+
+export {
+    buildOssAppRevisionDraftPatch,
+    applyOssAppRevisionDraftPatch,
+    initializeServerData,
+    hasDraftChanges,
+    type OssAppRevisionDraftPatch,
+    type BuildPatchResult,
+} from "./snapshot"
+
 // Re-export store atoms for direct access if needed
 export {
     // Query atoms
