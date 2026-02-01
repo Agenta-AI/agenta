@@ -618,14 +618,6 @@ async def start_evaluation(
                 user_id=request.state.user_id,
                 #
                 run_id=run.id,
-                #
-                testset_revision_id=payload.testset_revision_id,
-                #
-                revision_id=payload.revisions_ids[i],
-                #
-                evaluator_ids=payload.evaluator_ids,
-                #
-                run_config=payload.rate_limit.model_dump(mode="json"),
             )
         # ----------------------------------------------------------------------
 

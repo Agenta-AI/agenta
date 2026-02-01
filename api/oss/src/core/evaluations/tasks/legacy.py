@@ -657,12 +657,6 @@ async def evaluate_batch_testset(
     #
     run_id: UUID,
     #
-    testset_revision_id: Optional[str],
-    revision_id: str,
-    evaluator_ids: Optional[List[str]],
-    #
-    run_config: Dict[str, int],
-    #
     tracing_router: TracingRouter,
     testsets_service: TestsetsService,
     simple_evaluators_service: SimpleEvaluatorsService,
@@ -674,15 +668,13 @@ async def evaluate_batch_testset(
     """
     Annotates an application revision applied to a testset using auto evaluator(s).
 
+    All testset, application, and evaluator information is extracted from the
+    evaluation run's data.steps references.
+
     Args:
-        self: The task instance.
-        project_id (str): The ID of the project.
-        user_id (str): The ID of the user.
-        run_id (str): The ID of the evaluation run.
-        testset_revision_id (str): The ID of the testset revision.
-        revision_id (str): The ID of the application revision.
-        evaluator_ids (List[str]): The IDs of the evaluators.
-        run_config (Dict[str, int]): Configuration for evaluation run.
+        project_id (UUID): The ID of the project.
+        user_id (UUID): The ID of the user.
+        run_id (UUID): The ID of the evaluation run.
 
     Returns:
         None
@@ -704,9 +696,6 @@ async def evaluate_batch_testset(
         log.info(
             "[SCOPE]       ", run_id=run_id, project_id=project_id, user_id=user_id
         )
-        log.info("[TESTSET]    ", run_id=run_id, ids=[testset_revision_id])
-        log.info("[APPLICATION] ", run_id=run_id, ids=[revision_id])
-        log.info("[EVALUATOR]   ", run_id=run_id, ids=evaluator_ids)
         # ----------------------------------------------------------------------
 
         # fetch project --------------------------------------------------------
@@ -757,6 +746,27 @@ async def evaluate_batch_testset(
         annotation_steps_keys = [step.key for step in annotation_steps]
 
         nof_annotations = len(annotation_steps)
+
+        # extract references from run steps ------------------------------------
+        input_steps = [step for step in steps if step.type == "input"]
+
+        testset_revision_id = None
+        if input_steps and "testset_revision" in input_steps[0].references:
+            testset_revision_id = str(input_steps[0].references["testset_revision"].id)
+
+        revision_id = None
+        if invocation_steps and "application_revision" in invocation_steps[0].references:
+            revision_id = str(invocation_steps[0].references["application_revision"].id)
+
+        run_config = {
+            "batch_size": 10,
+            "max_retries": 3,
+            "retry_delay": 3,
+            "delay_between_batches": 5,
+        }
+
+        log.info("[TESTSET]     ", run_id=run_id, ids=[testset_revision_id])
+        log.info("[APPLICATION] ", run_id=run_id, ids=[revision_id])
         # ----------------------------------------------------------------------
 
         # fetch testset --------------------------------------------------------

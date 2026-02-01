@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 from datetime import datetime
 
@@ -76,12 +76,6 @@ class EvaluationsWorker:
             user_id: UUID,
             #
             run_id: UUID,
-            #
-            testset_revision_id: str,
-            revision_id: str,
-            evaluator_ids: Optional[List[str]],
-            #
-            run_config: Dict[str, int],
         ) -> Any:
             """Legacy annotation task - wraps the existing annotate function."""
             log.info(
@@ -96,12 +90,6 @@ class EvaluationsWorker:
                 user_id=user_id,
                 #
                 run_id=run_id,
-                #
-                testset_revision_id=testset_revision_id,
-                revision_id=revision_id,
-                evaluator_ids=evaluator_ids,
-                #
-                run_config=run_config,
                 #
                 tracing_router=self.tracing_router,
                 testsets_service=self.testsets_service,
