@@ -170,6 +170,11 @@ export {
     type BuildPatchResult,
 } from "./snapshot"
 
+// Auto-register snapshot adapter when this module is imported
+// This ensures the adapter is available in the registry for snapshot operations
+import "./snapshotAdapter"
+export {ossAppRevisionSnapshotAdapter} from "./snapshotAdapter"
+
 // Re-export store atoms for direct access if needed
 export {
     // Query atoms
