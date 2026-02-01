@@ -81,6 +81,8 @@ def _simple_evaluator_to_evaluator_config(
             parts = simple_evaluator.data.uri.split(":")
             if len(parts) >= 3 and parts[0] == "agenta" and parts[1] == "builtin":
                 evaluator_key = parts[2]
+            elif len(parts) >= 3 and parts[0] == "user" and parts[1] == "custom":
+                evaluator_key = "custom"
             else:
                 log.error(
                     "Unrecognized evaluator URI format",
