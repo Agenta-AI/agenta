@@ -324,7 +324,9 @@ const OnboardingCard = ({
         window.addEventListener("wheel", preventScroll, {passive: false})
         window.addEventListener("touchmove", preventScroll, {passive: false})
         window.addEventListener("keydown", handleKeyDown)
-        scrollParents.forEach((parent) => parent.addEventListener("scroll", handleScroll, {passive: false}))
+        scrollParents.forEach((parent) =>
+            parent.addEventListener("scroll", handleScroll, {passive: false}),
+        )
 
         setCurrentStepState({step, currentStep, totalSteps})
         step.onEnter?.()
