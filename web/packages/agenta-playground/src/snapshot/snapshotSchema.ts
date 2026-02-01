@@ -7,13 +7,13 @@
  * @example
  * ```typescript
  * import {
- *     type PlaygroundSnapshotV2,
+ *     type PlaygroundSnapshot,
  *     validateSnapshot,
  *     SNAPSHOT_VERSION,
  * } from '@agenta/playground/snapshot'
  *
- * const snapshot: PlaygroundSnapshotV2 = {
- *     v: 2,
+ * const snapshot: PlaygroundSnapshot = {
+ *     v: SNAPSHOT_VERSION,
  *     selection: [
  *         { kind: 'commit', id: 'rev-123', runnableType: 'ossAppRevision' },
  *         { kind: 'draft', draftKey: 'dk-1', runnableType: 'ossAppRevision' },
@@ -41,7 +41,7 @@ import type {RunnableDraftPatch, RunnableType} from "@agenta/entities/runnable"
 /**
  * Current snapshot schema version.
  */
-export const SNAPSHOT_VERSION = 2 as const
+export const SNAPSHOT_VERSION = 1 as const
 
 // ============================================================================
 // SELECTION ITEM TYPES
@@ -107,19 +107,14 @@ export interface SnapshotDraftEntry {
  *
  * Supports mixed runnable types in a single snapshot (e.g., AppRevision + EvaluatorRevision).
  */
-export interface PlaygroundSnapshotV2 {
-    /** Schema version (always 2 for this type) */
-    v: 2
+export interface PlaygroundSnapshot {
+    /** Schema version */
+    v: typeof SNAPSHOT_VERSION
     /** Array of selected items (commits or drafts) */
     selection: SelectionItem[]
     /** Array of draft entries with patch data */
     drafts: SnapshotDraftEntry[]
 }
-
-/**
- * Alias for the current snapshot type.
- */
-export type PlaygroundSnapshot = PlaygroundSnapshotV2
 
 // ============================================================================
 // VALIDATION
@@ -183,7 +178,7 @@ function isSnapshotDraftEntry(entry: unknown): entry is SnapshotDraftEntry {
  * @param data - The parsed data to validate
  * @returns ValidationResult with the validated snapshot or an error
  */
-export function validateSnapshot(data: unknown): ValidationResult<PlaygroundSnapshotV2> {
+export function validateSnapshot(data: unknown): ValidationResult<PlaygroundSnapshot> {
     // Check basic structure
     if (typeof data !== "object" || data === null) {
         return {ok: false, error: "Snapshot must be an object"}
@@ -191,11 +186,11 @@ export function validateSnapshot(data: unknown): ValidationResult<PlaygroundSnap
 
     const obj = data as Record<string, unknown>
 
-    // Check version (only v2 supported)
-    if (obj.v !== 2) {
+    // Check version
+    if (obj.v !== SNAPSHOT_VERSION) {
         return {
             ok: false,
-            error: `Unsupported snapshot version: ${obj.v}. Only version 2 is supported.`,
+            error: `Unsupported snapshot version: ${obj.v}. Expected version ${SNAPSHOT_VERSION}.`,
         }
     }
 
@@ -229,13 +224,13 @@ export function validateSnapshot(data: unknown): ValidationResult<PlaygroundSnap
         }
     }
 
-    return {ok: true, value: obj as unknown as PlaygroundSnapshotV2}
+    return {ok: true, value: obj as unknown as PlaygroundSnapshot}
 }
 
 /**
  * Create an empty snapshot.
  */
-export function createEmptySnapshot(): PlaygroundSnapshotV2 {
+export function createEmptySnapshot(): PlaygroundSnapshot {
     return {
         v: SNAPSHOT_VERSION,
         selection: [],

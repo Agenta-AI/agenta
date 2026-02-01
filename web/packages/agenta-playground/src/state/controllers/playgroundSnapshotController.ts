@@ -29,7 +29,7 @@ import {v4 as uuidv4} from "uuid"
 
 import {
     encodeSnapshot,
-    type PlaygroundSnapshotV2,
+    type PlaygroundSnapshot,
     type SelectionItem,
     type SnapshotDraftEntry,
     type EncodeResult,
@@ -57,7 +57,7 @@ export interface CreateSnapshotResult {
     /** Whether the snapshot was created successfully */
     ok: boolean
     /** The snapshot object (before encoding) */
-    snapshot?: PlaygroundSnapshotV2
+    snapshot?: PlaygroundSnapshot
     /** The encoded snapshot string (URL-safe) */
     encoded?: string
     /** Error message if creation failed */
@@ -180,7 +180,7 @@ const createSnapshotAtom = atom(
             }
 
             // Build snapshot
-            const snapshot: PlaygroundSnapshotV2 = {
+            const snapshot: PlaygroundSnapshot = {
                 v: SNAPSHOT_VERSION,
                 selection: snapshotSelection,
                 drafts,
@@ -253,7 +253,7 @@ export const pendingHydrations = new Map<string, PendingHydration>()
  */
 const hydrateSnapshotAtom = atom(
     null,
-    (_get, _set, snapshot: PlaygroundSnapshotV2): HydrateSnapshotResult => {
+    (_get, _set, snapshot: PlaygroundSnapshot): HydrateSnapshotResult => {
         try {
             const newSelection: string[] = []
             const draftKeyToSourceRevisionId: Record<string, string> = {}

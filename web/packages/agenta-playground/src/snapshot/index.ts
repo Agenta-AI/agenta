@@ -8,7 +8,7 @@
  * import {
  *     encodeSnapshot,
  *     parseSnapshot,
- *     type PlaygroundSnapshotV2,
+ *     type PlaygroundSnapshot,
  *     SNAPSHOT_VERSION,
  *     MAX_ENCODED_LENGTH,
  * } from '@agenta/playground/snapshot'
@@ -20,7 +20,6 @@ export {
     SNAPSHOT_VERSION,
     validateSnapshot,
     createEmptySnapshot,
-    type PlaygroundSnapshotV2,
     type PlaygroundSnapshot,
     type SelectionItem,
     type CommitSelectionItem,
