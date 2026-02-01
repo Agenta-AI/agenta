@@ -241,11 +241,10 @@ export const pendingHydrations = new Map<string, PendingHydration>()
  * Hydrate a snapshot, restoring playground state from URL.
  *
  * This compound action:
- * 1. Migrates v1 snapshots to v2 if needed
- * 2. Iterates through snapshot selection items
- * 3. For commit items, adds the revision ID directly to selection
- * 4. For draft items, adds the source revision ID to selection and queues the patch
- * 5. Returns the new selection array (source revision IDs for drafts)
+ * 1. Iterates through snapshot selection items
+ * 2. For commit items, adds the revision ID directly to selection
+ * 3. For draft items, adds the source revision ID to selection and queues the patch
+ * 4. Returns the new selection array (source revision IDs for drafts)
  *
  * The patches are applied later when the revision data loads, via applyPendingHydration.
  *
@@ -256,8 +255,6 @@ const hydrateSnapshotAtom = atom(
     null,
     (_get, _set, snapshot: PlaygroundSnapshotV2): HydrateSnapshotResult => {
         try {
-            const snapshotV2 = snapshot
-
             const newSelection: string[] = []
             const draftKeyToSourceRevisionId: Record<string, string> = {}
             const warnings: string[] = []
@@ -267,12 +264,12 @@ const hydrateSnapshotAtom = atom(
 
             // Build a map of draftKey -> draft entry for quick lookup
             const draftMap = new Map<string, SnapshotDraftEntry>()
-            for (const draft of snapshotV2.drafts) {
+            for (const draft of snapshot.drafts) {
                 draftMap.set(draft.draftKey, draft)
             }
 
             // Process each selection item
-            for (const item of snapshotV2.selection) {
+            for (const item of snapshot.selection) {
                 if (item.kind === "commit") {
                     // Commit - add directly to selection
                     newSelection.push(item.id)

@@ -8,7 +8,7 @@
  * import {
  *     encodeSnapshot,
  *     parseSnapshot,
- *     type PlaygroundSnapshotV1,
+ *     type PlaygroundSnapshotV2,
  *     SNAPSHOT_VERSION,
  *     MAX_ENCODED_LENGTH,
  * } from '@agenta/playground/snapshot'

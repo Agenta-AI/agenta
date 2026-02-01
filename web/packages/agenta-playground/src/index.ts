@@ -40,6 +40,7 @@ export {
     playgroundSnapshotController,
     applyPendingHydration,
     applyPendingHydrationsForRevision,
+    clearPendingHydrations,
     pendingHydrations,
 } from "./state"
 
