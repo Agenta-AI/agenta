@@ -599,7 +599,7 @@ async def start_evaluation(
                 #
                 revision_id=payload.revisions_ids[i],
                 #
-                evaluator_ids=payload.evaluators_configs,
+                evaluator_ids=payload.evaluator_ids,
                 #
                 evaluations_service=evaluations_service,
                 evaluators_service=evaluators_service,
@@ -623,7 +623,7 @@ async def start_evaluation(
                 #
                 revision_id=payload.revisions_ids[i],
                 #
-                evaluator_ids=payload.evaluators_configs,
+                evaluator_ids=payload.evaluator_ids,
                 #
                 run_config=payload.rate_limit.model_dump(mode="json"),
             )
