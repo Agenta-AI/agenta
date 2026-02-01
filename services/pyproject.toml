@@ -20,7 +20,7 @@ agenta = ">=0.79.0"
 
 # Server
 uvicorn = "^0.40"
-gunicorn = "^23"
+gunicorn = "^25"
 
 # Traces, Metrics, Logs
 structlog = "^25"

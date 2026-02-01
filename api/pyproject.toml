@@ -44,7 +44,7 @@ jsonschema = "^4"
 genson = "^1"
 python-jsonpath = "^2"
 bson = "^0.5"
-uuid-utils = "^0.13"
+uuid-utils = "^0.14"
 
 # caches, channels, streams
 taskiq = "^0.12"
