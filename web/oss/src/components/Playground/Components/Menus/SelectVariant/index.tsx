@@ -16,6 +16,7 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {currentAppAtom} from "@/oss/state/app"
 import {
     cloneAsLocalDraft,
@@ -31,7 +32,6 @@ import {
 import NewVariantButton from "../../Modals/CreateVariantModal/assets/NewVariantButton"
 
 import {SelectVariantProps} from "./types"
-import { recordWidgetEventAtom } from "@/oss/lib/onboarding"
 
 const SelectVariant = ({
     value,
@@ -82,15 +82,21 @@ const SelectVariant = ({
     // Handle selection from EntityPicker
     const handleSelect = useCallback(
         (selection: PlaygroundRevisionSelectionResult) => {
-            if (props.onChange) {
-                // Call the TreeSelect onChange with the selected ID
+            if (showAsCompare) {
+                // Compare mode: ADD the selected revision to the displayed list
+                // Don't add if already in the list (disabledIds check should prevent this, but be safe)
+                if (!selectedVariants.includes(selection.id)) {
+                    setSelectedVariants((prev) => [...prev, selection.id])
+                }
+            } else if (props.onChange) {
+                // Normal mode: REPLACE the current revision with the selected one
                 props.onChange(selection.id, [], {
                     triggerValue: selection.id,
                     triggerNode: {props: {value: selection.id}},
                 } as any)
             }
         },
-        [props],
+        [showAsCompare, selectedVariants, setSelectedVariants, props],
     )
 
     // Custom parent title renderer (variant groups)

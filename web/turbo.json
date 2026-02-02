@@ -47,26 +47,26 @@
             "outputs": []
         },
         "@agenta/shared#build": {
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": [".tsbuildinfo"]
         },
         "@agenta/ui#build": {
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": [".tsbuildinfo"]
         },
         "@agenta/entities#build": {
             "dependsOn": ["@agenta/shared#build", "@agenta/ui#build"],
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": [".tsbuildinfo"]
         },
         "@agenta/entity-ui#build": {
             "dependsOn": ["@agenta/shared#build", "@agenta/ui#build", "@agenta/entities#build"],
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": [".tsbuildinfo"]
         },
         "@agenta/playground#build": {
             "dependsOn": ["@agenta/shared#build", "@agenta/entities#build"],
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": [".tsbuildinfo"]
         },
         "@agenta/playground-ui#build": {
@@ -77,7 +77,7 @@
                 "@agenta/entity-ui#build",
                 "@agenta/playground#build"
             ],
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": [".tsbuildinfo"]
         },
         "@agenta/oss#build": {
@@ -173,26 +173,26 @@
             "outputs": []
         },
         "@agenta/shared#types:check": {
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": []
         },
         "@agenta/ui#types:check": {
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": []
         },
         "@agenta/entities#types:check": {
             "dependsOn": ["@agenta/shared#types:check", "@agenta/ui#types:check"],
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": []
         },
         "@agenta/entity-ui#types:check": {
             "dependsOn": ["@agenta/shared#types:check", "@agenta/ui#types:check", "@agenta/entities#types:check"],
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": []
         },
         "@agenta/playground#types:check": {
             "dependsOn": ["@agenta/shared#types:check", "@agenta/entities#types:check"],
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": []
         },
         "@agenta/playground-ui#types:check": {
@@ -203,7 +203,7 @@
                 "@agenta/entity-ui#types:check",
                 "@agenta/playground#types:check"
             ],
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": []
         },
         "@agenta/oss#types:check": {
