@@ -181,6 +181,10 @@ const VariantNavigationCard = ({
                     <Button
                         type="text"
                         className="relative z-[2]"
+                        onPointerDown={(e) => {
+                            // Prevent drag activation when clicking the close button
+                            e.stopPropagation()
+                        }}
                         onClick={(e) => {
                             e.preventDefault()
                             e.stopPropagation()
