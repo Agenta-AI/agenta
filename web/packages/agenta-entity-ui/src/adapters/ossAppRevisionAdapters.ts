@@ -250,18 +250,10 @@ const variantCommitAtom = atom(null, async (get, set, params: CommitParams): Pro
     }
 
     // Extract variantId - required for the API call
-    // First try from merged data, then fallback to server data
-    // This handles cases where draft was created without variantId (e.g., after app switch)
-    let variantId = data.variantId
+    // The variantId should be present in data via useSetRevisionVariantContext hook
+    const variantId = data.variantId
     if (!variantId) {
-        // Fallback: try to get variantId from server data
-        const serverData = get(ossAppRevisionMolecule.atoms.serverData(id))
-        variantId = serverData?.variantId
-    }
-    if (!variantId) {
-        throw new Error(
-            `No variantId found for entity: ${id}. This may happen if you switched apps. Please refresh the page and try again.`,
-        )
+        throw new Error(`No variantId found for entity: ${id}`)
     }
 
     // Build parameters from enhanced data

@@ -53,11 +53,7 @@ import {atom, getDefaultStore} from "jotai"
 import {atomFamily as atomFamilyJotaiUtils} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
-import {
-    variantsAtom,
-    revisionsByVariantIdAtomFamily,
-    revisionDeploymentAtomFamily,
-} from "@/oss/state/variant/atoms/fetcher"
+import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 // ============================================================================
@@ -134,29 +130,47 @@ const log = (...args: unknown[]) => {
  * @param revisionId - The revision ID to set context for
  */
 export function useSetRevisionVariantContext(revisionId: string | null): void {
-    const variants = useAtomValue(variantsAtom)
+    // Subscribe to revisionListAtom which contains all revisions with their variantId
+    // This ensures the effect re-runs when revisions are loaded (fixes race condition)
+    const revisions = useAtomValue(revisionListAtom)
     const setVariantContext = useSetAtom(setRevisionVariantContextAtom)
 
     useEffect(() => {
-        if (!revisionId || !variants) return
+        if (!revisionId || !revisions || revisions.length === 0) return
 
-        // Find the variant that contains this revision
-        for (const variant of variants) {
-            const revisions = getDefaultStore().get(
-                revisionsByVariantIdAtomFamily((variant as any).variantId),
+        // Find the revision in the list - it already has variantId populated
+        const revision = revisions.find((r: any) => r.id === revisionId)
+        if (revision && (revision as any).variantId) {
+            const variantId = (revision as any).variantId
+
+            // Set variant context in the entity package
+            setVariantContext(revisionId, variantId)
+
+            // Also update any existing server data that was seeded without variantId
+            // This fixes the race condition where initial seeding happens before this hook runs
+            // Use bridgeServerData (the underlying atom) not serverData (the selector)
+            const store = getDefaultStore()
+            const existingServerData = store.get(
+                ossAppRevisionMolecule.atoms.bridgeServerData(revisionId),
             )
-            const revision = revisions?.find((r: any) => r.id === revisionId)
-            if (revision) {
-                // Set variant context (kept for backward compatibility)
-                setVariantContext(revisionId, (variant as any).variantId)
-                log("🔗 Set variant context for revision:", {
-                    revisionId,
-                    variantId: (variant as any).variantId,
+            if (existingServerData && !existingServerData.variantId) {
+                log("🔧 Patching bridgeServerData with variantId:", {revisionId, variantId})
+                store.set(ossAppRevisionMolecule.actions.setServerData, revisionId, {
+                    ...existingServerData,
+                    variantId,
                 })
-                return
             }
+
+            // Also update any existing draft that was created without variantId
+            const existingDraft = store.get(ossAppRevisionMolecule.atoms.draft(revisionId))
+            if (existingDraft && !existingDraft.variantId) {
+                log("🔧 Patching draft with variantId:", {revisionId, variantId})
+                store.set(ossAppRevisionMolecule.actions.update, revisionId, {variantId})
+            }
+
+            log("🔗 Set variant context for revision:", {revisionId, variantId})
         }
-    }, [revisionId, variants, setVariantContext])
+    }, [revisionId, revisions, setVariantContext])
 }
 
 // ============================================================================
@@ -301,22 +315,22 @@ export const moleculeBackedVariantAtomFamily = atomFamilyJotaiUtils((revisionId:
 
         if (moleculeData) {
             // Transform molecule data back to legacy format for compatibility
-            // Merge with legacy revision data for fields that may be missing (e.g., variantName)
+            // Merge with legacy revision data for fields that may be missing (e.g., variantId/name)
             return {
                 id: moleculeData.id,
-                variantId: moleculeData.variantId,
-                appId: moleculeData.appId,
-                revision: moleculeData.revision,
-                isLatestRevision: moleculeData.isLatestRevision,
+                variantId: moleculeData.variantId ?? legacyRevision?.variantId,
+                appId: moleculeData.appId ?? legacyRevision?.appId,
+                revision: moleculeData.revision ?? legacyRevision?.revision,
+                isLatestRevision: moleculeData.isLatestRevision ?? legacyRevision?.isLatestRevision,
                 variantName: moleculeData.variantName || legacyRevision?.variantName,
                 appName: moleculeData.appName || legacyRevision?.appName,
                 configName: moleculeData.configName,
                 parameters: moleculeData.parameters,
                 uri: moleculeData.uri || legacyRevision?.uri,
-                createdAt: moleculeData.createdAt,
-                updatedAt: moleculeData.updatedAt,
-                modifiedById: moleculeData.modifiedById,
-                commitMessage: moleculeData.commitMessage,
+                createdAt: moleculeData.createdAt ?? legacyRevision?.createdAt,
+                updatedAt: moleculeData.updatedAt ?? legacyRevision?.updatedAt,
+                modifiedById: moleculeData.modifiedById ?? legacyRevision?.modifiedById,
+                commitMessage: moleculeData.commitMessage ?? legacyRevision?.commitMessage,
             }
         }
 
