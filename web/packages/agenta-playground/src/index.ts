@@ -42,9 +42,21 @@ export {
     applyPendingHydrationsForRevision,
     clearPendingHydrations,
     pendingHydrations,
+    urlSnapshotController,
+    setRunnableTypeResolver,
+    getRunnableTypeResolver,
+    resetRunnableTypeResolver,
 } from "./state"
 
-export type {CreateSnapshotResult, HydrateSnapshotResult, SnapshotSelectionInput} from "./state"
+export type {
+    CreateSnapshotResult,
+    HydrateSnapshotResult,
+    SnapshotSelectionInput,
+    RunnableTypeResolver,
+    BuildEncodedSnapshotResult,
+    UrlComponents,
+    HydrateFromUrlResult,
+} from "./state"
 
 export type {
     ConnectToTestsetPayload,

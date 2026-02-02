@@ -118,12 +118,20 @@ export {
     applyPendingHydrationsForRevision,
     clearPendingHydrations,
     pendingHydrations,
+    urlSnapshotController,
+    setRunnableTypeResolver,
+    getRunnableTypeResolver,
+    resetRunnableTypeResolver,
 } from "./controllers"
 
 export type {
     CreateSnapshotResult,
     HydrateSnapshotResult,
     SnapshotSelectionInput,
+    RunnableTypeResolver,
+    BuildEncodedSnapshotResult,
+    UrlComponents,
+    HydrateFromUrlResult,
 } from "./controllers"
 
 // ============================================================================

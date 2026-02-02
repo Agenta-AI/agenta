@@ -21,3 +21,17 @@ export type {
     HydrateSnapshotResult,
     SnapshotSelectionInput,
 } from "./playgroundSnapshotController"
+
+export {
+    urlSnapshotController,
+    setRunnableTypeResolver,
+    getRunnableTypeResolver,
+    resetRunnableTypeResolver,
+} from "./urlSnapshotController"
+
+export type {
+    RunnableTypeResolver,
+    BuildEncodedSnapshotResult,
+    UrlComponents,
+    HydrateFromUrlResult,
+} from "./urlSnapshotController"

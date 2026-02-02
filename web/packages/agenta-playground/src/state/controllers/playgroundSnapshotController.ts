@@ -19,6 +19,7 @@
  * ```
  */
 
+import {ossAppRevisionSnapshotAdapter} from "@agenta/entities/ossAppRevision"
 import {
     snapshotAdapterRegistry,
     type RunnableDraftPatch,
@@ -35,6 +36,10 @@ import {
     type EncodeResult,
     SNAPSHOT_VERSION,
 } from "../../snapshot"
+
+// Explicitly register the ossAppRevision adapter
+// Side-effect imports don't work reliably across package boundaries
+snapshotAdapterRegistry.register(ossAppRevisionSnapshotAdapter)
 
 // ============================================================================
 // TYPES
@@ -123,6 +128,7 @@ const createSnapshotAtom = atom(
             for (const {id: revisionId, runnableType} of selection) {
                 // Get adapter for this runnable type
                 const adapter = snapshotAdapterRegistry.get(runnableType)
+
                 if (!adapter) {
                     warnings.push(`No adapter for runnable type: ${runnableType}`)
                     // Fall back to commit without draft check
