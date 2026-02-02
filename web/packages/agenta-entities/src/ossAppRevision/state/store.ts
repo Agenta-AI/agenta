@@ -815,9 +815,29 @@ export const updateOssAppRevisionAtom = atom(
 
 /**
  * Discard OSS app revision draft
+ *
+ * Clears both:
+ * 1. The draft atom (local edits)
+ * 2. The enhanced prompts/custom properties from server data atom
+ *    (these may have been seeded during initial derivation from schema)
+ *
+ * This ensures the UI falls back to the original query data.
  */
-export const discardOssAppRevisionDraftAtom = atom(null, (_get, set, revisionId: string) => {
+export const discardOssAppRevisionDraftAtom = atom(null, (get, set, revisionId: string) => {
+    // 1. Clear the draft atom
     set(getDraftAtom(revisionId), null)
+
+    // 2. Clear enhanced prompts/custom properties from server data atom
+    // These may have been seeded during initial derivation from schema
+    // and need to be cleared so the UI re-derives from original query data
+    const serverData = get(ossAppRevisionServerDataAtomFamily(revisionId))
+    if (serverData && (serverData.enhancedPrompts || serverData.enhancedCustomProperties)) {
+        const cleanedServerData = produce(serverData, (draft) => {
+            delete draft.enhancedPrompts
+            delete draft.enhancedCustomProperties
+        })
+        set(ossAppRevisionServerDataAtomFamily(revisionId), cleanedServerData)
+    }
 })
 
 // ============================================================================
