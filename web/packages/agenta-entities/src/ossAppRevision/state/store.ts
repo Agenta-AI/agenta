@@ -796,8 +796,17 @@ export const ossAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revisionId:
 
         // Compare parameters (the source of truth)
         // preserveNulls=true because null values are meaningful changes
-        const draftParamsStr = JSON.stringify(stripVolatileKeys(draftParams, true))
-        const serverParamsStr = JSON.stringify(stripVolatileKeys(serverParams, true))
+        const strippedDraft = stripVolatileKeys(draftParams, true)
+        const strippedServer = stripVolatileKeys(serverParams, true)
+        const draftParamsStr = JSON.stringify(strippedDraft)
+        const serverParamsStr = JSON.stringify(strippedServer)
+
+        // Debug logging
+        if (draftParamsStr !== serverParamsStr) {
+            console.log("[isDirty] DIRTY detected for", revisionId)
+            console.log("[isDirty] strippedDraft:", strippedDraft)
+            console.log("[isDirty] strippedServer:", strippedServer)
+        }
 
         return draftParamsStr !== serverParamsStr
     }),
