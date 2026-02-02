@@ -62,43 +62,62 @@ applications_service = ApplicationsService(
 
 
 def _get_application_flags(app_type: Optional[str]) -> dict:
-    """Map app_type to workflow flags for applications."""
+    """Map app_type to workflow flags for applications.
+
+    TEMPLATE types are treated as their SERVICE equivalents:
+        CHAT_TEMPLATE    → same as CHAT_SERVICE    (can_chat=True)
+        COMPLETION_TEMPLATE → same as COMPLETION_SERVICE (default flags)
+    """
     flags = {
         "is_custom": False,
         "is_evaluator": False,
         "is_human": False,
-        "is_chat": False,
-        "is_local": False,
+        "can_chat": False,
+        "can_stream": False,
     }
 
     if app_type is None:
         return flags
 
-    # is_custom: True for CUSTOM and SDK_CUSTOM
     if app_type in (AppType.CUSTOM.value, AppType.SDK_CUSTOM.value):
         flags["is_custom"] = True
 
-    # is_chat: True for chat-based types
     if app_type in (AppType.CHAT_TEMPLATE.value, AppType.CHAT_SERVICE.value):
-        flags["is_chat"] = True
-
-    # is_local: True for SDK_CUSTOM (local/SDK workflows)
-    if app_type == AppType.SDK_CUSTOM.value:
-        flags["is_local"] = True
+        flags["can_chat"] = True
 
     return flags
+
+
+def _get_application_uri(app_type: Optional[str], app_slug: str) -> str:
+    """Map app_type to a workflow URI.
+
+    - completion (incl. COMPLETION_TEMPLATE) → agenta:builtin:completion:v0
+    - chat (incl. CHAT_TEMPLATE)             → agenta:builtin:chat:v0
+    - CUSTOM                                 → agenta:builtin:hook:v0
+    - SDK_CUSTOM                             → user:custom:{app_slug}:v0
+    - None / unknown                         → agenta:builtin:completion:v0
+    """
+    if app_type in (AppType.CHAT_TEMPLATE.value, AppType.CHAT_SERVICE.value):
+        return "agenta:builtin:chat:v0"
+    if app_type == AppType.CUSTOM.value:
+        return "agenta:builtin:hook:v0"
+    if app_type == AppType.SDK_CUSTOM.value:
+        return f"user:custom:{app_slug}:v0"
+    # COMPLETION_TEMPLATE, COMPLETION_SERVICE, None, unknown
+    return "agenta:builtin:completion:v0"
 
 
 def _transform_config_parameters(
     config_parameters: Optional[Dict[str, Any]],
     deployment_uri: Optional[str],
+    workflow_uri: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Transform config_parameters to ApplicationRevisionData format (SDK format).
 
     SDK format fields:
         - version: str (default "2025.07.14")
         - uri: Optional[str] (builtin:<type> or custom)
-        - url: Optional[str] (deployment URL)
+        - url: Optional[str] (deployment URL / webhook URL for CUSTOM apps)
         - headers: Optional[Dict]
         - schemas: Optional[JsonSchemas]
         - script: Optional[Data]
@@ -118,7 +137,8 @@ def _transform_config_parameters(
             "version": "2025.07.14",
             "parameters": config_parameters,
         }
-        # Add URL from deployment if available and not empty
+        if workflow_uri:
+            data["uri"] = workflow_uri
         if deployment_uri:
             data["url"] = deployment_uri
         return data
@@ -175,6 +195,9 @@ async def _transfer_application(
     app_type = app.app_type.value if app.app_type else None
     folder_id = app.folder_id  # Preserve folder_id
 
+    slug = app_name
+    workflow_uri = _get_application_uri(app_type, slug)
+
     # Check if application already exists in new system
     application_ref = Reference(id=app_id)
     existing_application = await applications_service.fetch_application(
@@ -201,8 +224,6 @@ async def _transfer_application(
         connection=connection,
     )
 
-    slug = app_name
-
     # Create the application
     application_create = ApplicationCreate(
         slug=slug,
@@ -214,9 +235,14 @@ async def _transfer_application(
         folder_id=folder_id,
     )
 
-    # Call DAO directly to bypass @suppress_exceptions decorator
+    # Call DAO directly to bypass @suppress_exceptions decorator and preserve IDs
     from oss.src.core.workflows.dtos import WorkflowCreate
-    from oss.src.core.git.dtos import ArtifactCreate as GitArtifactCreate, Artifact as GitArtifact
+    from oss.src.core.git.dtos import (
+        ArtifactCreate as GitArtifactCreate,
+        Artifact as GitArtifact,
+        Variant as GitVariant,
+        Revision as GitRevision,
+    )
     from oss.src.dbs.postgres.git.mappings import map_dto_to_dbe
     from oss.src.dbs.postgres.shared.engine import engine as db_engine
     from datetime import datetime, timezone
@@ -277,33 +303,32 @@ async def _transfer_application(
         variant_id = variant.id
         variant_name = variant.variant_name or "default"
 
+        # Use compound slug: app.slug-variant.name
         variant_slug = f"{slug}-{variant_name}"
 
-        # Create variant
-        application_variant_create = ApplicationVariantCreate(
+        # Insert variant directly to preserve original ID
+        variant_dto = GitVariant(
+            id=variant_id,
+            artifact_id=app_id,
             slug=variant_slug,
             name=variant_name,
             description=None,
-            flags=application_flags,
+            created_at=datetime.now(timezone.utc),
+            created_by_id=user_id,
+            flags=application_flags.model_dump(),
             tags=None,
             meta=None,
-            application_id=app_id,
         )
 
-        application_variant = await applications_service.create_application_variant(
+        variant_dbe = map_dto_to_dbe(
+            DBE=WorkflowVariantDBE,
             project_id=project_id,
-            user_id=user_id,
-            application_variant_create=application_variant_create,
+            dto=variant_dto,
         )
 
-        if application_variant is None:
-            click.echo(
-                click.style(
-                    f"Failed to create variant {variant_id} for application {app_id}",
-                    fg="red",
-                )
-            )
-            continue
+        async with db_engine.core_session() as session:
+            session.add(variant_dbe)
+            await session.commit()
 
         # Fetch and migrate revisions
         revisions = await _fetch_variant_revisions(
@@ -324,36 +349,36 @@ async def _transfer_application(
             data_dict = _transform_config_parameters(
                 config_parameters=config_parameters,
                 deployment_uri=deployment_uri,
+                workflow_uri=workflow_uri,
             )
 
-            application_revision_commit = ApplicationRevisionCommit(
+            # Insert revision directly to preserve original ID
+            revision_dto = GitRevision(
+                id=revision_id,
+                artifact_id=app_id,
+                variant_id=variant_id,
                 slug=revision_slug,
+                version=revision_num,
                 name=config_name,
                 description=None,
-                flags=application_flags,
+                created_at=datetime.now(timezone.utc),
+                created_by_id=user_id,
+                flags=application_flags.model_dump(),
                 tags=None,
                 meta=None,
-                data=ApplicationRevisionData(**data_dict) if data_dict else None,
+                data=data_dict if data_dict else None,
                 message=commit_message,
-                application_id=app_id,
-                application_variant_id=application_variant.id,
             )
 
-            application_revision = (
-                await applications_service.commit_application_revision(
-                    project_id=project_id,
-                    user_id=user_id,
-                    application_revision_commit=application_revision_commit,
-                )
+            revision_dbe = map_dto_to_dbe(
+                DBE=WorkflowRevisionDBE,
+                project_id=project_id,
+                dto=revision_dto,
             )
 
-            if application_revision is None:
-                click.echo(
-                    click.style(
-                        f"Failed to create revision {revision_id} for variant {variant_id}",
-                        fg="red",
-                    )
-                )
+            async with db_engine.core_session() as session:
+                session.add(revision_dbe)
+                await session.commit()
 
     return application
 

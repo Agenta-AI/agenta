@@ -214,7 +214,7 @@ class App(BaseModel):
     app_name: str
     app_type: Optional[str] = None
     folder_id: Optional[str] = None
-    updated_at: str
+    updated_at: Optional[str] = None
 
 
 class RemoveApp(BaseModel):

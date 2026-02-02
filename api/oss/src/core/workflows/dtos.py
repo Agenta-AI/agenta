@@ -107,16 +107,16 @@ class WorkflowFlags(BaseModel):
     is_custom: bool = False
     is_evaluator: bool = False
     is_human: bool = False
-    is_chat: bool = False
-    is_local: bool = False
+    can_chat: bool = False
+    can_stream: bool = False
 
 
 class WorkflowQueryFlags(BaseModel):
     is_custom: Optional[bool] = None
     is_evaluator: Optional[bool] = None
     is_human: Optional[bool] = None
-    is_chat: Optional[bool] = None
-    is_local: Optional[bool] = None
+    can_chat: Optional[bool] = None
+    can_stream: Optional[bool] = None
 
 
 # workflows --------------------------------------------------------------------

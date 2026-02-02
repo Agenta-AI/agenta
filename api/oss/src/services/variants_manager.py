@@ -485,11 +485,12 @@ async def add_config(
         log.error(f"App not found for application_ref: {application_ref}")
         return None
 
-    # Create variant directly under the app (no more bases)
+    # Create variant with compound slug: {app_slug}-{variant_name}
+    compound_slug = f"{app.slug}-{variant_ref.slug}"
     variant_slug, variant_version = await _create_variant(
         project_id=project_id,
         user_id=user_id,
-        slug=variant_ref.slug,
+        slug=compound_slug,
         params={},
         app_id=app.id,
         commit_message=variant_ref.commit_message,
@@ -847,14 +848,22 @@ async def fork_config_by_variant_ref(
     if app_variant_revision.data:
         params = app_variant_revision.data.parameters or {}
 
+    # Build compound slug for the forked variant
+    if variant_ref.slug:
+        # Fetch app to construct compound slug: {app_slug}-{variant_name}
+        app = await _fetch_app(
+            project_id=project_id,
+            app_id=app_variant.application_id,
+        )
+        fork_slug = f"{app.slug}-{variant_ref.slug}" if app else variant_ref.slug
+    else:
+        # app_variant.slug is already compound; append a unique suffix
+        fork_slug = app_variant.slug + "_" + uuid4().hex[-12:]
+
     variant_slug, variant_version = await _create_variant(
         project_id=project_id,
         user_id=user_id,
-        slug=(
-            variant_ref.slug
-            if variant_ref.slug
-            else app_variant.slug + "_" + uuid4().hex[-12:]
-        ),
+        slug=fork_slug,
         params=params,
         app_id=app_variant.application_id,
         commit_message=variant_ref.commit_message,

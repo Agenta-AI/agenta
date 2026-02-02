@@ -103,7 +103,11 @@ class LegacyApplicationsAdapter:
 
         apps = []
         for app in applications:
-            apps.append(self._application_to_app(app))
+            uri = await self._resolve_app_uri(
+                project_id=project_id,
+                application_id=app.id,
+            )
+            apps.append(self._application_to_app(app, uri=uri))
 
         return apps
 
@@ -131,6 +135,7 @@ class LegacyApplicationsAdapter:
         if not application:
             return None
 
+        # Newly created — no revisions yet, uri stays None
         return self._application_to_create_output(application)
 
     async def fetch_app(
@@ -148,7 +153,11 @@ class LegacyApplicationsAdapter:
         if not application:
             return None
 
-        return self._application_to_read_output(application)
+        uri = await self._resolve_app_uri(
+            project_id=project_id,
+            application_id=app_id,
+        )
+        return self._application_to_read_output(application, uri=uri)
 
     async def update_app(
         self,
@@ -175,7 +184,11 @@ class LegacyApplicationsAdapter:
         if not application:
             return None
 
-        return self._application_to_update_output(application)
+        uri = await self._resolve_app_uri(
+            project_id=project_id,
+            application_id=app_id,
+        )
+        return self._application_to_update_output(application, uri=uri)
 
     async def delete_app(
         self,
@@ -270,9 +283,16 @@ class LegacyApplicationsAdapter:
         """Create a new variant (fork from default) in legacy format."""
         from oss.src.core.applications.dtos import ApplicationRevisionData
 
+        # Build compound slug: {app_slug}-{variant_name}
+        application = await self.applications_service.fetch_application(
+            project_id=project_id,
+            application_ref=Reference(id=app_id),
+        )
+        compound_slug = f"{application.slug}-{variant_name}" if application else variant_name
+
         # Create a new variant
         variant_create = ApplicationVariantCreate(
-            slug=variant_name,
+            slug=compound_slug,
             name=variant_name,
             application_id=app_id,
         )
@@ -436,9 +456,16 @@ class LegacyApplicationsAdapter:
         """Create a new variant from a URL in legacy format."""
         from oss.src.core.applications.dtos import ApplicationRevisionData
 
+        # Build compound slug: {app_slug}-{variant_name}
+        application = await self.applications_service.fetch_application(
+            project_id=project_id,
+            application_ref=Reference(id=app_id),
+        )
+        compound_slug = f"{application.slug}-{variant_name}" if application else variant_name
+
         # Create a new variant
         variant_create = ApplicationVariantCreate(
-            slug=variant_name,
+            slug=compound_slug,
             name=variant_name,
             application_id=app_id,
         )
@@ -527,18 +554,46 @@ class LegacyApplicationsAdapter:
         app_id: UUID,
         variant_slug: str,
     ) -> Optional[ApplicationVariant]:
-        """Fetch a variant by slug (config_name) and app_id."""
+        """Fetch a variant by slug (config_name) and app_id.
+
+        Variant slugs in the new system are compound: '{app_slug}-{variant_name}'.
+        Legacy callers may pass either just the variant name (e.g. 'default')
+        or the full compound slug (e.g. 'myapp-default'). We try the compound
+        slug first, then fall back to the raw slug as-is.
+        """
+        application = await self.applications_service.fetch_application(
+            project_id=project_id,
+            application_ref=Reference(id=app_id),
+        )
+
+        if not application:
+            return None
+
+        # Try compound slug first: {app_slug}-{variant_slug}
+        compound_slug = f"{application.slug}-{variant_slug}"
+
         variants = await self.applications_service.query_application_variants(
             project_id=project_id,
             application_refs=[Reference(id=app_id)],
-            application_variant_query=ApplicationVariantQuery(slug=variant_slug),
+            application_variant_refs=[Reference(slug=compound_slug)],
             windowing=Windowing(limit=1),
         )
 
-        if not variants:
-            return None
+        if variants:
+            return variants[0]
 
-        return variants[0]
+        # Fall back: slug may already be compound or a direct match
+        variants = await self.applications_service.query_application_variants(
+            project_id=project_id,
+            application_refs=[Reference(id=app_id)],
+            application_variant_refs=[Reference(slug=variant_slug)],
+            windowing=Windowing(limit=1),
+        )
+
+        if variants:
+            return variants[0]
+
+        return None
 
     async def fetch_latest_revision(
         self,
@@ -632,7 +687,11 @@ class LegacyApplicationsAdapter:
         url: Optional[str] = None,
         commit_message: Optional[str] = None,
     ) -> Optional[tuple[ApplicationVariant, ApplicationRevision]]:
-        """Create a new variant with an initial revision."""
+        """Create a new variant with an initial revision.
+
+        The variant_slug should already be the compound slug
+        ('{app_slug}-{variant_name}') when coming from legacy callers.
+        """
         from oss.src.core.applications.dtos import ApplicationRevisionData
 
         # Create the variant
@@ -861,9 +920,16 @@ class LegacyApplicationsAdapter:
         if base_db.deployment_id and base_db.deployment:
             url = base_db.deployment.uri
 
+        # Build compound slug: {app_slug}-{variant_name}
+        application = await self.applications_service.fetch_application(
+            project_id=project_id,
+            application_ref=Reference(id=app_id),
+        )
+        compound_slug = f"{application.slug}-{variant_name}" if application else variant_name
+
         # Create a new variant under the app
         variant_create = ApplicationVariantCreate(
-            slug=variant_name,
+            slug=compound_slug,
             name=variant_name,
             application_id=app_id,
         )
@@ -902,50 +968,127 @@ class LegacyApplicationsAdapter:
         return self._application_variant_to_legacy(variant, revision, project_id)
 
     # -------------------------------------------------------------------------
+    # HELPERS
+    # -------------------------------------------------------------------------
+
+    async def _resolve_app_uri(
+        self,
+        *,
+        project_id: UUID,
+        application_id: UUID,
+    ) -> Optional[str]:
+        """Return the workflow URI from the latest revision of any variant.
+
+        Used to distinguish SDK_CUSTOM (``user:custom:*``) from CUSTOM
+        (``agenta:builtin:hook:*``) when reverse-mapping flags → app_type.
+        """
+        variants = await self.applications_service.query_application_variants(
+            project_id=project_id,
+            application_refs=[Reference(id=application_id)],
+            windowing=Windowing(limit=1),
+        )
+
+        if not variants:
+            return None
+
+        revisions = await self.applications_service.query_application_revisions(
+            project_id=project_id,
+            application_variant_refs=[Reference(id=variants[0].id)],
+            windowing=Windowing(limit=1),
+        )
+
+        if not revisions or not revisions[0].data:
+            return None
+
+        return revisions[0].data.uri
+
+    # -------------------------------------------------------------------------
     # CONVERTERS
     # -------------------------------------------------------------------------
 
-    def _application_to_app(self, application: Application) -> App:
+    @staticmethod
+    def _flags_to_app_type(
+        application: Application,
+        *,
+        uri: Optional[str] = None,
+    ) -> Optional[str]:
+        """Reverse-map ApplicationFlags to a legacy AppType string.
+
+        TEMPLATE types no longer exist — always returns SERVICE equivalents.
+
+        When *uri* (from the latest revision's data.uri) is provided,
+        ``user:custom:*`` URIs map to SDK_CUSTOM; otherwise CUSTOM.
+        """
+        flags = application.flags
+        if flags is None:
+            return None
+
+        if flags.is_custom:
+            if uri and uri.startswith("user:custom:"):
+                return "SDK_CUSTOM"
+            return "CUSTOM"
+        if flags.can_chat:
+            return "SERVICE:chat"
+        return "SERVICE:completion"
+
+    def _application_to_app(
+        self,
+        application: Application,
+        *,
+        uri: Optional[str] = None,
+    ) -> App:
         """Convert Application DTO to legacy App model."""
         return App(
             app_id=str(application.id),
             app_name=application.name or application.slug,
+            app_type=self._flags_to_app_type(application, uri=uri),
             created_at=str(application.created_at) if application.created_at else None,
             updated_at=str(application.updated_at) if application.updated_at else None,
         )
 
     def _application_to_create_output(
-        self, application: Application
+        self,
+        application: Application,
+        *,
+        uri: Optional[str] = None,
     ) -> CreateAppOutput:
         """Convert Application DTO to legacy CreateAppOutput."""
         return CreateAppOutput(
             app_id=str(application.id),
             app_name=application.name or application.slug,
-            app_type=None,  # Legacy field, no longer used
+            app_type=self._flags_to_app_type(application, uri=uri),
             created_at=str(application.created_at) if application.created_at else None,
             updated_at=str(application.updated_at) if application.updated_at else None,
             folder_id=str(application.folder_id) if application.folder_id else None,
         )
 
-    def _application_to_read_output(self, application: Application) -> ReadAppOutput:
+    def _application_to_read_output(
+        self,
+        application: Application,
+        *,
+        uri: Optional[str] = None,
+    ) -> ReadAppOutput:
         """Convert Application DTO to legacy ReadAppOutput."""
         return ReadAppOutput(
             app_id=str(application.id),
             app_name=application.name or application.slug,
-            app_type=None,
+            app_type=self._flags_to_app_type(application, uri=uri),
             created_at=str(application.created_at) if application.created_at else None,
             updated_at=str(application.updated_at) if application.updated_at else None,
             folder_id=str(application.folder_id) if application.folder_id else None,
         )
 
     def _application_to_update_output(
-        self, application: Application
+        self,
+        application: Application,
+        *,
+        uri: Optional[str] = None,
     ) -> UpdateAppOutput:
         """Convert Application DTO to legacy UpdateAppOutput."""
         return UpdateAppOutput(
             app_id=str(application.id),
             app_name=application.name or application.slug,
-            app_type=None,
+            app_type=self._flags_to_app_type(application, uri=uri),
             created_at=str(application.created_at) if application.created_at else None,
             updated_at=str(application.updated_at) if application.updated_at else None,
             folder_id=str(application.folder_id) if application.folder_id else None,
