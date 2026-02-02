@@ -17,7 +17,7 @@ import {ossAppRevisionMolecule} from "@agenta/entities/ossAppRevision"
 import {urlSnapshotController} from "@agenta/playground"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {updatePlaygroundUrlWithDrafts, clearSnapshotFromUrl} from "@/oss/state/url/playground"
+import {updatePlaygroundUrlWithDrafts} from "@/oss/state/url/playground"
 
 import {selectedVariantsAtom} from "../state/atoms"
 
@@ -72,29 +72,16 @@ export function usePlaygroundUrlSync() {
     const hydrationComplete = useAtomValue(urlSnapshotController.selectors.hydrationComplete)
     const applyPendingHydrations = useSetAtom(urlSnapshotController.actions.applyPendingHydrations)
     const prevDraftHashRef = useRef<string>("")
-    const prevHydrationCompleteRef = useRef<boolean>(true)
 
     // Apply pending hydrations when server data becomes available
+    // URL will be rebuilt by the draftHash effect when draft state changes
     useEffect(() => {
         if (hydrationComplete) {
             return
         }
 
-        const appliedCount = applyPendingHydrations(selectedVariants)
-
-        // Clear the snapshot from URL once all patches are applied
-        if (appliedCount > 0) {
-            clearSnapshotFromUrl()
-        }
+        applyPendingHydrations(selectedVariants)
     }, [serverDataHash, selectedVariants, hydrationComplete, applyPendingHydrations])
-
-    // Clear URL when hydration completes (transition from false to true)
-    useEffect(() => {
-        if (hydrationComplete && !prevHydrationCompleteRef.current) {
-            clearSnapshotFromUrl()
-        }
-        prevHydrationCompleteRef.current = hydrationComplete
-    }, [hydrationComplete])
 
     // Update URL when drafts change
     useEffect(() => {
