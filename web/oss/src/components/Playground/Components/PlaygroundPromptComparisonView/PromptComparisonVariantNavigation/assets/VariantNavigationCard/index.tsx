@@ -1,10 +1,10 @@
-import {memo, useMemo} from "react"
+import {memo, useCallback, useMemo} from "react"
 
 import {DraftTag} from "@agenta/ui/components"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
 import {PlusCircle, Timer, X} from "@phosphor-icons/react"
-import {Button, Tag, Typography} from "antd"
+import {Button, Modal, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
@@ -13,7 +13,7 @@ import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {generationLogicalTurnIdsAtom as compatRowIdsAtom} from "@/oss/state/generation/compat"
 import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
-import {isLocalDraft} from "@/oss/state/newPlayground/legacyEntityBridge"
+import {isLocalDraft, revisionIsDirtyAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import Version from "../../../../../assets/Version"
 import {
@@ -38,6 +38,29 @@ const VariantNavigationCard = ({
     // Use molecule-backed variant for single source of truth
     const variant = useAtomValue(moleculeBackedVariantAtomFamily(revisionId)) as any
     const removeVariantFromSelection = useSetAtom(removeVariantFromSelectionMutationAtom)
+    const isDirty = useAtomValue(revisionIsDirtyAtomFamily(revisionId))
+    const isLocalDraftVariant = isLocalDraft(revisionId)
+
+    // Handle close with confirmation only if there are actual committable changes
+    // A local draft without changes (isDirty === false) should close without confirmation
+    const handleClose = useCallback(() => {
+        if (isDirty) {
+            Modal.confirm({
+                title: "Discard unsaved changes?",
+                content: isLocalDraftVariant
+                    ? "This draft has uncommitted changes. Closing it will discard all changes."
+                    : "You have unsaved changes in this variant. Closing it will discard these changes.",
+                okText: "Discard",
+                okButtonProps: {danger: true},
+                cancelText: "Cancel",
+                onOk: () => {
+                    removeVariantFromSelection(revisionId)
+                },
+            })
+        } else {
+            removeVariantFromSelection(revisionId)
+        }
+    }, [isDirty, isLocalDraftVariant, removeVariantFromSelection, revisionId])
 
     // Aggregate visible trace results for this revision across current rows
     const metricsAtom = useMemo(
@@ -188,9 +211,7 @@ const VariantNavigationCard = ({
                         onClick={(e) => {
                             e.preventDefault()
                             e.stopPropagation()
-
-                            // Use atom-based mutation for better performance and consistency
-                            removeVariantFromSelection(revisionId)
+                            handleClose()
                         }}
                     >
                         <X size={14} />
