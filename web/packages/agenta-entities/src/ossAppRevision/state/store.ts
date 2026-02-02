@@ -1101,7 +1101,57 @@ export const updatePropertyAtom = atom(
 )
 
 /**
- * Helper to recursively find and update a property by __id
+ * Helper to recursively find and update a property by __id in an object
+ *
+ * Searches:
+ * - Direct properties with __id
+ * - Nested objects (e.g., llmConfig.model, llmConfig.temperature)
+ * - Arrays (recurses into them)
+ *
+ * When a property is found:
+ * - If it has `value` directly, update that
+ * - Otherwise replace the entire property
+ */
+function updatePropertyInObject(
+    obj: Record<string, unknown>,
+    propertyId: string,
+    value: unknown,
+): boolean {
+    for (const key of Object.keys(obj)) {
+        const prop = obj[key]
+        if (!prop || typeof prop !== "object") continue
+
+        const typedProp = prop as {__id?: string; value?: unknown; [key: string]: unknown}
+
+        // Check if this property matches
+        if (typedProp.__id === propertyId) {
+            const hasValue = "value" in typedProp
+            if (hasValue) {
+                typedProp.value = value
+            } else {
+                obj[key] = value
+            }
+            return true
+        }
+
+        // Recurse into arrays
+        if (Array.isArray(prop)) {
+            if (updatePropertyInArray(prop, propertyId, value, 0)) {
+                return true
+            }
+        }
+        // Recurse into nested objects (e.g., llmConfig contains model, temperature, etc.)
+        else if (typeof prop === "object" && prop !== null) {
+            if (updatePropertyInObject(typedProp as Record<string, unknown>, propertyId, value)) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+/**
+ * Helper to recursively find and update a property by __id in an array
  *
  * Searches both:
  * - Array elements (items in arrays)
@@ -1138,42 +1188,9 @@ function updatePropertyInArray(
             return true
         }
 
-        // Check nested object properties (e.g., message.content, message.role)
-        for (const key of Object.keys(typedItem)) {
-            const nested = typedItem[key]
-            if (!nested || typeof nested !== "object") continue
-
-            // Check if this nested object is the property we're looking for
-            const nestedTyped = nested as {__id?: string; value?: unknown}
-            if (nestedTyped.__id === propertyId) {
-                const hasValue = "value" in nestedTyped
-                if (hasValue) {
-                    nestedTyped.value = value
-                } else {
-                    typedItem[key] = value
-                }
-                return true
-            }
-
-            // Recurse into arrays
-            if (Array.isArray(nested)) {
-                if (updatePropertyInArray(nested, propertyId, value, depth + 1)) {
-                    return true
-                }
-            }
-            // Recurse into nested objects that have their own structure
-            else if (typeof nested === "object" && nested !== null) {
-                // Check if this is a container object with nested properties
-                const nestedObj = nested as Record<string, unknown>
-                for (const nestedKey of Object.keys(nestedObj)) {
-                    const deepNested = nestedObj[nestedKey]
-                    if (Array.isArray(deepNested)) {
-                        if (updatePropertyInArray(deepNested, propertyId, value, depth + 1)) {
-                            return true
-                        }
-                    }
-                }
-            }
+        // Recurse into the object's properties (handles llmConfig.model, etc.)
+        if (updatePropertyInObject(typedItem as Record<string, unknown>, propertyId, value)) {
+            return true
         }
     }
     return false
