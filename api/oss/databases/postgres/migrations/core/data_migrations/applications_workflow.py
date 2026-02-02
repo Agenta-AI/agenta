@@ -23,8 +23,9 @@ from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowVariantDBE,
     WorkflowRevisionDBE,
 )
+from oss.src.dbs.postgres.folders.dbes import FolderDBE  # noqa: F401 — registers 'folders' table in SQLAlchemy metadata
 from oss.src.dbs.postgres.git.dao import GitDAO
-from oss.src.core.applications.service import ApplicationsService
+from oss.src.core.applications.services import ApplicationsService
 from oss.src.core.applications.dtos import (
     Application,
     ApplicationCreate,
@@ -131,7 +132,7 @@ async def _fetch_deployment_uri(
     connection: AsyncConnection,
 ) -> Optional[str]:
     """Fetch deployment URI for an app."""
-    query = select(DeploymentDB.uri).where(DeploymentDB.app_id == app_id)
+    query = select(DeploymentDB.uri).where(DeploymentDB.app_id == app_id).limit(1)
     result = await connection.execute(query)
     uri = result.scalar_one_or_none()
     return uri if uri else None
@@ -202,11 +203,7 @@ async def _transfer_application(
         connection=connection,
     )
 
-    # Create slug from app_name
-    slug = get_slug_from_name_and_id(
-        name=app_name,
-        id=app_id,
-    )
+    slug = app_name
 
     # Create the application
     application_create = ApplicationCreate(
@@ -219,11 +216,48 @@ async def _transfer_application(
         folder_id=folder_id,
     )
 
-    application = await applications_service.create_application(
+    # Call DAO directly to bypass @suppress_exceptions decorator
+    from oss.src.core.workflows.dtos import WorkflowCreate
+    from oss.src.core.git.dtos import ArtifactCreate as GitArtifactCreate, Artifact as GitArtifact
+    from oss.src.dbs.postgres.git.mappings import map_dto_to_dbe
+    from oss.src.dbs.postgres.shared.engine import engine as db_engine
+    from datetime import datetime, timezone
+
+    workflow_create = WorkflowCreate(
+        **application_create.model_dump(mode="json"),
+    )
+
+    git_artifact_create = GitArtifactCreate(
+        **workflow_create.model_dump(mode="json", exclude_none=True),
+    )
+
+    artifact_dto = GitArtifact(
         project_id=project_id,
-        user_id=user_id,
-        application_create=application_create,
-        application_id=app_id,
+        id=app_id,
+        slug=git_artifact_create.slug,
+        created_at=datetime.now(timezone.utc),
+        created_by_id=user_id,
+        flags=git_artifact_create.flags,
+        tags=git_artifact_create.tags,
+        meta=git_artifact_create.meta,
+        name=git_artifact_create.name,
+        description=git_artifact_create.description,
+    )
+
+    artifact_dbe = map_dto_to_dbe(
+        DBE=WorkflowArtifactDBE,
+        project_id=project_id,
+        dto=artifact_dto,
+    )
+
+    async with db_engine.core_session() as session:
+        session.add(artifact_dbe)
+        await session.commit()
+
+    # Fetch back via service to get the proper Application DTO
+    application = await applications_service.fetch_application(
+        project_id=project_id,
+        application_ref=Reference(id=app_id),
     )
 
     if application is None:
@@ -241,15 +275,11 @@ async def _transfer_application(
         connection=connection,
     )
 
-    for variant_row in variants:
-        variant = variant_row[0] if hasattr(variant_row, "__getitem__") else variant_row
+    for variant in variants:
         variant_id = variant.id
         variant_name = variant.variant_name or "default"
 
-        variant_slug = get_slug_from_name_and_id(
-            name=variant_name,
-            id=variant_id,
-        )
+        variant_slug = f"{slug}-{variant_name}"
 
         # Create variant
         application_variant_create = ApplicationVariantCreate(
@@ -283,22 +313,14 @@ async def _transfer_application(
             connection=connection,
         )
 
-        for revision_row in revisions:
-            revision = (
-                revision_row[0]
-                if hasattr(revision_row, "__getitem__")
-                else revision_row
-            )
+        for revision in revisions:
             revision_id = revision.id
             revision_num = revision.revision or 1
             config_name = revision.config_name or "default"
             config_parameters = revision.config_parameters or {}
             commit_message = revision.commit_message
 
-            revision_slug = get_slug_from_name_and_id(
-                name=config_name,
-                id=revision_id,
-            )
+            revision_slug = uuid.uuid4().hex[-12:]
 
             # Transform config_parameters to ApplicationRevisionData
             data_dict = _transform_config_parameters(
@@ -387,6 +409,7 @@ async def migration_old_applications_to_new_workflow_applications(
             result = await connection.execute(
                 select(AppDB)
                 .filter(AppDB.project_id.isnot(None))
+                .order_by(AppDB.id)
                 .offset(offset)
                 .limit(DEFAULT_BATCH_SIZE)
             )
@@ -396,8 +419,7 @@ async def migration_old_applications_to_new_workflow_applications(
                 break
 
             # Process and transfer records to application workflows
-            for app_row in app_rows:
-                app = app_row[0] if hasattr(app_row, "__getitem__") else app_row
+            for app in app_rows:
                 try:
                     # STEP 2: Get owner from project_id
                     owner = await _fetch_project_owner(
@@ -455,8 +477,9 @@ async def migration_old_applications_to_new_workflow_applications(
             )
 
         # Update progress tracking for all batches
+        successfully_migrated = total_migrated - skipped_records
         remaining_records = total_apps - total_migrated
-        click.echo(click.style(f"Total migrated: {total_migrated}", fg="yellow"))
+        click.echo(click.style(f"Total migrated: {successfully_migrated}", fg="yellow"))
         click.echo(click.style(f"Skipped records: {skipped_records}", fg="yellow"))
         click.echo(
             click.style(f"Records left to migrate: {remaining_records}", fg="yellow")

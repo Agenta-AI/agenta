@@ -1033,7 +1033,7 @@ async def evaluate_batch_testset(
                 scenario_status = EvaluationStatus.ERRORS
                 run_status = EvaluationStatus.ERRORS
 
-                error = invocation.result.error.model_dump(mode="json") is not None
+                error = invocation.result.error.model_dump(mode="json")
             # ------------------------------------------------------------------
 
             # proceed with the evaluation otherwise ----------------------------
@@ -1404,6 +1404,7 @@ async def evaluate_batch_testset(
 
     if not run:
         log.info("[FAIL]      ", run_id=run_id, project_id=project_id, user_id=user_id)
+        return
 
     if run_status != EvaluationStatus.FAILURE:
         try:
@@ -1448,7 +1449,7 @@ async def evaluate_batch_testset(
         run=run_edit,
     )
 
-    # edit meters to avoid conting failed evaluations --------------------------
+    # edit meters to avoid counting failed evaluations --------------------------
     if run_status == EvaluationStatus.FAILURE:
         if is_ee():
             await check_entitlements(

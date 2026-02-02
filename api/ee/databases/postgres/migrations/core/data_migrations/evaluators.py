@@ -207,6 +207,7 @@ async def migration_old_evaluator_configs_to_new_evaluator_configs(
             result = await connection.execute(
                 select(DeprecatedEvaluatorConfigDBwProject)
                 .filter(DeprecatedEvaluatorConfigDBwProject.project_id.isnot(None))
+                .order_by(DeprecatedEvaluatorConfigDBwProject.id)
                 .offset(offset)
                 .limit(DEFAULT_BATCH_SIZE)
             )

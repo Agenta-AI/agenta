@@ -21,7 +21,7 @@ from oss.src.core.applications.dtos import (
     ApplicationCreate,
     ApplicationEdit,
     ApplicationQuery,
-    ApplicationFlags,
+    ApplicationQueryFlags,
     ApplicationFork,
     #
     ApplicationVariant,
@@ -87,13 +87,13 @@ class LegacyApplicationsAdapter:
     ) -> List[App]:
         """List apps in legacy format."""
         application_query = ApplicationQuery(
-            flags=ApplicationFlags(is_evaluator=False),
+            flags=ApplicationQueryFlags(is_evaluator=False),
         )
 
         if app_name:
             application_query = ApplicationQuery(
                 slug=app_name,
-                flags=ApplicationFlags(is_evaluator=False),
+                flags=ApplicationQueryFlags(is_evaluator=False),
             )
 
         applications = await self.applications_service.query_applications(
@@ -119,7 +119,7 @@ class LegacyApplicationsAdapter:
         application_create = ApplicationCreate(
             slug=app_name,
             name=app_name,
-            flags=ApplicationFlags(is_evaluator=False),
+            flags=ApplicationQueryFlags(is_evaluator=False),
         )
 
         application = await self.applications_service.create_application(
@@ -486,7 +486,7 @@ class LegacyApplicationsAdapter:
             project_id=project_id,
             application_query=ApplicationQuery(
                 slug=app_name,
-                flags=ApplicationFlags(is_evaluator=False),
+                flags=ApplicationQueryFlags(is_evaluator=False),
             ),
             windowing=Windowing(limit=1),
         )
@@ -1019,11 +1019,19 @@ def get_legacy_adapter() -> LegacyApplicationsAdapter:
     global _legacy_adapter
 
     if _legacy_adapter is None:
+        from oss.src.dbs.postgres.git.dao import GitDAO
+        from oss.src.dbs.postgres.workflows.dbes import (
+            WorkflowArtifactDBE,
+            WorkflowVariantDBE,
+            WorkflowRevisionDBE,
+        )
         from oss.src.core.workflows.service import WorkflowsService
-        from oss.src.core.workflows.dbs import WorkflowsDAO
-        from oss.src.dbs import engine
 
-        workflows_dao = WorkflowsDAO(engine=engine)
+        workflows_dao = GitDAO(
+            ArtifactDBE=WorkflowArtifactDBE,
+            VariantDBE=WorkflowVariantDBE,
+            RevisionDBE=WorkflowRevisionDBE,
+        )
         workflows_service = WorkflowsService(workflows_dao=workflows_dao)
         applications_service = ApplicationsService(workflows_service=workflows_service)
         simple_applications_service = SimpleApplicationsService(

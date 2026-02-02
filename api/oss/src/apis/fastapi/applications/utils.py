@@ -69,7 +69,7 @@ def parse_application_query_request_from_params(
             meta=_meta,
             tags=_tags,
         )
-        if __flags or _meta or _tags
+        if name or description or __flags or _meta or _tags
         else None
     )
 
@@ -168,8 +168,11 @@ def merge_application_query_requests(
             application_refs=query_request_body.application_refs
             or query_request_params.application_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -219,7 +222,7 @@ def parse_application_variant_query_request_from_params(
             meta=_meta,
             tags=_tags,
         )
-        if __flags or _meta or _tags
+        if name or description or __flags or _meta or _tags
         else None
     )
 
@@ -350,8 +353,11 @@ def merge_application_variant_query_requests(
             application_variant_refs=query_request_body.application_variant_refs
             or query_request_params.application_variant_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -408,7 +414,7 @@ def parse_application_revision_query_request_from_params(
             meta=_meta,
             tags=_tags,
         )
-        if __flags or _meta or _tags
+        if name or description or __flags or _meta or _tags
         else None
     )
 
@@ -572,8 +578,11 @@ def merge_application_revision_query_requests(
             application_revision_refs=query_request_body.application_revision_refs
             or query_request_params.application_revision_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )

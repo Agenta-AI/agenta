@@ -90,7 +90,7 @@ class ConfigDTO(BaseModel):
     environment_lifecycle: Optional[LegacyLifecycleDTO] = None
 
 
-# - HERLPERS
+# - HELPERS
 
 
 async def _fetch_app(

@@ -148,7 +148,7 @@ def add_default_evaluators_to_project(session: Session, project_id: str):
 
         session.commit()
 
-        print("Added default evalutors to project.")
+        print("Added default evaluators to project.")
     except Exception as e:
         print(f"An error occurred in adding default evaluators: {e}")
 

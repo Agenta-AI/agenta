@@ -68,7 +68,7 @@ broker = RedisStreamBroker(
 )
 
 
-# EVALSS ------------------------------------------------------------------
+# EVALS -------------------------------------------------------------------
 # Instantiate workers (analogous to router instantiation in routers.py)
 
 tracing_dao = TracingDAO()
@@ -167,6 +167,9 @@ evaluations_worker = EvaluationsWorker(
     workflows_service=workflows_service,
     evaluations_service=evaluations_service,
 )
+
+# Wire evaluations_worker into evaluations_service (circular dependency)
+evaluations_service.evaluations_worker = evaluations_worker
 
 
 def main() -> int:

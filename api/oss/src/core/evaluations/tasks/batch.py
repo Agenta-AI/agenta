@@ -184,11 +184,6 @@ simple_testsets_service = SimpleTestsetsService(
     testsets_service=testsets_service,
 )
 
-testsets_service = TestsetsService(
-    testsets_dao=testsets_dao,
-    testcases_service=testcases_service,
-)
-
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
 )

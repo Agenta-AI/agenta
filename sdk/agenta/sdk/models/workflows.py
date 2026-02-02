@@ -59,28 +59,6 @@ from agenta.sdk.models.git import (
 )
 
 
-# oss.src.core.workflows.dtos
-from typing import Optional, Dict, Any
-from uuid import UUID, uuid4
-from urllib.parse import urlparse
-
-from pydantic import (
-    BaseModel,
-    Field,
-    model_validator,
-    ValidationError,
-)
-
-from jsonschema import (
-    Draft202012Validator,
-    Draft201909Validator,
-    Draft7Validator,
-    Draft4Validator,
-    Draft6Validator,
-)
-from jsonschema.exceptions import SchemaError
-
-
 class JsonSchemas(BaseModel):
     parameters: Optional[Schema] = None
     inputs: Optional[Schema] = None

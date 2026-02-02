@@ -1608,7 +1608,7 @@ class SimpleEvaluationsService:
             log.info("[EVAL] [success]     ", id=run.id)
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [failure]     ", exc_info=True)
             return None
 
@@ -1787,7 +1787,7 @@ class SimpleEvaluationsService:
 
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [failure]     ", exc_info=True)
             return None
 
@@ -1940,7 +1940,7 @@ class SimpleEvaluationsService:
 
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [start] [failure]", exc_info=True)
             return None
 

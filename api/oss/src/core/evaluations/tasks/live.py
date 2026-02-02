@@ -249,11 +249,14 @@ async def evaluate_live_query(
             run_id=run_id,
         )
 
-        assert run, f"Evaluation run with id {run_id} not found!"
+        if not run:
+            raise ValueError(f"Evaluation run with id {run_id} not found!")
 
-        assert run.data, f"Evaluation run with id {run_id} has no data!"
+        if not run.data:
+            raise ValueError(f"Evaluation run with id {run_id} has no data!")
 
-        assert run.data.steps, f"Evaluation run with id {run_id} has no steps!"
+        if not run.data.steps:
+            raise ValueError(f"Evaluation run with id {run_id} has no steps!")
 
         steps = run.data.steps
 
@@ -492,9 +495,10 @@ async def evaluate_live_query(
                 results=results_create,
             )
 
-            assert len(results) == nof_traces, (
-                f"Failed to create evaluation results for run {run_id}!"
-            )
+            if len(results) != nof_traces:
+                raise ValueError(
+                    f"Failed to create evaluation results for run {run_id}!"
+                )
             # ------------------------------------------------------------------
 
             scenario_has_errors: Dict[int, int] = dict()
@@ -771,9 +775,10 @@ async def evaluate_live_query(
                         results=results_create,
                     )
 
-                    assert len(results) == 1, (
-                        f"Failed to create evaluation result for scenario with id {scenario.id}!"
-                    )
+                    if len(results) != 1:
+                        raise ValueError(
+                            f"Failed to create evaluation result for scenario with id {scenario.id}!"
+                        )
                     scenario_results_created = True
                     any_results_created = True
                 # --------------------------------------------------------------

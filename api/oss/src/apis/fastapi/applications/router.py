@@ -378,7 +378,10 @@ class ApplicationsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(application_id) != str(application_edit_request.application.id):
-            return ApplicationResponse()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Application ID in path does not match application ID in request body.",
+            )
 
         application = await self.applications_service.edit_application(
             project_id=UUID(request.state.project_id),
@@ -494,7 +497,7 @@ class ApplicationsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -523,7 +526,7 @@ class ApplicationsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -553,14 +556,17 @@ class ApplicationsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(application_variant_id) != str(
             application_variant_edit_request.application_variant.id
         ):
-            return ApplicationVariantResponse()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Application variant ID in path does not match application variant ID in request body.",
+            )
 
         application_variant = await self.applications_service.edit_application_variant(
             project_id=UUID(request.state.project_id),
@@ -587,7 +593,7 @@ class ApplicationsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -618,7 +624,7 @@ class ApplicationsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -651,7 +657,7 @@ class ApplicationsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -666,7 +672,7 @@ class ApplicationsRouter:
                     **body_json
                 )
 
-        except:
+        except Exception:
             pass
 
         workflow_variant_query_request = merge_application_variant_query_requests(
@@ -699,23 +705,35 @@ class ApplicationsRouter:
         self,
         request: Request,
         *,
-        application_variant_id: UUID,
+        application_variant_id: Optional[UUID] = None,
         #
         application_variant_fork_request: ApplicationForkRequest,
-    ):
+    ) -> ApplicationVariantResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+                permission=Permission.EDIT_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        fork_request = application_variant_fork_request.application
+
+        if application_variant_id:
+            if (
+                fork_request.application_variant_id
+                and fork_request.application_variant_id != application_variant_id
+            ):
+                return ApplicationVariantResponse()
+
+            if not fork_request.application_variant_id:
+                fork_request.application_variant_id = application_variant_id
 
         application_variant = await self.applications_service.fork_application_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            application_fork=application_variant_fork_request.application,
+            application_fork=fork_request,
         )
 
         application_variant_response = ApplicationVariantResponse(
@@ -858,7 +876,10 @@ class ApplicationsRouter:
         if str(application_revision_id) != str(
             application_revision_edit_request.application_revision.id
         ):
-            return ApplicationRevisionResponse()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Application revision ID in path does not match application revision ID in request body.",
+            )
 
         application_revision = await self.applications_service.edit_application_revision(
             project_id=UUID(request.state.project_id),
@@ -998,12 +1019,12 @@ class ApplicationsRouter:
         request: Request,
         *,
         application_revisions_log_request: ApplicationRevisionsLogRequest,
-    ):
+    ) -> ApplicationRevisionsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.VIEW_WORKFLOWS,  # type: ignore
+                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -1180,7 +1201,10 @@ class SimpleApplicationsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(application_id) != str(simple_application_edit_request.application.id):
-            return SimpleApplicationResponse()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Application ID in path does not match application ID in request body.",
+            )
 
         simple_application = await self.simple_applications_service.edit(
             project_id=UUID(request.state.project_id),
