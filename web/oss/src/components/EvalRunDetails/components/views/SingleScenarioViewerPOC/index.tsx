@@ -1,6 +1,5 @@
 import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
-import {message} from "@agenta/ui/app-message"
 import {Card, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
