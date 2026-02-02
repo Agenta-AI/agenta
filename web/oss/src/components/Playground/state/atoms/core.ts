@@ -10,13 +10,18 @@ const selectedVariantsByAppAtom = atomWithStorage<Record<string, string[]>>(
     {},
 )
 
+// Track if storage has been hydrated (first read/write indicates hydration is complete)
+let storageHydrated = false
+
 export const selectedVariantsAtom = atom(
     (get) => {
+        storageHydrated = true // Mark as hydrated on first read
         const appId = get(routerAppIdAtom) || get(recentAppIdAtom) || "__global__"
         const all = get(selectedVariantsByAppAtom)
         return all[appId] || []
     },
     (get, set, next: string[] | ((prev: string[]) => string[])) => {
+        storageHydrated = true // Mark as hydrated on first write
         const appId = get(routerAppIdAtom) || get(recentAppIdAtom) || "__global__"
         const all = get(selectedVariantsByAppAtom)
         const current = all[appId] || []
@@ -25,6 +30,13 @@ export const selectedVariantsAtom = atom(
         set(selectedVariantsByAppAtom, {...all, [appId]: newValue})
     },
 )
+
+/**
+ * Check if the selection storage has been hydrated from localStorage.
+ * This is used to prevent ensurePlaygroundDefaults from overwriting
+ * persisted selections before they've been loaded.
+ */
+export const isSelectionStorageHydrated = () => storageHydrated
 
 // Single or comparison view
 export const viewTypeAtom = atom<ViewType>("single")

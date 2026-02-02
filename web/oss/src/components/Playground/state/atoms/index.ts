@@ -7,7 +7,12 @@
  */
 
 // Core state atoms
-export {selectedVariantsAtom, viewTypeAtom, testRunStatesAtom} from "./core"
+export {
+    selectedVariantsAtom,
+    viewTypeAtom,
+    testRunStatesAtom,
+    isSelectionStorageHydrated,
+} from "./core"
 
 // Variant atoms and types
 // WP-6.6: Export playgroundRevisionListAtom as primary list, revisionListAtom for backward compatibility
