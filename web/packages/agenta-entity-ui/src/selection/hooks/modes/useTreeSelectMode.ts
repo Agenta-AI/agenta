@@ -480,12 +480,21 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
             }
 
             // Apply search filter to children
+            let parentMatchesSearch = false
             if (searchTerm) {
                 const lowerSearch = searchTerm.toLowerCase()
-                childItems = childItems.filter((child: unknown) => {
-                    const childLabelStr = childLevelConfig.getLabel(child)
-                    return childLabelStr.toLowerCase().includes(lowerSearch)
-                })
+                parentMatchesSearch = parentLabelStr.toLowerCase().includes(lowerSearch)
+                if (!parentMatchesSearch) {
+                    childItems = childItems.filter((child: unknown) => {
+                        const childLabelStr = childLevelConfig.getLabel(child)
+                        return childLabelStr.toLowerCase().includes(lowerSearch)
+                    })
+                }
+            }
+
+            // If search is active and neither parent nor children match, skip this parent
+            if (searchTerm && !parentMatchesSearch && childItems.length === 0) {
+                return
             }
 
             // Sort revisions latest → oldest (descending revision number, fallback to createdAt)
