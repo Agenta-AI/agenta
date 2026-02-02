@@ -291,7 +291,30 @@ const OnboardingCard = ({
             event.preventDefault()
         }
 
+        const isTextInputTarget = (element: Element | null) => {
+            if (!element) return false
+            if (element instanceof HTMLTextAreaElement) return true
+            if (element instanceof HTMLInputElement) {
+                const nonTextTypes = new Set([
+                    "button",
+                    "checkbox",
+                    "color",
+                    "file",
+                    "image",
+                    "radio",
+                    "range",
+                    "reset",
+                    "submit",
+                ])
+                return !nonTextTypes.has(element.type)
+            }
+            const htmlElement = element as HTMLElement
+            if (htmlElement.isContentEditable) return true
+            return Boolean(element.closest("input, textarea, [contenteditable='true']"))
+        }
+
         const handleKeyDown = (event: KeyboardEvent) => {
+            if (isTextInputTarget(event.target as Element | null)) return
             const blockedKeys = [
                 "ArrowUp",
                 "ArrowDown",
