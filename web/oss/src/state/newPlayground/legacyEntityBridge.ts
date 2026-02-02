@@ -295,19 +295,24 @@ export const moleculeBackedVariantAtomFamily = atomFamilyJotaiUtils((revisionId:
         // Try molecule first (has draft merged)
         const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId))
 
+        // Also get legacy revision data for fallback fields (e.g., variantName)
+        const revisions = get(revisionListAtom) || []
+        const legacyRevision = revisions.find((r: any) => r.id === revisionId) as any
+
         if (moleculeData) {
             // Transform molecule data back to legacy format for compatibility
+            // Merge with legacy revision data for fields that may be missing (e.g., variantName)
             return {
                 id: moleculeData.id,
                 variantId: moleculeData.variantId,
                 appId: moleculeData.appId,
                 revision: moleculeData.revision,
                 isLatestRevision: moleculeData.isLatestRevision,
-                variantName: moleculeData.variantName,
-                appName: moleculeData.appName,
+                variantName: moleculeData.variantName || legacyRevision?.variantName,
+                appName: moleculeData.appName || legacyRevision?.appName,
                 configName: moleculeData.configName,
                 parameters: moleculeData.parameters,
-                uri: moleculeData.uri,
+                uri: moleculeData.uri || legacyRevision?.uri,
                 createdAt: moleculeData.createdAt,
                 updatedAt: moleculeData.updatedAt,
                 modifiedById: moleculeData.modifiedById,
@@ -316,8 +321,7 @@ export const moleculeBackedVariantAtomFamily = atomFamilyJotaiUtils((revisionId:
         }
 
         // Fallback to legacy atom
-        const revisions = get(revisionListAtom) || []
-        return revisions.find((r: any) => r.id === revisionId) || null
+        return legacyRevision || null
     }),
 )
 
