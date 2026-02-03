@@ -9,11 +9,9 @@ from oss.src.core.environments.service import (
     SimpleEnvironmentsService,
 )
 from oss.src.core.environments.dtos import (
-    Environment,
-    EnvironmentVariant,
     EnvironmentRevision,
     EnvironmentRevisionCommit,
-    SimpleEnvironment,
+    EnvironmentRevisionData,
     SimpleEnvironmentCreate,
 )
 
@@ -107,22 +105,16 @@ class LegacyEnvironmentsAdapter:
             environment_variant_ref=Reference(id=environment_variant.id),
         )
 
-        # Build new data: start with existing data, update the app key
-        existing_data: Dict[str, Any] = {}
-        if latest_revision and latest_revision.data:
-            existing_data = latest_revision.data.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_unset=True,
-            )
+        # Build new references: start with existing, update the app key
+        references: Dict[str, Reference] = {}
+        if latest_revision and latest_revision.data and latest_revision.data.references:
+            references = dict(latest_revision.data.references)
 
-        # Update the app's entry
-        entry: Dict[str, Any] = {}
+        # Update the app's revision reference using dot-notation key
         if variant_revision_id is not None:
-            entry["revision"] = {
-                "id": str(variant_revision_id),
-            }
-        existing_data[app_slug] = entry
+            references[f"{app_slug}.revision"] = Reference(
+                id=variant_revision_id,
+            )
 
         # Commit new revision
         revision_slug = uuid.uuid4().hex[-12:]
@@ -133,7 +125,7 @@ class LegacyEnvironmentsAdapter:
             description=environment.description,
             tags=None,
             meta=None,
-            data=existing_data,
+            data=EnvironmentRevisionData(references=references),
             message=commit_message,
             environment_id=environment.id,
             environment_variant_id=environment_variant.id,
@@ -182,20 +174,13 @@ class LegacyEnvironmentsAdapter:
                 environment_variant_ref=Reference(id=environment_variant.id),
             )
 
-            app_data = None
-            if latest_revision and latest_revision.data:
-                data_dump = latest_revision.data.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                )
-                app_data = data_dump.get(app_slug)
-
             deployed_variant_revision_id = None
-            if app_data and isinstance(app_data, dict):
-                revision_ref = app_data.get("revision")
-                if revision_ref and isinstance(revision_ref, dict):
-                    deployed_variant_revision_id = revision_ref.get("id")
+            if latest_revision and latest_revision.data and latest_revision.data.references:
+                revision_ref = latest_revision.data.references.get(
+                    f"{app_slug}.revision"
+                )
+                if revision_ref is not None:
+                    deployed_variant_revision_id = str(revision_ref.id) if revision_ref.id else None
 
             results.append(
                 {
@@ -244,20 +229,13 @@ class LegacyEnvironmentsAdapter:
             environment_variant_ref=Reference(id=environment_variant.id),
         )
 
-        app_data = None
-        if latest_revision and latest_revision.data:
-            data_dump = latest_revision.data.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_unset=True,
-            )
-            app_data = data_dump.get(app_slug)
-
         deployed_variant_revision_id = None
-        if app_data and isinstance(app_data, dict):
-            revision_ref = app_data.get("revision")
-            if revision_ref and isinstance(revision_ref, dict):
-                deployed_variant_revision_id = revision_ref.get("id")
+        if latest_revision and latest_revision.data and latest_revision.data.references:
+            revision_ref = latest_revision.data.references.get(
+                f"{app_slug}.revision"
+            )
+            if revision_ref is not None:
+                deployed_variant_revision_id = str(revision_ref.id) if revision_ref.id else None
 
         return {
             "environment_id": environment.id,

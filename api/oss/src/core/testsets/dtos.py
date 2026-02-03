@@ -80,8 +80,7 @@ class TestsetRevisionsLog(
 
 
 class TestsetFlags(BaseModel):
-    has_testcases: Optional[bool] = None
-    has_traces: Optional[bool] = None
+    pass
 
 
 class Testset(Artifact):
@@ -226,6 +225,7 @@ class SimpleTestset(Identifier, Slug, Lifecycle, Header, Metadata):
 
     # Revision ID for navigation after creation
     revision_id: Optional[UUID] = None
+    variant_id: Optional[UUID] = None
 
 
 class SimpleTestsetCreate(Slug, Header, Metadata):

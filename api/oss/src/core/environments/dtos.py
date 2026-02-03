@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from oss.src.core.shared.dtos import (
     sync_alias,
     AliasConfig,
+    Reference,
 )
 from oss.src.core.shared.dtos import (
     Identifier,
@@ -94,14 +95,13 @@ class EnvironmentQueryFlags(BaseModel):
 
 
 class EnvironmentRevisionData(BaseModel):
-    """Nested dict of user-defined keys mapping to reference dicts.
+    """Dot-notation keyed references for environment revision data.
 
-    Keys are user-defined (e.g., app slugs during migration).
-    Values are dicts containing reference information such as
-    application, variant, and revision references.
+    Keys use dot-notation paths (e.g., "my-app.variant", "my-app.revision").
+    Values are Reference objects containing id, slug, and/or version.
     """
 
-    pass
+    references: Optional[Dict[str, Reference]] = None
 
 
 # environments -----------------------------------------------------------------
@@ -205,6 +205,7 @@ class SimpleEnvironment(Identifier, Slug, Lifecycle, Header, Metadata):
 
     data: Optional[EnvironmentRevisionData] = None
 
+    variant_id: Optional[UUID] = None
     revision_id: Optional[UUID] = None
 
 
@@ -221,7 +222,7 @@ class SimpleEnvironmentEdit(Identifier, Header, Metadata):
 
 
 class SimpleEnvironmentQuery(Header, Metadata):
-    pass
+    flags: Optional[EnvironmentQueryFlags] = None
 
 
 # ------------------------------------------------------------------------------

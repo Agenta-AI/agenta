@@ -7,7 +7,6 @@ from collections import defaultdict
 
 import click
 from sqlalchemy.future import select
-from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from oss.src.models.db_models import (
@@ -29,7 +28,6 @@ from oss.src.core.environments.service import (
 from oss.src.core.environments.dtos import (
     SimpleEnvironment,
     SimpleEnvironmentCreate,
-    SimpleEnvironmentEdit,
     EnvironmentRevisionCommit,
     EnvironmentRevisionData,
 )
@@ -147,7 +145,7 @@ async def _transfer_environment_for_project(
 
     # For each revision index, build merged data across apps and commit
     for rev_idx in range(max_revisions):
-        data_dict: Dict[str, Any] = {}
+        references: Dict[str, Reference] = {}
 
         for app_name, revs in app_revisions.items():
             if rev_idx < len(revs):
@@ -156,16 +154,13 @@ async def _transfer_environment_for_project(
                 # Carry forward: use the last available revision for this app
                 rev = revs[-1]
 
-            # Build the reference entry for this app
-            entry: Dict[str, Any] = {}
+            # Build the reference entry for this app using dot-notation key
             if rev.deployed_app_variant_revision_id is not None:
-                entry["revision"] = {
-                    "id": str(rev.deployed_app_variant_revision_id),
-                }
+                references[f"{app_name}.revision"] = Reference(
+                    id=rev.deployed_app_variant_revision_id,
+                )
 
-            data_dict[app_name] = entry
-
-        # Determine actor: modified_by_id -> owner fallback
+        # Determine actor: modified_by_id -> created_by_id -> owner fallback
         # Use the revision that was created at this index from the app with the most revisions
         representative_rev = None
         for _app_name, revs in app_revisions.items():
@@ -179,6 +174,8 @@ async def _transfer_environment_for_project(
         if representative_rev is not None:
             if representative_rev.modified_by_id is not None:
                 actor_id = representative_rev.modified_by_id
+            elif representative_rev.created_by_id is not None:
+                actor_id = representative_rev.created_by_id
             commit_message = representative_rev.commit_message
 
         # Commit the revision
@@ -190,7 +187,7 @@ async def _transfer_environment_for_project(
             description=None,
             tags=None,
             meta=None,
-            data=data_dict,
+            data=EnvironmentRevisionData(references=references),
             message=commit_message,
             environment_id=simple_env.id,
             environment_variant_id=None,  # Will be resolved by service

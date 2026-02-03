@@ -454,7 +454,9 @@ class EnvironmentsRouter:
         self,
         request: Request,
         *,
-        environment_query_request: EnvironmentQueryRequest,
+        query_request_params: Optional[EnvironmentQueryRequest] = Depends(
+            parse_environment_query_request_from_params
+        ),
     ) -> EnvironmentsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -463,6 +465,25 @@ class EnvironmentsRouter:
                 permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        body_json = None
+        query_request_body = None
+
+        try:
+            body_json = await request.json()
+
+            if body_json:
+                query_request_body = parse_environment_query_request_from_body(
+                    **body_json
+                )
+
+        except:
+            pass
+
+        environment_query_request = merge_environment_query_requests(
+            query_request_params,
+            query_request_body,
+        )
 
         environments = await self.environments_service.query_environments(
             project_id=UUID(request.state.project_id),
@@ -515,6 +536,7 @@ class EnvironmentsRouter:
         return environment_variant_response
 
     @intercept_exceptions()
+    @suppress_exceptions(default=EnvironmentVariantResponse(), exclude=[HTTPException])
     async def fetch_environment_variant(
         self,
         request: Request,
@@ -872,7 +894,9 @@ class EnvironmentsRouter:
         self,
         request: Request,
         *,
-        environment_revision_query_request: EnvironmentRevisionQueryRequest,
+        query_request_params: Optional[EnvironmentRevisionQueryRequest] = Depends(
+            parse_environment_revision_query_request_from_params
+        ),
     ) -> EnvironmentRevisionsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -881,6 +905,25 @@ class EnvironmentsRouter:
                 permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        body_json = None
+        query_request_body = None
+
+        try:
+            body_json = await request.json()
+
+            if body_json:
+                query_request_body = parse_environment_revision_query_request_from_body(
+                    **body_json
+                )
+
+        except:
+            pass
+
+        environment_revision_query_request = merge_environment_revision_query_requests(
+            query_request_params,
+            query_request_body,
+        )
 
         environment_revisions = await self.environments_service.query_environment_revisions(
             project_id=UUID(request.state.project_id),
@@ -954,7 +997,7 @@ class EnvironmentsRouter:
         request: Request,
         *,
         environment_revisions_log_request: EnvironmentRevisionsLogRequest,
-    ):
+    ) -> EnvironmentRevisionsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1274,6 +1317,8 @@ class SimpleEnvironmentsRouter:
             ),
             tags=environment.tags,
             meta=environment.meta,
+            #
+            variant_id=environment_variant.id,
         )
 
         simple_environment_response = SimpleEnvironmentResponse(
@@ -1361,6 +1406,8 @@ class SimpleEnvironmentsRouter:
             ),
             tags=environment.tags,
             meta=environment.meta,
+            #
+            variant_id=environment_variant.id,
         )
 
         simple_environment_response = SimpleEnvironmentResponse(

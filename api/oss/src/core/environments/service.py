@@ -786,11 +786,7 @@ class SimpleEnvironmentsService:
         if environment is None:
             return None
 
-        environment_variant_slug = (
-            f"{simple_environment_create.slug}.default"
-            if simple_environment_create.slug
-            else uuid4().hex[-12:]
-        )
+        environment_variant_slug = uuid4().hex[-12:]
 
         environment_variant_create = EnvironmentVariantCreate(
             slug=environment_variant_slug,
@@ -911,6 +907,9 @@ class SimpleEnvironmentsService:
                 if environment_revision.data
                 else None
             ),
+            #
+            variant_id=environment_variant.id,
+            revision_id=environment_revision.id,
         )
 
         return simple_environment
@@ -1000,6 +999,9 @@ class SimpleEnvironmentsService:
                 if environment_revision.data
                 else None
             ),
+            #
+            variant_id=environment_variant.id,
+            revision_id=environment_revision.id,
         )
 
         return simple_environment
@@ -1145,6 +1147,9 @@ class SimpleEnvironmentsService:
                 if environment_revision.data
                 else None
             ),
+            #
+            variant_id=environment_variant.id,
+            revision_id=environment_revision.id,
         )
 
         return simple_environment
@@ -1257,6 +1262,9 @@ class SimpleEnvironmentsService:
                     if environment_revision.data
                     else None
                 ),
+                #
+                variant_id=environment_variant.id,
+                revision_id=environment_revision.id,
             )
 
             simple_environments.append(simple_environment)
