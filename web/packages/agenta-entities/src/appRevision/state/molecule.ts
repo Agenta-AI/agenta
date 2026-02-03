@@ -66,6 +66,10 @@ import {
     type AppListItem,
     type VariantListItem,
     type RevisionListItem,
+    // Query atoms (for loading/error states)
+    appsQueryAtom,
+    variantsQueryAtomFamily,
+    revisionsQueryAtomFamily,
     // Mutations
     updateAppRevisionAtom,
     discardAppRevisionDraftAtom,
@@ -375,6 +379,28 @@ export const appRevisionMolecule = {
          */
         revisions: (variantId: string): Atom<RevisionListItem[]> =>
             revisionsListAtomFamily(variantId) as Atom<RevisionListItem[]>,
+
+        // ========================================================================
+        // QUERY STATE SELECTORS (for loading/error states)
+        // ========================================================================
+
+        /**
+         * Apps query state (loading, error, data).
+         * Use for deriving loading/error states in cascading selection.
+         */
+        appsQuery: appsQueryAtom,
+
+        /**
+         * Variants query state for a specific app.
+         * Use for deriving loading/error states in cascading selection.
+         */
+        variantsQuery: variantsQueryAtomFamily,
+
+        /**
+         * Revisions query state for a specific variant.
+         * Use for deriving loading/error states in cascading selection.
+         */
+        revisionsQuery: revisionsQueryAtomFamily,
     },
 
     // ========================================================================
