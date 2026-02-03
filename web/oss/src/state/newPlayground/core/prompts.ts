@@ -32,14 +32,6 @@ export interface PromptsAtomParams {
     onUpdateParameters?: (update: any) => void
 }
 
-// Debug logging for resolveRevisionSource
-const DEBUG_RESOLVE = process.env.NODE_ENV === "development"
-const logResolve = (...args: unknown[]) => {
-    if (DEBUG_RESOLVE) {
-        console.info("[newPlayground/prompts/resolve]", ...args)
-    }
-}
-
 /**
  * Resolves revision data from the molecule (single source of truth).
  * No legacy fallbacks - molecule is the authoritative source.
@@ -48,28 +40,15 @@ const resolveRevisionSource = (get: any, revisionId: string): EnhancedVariant | 
     // Prefer merged data (includes draft changes)
     const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId)) as any
     if (moleculeData) {
-        logResolve("resolveRevisionSource: returning moleculeData", {
-            revisionId,
-            hasParameters: !!moleculeData.parameters,
-            parametersKeys: moleculeData.parameters ? Object.keys(moleculeData.parameters) : [],
-            hasUri: !!moleculeData.uri,
-        })
         return moleculeData as EnhancedVariant
     }
 
     // Fallback to server data if no merged data yet
     const serverData = get(ossAppRevisionMolecule.atoms.serverData(revisionId)) as any
     if (serverData) {
-        logResolve("resolveRevisionSource: returning serverData", {
-            revisionId,
-            hasParameters: !!serverData.parameters,
-            parametersKeys: serverData.parameters ? Object.keys(serverData.parameters) : [],
-            hasUri: !!serverData.uri,
-        })
         return serverData as EnhancedVariant
     }
 
-    logResolve("resolveRevisionSource: no data found", {revisionId})
     return undefined
 }
 
@@ -80,20 +59,10 @@ export const derivedPromptsByRevisionAtomFamily = atomFamily((revisionId: string
         const variant = resolveRevisionSource(get, revisionId)
         const spec = get(appSchemaAtom)
         if (!variant || !spec) {
-            logResolve("derivedPromptsByRevisionAtomFamily: missing variant or spec", {
-                revisionId,
-                hasVariant: !!variant,
-                hasSpec: !!spec,
-            })
             return []
         }
         const routePath = get(appUriInfoAtom)?.routePath
         const prompts = derivePromptsFromSpec(variant as any, spec as any, routePath)
-        logResolve("derivedPromptsByRevisionAtomFamily: derived prompts", {
-            revisionId,
-            promptCount: prompts.length,
-            routePath,
-        })
         return prompts
     }),
 )
@@ -211,14 +180,6 @@ export const localPromptsByRevisionAtomFamily = atomFamily((revisionId: string) 
     atom<EnhancedObjectConfig<AgentaConfigPrompt>[] | null>(null),
 )
 
-// Debug logging for development
-const DEBUG_PROMPTS = process.env.NODE_ENV === "development"
-const logPrompts = (...args: unknown[]) => {
-    if (DEBUG_PROMPTS) {
-        console.info("[newPlayground/prompts]", ...args)
-    }
-}
-
 /**
  * Prompts atom family - single source of truth via ossAppRevisionMolecule.
  *
@@ -235,24 +196,11 @@ export const promptsAtomFamily = atomFamily((revisionId: string) =>
             // Single source: molecule data (merged server + draft)
             const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId))
             if (moleculeData?.enhancedPrompts && Array.isArray(moleculeData.enhancedPrompts)) {
-                logPrompts("promptsAtomFamily: returning molecule enhancedPrompts", {
-                    revisionId,
-                    count: moleculeData.enhancedPrompts.length,
-                })
                 return moleculeData.enhancedPrompts as EnhancedObjectConfig<AgentaConfigPrompt>[]
             }
 
             // Fallback to derived prompts if molecule not yet populated
             const derived = get(derivedPromptsByRevisionAtomFamily(revisionId))
-            logPrompts("promptsAtomFamily: falling back to derived", {
-                revisionId,
-                hasMoleculeData: !!moleculeData,
-                moleculeHasParameters: !!moleculeData?.parameters,
-                moleculeParametersKeys: moleculeData?.parameters
-                    ? Object.keys(moleculeData.parameters)
-                    : [],
-                derivedCount: derived.length,
-            })
             return derived
         },
         (_get, set, update) => {

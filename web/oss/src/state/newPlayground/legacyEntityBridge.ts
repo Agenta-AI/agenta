@@ -56,6 +56,9 @@ import {atomFamily} from "jotai-family"
 import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
+// Bridge initialization flag for debug utilities
+let bridgeInitialized = false
+
 // ============================================================================
 // REVISION DATA ADAPTER
 // Transforms enhanced variant revision to ossAppRevision data format
@@ -112,11 +115,6 @@ export const legacyRevisionDataAdapterAtomFamily = atomFamilyJotaiUtils((revisio
 
 // Debug logging (only in development)
 const DEBUG = process.env.NODE_ENV !== "production"
-const log = (...args: unknown[]) => {
-    if (DEBUG) {
-        console.info("[LegacyEntityBridge]", ...args)
-    }
-}
 
 // ============================================================================
 // VARIANT CONTEXT HOOK
@@ -154,7 +152,6 @@ export function useSetRevisionVariantContext(revisionId: string | null): void {
                 ossAppRevisionMolecule.atoms.bridgeServerData(revisionId),
             )
             if (existingServerData && !existingServerData.variantId) {
-                log("🔧 Patching bridgeServerData with variantId:", {revisionId, variantId})
                 store.set(ossAppRevisionMolecule.actions.setServerData, revisionId, {
                     ...existingServerData,
                     variantId,
@@ -164,11 +161,8 @@ export function useSetRevisionVariantContext(revisionId: string | null): void {
             // Also update any existing draft that was created without variantId
             const existingDraft = store.get(ossAppRevisionMolecule.atoms.draft(revisionId))
             if (existingDraft && !existingDraft.variantId) {
-                log("🔧 Patching draft with variantId:", {revisionId, variantId})
                 store.set(ossAppRevisionMolecule.actions.update, revisionId, {variantId})
             }
-
-            log("🔗 Set variant context for revision:", {revisionId, variantId})
         }
     }, [revisionId, revisions, setVariantContext])
 }
@@ -279,7 +273,7 @@ export const debugBridge = {
 // Expose debug utilities to window in development
 if (typeof window !== "undefined" && DEBUG) {
     ;(window as any).__legacyEntityBridge = debugBridge
-    log("🔧 Debug utilities available at window.__legacyEntityBridge")
+    console.log("🔧 Debug utilities available at window.__legacyEntityBridge")
 }
 
 // ============================================================================
@@ -455,27 +449,12 @@ export const moleculeBackedCustomPropertiesAtomFamily = atomFamily((revisionId: 
                 moleculeData?.enhancedCustomProperties &&
                 Object.keys(moleculeData.enhancedCustomProperties).length > 0
             ) {
-                console.log(
-                    "[BRIDGE] moleculeBackedCustomPropertiesAtomFamily using molecule draft",
-                    {
-                        revisionId,
-                        keys: Object.keys(moleculeData.enhancedCustomProperties),
-                    },
-                )
                 return moleculeData.enhancedCustomProperties as Record<string, unknown>
             }
 
             // Use entity-level derived custom properties directly from the atomFamily
             // This ensures proper subscription to async schema query updates
             const entityCustomProps = get(revisionEnhancedCustomPropertiesAtomFamily(revisionId))
-
-            console.log("[BRIDGE] moleculeBackedCustomPropertiesAtomFamily entity fallback", {
-                revisionId,
-                entityCustomPropsKeys: entityCustomProps ? Object.keys(entityCustomProps) : [],
-                entityCustomPropsCount: entityCustomProps
-                    ? Object.keys(entityCustomProps).length
-                    : 0,
-            })
 
             if (entityCustomProps && Object.keys(entityCustomProps).length > 0) {
                 return entityCustomProps as Record<string, unknown>
@@ -558,21 +537,25 @@ export function getSourceRevisionId(localDraftId: string): string | null {
  *
  * Ensures the source revision is present in the molecule cache before cloning.
  * If the source is itself a local draft, extracts the original source revision's variantId.
+ *
+ * @returns The local draft ID, or null if the source data is not ready yet
  */
-export function cloneAsLocalDraft(sourceRevisionId: string): string {
+export function cloneAsLocalDraft(sourceRevisionId: string): string | null {
     const store = getDefaultStore()
+
+    // Ensure source data exists in molecule (fallback to revision list when needed)
+    let sourceData = ossAppRevisionMolecule.get.data(sourceRevisionId)
 
     // If source is a local draft, get its original source revision ID for variantId lookup
     let variantIdSource = sourceRevisionId
     if (isLocalDraftId(sourceRevisionId)) {
-        const originalSourceId = extractSourceIdFromDraft(sourceRevisionId)
+        const originalSourceId =
+            (sourceData as {_sourceRevisionId?: string} | null)?._sourceRevisionId ||
+            extractSourceIdFromDraft(sourceRevisionId)
         if (originalSourceId) {
             variantIdSource = originalSourceId
         }
     }
-
-    // Ensure source data exists in molecule (fallback to revision list when needed)
-    let sourceData = ossAppRevisionMolecule.get.data(sourceRevisionId)
 
     // If sourceData exists but is missing variantId, enrich it from revisionListAtom
     // This can happen when data comes from direct query which doesn't include variantId
@@ -588,31 +571,25 @@ export function cloneAsLocalDraft(sourceRevisionId: string): string {
                 // Merge with existing data if present, otherwise use adapted data
                 sourceData = sourceData ? {...sourceData, ...adapted} : adapted
                 ossAppRevisionMolecule.set.serverData(sourceRevisionId, sourceData)
-                log("📋 Seeded molecule data for draft clone:", {
-                    sourceRevisionId,
-                    variantName: sourceData.variantName,
-                    variantId: sourceData.variantId,
-                })
             }
         }
     }
 
     if (!sourceData) {
-        throw new Error(`Source revision not found: ${sourceRevisionId}`)
+        return null
     }
 
     if (!sourceData.variantId) {
-        throw new Error(
-            `Cannot clone revision: variantId is required for revision ${sourceRevisionId}`,
-        )
+        return null
     }
 
-    log("🔄 Cloning revision as local draft:", {
-        sourceRevisionId,
-        variantName: sourceData.variantName,
-    })
+    const localDraftId = createLocalDraftFromRevision(sourceRevisionId)
 
-    return createLocalDraftFromRevision(sourceRevisionId)
+    if (!localDraftId) {
+        return null
+    }
+
+    return localDraftId
 }
 
 /**
@@ -648,18 +625,13 @@ export function discardLocalDraft(localDraftId: string): void {
 export const discardRevisionDraftAtom = atom(null, (_get, set, revisionId: string) => {
     if (!revisionId) return
 
-    log("🗑️ Discarding draft for revision:", revisionId)
-
     // 1. Use molecule's discard to clear enhanced prompts and custom properties drafts
     set(ossAppRevisionMolecule.reducers.discard, revisionId)
 
     // 2. For local drafts, also remove from tracking and clear serverData
     if (isLocalDraftId(revisionId)) {
         discardEntityLocalDraft(revisionId)
-        log("🗑️ Local draft removed from tracking:", revisionId)
     }
-
-    log("✅ Draft discarded for revision:", revisionId)
 })
 
 /**
@@ -673,18 +645,13 @@ export const discardRevisionDraftAtom = atom(null, (_get, set, revisionId: strin
 export function discardRevisionDraft(revisionId: string): void {
     if (!revisionId) return
 
-    log("🗑️ Discarding draft for revision (imperative):", revisionId)
-
     // 1. Use molecule's discard to clear enhanced prompts and custom properties drafts
     ossAppRevisionMolecule.set.discard(revisionId)
 
     // 2. For local drafts, also remove from tracking and clear serverData
     if (isLocalDraftId(revisionId)) {
         discardEntityLocalDraft(revisionId)
-        log("🗑️ Local draft removed from tracking:", revisionId)
     }
-
-    log("✅ Draft discarded for revision:", revisionId)
 }
 
 // ============================================================================
