@@ -5,10 +5,10 @@ import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {revisionIsDirtyAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {CommitVariantChangesButtonProps} from "../types"
-import { recordWidgetEventAtom } from "@/oss/lib/onboarding"
 const CommitVariantChangesModal = dynamic(() => import("../.."), {ssr: false})
 
 const CommitVariantChangesButton = ({
@@ -28,10 +28,10 @@ const CommitVariantChangesButton = ({
         recordWidgetEvent("playground_committed_change")
         onSuccess?.({
             variantId,
-            revisionId: variantId
+            revisionId: variantId,
         })
     }, [recordWidgetEvent, onSuccess, variantId])
-    
+
     return (
         <>
             {isValidElement(children) ? (

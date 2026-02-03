@@ -130,7 +130,7 @@ const VariantsDashboard = () => {
     useEffect(() => {
         recordWidgetEvent("registry_page_viewed")
     }, [recordWidgetEvent])
-    
+
     const variantNameMap = useMemo(() => {
         const map: Record<string, string> = {}
         variants.forEach((variant: any) => {
