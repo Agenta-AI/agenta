@@ -17,12 +17,12 @@ import {produce} from "immer"
 import {atom} from "jotai"
 import type {Atom, WritableAtom} from "jotai"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {extractVariablesFromAgConfig} from "../../runnable/utils"
 import type {QueryState} from "../../shared"
 import type {ListQueryState} from "../../shared"
-import {isLocalDraftId} from "../../shared"
+import {extractRoutePath, extractRuntimePrefix, isLocalDraftId} from "../../shared"
 import {
     fetchOssRevisionById,
     fetchOssRevisionEnriched,
@@ -102,25 +102,6 @@ export const variantDetailCacheAtomFamily = atomFamily((variantId: string) =>
             enabled,
         }
     }),
-)
-
-/**
- * Variant context atom family
- * Stores the variantId associated with each revision for enriched queries.
- * This is set when a revision is selected/loaded in the UI.
- */
-export const revisionVariantContextAtomFamily = atomFamily((_revisionId: string) =>
-    atom<string | null>(null),
-)
-
-/**
- * Set variant context for a revision
- */
-export const setRevisionVariantContextAtom = atom(
-    null,
-    (_get, set, revisionId: string, variantId: string | null) => {
-        set(revisionVariantContextAtomFamily(revisionId), variantId)
-    },
 )
 
 // ============================================================================
@@ -532,6 +513,54 @@ export const revisionsListQueryStateAtomFamily = atomFamily((variantId: string) 
 )
 
 // ============================================================================
+// REVISION LIST CACHE LOOKUP
+// ============================================================================
+
+const findRevisionListItemInCache = (
+    queryClient: import("@tanstack/react-query").QueryClient,
+    revisionId: string,
+): RevisionListItem | null => {
+    const queries = queryClient.getQueriesData({queryKey: ["oss-revisions-for-selection"]})
+
+    for (const [_queryKey, data] of queries) {
+        if (!Array.isArray(data)) continue
+        const found = data.find((item) => (item as RevisionListItem)?.id === revisionId)
+        if (found) {
+            return found as RevisionListItem
+        }
+    }
+
+    return null
+}
+
+const revisionListItemFromCacheAtomFamily = atomFamily((revisionId: string) =>
+    atom<RevisionListItem | null>((get) => {
+        const queryClient = get(queryClientAtom)
+        return findRevisionListItemInCache(queryClient, revisionId)
+    }),
+)
+
+const mergeRevisionListContext = (
+    data: OssAppRevisionData | null,
+    listItem: RevisionListItem | null,
+): OssAppRevisionData | null => {
+    if (!data || !listItem) return data
+
+    const uri = data.uri ?? listItem.uri
+    const runtimePrefix = data.runtimePrefix ?? extractRuntimePrefix(uri)
+    const routePath = data.routePath ?? extractRoutePath(uri)
+
+    return {
+        ...data,
+        variantId: data.variantId ?? listItem.variantId,
+        appId: data.appId ?? listItem.appId,
+        uri,
+        runtimePrefix,
+        routePath,
+    }
+}
+
+// ============================================================================
 // LIST COMPOSITION WITH LOCAL DRAFTS
 // ============================================================================
 
@@ -674,29 +703,29 @@ export const revisionsListWithDraftsAtomFamily = atomFamily((variantId: string) 
 
 /**
  * Get enriched server data for a revision.
- * Uses variant context to fetch complete data with URI.
+ * Uses revision list cache to fetch complete data with URI.
  */
 export const ossAppRevisionEnrichedDataFamily = atomFamily((revisionId: string) =>
     atom<OssAppRevisionData | null>((get) => {
-        const variantId = get(revisionVariantContextAtomFamily(revisionId))
+        const listItem = get(revisionListItemFromCacheAtomFamily(revisionId))
+        const variantId = listItem?.variantId
 
-        // If we have variant context, use enriched query
+        // If we have a variantId from the list cache, use enriched query
         if (variantId) {
             const enrichedKey = createEnrichedKey(revisionId, variantId)
             const enrichedQuery = get(enrichedQueryAtomFamily(enrichedKey))
             if (enrichedQuery.data) {
-                return enrichedQuery.data
+                return mergeRevisionListContext(enrichedQuery.data, listItem)
             }
         }
 
         // Fall back to basic query (without URI enrichment)
         const query = get(ossAppRevisionQueryAtomFamily(revisionId))
-        return query.data ?? null
+        return mergeRevisionListContext(query.data ?? null, listItem)
     }),
 )
 
 /**
- * @deprecated Use setRevisionVariantContextAtom instead.
  * Legacy server data storage - kept for backward compatibility during migration.
  */
 export const ossAppRevisionServerDataAtomFamily = atomFamily((_revisionId: string) =>
@@ -704,27 +733,21 @@ export const ossAppRevisionServerDataAtomFamily = atomFamily((_revisionId: strin
 )
 
 /**
- * @deprecated Use setRevisionVariantContextAtom to set variant context instead.
- * Set server data for a revision.
+ * Set server data for a revision (legacy bridge only).
  */
 export const setServerDataAtom = atom(
     null,
     (_get, set, revisionId: string, data: OssAppRevisionData) => {
         // Store the data in legacy atom for backward compatibility
         set(ossAppRevisionServerDataAtomFamily(revisionId), data)
-        // Also set variant context if available
-        if (data.variantId) {
-            set(revisionVariantContextAtomFamily(revisionId), data.variantId)
-        }
     },
 )
 
 /**
- * Clear server data and variant context for a revision.
+ * Clear server data and draft for a revision.
  */
 export const clearServerDataAtom = atom(null, (_get, set, revisionId: string) => {
     set(ossAppRevisionServerDataAtomFamily(revisionId), null)
-    set(revisionVariantContextAtomFamily(revisionId), null)
     set(getDraftAtom(revisionId), null)
 })
 
@@ -755,12 +778,13 @@ export const ossAppRevisionEntityWithBridgeAtomFamily = atomFamily((revisionId: 
 export const ossAppRevisionServerDataSelectorFamily = atomFamily((revisionId: string) =>
     atom<OssAppRevisionData | null>((get) => {
         const bridgeData = get(ossAppRevisionServerDataAtomFamily(revisionId))
+        const listItem = get(revisionListItemFromCacheAtomFamily(revisionId))
         if (bridgeData) {
-            return bridgeData
+            return mergeRevisionListContext(bridgeData, listItem)
         }
 
         const enrichedData = get(ossAppRevisionEnrichedDataFamily(revisionId))
-        return enrichedData
+        return mergeRevisionListContext(enrichedData, listItem)
     }),
 )
 

@@ -169,8 +169,6 @@ export {
     // Enriched query atoms (with URI from variant)
     enrichedQueryAtomFamily,
     variantDetailCacheAtomFamily,
-    revisionVariantContextAtomFamily,
-    setRevisionVariantContextAtom,
     ossAppRevisionEnrichedDataFamily,
     createEnrichedKey,
     type EnrichedQueryKey,
