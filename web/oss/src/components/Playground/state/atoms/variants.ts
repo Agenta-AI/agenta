@@ -10,6 +10,7 @@ import {
     type VariantListItem,
     type RevisionListItem,
 } from "@agenta/entities/ossAppRevision"
+import {isPlaceholderId} from "@agenta/playground"
 import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 import {selectAtom} from "jotai/utils"
@@ -83,15 +84,22 @@ export const playgroundRevisionListAtom = atom((get) => {
 
         return list.map((revision: any) => {
             const createdAt = revision.createdAt
-            const timestamp = createdAt ? new Date(createdAt).valueOf() : Date.now()
-            const safeTimestamp = Number.isNaN(timestamp) ? Date.now() : timestamp
+            const updatedAt = revision.updatedAt ?? revision.updated_at ?? createdAt
+            const createdTimestamp = createdAt ? new Date(createdAt).valueOf() : Date.now()
+            const updatedTimestamp = updatedAt ? new Date(updatedAt).valueOf() : createdTimestamp
+            const safeCreatedTimestamp = Number.isNaN(createdTimestamp)
+                ? Date.now()
+                : createdTimestamp
+            const safeUpdatedTimestamp = Number.isNaN(updatedTimestamp)
+                ? safeCreatedTimestamp
+                : updatedTimestamp
 
             return {
                 ...revision,
                 variantId: revision.variantId ?? variant.id,
                 variantName: revision.variantName ?? variantName,
-                createdAtTimestamp: safeTimestamp,
-                updatedAtTimestamp: safeTimestamp,
+                createdAtTimestamp: safeCreatedTimestamp,
+                updatedAtTimestamp: safeUpdatedTimestamp,
                 commit_message: revision.commitMessage ?? revision.commit_message,
                 modifiedBy: revision.author ?? revision.modifiedBy ?? revision.modified_by ?? null,
             }
@@ -163,8 +171,11 @@ export const displayedVariantsAtom = selectAtom(
 
         // Filter selectedVariants (revision IDs) against actual revision data
         // For local drafts, check if they're actually tracked (not just by ID format)
+        // Allow placeholder IDs through - they're temporary IDs for pending hydrations
+        // that will be replaced with actual local draft IDs when data loads
         const displayedIds = selected.filter(
             (id) =>
+                isPlaceholderId(id) ||
                 (isLocalDraftId(id) && state.trackedLocalDraftIds.includes(id)) ||
                 state.revisions?.some((revision: any) => revision.id === id),
         )
@@ -223,8 +234,10 @@ export const earlyDisplayedVariantsAtom = selectAtom(
 
         // Filter selectedVariants (revision IDs) against early revision IDs
         // For local drafts, check if they're actually tracked (not just by ID format)
+        // Allow placeholder IDs through - they're temporary IDs for pending hydrations
         const displayedIds = selected.filter(
             (id) =>
+                isPlaceholderId(id) ||
                 (isLocalDraftId(id) && state.trackedLocalDraftIds.includes(id)) ||
                 state.earlyRevisionIds.includes(id),
         )

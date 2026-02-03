@@ -1,27 +1,19 @@
 import {atom} from "jotai"
-import {atomWithStorage} from "jotai/utils"
 
 import {routerAppIdAtom, recentAppIdAtom} from "../../../../state/app/atoms/fetcher"
 import type {TestRunState, ViewType} from "../types"
 
 // Currently displayed variant IDs (per app)
-const selectedVariantsByAppAtom = atomWithStorage<Record<string, string[]>>(
-    "agenta_selected_revisions_v2",
-    {},
-)
-
-// Track if storage has been hydrated (first read/write indicates hydration is complete)
-let storageHydrated = false
+// No localStorage persistence - URL is the source of truth for sharing.
+const selectedVariantsByAppAtom = atom<Record<string, string[]>>({})
 
 export const selectedVariantsAtom = atom(
     (get) => {
-        storageHydrated = true // Mark as hydrated on first read
         const appId = get(routerAppIdAtom) || get(recentAppIdAtom) || "__global__"
         const all = get(selectedVariantsByAppAtom)
         return all[appId] || []
     },
     (get, set, next: string[] | ((prev: string[]) => string[])) => {
-        storageHydrated = true // Mark as hydrated on first write
         const appId = get(routerAppIdAtom) || get(recentAppIdAtom) || "__global__"
         const all = get(selectedVariantsByAppAtom)
         const current = all[appId] || []
@@ -32,11 +24,10 @@ export const selectedVariantsAtom = atom(
 )
 
 /**
- * Check if the selection storage has been hydrated from localStorage.
- * This is used to prevent ensurePlaygroundDefaults from overwriting
- * persisted selections before they've been loaded.
+ * Check if the selection storage has been hydrated.
+ * With no localStorage, this is always true (no async hydration needed).
  */
-export const isSelectionStorageHydrated = () => storageHydrated
+export const isSelectionStorageHydrated = () => true
 
 // Single or comparison view
 export const viewTypeAtom = atom<ViewType>("single")
