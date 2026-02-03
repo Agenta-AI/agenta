@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useRef} from "react"
 
+import {isPlaceholderId} from "@agenta/playground"
 import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -104,9 +105,9 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
         if (!Array.isArray(revisionList) || revisionList.length === 0) return
 
         const revisionIds = new Set(revisionList.map((revision) => revision?.id).filter(Boolean))
-        // Keep local drafts AND valid committed revisions
+        // Keep placeholder IDs (pending hydration), local drafts, AND valid committed revisions
         const validSelection = selectedVariants.filter(
-            (id) => isLocalDraft(id) || revisionIds.has(id),
+            (id) => isPlaceholderId(id) || isLocalDraft(id) || revisionIds.has(id),
         )
         const nextSelection =
             validSelection.length > 0 ? validSelection : [revisionList[0]?.id].filter(Boolean)

@@ -59,11 +59,9 @@ const SelectVariant = ({
         (revisionId: string, e: React.MouseEvent) => {
             e.stopPropagation()
             e.preventDefault()
-            try {
-                const localDraftId = cloneAsLocalDraft(revisionId)
+            const localDraftId = cloneAsLocalDraft(revisionId)
+            if (localDraftId) {
                 setSelectedVariants((prev) => [...prev, localDraftId])
-            } catch (error) {
-                console.error("Failed to create local copy:", error)
             }
         },
         [setSelectedVariants],
@@ -252,12 +250,10 @@ const SelectVariant = ({
         // Get the last visible revision ID from value prop (rightmost in compare mode)
         const lastRevisionId = Array.isArray(value) ? value[value.length - 1] : value
         if (lastRevisionId) {
-            try {
-                const localDraftId = cloneAsLocalDraft(lastRevisionId)
+            const localDraftId = cloneAsLocalDraft(lastRevisionId)
+            if (localDraftId) {
                 setSelectedVariants((prev) => [...prev, localDraftId])
                 recordWidgetEvent("playground_compared_side_by_side")
-            } catch (error) {
-                console.error("Failed to create local copy for comparison:", error)
             }
         }
     }, [value, setSelectedVariants, recordWidgetEvent])

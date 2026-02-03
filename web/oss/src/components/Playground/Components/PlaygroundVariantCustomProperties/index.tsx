@@ -85,13 +85,7 @@ const PlaygroundVariantCustomProperty = memo(
         const handleChange = useCallback(
             (newValue: any, _arg?: any, subPropertyId?: string) => {
                 const pid = subPropertyId || (customProperty as any)?.__id
-                if (process.env.NODE_ENV === "development") {
-                    console.debug("[CustomProps][Mut][UI]", {
-                        variantId,
-                        propertyId: pid,
-                        newValue,
-                    })
-                }
+
                 updateParam({
                     event: newValue,
                     propertyId: pid,
@@ -167,14 +161,6 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
 
     // Derive custom properties from spec + saved params using new selector
     const atomCustomPropertyIds = useAtomValue(customPropertyIdsByRevisionAtomFamily(variantId))
-
-    console.log("[UI] PlaygroundVariantCustomProperties render", {
-        variantId,
-        atomCustomPropertyIds,
-        atomCustomPropertyIdsLength: atomCustomPropertyIds?.length,
-        schemaQueryPending: schemaQuery.isPending,
-        schemaQueryHasData: !!schemaQuery.data?.agConfigSchema,
-    })
 
     const customPropertyIds = useMemo(() => {
         return providedCustomProps ? Object.keys(providedCustomProps) : atomCustomPropertyIds

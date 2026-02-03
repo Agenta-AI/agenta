@@ -180,7 +180,7 @@ const VariantNavigationCard = ({
             >
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">
-                        {isLocalDraft(revisionId) ? (
+                        {isLocalDraftVariant ? (
                             // Local draft: show Draft tag then source revision info
                             <>
                                 <DraftTag />
@@ -194,10 +194,11 @@ const VariantNavigationCard = ({
                                 </Text>
                             </>
                         ) : (
-                            // Regular revision: show name and version tag
+                            // Regular revision: show name and version tag, with Draft tag if dirty
                             <>
                                 <Text>{variant?.variantName}</Text>
                                 <Version revision={variant?.revision as number} />
+                                {isDirty && <DraftTag />}
                             </>
                         )}
                     </div>

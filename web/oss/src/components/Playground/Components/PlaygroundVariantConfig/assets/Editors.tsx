@@ -18,17 +18,6 @@ const PlaygroundVariantConfigEditors = ({
 }) => {
     const {promptIds, variantExists, debug} = useVariantPrompts(variantId)
 
-    useEffect(() => {
-        if (process.env.NODE_ENV !== "production") {
-            console.info("[PlaygroundVariantConfigEditors]", {
-                variantId,
-                promptCount: promptIds.length,
-                variantExists,
-                debug,
-            })
-        }
-    }, [variantId, promptIds.length, variantExists, debug])
-
     if (!variantExists) {
         return (
             <div className="flex flex-col items-center justify-center py-6 gap-2">
