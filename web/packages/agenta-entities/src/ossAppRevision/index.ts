@@ -322,6 +322,7 @@ export {
     createLocalDraftFromRevision,
     discardLocalDraft,
     discardAllLocalDrafts,
+    cleanupStaleLocalDrafts,
     // Re-exports
     isLocalDraftId,
     extractSourceIdFromDraft,

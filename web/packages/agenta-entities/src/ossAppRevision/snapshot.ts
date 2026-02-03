@@ -187,12 +187,17 @@ export function applyOssAppRevisionDraftPatch(
         return false
     }
 
+    // Check if this is an "empty" patch (used for local drafts with no changes)
+    // Empty patch means: create a local copy using source parameters as-is
+    const isEmptyPatch = !patch.parameters || Object.keys(patch.parameters).length === 0
+
     // Build draft by applying patched parameters onto server data
     // IMPORTANT: We only patch parameters, NOT enhanced prompts/properties.
     // The entity system will derive enhanced data from the parameters.
     const draft: OssAppRevisionData = {
         ...serverData,
-        parameters: patch.parameters,
+        // For empty patches, preserve server parameters; otherwise use patch parameters
+        parameters: isEmptyPatch ? serverData.parameters : patch.parameters,
         // Clear enhanced data so it gets re-derived from the new parameters
         enhancedPrompts: undefined,
         enhancedCustomProperties: undefined,
