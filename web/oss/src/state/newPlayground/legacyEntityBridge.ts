@@ -1,7 +1,7 @@
 /**
  * Legacy Entity Bridge
  *
- * Bridges the existing OSS playground state with the ossAppRevision entity
+ * Bridges the existing OSS playground state with the legacyAppRevision entity
  * from @agenta/entities. This enables progressive migration from scattered atoms
  * to the unified molecule pattern.
  *
@@ -28,7 +28,7 @@
  */
 
 import {
-    ossAppRevisionMolecule,
+    legacyAppRevisionMolecule,
     createLocalDraftFromRevision,
     discardLocalDraft as discardEntityLocalDraft,
     localDraftIdsAtom,
@@ -36,8 +36,8 @@ import {
     hasUnsavedLocalDraftsAtom,
     revisionEnhancedCustomPropertiesAtomFamily,
     revisionEnhancedPromptsAtomFamily,
-    type OssAppRevisionData,
-} from "@agenta/entities/ossAppRevision"
+    type LegacyAppRevisionData,
+} from "@agenta/entities/legacyAppRevision"
 import {
     extractSourceIdFromDraft,
     isLocalDraftId,
@@ -54,13 +54,13 @@ import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 // ============================================================================
 // REVISION DATA ADAPTER
-// Transforms enhanced variant revision to ossAppRevision data format
+// Transforms enhanced variant revision to legacyAppRevision data format
 // ============================================================================
 
 /**
- * Transform an enhanced revision from OSS format to ossAppRevision format.
+ * Transform an enhanced revision from OSS format to legacyAppRevision format.
  */
-function adaptRevisionToLegacyFormat(revision: any, variant?: any): OssAppRevisionData | null {
+function adaptRevisionToLegacyFormat(revision: any, variant?: any): LegacyAppRevisionData | null {
     if (!revision) return null
 
     return {
@@ -94,10 +94,10 @@ const log = (...args: unknown[]) => {
 // ============================================================================
 
 /**
- * Get the ossAppRevision molecule.
+ * Get the legacyAppRevision molecule.
  * This is the recommended way to access the molecule in components.
  */
-export {ossAppRevisionMolecule}
+export {legacyAppRevisionMolecule}
 
 /**
  * Re-export commonly used molecule APIs for convenience.
@@ -106,27 +106,27 @@ export const ossRevision = {
     /**
      * Atoms for reactive subscriptions (use with useAtomValue)
      */
-    atoms: ossAppRevisionMolecule.atoms,
+    atoms: legacyAppRevisionMolecule.atoms,
 
     /**
      * Selectors for derived state (use with useAtomValue)
      */
-    selectors: ossAppRevisionMolecule.selectors,
+    selectors: legacyAppRevisionMolecule.selectors,
 
     /**
      * Reducers for mutations (use with useSetAtom)
      */
-    reducers: ossAppRevisionMolecule.reducers,
+    reducers: legacyAppRevisionMolecule.reducers,
 
     /**
      * Imperative getters (for callbacks)
      */
-    get: ossAppRevisionMolecule.get,
+    get: legacyAppRevisionMolecule.get,
 
     /**
      * Imperative setters (for callbacks)
      */
-    set: ossAppRevisionMolecule.set,
+    set: legacyAppRevisionMolecule.set,
 }
 
 // ============================================================================
@@ -148,38 +148,38 @@ export const debugBridge = {
      * Get molecule data for a revision
      */
     getMoleculeData: (revisionId: string) => {
-        return ossAppRevisionMolecule.get.data(revisionId)
+        return legacyAppRevisionMolecule.get.data(revisionId)
     },
 
     /**
      * Get molecule server data for a revision
      */
     getServerData: (revisionId: string) => {
-        return ossAppRevisionMolecule.get.serverData(revisionId)
+        return legacyAppRevisionMolecule.get.serverData(revisionId)
     },
 
     /**
      * Get molecule draft for a revision
      */
     getDraft: (revisionId: string) => {
-        return ossAppRevisionMolecule.get.draft(revisionId)
+        return legacyAppRevisionMolecule.get.draft(revisionId)
     },
 
     /**
      * Check if revision has unsaved changes
      */
     isDirty: (revisionId: string) => {
-        return ossAppRevisionMolecule.get.isDirty(revisionId)
+        return legacyAppRevisionMolecule.get.isDirty(revisionId)
     },
 
     /**
      * Log full molecule state for a revision
      */
     inspect: (revisionId: string) => {
-        const data = ossAppRevisionMolecule.get.data(revisionId)
-        const serverData = ossAppRevisionMolecule.get.serverData(revisionId)
-        const draft = ossAppRevisionMolecule.get.draft(revisionId)
-        const isDirty = ossAppRevisionMolecule.get.isDirty(revisionId)
+        const data = legacyAppRevisionMolecule.get.data(revisionId)
+        const serverData = legacyAppRevisionMolecule.get.serverData(revisionId)
+        const draft = legacyAppRevisionMolecule.get.draft(revisionId)
+        const isDirty = legacyAppRevisionMolecule.get.isDirty(revisionId)
 
         console.group(`[LegacyEntityBridge] Inspect revision: ${revisionId}`)
         console.log("Data (merged):", data)
@@ -223,7 +223,7 @@ if (typeof window !== "undefined" && DEBUG) {
 export const moleculeBackedVariantAtomFamily = atomFamilyJotaiUtils((revisionId: string) =>
     atom((get) => {
         // Try molecule first (has draft merged)
-        const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId))
+        const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
 
         // Also get legacy revision data for fallback fields (e.g., variantName)
         const revisions = get(revisionListAtom) || []
@@ -275,7 +275,7 @@ export const revisionIsDirtyAtomFamily = atomFamilyJotaiUtils((revisionId: strin
     atom((get) => {
         // Use molecule's isDirty as single source of truth
         // This compares draft against serverData (bridgeData)
-        return get(ossAppRevisionMolecule.atoms.isDirty(revisionId))
+        return get(legacyAppRevisionMolecule.atoms.isDirty(revisionId))
     }),
 )
 
@@ -289,7 +289,7 @@ export const revisionIsDirtyAtomFamily = atomFamilyJotaiUtils((revisionId: strin
  */
 export const revisionQueryStateAtomFamily = atomFamilyJotaiUtils((revisionId: string) =>
     atom((get) => {
-        return get(ossAppRevisionMolecule.atoms.query(revisionId))
+        return get(legacyAppRevisionMolecule.atoms.query(revisionId))
     }),
 )
 
@@ -323,7 +323,7 @@ export const moleculeBackedPromptsAtomFamily = atomFamilyJotaiUtils((revisionId:
     atom(
         (get) => {
             // Try molecule first (has draft merged)
-            const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId))
+            const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
             if (moleculeData?.enhancedPrompts && Array.isArray(moleculeData.enhancedPrompts)) {
                 return moleculeData.enhancedPrompts
             }
@@ -331,7 +331,7 @@ export const moleculeBackedPromptsAtomFamily = atomFamilyJotaiUtils((revisionId:
             // Fallback: derive prompts from entity-level atom (schema + parameters)
             // This ensures prompts are available even outside playground context
             const entityPrompts = get(
-                ossAppRevisionMolecule.selectors.enhancedPrompts?.(revisionId) ??
+                legacyAppRevisionMolecule.selectors.enhancedPrompts?.(revisionId) ??
                     revisionEnhancedPromptsAtomFamily(revisionId),
             )
             if (entityPrompts && Array.isArray(entityPrompts) && entityPrompts.length > 0) {
@@ -343,10 +343,10 @@ export const moleculeBackedPromptsAtomFamily = atomFamilyJotaiUtils((revisionId:
         (_get, set, update: ((draft: unknown[]) => void) | unknown[]) => {
             if (typeof update === "function") {
                 // Immer recipe - use molecule's mutate reducer
-                set(ossAppRevisionMolecule.reducers.mutateEnhancedPrompts, revisionId, update)
+                set(legacyAppRevisionMolecule.reducers.mutateEnhancedPrompts, revisionId, update)
             } else {
                 // Direct value - use molecule's set reducer
-                set(ossAppRevisionMolecule.reducers.setEnhancedPrompts, revisionId, update)
+                set(legacyAppRevisionMolecule.reducers.setEnhancedPrompts, revisionId, update)
             }
         },
     ),
@@ -365,7 +365,7 @@ export const moleculeBackedCustomPropertiesAtomFamily = atomFamily((revisionId: 
     atom(
         (get) => {
             // First check if molecule has explicit enhancedCustomProperties (from draft)
-            const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId))
+            const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
 
             if (
                 moleculeData?.enhancedCustomProperties &&
@@ -406,12 +406,12 @@ export const moleculeBackedCustomPropertiesAtomFamily = atomFamily((revisionId: 
         ) => {
             if (typeof update === "function") {
                 set(
-                    ossAppRevisionMolecule.reducers.mutateEnhancedCustomProperties,
+                    legacyAppRevisionMolecule.reducers.mutateEnhancedCustomProperties,
                     revisionId,
                     update,
                 )
             } else {
-                set(ossAppRevisionMolecule.reducers.setEnhancedCustomProperties, revisionId, update)
+                set(legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties, revisionId, update)
             }
         },
     ),
@@ -438,7 +438,7 @@ export const moleculePropertyUpdateAtom = atom(
     (_get, set, params: {revisionId: string; propertyId: string; value: unknown}) => {
         const {revisionId, propertyId, value} = params
 
-        set(ossAppRevisionMolecule.reducers.updateProperty, {
+        set(legacyAppRevisionMolecule.reducers.updateProperty, {
             revisionId,
             propertyId,
             value,
@@ -488,7 +488,7 @@ export function cloneAsLocalDraft(sourceRevisionId: string): string {
     }
 
     // Ensure source data exists in molecule (fallback to revision list when needed)
-    let sourceData = ossAppRevisionMolecule.get.data(sourceRevisionId)
+    let sourceData = legacyAppRevisionMolecule.get.data(sourceRevisionId)
 
     // If sourceData exists but is missing variantId, enrich it from revisionListAtom
     // This can happen when data comes from direct query which doesn't include variantId
@@ -503,7 +503,7 @@ export function cloneAsLocalDraft(sourceRevisionId: string): string {
             if (adapted) {
                 // Merge with existing data if present, otherwise use adapted data
                 sourceData = sourceData ? {...sourceData, ...adapted} : adapted
-                ossAppRevisionMolecule.set.serverData(sourceRevisionId, sourceData)
+                legacyAppRevisionMolecule.set.serverData(sourceRevisionId, sourceData)
                 log("📋 Seeded molecule data for draft clone:", {
                     sourceRevisionId,
                     variantName: sourceData.variantName,
@@ -567,7 +567,7 @@ export const discardRevisionDraftAtom = atom(null, (_get, set, revisionId: strin
     log("🗑️ Discarding draft for revision:", revisionId)
 
     // 1. Use molecule's discard to clear enhanced prompts and custom properties drafts
-    set(ossAppRevisionMolecule.reducers.discard, revisionId)
+    set(legacyAppRevisionMolecule.reducers.discard, revisionId)
 
     // 2. For local drafts, also remove from tracking and clear serverData
     if (isLocalDraftId(revisionId)) {
@@ -592,7 +592,7 @@ export function discardRevisionDraft(revisionId: string): void {
     log("🗑️ Discarding draft for revision (imperative):", revisionId)
 
     // 1. Use molecule's discard to clear enhanced prompts and custom properties drafts
-    ossAppRevisionMolecule.set.discard(revisionId)
+    legacyAppRevisionMolecule.set.discard(revisionId)
 
     // 2. For local drafts, also remove from tracking and clear serverData
     if (isLocalDraftId(revisionId)) {
@@ -647,7 +647,7 @@ export const revisionLabelInfoAtomFamily = atomFamilyJotaiUtils((revisionId: str
     atom<OssRevisionLabelInfo>((get) => {
         // Handle local drafts using shared utility
         if (isLocalDraftId(revisionId)) {
-            const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId))
+            const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
             const sourceRevision = (moleculeData as any)?._sourceRevision ?? null
             const variantName = moleculeData?.variantName ?? null
 
@@ -666,7 +666,7 @@ export const revisionLabelInfoAtomFamily = atomFamilyJotaiUtils((revisionId: str
         }
 
         // Try molecule first (has more complete data including draft changes)
-        const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId))
+        const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
         if (moleculeData?.revision != null) {
             return {
                 version: moleculeData.revision,
@@ -849,7 +849,7 @@ export const playgroundVariantMetaMapAtom = atom<PlaygroundVariantMetaMap>((get)
         const envs = get(revisionDeploymentAtomFamily(revId)) || []
 
         // Get dirty state
-        const isDirty = isLocal ? true : get(ossAppRevisionMolecule.atoms.isDirty(revId))
+        const isDirty = isLocal ? true : get(legacyAppRevisionMolecule.atoms.isDirty(revId))
 
         revisions.set(revId, {
             id: revId,

@@ -1,10 +1,10 @@
 /**
  * Playground Selection Adapter
  *
- * Uses createOssAppRevisionAdapter from @agenta/entity-ui in 2-level mode
+ * Uses createLegacyAppRevisionAdapter from @agenta/entity-ui in 2-level mode
  * (Variant → Revision) with local drafts support.
  *
- * Local drafts are managed at the entity level in @agenta/entities/ossAppRevision.
+ * Local drafts are managed at the entity level in @agenta/entities/legacyAppRevision.
  * This module provides a factory function to create an adapter scoped to a specific app,
  * using entity-level atoms directly (single source of truth).
  *
@@ -25,8 +25,8 @@
  */
 
 import {
-    createOssAppRevisionAdapter,
-    type OssAppRevisionSelectionResult,
+    createLegacyAppRevisionAdapter,
+    type LegacyAppRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
 
 // ============================================================================
@@ -36,7 +36,7 @@ import {
 /**
  * Create a playground selection adapter scoped to a specific app.
  *
- * Uses entity-level atoms directly from @agenta/entities/ossAppRevision,
+ * Uses entity-level atoms directly from @agenta/entities/legacyAppRevision,
  * maintaining single source of truth for data fetching.
  *
  * @param appId - The app ID to scope the adapter to
@@ -51,7 +51,7 @@ export function createPlaygroundSelectionAdapter(
 ) {
     const {includeLocalDrafts = true} = options
 
-    return createOssAppRevisionAdapter({
+    return createLegacyAppRevisionAdapter({
         appId,
         includeLocalDrafts,
         excludeRevisionZero: true,
@@ -89,7 +89,7 @@ export function createPlaygroundSelectionAdapter(
             const variant = path[0]
 
             return {
-                type: "ossAppRevision",
+                type: "legacyAppRevision",
                 id: revision.id,
                 label: revision.isLocalDraft
                     ? `Draft (${revision.variantName} v${revision.revision ?? 0})`
@@ -104,7 +104,7 @@ export function createPlaygroundSelectionAdapter(
                     isLocalDraft: revision.isLocalDraft ?? false,
                     sourceRevisionId: revision.sourceRevisionId,
                 },
-            } as OssAppRevisionSelectionResult
+            } as LegacyAppRevisionSelectionResult
         },
         emptyMessage: "No variants found",
         loadingMessage: "Loading variants...",
@@ -112,4 +112,4 @@ export function createPlaygroundSelectionAdapter(
 }
 
 // Re-export for backwards compatibility
-export type PlaygroundRevisionSelectionResult = OssAppRevisionSelectionResult
+export type PlaygroundRevisionSelectionResult = LegacyAppRevisionSelectionResult

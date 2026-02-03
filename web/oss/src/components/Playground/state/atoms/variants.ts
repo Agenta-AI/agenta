@@ -9,7 +9,7 @@ import {
     type AppListItem,
     type VariantListItem,
     type RevisionListItem,
-} from "@agenta/entities/ossAppRevision"
+} from "@agenta/entities/legacyAppRevision"
 import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 import {selectAtom} from "jotai/utils"

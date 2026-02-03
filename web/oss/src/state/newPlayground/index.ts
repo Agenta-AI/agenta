@@ -18,7 +18,7 @@ export {pendingWebWorkerRequestsAtom} from "./mutations/execution"
 // Legacy entity bridge (for @agenta/entities integration)
 export {
     // Molecule re-exports for convenience
-    ossAppRevisionMolecule,
+    legacyAppRevisionMolecule,
     ossRevision,
     // Drop-in replacement selectors (molecule-backed)
     moleculeBackedVariantAtomFamily,

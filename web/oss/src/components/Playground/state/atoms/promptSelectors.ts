@@ -24,7 +24,7 @@ import {findPropertyById, findPropertyInObject} from "../../hooks/usePlayground/
  *
  * READ: Finds property by __id in molecule-backed prompts
  * WRITE: Routes property updates through moleculePropertyUpdateAtom
- *        (single mutation path via ossAppRevisionMolecule.reducers.updateProperty)
+ *        (single mutation path via legacyAppRevisionMolecule.reducers.updateProperty)
  */
 export const promptPropertyAtomFamily = atomFamily(
     (params: {revisionId: string; propertyId: string}) =>

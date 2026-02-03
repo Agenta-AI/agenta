@@ -1,4 +1,4 @@
-import {variantsListWithDraftsAtomFamily} from "@agenta/entities/ossAppRevision"
+import {variantsListWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {message} from "@agenta/ui/app-message"
 import {produce} from "immer"
 import {atom} from "jotai"

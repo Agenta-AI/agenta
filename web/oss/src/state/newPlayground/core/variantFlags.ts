@@ -1,4 +1,4 @@
-import {ossAppRevisionMolecule} from "@agenta/entities/ossAppRevision"
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
@@ -13,10 +13,10 @@ export interface VariantFlagsParams {
 }
 
 const resolveRevisionSource = (get: any, revisionId: string) => {
-    const serverData = get(ossAppRevisionMolecule.atoms.serverData(revisionId)) as any
+    const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId)) as any
     if (serverData) return serverData
 
-    const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId)) as any
+    const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId)) as any
     if (moleculeData) return moleculeData
 
     return getEnhancedRevisionById(get as any, revisionId)
