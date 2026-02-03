@@ -798,6 +798,9 @@ importers:
       prismjs:
         specifier: '>=1.30.0'
         version: 1.30.0
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
       usehooks-ts:
         specifier: ^3.0.0
         version: 3.1.1(react@19.0.0)
@@ -937,6 +940,9 @@ importers:
       prismjs:
         specifier: '>=1.30.0'
         version: 1.30.0
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
       usehooks-ts:
         specifier: ^3.0.0
         version: 3.1.1(react@19.0.0)
@@ -965,6 +971,9 @@ importers:
       jotai-family:
         specifier: ^1.0.1
         version: 1.0.1(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
 
   packages/agenta-playground-ui:
     dependencies:
@@ -1017,6 +1026,9 @@ importers:
       jotai-family:
         specifier: ^1.0.1
         version: 1.0.1(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
 
   packages/agenta-shared:
     dependencies:
@@ -1054,6 +1066,9 @@ importers:
       '@types/react':
         specifier: ^19.0.10
         version: 19.0.10
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
 
   packages/agenta-ui:
     dependencies:
@@ -1196,6 +1211,9 @@ importers:
       lodash:
         specifier: '>=4.17.23'
         version: 4.17.23
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
 
   tests:
     dependencies:

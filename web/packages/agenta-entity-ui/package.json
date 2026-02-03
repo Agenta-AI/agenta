@@ -26,6 +26,7 @@
         "lucide-react": "^0.475.0"
     },
     "devDependencies": {
+        "typescript": "5.8.3",
         "@floating-ui/react": "^0.26.0",
         "@lexical/code": "^0.38.2",
         "@lexical/hashtag": "^0.38.2",
