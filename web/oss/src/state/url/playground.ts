@@ -2,7 +2,12 @@
 // This side-effect import must happen before any snapshot operations
 import "@agenta/entities/ossAppRevision"
 
-import {urlSnapshotController, setRunnableTypeResolver} from "@agenta/playground"
+import {
+    urlSnapshotController,
+    setRunnableTypeResolver,
+    setSelectionUpdateCallback,
+    isPlaceholderId,
+} from "@agenta/playground"
 import {getDefaultStore} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
@@ -12,8 +17,8 @@ import {
     urlRevisionsAtom,
     isSelectionStorageHydrated,
 } from "@/oss/components/Playground/state/atoms"
-import {revisionListAtom} from "@/oss/components/Playground/state/atoms"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
+import {latestAppRevisionIdAtom} from "@/oss/state/variant/selectors/variant"
 
 // ============================================================================
 // OSS RUNNABLE TYPE RESOLVER
@@ -25,6 +30,44 @@ import {appStateSnapshotAtom} from "@/oss/state/appState"
  */
 setRunnableTypeResolver({
     getType: () => "ossAppRevision",
+})
+
+// ============================================================================
+// SELECTION UPDATE CALLBACK
+// ============================================================================
+
+/**
+ * Register the selection update callback for pending hydrations.
+ * When a local draft is created from a pending hydration, this callback
+ * updates the playground selection to replace the placeholder/source ID
+ * with the new local draft ID.
+ */
+setSelectionUpdateCallback((idToReplace, localDraftId, index) => {
+    const store = getDefaultStore()
+    const currentSelection = store.get(selectedVariantsAtom)
+
+    // For placeholder IDs (compare mode), find by the placeholder ID
+    // For source IDs (single mode), find by the source ID at the given index
+    let targetIndex = index
+    if (isPlaceholderId(idToReplace)) {
+        // Find the placeholder in the selection
+        targetIndex = currentSelection.findIndex((id) => id === idToReplace)
+    }
+
+    // Replace the ID at the target index with the local draft ID
+    if (targetIndex >= 0 && targetIndex < currentSelection.length) {
+        const newSelection = [...currentSelection]
+        newSelection[targetIndex] = localDraftId
+        store.set(selectedVariantsAtom, newSelection)
+
+        // Also update URL revisions atom
+        const currentUrlRevisions = store.get(urlRevisionsAtom)
+        if (targetIndex < currentUrlRevisions.length) {
+            const newUrlRevisions = [...currentUrlRevisions]
+            newUrlRevisions[targetIndex] = localDraftId
+            store.set(urlRevisionsAtom, newUrlRevisions)
+        }
+    }
 })
 
 const isBrowser = typeof window !== "undefined"
@@ -204,20 +247,22 @@ export const ensurePlaygroundDefaults = (store: Store) => {
     )
         return
 
-    const selected = sanitizeRevisionList(store.get(selectedVariantsAtom))
     const urlSelection = sanitizeRevisionList(store.get(urlRevisionsAtom))
-    if (selected.length > 0 || urlSelection.length > 0) return
+    if (urlSelection.length > 0) return
 
     // Don't apply defaults if storage hasn't been hydrated yet
     // This prevents overwriting persisted selections before they're loaded from localStorage
-    if (!isSelectionStorageHydrated()) {
-        return
-    }
+    if (!isSelectionStorageHydrated()) return
 
-    const revisions = store.get(revisionListAtom) as {id?: string}[] | undefined
-    if (!Array.isArray(revisions) || revisions.length === 0) return
+    // Check if there's already a valid selection
+    const selected = sanitizeRevisionList(store.get(selectedVariantsAtom))
 
-    const latestRevisionId = revisions[0]?.id
+    // If there are valid selected revisions, don't override
+    if (selected.length > 0) return
+
+    // Use latestAppRevisionIdAtom - same source as "Last modified" tag
+    // This ensures default selection matches the tag shown in the UI
+    const latestRevisionId = store.get(latestAppRevisionIdAtom)
     if (!latestRevisionId) return
 
     applyPlaygroundSelection(store, [latestRevisionId])
@@ -261,6 +306,16 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
                 applyPlaygroundSelection(store, hydrateResult.selection)
                 return
             }
+        }
+
+        // Skip URL revision processing if there are pending hydrations
+        // This happens when we just processed a snapshot and the selection includes placeholder IDs
+        // that haven't been resolved yet. We don't want to overwrite them with deduplicated URL revisions.
+        const hasPendingHydrations = store.get(
+            urlSnapshotController.selectors.pendingHydrationCount,
+        )
+        if (hasPendingHydrations > 0 && isPlaygroundRoute) {
+            return
         }
 
         if (urlRevisions.length > 0 && isPlaygroundRoute) {
