@@ -16,18 +16,7 @@ const PlaygroundVariantConfigEditors = ({
     variantId: string
     className?: string
 }) => {
-    const {promptIds, variantExists, debug} = useVariantPrompts(variantId)
-
-    useEffect(() => {
-        if (process.env.NODE_ENV !== "production") {
-            console.info("[PlaygroundVariantConfigEditors]", {
-                variantId,
-                promptCount: promptIds.length,
-                variantExists,
-                debug,
-            })
-        }
-    }, [variantId, promptIds.length, variantExists, debug])
+    const {promptIds, variantExists} = useVariantPrompts(variantId)
 
     if (!variantExists) {
         return (

@@ -27,8 +27,6 @@
  * ```
  */
 
-import {useEffect} from "react"
-
 import {
     ossAppRevisionMolecule,
     createLocalDraftFromRevision,
@@ -36,7 +34,6 @@ import {
     localDraftIdsAtom,
     localDraftsListAtom,
     hasUnsavedLocalDraftsAtom,
-    setRevisionVariantContextAtom,
     revisionEnhancedCustomPropertiesAtomFamily,
     revisionEnhancedPromptsAtomFamily,
     type OssAppRevisionData,
@@ -48,7 +45,6 @@ import {
     formatLocalDraftLabel,
     type RevisionLabelInfo,
 } from "@agenta/entities/shared"
-import {useAtomValue, useSetAtom} from "jotai"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily as atomFamilyJotaiUtils} from "jotai/utils"
 import {atomFamily} from "jotai-family"
@@ -64,10 +60,7 @@ import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 /**
  * Transform an enhanced revision from OSS format to ossAppRevision format.
  */
-export function adaptRevisionToLegacyFormat(
-    revision: any,
-    variant?: any,
-): OssAppRevisionData | null {
+function adaptRevisionToLegacyFormat(revision: any, variant?: any): OssAppRevisionData | null {
     if (!revision) return null
 
     return {
@@ -88,89 +81,12 @@ export function adaptRevisionToLegacyFormat(
     }
 }
 
-/**
- * Atom family that provides ossAppRevision-formatted data for a revision.
- * This reads from existing OSS atoms and transforms to the new format.
- */
-export const legacyRevisionDataAdapterAtomFamily = atomFamilyJotaiUtils((revisionId: string) =>
-    atom<OssAppRevisionData | null>((get) => {
-        // Find the variant that contains this revision
-        const variants = get(variantsAtom)
-        if (!variants) return null
-
-        for (const variant of variants) {
-            const revisions = get(revisionsByVariantIdAtomFamily((variant as any).variantId))
-            const revision = revisions?.find((r: any) => r.id === revisionId)
-            if (revision) {
-                return adaptRevisionToLegacyFormat(revision, variant)
-            }
-        }
-
-        return null
-    }),
-)
-
 // Debug logging (only in development)
 const DEBUG = process.env.NODE_ENV !== "production"
 const log = (...args: unknown[]) => {
     if (DEBUG) {
         console.info("[LegacyEntityBridge]", ...args)
     }
-}
-
-// ============================================================================
-// VARIANT CONTEXT HOOK
-// ============================================================================
-
-/**
- * Hook to set variant context for a revision.
- * This is kept for backward compatibility but the entity package now
- * fetches URI directly via fetchOssRevisionById.
- *
- * @param revisionId - The revision ID to set context for
- */
-export function useSetRevisionVariantContext(revisionId: string | null): void {
-    // Subscribe to revisionListAtom which contains all revisions with their variantId
-    // This ensures the effect re-runs when revisions are loaded (fixes race condition)
-    const revisions = useAtomValue(revisionListAtom)
-    const setVariantContext = useSetAtom(setRevisionVariantContextAtom)
-
-    useEffect(() => {
-        if (!revisionId || !revisions || revisions.length === 0) return
-
-        // Find the revision in the list - it already has variantId populated
-        const revision = revisions.find((r: any) => r.id === revisionId)
-        if (revision && (revision as any).variantId) {
-            const variantId = (revision as any).variantId
-
-            // Set variant context in the entity package
-            setVariantContext(revisionId, variantId)
-
-            // Also update any existing server data that was seeded without variantId
-            // This fixes the race condition where initial seeding happens before this hook runs
-            // Use bridgeServerData (the underlying atom) not serverData (the selector)
-            const store = getDefaultStore()
-            const existingServerData = store.get(
-                ossAppRevisionMolecule.atoms.bridgeServerData(revisionId),
-            )
-            if (existingServerData && !existingServerData.variantId) {
-                log("🔧 Patching bridgeServerData with variantId:", {revisionId, variantId})
-                store.set(ossAppRevisionMolecule.actions.setServerData, revisionId, {
-                    ...existingServerData,
-                    variantId,
-                })
-            }
-
-            // Also update any existing draft that was created without variantId
-            const existingDraft = store.get(ossAppRevisionMolecule.atoms.draft(revisionId))
-            if (existingDraft && !existingDraft.variantId) {
-                log("🔧 Patching draft with variantId:", {revisionId, variantId})
-                store.set(ossAppRevisionMolecule.actions.update, revisionId, {variantId})
-            }
-
-            log("🔗 Set variant context for revision:", {revisionId, variantId})
-        }
-    }, [revisionId, revisions, setVariantContext])
 }
 
 // ============================================================================

@@ -17,11 +17,6 @@ export {pendingWebWorkerRequestsAtom} from "./mutations/execution"
 
 // Legacy entity bridge (for @agenta/entities integration)
 export {
-    // Variant context hook
-    useSetRevisionVariantContext,
-    // Adapter atoms (for legacy compatibility)
-    legacyRevisionDataAdapterAtomFamily,
-    adaptRevisionToLegacyFormat,
     // Molecule re-exports for convenience
     ossAppRevisionMolecule,
     ossRevision,
