@@ -815,9 +815,13 @@ async def auto_webhook_test_v0(
             ) from e
 
         if response.status_code != 200:
+            try:
+                message = response.json()
+            except Exception:
+                message = response.text
             raise WebhookServerV0Error(
                 code=response.status_code,
-                message=response.json(),
+                message=message,
             )
 
         content_length = response.headers.get("content-length")
@@ -2107,9 +2111,13 @@ async def hook_v0(
             ) from e
 
         if response.status_code != 200:
+            try:
+                message = response.json()
+            except Exception:
+                message = response.text
             raise WebhookServerV0Error(
                 code=response.status_code,
-                message=response.json(),
+                message=message,
             )
 
         content_length = response.headers.get("content-length")

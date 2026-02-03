@@ -7,7 +7,7 @@ from json import dumps
 from redis.asyncio import Redis
 from fastapi import Request
 
-from oss.src.utils.helpers import parse_url, get_slug_from_name_and_id
+
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee

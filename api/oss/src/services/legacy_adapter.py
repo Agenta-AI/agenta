@@ -22,30 +22,22 @@ from oss.src.core.applications.dtos import (
     ApplicationEdit,
     ApplicationQuery,
     ApplicationQueryFlags,
-    ApplicationFork,
     #
     ApplicationVariant,
     ApplicationVariantCreate,
-    ApplicationVariantEdit,
-    ApplicationVariantQuery,
     #
     ApplicationRevision,
     ApplicationRevisionCommit,
-    ApplicationRevisionQuery,
     ApplicationRevisionsLog,
 )
 
 if is_ee():
     from ee.src.models.api.api_models import (
         AppVariantResponse_ as AppVariantResponse,
-        EnvironmentOutput_ as EnvironmentOutput,
-        EnvironmentOutputExtended_ as EnvironmentOutputExtended,
     )
 else:
     from oss.src.models.api.api_models import (
         AppVariantResponse,
-        EnvironmentOutput,
-        EnvironmentOutputExtended,
     )
 
 from oss.src.models.api.api_models import (
