@@ -42,11 +42,16 @@ export {
     applyPendingHydrationsForRevision,
     clearPendingHydrations,
     pendingHydrations,
+    setSelectionUpdateCallback,
+    isPlaceholderId,
     urlSnapshotController,
     setRunnableTypeResolver,
     getRunnableTypeResolver,
     resetRunnableTypeResolver,
 } from "./state"
+
+// Re-export parseSnapshot for debugging
+export {parseSnapshot} from "./snapshot"
 
 export type {
     CreateSnapshotResult,

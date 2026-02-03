@@ -118,6 +118,8 @@ export {
     applyPendingHydrationsForRevision,
     clearPendingHydrations,
     pendingHydrations,
+    setSelectionUpdateCallback,
+    isPlaceholderId,
     urlSnapshotController,
     setRunnableTypeResolver,
     getRunnableTypeResolver,
