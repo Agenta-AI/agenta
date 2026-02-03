@@ -175,6 +175,8 @@ export interface RevisionSchemaState {
         run?: EndpointSchema | null
         generate?: EndpointSchema | null
         generateDeployed?: EndpointSchema | null
+        /** Root path endpoint for custom apps using @ag.route("/") */
+        root?: EndpointSchema | null
     }
     /** Available endpoint names */
     availableEndpoints?: string[]
@@ -267,6 +269,7 @@ export function createEmptySchemaState(): RevisionSchemaState {
             run: null,
             generate: null,
             generateDeployed: null,
+            root: null,
         },
         availableEndpoints: [],
         isChatVariant: false,

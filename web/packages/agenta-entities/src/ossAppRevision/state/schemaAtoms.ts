@@ -61,6 +61,7 @@ const emptySchemaState: RevisionSchemaState = {
         run: null,
         generate: null,
         generateDeployed: null,
+        root: null,
     },
     availableEndpoints: [],
     isChatVariant: false,
@@ -92,11 +93,12 @@ const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
                     }
                 }
 
-                return buildRevisionSchemaState(
+                const schemaState = buildRevisionSchemaState(
                     result.schema as OpenAPISpec,
                     result.runtimePrefix,
                     result.routePath,
                 )
+                return schemaState
             },
             staleTime: 1000 * 60 * 5, // 5 minutes
             refetchOnWindowFocus: false,
@@ -161,7 +163,7 @@ export const ossAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: strin
         const hasUri = !!entityData?.uri
         const isQueryDisabled = !hasUri
 
-        // Treat disabled query (no URI yet) as pending
+        // If query is still pending (fetching) or no URI available, return pending
         if (query.isPending || isQueryDisabled) {
             return {
                 data: emptySchemaState,
@@ -358,6 +360,7 @@ export const revisionEndpointsAtomFamily = atomFamily((revisionId: string) =>
                 run: null,
                 generate: null,
                 generateDeployed: null,
+                root: null,
             }
         )
     }),
@@ -398,12 +401,18 @@ export const revisionEnhancedCustomPropertiesAtomFamily = atomFamily((revisionId
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         // If schema is still loading, return empty
-        if (schemaQuery.isPending || !schemaQuery.data?.agConfigSchema?.properties) {
+        if (schemaQuery.isPending) {
             return {}
         }
 
-        const agConfigSchema = schemaQuery.data.agConfigSchema
         const result: Record<string, EnhancedCustomProperty> = {}
+
+        // Schema is required - no fallback to parameter inference
+        if (!schemaQuery.data?.agConfigSchema?.properties) {
+            return result
+        }
+
+        const agConfigSchema = schemaQuery.data.agConfigSchema
 
         // Extract non-prompt properties and enhance them
         Object.entries(agConfigSchema.properties).forEach(([key, prop]) => {
@@ -459,38 +468,25 @@ export const revisionCustomPropertyKeysAtomFamily = atomFamily((revisionId: stri
 
         const keys: string[] = []
 
-        // Strategy 1: Use schema if available (preferred - has x-parameters metadata)
-        if (schemaQuery.data?.agConfigSchema?.properties) {
-            const agConfigSchema = schemaQuery.data.agConfigSchema
-            Object.entries(agConfigSchema.properties).forEach(([key, prop]) => {
-                const xParams = (prop as Record<string, unknown>)?.["x-parameters"] as
-                    | Record<string, unknown>
-                    | undefined
-                const isPromptByMarker = xParams?.prompt === true
-
-                const savedValue = parameters?.[key]
-                const isPromptByStructure = isPromptLikeStructure(savedValue)
-
-                if (!isPromptByMarker && !isPromptByStructure) {
-                    keys.push(key)
-                }
-            })
-
+        // Schema is required - no fallback to parameter inference
+        if (!schemaQuery.data?.agConfigSchema?.properties) {
             return keys
         }
 
-        // Strategy 2: Derive from parameters if schema not available
-        // This mirrors how prompts are derived - use isPromptLikeStructure to identify prompts
-        if (parameters && Object.keys(parameters).length > 0) {
-            Object.entries(parameters).forEach(([key, value]) => {
-                // Skip prompt-like structures
-                if (!isPromptLikeStructure(value)) {
-                    keys.push(key)
-                }
-            })
+        const agConfigSchema = schemaQuery.data.agConfigSchema
+        Object.entries(agConfigSchema.properties).forEach(([key, prop]) => {
+            const xParams = (prop as Record<string, unknown>)?.["x-parameters"] as
+                | Record<string, unknown>
+                | undefined
+            const isPromptByMarker = xParams?.prompt === true
 
-            return keys
-        }
+            const savedValue = parameters?.[key]
+            const isPromptByStructure = isPromptLikeStructure(savedValue)
+
+            if (!isPromptByMarker && !isPromptByStructure) {
+                keys.push(key)
+            }
+        })
 
         return keys
     }),
