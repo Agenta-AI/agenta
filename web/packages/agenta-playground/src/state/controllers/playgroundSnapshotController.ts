@@ -137,7 +137,9 @@ const createSnapshotAtom = atom(
                 }
 
                 // Check if this is a local draft
-                if (adapter.isLocalDraftId(revisionId)) {
+                const isLocalDraft = adapter.isLocalDraftId(revisionId)
+
+                if (isLocalDraft) {
                     // Local draft - need to extract source and build patch
                     const sourceId = adapter.extractSourceId(revisionId)
 
@@ -150,20 +152,32 @@ const createSnapshotAtom = atom(
                     // Build patch from the local draft's current state
                     const patchResult = adapter.buildDraftPatch(revisionId)
 
+                    // IMPORTANT: Local drafts should ALWAYS be included as drafts in the snapshot,
+                    // even if they have no actual changes yet. This is because local drafts are
+                    // separate entities that need to be recreated on page reload.
+                    // Without this, clicking "Compare" and reloading would lose the comparison.
+                    const draftKey = generateDraftKey()
+
                     if (patchResult.hasDraft && patchResult.patch) {
-                        // Has draft changes - include as draft
-                        const draftKey = generateDraftKey()
+                        // Has draft changes - include patch
                         drafts.push({
                             draftKey,
                             sourceRevisionId: sourceId,
                             runnableType,
                             patch: patchResult.patch,
                         })
-                        snapshotSelection.push({kind: "draft", draftKey, runnableType})
                     } else {
-                        // No draft changes - include source as commit
-                        snapshotSelection.push({kind: "commit", id: sourceId, runnableType})
+                        // No draft changes - include empty patch to indicate "create local copy"
+                        // The empty parameters object means "use source parameters as-is"
+                        drafts.push({
+                            draftKey,
+                            sourceRevisionId: sourceId,
+                            runnableType,
+                            patch: {parameters: {}},
+                        })
                     }
+
+                    snapshotSelection.push({kind: "draft", draftKey, runnableType})
                 } else {
                     // Check if committed revision has draft changes
                     const patchResult = adapter.buildDraftPatch(revisionId)
@@ -234,6 +248,27 @@ interface PendingHydration {
     runnableType: RunnableType
     /** The patch to apply */
     patch: RunnableDraftPatch
+    /** Whether this hydration should create a new local draft (for compare mode support) */
+    createLocalDraft: boolean
+    /** Index in the selection array where this draft should be placed */
+    selectionIndex: number
+    /** Placeholder ID used in selection (for compare mode to avoid deduplication) */
+    placeholderId?: string
+}
+
+/**
+ * Generate a unique placeholder ID for pending hydrations.
+ * This prevents deduplication when the same source revision appears multiple times.
+ */
+function generatePlaceholderId(draftKey: string): string {
+    return `__pending_hydration__${draftKey}`
+}
+
+/**
+ * Check if an ID is a placeholder ID.
+ */
+export function isPlaceholderId(id: string): boolean {
+    return id.startsWith("__pending_hydration__")
 }
 
 /**
@@ -242,6 +277,24 @@ interface PendingHydration {
  * When the revision data loads, we apply the patch via applyPendingHydration.
  */
 export const pendingHydrations = new Map<string, PendingHydration>()
+
+/**
+ * Callback to update selection when a local draft is created from pending hydration.
+ * Set by the OSS layer to integrate with playground selection state.
+ */
+let selectionUpdateCallback:
+    | ((sourceId: string, localDraftId: string, index: number) => void)
+    | null = null
+
+/**
+ * Register a callback to update selection when pending hydrations create local drafts.
+ * Call this from the OSS layer to integrate with playground selection state.
+ */
+export function setSelectionUpdateCallback(
+    callback: ((sourceId: string, localDraftId: string, index: number) => void) | null,
+): void {
+    selectionUpdateCallback = callback
+}
 
 /**
  * Hydrate a snapshot, restoring playground state from URL.
@@ -274,13 +327,33 @@ const hydrateSnapshotAtom = atom(
                 draftMap.set(draft.draftKey, draft)
             }
 
-            // Process each selection item
+            // PASS 1: Count how many times each source revision ID appears in the selection
+            // This is needed to determine which drafts need separate local drafts
+            const sourceIdCounts = new Map<string, number>()
+            for (const item of snapshot.selection) {
+                if (item.kind === "commit") {
+                    const count = sourceIdCounts.get(item.id) || 0
+                    sourceIdCounts.set(item.id, count + 1)
+                } else if (item.kind === "draft") {
+                    const draftEntry = draftMap.get(item.draftKey)
+                    if (draftEntry) {
+                        const count = sourceIdCounts.get(draftEntry.sourceRevisionId) || 0
+                        sourceIdCounts.set(draftEntry.sourceRevisionId, count + 1)
+                    }
+                }
+            }
+
+            // Track which source IDs we've already processed (for determining needsLocalDraft)
+            const processedSourceIds = new Set<string>()
+
+            // PASS 2: Process each selection item
             for (const item of snapshot.selection) {
                 if (item.kind === "commit") {
                     // Commit - add directly to selection
                     newSelection.push(item.id)
+                    processedSourceIds.add(item.id)
                 } else if (item.kind === "draft") {
-                    // Draft - add source revision to selection and queue patch
+                    // Draft - need to create a new local draft with the patch applied
                     const draftEntry = draftMap.get(item.draftKey)
 
                     if (!draftEntry) {
@@ -288,17 +361,81 @@ const hydrateSnapshotAtom = atom(
                         continue
                     }
 
-                    // Add source revision to selection
-                    newSelection.push(draftEntry.sourceRevisionId)
+                    // Get adapter for this runnable type
+                    const adapter = snapshotAdapterRegistry.get(draftEntry.runnableType)
 
-                    // Queue the patch to be applied when revision data loads
-                    // Key by draftKey to support multiple drafts from the same source revision
-                    pendingHydrations.set(item.draftKey, {
-                        draftKey: item.draftKey,
-                        sourceRevisionId: draftEntry.sourceRevisionId,
-                        runnableType: draftEntry.runnableType,
-                        patch: draftEntry.patch,
-                    })
+                    if (!adapter) {
+                        warnings.push(`No adapter for runnable type: ${draftEntry.runnableType}`)
+                        // Fall back to source revision
+                        newSelection.push(draftEntry.sourceRevisionId)
+                        processedSourceIds.add(draftEntry.sourceRevisionId)
+                        continue
+                    }
+
+                    // Check if we need to create a separate local draft.
+                    // This is needed when:
+                    // 1. The source revision ID appears more than once in the selection, AND
+                    // 2. We've already processed this source ID (so this is the 2nd+ occurrence)
+                    const sourceIdCount = sourceIdCounts.get(draftEntry.sourceRevisionId) || 0
+                    const alreadyProcessed = processedSourceIds.has(draftEntry.sourceRevisionId)
+                    const needsLocalDraft = sourceIdCount > 1 && alreadyProcessed
+
+                    // Mark this source ID as processed
+                    processedSourceIds.add(draftEntry.sourceRevisionId)
+
+                    if (needsLocalDraft) {
+                        // Try to create a local draft with the patch immediately
+                        // This requires the source revision data to be available
+                        if (adapter.createLocalDraftWithPatch) {
+                            const localDraftId = adapter.createLocalDraftWithPatch(
+                                draftEntry.sourceRevisionId,
+                                draftEntry.patch,
+                            )
+
+                            if (localDraftId) {
+                                // Successfully created local draft - add to selection
+                                newSelection.push(localDraftId)
+                                draftKeyToSourceRevisionId[item.draftKey] =
+                                    draftEntry.sourceRevisionId
+                                continue
+                            }
+                        }
+
+                        // If immediate creation failed (source data not loaded yet),
+                        // use a placeholder ID to avoid deduplication
+                        // The placeholder will be replaced with the actual local draft ID later
+                        const placeholderId = generatePlaceholderId(item.draftKey)
+                        const selectionIndex = newSelection.length
+                        newSelection.push(placeholderId)
+
+                        // Queue the patch to be applied when revision data loads
+                        // Mark this as needing to create a local draft
+                        pendingHydrations.set(item.draftKey, {
+                            draftKey: item.draftKey,
+                            sourceRevisionId: draftEntry.sourceRevisionId,
+                            runnableType: draftEntry.runnableType,
+                            patch: draftEntry.patch,
+                            createLocalDraft: true,
+                            selectionIndex,
+                            placeholderId,
+                        })
+                    } else {
+                        // Single draft or first occurrence - just apply patch to source revision
+                        // Add source revision to selection
+                        const selectionIndex = newSelection.length
+                        newSelection.push(draftEntry.sourceRevisionId)
+
+                        // Queue the patch to be applied when revision data loads
+                        // Don't create a local draft - just apply the patch to the source
+                        pendingHydrations.set(item.draftKey, {
+                            draftKey: item.draftKey,
+                            sourceRevisionId: draftEntry.sourceRevisionId,
+                            runnableType: draftEntry.runnableType,
+                            patch: draftEntry.patch,
+                            createLocalDraft: false,
+                            selectionIndex,
+                        })
+                    }
 
                     // Track mapping for reference
                     draftKeyToSourceRevisionId[item.draftKey] = draftEntry.sourceRevisionId
@@ -337,13 +474,33 @@ export function applyPendingHydration(draftKey: string): boolean {
         return false
     }
 
-    const {sourceRevisionId, runnableType, patch} = pending
+    const {sourceRevisionId, runnableType, patch, createLocalDraft, selectionIndex, placeholderId} =
+        pending
 
     // Get adapter for this runnable type
     const adapter = snapshotAdapterRegistry.get(runnableType)
     if (!adapter) {
         console.warn(`[Snapshot Controller] No adapter for runnable type: ${runnableType}`)
         pendingHydrations.delete(draftKey)
+        return false
+    }
+
+    // If this hydration should create a new local draft (for compare mode support)
+    if (createLocalDraft && adapter.createLocalDraftWithPatch) {
+        const localDraftId = adapter.createLocalDraftWithPatch(sourceRevisionId, patch)
+
+        if (localDraftId) {
+            // Successfully created local draft - update selection via callback
+            // Use placeholderId if available (for compare mode), otherwise use sourceRevisionId
+            if (selectionUpdateCallback) {
+                const idToReplace = placeholderId ?? sourceRevisionId
+                selectionUpdateCallback(idToReplace, localDraftId, selectionIndex)
+            }
+            pendingHydrations.delete(draftKey)
+            return true
+        }
+
+        // Creation failed - source data not ready yet, keep pending for retry
         return false
     }
 
