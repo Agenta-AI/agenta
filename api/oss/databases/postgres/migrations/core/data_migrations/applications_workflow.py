@@ -340,7 +340,7 @@ async def _transfer_application(
 
         for revision in revisions:
             revision_id = revision.id
-            revision_num = revision.revision or 1
+            revision_num = revision.revision or 0
             config_name = revision.config_name or "default"
             config_parameters = revision.config_parameters or {}
             commit_message = revision.commit_message
