@@ -111,6 +111,19 @@ export interface RunnableSnapshotAdapter {
      * @returns The source revision ID, or null if extraction fails
      */
     extractSourceId(draftId: string): string | null
+
+    /**
+     * Create a new local draft from a source revision with a patch applied.
+     *
+     * This is used during hydration to recreate local drafts from URL snapshots.
+     * Unlike applyDraftPatch (which modifies an existing revision's draft),
+     * this creates a brand new local draft ID.
+     *
+     * @param sourceRevisionId - The source revision ID to clone from
+     * @param patch - The patch to apply to the new local draft
+     * @returns The new local draft ID, or null if creation failed
+     */
+    createLocalDraftWithPatch?(sourceRevisionId: string, patch: RunnableDraftPatch): string | null
 }
 
 // ============================================================================
