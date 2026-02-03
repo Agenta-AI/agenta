@@ -79,8 +79,6 @@ export {
     // Prefetched service schemas
     completionServiceSchemaAtom,
     chatServiceSchemaAtom,
-    // Per-revision service type lookup
-    revisionServiceTypeAtomFamily,
     // Composed schema (service schema + revision runtime context)
     serviceSchemaForRevisionAtomFamily,
     composedServiceSchemaAtomFamily,
