@@ -17,7 +17,6 @@
         "./appRevision": "./src/appRevision/index.ts",
         "./appRevision/state": "./src/appRevision/state/index.ts",
         "./legacyAppRevision": "./src/legacyAppRevision/index.ts",
-        "./ossAppRevision": "./src/ossAppRevision/index.ts",
         "./evaluatorRevision": "./src/evaluatorRevision/index.ts",
         "./loadable": "./src/loadable/index.ts",
         "./runnable": "./src/runnable/index.ts",

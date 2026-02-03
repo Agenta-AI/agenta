@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Schema Atoms
+ * LegacyAppRevision Schema Atoms
  *
  * Entity-scoped schema atoms for OpenAPI schema fetching and selectors.
  *
@@ -32,7 +32,7 @@ import {
     serviceSchemaForRevisionAtomFamily,
     composedServiceSchemaAtomFamily,
 } from "./serviceSchemaAtoms"
-import {ossAppRevisionEntityWithBridgeAtomFamily} from "./store"
+import {legacyAppRevisionEntityWithBridgeAtomFamily} from "./store"
 
 // ============================================================================
 // METADATA STORE & ENHANCEMENT UTILITIES
@@ -75,12 +75,12 @@ const emptySchemaState: RevisionSchemaState = {
  */
 const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery<RevisionSchemaState>((get) => {
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const uri = entityData?.uri
         const enabled = !!revisionId && !!uri
 
         return {
-            queryKey: ["ossAppRevisionSchema", revisionId, uri],
+            queryKey: ["legacyAppRevisionSchema", revisionId, uri],
             queryFn: async (): Promise<RevisionSchemaState> => {
                 if (!uri) return emptySchemaState
 
@@ -124,7 +124,7 @@ const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
  * Downstream consumers are unaffected by this routing — they see the same
  * `{ data: RevisionSchemaState, isPending, isError, error }` interface.
  */
-export const ossAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
+export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
         // Layer 1: Try service schema (fast path for completion/chat apps)
         const serviceResult = get(serviceSchemaForRevisionAtomFamily(revisionId))
@@ -159,7 +159,7 @@ export const ossAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: strin
 
         // Check if the query is actually enabled (has URI)
         // A disabled query returns isPending: false but has no data - we should treat this as pending
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const hasUri = !!entityData?.uri
         const isQueryDisabled = !hasUri
 
@@ -200,7 +200,7 @@ export const ossAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: strin
  */
 export const revisionOpenApiSchemaAtomFamily = atomFamily((revisionId: string) =>
     atom<unknown | null>((get) => {
-        const query = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const query = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         return query.data?.openApiSchema ?? null
     }),
 )
@@ -210,7 +210,7 @@ export const revisionOpenApiSchemaAtomFamily = atomFamily((revisionId: string) =
  */
 export const revisionAgConfigSchemaAtomFamily = atomFamily((revisionId: string) =>
     atom<EntitySchema | null>((get) => {
-        const query = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const query = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         return query.data?.agConfigSchema ?? null
     }),
 )
@@ -267,7 +267,7 @@ function isPromptLikeStructure(value: unknown): boolean {
 export const revisionCustomPropertiesSchemaAtomFamily = atomFamily((revisionId: string) =>
     atom<EntitySchema | null>((get) => {
         const agConfigSchema = get(revisionAgConfigSchemaAtomFamily(revisionId))
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         if (!agConfigSchema?.properties) return null
@@ -353,7 +353,7 @@ export const revisionSchemaAtPathAtomFamily = atomFamily(
  */
 export const revisionEndpointsAtomFamily = atomFamily((revisionId: string) =>
     atom<RevisionSchemaState["endpoints"]>((get) => {
-        const query = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const query = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         return (
             query.data?.endpoints ?? {
                 test: null,
@@ -396,8 +396,8 @@ export interface EnhancedCustomProperty {
 export const revisionEnhancedCustomPropertiesAtomFamily = atomFamily((revisionId: string) =>
     atom<Record<string, EnhancedCustomProperty>>((get) => {
         // Read directly from schema query to ensure subscription
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         // If schema is still loading, return empty
@@ -462,8 +462,8 @@ export const revisionEnhancedCustomPropertiesAtomFamily = atomFamily((revisionId
 export const revisionCustomPropertyKeysAtomFamily = atomFamily((revisionId: string) =>
     atom<string[]>((get) => {
         // Read directly from schema query to ensure subscription
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         const keys: string[] = []
@@ -729,8 +729,8 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
 export const revisionEnhancedPromptsAtomFamily = atomFamily((revisionId: string) =>
     atom<EnhancedPrompt[]>((get) => {
         // Read directly from schema query to ensure subscription
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         const result: EnhancedPrompt[] = []
@@ -793,8 +793,8 @@ export const revisionEnhancedPromptsAtomFamily = atomFamily((revisionId: string)
  */
 export const revisionPromptKeysAtomFamily = atomFamily((revisionId: string) =>
     atom<string[]>((get) => {
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         if (schemaQuery.isPending || !schemaQuery.data?.agConfigSchema?.properties) {

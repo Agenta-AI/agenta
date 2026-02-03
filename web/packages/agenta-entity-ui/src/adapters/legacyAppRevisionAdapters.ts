@@ -1,15 +1,15 @@
 /**
- * OssAppRevision Modal Adapters
+ * LegacyAppRevision Modal Adapters
  *
- * Registers ossAppRevision (variant) entity adapter for the unified modal system.
+ * Registers legacyAppRevision (variant) entity adapter for the unified modal system.
  * These adapters enable EntityDeleteModal and EntityCommitModal to work with
  * OSS app revision entities (variants in the playground).
  *
  * Uses the unified entity API:
- * - `ossAppRevisionMolecule.atoms.data(id)` - data with draft merged
- * - `ossAppRevisionMolecule.atoms.serverData(id)` - raw server data
- * - `ossAppRevisionMolecule.atoms.isDirty(id)` - check for unsaved changes
- * - `ossAppRevisionMolecule.actions.commit` - commit with polling workaround
+ * - `legacyAppRevisionMolecule.atoms.data(id)` - data with draft merged
+ * - `legacyAppRevisionMolecule.atoms.serverData(id)` - raw server data
+ * - `legacyAppRevisionMolecule.atoms.isDirty(id)` - check for unsaved changes
+ * - `legacyAppRevisionMolecule.actions.commit` - commit with polling workaround
  *
  * ## Commit Flow
  *
@@ -25,10 +25,10 @@
  */
 
 import {
-    ossAppRevisionMolecule,
-    type OssAppRevisionData,
+    legacyAppRevisionMolecule,
+    type LegacyAppRevisionData,
     type CommitRevisionParams,
-} from "@agenta/entities/ossAppRevision"
+} from "@agenta/entities/legacyAppRevision"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {atom} from "jotai"
 
@@ -47,9 +47,9 @@ import {
  * OSS app revision data atom factory for modal adapter.
  * Reads from the molecule's data atom (includes draft changes).
  */
-const ossAppRevisionDataAtom = (id: string) =>
+const legacyAppRevisionDataAtom = (id: string) =>
     atom((get) => {
-        return get(ossAppRevisionMolecule.atoms.data(id))
+        return get(legacyAppRevisionMolecule.atoms.data(id))
     })
 
 // ============================================================================
@@ -60,7 +60,7 @@ const ossAppRevisionDataAtom = (id: string) =>
  * Extract configuration data for diff display.
  * For OSS variants, we diff the parameters/enhancedPrompts.
  */
-function extractDiffableData(data: OssAppRevisionData | null): Record<string, unknown> {
+function extractDiffableData(data: LegacyAppRevisionData | null): Record<string, unknown> {
     if (!data) return {}
 
     const result: Record<string, unknown> = {}
@@ -88,8 +88,8 @@ function extractDiffableData(data: OssAppRevisionData | null): Record<string, un
  * Returns a simple summary of what changed.
  */
 function countChanges(
-    serverData: OssAppRevisionData | null,
-    draftData: OssAppRevisionData | null,
+    serverData: LegacyAppRevisionData | null,
+    draftData: LegacyAppRevisionData | null,
 ): {promptChanges: number; propertyChanges: number; description?: string} {
     if (!serverData || !draftData) {
         return {promptChanges: 0, propertyChanges: 0}
@@ -143,11 +143,11 @@ const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string,
         const isLocalDraft = isLocalDraftId(revisionId)
 
         // Get current draft data (merged server + local changes)
-        const draftData = get(ossAppRevisionMolecule.atoms.data(revisionId))
+        const draftData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
         if (!draftData) return null
 
         // Get server data for comparison
-        const serverData = get(ossAppRevisionMolecule.atoms.serverData(revisionId))
+        const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId))
 
         // Determine version info
         let currentVersion: number
@@ -228,7 +228,7 @@ const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string,
  * @example
  * ```typescript
  * // In playground initialization
- * import { registerCommitCallbacks } from '@agenta/entities/ossAppRevision'
+ * import { registerCommitCallbacks } from '@agenta/entities/legacyAppRevision'
  *
  * registerCommitCallbacks({
  *   onQueryInvalidate: async () => {
@@ -244,7 +244,7 @@ const variantCommitAtom = atom(null, async (get, set, params: CommitParams): Pro
     const {id, message} = params
 
     // Get entity data to extract variantId and parameters
-    const data = get(ossAppRevisionMolecule.atoms.data(id))
+    const data = get(legacyAppRevisionMolecule.atoms.data(id))
     if (!data) {
         throw new Error(`Entity not found: ${id}`)
     }
@@ -273,7 +273,7 @@ const variantCommitAtom = atom(null, async (get, set, params: CommitParams): Pro
         commitMessage: message,
     }
 
-    const result = await set(ossAppRevisionMolecule.actions.commit, commitParams)
+    const result = await set(legacyAppRevisionMolecule.actions.commit, commitParams)
 
     if (!result.success) {
         throw result.error
@@ -298,7 +298,7 @@ const variantDeleteAtom = atom(null, async (_get, _set, _ids: string[]): Promise
     // Variant deletion is handled by the playground layer
     // This is a placeholder to satisfy the adapter interface
     console.warn(
-        "[ossAppRevisionAdapter] Delete called but not implemented. " +
+        "[legacyAppRevisionAdapter] Delete called but not implemented. " +
             "Use playground deleteVariantMutationAtom instead.",
     )
 })
@@ -314,7 +314,7 @@ const variantDeleteAtom = atom(null, async (_get, _set, _ids: string[]): Promise
  *
  * ## Commit Flow
  *
- * The adapter uses `ossAppRevisionMolecule.actions.commit` which:
+ * The adapter uses `legacyAppRevisionMolecule.actions.commit` which:
  * 1. Calls legacy API (PUT /variants/{variantId}/parameters)
  * 2. Invokes `onQueryInvalidate` callback (for playground query invalidation)
  * 3. Polls for new revision to appear
@@ -326,7 +326,7 @@ const variantDeleteAtom = atom(null, async (_get, _set, _ids: string[]): Promise
  * Register callbacks in your playground initialization:
  *
  * ```typescript
- * import { registerCommitCallbacks } from '@agenta/entities/ossAppRevision'
+ * import { registerCommitCallbacks } from '@agenta/entities/legacyAppRevision'
  *
  * registerCommitCallbacks({
  *   onQueryInvalidate: async () => {
@@ -353,7 +353,7 @@ const variantDeleteAtom = atom(null, async (_get, _set, _ids: string[]): Promise
  * <EntityCommitModal />
  * ```
  */
-export const variantModalAdapter: EntityModalAdapter<OssAppRevisionData> =
+export const variantModalAdapter: EntityModalAdapter<LegacyAppRevisionData> =
     createAndRegisterEntityAdapter({
         type: "variant",
         getDisplayName: (entity) => {
@@ -374,7 +374,7 @@ export const variantModalAdapter: EntityModalAdapter<OssAppRevisionData> =
         },
         getDisplayLabel: (count) => (count === 1 ? "Variant" : "Variants"),
         deleteAtom: variantDeleteAtom,
-        dataAtom: ossAppRevisionDataAtom,
+        dataAtom: legacyAppRevisionDataAtom,
         canDelete: () => true, // Actual check should happen in playground layer
         getDeleteWarning: () => null,
         // Commit context for display in EntityCommitModal
@@ -402,6 +402,6 @@ export const variantModalAdapter: EntityModalAdapter<OssAppRevisionData> =
  * @example
  * ```typescript
  * // In OSS app initialization
- * import '@agenta/entity-ui/adapters/ossAppRevisionAdapters'
+ * import '@agenta/entity-ui/adapters/legacyAppRevisionAdapters'
  * ```
  */

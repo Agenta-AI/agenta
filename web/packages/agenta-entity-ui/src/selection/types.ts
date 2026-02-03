@@ -23,7 +23,7 @@ export type SelectableEntityType =
     | "variant"
     | "appRevision"
     | "ossVariant"
-    | "ossAppRevision"
+    | "legacyAppRevision"
     | "evaluator"
     | "evaluatorVariant"
     | "evaluatorRevision"

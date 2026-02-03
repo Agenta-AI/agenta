@@ -189,8 +189,8 @@ export type {
 // Pre-built adapters
 export {
     appRevisionAdapter,
-    ossAppRevisionAdapter,
-    createOssAppRevisionAdapter,
+    legacyAppRevisionAdapter,
+    createLegacyAppRevisionAdapter,
     evaluatorRevisionAdapter,
     setEvaluatorRevisionAtoms,
     testsetAdapter,
@@ -198,8 +198,8 @@ export {
 
 export type {
     AppRevisionSelectionResult,
-    OssAppRevisionSelectionResult,
-    CreateOssAppRevisionAdapterOptions,
+    LegacyAppRevisionSelectionResult,
+    CreateLegacyAppRevisionAdapterOptions,
     EvaluatorRevisionSelectionResult,
     TestsetSelectionResult,
 } from "./adapters"

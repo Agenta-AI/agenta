@@ -1,5 +1,5 @@
 /**
- * OssAppRevision API Functions
+ * LegacyAppRevision API Functions
  *
  * HTTP functions and data transformers for OSS app revision entity.
  * Uses the legacy backend API endpoints:
@@ -15,8 +15,8 @@ import {dereferenceSchema} from "@agenta/shared/utils"
 import {
     // URI parsing
     parseRevisionUri,
-    // agConfig extraction
-    extractAgConfig,
+    // Revision parameter extraction
+    extractRevisionParameters,
     // List item types (re-export)
     type AppListItem,
     type VariantListItem,
@@ -35,7 +35,7 @@ import {
     type EnhancedVariantLike,
     extractUriFromEnhanced,
 } from "../../shared"
-import type {OssAppRevisionData, ApiAppVariantRevision} from "../core"
+import type {LegacyAppRevisionData, ApiAppVariantRevision} from "../core"
 
 // Re-export shared types for consumers
 export type {
@@ -95,7 +95,7 @@ export interface TransformContext {
 }
 
 /**
- * Transform ApiAppVariantRevision to OssAppRevisionData
+ * Transform ApiAppVariantRevision to LegacyAppRevisionData
  *
  * The backend returns:
  * - id: revision UUID (can be null)
@@ -112,7 +112,7 @@ export function transformApiRevision(
     apiRevision: ApiAppVariantRevision,
     context?: TransformContext | string,
     appId?: string,
-): OssAppRevisionData {
+): LegacyAppRevisionData {
     // Support legacy signature: (apiRevision, variantId, appId)
     const ctx: TransformContext =
         typeof context === "string" ? {variantId: context, appId} : context || {}
@@ -120,13 +120,13 @@ export function transformApiRevision(
     const config = apiRevision.config || {config_name: "", parameters: {}}
     const parameters = config.parameters || {}
 
-    // Extract agConfig using shared utility
-    const agConfig = extractAgConfig(parameters)
+    // Extract revision parameters using shared utility
+    const revisionParameters = extractRevisionParameters(parameters)
 
     // Extract URI info if provided
     const uriInfo = parseRevisionUri(ctx.uri)
 
-    const result: OssAppRevisionData = {
+    const result: LegacyAppRevisionData = {
         id: apiRevision.id || `${ctx.variantId}_rev_${apiRevision.revision}`,
         variantId: ctx.variantId,
         appId: ctx.appId,
@@ -135,7 +135,7 @@ export function transformApiRevision(
         variantName: ctx.variantName,
         appName: ctx.appName,
         configName: config.config_name,
-        parameters: agConfig,
+        parameters: revisionParameters,
         modifiedBy: apiRevision.modified_by,
         commitMessage: apiRevision.commit_message,
         createdAt: apiRevision.created_at,
@@ -149,19 +149,19 @@ export function transformApiRevision(
 }
 
 /**
- * Transform EnhancedVariantLike to OssAppRevisionData
+ * Transform EnhancedVariantLike to LegacyAppRevisionData
  *
  * This enables transformation of enhanced variant data (from OSS playground)
- * to the ossAppRevision format, similar to appRevision's transformEnhancedVariant.
+ * to the legacyAppRevision format, similar to appRevision's transformEnhancedVariant.
  *
  * @param enhanced - Enhanced variant-like object with full data
  */
-export function transformEnhancedVariant(enhanced: EnhancedVariantLike): OssAppRevisionData {
+export function transformEnhancedVariant(enhanced: EnhancedVariantLike): LegacyAppRevisionData {
     // Extract URI info using shared utility
     const uriInfo = extractUriFromEnhanced(enhanced)
 
-    // Extract agConfig using shared utility
-    const agConfig = extractAgConfig(enhanced.parameters)
+    // Extract revision parameters using shared utility
+    const revisionParameters = extractRevisionParameters(enhanced.parameters)
 
     return {
         id: enhanced.id,
@@ -169,7 +169,7 @@ export function transformEnhancedVariant(enhanced: EnhancedVariantLike): OssAppR
         appId: enhanced.appId,
         revision: Number(enhanced.revision) || 1,
         configName: undefined, // Not available in enhanced format
-        parameters: agConfig,
+        parameters: revisionParameters,
         createdAt: enhanced.createdAt || enhanced.created_at,
         updatedAt: enhanced.updatedAt || enhanced.updated_at,
         // URI and runtime info
@@ -193,13 +193,13 @@ export function transformEnhancedVariant(enhanced: EnhancedVariantLike): OssAppR
  * @param variantId - The variant ID
  * @param revisionNumber - The revision number
  * @param projectId - The project ID
- * @returns OssAppRevisionData or null if not found
+ * @returns LegacyAppRevisionData or null if not found
  */
 export async function fetchOssRevision(
     variantId: string,
     revisionNumber: number,
     projectId: string,
-): Promise<OssAppRevisionData | null> {
+): Promise<LegacyAppRevisionData | null> {
     if (!variantId || !projectId || revisionNumber < 1) return null
 
     try {
@@ -231,12 +231,12 @@ export async function fetchOssRevision(
  *
  * @param revisionId - The revision ID (UUID)
  * @param projectId - The project ID
- * @returns OssAppRevisionData or null if not found
+ * @returns LegacyAppRevisionData or null if not found
  */
 export async function fetchOssRevisionById(
     revisionId: string,
     projectId: string,
-): Promise<OssAppRevisionData | null> {
+): Promise<LegacyAppRevisionData | null> {
     if (!revisionId || !projectId) return null
 
     try {
@@ -290,12 +290,12 @@ export async function fetchOssRevisionById(
  *
  * @param revisionIds - Array of revision IDs (UUIDs)
  * @param projectId - The project ID
- * @returns Array of OssAppRevisionData
+ * @returns Array of LegacyAppRevisionData
  */
 export async function fetchOssRevisionsBatch(
     revisionIds: string[],
     projectId: string,
-): Promise<OssAppRevisionData[]> {
+): Promise<LegacyAppRevisionData[]> {
     if (!revisionIds.length || !projectId) return []
 
     try {
@@ -450,13 +450,13 @@ export async function fetchVariantDetail(
  * @param revisionId - The revision ID
  * @param variantId - The parent variant ID
  * @param projectId - The project ID
- * @returns OssAppRevisionData with complete enriched data
+ * @returns LegacyAppRevisionData with complete enriched data
  */
 export async function fetchOssRevisionEnriched(
     revisionId: string,
     variantId: string,
     projectId: string,
-): Promise<OssAppRevisionData | null> {
+): Promise<LegacyAppRevisionData | null> {
     if (!revisionId || !variantId || !projectId) return null
 
     try {

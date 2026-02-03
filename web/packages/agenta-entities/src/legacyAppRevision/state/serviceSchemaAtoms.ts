@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Service Schema Prefetch Atoms
+ * LegacyAppRevision Service Schema Prefetch Atoms
  *
  * Provides a two-layer schema resolution strategy (same as appRevision):
  *
@@ -22,7 +22,7 @@ import {fetchServiceSchema} from "../../appRevision/api/schema"
 import type {RevisionSchemaState} from "../../appRevision/core"
 import {APP_SERVICE_TYPES, resolveServiceType, type AppServiceType} from "../../appRevision/core"
 
-import {appsListDataAtom, appsListAtom, ossAppRevisionEntityWithBridgeAtomFamily} from "./store"
+import {appsListDataAtom, appsListAtom, legacyAppRevisionEntityWithBridgeAtomFamily} from "./store"
 
 // ============================================================================
 // LAYER 1: SERVICE SCHEMA PREFETCH
@@ -77,7 +77,7 @@ type ServiceTypeLookup =
  */
 export const revisionServiceTypeLookupAtomFamily = atomFamily((revisionId: string) =>
     atom<ServiceTypeLookup>((get) => {
-        const entity = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const entity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const appId = entity?.appId
 
         // If entity exists but has no appId, this is likely a custom app
@@ -161,7 +161,7 @@ export const composedServiceSchemaAtomFamily = atomFamily((revisionId: string) =
         }
 
         // Merge with revision-specific runtime context
-        const entity = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const entity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
 
         return {
             ...serviceResult.data,

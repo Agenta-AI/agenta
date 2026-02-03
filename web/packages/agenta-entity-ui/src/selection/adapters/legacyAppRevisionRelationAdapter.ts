@@ -5,24 +5,24 @@
  * - 3-level: App → Variant → Revision (default)
  * - 2-level: Variant → Revision (when variantsListAtom is provided)
  *
- * Uses EntityRelation definitions from @agenta/entities/ossAppRevision.
+ * Uses EntityRelation definitions from @agenta/entities/legacyAppRevision.
  * This implementation uses the relation-based factory pattern, eliminating
  * boilerplate code and runtime configuration.
  *
  * Note: This mirrors the appRevisionAdapter but uses the legacy API endpoints
- * via ossAppRevision relations.
+ * via legacyAppRevision relations.
  *
  * @example
  * ```typescript
  * // 3-level mode (default)
- * import { ossAppRevisionAdapter, OssAppRevisionSelectionResult } from '@agenta/entity-ui/selection'
+ * import { legacyAppRevisionAdapter, LegacyAppRevisionSelectionResult } from '@agenta/entity-ui/selection'
  *
- * <EntityPicker adapter={ossAppRevisionAdapter} onSelect={handleSelect} />
+ * <EntityPicker adapter={legacyAppRevisionAdapter} onSelect={handleSelect} />
  *
  * // 2-level mode (scoped to current app)
- * import { createOssAppRevisionAdapter } from '@agenta/entity-ui/selection'
+ * import { createLegacyAppRevisionAdapter } from '@agenta/entity-ui/selection'
  *
- * const playgroundAdapter = createOssAppRevisionAdapter({
+ * const playgroundAdapter = createLegacyAppRevisionAdapter({
  *   variantsListAtom: myVariantsListAtom, // Scoped to current app
  *   revisionsListAtomFamily: myRevisionsAtomFamily, // Optional: inject local drafts
  * })
@@ -31,7 +31,7 @@
 
 import React from "react"
 
-// Import relations and atoms from the ossAppRevision module
+// Import relations and atoms from the legacyAppRevision module
 import {
     ossAppsListAtom,
     ossAppToVariantRelation,
@@ -40,13 +40,14 @@ import {
     revisionsListWithDraftsAtomFamily,
     variantsListQueryStateAtomFamily,
     revisionsListQueryStateAtomFamily,
-} from "@agenta/entities/ossAppRevision"
+} from "@agenta/entities/legacyAppRevision"
 import type {EntityRelation} from "@agenta/entities/shared"
 import {
     AppListItemLabel,
     RevisionLabel,
     VariantListItemLabel,
 } from "@agenta/ui/components/presentational"
+import {atom} from "jotai"
 import type {Atom} from "jotai"
 
 import type {
@@ -62,8 +63,8 @@ import {createThreeLevelAdapter, createTwoLevelAdapter} from "./createAdapterFro
 // TYPES
 // ============================================================================
 
-export interface OssAppRevisionSelectionResult extends EntitySelectionResult {
-    type: "ossAppRevision"
+export interface LegacyAppRevisionSelectionResult extends EntitySelectionResult {
+    type: "legacyAppRevision"
     metadata: {
         appId: string
         appName: string
@@ -83,12 +84,12 @@ export interface OssAppRevisionSelectionResult extends EntitySelectionResult {
  * Hierarchy: App → Variant → Revision
  *
  * This adapter is created at module load time using the atoms and relations
- * defined in the ossAppRevision module. No runtime configuration required.
+ * defined in the legacyAppRevision module. No runtime configuration required.
  *
- * Uses the legacy backend API (AppVariantRevision model) via ossAppRevision.
+ * Uses the legacy backend API (AppVariantRevision model) via legacyAppRevision.
  */
-export const ossAppRevisionAdapter = createThreeLevelAdapter<OssAppRevisionSelectionResult>({
-    name: "ossAppRevision",
+export const legacyAppRevisionAdapter = createThreeLevelAdapter<LegacyAppRevisionSelectionResult>({
+    name: "legacyAppRevision",
     grandparentType: "app",
     grandparentLabel: "Application",
     grandparentListAtom: ossAppsListAtom as Atom<ListQueryState<unknown>>,
@@ -148,7 +149,7 @@ export const ossAppRevisionAdapter = createThreeLevelAdapter<OssAppRevisionSelec
         hasChildren: true,
         isSelectable: false,
     },
-    childType: "ossAppRevision",
+    childType: "legacyAppRevision",
     childLabel: "Revision",
     childRelation: ossVariantToRevisionRelation as EntityRelation<unknown, unknown>,
     childOverrides: {
@@ -176,18 +177,18 @@ export const ossAppRevisionAdapter = createThreeLevelAdapter<OssAppRevisionSelec
                 React.createElement("span", {className: "invisible"}, "\u00A0"),
             ),
     },
-    selectionType: "ossAppRevision",
+    selectionType: "legacyAppRevision",
     toSelection: (
         path: SelectionPathItem[],
         leafEntity: unknown,
-    ): OssAppRevisionSelectionResult => {
+    ): LegacyAppRevisionSelectionResult => {
         const revision = leafEntity as {id: string; revision?: number}
         const app = path[0]
         const variant = path[1]
         const revisionItem = path[2]
 
         return {
-            type: "ossAppRevision",
+            type: "legacyAppRevision",
             id: revision.id,
             label: `${app?.label ?? "App"} / ${variant?.label ?? "Variant"} / ${revisionItem?.label ?? "Revision"}`,
             path,
@@ -211,7 +212,7 @@ export const ossAppRevisionAdapter = createThreeLevelAdapter<OssAppRevisionSelec
 /**
  * Options for creating a configurable OSS App Revision adapter.
  */
-export interface CreateOssAppRevisionAdapterOptions {
+export interface CreateLegacyAppRevisionAdapterOptions {
     /**
      * App ID to scope the adapter to (for 2-level mode).
      * When provided, uses entity-level variantsListWithDraftsAtomFamily(appId)
@@ -280,7 +281,10 @@ export interface CreateOssAppRevisionAdapterOptions {
     /**
      * Custom selection builder.
      */
-    toSelection?: (path: SelectionPathItem[], leafEntity: unknown) => OssAppRevisionSelectionResult
+    toSelection?: (
+        path: SelectionPathItem[],
+        leafEntity: unknown,
+    ) => LegacyAppRevisionSelectionResult
 
     /**
      * Empty state message.
@@ -303,21 +307,21 @@ export interface CreateOssAppRevisionAdapterOptions {
  * @example
  * ```typescript
  * // 2-level mode using appId (recommended - single source of truth)
- * const playgroundAdapter = createOssAppRevisionAdapter({
+ * const playgroundAdapter = createLegacyAppRevisionAdapter({
  *   appId: currentAppId,
  *   includeLocalDrafts: true,
  * })
  *
  * // 2-level mode with custom atoms (legacy)
- * const playgroundAdapter = createOssAppRevisionAdapter({
+ * const playgroundAdapter = createLegacyAppRevisionAdapter({
  *   variantsListAtom: playgroundVariantsListAtom,
  *   revisionsListAtomFamily: playgroundRevisionsListAtomFamily,
  * })
  * ```
  */
-export function createOssAppRevisionAdapter(
-    options: CreateOssAppRevisionAdapterOptions = {},
-): EntitySelectionAdapter<OssAppRevisionSelectionResult> {
+export function createLegacyAppRevisionAdapter(
+    options: CreateLegacyAppRevisionAdapterOptions = {},
+): EntitySelectionAdapter<LegacyAppRevisionSelectionResult> {
     const {
         appId,
         appIdAtom,
@@ -332,14 +336,32 @@ export function createOssAppRevisionAdapter(
         loadingMessage,
     } = options
 
+    const emptyListState: ListQueryState<unknown> = {
+        data: [],
+        isPending: false,
+        isError: false,
+        error: null,
+    }
+
+    const variantsFamily = includeLocalDrafts
+        ? variantsListWithDraftsAtomFamily
+        : variantsListQueryStateAtomFamily
+
     // Determine the variants list atom to use
     let resolvedVariantsListAtom: Atom<ListQueryState<unknown>> | undefined = variantsListAtom
 
-    // If appId is provided, use entity-level atoms directly (single source of truth)
-    if (appId && !variantsListAtom) {
-        const variantsFamily = includeLocalDrafts
-            ? variantsListWithDraftsAtomFamily
-            : variantsListQueryStateAtomFamily
+    // If appIdAtom is provided, use it to resolve entity-level atoms (single source of truth)
+    if (appIdAtom && !variantsListAtom) {
+        resolvedVariantsListAtom = atom((get) => {
+            const resolvedAppId = get(appIdAtom)
+            if (!resolvedAppId) {
+                return emptyListState
+            }
+
+            return get(variantsFamily(resolvedAppId) as Atom<ListQueryState<unknown>>)
+        })
+    } else if (appId && !variantsListAtom) {
+        // If appId is provided, use entity-level atoms directly (single source of truth)
         resolvedVariantsListAtom = variantsFamily(appId) as Atom<ListQueryState<unknown>>
     }
 
@@ -359,8 +381,8 @@ export function createOssAppRevisionAdapter(
 
     // 2-level mode: Variant → Revision
     if (resolvedVariantsListAtom) {
-        return createTwoLevelAdapter<OssAppRevisionSelectionResult>({
-            name: "ossAppRevision",
+        return createTwoLevelAdapter<LegacyAppRevisionSelectionResult>({
+            name: "legacyAppRevision",
             parentType: "ossVariant",
             parentLabel: "Variant",
             parentListAtom: resolvedVariantsListAtom,
@@ -375,7 +397,7 @@ export function createOssAppRevisionAdapter(
                 hasChildren: variantOverrides.hasChildren ?? true,
                 isSelectable: variantOverrides.isSelectable ?? false,
             },
-            childType: "ossAppRevision",
+            childType: "legacyAppRevision",
             childLabel: "Revision",
             childRelation: resolvedRevisionsListAtomFamily
                 ? ({
@@ -411,7 +433,7 @@ export function createOssAppRevisionAdapter(
                     ? (r: unknown) => (r as {revision?: number}).revision !== 0
                     : undefined,
             },
-            selectionType: "ossAppRevision",
+            selectionType: "legacyAppRevision",
             toSelection:
                 toSelection ??
                 ((path, leafEntity) => {
@@ -419,7 +441,7 @@ export function createOssAppRevisionAdapter(
                     const variant = path[0]
 
                     return {
-                        type: "ossAppRevision",
+                        type: "legacyAppRevision",
                         id: revision.id,
                         label: `${variant?.label ?? "Variant"} / v${revision.revision ?? 0}`,
                         path,
@@ -438,5 +460,5 @@ export function createOssAppRevisionAdapter(
     }
 
     // 3-level mode: App → Variant → Revision (default)
-    return ossAppRevisionAdapter
+    return legacyAppRevisionAdapter
 }
