@@ -124,7 +124,10 @@ def extract_result_from_response(response: dict):
 
 
 async def make_payload(
-    datapoint: Any, parameters: Dict, openapi_parameters: List[Dict]
+    datapoint: Any,
+    parameters: Dict,
+    openapi_parameters: List[Dict],
+    is_chat: Optional[bool] = None,
 ) -> Dict:
     """
     Constructs the payload for invoking an app based on OpenAPI parameters.
@@ -166,7 +169,7 @@ async def make_payload(
                 inputs[input_name] = item
         elif param["type"] == "messages":
             # TODO: Right now the FE is saving chats always under the column name chats. The whole logic for handling chats and dynamic inputs is convoluted and needs rework in time.
-            chat_data = datapoint.get("chat", "")
+            chat_data = datapoint.get("messages") or datapoint.get("chat", "")
             item = json.loads(chat_data)
             payload[param["name"]] = item
         elif param["type"] == "file_url":
@@ -184,9 +187,10 @@ async def make_payload(
         input_keys = helpers.find_key_occurrences(parameters, "input_keys") or []
         inputs = {key: datapoint.get(key, None) for key in input_keys}
 
-        messages_data = datapoint.get("messages", "[]")
-        messages = json.loads(messages_data)
-        payload["messages"] = messages
+        if is_chat:
+            messages_data = datapoint.get("messages") or datapoint.get("chat", "[]")
+            messages = json.loads(messages_data)
+            payload["messages"] = messages
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.warn(f"Error making payload: {e}")
 
@@ -200,6 +204,7 @@ async def invoke_app(
     datapoint: Any,
     parameters: Dict,
     openapi_parameters: List[Dict],
+    openapi_is_chat: Optional[bool],
     user_id: str,
     project_id: str,
     scenario_id: Optional[str] = None,
@@ -226,7 +231,12 @@ async def invoke_app(
     if "application_id" in kwargs:
         url = url + f"?application_id={kwargs.get('application_id')}"
 
-    payload = await make_payload(datapoint, parameters, openapi_parameters)
+    payload = await make_payload(
+        datapoint,
+        parameters,
+        openapi_parameters,
+        is_chat=openapi_is_chat,
+    )
 
     project = await get_project_by_id(
         project_id=project_id,
@@ -340,6 +350,7 @@ async def run_with_retry(
     max_retry_count: int,
     retry_delay: int,
     openapi_parameters: List[Dict],
+    openapi_is_chat: Optional[bool],
     user_id: str,
     project_id: str,
     scenario_id: Optional[str] = None,
@@ -355,6 +366,7 @@ async def run_with_retry(
         max_retry_count (int): The maximum number of retries.
         retry_delay (int): The delay between retries in seconds.
         openapi_parameters (List[Dict]): The OpenAPI parameters for the app.
+        openapi_is_chat (Optional[bool]): Whether the app is chat, if detected.
 
     Returns:
         InvokationResult: The invokation result.
@@ -377,6 +389,7 @@ async def run_with_retry(
                 input_data,
                 parameters,
                 openapi_parameters,
+                openapi_is_chat,
                 user_id,
                 project_id,
                 scenario_id,
@@ -471,19 +484,21 @@ async def batch_invoke(
     headers["ngrok-skip-browser-warning"] = "1"
 
     openapi_parameters = None
+    openapi_is_chat = None
     max_recursive_depth = 5
     runtime_prefix = uri
     route_path = ""
 
     while max_recursive_depth > 0 and not openapi_parameters:
         try:
-            openapi_parameters = await get_parameters_from_openapi(
+            openapi_parameters, openapi_is_chat = await get_parameters_from_openapi(
                 runtime_prefix + "/openapi.json",
                 route_path,
                 headers,
             )
         except Exception:  # pylint: disable=broad-exception-caught
             openapi_parameters = None
+            openapi_is_chat = None
 
         if not openapi_parameters:
             max_recursive_depth -= 1
@@ -495,7 +510,7 @@ async def batch_invoke(
                 runtime_prefix = runtime_prefix[:-1]
 
     # Final attempt to fetch OpenAPI parameters
-    openapi_parameters = await get_parameters_from_openapi(
+    openapi_parameters, openapi_is_chat = await get_parameters_from_openapi(
         runtime_prefix + "/openapi.json",
         route_path,
         headers,
@@ -515,6 +530,7 @@ async def batch_invoke(
                     max_retries,
                     retry_delay,
                     openapi_parameters,
+                    openapi_is_chat,
                     user_id,
                     project_id,
                     scenarios[index].get("id") if scenarios else None,
@@ -539,15 +555,17 @@ async def get_parameters_from_openapi(
     runtime_prefix: str,
     route_path: str,
     headers: Optional[Dict[str, str]],
-) -> List[Dict]:
+) -> tuple[List[Dict], Optional[bool]]:
     """
     Parse the OpenAI schema of an LLM app to return list of parameters that it takes with their type as determined by the x-parameter
     Args:
     uri (str): The URI of the OpenAPI schema.
 
     Returns:
-        list: A list of parameters. Each a dict with name and type.
-        Type can be one of: input, text, choice, float, dict, bool, int, file_url, messages.
+        tuple:
+            - list: A list of parameters. Each a dict with name and type.
+              Type can be one of: input, text, choice, float, dict, bool, int, file_url, messages.
+            - Optional[bool]: Whether the OpenAPI declares chat behavior.
 
     Raises:
         KeyError: If the required keys are not found in the schema.
@@ -572,6 +590,11 @@ async def get_parameters_from_openapi(
     except KeyError:
         properties = {}
 
+    operation, operation_path = _get_openapi_operation(schema, route_path)
+    is_chat = _get_openapi_chat_flag(operation, operation_path)
+    if is_chat is None:
+        is_chat = _fallback_chat_detection(properties, operation_path)
+
     parameters = []
     for name, param in properties.items():
         parameters.append(
@@ -581,7 +604,7 @@ async def get_parameters_from_openapi(
                 "default": param.get("default", []),
             }
         )
-    return parameters
+    return parameters, is_chat
 
 
 async def _get_openai_json_from_uri(
@@ -597,3 +620,54 @@ async def _get_openai_json_from_uri(
         resp_text = await resp.text()
         json_data = json.loads(resp_text)
         return json_data
+
+
+def _get_openapi_operation(
+    schema: Dict[str, Any],
+    route_path: str,
+) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
+    paths = schema.get("paths") or {}
+    for suffix in ("/test", "/run"):
+        path = f"{route_path}{suffix}"
+        operation = paths.get(path, {}).get("post")
+        if operation:
+            return operation, path
+    return None, None
+
+
+def _get_openapi_chat_flag(
+    operation: Optional[Dict[str, Any]],
+    operation_path: Optional[str],
+) -> Optional[bool]:
+    if not operation:
+        return None
+
+    flags = operation.get("x-agenta-flags")
+    if not isinstance(flags, dict) or "is_chat" not in flags:
+        return None
+
+    is_chat = bool(flags.get("is_chat"))
+    log.info(
+        "Chat detection from x-agenta-flags",
+        is_chat=is_chat,
+        path=operation_path,
+    )
+    return is_chat
+
+
+def _fallback_chat_detection(
+    properties: Dict[str, Any],
+    operation_path: Optional[str],
+) -> bool:
+    has_messages_property = "messages" in properties
+    has_messages_parameter = any(
+        isinstance(param, dict) and param.get("x-parameter") == "messages"
+        for param in properties.values()
+    )
+    is_chat = has_messages_property or has_messages_parameter
+    log.info(
+        "Chat detection fallback to heuristic",
+        is_chat=is_chat,
+        path=operation_path,
+    )
+    return is_chat

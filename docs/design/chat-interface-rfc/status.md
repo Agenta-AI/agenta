@@ -90,10 +90,12 @@ The Fern client (`sdk/agenta/client/backend/`) is **not** manually maintained. I
 - Added `flags` support to new `@ag.route` and propagated to `auto_workflow()`
 - Added `is_chat: bool = False` to `WorkflowFlags` in SDK and API models
 - Manually tested deployment at http://144.76.237.122:8180 - verified `x-agenta-flags.is_chat` appears in OpenAPI
+- Updated evaluation OpenAPI parsing to prefer `x-agenta-flags.is_chat`, with heuristic fallback and logging
 
 ## Next Steps
 
 1. **Phase 2:** Update frontend chat detection to read `x-agenta-flags.is_chat` (preferred) with heuristics fallback.
+2. **Cleanup:** Remove temporary logging for chat detection once validated.
 
 ## Current State Summary
 

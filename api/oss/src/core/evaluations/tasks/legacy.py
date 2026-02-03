@@ -860,19 +860,23 @@ async def evaluate_batch_testset(
         headers["ngrok-skip-browser-warning"] = "1"
 
         openapi_parameters = None
+        openapi_is_chat = None
         max_recursive_depth = 5
         runtime_prefix = uri
         route_path = ""
 
         while max_recursive_depth > 0 and not openapi_parameters:
             try:
-                openapi_parameters = await llm_apps_service.get_parameters_from_openapi(
-                    runtime_prefix + "/openapi.json",
-                    route_path,
-                    headers,
+                openapi_parameters, openapi_is_chat = (
+                    await llm_apps_service.get_parameters_from_openapi(
+                        runtime_prefix + "/openapi.json",
+                        route_path,
+                        headers,
+                    )
                 )
             except Exception:  # pylint: disable=broad-exception-caught
                 openapi_parameters = None
+                openapi_is_chat = None
 
             if not openapi_parameters:
                 max_recursive_depth -= 1
@@ -883,10 +887,12 @@ async def evaluate_batch_testset(
                     route_path = ""
                     runtime_prefix = runtime_prefix[:-1]
 
-        openapi_parameters = await llm_apps_service.get_parameters_from_openapi(
-            runtime_prefix + "/openapi.json",
-            route_path,
-            headers,
+        openapi_parameters, openapi_is_chat = (
+            await llm_apps_service.get_parameters_from_openapi(
+                runtime_prefix + "/openapi.json",
+                route_path,
+                headers,
+            )
         )
         # ----------------------------------------------------------------------
 
