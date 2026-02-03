@@ -73,7 +73,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
             {!isCustom && !hasVariable && !viewOnly && (
                 <Alert
                     closable
-                    message={
+                    title={
                         <>
                             Insert a <span className="font-semibold">{"{{variable}}"}</span> in your
                             template to create an input.
