@@ -15,8 +15,8 @@ import {dereferenceSchema} from "@agenta/shared/utils"
 import {
     // URI parsing
     parseRevisionUri,
-    // agConfig extraction
-    extractAgConfig,
+    // Revision parameter extraction
+    extractRevisionParameters,
     // List item types (re-export)
     type AppListItem,
     type VariantListItem,
@@ -120,8 +120,8 @@ export function transformApiRevision(
     const config = apiRevision.config || {config_name: "", parameters: {}}
     const parameters = config.parameters || {}
 
-    // Extract agConfig using shared utility
-    const agConfig = extractAgConfig(parameters)
+    // Extract revision parameters using shared utility
+    const revisionParameters = extractRevisionParameters(parameters)
 
     // Extract URI info if provided
     const uriInfo = parseRevisionUri(ctx.uri)
@@ -135,7 +135,7 @@ export function transformApiRevision(
         variantName: ctx.variantName,
         appName: ctx.appName,
         configName: config.config_name,
-        parameters: agConfig,
+        parameters: revisionParameters,
         modifiedBy: apiRevision.modified_by,
         commitMessage: apiRevision.commit_message,
         createdAt: apiRevision.created_at,
@@ -160,8 +160,8 @@ export function transformEnhancedVariant(enhanced: EnhancedVariantLike): OssAppR
     // Extract URI info using shared utility
     const uriInfo = extractUriFromEnhanced(enhanced)
 
-    // Extract agConfig using shared utility
-    const agConfig = extractAgConfig(enhanced.parameters)
+    // Extract revision parameters using shared utility
+    const revisionParameters = extractRevisionParameters(enhanced.parameters)
 
     return {
         id: enhanced.id,
@@ -169,7 +169,7 @@ export function transformEnhancedVariant(enhanced: EnhancedVariantLike): OssAppR
         appId: enhanced.appId,
         revision: Number(enhanced.revision) || 1,
         configName: undefined, // Not available in enhanced format
-        parameters: agConfig,
+        parameters: revisionParameters,
         createdAt: enhanced.createdAt || enhanced.created_at,
         updatedAt: enhanced.updatedAt || enhanced.updated_at,
         // URI and runtime info
