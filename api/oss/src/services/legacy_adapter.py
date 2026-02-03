@@ -89,16 +89,15 @@ class LegacyApplicationsAdapter:
         application_query = ApplicationQuery(
             flags=ApplicationQueryFlags(is_evaluator=False),
         )
+        application_refs = None
 
         if app_name:
-            application_query = ApplicationQuery(
-                slug=app_name,
-                flags=ApplicationQueryFlags(is_evaluator=False),
-            )
+            application_refs = [Reference(slug=app_name)]
 
         applications = await self.applications_service.query_applications(
             project_id=project_id,
             application_query=application_query,
+            application_refs=application_refs,
         )
 
         apps = []
@@ -515,9 +514,9 @@ class LegacyApplicationsAdapter:
         applications = await self.applications_service.query_applications(
             project_id=project_id,
             application_query=ApplicationQuery(
-                slug=app_name,
                 flags=ApplicationQueryFlags(is_evaluator=False),
             ),
+            application_refs=[Reference(slug=app_name)],
             windowing=Windowing(limit=1),
         )
 
