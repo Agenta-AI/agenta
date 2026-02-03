@@ -22,7 +22,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {extractVariablesFromAgConfig} from "../../runnable/utils"
 import type {QueryState} from "../../shared"
 import type {ListQueryState} from "../../shared"
-import {isLocalDraftId} from "../../shared"
+import {isLocalDraftId, isPlaceholderId} from "../../shared"
 import {
     fetchOssRevisionById,
     fetchOssRevisionEnriched,
@@ -142,9 +142,11 @@ export const setRevisionVariantContextAtom = atom(
 const directQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery<OssAppRevisionData | null>((get) => {
         const projectId = get(projectIdAtom)
-        // Skip queries for local draft IDs - they don't exist on the server
+        // Skip queries for local draft IDs and placeholder IDs - they don't exist on the server
+        // Placeholder IDs are temporary IDs used during pending hydrations (e.g., "__pending_hydration__dk-xxx")
         const isLocal = isLocalDraftId(revisionId)
-        const enabled = !!revisionId && !!projectId && !isLocal
+        const isPlaceholder = isPlaceholderId(revisionId)
+        const enabled = !!revisionId && !!projectId && !isLocal && !isPlaceholder
 
         return {
             queryKey: ["ossAppRevision", revisionId, projectId],
@@ -167,9 +169,10 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
     atomWithQuery<OssAppRevisionData | null>((get) => {
         const projectId = get(projectIdAtom)
         const parsed = parseEnrichedKey(key)
-        // Skip queries for local draft IDs
+        // Skip queries for local draft IDs and placeholder IDs
         const isLocal = parsed ? isLocalDraftId(parsed.revisionId) : false
-        const enabled = !!parsed && !!projectId && !isLocal
+        const isPlaceholder = parsed ? isPlaceholderId(parsed.revisionId) : false
+        const enabled = !!parsed && !!projectId && !isLocal && !isPlaceholder
 
         return {
             queryKey: ["ossAppRevisionEnriched", key, projectId],
@@ -800,13 +803,6 @@ export const ossAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revisionId:
         const strippedServer = stripVolatileKeys(serverParams, true)
         const draftParamsStr = JSON.stringify(strippedDraft)
         const serverParamsStr = JSON.stringify(strippedServer)
-
-        // Debug logging
-        if (draftParamsStr !== serverParamsStr) {
-            console.log("[isDirty] DIRTY detected for", revisionId)
-            console.log("[isDirty] strippedDraft:", strippedDraft)
-            console.log("[isDirty] strippedServer:", strippedServer)
-        }
 
         return draftParamsStr !== serverParamsStr
     }),
