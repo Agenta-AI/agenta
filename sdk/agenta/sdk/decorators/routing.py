@@ -210,18 +210,20 @@ class route:
         path: str = "/",
         app: Optional[FastAPI] = None,
         router: Optional[APIRouter] = None,
+        flags: Optional[dict] = None,
     ):
         path = path.rstrip("/")
         path = path if path else "/"
         path = path if path.startswith("/") else "/" + path
         self.path = path
         self.root = app or router or default_app
+        self.flags = flags
 
     def __call__(self, foo: Optional[Union[Callable[..., Any], Workflow]] = None):
         if foo is None:
             return self
 
-        workflow = auto_workflow(foo)
+        workflow = auto_workflow(foo, flags=self.flags)
 
         async def invoke_endpoint(req: Request, request: WorkflowServiceRequest):
             credentials = req.state.auth.get("credentials")

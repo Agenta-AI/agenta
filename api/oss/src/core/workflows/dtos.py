@@ -102,12 +102,14 @@ class WorkflowFlags(BaseModel):
     is_custom: bool = False
     is_evaluator: bool = False
     is_human: bool = False
+    is_chat: bool = False
 
 
 class WorkflowQueryFlags(BaseModel):
     is_custom: Optional[bool] = None
     is_evaluator: Optional[bool] = None
     is_human: Optional[bool] = None
+    is_chat: Optional[bool] = None
 
 
 # workflows --------------------------------------------------------------------
