@@ -3,7 +3,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {
     revisionsListWithDraftsAtomFamily,
     variantsListWithDraftsAtomFamily,
-} from "@agenta/entities/ossAppRevision"
+} from "@agenta/entities/legacyAppRevision"
 import {message} from "@agenta/ui/app-message"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Spin, Typography} from "antd"

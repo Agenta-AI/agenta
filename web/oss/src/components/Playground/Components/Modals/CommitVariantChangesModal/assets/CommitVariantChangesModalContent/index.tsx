@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
-import {ossAppRevisionMolecule} from "@agenta/entities/ossAppRevision"
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Checkbox, Input, Radio, RadioChangeEvent, Select, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -40,7 +40,7 @@ const CommitVariantChangesModalContent = ({
     const variant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
     // Get serverData (initial state) - this is the baseline before any edits
     const serverData = useAtomValue(
-        useMemo(() => ossAppRevisionMolecule.atoms.serverData(variantId), [variantId]),
+        useMemo(() => legacyAppRevisionMolecule.atoms.serverData(variantId), [variantId]),
     ) as any
     const latestRevisionForVariant = useAtomValue(
         newestRevisionForVariantIdAtomFamily(variant?.variantId || ""),

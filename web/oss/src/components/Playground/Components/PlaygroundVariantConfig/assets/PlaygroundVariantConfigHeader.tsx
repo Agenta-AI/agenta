@@ -12,7 +12,7 @@ import {
     isLocalDraft,
     discardLocalDraft,
     getSourceRevisionId,
-    ossAppRevisionMolecule,
+    legacyAppRevisionMolecule,
     moleculeBackedVariantAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
 import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
@@ -49,7 +49,7 @@ const PlaygroundVariantConfigHeader = ({
     // Read baseline revision directly from the source of truth (revisionListAtom)
     // For local drafts, use molecule data instead
     const baseline = useAtomValue(moleculeBackedVariantAtomFamily(variantId || ""))
-    const moleculeData = useAtomValue(ossAppRevisionMolecule.atoms.data(variantId || ""))
+    const moleculeData = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId || ""))
     const deployment = useAtomValue(
         revisionDeploymentAtomFamily((baseline?.id as string) || ""),
     ) as any
