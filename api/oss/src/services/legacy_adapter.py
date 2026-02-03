@@ -424,7 +424,7 @@ class LegacyApplicationsAdapter:
         )
 
         for rev in revisions:
-            if rev.version == revision_number:
+            if rev.version == str(revision_number):
                 return self._application_revision_to_variant_revision(rev)
 
         return None
