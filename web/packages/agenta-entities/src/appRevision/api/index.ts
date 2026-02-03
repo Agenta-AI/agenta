@@ -13,7 +13,10 @@ export {
     transformEnhancedVariant,
     transformApiRevision,
     transformAppToListItem,
-    // AgConfig extraction
+    // Revision parameter extraction
+    extractRevisionParametersFromEnhanced,
+    extractRevisionParametersFromApiRevision,
+    // Deprecated agConfig extraction
     extractAgConfigFromEnhanced,
     extractAgConfigFromApi,
     // List API functions

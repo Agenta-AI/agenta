@@ -15,9 +15,9 @@ import {
     toArray,
     // URI parsing
     parseRevisionUri,
-    // agConfig extraction
-    extractAgConfig,
-    extractAgConfigFromApiRevision,
+    // Revision parameter extraction
+    extractRevisionParameters,
+    extractRevisionParametersFromApiRevision,
     // List item types (re-export)
     type AppListItem,
     type VariantListItem,
@@ -102,8 +102,8 @@ export function transformEnhancedVariant(enhanced: EnhancedVariantLike): AppRevi
     // Also get parameters from the original config if available
     const params = enhanced.parameters || {}
 
-    // Extract raw agConfig for schema-driven approach using shared utility
-    const agConfig = extractAgConfig(params)
+    // Extract raw revision parameters for schema-driven approach using shared utility
+    const agConfig = extractRevisionParameters(params)
 
     // Extract URI/runtime info using shared utility
     const uriInfo = extractUriFromEnhanced(enhanced)
@@ -283,8 +283,8 @@ export function transformApiRevision(apiRevision: ApiRevision): AppRevisionData 
     const params = (config.parameters || {}) as Record<string, unknown>
     const prompts: PromptConfig[] = []
 
-    // Extract raw ag_config for schema-driven approach
-    const rawAgConfig = extractAgConfigFromApiRevision(apiRevision)
+    // Extract raw revision parameters for schema-driven approach
+    const rawAgConfig = extractRevisionParametersFromApiRevision(apiRevision)
 
     // Extract prompts from parameters.ag_config (legacy transformed format)
     const agConfig = params.ag_config as Record<string, unknown> | undefined
@@ -320,8 +320,13 @@ export function transformApiRevision(apiRevision: ApiRevision): AppRevisionData 
     }
 }
 
-// AG_CONFIG EXTRACTION - using shared utilities from ../../shared/utils/revisionUtils
-// Re-export for backward compatibility
+// REVISION PARAMETER EXTRACTION - using shared utilities from ../../shared/utils/revisionUtils
+export {
+    extractRevisionParametersFromEnhanced,
+    extractRevisionParametersFromApiRevision,
+} from "../../shared"
+
+// Deprecated agConfig extraction aliases
 export {extractAgConfig as extractAgConfigFromEnhanced} from "../../shared"
 export {extractAgConfigFromApiRevision as extractAgConfigFromApi} from "../../shared"
 
