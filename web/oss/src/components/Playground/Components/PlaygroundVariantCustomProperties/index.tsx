@@ -157,7 +157,7 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
 
     // Subscribe directly to schema query to ensure re-render when async data arrives
     // This is the root subscription that triggers downstream atom updates
-    const schemaQuery = useAtomValue(ossAppRevisionSchemaQueryAtomFamily(variantId))
+    useAtomValue(ossAppRevisionSchemaQueryAtomFamily(variantId))
 
     // Derive custom properties from spec + saved params using new selector
     const atomCustomPropertyIds = useAtomValue(customPropertyIdsByRevisionAtomFamily(variantId))

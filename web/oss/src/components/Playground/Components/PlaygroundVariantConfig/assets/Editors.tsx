@@ -1,4 +1,4 @@
-import {useEffect, memo} from "react"
+import {memo} from "react"
 
 import {Spin} from "antd"
 import clsx from "clsx"
@@ -16,7 +16,7 @@ const PlaygroundVariantConfigEditors = ({
     variantId: string
     className?: string
 }) => {
-    const {promptIds, variantExists, debug} = useVariantPrompts(variantId)
+    const {promptIds, variantExists} = useVariantPrompts(variantId)
 
     if (!variantExists) {
         return (
