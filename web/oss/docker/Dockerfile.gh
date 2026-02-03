@@ -22,7 +22,7 @@ WORKDIR /app
 COPY --from=base ./out/json/ .
 COPY ./.husky /app/.husky
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store yes | pnpm install --frozen-lockfile --filter=@agenta/oss
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store yes | pnpm install --frozen-lockfile --filter=@agenta/oss...
 COPY --from=base /out/full/ .
 
 RUN npx next telemetry disable
