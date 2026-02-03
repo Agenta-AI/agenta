@@ -110,7 +110,10 @@ export const ossAppToVariantRelation: EntityRelation<AppListItem, VariantListIte
 
     // No child molecule for variants (they're intermediate entities)
 
-    childMolecule: undefined as any,
+    childMolecule: undefined as unknown as EntityRelation<
+        AppListItem,
+        VariantListItem
+    >["childMolecule"],
 
     // List atom for selection UI
     listAtomFamily: ossVariantListAtomFamily,
@@ -170,7 +173,10 @@ export const ossVariantToRevisionRelation: EntityRelation<VariantListItem, Revis
 
     // Child molecule for fetching full revision data
 
-    childMolecule: ossAppRevisionMolecule as any,
+    childMolecule: ossAppRevisionMolecule as unknown as EntityRelation<
+        VariantListItem,
+        RevisionListItem
+    >["childMolecule"],
 
     // List atom for selection UI
     listAtomFamily: ossRevisionListAtomFamily,
