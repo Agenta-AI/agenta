@@ -411,7 +411,11 @@ export const moleculeBackedCustomPropertiesAtomFamily = atomFamily((revisionId: 
                     update,
                 )
             } else {
-                set(legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties, revisionId, update)
+                set(
+                    legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties,
+                    revisionId,
+                    update,
+                )
             }
         },
     ),
