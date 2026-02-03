@@ -261,10 +261,7 @@ async def get_evaluator_configs(
                 and simple_evaluator.data.uri
                 and simple_evaluator.data.uri.startswith("user:custom:")
             )
-            or (
-                simple_evaluator.flags
-                and simple_evaluator.flags.is_human
-            )
+            or (simple_evaluator.flags and simple_evaluator.flags.is_human)
         )
     ]
 

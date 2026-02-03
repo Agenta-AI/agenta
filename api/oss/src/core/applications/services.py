@@ -1044,8 +1044,12 @@ class SimpleApplicationsService:
                 if simple_application_edit.flags
                 else application.flags
             ),
-            meta=simple_application_edit.meta if simple_application_edit.meta is not None else application.meta,
-            tags=simple_application_edit.tags if simple_application_edit.tags is not None else application.tags,
+            meta=simple_application_edit.meta
+            if simple_application_edit.meta is not None
+            else application.meta,
+            tags=simple_application_edit.tags
+            if simple_application_edit.tags is not None
+            else application.tags,
         )
 
         application = await self.applications_service.edit_application(

@@ -290,7 +290,9 @@ class LegacyApplicationsAdapter:
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = f"{application.slug}.{variant_name}" if application else variant_name
+        compound_slug = (
+            f"{application.slug}.{variant_name}" if application else variant_name
+        )
 
         # Create a new variant
         variant_create = ApplicationVariantCreate(
@@ -463,7 +465,9 @@ class LegacyApplicationsAdapter:
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = f"{application.slug}.{variant_name}" if application else variant_name
+        compound_slug = (
+            f"{application.slug}.{variant_name}" if application else variant_name
+        )
 
         # Create a new variant
         variant_create = ApplicationVariantCreate(
@@ -927,7 +931,9 @@ class LegacyApplicationsAdapter:
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = f"{application.slug}.{variant_name}" if application else variant_name
+        compound_slug = (
+            f"{application.slug}.{variant_name}" if application else variant_name
+        )
 
         # Create a new variant under the app
         variant_create = ApplicationVariantCreate(
