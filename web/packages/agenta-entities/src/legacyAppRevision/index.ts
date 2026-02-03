@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Entity Module
+ * LegacyAppRevision Entity Module
  *
  * Complete OSS app revision entity management with:
  * - Zod schemas for validation
@@ -13,24 +13,24 @@
  *
  * @example
  * ```typescript
- * import { ossAppRevisionMolecule, type OssAppRevisionData } from '@agenta/entities/ossAppRevision'
+ * import { legacyAppRevisionMolecule, type LegacyAppRevisionData } from '@agenta/entities/legacyAppRevision'
  *
  * // Reactive atoms (for useAtomValue, atom compositions)
- * const data = useAtomValue(ossAppRevisionMolecule.atoms.data(revisionId))
- * const isDirty = useAtomValue(ossAppRevisionMolecule.atoms.isDirty(revisionId))
- * const schema = useAtomValue(ossAppRevisionMolecule.atoms.agConfigSchema(revisionId))
+ * const data = useAtomValue(legacyAppRevisionMolecule.atoms.data(revisionId))
+ * const isDirty = useAtomValue(legacyAppRevisionMolecule.atoms.isDirty(revisionId))
+ * const schema = useAtomValue(legacyAppRevisionMolecule.atoms.agConfigSchema(revisionId))
  *
  * // Runnable capability atoms
- * const inputPorts = useAtomValue(ossAppRevisionMolecule.selectors.inputPorts(revisionId))
- * const outputPorts = useAtomValue(ossAppRevisionMolecule.selectors.outputPorts(revisionId))
+ * const inputPorts = useAtomValue(legacyAppRevisionMolecule.selectors.inputPorts(revisionId))
+ * const outputPorts = useAtomValue(legacyAppRevisionMolecule.selectors.outputPorts(revisionId))
  *
  * // Write atoms (for use in other atoms with set())
- * set(ossAppRevisionMolecule.actions.update, revisionId, { parameters: newParams })
- * set(ossAppRevisionMolecule.actions.discard, revisionId)
+ * set(legacyAppRevisionMolecule.actions.update, revisionId, { parameters: newParams })
+ * set(legacyAppRevisionMolecule.actions.discard, revisionId)
  *
  * // Imperative API (for callbacks outside React/atom context)
- * const data = ossAppRevisionMolecule.get.data(revisionId)
- * ossAppRevisionMolecule.set.update(revisionId, { parameters: newParams })
+ * const data = legacyAppRevisionMolecule.get.data(revisionId)
+ * legacyAppRevisionMolecule.set.update(revisionId, { parameters: newParams })
  * ```
  */
 
@@ -43,10 +43,10 @@ export {
     executionModeSchema,
     configDBSchema,
     apiAppVariantRevisionSchema,
-    ossAppRevisionDataSchema,
+    legacyAppRevisionDataSchema,
     // Parse utilities
-    parseOssAppRevision,
-    createEmptyOssAppRevision,
+    parseLegacyAppRevision,
+    createEmptyLegacyAppRevision,
     createEmptySchemaState,
 } from "./core"
 
@@ -57,15 +57,15 @@ export type {
     ConfigDB,
     ApiAppVariantRevision,
     // Data types
-    OssAppRevisionData,
+    LegacyAppRevisionData,
     EndpointSchema,
     RevisionSchemaState,
     // Selection types
-    OssAppRevisionSelectionResult,
+    LegacyAppRevisionSelectionResult,
     // API params
-    OssAppRevisionDetailParams,
-    OssAppRevisionBatchParams,
-    OssAppRevisionListParams,
+    LegacyAppRevisionDetailParams,
+    LegacyAppRevisionBatchParams,
+    LegacyAppRevisionListParams,
     // Re-exports
     EntitySchema,
     EntitySchemaProperty,
@@ -76,10 +76,10 @@ export type {
 // ============================================================================
 
 export {
-    createLocalOssAppRevision,
+    createLocalLegacyAppRevision,
     cloneAsLocalDraft,
-    type CreateLocalOssAppRevisionParams,
-    type LocalOssAppRevision,
+    type CreateLocalLegacyAppRevisionParams,
+    type LocalLegacyAppRevision,
 } from "./core/factory"
 
 // ============================================================================
@@ -91,7 +91,7 @@ export {
     ossAppToVariantRelation,
     ossVariantToRevisionRelation,
     // Registration function
-    registerOssAppRevisionRelations,
+    registerLegacyAppRevisionRelations,
     // Root-level atom
     ossAppsListAtom,
     // Types
@@ -146,40 +146,40 @@ export {
 // ============================================================================
 
 export {
-    ossAppRevisionMolecule,
-    ossAppRevisionSelectionConfig,
+    legacyAppRevisionMolecule,
+    legacyAppRevisionSelectionConfig,
     // Controller hook and types
-    useOssAppRevisionController,
-    type OssAppRevisionControllerState,
-    type OssAppRevisionControllerDispatch,
-    type OssAppRevisionControllerResult,
-    type OssAppRevisionMolecule,
-    type OssAppRevisionSelectionConfig,
+    useLegacyAppRevisionController,
+    type LegacyAppRevisionControllerState,
+    type LegacyAppRevisionControllerDispatch,
+    type LegacyAppRevisionControllerResult,
+    type LegacyAppRevisionMolecule,
+    type LegacyAppRevisionSelectionConfig,
 } from "./state"
 
 // Re-export store atoms for direct access if needed
 export {
     // Query atoms
-    ossAppRevisionQueryAtomFamily,
-    ossAppRevisionDraftAtomFamily,
-    ossAppRevisionEntityAtomFamily,
-    ossAppRevisionIsDirtyAtomFamily,
-    ossAppRevisionInputPortsAtomFamily,
-    type OssAppRevisionInputPort,
+    legacyAppRevisionQueryAtomFamily,
+    legacyAppRevisionDraftAtomFamily,
+    legacyAppRevisionEntityAtomFamily,
+    legacyAppRevisionIsDirtyAtomFamily,
+    legacyAppRevisionInputPortsAtomFamily,
+    type LegacyAppRevisionInputPort,
     // Enriched query atoms (with URI from variant)
     enrichedQueryAtomFamily,
     variantDetailCacheAtomFamily,
     revisionVariantContextAtomFamily,
     setRevisionVariantContextAtom,
-    ossAppRevisionEnrichedDataFamily,
+    legacyAppRevisionEnrichedDataFamily,
     createEnrichedKey,
     type EnrichedQueryKey,
     // Entity atoms with enrichment support
-    ossAppRevisionEntityWithBridgeAtomFamily,
-    ossAppRevisionServerDataSelectorFamily,
-    ossAppRevisionIsDirtyWithBridgeAtomFamily,
+    legacyAppRevisionEntityWithBridgeAtomFamily,
+    legacyAppRevisionServerDataSelectorFamily,
+    legacyAppRevisionIsDirtyWithBridgeAtomFamily,
     // Legacy atoms (deprecated - use enriched query pattern)
-    ossAppRevisionServerDataAtomFamily,
+    legacyAppRevisionServerDataAtomFamily,
     // List atoms
     appsListAtom,
     variantsListAtomFamily,
@@ -196,8 +196,8 @@ export {
     type VariantListItemWithDrafts,
     type RevisionListItemWithDrafts,
     // Mutations
-    updateOssAppRevisionAtom,
-    discardOssAppRevisionDraftAtom,
+    updateLegacyAppRevisionAtom,
+    discardLegacyAppRevisionDraftAtom,
     // Server data management
     setServerDataAtom,
     clearServerDataAtom,
@@ -215,7 +215,7 @@ export {
 
 // Re-export schema atoms
 export {
-    ossAppRevisionSchemaQueryAtomFamily,
+    legacyAppRevisionSchemaQueryAtomFamily,
     revisionOpenApiSchemaAtomFamily,
     revisionAgConfigSchemaAtomFamily,
     revisionPromptSchemaAtomFamily,
@@ -261,8 +261,8 @@ export {
     runnableReducers,
     runnableGet,
     runnableSet,
-    ossAppRevisionRunnableExtension,
-    type OssAppRevisionOutputPort,
+    legacyAppRevisionRunnableExtension,
+    type LegacyAppRevisionOutputPort,
 } from "./state"
 
 // ============================================================================

@@ -1,9 +1,9 @@
 /**
- * OssAppRevision Entity Relations
+ * LegacyAppRevision Entity Relations
  *
  * Defines the parent-child relationships for OSS app revision entities:
  * - app → variant
- * - variant → ossAppRevision
+ * - variant → legacyAppRevision
  *
  * These relations enable:
  * - Selection adapter generation (EntityPicker)
@@ -14,12 +14,12 @@
  *
  * @example
  * ```typescript
- * import { ossAppToVariantRelation, ossVariantToRevisionRelation } from '@agenta/entities/ossAppRevision'
+ * import { ossAppToVariantRelation, ossVariantToRevisionRelation } from '@agenta/entities/legacyAppRevision'
  * import { entityRelationRegistry } from '@agenta/entities/shared'
  *
  * // Relations are auto-registered when this module is imported
- * const path = entityRelationRegistry.getPath("app", "ossAppRevision")
- * // Returns: ["app", "variant", "ossAppRevision"]
+ * const path = entityRelationRegistry.getPath("app", "legacyAppRevision")
+ * // Returns: ["app", "variant", "legacyAppRevision"]
  * ```
  */
 
@@ -28,7 +28,7 @@ import {atom} from "jotai"
 import type {EntityRelation, ListQueryState} from "../shared/molecule/types"
 import {entityRelationRegistry} from "../shared/relations/registry"
 
-import {ossAppRevisionMolecule} from "./state/molecule"
+import {legacyAppRevisionMolecule} from "./state/molecule"
 import {
     appsQueryAtom,
     variantsQueryAtomFamily,
@@ -154,13 +154,13 @@ const ossRevisionListAtomFamily = (variantId: string) =>
  * Each variant can have multiple revisions (version history).
  * This is the leaf level of the app → variant → revision hierarchy.
  *
- * Note: Type assertion needed because molecule data type (OssAppRevisionData)
+ * Note: Type assertion needed because molecule data type (LegacyAppRevisionData)
  * differs from list item type (RevisionListItem).
  */
 export const ossVariantToRevisionRelation: EntityRelation<VariantListItem, RevisionListItem> = {
     name: "ossRevisions",
     parentType: "ossVariant",
-    childType: "ossAppRevision",
+    childType: "legacyAppRevision",
 
     // Variants don't embed revision IDs - they're fetched via API
     childIdsPath: () => [],
@@ -173,7 +173,7 @@ export const ossVariantToRevisionRelation: EntityRelation<VariantListItem, Revis
 
     // Child molecule for fetching full revision data
 
-    childMolecule: ossAppRevisionMolecule as unknown as EntityRelation<
+    childMolecule: legacyAppRevisionMolecule as unknown as EntityRelation<
         VariantListItem,
         RevisionListItem
     >["childMolecule"],
@@ -200,13 +200,13 @@ export const ossVariantToRevisionRelation: EntityRelation<VariantListItem, Revis
  * Register all OSS app revision relations.
  * Called automatically when this module is imported.
  */
-export function registerOssAppRevisionRelations(): void {
+export function registerLegacyAppRevisionRelations(): void {
     entityRelationRegistry.register(ossAppToVariantRelation)
     entityRelationRegistry.register(ossVariantToRevisionRelation)
 }
 
 // Auto-register on import
-registerOssAppRevisionRelations()
+registerLegacyAppRevisionRelations()
 
 // ============================================================================
 // EXPORTS FOR SELECTION ADAPTERS

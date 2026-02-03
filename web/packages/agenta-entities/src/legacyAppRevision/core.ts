@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Core Types and Schemas
+ * LegacyAppRevision Core Types and Schemas
  *
  * Core type definitions and Zod schemas for OSS app revision entities.
  * This module uses the legacy backend API (AppVariantRevision model).
@@ -61,12 +61,12 @@ export type ApiAppVariantRevision = z.infer<typeof apiAppVariantRevisionSchema>
 // ============================================================================
 
 /**
- * OssAppRevisionData - frontend representation of legacy app revision
+ * LegacyAppRevisionData - frontend representation of legacy app revision
  *
  * This is the normalized frontend data model for legacy app revisions.
  * It's derived from the backend AppVariantRevision model.
  */
-export const ossAppRevisionDataSchema = z.object({
+export const legacyAppRevisionDataSchema = z.object({
     // Identifier fields
     id: z.string(),
     variantId: z.string().optional(),
@@ -122,7 +122,7 @@ export const ossAppRevisionDataSchema = z.object({
     /** Enhanced custom properties derived from parameters + schema */
     enhancedCustomProperties: z.record(z.string(), z.unknown()).optional(),
 })
-export type OssAppRevisionData = z.infer<typeof ossAppRevisionDataSchema>
+export type LegacyAppRevisionData = z.infer<typeof legacyAppRevisionDataSchema>
 
 // ============================================================================
 // ENDPOINT SCHEMA
@@ -194,8 +194,8 @@ export interface RevisionSchemaState {
 // SELECTION RESULT
 // ============================================================================
 
-export interface OssAppRevisionSelectionResult {
-    type: "ossAppRevision"
+export interface LegacyAppRevisionSelectionResult {
+    type: "legacyAppRevision"
     id: string
     label: string
     path: {id: string; label: string; type: string}[]
@@ -213,18 +213,18 @@ export interface OssAppRevisionSelectionResult {
 // API PARAMS
 // ============================================================================
 
-export interface OssAppRevisionDetailParams {
+export interface LegacyAppRevisionDetailParams {
     variantId: string
     revisionNumber: number
     projectId: string
 }
 
-export interface OssAppRevisionBatchParams {
+export interface LegacyAppRevisionBatchParams {
     revisionIds: string[]
     projectId: string
 }
 
-export interface OssAppRevisionListParams {
+export interface LegacyAppRevisionListParams {
     projectId: string
     appId?: string
     variantId?: string
@@ -237,15 +237,15 @@ export interface OssAppRevisionListParams {
 /**
  * Parse and validate OSS app revision data
  */
-export function parseOssAppRevision(data: unknown): OssAppRevisionData | null {
-    const result = ossAppRevisionDataSchema.safeParse(data)
+export function parseLegacyAppRevision(data: unknown): LegacyAppRevisionData | null {
+    const result = legacyAppRevisionDataSchema.safeParse(data)
     return result.success ? result.data : null
 }
 
 /**
  * Create an empty OSS app revision
  */
-export function createEmptyOssAppRevision(id: string): OssAppRevisionData {
+export function createEmptyLegacyAppRevision(id: string): LegacyAppRevisionData {
     return {
         id,
         revision: 1,

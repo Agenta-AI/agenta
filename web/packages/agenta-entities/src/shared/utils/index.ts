@@ -149,7 +149,7 @@ export {
     getRevisionLabelInfo,
 } from "./revisionLabel"
 
-// Revision utilities (shared between appRevision and ossAppRevision)
+// Revision utilities (shared between appRevision and legacyAppRevision)
 export {
     // Type guards
     isArray,
@@ -161,8 +161,12 @@ export {
     parseRevisionUri,
     extractRuntimePrefix,
     extractRoutePath,
-    // agConfig extraction
+    // Revision parameter extraction
     type RawAgConfig,
+    extractRevisionParameters,
+    extractRevisionParametersFromEnhanced,
+    extractRevisionParametersFromApiRevision,
+    // Deprecated agConfig aliases
     extractAgConfig,
     extractAgConfigFromEnhanced,
     extractAgConfigFromApiRevision,

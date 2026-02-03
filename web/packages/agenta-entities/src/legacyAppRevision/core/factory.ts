@@ -1,15 +1,15 @@
 /**
- * OssAppRevision Factory
+ * LegacyAppRevision Factory
  *
  * Factory functions for creating local draft revisions.
  * Used for "Copy as Draft", "New Variant", and "Fork" workflows.
  *
  * @example
  * ```typescript
- * import { createLocalOssAppRevision } from '@agenta/entities/ossAppRevision'
+ * import { createLocalLegacyAppRevision } from '@agenta/entities/legacyAppRevision'
  *
  * // Create a new local draft from an existing revision
- * const { id, data } = createLocalOssAppRevision({
+ * const { id, data } = createLocalLegacyAppRevision({
  *   variantId: 'variant-123',
  *   variantName: 'My Draft',
  *   sourceRevision: 5,
@@ -17,12 +17,12 @@
  * })
  *
  * // Initialize in store
- * ossAppRevisionMolecule.set.serverData(id, data)
+ * legacyAppRevisionMolecule.set.serverData(id, data)
  * ```
  */
 
 import {generateLocalId} from "../../shared/utils/helpers"
-import type {OssAppRevisionData} from "../core"
+import type {LegacyAppRevisionData} from "../core"
 
 // ============================================================================
 // TYPES
@@ -31,7 +31,7 @@ import type {OssAppRevisionData} from "../core"
 /**
  * Parameters for creating a local OSS app revision draft
  */
-export interface CreateLocalOssAppRevisionParams {
+export interface CreateLocalLegacyAppRevisionParams {
     /** The variant ID this draft belongs to */
     variantId: string
     /** Display name for the variant */
@@ -51,11 +51,11 @@ export interface CreateLocalOssAppRevisionParams {
 /**
  * Result of creating a local OSS app revision
  */
-export interface LocalOssAppRevision {
+export interface LocalLegacyAppRevision {
     /** Generated local draft ID */
     id: string
     /** The revision data */
-    data: OssAppRevisionData
+    data: LegacyAppRevisionData
 }
 
 // ============================================================================
@@ -79,8 +79,8 @@ export interface LocalOssAppRevision {
  * @example
  * ```typescript
  * // Copy existing revision as draft
- * const existingData = ossAppRevisionMolecule.get.data(existingId)
- * const { id, data } = createLocalOssAppRevision({
+ * const existingData = legacyAppRevisionMolecule.get.data(existingId)
+ * const { id, data } = createLocalLegacyAppRevision({
  *   variantId: existingData.variantId,
  *   variantName: `${existingData.variantName} (Copy)`,
  *   sourceRevision: existingData.revision,
@@ -89,15 +89,15 @@ export interface LocalOssAppRevision {
  * })
  *
  * // Create empty new variant
- * const { id, data } = createLocalOssAppRevision({
+ * const { id, data } = createLocalLegacyAppRevision({
  *   variantId: 'new-variant-id',
  *   variantName: 'New Variant',
  * })
  * ```
  */
-export function createLocalOssAppRevision(
-    params: CreateLocalOssAppRevisionParams,
-): LocalOssAppRevision {
+export function createLocalLegacyAppRevision(
+    params: CreateLocalLegacyAppRevisionParams,
+): LocalLegacyAppRevision {
     const {
         variantId,
         variantName = "New Variant",
@@ -112,7 +112,7 @@ export function createLocalOssAppRevision(
     // Format: "local-{timestamp}-{random}" which is recognized by isLocalDraftId()
     const id = generateLocalId("local")
 
-    const data: OssAppRevisionData = {
+    const data: LegacyAppRevisionData = {
         // Core identity
         id,
         variantId,
@@ -138,7 +138,7 @@ export function createLocalOssAppRevision(
 /**
  * Create a local draft by cloning an existing revision.
  *
- * Convenience wrapper around `createLocalOssAppRevision` that takes
+ * Convenience wrapper around `createLocalLegacyAppRevision` that takes
  * an existing revision and creates a copy with optional overrides.
  *
  * @param source - The source revision data to clone
@@ -147,22 +147,22 @@ export function createLocalOssAppRevision(
  *
  * @example
  * ```typescript
- * const source = ossAppRevisionMolecule.get.data(revisionId)
+ * const source = legacyAppRevisionMolecule.get.data(revisionId)
  * const { id, data } = cloneAsLocalDraft(source, {
  *   variantName: `${source.variantName} (Copy)`,
  * })
  * ```
  */
 export function cloneAsLocalDraft(
-    source: OssAppRevisionData,
-    overrides?: Partial<CreateLocalOssAppRevisionParams>,
-): LocalOssAppRevision {
+    source: LegacyAppRevisionData,
+    overrides?: Partial<CreateLocalLegacyAppRevisionParams>,
+): LocalLegacyAppRevision {
     const variantId = overrides?.variantId ?? source.variantId
     if (!variantId) {
         throw new Error("Cannot clone revision: variantId is required")
     }
 
-    return createLocalOssAppRevision({
+    return createLocalLegacyAppRevision({
         variantId,
         variantName: overrides?.variantName ?? `${source.variantName ?? "Variant"} (Copy)`,
         sourceRevision: source.revision,

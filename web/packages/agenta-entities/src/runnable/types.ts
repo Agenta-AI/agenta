@@ -13,7 +13,7 @@
  */
 export type EntityType =
     | "appRevision"
-    | "ossAppRevision"
+    | "legacyAppRevision"
     | "evaluatorRevision"
     | "testcase"
     | "span"
@@ -21,7 +21,7 @@ export type EntityType =
 /**
  * Types of runnables (entities that can be executed)
  */
-export type RunnableType = "appRevision" | "ossAppRevision" | "evaluatorRevision"
+export type RunnableType = "appRevision" | "legacyAppRevision" | "evaluatorRevision"
 
 /**
  * Entity selection result from the entity selector modal
