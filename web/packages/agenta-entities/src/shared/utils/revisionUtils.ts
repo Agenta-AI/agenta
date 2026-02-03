@@ -4,7 +4,7 @@
  * Common utilities for app revision entities (appRevision, ossAppRevision).
  * Provides:
  * - URI parsing and runtime info extraction
- * - agConfig extraction from various data formats
+ * - revision parameter extraction from various data formats
  * - Type guards for safe data handling
  * - Common list item types
  *
@@ -106,24 +106,24 @@ export function extractRoutePath(uri: string | undefined | null): string | undef
 }
 
 // ============================================================================
-// AG_CONFIG EXTRACTION
+// REVISION PARAMETER EXTRACTION
 // ============================================================================
 
 /**
- * Raw ag_config type (schema-driven approach)
+ * Raw parameters config type (schema-driven approach)
  */
 export type RawAgConfig = Record<string, unknown>
 
 /**
- * Extract raw ag_config from parameters object
+ * Extract raw parameters from revision parameters object
  *
- * The `parameters` field IS the ag_config - it's not nested inside ag_config.
+ * The `parameters` field is the configuration payload (not nested inside ag_config).
  * Structure: parameters = { prompt: {...}, llm_config: {...}, ... }
  *
  * @param parameters - The parameters object from revision data
- * @returns The ag_config object
+ * @returns The parameters object
  */
-export function extractAgConfig(
+export function extractRevisionParameters(
     parameters: Record<string, unknown> | undefined | null,
 ): RawAgConfig {
     if (parameters && typeof parameters === "object" && Object.keys(parameters).length > 0) {
@@ -133,10 +133,33 @@ export function extractAgConfig(
 }
 
 /**
- * Extract ag_config from enhanced variant data (cache redirect path)
+ * @deprecated Use extractRevisionParameters instead.
+ */
+export function extractAgConfig(
+    parameters: Record<string, unknown> | undefined | null,
+): RawAgConfig {
+    return extractRevisionParameters(parameters)
+}
+
+/**
+ * Extract revision parameters from enhanced variant data (cache redirect path)
  *
  * @param enhanced - Enhanced variant-like object with parameters
- * @returns The ag_config object
+ * @returns The parameters object
+ */
+export function extractRevisionParametersFromEnhanced(
+    enhanced:
+        | {
+              parameters?: Record<string, unknown>
+          }
+        | null
+        | undefined,
+): RawAgConfig {
+    return extractRevisionParameters(enhanced?.parameters)
+}
+
+/**
+ * @deprecated Use extractRevisionParametersFromEnhanced instead.
  */
 export function extractAgConfigFromEnhanced(
     enhanced:
@@ -146,19 +169,19 @@ export function extractAgConfigFromEnhanced(
         | null
         | undefined,
 ): RawAgConfig {
-    return extractAgConfig(enhanced?.parameters)
+    return extractRevisionParametersFromEnhanced(enhanced)
 }
 
 /**
- * Extract ag_config from API revision response
+ * Extract revision parameters from API revision response
  *
  * API response structure: revision.config.parameters = { prompt: {...}, ... }
- * The `parameters` field IS the ag_config directly.
+ * The `parameters` field is the config payload directly.
  *
  * @param apiRevision - API revision response with config.parameters
- * @returns The ag_config object
+ * @returns The parameters object
  */
-export function extractAgConfigFromApiRevision(
+export function extractRevisionParametersFromApiRevision(
     apiRevision:
         | {
               config?: {
@@ -176,6 +199,23 @@ export function extractAgConfigFromApiRevision(
     const configParams = apiRevision.config?.parameters
 
     return directParams || configParams || {}
+}
+
+/**
+ * @deprecated Use extractRevisionParametersFromApiRevision instead.
+ */
+export function extractAgConfigFromApiRevision(
+    apiRevision:
+        | {
+              config?: {
+                  parameters?: Record<string, unknown>
+              }
+              parameters?: Record<string, unknown>
+          }
+        | null
+        | undefined,
+): RawAgConfig {
+    return extractRevisionParametersFromApiRevision(apiRevision)
 }
 
 // ============================================================================

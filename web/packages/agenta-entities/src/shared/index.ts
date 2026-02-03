@@ -430,8 +430,12 @@ export {
     parseRevisionUri,
     extractRuntimePrefix,
     extractRoutePath,
-    // agConfig extraction
+    // Revision parameter extraction
     type RawAgConfig,
+    extractRevisionParameters,
+    extractRevisionParametersFromEnhanced,
+    extractRevisionParametersFromApiRevision,
+    // Deprecated agConfig aliases
     extractAgConfig,
     extractAgConfigFromEnhanced,
     extractAgConfigFromApiRevision,
