@@ -46,6 +46,23 @@ export function extractRawValue(enhanced: unknown): unknown {
     return result
 }
 
+const toSnakeCaseKey = (key: string): string =>
+    key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+
+function toSnakeCaseDeep(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(toSnakeCaseDeep)
+    }
+    if (!value || typeof value !== "object") return value
+
+    const result: Record<string, unknown> = {}
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+        const nextKey = key.startsWith("__") ? key : toSnakeCaseKey(key)
+        result[nextKey] = toSnakeCaseDeep(val)
+    }
+    return result
+}
+
 // ============================================================================
 // COMPARISON HELPERS
 // ============================================================================
@@ -113,7 +130,7 @@ export function enhancedPromptsToParameters(
         const name = p.__name as string | undefined
         if (!name) continue
 
-        // Extract ONLY the messages array - this is what users actually edit
+        // Extract the messages array - this is what users actually edit
         const messages = p.messages
         if (messages) {
             const rawMessages = extractRawValue(messages)
@@ -121,6 +138,55 @@ export function enhancedPromptsToParameters(
             result[name] = {
                 ...existingPrompt,
                 messages: rawMessages,
+            }
+        }
+
+        // Extract LLM config changes (model parameters) to enable dirty checks
+        const llmConfig =
+            (p as Record<string, unknown>).llmConfig ?? (p as Record<string, unknown>).llm_config
+        if (llmConfig !== undefined && llmConfig !== null) {
+            const existingPrompt = (result[name] as Record<string, unknown>) || {}
+            const llmConfigKey =
+                "llm_config" in existingPrompt
+                    ? "llm_config"
+                    : "llmConfig" in existingPrompt
+                      ? "llmConfig"
+                      : "llm_config"
+            const rawConfig = extractRawValue(llmConfig)
+            const normalizedConfig =
+                llmConfigKey === "llm_config" ? toSnakeCaseDeep(rawConfig) : rawConfig
+
+            result[name] = {
+                ...existingPrompt,
+                [llmConfigKey]: normalizedConfig,
+            }
+        }
+
+        // Extract prompt template format changes (prompt syntax)
+        const promptNode = (p as Record<string, unknown>).prompt
+        const promptTemplateNode =
+            promptNode && typeof promptNode === "object"
+                ? (promptNode as Record<string, unknown>)
+                : undefined
+        const templateFormatNode =
+            (p as Record<string, unknown>).templateFormat ??
+            (p as Record<string, unknown>).template_format ??
+            promptTemplateNode?.templateFormat ??
+            promptTemplateNode?.template_format
+
+        if (templateFormatNode !== undefined && templateFormatNode !== null) {
+            const existingPrompt = (result[name] as Record<string, unknown>) || {}
+            const templateKey =
+                "template_format" in existingPrompt
+                    ? "template_format"
+                    : "templateFormat" in existingPrompt
+                      ? "templateFormat"
+                      : "template_format"
+            const rawTemplateFormat = extractRawValue(templateFormatNode)
+
+            result[name] = {
+                ...existingPrompt,
+                [templateKey]: rawTemplateFormat,
             }
         }
     }
