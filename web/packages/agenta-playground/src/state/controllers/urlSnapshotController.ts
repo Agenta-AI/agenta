@@ -23,6 +23,7 @@
  * ```
  */
 
+import {snapshotAdapterRegistry} from "@agenta/entities/runnable"
 import {atom} from "jotai"
 
 import {parseSnapshot} from "../../snapshot"
@@ -226,8 +227,23 @@ const buildUrlComponentsAtom = atom(null, (get, set, selectionIds: string[]): Ur
         }
     }
 
+    // Resolve local draft IDs to their source revision IDs for the query param.
+    // Local draft IDs are ephemeral (in-memory only) and won't work when opened in a new tab.
+    // The hash param contains the patch data needed to reconstruct the draft state.
+    const resolvedIds = selectionIds.map((id) => {
+        const runnableType = currentResolver.getType(id)
+        const adapter = snapshotAdapterRegistry.get(runnableType)
+
+        if (adapter && adapter.isLocalDraftId(id)) {
+            const sourceId = adapter.extractSourceId(id)
+            return sourceId ?? id // Fallback to original if extraction fails
+        }
+
+        return id
+    })
+
     return {
-        queryParam: selectionIds.join(","),
+        queryParam: resolvedIds.join(","),
         hashParam: result.hasDrafts && result.encoded ? result.encoded : null,
         ok: true,
     }
