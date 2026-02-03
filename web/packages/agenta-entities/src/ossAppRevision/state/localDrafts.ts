@@ -46,6 +46,84 @@ import {
 } from "./store"
 
 // ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Get the immediate source revision ID from a local draft.
+ * Prioritizes stored data over ID parsing.
+ */
+function getImmediateSourceIdLocal(draftId: string): string | null {
+    if (!isLocalDraftId(draftId)) {
+        return null
+    }
+
+    const store = getDefaultStore()
+
+    // PRIORITY 1: Check stored data for _sourceRevisionId
+    // This is the most reliable source as createLocalDraftFromRevision stores it here
+    const serverData = store.get(ossAppRevisionServerDataAtomFamily(draftId)) as {
+        _sourceRevisionId?: string
+    } | null
+    if (serverData?._sourceRevisionId) {
+        return serverData._sourceRevisionId
+    }
+
+    // PRIORITY 2: Try to extract from the ID format (local-{sourceId}-{timestamp})
+    // BUT only if the extracted ID looks like a UUID (contains hyphens and is not numeric-only)
+    const fromId = extractSourceIdFromDraft(draftId)
+    if (fromId && !isLocalDraftId(fromId) && fromId.includes("-")) {
+        return fromId
+    }
+
+    return null
+}
+
+/**
+ * Recursively resolve a local draft ID to its root server revision ID.
+ * This handles chained local drafts (draft created from another draft).
+ *
+ * @param id - The ID to resolve (can be a local draft or server revision)
+ * @returns The root server revision ID, or the original ID if not a local draft
+ */
+function resolveRootSourceId(id: string): string {
+    // If it's not a local draft, it's already a server revision ID
+    if (!isLocalDraftId(id)) {
+        return id
+    }
+
+    let currentId = id
+    let iterations = 0
+    const maxIterations = 10 // Prevent infinite loops
+
+    while (isLocalDraftId(currentId) && iterations < maxIterations) {
+        const nextSourceId = getImmediateSourceIdLocal(currentId)
+
+        if (!nextSourceId) {
+            // Can't find source, return original ID
+            console.warn("[LocalDrafts] resolveRootSourceId - couldn't find source for:", currentId)
+            return id
+        }
+
+        currentId = nextSourceId
+        iterations++
+    }
+
+    // If we ended up at a local draft, return the original ID
+    if (isLocalDraftId(currentId)) {
+        console.warn(
+            "[LocalDrafts] resolveRootSourceId - ended at local draft after",
+            iterations,
+            "iterations:",
+            currentId,
+        )
+        return id
+    }
+
+    return currentId
+}
+
+// ============================================================================
 // LOCAL DRAFT ID TRACKING
 // ============================================================================
 
@@ -81,6 +159,7 @@ export interface LocalDraftEntry {
  * Derived atom that returns all local drafts with their full data.
  *
  * Useful for displaying in selection dropdowns or draft management UI.
+ * Filters out IDs that no longer have valid data (stale entries).
  */
 export const localDraftsListAtom = atom<LocalDraftEntry[]>((get) => {
     const localIds = get(localDraftIdsAtom)
@@ -99,6 +178,27 @@ export const localDraftsListAtom = atom<LocalDraftEntry[]>((get) => {
         })
         .filter((entry): entry is LocalDraftEntry => entry !== null)
 })
+
+/**
+ * Clean up stale local draft IDs from localStorage.
+ * Call this on app initialization to remove IDs that no longer have valid data.
+ */
+export function cleanupStaleLocalDrafts(): number {
+    const store = getDefaultStore()
+    const localIds = store.get(localDraftIdsAtom)
+
+    const validIds = localIds.filter((id) => {
+        const data = store.get(ossAppRevisionEntityWithBridgeAtomFamily(id))
+        return data !== null
+    })
+
+    const removedCount = localIds.length - validIds.length
+    if (removedCount > 0) {
+        store.set(localDraftIdsAtom, validIds)
+    }
+
+    return removedCount
+}
 
 /**
  * Selector to check if there are any local drafts.
@@ -131,35 +231,51 @@ export const hasUnsavedLocalDraftsAtom = atom<boolean>((get) => {
  * 4. Tracks the draft ID in localDraftIdsAtom
  *
  * @param sourceRevisionId - The ID of the committed revision to clone
- * @returns The new local draft ID
- * @throws Error if source revision data is not found
+ * @returns The new local draft ID, or null if source data is not available
  *
  * @example
  * ```typescript
  * const localId = createLocalDraftFromRevision(revisionId)
- * // localId = "local-1706300000000-abc123"
+ * // localId = "local-1706300000000-abc123" or null if source not ready
  * ```
  */
-export function createLocalDraftFromRevision(sourceRevisionId: string): string {
+export function createLocalDraftFromRevision(sourceRevisionId: string): string | null {
     const store = getDefaultStore()
 
     // Get source data from molecule
     const sourceData = store.get(ossAppRevisionEntityWithBridgeAtomFamily(sourceRevisionId))
 
     if (!sourceData) {
-        throw new Error(`Source revision not found: ${sourceRevisionId}`)
+        return null
     }
+
+    // Check if variantId is available - it's required for cloning
+    // variantId is typically set by useSetRevisionVariantContext after revision data loads
+    if (!sourceData.variantId) {
+        return null
+    }
+
+    // Resolve to root server revision ID if source is a local draft
+    // This ensures _sourceRevisionId always points to a server revision, not another local draft
+    const rootSourceRevisionId = resolveRootSourceId(sourceRevisionId)
+
+    // Get the root source data for the revision number (if different from immediate source)
+    const rootSourceData =
+        rootSourceRevisionId !== sourceRevisionId
+            ? store.get(ossAppRevisionEntityWithBridgeAtomFamily(rootSourceRevisionId))
+            : sourceData
 
     // Create local draft using factory
     const {id: localId, data: draftData} = cloneAsLocalDraftFactory(sourceData, {
         variantName: `${sourceData.variantName ?? "Variant (Draft)"}`,
     })
 
-    // Store the source revision ID in the data for reference
+    // Store the ROOT source revision ID in the data for reference
+    // This ensures snapshot encoding always gets the server revision ID
     const dataWithSource = {
         ...draftData,
-        _sourceRevisionId: sourceRevisionId,
-        _sourceRevision: sourceData.revision,
+        _sourceRevisionId: rootSourceRevisionId,
+        _sourceRevision: rootSourceData?.revision ?? sourceData.revision,
     } as OssAppRevisionData
 
     // Initialize in molecule's serverData (this makes it available via entityAtom)
@@ -231,12 +347,15 @@ export function discardAllLocalDrafts(): number {
  * @example
  * ```typescript
  * const createDraft = useSetAtom(createLocalDraftAtom)
- * const draftId = createDraft(sourceRevisionId)
+ * const draftId = createDraft(sourceRevisionId) // may be null if source not ready
  * ```
  */
-export const createLocalDraftAtom = atom(null, (_get, _set, sourceRevisionId: string): string => {
-    return createLocalDraftFromRevision(sourceRevisionId)
-})
+export const createLocalDraftAtom = atom(
+    null,
+    (_get, _set, sourceRevisionId: string): string | null => {
+        return createLocalDraftFromRevision(sourceRevisionId)
+    },
+)
 
 /**
  * Write atom for discarding a local draft.
