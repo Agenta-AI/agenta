@@ -107,6 +107,9 @@ class LegacyApplicationsAdapter:
                 project_id=project_id,
                 application_id=app.id,
             )
+            # Skip user:custom workflows — SDK-deployed, not legacy apps
+            if uri and uri.startswith("user:custom:"):
+                continue
             apps.append(self._application_to_app(app, uri=uri))
 
         return apps
