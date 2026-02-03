@@ -150,7 +150,7 @@ export {appRevisionMolecule as appRevision} from "./appRevision"
  * const isDirty = useAtomValue(legacyAppRevision.atoms.isDirty(revisionId))
  * ```
  */
-export {ossAppRevisionMolecule as legacyAppRevision} from "./legacyAppRevision"
+export {legacyAppRevisionMolecule as legacyAppRevision} from "./legacyAppRevision"
 
 /**
  * Trace span entity controller.
@@ -196,7 +196,7 @@ export {runnableBridge as runnable} from "./runnable"
 export type {Testcase} from "./testcase"
 export type {Revision, Testset} from "./testset"
 export type {AppRevisionData} from "./appRevision"
-export type {OssAppRevisionData} from "./legacyAppRevision"
+export type {LegacyAppRevisionData} from "./legacyAppRevision"
 export type {TraceSpan} from "./trace"
 
 // Public API interfaces
@@ -219,7 +219,10 @@ export type {
 
 export {testsetSelectionConfig, type TestsetSelectionConfig} from "./testset"
 export {appRevisionSelectionConfig, type AppRevisionSelectionConfig} from "./appRevision"
-export {ossAppRevisionSelectionConfig, type OssAppRevisionSelectionConfig} from "./legacyAppRevision"
+export {
+    legacyAppRevisionSelectionConfig,
+    type LegacyAppRevisionSelectionConfig,
+} from "./legacyAppRevision"
 
 // ============================================================================
 // SUBPATH IMPORTS (Advanced Usage)

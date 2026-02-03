@@ -9,19 +9,19 @@
  *
  * @example
  * ```typescript
- * import { ossAppRevisionMolecule } from '@agenta/entities/legacyAppRevision'
+ * import { legacyAppRevisionMolecule } from '@agenta/entities/legacyAppRevision'
  *
  * // Selectors
- * const data = useAtomValue(ossAppRevisionMolecule.atoms.data(revisionId))
- * const isDirty = useAtomValue(ossAppRevisionMolecule.atoms.isDirty(revisionId))
- * const schema = useAtomValue(ossAppRevisionMolecule.atoms.agConfigSchema(revisionId))
+ * const data = useAtomValue(legacyAppRevisionMolecule.atoms.data(revisionId))
+ * const isDirty = useAtomValue(legacyAppRevisionMolecule.atoms.isDirty(revisionId))
+ * const schema = useAtomValue(legacyAppRevisionMolecule.atoms.agConfigSchema(revisionId))
  *
  * // Actions
- * const update = useSetAtom(ossAppRevisionMolecule.reducers.update)
+ * const update = useSetAtom(legacyAppRevisionMolecule.reducers.update)
  * update(revisionId, { parameters: newParams })
  *
  * // Imperative API
- * ossAppRevisionMolecule.set.update(revisionId, { parameters: newParams })
+ * legacyAppRevisionMolecule.set.update(revisionId, { parameters: newParams })
  * ```
  */
 
@@ -37,12 +37,12 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import type {EntitySchema, EntitySchemaProperty, PathItem, StoreOptions} from "../../shared"
-import type {OssAppRevisionData, RevisionSchemaState, ExecutionMode} from "../core"
+import type {LegacyAppRevisionData, RevisionSchemaState, ExecutionMode} from "../core"
 import {
-    createLocalOssAppRevision,
+    createLocalLegacyAppRevision,
     cloneAsLocalDraft,
-    type CreateLocalOssAppRevisionParams,
-    type LocalOssAppRevision,
+    type CreateLocalLegacyAppRevisionParams,
+    type LocalLegacyAppRevision,
 } from "../core/factory"
 
 import {
@@ -57,11 +57,11 @@ import {
     runnableReducers,
     runnableGet,
     runnableSet,
-    type OssAppRevisionOutputPort,
+    type LegacyAppRevisionOutputPort,
 } from "./runnableSetup"
 import {
     // Schema selectors
-    ossAppRevisionSchemaQueryAtomFamily,
+    legacyAppRevisionSchemaQueryAtomFamily,
     revisionAgConfigSchemaAtomFamily,
     revisionPromptSchemaAtomFamily,
     revisionCustomPropertiesSchemaAtomFamily,
@@ -74,15 +74,15 @@ import {
 } from "./schemaAtoms"
 import {
     // Store atoms
-    ossAppRevisionQueryAtomFamily,
-    ossAppRevisionDraftAtomFamily,
-    ossAppRevisionInputPortsAtomFamily,
-    type OssAppRevisionInputPort,
+    legacyAppRevisionQueryAtomFamily,
+    legacyAppRevisionDraftAtomFamily,
+    legacyAppRevisionInputPortsAtomFamily,
+    type LegacyAppRevisionInputPort,
     // Bridge-aware atoms
-    ossAppRevisionServerDataAtomFamily,
-    ossAppRevisionEntityWithBridgeAtomFamily,
-    ossAppRevisionServerDataSelectorFamily,
-    ossAppRevisionIsDirtyWithBridgeAtomFamily,
+    legacyAppRevisionServerDataAtomFamily,
+    legacyAppRevisionEntityWithBridgeAtomFamily,
+    legacyAppRevisionServerDataSelectorFamily,
+    legacyAppRevisionIsDirtyWithBridgeAtomFamily,
     // List atoms
     appsListAtom,
     variantsListAtomFamily,
@@ -95,8 +95,8 @@ import {
     variantsQueryAtomFamily,
     revisionsQueryAtomFamily,
     // Mutations
-    updateOssAppRevisionAtom,
-    discardOssAppRevisionDraftAtom,
+    updateLegacyAppRevisionAtom,
+    discardLegacyAppRevisionDraftAtom,
     // Server data management
     setServerDataAtom,
     clearServerDataAtom,
@@ -123,7 +123,7 @@ function getStore(options?: StoreOptions) {
 /**
  * Get value at path from OSS app revision data
  */
-function getValueAtPath(data: OssAppRevisionData | null, path: DataPath): unknown {
+function getValueAtPath(data: LegacyAppRevisionData | null, path: DataPath): unknown {
     if (!data) return undefined
     // For legacyAppRevision, we navigate into parameters
     if (data.parameters && Object.keys(data.parameters).length > 0) {
@@ -136,7 +136,7 @@ function getValueAtPath(data: OssAppRevisionData | null, path: DataPath): unknow
  * Get root items for navigation.
  * Uses parameters for schema-driven approach.
  */
-function getRootItems(data: OssAppRevisionData | null): PathItem[] {
+function getRootItems(data: LegacyAppRevisionData | null): PathItem[] {
     if (!data) return []
 
     // Schema-driven mode: use parameters directly
@@ -155,10 +155,10 @@ function getRootItems(data: OssAppRevisionData | null): PathItem[] {
  * Convert path-based changes to draft format.
  */
 function getChangesFromPath(
-    data: OssAppRevisionData | null,
+    data: LegacyAppRevisionData | null,
     path: DataPath,
     value: unknown,
-): Partial<OssAppRevisionData> | null {
+): Partial<LegacyAppRevisionData> | null {
     if (!data || path.length === 0) return null
 
     // If using parameters mode
@@ -189,11 +189,11 @@ function formatKeyAsName(key: string): string {
 /**
  * State returned by useController hook for legacyAppRevision
  */
-export interface OssAppRevisionControllerState {
+export interface LegacyAppRevisionControllerState {
     /** Merged entity data (draft or server) */
-    data: OssAppRevisionData | null
+    data: LegacyAppRevisionData | null
     /** Server data (from query or bridge) */
-    serverData: OssAppRevisionData | null
+    serverData: LegacyAppRevisionData | null
     /** Whether the entity has local changes */
     isDirty: boolean
     /** Whether the query is loading */
@@ -207,9 +207,9 @@ export interface OssAppRevisionControllerState {
 /**
  * Dispatch methods returned by useController hook for legacyAppRevision
  */
-export interface OssAppRevisionControllerDispatch {
+export interface LegacyAppRevisionControllerDispatch {
     /** Update entity draft with partial changes */
-    update: (changes: Partial<OssAppRevisionData>) => void
+    update: (changes: Partial<LegacyAppRevisionData>) => void
     /** Discard local draft changes */
     discard: () => void
     /** Set enhanced prompts */
@@ -227,9 +227,9 @@ export interface OssAppRevisionControllerDispatch {
 /**
  * Return type of useController hook
  */
-export type OssAppRevisionControllerResult = [
-    OssAppRevisionControllerState,
-    OssAppRevisionControllerDispatch,
+export type LegacyAppRevisionControllerResult = [
+    LegacyAppRevisionControllerState,
+    LegacyAppRevisionControllerDispatch,
 ]
 
 // ============================================================================
@@ -245,7 +245,7 @@ export type OssAppRevisionControllerResult = [
  * @example
  * ```typescript
  * function VariantConfig({ revisionId }: { revisionId: string }) {
- *   const [state, dispatch] = useOssAppRevisionController(revisionId)
+ *   const [state, dispatch] = useLegacyAppRevisionController(revisionId)
  *
  *   if (state.isPending) return <Skeleton />
  *   if (!state.data) return <NotFound />
@@ -264,16 +264,18 @@ export type OssAppRevisionControllerResult = [
  * }
  * ```
  */
-export function useOssAppRevisionController(revisionId: string): OssAppRevisionControllerResult {
+export function useLegacyAppRevisionController(
+    revisionId: string,
+): LegacyAppRevisionControllerResult {
     // Read state atoms
-    const data = useAtomValue(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
-    const serverData = useAtomValue(ossAppRevisionServerDataSelectorFamily(revisionId))
-    const query = useAtomValue(ossAppRevisionQueryAtomFamily(revisionId))
-    const isDirty = useAtomValue(ossAppRevisionIsDirtyWithBridgeAtomFamily(revisionId))
+    const data = useAtomValue(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
+    const serverData = useAtomValue(legacyAppRevisionServerDataSelectorFamily(revisionId))
+    const query = useAtomValue(legacyAppRevisionQueryAtomFamily(revisionId))
+    const isDirty = useAtomValue(legacyAppRevisionIsDirtyWithBridgeAtomFamily(revisionId))
 
     // Get dispatch setters
-    const setUpdate = useSetAtom(updateOssAppRevisionAtom)
-    const setDiscard = useSetAtom(discardOssAppRevisionDraftAtom)
+    const setUpdate = useSetAtom(updateLegacyAppRevisionAtom)
+    const setDiscard = useSetAtom(discardLegacyAppRevisionDraftAtom)
     const setEnhancedPromptsAtomSetter = useSetAtom(setEnhancedPromptsAtom)
     const setEnhancedCustomPropertiesAtomSetter = useSetAtom(setEnhancedCustomPropertiesAtom)
     const setUpdatePropertyAtomSetter = useSetAtom(updatePropertyAtom)
@@ -281,7 +283,7 @@ export function useOssAppRevisionController(revisionId: string): OssAppRevisionC
     const setExecutionModeAtom = useSetAtom(runnableReducers.setExecutionMode)
 
     // Build state object
-    const state: OssAppRevisionControllerState = {
+    const state: LegacyAppRevisionControllerState = {
         data,
         serverData,
         isDirty,
@@ -291,9 +293,9 @@ export function useOssAppRevisionController(revisionId: string): OssAppRevisionC
     }
 
     // Build dispatch object with memoized callbacks
-    const dispatch: OssAppRevisionControllerDispatch = useMemo(
+    const dispatch: LegacyAppRevisionControllerDispatch = useMemo(
         () => ({
-            update: (changes: Partial<OssAppRevisionData>) => setUpdate(revisionId, changes),
+            update: (changes: Partial<LegacyAppRevisionData>) => setUpdate(revisionId, changes),
             discard: () => setDiscard(revisionId),
             setEnhancedPrompts: (prompts: unknown[]) =>
                 setEnhancedPromptsAtomSetter(revisionId, prompts),
@@ -329,7 +331,7 @@ export function useOssAppRevisionController(revisionId: string): OssAppRevisionC
  *
  * This molecule uses the legacy backend API (AppVariantRevision model).
  */
-export const ossAppRevisionMolecule = {
+export const legacyAppRevisionMolecule = {
     /** Entity name */
     name: "legacyAppRevision" as const,
 
@@ -339,19 +341,19 @@ export const ossAppRevisionMolecule = {
     atoms: {
         // Entity atoms
         /** Query atom (server data) */
-        query: ossAppRevisionQueryAtomFamily,
+        query: legacyAppRevisionQueryAtomFamily,
         /** Draft atom (local edits) */
-        draft: ossAppRevisionDraftAtomFamily,
+        draft: legacyAppRevisionDraftAtomFamily,
         /** Entity atom (merged data) - bridge-aware, prefers synced data */
-        data: ossAppRevisionEntityWithBridgeAtomFamily,
+        data: legacyAppRevisionEntityWithBridgeAtomFamily,
         /** Dirty state - bridge-aware */
-        isDirty: ossAppRevisionIsDirtyWithBridgeAtomFamily,
+        isDirty: legacyAppRevisionIsDirtyWithBridgeAtomFamily,
         /** Input ports derived from parameters template */
-        inputPorts: ossAppRevisionInputPortsAtomFamily,
+        inputPorts: legacyAppRevisionInputPortsAtomFamily,
         /** Server data (bridge or query) */
-        serverData: ossAppRevisionServerDataSelectorFamily,
+        serverData: legacyAppRevisionServerDataSelectorFamily,
         /** Raw server data from bridge */
-        bridgeServerData: ossAppRevisionServerDataAtomFamily,
+        bridgeServerData: legacyAppRevisionServerDataAtomFamily,
 
         // Execution mode atoms (from runnable extension)
         /** Execution mode (draft/deployed) */
@@ -365,7 +367,7 @@ export const ossAppRevisionMolecule = {
 
         // Schema atoms
         /** Schema query (full state) */
-        schemaQuery: ossAppRevisionSchemaQueryAtomFamily,
+        schemaQuery: legacyAppRevisionSchemaQueryAtomFamily,
         /** ag_config schema */
         agConfigSchema: revisionAgConfigSchemaAtomFamily,
         /** Prompt schema (x-parameters.prompt === true) */
@@ -396,23 +398,23 @@ export const ossAppRevisionMolecule = {
     // SELECTORS (aliases for common patterns)
     // ========================================================================
     selectors: {
-        data: ossAppRevisionEntityWithBridgeAtomFamily,
-        serverData: ossAppRevisionServerDataSelectorFamily,
-        draft: ossAppRevisionDraftAtomFamily,
-        isDirty: ossAppRevisionIsDirtyWithBridgeAtomFamily,
-        query: ossAppRevisionQueryAtomFamily,
-        bridgeServerData: ossAppRevisionServerDataAtomFamily,
+        data: legacyAppRevisionEntityWithBridgeAtomFamily,
+        serverData: legacyAppRevisionServerDataSelectorFamily,
+        draft: legacyAppRevisionDraftAtomFamily,
+        isDirty: legacyAppRevisionIsDirtyWithBridgeAtomFamily,
+        query: legacyAppRevisionQueryAtomFamily,
+        bridgeServerData: legacyAppRevisionServerDataAtomFamily,
 
         /**
          * Input ports derived from the revision's parameters template.
          */
-        inputPorts: (revisionId: string): Atom<OssAppRevisionInputPort[]> =>
-            ossAppRevisionInputPortsAtomFamily(revisionId),
+        inputPorts: (revisionId: string): Atom<LegacyAppRevisionInputPort[]> =>
+            legacyAppRevisionInputPortsAtomFamily(revisionId),
 
         /**
          * Output ports derived from the revision's OpenAPI schema response.
          */
-        outputPorts: (revisionId: string): Atom<OssAppRevisionOutputPort[]> =>
+        outputPorts: (revisionId: string): Atom<LegacyAppRevisionOutputPort[]> =>
             runnableAtoms.outputPorts(revisionId),
 
         // Execution mode
@@ -423,7 +425,7 @@ export const ossAppRevisionMolecule = {
             runnableAtoms.invocationUrl(revisionId),
 
         // Schema selectors
-        schemaQuery: ossAppRevisionSchemaQueryAtomFamily,
+        schemaQuery: legacyAppRevisionSchemaQueryAtomFamily,
         agConfigSchema: (revisionId: string): Atom<EntitySchema | null> =>
             revisionAgConfigSchemaAtomFamily(revisionId),
         schemaLoading: (revisionId: string): Atom<boolean> =>
@@ -493,9 +495,9 @@ export const ossAppRevisionMolecule = {
     // ========================================================================
     reducers: {
         /** Update revision draft */
-        update: updateOssAppRevisionAtom,
+        update: updateLegacyAppRevisionAtom,
         /** Discard revision draft */
-        discard: discardOssAppRevisionDraftAtom,
+        discard: discardLegacyAppRevisionDraftAtom,
         /** Set execution mode */
         setExecutionMode: runnableReducers.setExecutionMode,
         /** Set server data (for bridge sync) */
@@ -518,8 +520,8 @@ export const ossAppRevisionMolecule = {
     // ACTIONS (alias for backwards compatibility)
     // ========================================================================
     actions: {
-        update: updateOssAppRevisionAtom,
-        discard: discardOssAppRevisionDraftAtom,
+        update: updateLegacyAppRevisionAtom,
+        discard: discardLegacyAppRevisionDraftAtom,
         setExecutionMode: runnableReducers.setExecutionMode,
         setServerData: setServerDataAtom,
         clearServerData: clearServerDataAtom,
@@ -536,7 +538,7 @@ export const ossAppRevisionMolecule = {
          *
          * @example
          * ```typescript
-         * const result = await set(ossAppRevisionMolecule.actions.commit, {
+         * const result = await set(legacyAppRevisionMolecule.actions.commit, {
          *   revisionId: currentId,
          *   variantId,
          *   parameters: { ag_config: {...} },
@@ -555,7 +557,7 @@ export const ossAppRevisionMolecule = {
          *
          * @example
          * ```typescript
-         * const { id, data } = set(ossAppRevisionMolecule.actions.createLocalDraft, {
+         * const { id, data } = set(legacyAppRevisionMolecule.actions.createLocalDraft, {
          *   sourceRevisionId: 'existing-revision-id',
          *   variantName: 'My Copy',
          * })
@@ -573,9 +575,9 @@ export const ossAppRevisionMolecule = {
                     variantId?: string
                     variantName?: string
                 },
-            ): LocalOssAppRevision => {
+            ): LocalLegacyAppRevision => {
                 const sourceData = get(
-                    ossAppRevisionEntityWithBridgeAtomFamily(params.sourceRevisionId),
+                    legacyAppRevisionEntityWithBridgeAtomFamily(params.sourceRevisionId),
                 )
                 if (!sourceData) {
                     throw new Error(`Source revision not found: ${params.sourceRevisionId}`)
@@ -587,7 +589,7 @@ export const ossAppRevisionMolecule = {
                 })
 
                 // Initialize the new draft in the store
-                set(ossAppRevisionServerDataAtomFamily(result.id), result.data)
+                set(legacyAppRevisionServerDataAtomFamily(result.id), result.data)
 
                 return result
             },
@@ -598,7 +600,7 @@ export const ossAppRevisionMolecule = {
          *
          * @example
          * ```typescript
-         * const { id, data } = set(ossAppRevisionMolecule.actions.createNewDraft, {
+         * const { id, data } = set(legacyAppRevisionMolecule.actions.createNewDraft, {
          *   variantId: 'variant-123',
          *   variantName: 'New Variant',
          * })
@@ -606,11 +608,11 @@ export const ossAppRevisionMolecule = {
          */
         createNewDraft: atom(
             null,
-            (_get, set, params: CreateLocalOssAppRevisionParams): LocalOssAppRevision => {
-                const result = createLocalOssAppRevision(params)
+            (_get, set, params: CreateLocalLegacyAppRevisionParams): LocalLegacyAppRevision => {
+                const result = createLocalLegacyAppRevision(params)
 
                 // Initialize the new draft in the store
-                set(ossAppRevisionServerDataAtomFamily(result.id), result.data)
+                set(legacyAppRevisionServerDataAtomFamily(result.id), result.data)
 
                 return result
             },
@@ -625,18 +627,18 @@ export const ossAppRevisionMolecule = {
         getRootItems,
         getChangesFromPath,
         valueMode: "native" as const,
-        getRootData: (entity: OssAppRevisionData | null) => {
+        getRootData: (entity: LegacyAppRevisionData | null) => {
             if (entity?.parameters && Object.keys(entity.parameters).length > 0) {
                 return entity.parameters
             }
             return entity
         },
         getChangesFromRoot: (
-            entity: OssAppRevisionData | null,
+            entity: LegacyAppRevisionData | null,
             _rootData: unknown,
             path: DataPath,
             value: unknown,
-        ): Partial<OssAppRevisionData> | null => {
+        ): Partial<LegacyAppRevisionData> | null => {
             return getChangesFromPath(entity, path, value)
         },
     },
@@ -646,16 +648,16 @@ export const ossAppRevisionMolecule = {
     // ========================================================================
     get: {
         data: (revisionId: string, options?: StoreOptions) =>
-            getStore(options).get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId)),
+            getStore(options).get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId)),
         serverData: (revisionId: string, options?: StoreOptions) =>
-            getStore(options).get(ossAppRevisionServerDataSelectorFamily(revisionId)),
+            getStore(options).get(legacyAppRevisionServerDataSelectorFamily(revisionId)),
         draft: (revisionId: string, options?: StoreOptions) =>
-            getStore(options).get(ossAppRevisionDraftAtomFamily(revisionId)),
+            getStore(options).get(legacyAppRevisionDraftAtomFamily(revisionId)),
         isDirty: (revisionId: string, options?: StoreOptions) =>
-            getStore(options).get(ossAppRevisionIsDirtyWithBridgeAtomFamily(revisionId)),
+            getStore(options).get(legacyAppRevisionIsDirtyWithBridgeAtomFamily(revisionId)),
         /** Get input ports derived from parameters template */
         inputPorts: (revisionId: string, options?: StoreOptions) =>
-            getStore(options).get(ossAppRevisionInputPortsAtomFamily(revisionId)),
+            getStore(options).get(legacyAppRevisionInputPortsAtomFamily(revisionId)),
         // Execution mode
         executionMode: (revisionId: string, options?: StoreOptions) =>
             runnableGet.executionMode(revisionId, options),
@@ -670,16 +672,16 @@ export const ossAppRevisionMolecule = {
     set: {
         update: (
             revisionId: string,
-            changes: Partial<OssAppRevisionData>,
+            changes: Partial<LegacyAppRevisionData>,
             options?: StoreOptions,
-        ) => getStore(options).set(updateOssAppRevisionAtom, revisionId, changes),
+        ) => getStore(options).set(updateLegacyAppRevisionAtom, revisionId, changes),
         discard: (revisionId: string, options?: StoreOptions) =>
-            getStore(options).set(discardOssAppRevisionDraftAtom, revisionId),
+            getStore(options).set(discardLegacyAppRevisionDraftAtom, revisionId),
         // Execution mode
         executionMode: (revisionId: string, mode: ExecutionMode, options?: StoreOptions) =>
             runnableSet.executionMode(revisionId, mode, options),
         // Server data management (for bridge)
-        serverData: (revisionId: string, data: OssAppRevisionData, options?: StoreOptions) =>
+        serverData: (revisionId: string, data: LegacyAppRevisionData, options?: StoreOptions) =>
             getStore(options).set(setServerDataAtom, revisionId, data),
         clearServerData: (revisionId: string, options?: StoreOptions) =>
             getStore(options).set(clearServerDataAtom, revisionId),
@@ -718,7 +720,7 @@ export const ossAppRevisionMolecule = {
          * Input port definitions for this runnable.
          * Derived from the parameters template variables.
          */
-        inputPorts: ossAppRevisionInputPortsAtomFamily,
+        inputPorts: legacyAppRevisionInputPortsAtomFamily,
         /**
          * Output port definitions for this runnable.
          * Derived from the OpenAPI schema response.
@@ -746,11 +748,11 @@ export const ossAppRevisionMolecule = {
      *
      * @example
      * ```typescript
-     * const [state, dispatch] = ossAppRevisionMolecule.useController(revisionId)
+     * const [state, dispatch] = legacyAppRevisionMolecule.useController(revisionId)
      * if (state.isDirty) dispatch.discard()
      * ```
      */
-    useController: useOssAppRevisionController,
+    useController: useLegacyAppRevisionController,
 }
 
 // ============================================================================
@@ -760,16 +762,17 @@ export const ossAppRevisionMolecule = {
 /**
  * Pre-built selection config for entity selection system.
  */
-export const ossAppRevisionSelectionConfig = {
-    appsAtom: ossAppRevisionMolecule.selectors.apps,
-    variantsByAppFamily: (appId: string) => ossAppRevisionMolecule.selectors.variantsByApp(appId),
+export const legacyAppRevisionSelectionConfig = {
+    appsAtom: legacyAppRevisionMolecule.selectors.apps,
+    variantsByAppFamily: (appId: string) =>
+        legacyAppRevisionMolecule.selectors.variantsByApp(appId),
     revisionsByVariantFamily: (variantId: string) =>
-        ossAppRevisionMolecule.selectors.revisions(variantId),
+        legacyAppRevisionMolecule.selectors.revisions(variantId),
 }
 
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
 
-export type OssAppRevisionMolecule = typeof ossAppRevisionMolecule
-export type OssAppRevisionSelectionConfig = typeof ossAppRevisionSelectionConfig
+export type LegacyAppRevisionMolecule = typeof legacyAppRevisionMolecule
+export type LegacyAppRevisionSelectionConfig = typeof legacyAppRevisionSelectionConfig

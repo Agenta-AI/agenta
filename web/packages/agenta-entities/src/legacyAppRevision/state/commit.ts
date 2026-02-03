@@ -55,12 +55,12 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import type {OssAppRevisionData} from "../core"
+import type {LegacyAppRevisionData} from "../core"
 
 import {
     revisionsListAtomFamily,
-    ossAppRevisionDraftAtomFamily,
-    ossAppRevisionServerDataAtomFamily,
+    legacyAppRevisionDraftAtomFamily,
+    legacyAppRevisionServerDataAtomFamily,
 } from "./store"
 
 // ============================================================================
@@ -91,7 +91,7 @@ export interface CommitRevisionResult {
     /** The new revision number */
     newRevision: number
     /** Full revision data if available */
-    revisionData?: OssAppRevisionData
+    revisionData?: LegacyAppRevisionData
 }
 
 /**
@@ -336,8 +336,8 @@ export const commitRevisionAtom = atom(
             }
 
             // 5. Clear draft state for the old revision
-            set(ossAppRevisionDraftAtomFamily(revisionId), null)
-            set(ossAppRevisionServerDataAtomFamily(revisionId), null)
+            set(legacyAppRevisionDraftAtomFamily(revisionId), null)
+            set(legacyAppRevisionServerDataAtomFamily(revisionId), null)
 
             return result
         } catch (error) {

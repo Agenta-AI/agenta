@@ -28,7 +28,7 @@ import {atom} from "jotai"
 import type {EntityRelation, ListQueryState} from "../shared/molecule/types"
 import {entityRelationRegistry} from "../shared/relations/registry"
 
-import {ossAppRevisionMolecule} from "./state/molecule"
+import {legacyAppRevisionMolecule} from "./state/molecule"
 import {
     appsQueryAtom,
     variantsQueryAtomFamily,
@@ -154,7 +154,7 @@ const ossRevisionListAtomFamily = (variantId: string) =>
  * Each variant can have multiple revisions (version history).
  * This is the leaf level of the app → variant → revision hierarchy.
  *
- * Note: Type assertion needed because molecule data type (OssAppRevisionData)
+ * Note: Type assertion needed because molecule data type (LegacyAppRevisionData)
  * differs from list item type (RevisionListItem).
  */
 export const ossVariantToRevisionRelation: EntityRelation<VariantListItem, RevisionListItem> = {
@@ -173,7 +173,7 @@ export const ossVariantToRevisionRelation: EntityRelation<VariantListItem, Revis
 
     // Child molecule for fetching full revision data
 
-    childMolecule: ossAppRevisionMolecule as unknown as EntityRelation<
+    childMolecule: legacyAppRevisionMolecule as unknown as EntityRelation<
         VariantListItem,
         RevisionListItem
     >["childMolecule"],
@@ -200,13 +200,13 @@ export const ossVariantToRevisionRelation: EntityRelation<VariantListItem, Revis
  * Register all OSS app revision relations.
  * Called automatically when this module is imported.
  */
-export function registerOssAppRevisionRelations(): void {
+export function registerLegacyAppRevisionRelations(): void {
     entityRelationRegistry.register(ossAppToVariantRelation)
     entityRelationRegistry.register(ossVariantToRevisionRelation)
 }
 
 // Auto-register on import
-registerOssAppRevisionRelations()
+registerLegacyAppRevisionRelations()
 
 // ============================================================================
 // EXPORTS FOR SELECTION ADAPTERS

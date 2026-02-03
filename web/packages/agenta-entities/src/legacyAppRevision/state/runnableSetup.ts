@@ -14,7 +14,7 @@ import {atomFamily} from "jotai-family"
 import type {StoreOptions, EntitySchema} from "../../shared"
 import type {ExecutionMode} from "../core"
 
-import {ossAppRevisionSchemaQueryAtomFamily} from "./schemaAtoms"
+import {legacyAppRevisionSchemaQueryAtomFamily} from "./schemaAtoms"
 
 // ============================================================================
 // HELPERS
@@ -50,7 +50,7 @@ export const endpointAtomFamily = atomFamily((revisionId: string) =>
  */
 export const invocationUrlAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         const endpoint = get(endpointAtomFamily(revisionId))
 
         const runtimePrefix = schemaQuery.data?.runtimePrefix
@@ -87,7 +87,7 @@ export const setExecutionModeAtom = atom(
  */
 export const schemaLoadingAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const query = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const query = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         return query.isPending
     }),
 )
@@ -101,7 +101,7 @@ export const schemaLoadingAtomFamily = atomFamily((revisionId: string) =>
  */
 export const availableEndpointsAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const query = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const query = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         const endpoints = query.data?.endpoints
         if (!endpoints) return []
         return Object.keys(endpoints)
@@ -113,7 +113,7 @@ export const availableEndpointsAtomFamily = atomFamily((revisionId: string) =>
  */
 export const isChatVariantAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const query = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const query = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         const schemaState = query.data
         if (!schemaState?.endpoints) return false
 
@@ -131,7 +131,7 @@ export const isChatVariantAtomFamily = atomFamily((revisionId: string) =>
 export const inputsSchemaAtomFamily = atomFamily(
     (params: {id: string; endpoint?: string}) =>
         atom((get): EntitySchema | null => {
-            const query = get(ossAppRevisionSchemaQueryAtomFamily(params.id))
+            const query = get(legacyAppRevisionSchemaQueryAtomFamily(params.id))
             const schemaState = query.data
 
             if (!schemaState?.endpoints) return null
@@ -154,7 +154,7 @@ export const inputsSchemaAtomFamily = atomFamily(
 export const messagesSchemaAtomFamily = atomFamily(
     (params: {id: string; endpoint?: string}) =>
         atom((get): EntitySchema | null => {
-            const query = get(ossAppRevisionSchemaQueryAtomFamily(params.id))
+            const query = get(legacyAppRevisionSchemaQueryAtomFamily(params.id))
             const schemaState = query.data
             if (!schemaState?.endpoints) return null
 
@@ -174,7 +174,7 @@ export const messagesSchemaAtomFamily = atomFamily(
  */
 export const runtimePrefixAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         return schemaQuery.data?.runtimePrefix
     }),
 )
@@ -184,7 +184,7 @@ export const runtimePrefixAtomFamily = atomFamily((revisionId: string) =>
  */
 export const routePathAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         return schemaQuery.data?.routePath
     }),
 )
@@ -196,7 +196,7 @@ export const routePathAtomFamily = atomFamily((revisionId: string) =>
 /**
  * Output port type for OSS app revisions
  */
-export interface OssAppRevisionOutputPort {
+export interface LegacyAppRevisionOutputPort {
     key: string
     name: string
     type: string
@@ -207,8 +207,8 @@ export interface OssAppRevisionOutputPort {
  * Output ports derived from the revision's OpenAPI schema response.
  */
 export const outputPortsAtomFamily = atomFamily((revisionId: string) =>
-    atom<OssAppRevisionOutputPort[]>((get) => {
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+    atom<LegacyAppRevisionOutputPort[]>((get) => {
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
 
         const outputsSchema = schemaQuery.data?.outputsSchema
         if (!outputsSchema?.properties) {
@@ -287,7 +287,7 @@ export const runnableSet = {
 /**
  * OSS App Revision runnable extension
  */
-export const ossAppRevisionRunnableExtension = {
+export const legacyAppRevisionRunnableExtension = {
     atoms: runnableAtoms,
     reducers: runnableReducers,
     get: runnableGet,
