@@ -1044,8 +1044,12 @@ class SimpleApplicationsService:
                 if simple_application_edit.flags
                 else application.flags
             ),
-            meta=simple_application_edit.meta if simple_application_edit.meta is not None else application.meta,
-            tags=simple_application_edit.tags if simple_application_edit.tags is not None else application.tags,
+            meta=simple_application_edit.meta
+            if simple_application_edit.meta is not None
+            else application.meta,
+            tags=simple_application_edit.tags
+            if simple_application_edit.tags is not None
+            else application.tags,
         )
 
         application = await self.applications_service.edit_application(
@@ -1205,17 +1209,17 @@ class SimpleApplicationsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[SimpleApplication]:
-        application_query = (
-            ApplicationQuery(
-                **simple_application_query.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                ),
+        query_data = (
+            simple_application_query.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
             )
             if simple_application_query
-            else ApplicationQuery()
+            else {}
         )
+        query_data.setdefault("flags", {})
+        application_query = ApplicationQuery(**query_data)
 
         applications = await self.applications_service.query_applications(
             project_id=project_id,

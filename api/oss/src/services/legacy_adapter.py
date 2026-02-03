@@ -89,16 +89,15 @@ class LegacyApplicationsAdapter:
         application_query = ApplicationQuery(
             flags=ApplicationQueryFlags(is_evaluator=False),
         )
+        application_refs = None
 
         if app_name:
-            application_query = ApplicationQuery(
-                slug=app_name,
-                flags=ApplicationQueryFlags(is_evaluator=False),
-            )
+            application_refs = [Reference(slug=app_name)]
 
         applications = await self.applications_service.query_applications(
             project_id=project_id,
             application_query=application_query,
+            application_refs=application_refs,
         )
 
         apps = []
@@ -107,6 +106,9 @@ class LegacyApplicationsAdapter:
                 project_id=project_id,
                 application_id=app.id,
             )
+            # Skip user:custom workflows — SDK-deployed, not legacy apps
+            if uri and uri.startswith("user:custom:"):
+                continue
             apps.append(self._application_to_app(app, uri=uri))
 
         return apps
@@ -288,7 +290,9 @@ class LegacyApplicationsAdapter:
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = f"{application.slug}.{variant_name}" if application else variant_name
+        compound_slug = (
+            f"{application.slug}.{variant_name}" if application else variant_name
+        )
 
         # Create a new variant
         variant_create = ApplicationVariantCreate(
@@ -461,7 +465,9 @@ class LegacyApplicationsAdapter:
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = f"{application.slug}.{variant_name}" if application else variant_name
+        compound_slug = (
+            f"{application.slug}.{variant_name}" if application else variant_name
+        )
 
         # Create a new variant
         variant_create = ApplicationVariantCreate(
@@ -512,9 +518,9 @@ class LegacyApplicationsAdapter:
         applications = await self.applications_service.query_applications(
             project_id=project_id,
             application_query=ApplicationQuery(
-                slug=app_name,
                 flags=ApplicationQueryFlags(is_evaluator=False),
             ),
+            application_refs=[Reference(slug=app_name)],
             windowing=Windowing(limit=1),
         )
 
@@ -925,7 +931,9 @@ class LegacyApplicationsAdapter:
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = f"{application.slug}.{variant_name}" if application else variant_name
+        compound_slug = (
+            f"{application.slug}.{variant_name}" if application else variant_name
+        )
 
         # Create a new variant under the app
         variant_create = ApplicationVariantCreate(

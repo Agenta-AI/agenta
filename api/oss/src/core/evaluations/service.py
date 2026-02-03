@@ -962,7 +962,7 @@ class EvaluationsService:
 
                 if evaluator_revision.data:
                     if evaluator_revision.data.schemas:
-                        outputs_schema = evaluator_revision.data.schemas.get("outputs")
+                        outputs_schema = evaluator_revision.data.schemas.outputs
                     if evaluator_revision.data.service:
                         service_format = evaluator_revision.data.service.get("format")
 
@@ -2396,7 +2396,7 @@ class SimpleEvaluationsService:
 
                 if evaluator_revision.data.schemas:
                     metrics_keys = get_metrics_keys_from_schema(
-                        schema=(evaluator_revision.data.schemas.get("outputs")),
+                        schema=evaluator_revision.data.schemas.outputs,
                     )
 
                     evaluator_metrics_keys[step_key] = [

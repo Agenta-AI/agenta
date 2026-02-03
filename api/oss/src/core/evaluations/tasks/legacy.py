@@ -420,8 +420,8 @@ async def setup_evaluation(
                 # collect metrics
                 metrics_keys = get_metrics_keys_from_schema(
                     schema=(
-                        evaluator_revision.data.schemas.get("outputs")
-                        if evaluator_revision.data
+                        evaluator_revision.data.schemas.outputs
+                        if evaluator_revision.data and evaluator_revision.data.schemas
                         else None
                     ),
                 )
