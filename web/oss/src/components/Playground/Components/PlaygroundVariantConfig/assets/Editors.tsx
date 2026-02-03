@@ -1,4 +1,4 @@
-import {useEffect, memo} from "react"
+import {memo} from "react"
 
 import {Spin} from "antd"
 import clsx from "clsx"
