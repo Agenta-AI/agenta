@@ -45,6 +45,11 @@ from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowVariantDBE,
     WorkflowRevisionDBE,
 )
+from oss.src.dbs.postgres.environments.dbes import (
+    EnvironmentArtifactDBE,
+    EnvironmentVariantDBE,
+    EnvironmentRevisionDBE,
+)
 
 # DAOs
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
@@ -70,6 +75,8 @@ from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
+from oss.src.core.environments.service import EnvironmentsService
+from oss.src.core.environments.service import SimpleEnvironmentsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
 
@@ -91,6 +98,8 @@ from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
+from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
+from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 
@@ -220,6 +229,12 @@ workflows_dao = GitDAO(
     RevisionDBE=WorkflowRevisionDBE,
 )
 
+environments_dao = GitDAO(
+    ArtifactDBE=EnvironmentArtifactDBE,
+    VariantDBE=EnvironmentVariantDBE,
+    RevisionDBE=EnvironmentRevisionDBE,
+)
+
 evaluations_dao = EvaluationsDAO()
 folders_dao = FoldersDAO()
 
@@ -288,6 +303,14 @@ evaluators_service = EvaluatorsService(
 
 simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
+)
+
+environments_service = EnvironmentsService(
+    environments_dao=environments_dao,
+)
+
+simple_environments_service = SimpleEnvironmentsService(
+    environments_service=environments_service,
 )
 
 evaluations_service = EvaluationsService(
@@ -367,6 +390,14 @@ evaluators = EvaluatorsRouter(
 
 simple_evaluators = SimpleEvaluatorsRouter(
     simple_evaluators_service=simple_evaluators_service,
+)
+
+environments = EnvironmentsRouter(
+    environments_service=environments_service,
+)
+
+simple_environments = SimpleEnvironmentsRouter(
+    simple_environments_service=simple_environments_service,
 )
 
 evaluations = EvaluationsRouter(
@@ -509,6 +540,18 @@ app.include_router(
     router=simple_evaluators.router,
     prefix="/preview/simple/evaluators",
     tags=["Evaluators"],
+)
+
+app.include_router(
+    router=environments.router,
+    prefix="/preview/environments",
+    tags=["Environments"],
+)
+
+app.include_router(
+    router=simple_environments.router,
+    prefix="/preview/simple/environments",
+    tags=["Environments"],
 )
 
 app.include_router(
