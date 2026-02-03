@@ -202,6 +202,7 @@ export {
     type RevisionLabelInfo,
     isLocalDraftId,
     extractSourceIdFromDraft,
+    isPlaceholderId,
     getVersionLabel,
     formatLocalDraftLabel,
     getRevisionLabel,
