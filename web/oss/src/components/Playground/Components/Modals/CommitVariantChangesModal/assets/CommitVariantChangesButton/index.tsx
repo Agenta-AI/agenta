@@ -24,13 +24,13 @@ const CommitVariantChangesButton = ({
     const isDirty = useAtomValue(revisionIsDirtyAtomFamily(variantId || ""))
     const disabled = !variantId || !isDirty
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
-    const handleSuccess = useCallback(() => {
-        recordWidgetEvent("playground_committed_change")
-        onSuccess?.({
-            variantId,
-            revisionId: variantId,
-        })
-    }, [recordWidgetEvent, onSuccess, variantId])
+    const handleSuccess = useCallback(
+        (payload?: {revisionId?: string; variantId?: string}) => {
+            recordWidgetEvent("playground_committed_change")
+            onSuccess?.(payload)
+        },
+        [recordWidgetEvent, onSuccess],
+    )
 
     return (
         <>

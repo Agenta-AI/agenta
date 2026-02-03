@@ -28,7 +28,11 @@ import ToolsRenderer from "./ToolsRenderer"
  * @component
  */
 
-const isCustomAtom = selectAtom(currentAppContextAtom, (ctx) => ctx.appType === "custom", deepEqual)
+const isCustomAtom = selectAtom(
+    currentAppContextAtom,
+    (ctx) => (ctx as {appType?: string | null} | null)?.appType === "custom",
+    deepEqual,
+)
 const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseContentProps> = ({
     variantId,
     promptId,
@@ -69,7 +73,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
             {!isCustom && !hasVariable && !viewOnly && (
                 <Alert
                     closable
-                    title={
+                    message={
                         <>
                             Insert a <span className="font-semibold">{"{{variable}}"}</span> in your
                             template to create an input.

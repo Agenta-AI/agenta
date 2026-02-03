@@ -1,6 +1,6 @@
 import {useEffect, useMemo} from "react"
 
-import {ossAppRevisionMolecule} from "@agenta/entities/ossAppRevision"
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
@@ -74,10 +74,11 @@ export function useVariantPrompts(variantId: string | undefined): {
 
     const variant = useAtomValue(variantAtom)
     const moleculeData = useAtomValue(
-        variantId ? ossAppRevisionMolecule.atoms.data(variantId) : atom(null),
+        variantId ? legacyAppRevisionMolecule.atoms.data(variantId) : atom(null),
     ) as any
     // Check merged data for prompts (includes enriched data from variant context)
-    const hasMoleculePrompts = Array.isArray(moleculeData?.enhancedPrompts)
+    const hasMoleculePrompts =
+        Array.isArray(moleculeData?.enhancedPrompts) && moleculeData.enhancedPrompts.length > 0
     const promptIds = useAtomValue(variantPromptIdsAtom)
     const setPrompts = useSetAtom(variantId ? moleculeBackedPromptsAtomFamily(variantId) : atom([]))
 
@@ -95,9 +96,8 @@ export function useVariantPrompts(variantId: string | undefined): {
         () => ({
             revisionCount,
             promptCount: promptIds.length,
-            variantId,
         }),
-        [promptIds.length, revisionCount, variantId],
+        [promptIds.length, revisionCount],
     )
 
     useEffect(() => {
