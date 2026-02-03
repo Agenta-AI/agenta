@@ -658,6 +658,20 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
 
     const promptData = value as Record<string, unknown>
 
+    const isRecord = (maybeRecord: unknown): maybeRecord is Record<string, unknown> =>
+        typeof maybeRecord === "object" && maybeRecord !== null && !Array.isArray(maybeRecord)
+
+    const unwrapEnhancedValue = (maybeEnhanced: unknown): unknown => {
+        if (
+            typeof maybeEnhanced === "object" &&
+            maybeEnhanced !== null &&
+            "value" in maybeEnhanced
+        ) {
+            return (maybeEnhanced as {value: unknown}).value
+        }
+        return maybeEnhanced
+    }
+
     const result: EnhancedPrompt = {
         __id: `prompt:${key}`,
         __name: key,
@@ -667,16 +681,11 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
     // Process messages - handle both raw format and already-enhanced format
     const rawMessages = promptData.messages
     if (rawMessages && Array.isArray(rawMessages)) {
-        const enhancedMessages = rawMessages.map((msg: any, idx: number) => {
-            // Check if already in enhanced format {role: {value: ...}, content: {value: ...}}
-            const roleValue =
-                typeof msg.role === "object" && msg.role?.value !== undefined
-                    ? msg.role.value
-                    : msg.role
-            const contentValue =
-                typeof msg.content === "object" && msg.content?.value !== undefined
-                    ? msg.content.value
-                    : msg.content
+        const enhancedMessages = rawMessages.map((msg, idx: number) => {
+            const msgRecord =
+                typeof msg === "object" && msg !== null ? (msg as Record<string, unknown>) : {}
+            const roleValue = unwrapEnhancedValue(msgRecord.role)
+            const contentValue = unwrapEnhancedValue(msgRecord.content)
 
             return {
                 role: createEnhancedValue(roleValue, undefined, `messages[${idx}].role`),
@@ -690,16 +699,14 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
     }
 
     // Process llm_config - handle both raw and enhanced format
-    const rawLlmConfig = promptData.llm_config as Record<string, unknown> | undefined
+    const rawLlmConfig = promptData.llm_config
     if (rawLlmConfig) {
-        // Check if already in enhanced format {value: ...}
-        const llmConfigValue =
-            typeof rawLlmConfig === "object" && (rawLlmConfig as any)?.value !== undefined
-                ? (rawLlmConfig as any).value
-                : rawLlmConfig
+        const llmConfigValue = unwrapEnhancedValue(rawLlmConfig)
 
-        result.llm_config = {
-            value: llmConfigValue,
+        if (isRecord(llmConfigValue)) {
+            result.llm_config = {
+                value: llmConfigValue,
+            }
         }
     }
 
@@ -707,12 +714,7 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
     Object.entries(promptData).forEach(([propKey, propValue]) => {
         if (propKey === "messages" || propKey === "llm_config") return
         // Check if already in enhanced format
-        const actualValue =
-            typeof propValue === "object" &&
-            propValue !== null &&
-            (propValue as any)?.value !== undefined
-                ? (propValue as any).value
-                : propValue
+        const actualValue = unwrapEnhancedValue(propValue)
         result[propKey] = createEnhancedValue(actualValue, undefined, propKey)
     })
 
