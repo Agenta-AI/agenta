@@ -49,6 +49,7 @@ const emptySchemaState: RevisionSchemaState = {
         run: null,
         generate: null,
         generateDeployed: null,
+        root: null,
     },
     availableEndpoints: [],
     isChatVariant: false,
@@ -316,6 +317,7 @@ export const revisionEndpointsAtomFamily = atomFamily((revisionId: string) =>
                 run: null,
                 generate: null,
                 generateDeployed: null,
+                root: null,
             }
         )
     }),
