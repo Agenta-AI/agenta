@@ -97,6 +97,8 @@ class InvocationsService:
 
         application_flags = SimpleApplicationFlags()
 
+        simple_application = None
+
         application_revision = await self.applications_service.fetch_application_revision(
             project_id=project_id,
             #

@@ -22,30 +22,22 @@ from oss.src.core.applications.dtos import (
     ApplicationEdit,
     ApplicationQuery,
     ApplicationQueryFlags,
-    ApplicationFork,
     #
     ApplicationVariant,
     ApplicationVariantCreate,
-    ApplicationVariantEdit,
-    ApplicationVariantQuery,
     #
     ApplicationRevision,
     ApplicationRevisionCommit,
-    ApplicationRevisionQuery,
     ApplicationRevisionsLog,
 )
 
 if is_ee():
     from ee.src.models.api.api_models import (
         AppVariantResponse_ as AppVariantResponse,
-        EnvironmentOutput_ as EnvironmentOutput,
-        EnvironmentOutputExtended_ as EnvironmentOutputExtended,
     )
 else:
     from oss.src.models.api.api_models import (
         AppVariantResponse,
-        EnvironmentOutput,
-        EnvironmentOutputExtended,
     )
 
 from oss.src.models.api.api_models import (
@@ -424,7 +416,7 @@ class LegacyApplicationsAdapter:
         )
 
         for rev in revisions:
-            if rev.version == revision_number:
+            if rev.version == str(revision_number):
                 return self._application_revision_to_variant_revision(rev)
 
         return None
