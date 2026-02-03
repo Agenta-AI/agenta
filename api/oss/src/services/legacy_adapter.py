@@ -283,12 +283,12 @@ class LegacyApplicationsAdapter:
         """Create a new variant (fork from default) in legacy format."""
         from oss.src.core.applications.dtos import ApplicationRevisionData
 
-        # Build compound slug: {app_slug}-{variant_name}
+        # Build compound slug: {app_slug}.{variant_name}
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = f"{application.slug}-{variant_name}" if application else variant_name
+        compound_slug = f"{application.slug}.{variant_name}" if application else variant_name
 
         # Create a new variant
         variant_create = ApplicationVariantCreate(
@@ -456,12 +456,12 @@ class LegacyApplicationsAdapter:
         """Create a new variant from a URL in legacy format."""
         from oss.src.core.applications.dtos import ApplicationRevisionData
 
-        # Build compound slug: {app_slug}-{variant_name}
+        # Build compound slug: {app_slug}.{variant_name}
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = f"{application.slug}-{variant_name}" if application else variant_name
+        compound_slug = f"{application.slug}.{variant_name}" if application else variant_name
 
         # Create a new variant
         variant_create = ApplicationVariantCreate(
@@ -556,9 +556,9 @@ class LegacyApplicationsAdapter:
     ) -> Optional[ApplicationVariant]:
         """Fetch a variant by slug (config_name) and app_id.
 
-        Variant slugs in the new system are compound: '{app_slug}-{variant_name}'.
+        Variant slugs in the new system are compound: '{app_slug}.{variant_name}'.
         Legacy callers may pass either just the variant name (e.g. 'default')
-        or the full compound slug (e.g. 'myapp-default'). We try the compound
+        or the full compound slug (e.g. 'myapp.default'). We try the compound
         slug first, then fall back to the raw slug as-is.
         """
         application = await self.applications_service.fetch_application(
@@ -569,8 +569,8 @@ class LegacyApplicationsAdapter:
         if not application:
             return None
 
-        # Try compound slug first: {app_slug}-{variant_slug}
-        compound_slug = f"{application.slug}-{variant_slug}"
+        # Try compound slug first: {app_slug}.{variant_slug}
+        compound_slug = f"{application.slug}.{variant_slug}"
 
         variants = await self.applications_service.query_application_variants(
             project_id=project_id,
@@ -690,7 +690,7 @@ class LegacyApplicationsAdapter:
         """Create a new variant with an initial revision.
 
         The variant_slug should already be the compound slug
-        ('{app_slug}-{variant_name}') when coming from legacy callers.
+        ('{app_slug}.{variant_name}') when coming from legacy callers.
         """
         from oss.src.core.applications.dtos import ApplicationRevisionData
 
@@ -920,12 +920,12 @@ class LegacyApplicationsAdapter:
         if base_db.deployment_id and base_db.deployment:
             url = base_db.deployment.uri
 
-        # Build compound slug: {app_slug}-{variant_name}
+        # Build compound slug: {app_slug}.{variant_name}
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = f"{application.slug}-{variant_name}" if application else variant_name
+        compound_slug = f"{application.slug}.{variant_name}" if application else variant_name
 
         # Create a new variant under the app
         variant_create = ApplicationVariantCreate(
@@ -1012,12 +1012,16 @@ class LegacyApplicationsAdapter:
         *,
         uri: Optional[str] = None,
     ) -> Optional[str]:
-        """Reverse-map ApplicationFlags to a legacy AppType string.
+        """Reverse-map ApplicationFlags to a friendly app_type tag.
+
+        Returns the same friendly-tag format that the old converter
+        (``AppType.friendly_tag``) produced, e.g. ``"chat"``,
+        ``"completion"``, ``"custom"``, ``"custom (sdk)"``.
 
         TEMPLATE types no longer exist — always returns SERVICE equivalents.
 
         When *uri* (from the latest revision's data.uri) is provided,
-        ``user:custom:*`` URIs map to SDK_CUSTOM; otherwise CUSTOM.
+        ``user:custom:*`` URIs map to ``"custom (sdk)"``; otherwise ``"custom"``.
         """
         flags = application.flags
         if flags is None:
@@ -1025,11 +1029,11 @@ class LegacyApplicationsAdapter:
 
         if flags.is_custom:
             if uri and uri.startswith("user:custom:"):
-                return "SDK_CUSTOM"
-            return "CUSTOM"
+                return "custom (sdk)"
+            return "custom"
         if flags.can_chat:
-            return "SERVICE:chat"
-        return "SERVICE:completion"
+            return "chat"
+        return "completion"
 
     def _application_to_app(
         self,

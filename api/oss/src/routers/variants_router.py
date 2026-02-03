@@ -746,11 +746,14 @@ async def configs_query(
 
         seen_keys.add(dedup_key)
 
-        config = await configs_fetch(
-            request=request,
-            variant_ref=variant_ref,
-            application_ref=application_ref,
-        )
+        try:
+            config = await configs_fetch(
+                request=request,
+                variant_ref=variant_ref,
+                application_ref=application_ref,
+            )
+        except HTTPException:
+            config = None
 
         if config:
             configs.append(config)

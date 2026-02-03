@@ -305,8 +305,8 @@ async def _transfer_application(
         variant_id = variant.id
         variant_name = variant.variant_name or "default"
 
-        # Use compound slug: app.slug-variant.name
-        variant_slug = f"{slug}-{variant_name}"
+        # Use compound slug: {app_slug}.{variant_name}
+        variant_slug = f"{slug}.{variant_name}"
 
         # Insert variant directly to preserve original ID
         variant_dto = GitVariant(
@@ -360,7 +360,7 @@ async def _transfer_application(
                 artifact_id=app_id,
                 variant_id=variant_id,
                 slug=revision_slug,
-                version=revision_num,
+                version=str(revision_num),
                 name=config_name,
                 description=None,
                 created_at=datetime.now(timezone.utc),
@@ -369,6 +369,7 @@ async def _transfer_application(
                 tags=None,
                 meta=None,
                 data=data_dict if data_dict else None,
+                author=user_id,
                 message=commit_message,
             )
 
