@@ -1,7 +1,7 @@
 import {useCallback, useMemo} from "react"
 
-import {ArrowLeft, Code, TreeView, Rocket} from "@phosphor-icons/react"
-import {Typography, Card, Button} from "antd"
+import {ArrowLeft, Code, Rocket, TreeView} from "@phosphor-icons/react"
+import {Button, Card, Typography} from "antd"
 import {useRouter} from "next/router"
 
 import {
@@ -40,6 +40,10 @@ const GetStarted = () => {
     )
 
     const navigateToDestination = useCallback(async () => {
+        if (typeof router.query.redirect === "string" && router.query.redirect) {
+            router.push(decodeURIComponent(router.query.redirect))
+            return
+        }
         try {
             const context = await waitForWorkspaceContext({
                 timeoutMs: 5000,
