@@ -1,5 +1,5 @@
 /**
- * OssAppRevision API Functions
+ * LegacyAppRevision API Functions
  *
  * HTTP functions and data transformers for OSS app revision entity.
  * Uses the legacy backend API endpoints:
@@ -152,7 +152,7 @@ export function transformApiRevision(
  * Transform EnhancedVariantLike to OssAppRevisionData
  *
  * This enables transformation of enhanced variant data (from OSS playground)
- * to the ossAppRevision format, similar to appRevision's transformEnhancedVariant.
+ * to the legacyAppRevision format, similar to appRevision's transformEnhancedVariant.
  *
  * @param enhanced - Enhanced variant-like object with full data
  */

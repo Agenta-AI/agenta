@@ -1,7 +1,7 @@
 /**
  * Shared Revision Utilities
  *
- * Common utilities for app revision entities (appRevision, ossAppRevision).
+ * Common utilities for app revision entities (appRevision, legacyAppRevision).
  * Provides:
  * - URI parsing and runtime info extraction
  * - revision parameter extraction from various data formats

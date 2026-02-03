@@ -23,7 +23,7 @@
  * ## Usage
  *
  * ```typescript
- * import { commitRevisionAtom, registerCommitCallbacks } from '@agenta/entities/ossAppRevision'
+ * import { commitRevisionAtom, registerCommitCallbacks } from '@agenta/entities/legacyAppRevision'
  *
  * // Optional: Register callbacks for playground-specific orchestration
  * registerCommitCallbacks({

@@ -26,7 +26,7 @@ import {atomFamily} from "jotai-family"
 import {appRevisionMolecule} from "../appRevision"
 import {evaluatorRevisionMolecule} from "../evaluatorRevision"
 import {loadableStateAtomFamily, loadableColumnsAtomFamily} from "../loadable/store"
-import {ossAppRevisionMolecule} from "../ossAppRevision"
+import {ossAppRevisionMolecule} from "../legacyAppRevision"
 import {createRunnableBridge, type RunnableData, type RunnablePort} from "../shared"
 
 import type {PathItem, RunnableType, TestsetColumn} from "./types"
@@ -262,7 +262,7 @@ function getEvaluatorRevisionOutputPorts(entity: unknown): RunnablePort[] {
  *
  * Currently supports:
  * - **appRevision**: App revision via appRevisionMolecule (revision-config model)
- * - **ossAppRevision**: OSS app revision via ossAppRevisionMolecule (variant model for OSS playground)
+ * - **legacyAppRevision**: OSS app revision via ossAppRevisionMolecule (variant model for OSS playground)
  * - **evaluatorRevision**: Evaluator revision via evaluatorRevisionMolecule (stub in OSS)
  */
 export const runnableBridge = createRunnableBridge({
@@ -277,7 +277,7 @@ export const runnableBridge = createRunnableBridge({
             outputPortsSelector: (id: string) => appRevisionMolecule.selectors.outputPorts(id),
             invocationUrlSelector: (id: string) => appRevisionMolecule.atoms.invocationUrl(id),
         },
-        ossAppRevision: {
+        legacyAppRevision: {
             molecule: ossAppRevisionMolecule,
             toRunnable: ossAppRevisionToRunnable,
             getInputPorts: getOssAppRevisionInputPorts,
@@ -318,7 +318,7 @@ export const runnableBridge = createRunnableBridge({
  * the columns automatically update without any React effects.
  *
  * For appRevision: Uses appRevisionMolecule.selectors.inputPorts (consolidated)
- * For ossAppRevision: Uses ossAppRevisionMolecule.selectors.inputPorts (template vars)
+ * For legacyAppRevision: Uses ossAppRevisionMolecule.selectors.inputPorts (template vars)
  * For evaluatorRevision: Reads from evaluator schema directly
  */
 export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: string) =>
@@ -344,7 +344,7 @@ export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: str
                     type: port.type,
                 }))
             }
-        } else if (linkedRunnableType === "ossAppRevision") {
+        } else if (linkedRunnableType === "legacyAppRevision") {
             // Use inputPorts selector - extracts template variables from prompts
             const inputPorts = get(ossAppRevisionMolecule.selectors.inputPorts(linkedRunnableId))
 

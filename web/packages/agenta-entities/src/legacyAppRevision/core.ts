@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Core Types and Schemas
+ * LegacyAppRevision Core Types and Schemas
  *
  * Core type definitions and Zod schemas for OSS app revision entities.
  * This module uses the legacy backend API (AppVariantRevision model).
@@ -195,7 +195,7 @@ export interface RevisionSchemaState {
 // ============================================================================
 
 export interface OssAppRevisionSelectionResult {
-    type: "ossAppRevision"
+    type: "legacyAppRevision"
     id: string
     label: string
     path: {id: string; label: string; type: string}[]

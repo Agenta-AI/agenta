@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Runnable Extension
+ * LegacyAppRevision Runnable Extension
  *
  * Provides runnable extension atoms for execution mode, schema, and invocation.
  * These atoms extend the base molecule with runnable-specific functionality.

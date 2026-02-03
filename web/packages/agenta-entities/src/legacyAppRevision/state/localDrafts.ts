@@ -1,7 +1,7 @@
 /**
- * OssAppRevision Local Drafts
+ * LegacyAppRevision Local Drafts
  *
- * Provides entity-level local draft management for ossAppRevision.
+ * Provides entity-level local draft management for legacyAppRevision.
  * Local drafts are revision copies that exist only in browser memory
  * and haven't been committed to the server.
  *
@@ -15,7 +15,7 @@
  *     localDraftsListAtom,
  *     createLocalDraftFromRevision,
  *     discardLocalDraft,
- * } from '@agenta/entities/ossAppRevision'
+ * } from '@agenta/entities/legacyAppRevision'
  *
  * // Get all local draft IDs
  * const draftIds = useAtomValue(localDraftIdsAtom)

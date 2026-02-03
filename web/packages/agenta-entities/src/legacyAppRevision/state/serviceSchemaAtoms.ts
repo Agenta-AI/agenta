@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Service Schema Prefetch Atoms
+ * LegacyAppRevision Service Schema Prefetch Atoms
  *
  * Provides a two-layer schema resolution strategy (same as appRevision):
  *

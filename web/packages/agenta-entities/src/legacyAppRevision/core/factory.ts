@@ -1,12 +1,12 @@
 /**
- * OssAppRevision Factory
+ * LegacyAppRevision Factory
  *
  * Factory functions for creating local draft revisions.
  * Used for "Copy as Draft", "New Variant", and "Fork" workflows.
  *
  * @example
  * ```typescript
- * import { createLocalOssAppRevision } from '@agenta/entities/ossAppRevision'
+ * import { createLocalOssAppRevision } from '@agenta/entities/legacyAppRevision'
  *
  * // Create a new local draft from an existing revision
  * const { id, data } = createLocalOssAppRevision({

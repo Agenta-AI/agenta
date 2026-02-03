@@ -1,9 +1,9 @@
 /**
- * OssAppRevision Entity Relations
+ * LegacyAppRevision Entity Relations
  *
  * Defines the parent-child relationships for OSS app revision entities:
  * - app → variant
- * - variant → ossAppRevision
+ * - variant → legacyAppRevision
  *
  * These relations enable:
  * - Selection adapter generation (EntityPicker)
@@ -14,12 +14,12 @@
  *
  * @example
  * ```typescript
- * import { ossAppToVariantRelation, ossVariantToRevisionRelation } from '@agenta/entities/ossAppRevision'
+ * import { ossAppToVariantRelation, ossVariantToRevisionRelation } from '@agenta/entities/legacyAppRevision'
  * import { entityRelationRegistry } from '@agenta/entities/shared'
  *
  * // Relations are auto-registered when this module is imported
- * const path = entityRelationRegistry.getPath("app", "ossAppRevision")
- * // Returns: ["app", "variant", "ossAppRevision"]
+ * const path = entityRelationRegistry.getPath("app", "legacyAppRevision")
+ * // Returns: ["app", "variant", "legacyAppRevision"]
  * ```
  */
 
@@ -160,7 +160,7 @@ const ossRevisionListAtomFamily = (variantId: string) =>
 export const ossVariantToRevisionRelation: EntityRelation<VariantListItem, RevisionListItem> = {
     name: "ossRevisions",
     parentType: "ossVariant",
-    childType: "ossAppRevision",
+    childType: "legacyAppRevision",
 
     // Variants don't embed revision IDs - they're fetched via API
     childIdsPath: () => [],

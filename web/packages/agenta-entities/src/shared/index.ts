@@ -416,7 +416,7 @@ export {
 } from "./paginated"
 
 // ============================================================================
-// REVISION UTILITIES (shared between appRevision and ossAppRevision)
+// REVISION UTILITIES (shared between appRevision and legacyAppRevision)
 // ============================================================================
 
 export {

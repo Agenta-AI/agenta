@@ -149,7 +149,7 @@ export {
     getRevisionLabelInfo,
 } from "./revisionLabel"
 
-// Revision utilities (shared between appRevision and ossAppRevision)
+// Revision utilities (shared between appRevision and legacyAppRevision)
 export {
     // Type guards
     isArray,

@@ -1,5 +1,5 @@
 /**
- * OssAppRevision State exports
+ * LegacyAppRevision State exports
  */
 
 export * from "./molecule"

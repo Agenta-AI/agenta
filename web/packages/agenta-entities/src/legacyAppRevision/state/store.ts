@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Entity Store
+ * LegacyAppRevision Entity Store
  *
  * Provides atoms for OSS app revision entity state:
  * - Query atom (server data)
@@ -42,7 +42,7 @@ import type {OssAppRevisionData} from "../core"
 // ============================================================================
 
 /**
- * Input port type for ossAppRevision
+ * Input port type for legacyAppRevision
  * Represents a variable expected by the prompt template
  */
 export interface OssAppRevisionInputPort {
@@ -142,7 +142,7 @@ const directQueryAtomFamily = atomFamily((revisionId: string) =>
         const enabled = !!revisionId && !!projectId && !isLocal
 
         return {
-            queryKey: ["ossAppRevision", revisionId, projectId],
+            queryKey: ["legacyAppRevision", revisionId, projectId],
             queryFn: () => fetchOssRevisionById(revisionId, projectId!),
             staleTime: 1000 * 60, // 1 minute
             refetchOnWindowFocus: false,

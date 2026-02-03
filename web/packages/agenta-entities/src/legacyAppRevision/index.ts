@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Entity Module
+ * LegacyAppRevision Entity Module
  *
  * Complete OSS app revision entity management with:
  * - Zod schemas for validation
@@ -13,7 +13,7 @@
  *
  * @example
  * ```typescript
- * import { ossAppRevisionMolecule, type OssAppRevisionData } from '@agenta/entities/ossAppRevision'
+ * import { ossAppRevisionMolecule, type OssAppRevisionData } from '@agenta/entities/legacyAppRevision'
  *
  * // Reactive atoms (for useAtomValue, atom compositions)
  * const data = useAtomValue(ossAppRevisionMolecule.atoms.data(revisionId))

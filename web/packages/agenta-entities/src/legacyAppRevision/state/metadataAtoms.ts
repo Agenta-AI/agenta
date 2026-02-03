@@ -1,5 +1,5 @@
 /**
- * Metadata Atoms for OssAppRevision
+ * Metadata Atoms for LegacyAppRevision
  *
  * Centralized metadata storage for enhanced properties (prompts, custom properties).
  * This provides a global store for property metadata that can be looked up by hash.

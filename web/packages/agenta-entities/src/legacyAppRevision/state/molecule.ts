@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Molecule
+ * LegacyAppRevision Molecule
  *
  * Unified API for OSS app revision entity state management.
  * Uses the molecule pattern for consistency with other entities.
@@ -9,7 +9,7 @@
  *
  * @example
  * ```typescript
- * import { ossAppRevisionMolecule } from '@agenta/entities/ossAppRevision'
+ * import { ossAppRevisionMolecule } from '@agenta/entities/legacyAppRevision'
  *
  * // Selectors
  * const data = useAtomValue(ossAppRevisionMolecule.atoms.data(revisionId))
@@ -125,7 +125,7 @@ function getStore(options?: StoreOptions) {
  */
 function getValueAtPath(data: OssAppRevisionData | null, path: DataPath): unknown {
     if (!data) return undefined
-    // For ossAppRevision, we navigate into parameters
+    // For legacyAppRevision, we navigate into parameters
     if (data.parameters && Object.keys(data.parameters).length > 0) {
         return getValueAtPathUtil(data.parameters, path)
     }
@@ -187,7 +187,7 @@ function formatKeyAsName(key: string): string {
 // ============================================================================
 
 /**
- * State returned by useController hook for ossAppRevision
+ * State returned by useController hook for legacyAppRevision
  */
 export interface OssAppRevisionControllerState {
     /** Merged entity data (draft or server) */
@@ -205,7 +205,7 @@ export interface OssAppRevisionControllerState {
 }
 
 /**
- * Dispatch methods returned by useController hook for ossAppRevision
+ * Dispatch methods returned by useController hook for legacyAppRevision
  */
 export interface OssAppRevisionControllerDispatch {
     /** Update entity draft with partial changes */
@@ -237,9 +237,9 @@ export type OssAppRevisionControllerResult = [
 // ============================================================================
 
 /**
- * React hook that combines state + dispatch for a single ossAppRevision entity.
+ * React hook that combines state + dispatch for a single legacyAppRevision entity.
  *
- * This is the recommended way for UI components to interact with ossAppRevision state.
+ * This is the recommended way for UI components to interact with legacyAppRevision state.
  * It provides a stable API that abstracts away the underlying atom implementation.
  *
  * @example
@@ -325,13 +325,13 @@ export function useOssAppRevisionController(revisionId: string): OssAppRevisionC
 // ============================================================================
 
 /**
- * OssAppRevision molecule - unified API for OSS app revision entity management
+ * LegacyAppRevision molecule - unified API for OSS app revision entity management
  *
  * This molecule uses the legacy backend API (AppVariantRevision model).
  */
 export const ossAppRevisionMolecule = {
     /** Entity name */
-    name: "ossAppRevision" as const,
+    name: "legacyAppRevision" as const,
 
     // ========================================================================
     // ATOMS
@@ -742,7 +742,7 @@ export const ossAppRevisionMolecule = {
     /**
      * React hook that combines state + dispatch for a single entity.
      *
-     * This is the recommended way for UI components to interact with ossAppRevision state.
+     * This is the recommended way for UI components to interact with legacyAppRevision state.
      *
      * @example
      * ```typescript

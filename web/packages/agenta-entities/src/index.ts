@@ -145,12 +145,12 @@ export {appRevisionMolecule as appRevision} from "./appRevision"
  *
  * @example
  * ```typescript
- * const data = useAtomValue(ossAppRevision.atoms.data(revisionId))
- * const inputPorts = useAtomValue(ossAppRevision.selectors.inputPorts(revisionId))
- * const isDirty = useAtomValue(ossAppRevision.atoms.isDirty(revisionId))
+ * const data = useAtomValue(legacyAppRevision.atoms.data(revisionId))
+ * const inputPorts = useAtomValue(legacyAppRevision.selectors.inputPorts(revisionId))
+ * const isDirty = useAtomValue(legacyAppRevision.atoms.isDirty(revisionId))
  * ```
  */
-export {ossAppRevisionMolecule as ossAppRevision} from "./ossAppRevision"
+export {ossAppRevisionMolecule as legacyAppRevision} from "./legacyAppRevision"
 
 /**
  * Trace span entity controller.
@@ -196,7 +196,7 @@ export {runnableBridge as runnable} from "./runnable"
 export type {Testcase} from "./testcase"
 export type {Revision, Testset} from "./testset"
 export type {AppRevisionData} from "./appRevision"
-export type {OssAppRevisionData} from "./ossAppRevision"
+export type {OssAppRevisionData} from "./legacyAppRevision"
 export type {TraceSpan} from "./trace"
 
 // Public API interfaces
@@ -219,7 +219,7 @@ export type {
 
 export {testsetSelectionConfig, type TestsetSelectionConfig} from "./testset"
 export {appRevisionSelectionConfig, type AppRevisionSelectionConfig} from "./appRevision"
-export {ossAppRevisionSelectionConfig, type OssAppRevisionSelectionConfig} from "./ossAppRevision"
+export {ossAppRevisionSelectionConfig, type OssAppRevisionSelectionConfig} from "./legacyAppRevision"
 
 // ============================================================================
 // SUBPATH IMPORTS (Advanced Usage)

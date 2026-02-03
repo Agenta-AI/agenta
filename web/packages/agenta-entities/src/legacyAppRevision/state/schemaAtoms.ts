@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Schema Atoms
+ * LegacyAppRevision Schema Atoms
  *
  * Entity-scoped schema atoms for OpenAPI schema fetching and selectors.
  *
