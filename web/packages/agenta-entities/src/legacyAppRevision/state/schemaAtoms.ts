@@ -637,7 +637,7 @@ function createEnhancedPrompt(
 
     if (llmConfig || llmConfigSchemaProps) {
         // Create enhanced llm_config with individually enhanced properties
-        const enhancedLlmConfig: Record<string, unknown> = {
+        const enhancedLlmConfig: NonNullable<EnhancedPrompt["llm_config"]> = {
             __id: generateId(),
             __metadata: llmConfigSchema
                 ? hashAndStoreMetadata(llmConfigSchema, "llm_config")
@@ -740,7 +740,7 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
 
         if (isRecord(llmConfigValue)) {
             // Create enhanced llm_config with individually enhanced properties
-            const enhancedLlmConfig: Record<string, unknown> = {
+            const enhancedLlmConfig: NonNullable<EnhancedPrompt["llm_config"]> = {
                 __id: generateId(),
             }
 
