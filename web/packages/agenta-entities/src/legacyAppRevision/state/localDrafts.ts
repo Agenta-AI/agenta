@@ -155,10 +155,40 @@ export function createLocalDraftFromRevision(sourceRevisionId: string): string {
         variantName: `${sourceData.variantName ?? "Variant (Draft)"}`,
     })
 
-    // Store the source revision ID in the data for reference
+    // When creating a draft-of-draft, inherit the ORIGINAL source info
+    // This ensures we always trace back to the root server revision
+    const isSourceALocalDraft = isLocalDraftId(sourceRevisionId)
+
+    // Type for accessing internal metadata fields on source data
+    type SourceDataWithMetadata = LegacyAppRevisionData & {
+        _sourceRevisionId?: string
+        _sourceVariantId?: string
+        _baseId?: string
+        baseId?: string
+    }
+    const sourceWithMeta = sourceData as SourceDataWithMetadata
+
+    // Get the original source revision ID (always points to a server revision)
+    const originalSourceRevisionId = isSourceALocalDraft
+        ? (sourceWithMeta._sourceRevisionId ?? sourceRevisionId)
+        : sourceRevisionId
+
+    // Get the original variant ID (needed for API calls)
+    const originalSourceVariantId = isSourceALocalDraft
+        ? (sourceWithMeta._sourceVariantId ?? sourceData.variantId)
+        : sourceData.variantId
+
+    // Get the original base ID (needed for create variant API)
+    const originalBaseId = isSourceALocalDraft
+        ? (sourceWithMeta._baseId ?? sourceWithMeta.baseId)
+        : sourceWithMeta.baseId
+
+    // Store all source info in the data for reference
     const dataWithSource = {
         ...draftData,
-        _sourceRevisionId: sourceRevisionId,
+        _sourceRevisionId: originalSourceRevisionId,
+        _sourceVariantId: originalSourceVariantId,
+        _baseId: originalBaseId,
         _sourceRevision: sourceData.revision,
     } as LegacyAppRevisionData
 
