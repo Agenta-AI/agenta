@@ -11,9 +11,9 @@ import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {
     deleteVariantMutationAtom,
+    invalidatePlaygroundQueriesAtom,
     moleculeBackedVariantAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
-import {queryClient} from "@/oss/lib/api/queryClient"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {deleteSingleVariant} from "@/oss/services/playground/api"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
@@ -36,6 +36,7 @@ interface VariantGroup {
 const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
     const store = getDefaultStore()
     const deleteVariant = useSetAtom(deleteVariantMutationAtom)
+    const invalidatePlaygroundQueries = useSetAtom(invalidatePlaygroundQueriesAtom)
 
     const [checking, setChecking] = useState(true)
     const [canDelete, setCanDelete] = useState<boolean | null>(null)
@@ -175,11 +176,9 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
                 }
             }
 
+            // Invalidate all playground-related queries including entity package queries
             if (deletionPlan.variants.length > 0) {
-                await Promise.all([
-                    queryClient.invalidateQueries({queryKey: ["variants"]}),
-                    queryClient.invalidateQueries({queryKey: ["variantRevisions"]}),
-                ])
+                await invalidatePlaygroundQueries()
             }
 
             message.success(
@@ -194,7 +193,7 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
         } finally {
             setIsMutating(false)
         }
-    }, [deletionPlan, deleteVariant, onClose])
+    }, [deletionPlan, deleteVariant, invalidatePlaygroundQueries, onClose])
 
     // Loading state during pre-check
     if (checking) {
