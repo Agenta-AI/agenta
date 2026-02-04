@@ -104,11 +104,10 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
         if (appStatusLoading) return
         if (!Array.isArray(revisionList) || revisionList.length === 0) return
 
+        // revisionList already includes tracked local drafts merged with server revisions
+        // So we only need to check if IDs exist in the list (handles both local drafts and server revisions)
         const revisionIds = new Set(revisionList.map((revision) => revision?.id).filter(Boolean))
-        // Keep placeholder IDs (pending hydration), local drafts, AND valid committed revisions
-        const validSelection = selectedVariants.filter(
-            (id) => isPlaceholderId(id) || isLocalDraft(id) || revisionIds.has(id),
-        )
+        const validSelection = selectedVariants.filter((id) => revisionIds.has(id))
         const nextSelection =
             validSelection.length > 0 ? validSelection : [revisionList[0]?.id].filter(Boolean)
 

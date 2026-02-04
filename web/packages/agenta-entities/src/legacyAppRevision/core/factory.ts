@@ -34,6 +34,8 @@ import type {LegacyAppRevisionData} from "../core"
 export interface CreateLocalLegacyAppRevisionParams {
     /** The variant ID this draft belongs to */
     variantId: string
+    /** The app ID this draft belongs to (for app-scoped storage) */
+    appId?: string
     /** Display name for the variant */
     variantName?: string
     /** Source revision number (if copying from existing) */
@@ -100,6 +102,7 @@ export function createLocalLegacyAppRevision(
 ): LocalLegacyAppRevision {
     const {
         variantId,
+        appId,
         variantName = "New Variant",
         sourceRevision = null,
         parameters = {},
@@ -116,6 +119,7 @@ export function createLocalLegacyAppRevision(
         // Core identity
         id,
         variantId,
+        appId,
         variantName,
 
         // Version info - use source revision or 0 for new drafts
@@ -164,6 +168,7 @@ export function cloneAsLocalDraft(
 
     return createLocalLegacyAppRevision({
         variantId,
+        appId: overrides?.appId ?? source.appId,
         variantName: overrides?.variantName ?? `${source.variantName ?? "Variant"} (Copy)`,
         sourceRevision: source.revision,
         parameters: overrides?.parameters ?? source.parameters,

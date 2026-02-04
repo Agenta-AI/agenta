@@ -37,6 +37,7 @@ import {
     revisionEnhancedCustomPropertiesAtomFamily,
     revisionEnhancedPromptsAtomFamily,
     variantsListWithDraftsAtomFamily,
+    setCurrentAppIdAtom,
     type LegacyAppRevisionData,
 } from "@agenta/entities/legacyAppRevision"
 import {
@@ -55,6 +56,15 @@ import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 // Bridge initialization flag for debug utilities
 let bridgeInitialized = false
+
+// ============================================================================
+// APP ID REGISTRATION FOR LOCAL DRAFTS
+// Wire up app scoping for local draft storage
+// ============================================================================
+
+// Register the app ID atom with the entities package to enable app-scoped local drafts
+// This must be called before any local draft operations
+setCurrentAppIdAtom(selectedAppIdAtom as ReturnType<typeof atom<string | null>>)
 
 // ============================================================================
 // REVISION DATA ADAPTER

@@ -321,6 +321,8 @@ export {
     discardLocalDraft,
     discardAllLocalDrafts,
     cleanupStaleLocalDrafts,
+    // App scoping setup
+    setCurrentAppIdAtom,
     // Re-exports
     isLocalDraftId,
     extractSourceIdFromDraft,

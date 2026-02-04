@@ -151,9 +151,28 @@ export const playgroundLayoutAtom = selectAtom(
 )
 
 // Focused boolean selector to avoid broad layout subscriptions
+// Uses validated selection (filters stale IDs against revisions + tracked local drafts)
+// This ensures comparison mode exits when stale local draft IDs are filtered out
 export const isComparisonViewAtom = selectAtom(
-    selectedVariantsAtom,
-    (selected) => (selected?.length || 0) > 1,
+    atom((get) => {
+        const selected = get(selectedVariantsAtom) || []
+        const revisions = get(playgroundRevisionListAtom) || []
+        const trackedLocalDraftIds = get(localDraftIdsAtom) || []
+
+        // Filter to only valid IDs (same logic as displayedVariantsAtom)
+        const validIds = selected.filter((id) => {
+            if (isLocalDraftId(id)) {
+                return (
+                    trackedLocalDraftIds.includes(id) ||
+                    revisions.some((revision: any) => revision.id === id)
+                )
+            }
+            return revisions.some((revision: any) => revision.id === id)
+        })
+
+        return validIds.length
+    }),
+    (count) => count > 1,
     (a, b) => a === b,
 )
 
