@@ -64,6 +64,7 @@ const PlaygroundVariantPropertyControl = ({
                 const property =
                     findPropertyInObject(list, propertyId) ||
                     findPropertyById(list as any, propertyId)
+
                 if (property) {
                     return {
                         value: (property as any)?.content?.value || (property as any)?.value,
@@ -114,6 +115,7 @@ const PlaygroundVariantPropertyControl = ({
                     findPropertyInObject(list, propertyId) ||
                     findPropertyById(list as any, propertyId)
                 const propertyMetadata = resolveMetadata(property?.__metadata)
+
                 if (propertyMetadata) return propertyMetadata
                 if (property?.__metadata) {
                     const meta = metadataMap?.[property.__metadata]

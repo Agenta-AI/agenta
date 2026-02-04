@@ -27,7 +27,7 @@ import type {EntitySchema, EntitySchemaProperty} from "../../shared"
 import {fetchRevisionSchema, buildRevisionSchemaState, type OpenAPISpec} from "../api"
 import type {RevisionSchemaState} from "../core"
 
-import {hashMetadata as hashAndStoreMetadata} from "./metadataAtoms"
+import {hashMetadata as hashAndStoreMetadata, updateMetadataAtom} from "./metadataAtoms"
 import {
     serviceSchemaForRevisionAtomFamily,
     composedServiceSchemaAtomFamily,
@@ -42,9 +42,91 @@ import {legacyAppRevisionEntityWithBridgeAtomFamily} from "./store"
 export {metadataAtom as customPropertyMetadataAtom} from "./metadataAtoms"
 
 /**
+ * Simple hash function that preserves all metadata fields including 'name'.
+ * Unlike hashAndStoreMetadata which transforms schemas, this stores the object as-is.
+ * Used specifically for tool configuration metadata where 'name' field is required.
+ */
+function hashAndStoreRawMetadata(metadata: Record<string, unknown>): string {
+    // Use a stable JSON string for hashing
+    const jsonString = JSON.stringify(metadata, Object.keys(metadata).sort())
+    // Simple hash based on string content
+    let hash = 0
+    for (let i = 0; i < jsonString.length; i++) {
+        const chr = jsonString.charCodeAt(i)
+        hash = (hash << 5) - hash + chr
+        hash |= 0 // Convert to 32bit integer
+    }
+    const hashKey = `raw_${Math.abs(hash).toString(16)}`
+    // Store the raw metadata - cast to ConfigMetadata compatible type
+
+    updateMetadataAtom({[hashKey]: metadata as unknown as import("./metadataAtoms").ConfigMetadata})
+    return hashKey
+}
+
+/**
  * Generate a unique ID for enhanced properties (same as OSS)
  */
 const generateId = () => uuidv4()
+
+/**
+ * Static schema for tool configuration - used to generate metadata hash.
+ * This matches the schema used when adding tools via addPromptToolMutationAtomFamily.
+ */
+const TOOL_CONFIGURATION_SCHEMA = {
+    type: "object",
+    name: "ToolConfiguration",
+    description: "Tool configuration",
+    properties: {
+        type: {
+            type: "string",
+            description: "Type of the tool",
+        },
+        name: {
+            type: "string",
+            description: "Name of the tool",
+        },
+        description: {
+            type: "string",
+            description: "Description of the tool",
+        },
+        parameters: {
+            type: "object",
+            properties: {
+                type: {
+                    type: "string",
+                    enum: ["object", "function"],
+                },
+            },
+        },
+    },
+    required: ["name", "description", "parameters"],
+}
+
+/**
+ * Enhance an array of tools by adding __id and __metadata to each item.
+ * This is necessary for UI components (ToolsRenderer) that rely on __id to identify tools.
+ *
+ * Uses hashAndStoreRawMetadata to preserve the 'name' field which is required
+ * by renderMap.object to detect ToolConfiguration and render PlaygroundTool.
+ */
+function enhanceToolsArray(tools: unknown[]): unknown[] {
+    if (!Array.isArray(tools)) return []
+
+    return tools.map((tool) => {
+        // If tool already has __id (e.g., from draft state), preserve it
+        if (tool && typeof tool === "object" && "__id" in tool) {
+            return tool
+        }
+
+        // Enhance the tool with __id and __metadata
+        // Use hashAndStoreRawMetadata to preserve all fields including 'name'
+        return {
+            __id: generateId(),
+            __metadata: hashAndStoreRawMetadata(TOOL_CONFIGURATION_SCHEMA),
+            value: tool,
+        }
+    })
+}
 
 // ============================================================================
 // SCHEMA QUERY
@@ -648,7 +730,20 @@ function createEnhancedPrompt(
         if (llmConfig) {
             Object.entries(llmConfig).forEach(([propKey, propValue]) => {
                 const propSchema = llmConfigSchemaProps?.[propKey]
-                enhancedLlmConfig[propKey] = createEnhancedValue(propValue, propSchema, propKey)
+
+                // Special handling for tools array - each tool needs its own __id
+                if (propKey === "tools" && Array.isArray(propValue)) {
+                    const enhancedTools = enhanceToolsArray(propValue)
+                    enhancedLlmConfig[propKey] = {
+                        value: enhancedTools,
+                        __id: generateId(),
+                        __metadata: propSchema
+                            ? hashAndStoreMetadata(propSchema, propKey)
+                            : undefined,
+                    }
+                } else {
+                    enhancedLlmConfig[propKey] = createEnhancedValue(propValue, propSchema, propKey)
+                }
             })
         }
 
@@ -747,7 +842,21 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
             // Enhance each property in llm_config individually
             Object.entries(llmConfigValue).forEach(([propKey, propValue]) => {
                 const actualValue = unwrapEnhancedValue(propValue)
-                enhancedLlmConfig[propKey] = createEnhancedValue(actualValue, undefined, propKey)
+
+                // Special handling for tools array - each tool needs its own __id
+                if (propKey === "tools" && Array.isArray(actualValue)) {
+                    const enhancedTools = enhanceToolsArray(actualValue)
+                    enhancedLlmConfig[propKey] = {
+                        value: enhancedTools,
+                        __id: generateId(),
+                    }
+                } else {
+                    enhancedLlmConfig[propKey] = createEnhancedValue(
+                        actualValue,
+                        undefined,
+                        propKey,
+                    )
+                }
             })
 
             result.llm_config = enhancedLlmConfig
@@ -808,6 +917,7 @@ export const revisionEnhancedPromptsAtomFamily = atomFamily((revisionId: string)
 
                     // Create enhanced prompt
                     const enhancedPrompt = createEnhancedPrompt(mergedData, propSchema, key)
+
                     result.push(enhancedPrompt)
                 }
             })
