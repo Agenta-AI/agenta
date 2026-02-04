@@ -249,7 +249,7 @@ async def get_evaluator_configs(
         project_id=project_id,
     )
 
-    return [
+    configs = [
         _simple_evaluator_to_evaluator_config(
             project_id=request.state.project_id,
             simple_evaluator=simple_evaluator,
@@ -264,6 +264,10 @@ async def get_evaluator_configs(
             or (simple_evaluator.flags and simple_evaluator.flags.is_human)
         )
     ]
+
+    configs.sort(key=lambda c: c.created_at or "", reverse=True)
+
+    return configs
 
 
 @router.get("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
