@@ -324,6 +324,7 @@ export const moleculeBackedPromptsAtomFamily = atomFamilyJotaiUtils((revisionId:
         (get) => {
             // Try molecule first (has draft merged)
             const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
+
             if (moleculeData?.enhancedPrompts && Array.isArray(moleculeData.enhancedPrompts)) {
                 return moleculeData.enhancedPrompts
             }
