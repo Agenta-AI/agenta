@@ -9,6 +9,18 @@ const reduxToolkitCjsEntry = path.join(
     "dist/cjs/index.js",
 )
 const isDevelopment = process.env.NODE_ENV === "development"
+const transpilePackages = [
+    "rc-util",
+    "antd",
+    "rc-pagination",
+    "rc-picker",
+    "rc-tree",
+    "rc-input",
+    "rc-table",
+    "@ant-design/icons",
+    "@ant-design/icons-svg",
+    "@agenta/oss",
+]
 
 const COMMON_CONFIG: NextConfig = {
     output: "standalone",
@@ -16,6 +28,7 @@ const COMMON_CONFIG: NextConfig = {
     pageExtensions: ["ts", "tsx", "js", "jsx"],
     productionBrowserSourceMaps: true,
     outputFileTracingRoot: path.resolve(__dirname, ".."),
+    transpilePackages,
     images: {
         remotePatterns: [{hostname: "fps.cdnpk.net"}],
     },
@@ -56,17 +69,6 @@ const COMMON_CONFIG: NextConfig = {
     },
     ...(!isDevelopment
         ? {
-              transpilePackages: [
-                  "rc-util",
-                  "antd",
-                  "rc-pagination",
-                  "rc-picker",
-                  "rc-tree",
-                  "rc-input",
-                  "rc-table",
-                  "@ant-design/icons",
-                  "@ant-design/icons-svg",
-              ],
               webpack: (config, {webpack, isServer}) => {
                   config.resolve ??= {}
                   config.resolve.alias = {

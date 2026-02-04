@@ -26,6 +26,7 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
+import {shouldShowRegionSelector} from "@/oss/lib/helpers/region"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 import {orgsAtom} from "@/oss/state/org"
@@ -38,6 +39,9 @@ const EmailFirst = dynamic(() => import("@/oss/components/pages/auth/EmailFirst"
 const SocialAuth = dynamic(() => import("@/oss/components/pages/auth/SocialAuth"), {ssr: false})
 const SendOTP = dynamic(() => import("@/oss/components/pages/auth/SendOTP"), {ssr: false})
 const SideBanner = dynamic(() => import("@/oss/components/pages/auth/SideBanner"), {ssr: false})
+const RegionSelector = dynamic(() => import("@/oss/components/pages/auth/RegionSelector"), {
+    ssr: false,
+})
 
 const {Text, Title} = Typography
 const LAST_SSO_ORG_SLUG_KEY = "lastSsoOrgSlug"
@@ -463,6 +467,7 @@ const Auth = () => {
                     )}
 
                     <div className="flex flex-col gap-6 min-h-[360px]">
+                        {shouldShowRegionSelector() && <RegionSelector />}
                         {/* Show invite email mismatch message */}
                         {hasInviteEmailMismatch && (
                             <div className="flex flex-col gap-4">
