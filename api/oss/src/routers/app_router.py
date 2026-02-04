@@ -11,7 +11,7 @@ from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 from oss.src.models import converters
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import db_manager, app_manager
-from oss.src.services.legacy_adapter import get_legacy_adapter
+from oss.src.services.legacy_adapter import get_legacy_adapter, get_legacy_environments_adapter
 from oss.src.models.api.api_models import (
     App,
     UpdateApp,
@@ -162,8 +162,8 @@ async def get_variant_by_env(
                     status_code=403,
                 )
 
-        adapter = get_legacy_adapter()
-        app_variant = await adapter.fetch_variant_by_environment(
+        env_adapter = get_legacy_environments_adapter()
+        app_variant = await env_adapter.fetch_variant_by_environment(
             project_id=UUID(request.state.project_id),
             app_id=UUID(app_id),
             environment_name=environment,
@@ -646,17 +646,19 @@ async def list_environments(
                 status_code=403,
             )
 
-    environments_db = await db_manager.list_environments(app_id=app_id)
+    env_adapter = get_legacy_environments_adapter()
+    env_dicts = await env_adapter.list_environments(
+        project_id=UUID(request.state.project_id),
+        app_id=UUID(app_id),
+    )
 
     fixed_order = ["development", "staging", "production"]
 
-    sorted_environments = sorted(
-        environments_db, key=lambda env: (fixed_order + [env.name]).index(env.name)
+    sorted_env_dicts = sorted(
+        env_dicts, key=lambda env: (fixed_order + [env["name"]]).index(env["name"])
     )
 
-    environments = [
-        await converters.environment_db_to_output(env) for env in sorted_environments
-    ]
+    environments = [EnvironmentOutput(**env) for env in sorted_env_dicts]
 
     await set_cache(
         project_id=request.state.project_id,
@@ -691,21 +693,18 @@ async def list_app_environment_revisions(
                 status_code=403,
             )
 
-    app_environment = await db_manager.fetch_app_environment_by_name_and_appid(
-        app_id,
-        environment_name,
+    env_adapter = get_legacy_environments_adapter()
+    result = await env_adapter.list_environment_revisions(
+        project_id=UUID(request.state.project_id),
+        app_id=UUID(app_id),
+        environment_name=environment_name,
     )
-    if app_environment is None:
+    if result is None:
         return JSONResponse({"detail": "App environment not found"}, status_code=404)
 
-    app_environment_revisions = (
-        await db_manager.fetch_environment_revisions_for_environment(app_environment)
-    )
-    if app_environment_revisions is None:
+    if not result.get("revisions"):
         return JSONResponse(
             {"detail": "No revisions found for app environment"}, status_code=404
         )
 
-    return await converters.environment_db_and_revision_to_extended_output(
-        app_environment, app_environment_revisions
-    )
+    return EnvironmentOutputExtended(**result)

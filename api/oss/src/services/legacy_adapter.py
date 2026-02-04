@@ -1192,3 +1192,547 @@ def get_legacy_adapter() -> LegacyApplicationsAdapter:
         )
 
     return _legacy_adapter
+
+
+# =============================================================================
+# LEGACY ENVIRONMENTS ADAPTER
+# =============================================================================
+
+
+class LegacyEnvironmentsAdapter:
+    """
+    Adapts the new EnvironmentsService to the legacy environment API response
+    formats.
+
+    The old model stores one environment per (app_id, env_name) pair. The new
+    model stores one environment per (project_id, env_slug) with revision data
+    keyed by app_slug (e.g. ``{"my-app.revision": Reference(id=<revision_id>)}``).
+
+    This adapter bridges the two: legacy endpoints call into it and get back the
+    old-shaped responses, while under the hood data is read from / written to
+    the new git-based environment tables.
+    """
+
+    def __init__(
+        self,
+        *,
+        environments_service: "EnvironmentsService",
+        simple_environments_service: "SimpleEnvironmentsService",
+        applications_service: "ApplicationsService",
+    ):
+        self.environments_service = environments_service
+        self.simple_environments_service = simple_environments_service
+        self.applications_service = applications_service
+
+    # ------------------------------------------------------------------
+    # helpers
+    # ------------------------------------------------------------------
+
+    async def _resolve_app_slug(
+        self,
+        *,
+        project_id: UUID,
+        app_id: UUID,
+    ) -> Optional[str]:
+        """Resolve an app_id to its slug via the applications service."""
+        app = await self.applications_service.fetch_application(
+            project_id=project_id,
+            application_ref=Reference(id=app_id),
+        )
+        return app.slug if app else None
+
+    async def _get_or_create_environment(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        environment_name: str,
+    ) -> Optional["SimpleEnvironment"]:
+        """Fetch an environment by slug, creating it if it doesn't exist."""
+        from oss.src.core.environments.dtos import (
+            SimpleEnvironmentCreate,
+        )
+
+        env = await self.environments_service.fetch_environment(
+            project_id=project_id,
+            environment_ref=Reference(slug=environment_name),
+        )
+
+        if env is not None:
+            return await self.simple_environments_service.fetch(
+                project_id=project_id,
+                environment_id=env.id,
+            )
+
+        return await self.simple_environments_service.create(
+            project_id=project_id,
+            user_id=user_id,
+            simple_environment_create=SimpleEnvironmentCreate(
+                slug=environment_name,
+                name=environment_name,
+            ),
+        )
+
+    # ------------------------------------------------------------------
+    # list_environments  (GET /{app_id}/environments/)
+    # ------------------------------------------------------------------
+
+    async def list_environments(
+        self,
+        *,
+        project_id: UUID,
+        app_id: UUID,
+    ) -> List[dict]:
+        """
+        Return legacy-shaped environment dicts for a given app.
+
+        Each dict has the keys expected by ``EnvironmentOutput``:
+        name, app_id, project_id, deployed_app_variant_id,
+        deployed_variant_name, deployed_app_variant_revision_id, revision.
+        """
+        app_slug = await self._resolve_app_slug(
+            project_id=project_id,
+            app_id=app_id,
+        )
+        if app_slug is None:
+            return []
+
+        environments = await self.environments_service.query_environments(
+            project_id=project_id,
+        )
+
+        results: List[dict] = []
+        for env in environments:
+            env_ref = Reference(id=env.id)
+
+            # fetch default variant
+            variant = await self.environments_service.fetch_environment_variant(
+                project_id=project_id,
+                environment_ref=env_ref,
+            )
+            if variant is None:
+                continue
+
+            # fetch latest revision
+            revisions = await self.environments_service.query_environment_revisions(
+                project_id=project_id,
+                environment_variant_refs=[Reference(id=variant.id)],
+                windowing=Windowing(limit=1),
+            )
+            latest_revision = revisions[0] if revisions else None
+
+            deployed_app_variant_revision_id = None
+            deployed_app_variant_id = None
+            deployed_variant_name = None
+            revision_number = 0
+
+            if latest_revision and latest_revision.data and latest_revision.data.references:
+                ref_key = f"{app_slug}.revision"
+                ref = latest_revision.data.references.get(ref_key)
+                if ref is not None:
+                    deployed_app_variant_revision_id = str(ref.id) if ref.id else None
+
+                    # Resolve variant name from the application variant revision
+                    if ref.id:
+                        deployed_app_variant_id, deployed_variant_name = (
+                            await self._resolve_variant_from_revision_id(
+                                project_id=project_id,
+                                variant_revision_id=ref.id,
+                            )
+                        )
+
+            if latest_revision:
+                revision_number = latest_revision.version or 0
+
+            results.append(
+                {
+                    "name": env.slug,
+                    "app_id": str(app_id),
+                    "project_id": str(project_id),
+                    "deployed_app_variant_id": deployed_app_variant_id,
+                    "deployed_variant_name": deployed_variant_name,
+                    "deployed_app_variant_revision_id": deployed_app_variant_revision_id,
+                    "revision": revision_number,
+                }
+            )
+
+        return results
+
+    async def _resolve_variant_from_revision_id(
+        self,
+        *,
+        project_id: UUID,
+        variant_revision_id: UUID,
+    ) -> tuple:
+        """
+        Given an application variant revision ID, resolve its variant ID and
+        variant name.
+
+        Returns (variant_id_str, variant_name) or (None, None).
+        """
+        from oss.src.core.applications.dtos import ApplicationRevision
+
+        revisions = await self.applications_service.query_application_revisions(
+            project_id=project_id,
+            application_revision_refs=[Reference(id=variant_revision_id)],
+            windowing=Windowing(limit=1),
+        )
+
+        if not revisions:
+            return None, None
+
+        revision = revisions[0]
+        variant_id = revision.application_variant_id or revision.variant_id
+        if variant_id is None:
+            return None, None
+
+        variant = await self.applications_service.fetch_application_variant(
+            project_id=project_id,
+            application_variant_ref=Reference(id=variant_id),
+        )
+
+        if variant is None:
+            return str(variant_id), None
+
+        return str(variant_id), (variant.name or variant.slug)
+
+    # ------------------------------------------------------------------
+    # deploy_to_environment  (POST /environments/deploy/)
+    # ------------------------------------------------------------------
+
+    async def deploy_to_environment(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        variant_id: UUID,
+        environment_name: str,
+        commit_message: Optional[str] = None,
+    ) -> Optional[tuple]:
+        """
+        Deploy a variant to an environment.
+
+        Returns ``(environment_name, revision_version)`` on success, or None.
+        """
+        from oss.src.core.environments.dtos import (
+            EnvironmentRevisionCommit,
+            EnvironmentRevisionData,
+        )
+
+        # Resolve the variant to get app_id and latest revision
+        variant = await self.applications_service.fetch_application_variant(
+            project_id=project_id,
+            application_variant_ref=Reference(id=variant_id),
+        )
+        if variant is None:
+            raise ValueError("App variant not found")
+
+        app_id = variant.application_id or variant.artifact_id
+        if app_id is None:
+            raise ValueError("App variant has no associated application")
+
+        app_slug = await self._resolve_app_slug(
+            project_id=project_id,
+            app_id=app_id,
+        )
+        if app_slug is None:
+            raise ValueError("Application not found")
+
+        # Get latest application variant revision
+        app_revisions = await self.applications_service.query_application_revisions(
+            project_id=project_id,
+            application_variant_refs=[Reference(id=variant_id)],
+            windowing=Windowing(limit=1),
+        )
+        variant_revision = app_revisions[0] if app_revisions else None
+        variant_revision_id = variant_revision.id if variant_revision else variant_id
+
+        # Get or create the environment
+        simple_env = await self._get_or_create_environment(
+            project_id=project_id,
+            user_id=user_id,
+            environment_name=environment_name,
+        )
+        if simple_env is None:
+            raise ValueError(f"Failed to get or create environment '{environment_name}'")
+
+        # Fetch the default variant for this environment
+        env_variant = await self.environments_service.fetch_environment_variant(
+            project_id=project_id,
+            environment_ref=Reference(id=simple_env.id),
+        )
+        if env_variant is None:
+            raise ValueError(f"Environment variant not found for '{environment_name}'")
+
+        # Build new references: carry forward existing, update this app's entry
+        existing_references: Dict[str, Reference] = {}
+        if simple_env.data and simple_env.data.references:
+            existing_references = dict(simple_env.data.references)
+
+        existing_references[f"{app_slug}.revision"] = Reference(
+            id=variant_revision_id,
+        )
+
+        revision_slug = uuid4().hex[-12:]
+
+        environment_revision_commit = EnvironmentRevisionCommit(
+            slug=revision_slug,
+            name=environment_name,
+            data=EnvironmentRevisionData(references=existing_references),
+            message=commit_message,
+            environment_id=simple_env.id,
+            environment_variant_id=env_variant.id,
+        )
+
+        new_revision = await self.environments_service.commit_environment_revision(
+            project_id=project_id,
+            user_id=user_id,
+            environment_revision_commit=environment_revision_commit,
+        )
+
+        if new_revision is None:
+            return None
+
+        return environment_name, new_revision.version
+
+    # ------------------------------------------------------------------
+    # fetch_variant_by_environment  (GET /get_variant_by_env/)
+    # ------------------------------------------------------------------
+
+    async def fetch_variant_by_environment(
+        self,
+        *,
+        project_id: UUID,
+        app_id: UUID,
+        environment_name: str,
+    ) -> Optional["AppVariantResponse"]:
+        """
+        Fetch the variant deployed to a specific environment for a given app.
+        """
+        app_slug = await self._resolve_app_slug(
+            project_id=project_id,
+            app_id=app_id,
+        )
+        if app_slug is None:
+            return None
+
+        env = await self.environments_service.fetch_environment(
+            project_id=project_id,
+            environment_ref=Reference(slug=environment_name),
+        )
+        if env is None:
+            return None
+
+        # fetch variant + latest revision
+        env_variant = await self.environments_service.fetch_environment_variant(
+            project_id=project_id,
+            environment_ref=Reference(id=env.id),
+        )
+        if env_variant is None:
+            return None
+
+        env_revisions = await self.environments_service.query_environment_revisions(
+            project_id=project_id,
+            environment_variant_refs=[Reference(id=env_variant.id)],
+            windowing=Windowing(limit=1),
+        )
+        latest = env_revisions[0] if env_revisions else None
+
+        if not latest or not latest.data or not latest.data.references:
+            return None
+
+        ref = latest.data.references.get(f"{app_slug}.revision")
+        if ref is None or ref.id is None:
+            return None
+
+        # ref.id is a variant revision ID; resolve to the parent variant
+        variant_revision_id = ref.id
+
+        app_revisions = await self.applications_service.query_application_revisions(
+            project_id=project_id,
+            application_revision_refs=[Reference(id=variant_revision_id)],
+            windowing=Windowing(limit=1),
+        )
+        if not app_revisions:
+            return None
+
+        app_revision = app_revisions[0]
+        variant_id = app_revision.application_variant_id or app_revision.variant_id
+        if variant_id is None:
+            return None
+
+        app_adapter = get_legacy_adapter()
+        return await app_adapter.fetch_variant(
+            project_id=project_id,
+            variant_id=variant_id,
+        )
+
+    # ------------------------------------------------------------------
+    # list_environment_revisions  (GET /{app_id}/revisions/{env_name}/)
+    # ------------------------------------------------------------------
+
+    async def list_environment_revisions(
+        self,
+        *,
+        project_id: UUID,
+        app_id: UUID,
+        environment_name: str,
+    ) -> Optional[dict]:
+        """
+        Return legacy-shaped environment + revisions for the extended output.
+
+        Returns a dict with all ``EnvironmentOutputExtended`` fields, or None
+        if the environment doesn't exist.
+        """
+        app_slug = await self._resolve_app_slug(
+            project_id=project_id,
+            app_id=app_id,
+        )
+        if app_slug is None:
+            return None
+
+        env = await self.environments_service.fetch_environment(
+            project_id=project_id,
+            environment_ref=Reference(slug=environment_name),
+        )
+        if env is None:
+            return None
+
+        env_variant = await self.environments_service.fetch_environment_variant(
+            project_id=project_id,
+            environment_ref=Reference(id=env.id),
+        )
+        if env_variant is None:
+            return None
+
+        # Fetch all revisions
+        all_revisions = await self.environments_service.query_environment_revisions(
+            project_id=project_id,
+            environment_variant_refs=[Reference(id=env_variant.id)],
+        )
+
+        # Get latest for the top-level environment output
+        latest = all_revisions[0] if all_revisions else None
+
+        deployed_app_variant_revision_id = None
+        deployed_app_variant_id = None
+        deployed_variant_name = None
+        revision_number = 0
+
+        if latest and latest.data and latest.data.references:
+            ref = latest.data.references.get(f"{app_slug}.revision")
+            if ref and ref.id:
+                deployed_app_variant_revision_id = str(ref.id)
+                deployed_app_variant_id, deployed_variant_name = (
+                    await self._resolve_variant_from_revision_id(
+                        project_id=project_id,
+                        variant_revision_id=ref.id,
+                    )
+                )
+
+        if latest:
+            revision_number = latest.version or 0
+
+        # Build revision list
+        revision_list = []
+        for rev in all_revisions:
+            rev_deployed_variant_name = None
+            rev_deployed_revision_id = None
+            if rev.data and rev.data.references:
+                ref = rev.data.references.get(f"{app_slug}.revision")
+                if ref and ref.id:
+                    rev_deployed_revision_id = str(ref.id)
+                    _, rev_deployed_variant_name = (
+                        await self._resolve_variant_from_revision_id(
+                            project_id=project_id,
+                            variant_revision_id=ref.id,
+                        )
+                    )
+
+            revision_list.append(
+                {
+                    "id": str(rev.id) if rev.id else None,
+                    "revision": rev.version or 0,
+                    "modified_by": str(rev.updated_by_id) if rev.updated_by_id else "",
+                    "deployed_app_variant_revision": rev_deployed_revision_id,
+                    "deployment": None,
+                    "commit_message": rev.message,
+                    "created_at": str(rev.created_at) if rev.created_at else "",
+                    "deployed_variant_name": rev_deployed_variant_name,
+                }
+            )
+
+        return {
+            "name": env.slug,
+            "app_id": str(app_id),
+            "project_id": str(project_id),
+            "deployed_app_variant_id": deployed_app_variant_id,
+            "deployed_variant_name": deployed_variant_name,
+            "deployed_app_variant_revision_id": deployed_app_variant_revision_id,
+            "revision": revision_number,
+            "revisions": revision_list,
+        }
+
+
+# -----------------------------------------------------------------------------
+# LEGACY ENVIRONMENTS ADAPTER SINGLETON
+# -----------------------------------------------------------------------------
+
+_legacy_env_adapter: Optional[LegacyEnvironmentsAdapter] = None
+
+
+def get_legacy_environments_adapter() -> LegacyEnvironmentsAdapter:
+    """
+    Get the legacy environments adapter singleton instance.
+
+    Creates the adapter lazily on first access.
+    """
+    global _legacy_env_adapter
+
+    if _legacy_env_adapter is None:
+        from oss.src.dbs.postgres.git.dao import GitDAO
+        from oss.src.dbs.postgres.environments.dbes import (
+            EnvironmentArtifactDBE,
+            EnvironmentVariantDBE,
+            EnvironmentRevisionDBE,
+        )
+        from oss.src.dbs.postgres.workflows.dbes import (
+            WorkflowArtifactDBE,
+            WorkflowVariantDBE,
+            WorkflowRevisionDBE,
+        )
+        from oss.src.core.environments.service import (
+            EnvironmentsService,
+            SimpleEnvironmentsService,
+        )
+        from oss.src.core.workflows.service import WorkflowsService
+
+        environments_dao = GitDAO(
+            ArtifactDBE=EnvironmentArtifactDBE,
+            VariantDBE=EnvironmentVariantDBE,
+            RevisionDBE=EnvironmentRevisionDBE,
+        )
+        environments_service = EnvironmentsService(
+            environments_dao=environments_dao,
+        )
+        simple_environments_service = SimpleEnvironmentsService(
+            environments_service=environments_service,
+        )
+
+        workflows_dao = GitDAO(
+            ArtifactDBE=WorkflowArtifactDBE,
+            VariantDBE=WorkflowVariantDBE,
+            RevisionDBE=WorkflowRevisionDBE,
+        )
+        workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+        applications_service = ApplicationsService(
+            workflows_service=workflows_service,
+        )
+
+        _legacy_env_adapter = LegacyEnvironmentsAdapter(
+            environments_service=environments_service,
+            simple_environments_service=simple_environments_service,
+            applications_service=applications_service,
+        )
+
+    return _legacy_env_adapter
