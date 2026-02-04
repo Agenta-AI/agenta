@@ -641,8 +641,11 @@ class LegacyApplicationsAdapter:
             application_revisions_log=revisions_log,
         )
 
+        # rev.version is a string in the DTO (Version mixin uses str),
+        # so compare as strings to avoid str/int mismatch.
+        version_str = str(version)
         for rev in revisions:
-            if rev.version == version:
+            if str(rev.version) == version_str:
                 return rev
 
         return None
@@ -1416,7 +1419,7 @@ class LegacyEnvironmentsAdapter:
         """
         from oss.src.core.environments.dtos import (
             EnvironmentRevisionCommit,
-            EnvironmentRevisionData,
+            EnvironmentRevisionDelta,
         )
 
         # Resolve the variant to get app_id and latest revision
@@ -1464,21 +1467,18 @@ class LegacyEnvironmentsAdapter:
         if env_variant is None:
             raise ValueError(f"Environment variant not found for '{environment_name}'")
 
-        # Build new references: carry forward existing, update this app's entry
-        existing_references: Dict[str, Reference] = {}
-        if simple_env.data and simple_env.data.references:
-            existing_references = dict(simple_env.data.references)
-
-        existing_references[f"{app_slug}.revision"] = Reference(
-            id=variant_revision_id,
-        )
-
+        # Use delta commit: set only this app's reference key.
+        # The service handles fetching the base revision and merging.
         revision_slug = uuid4().hex[-12:]
 
         environment_revision_commit = EnvironmentRevisionCommit(
             slug=revision_slug,
             name=environment_name,
-            data=EnvironmentRevisionData(references=existing_references),
+            delta=EnvironmentRevisionDelta(
+                set={
+                    f"{app_slug}.revision": Reference(id=variant_revision_id),
+                },
+            ),
             message=commit_message,
             environment_id=simple_env.id,
             environment_variant_id=env_variant.id,

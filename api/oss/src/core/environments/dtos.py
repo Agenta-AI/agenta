@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -104,6 +104,20 @@ class EnvironmentRevisionData(BaseModel):
     references: Optional[Dict[str, Reference]] = None
 
 
+# revision delta ---------------------------------------------------------------
+
+
+class EnvironmentRevisionDelta(BaseModel):
+    """Delta operations on environment revision references.
+
+    - ``set``: references to add or update (key → Reference).
+    - ``remove``: reference keys to remove.
+    """
+
+    set: Optional[Dict[str, Reference]] = None
+    remove: Optional[List[str]] = None
+
+
 # environments -----------------------------------------------------------------
 
 
@@ -190,6 +204,7 @@ class EnvironmentRevisionCommit(
     EnvironmentRevisionIdAlias,
 ):
     data: Optional[EnvironmentRevisionData] = None
+    delta: Optional[EnvironmentRevisionDelta] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("environment_id", "artifact_id", self)

@@ -1198,6 +1198,9 @@ class GitDAO(GitDAOInterface):
 
             revision_dbes = result.scalars().all()
 
+            for rdbe in revision_dbes:
+                log.warning(f"[DEBUG query_revisions] DBE id={rdbe.id}, raw data={rdbe.data}, data_type={type(rdbe.data)}")
+
             revisions = [
                 map_dbe_to_dto(
                     DTO=Revision,

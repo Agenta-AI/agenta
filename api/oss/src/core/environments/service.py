@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Dict
 from uuid import UUID, uuid4
 
 from oss.src.utils.logging import get_module_logger
@@ -37,6 +37,7 @@ from oss.src.core.environments.dtos import (
     EnvironmentRevisionEdit,
     EnvironmentRevisionQuery,
     EnvironmentRevisionCommit,
+    EnvironmentRevisionDelta,
     #
     SimpleEnvironment,
     SimpleEnvironmentCreate,
@@ -667,6 +668,11 @@ class EnvironmentsService:
         if not revisions:
             return []
 
+        for rev in revisions:
+            log.warning(f"[DEBUG query_env_revisions] Revision id={rev.id}, data={rev.data}, data_type={type(rev.data)}")
+            dumped = rev.model_dump(mode="json")
+            log.warning(f"[DEBUG query_env_revisions] model_dump data={dumped.get('data')}")
+
         environment_revisions = [
             EnvironmentRevision(
                 **revision.model_dump(
@@ -675,6 +681,9 @@ class EnvironmentsService:
             )
             for revision in revisions
         ]
+
+        for erev in environment_revisions:
+            log.warning(f"[DEBUG query_env_revisions] EnvironmentRevision id={erev.id}, data={erev.data}")
 
         return environment_revisions
 
@@ -686,6 +695,14 @@ class EnvironmentsService:
         #
         environment_revision_commit: EnvironmentRevisionCommit,
     ) -> Optional[EnvironmentRevision]:
+        # Route to delta handler if delta provided without data
+        if environment_revision_commit.delta and not environment_revision_commit.data:
+            return await self._commit_environment_revision_delta(
+                project_id=project_id,
+                user_id=user_id,
+                environment_revision_commit=environment_revision_commit,
+            )
+
         dumped = environment_revision_commit.model_dump(
             mode="json",
             exclude_none=True,
@@ -710,6 +727,74 @@ class EnvironmentsService:
         )
 
         return environment_revision
+
+    async def _commit_environment_revision_delta(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        environment_revision_commit: EnvironmentRevisionCommit,
+    ) -> Optional[EnvironmentRevision]:
+        """Apply delta operations to the latest revision's references and commit.
+
+        1. Fetch the latest revision for the environment variant.
+        2. If the latest revision has no data, scan backwards for one that does.
+        3. Apply ``delta.set`` (add/update keys) and ``delta.remove`` (delete keys).
+        4. Re-enter ``commit_environment_revision`` with the resolved full data.
+        """
+
+        delta = environment_revision_commit.delta
+
+        # Resolve the environment variant to find the latest revision
+        variant_id = (
+            environment_revision_commit.environment_variant_id
+            or environment_revision_commit.variant_id
+        )
+
+        base_references: Dict[str, Reference] = {}
+
+        if variant_id:
+            revisions = await self.query_environment_revisions(
+                project_id=project_id,
+                environment_variant_refs=[Reference(id=variant_id)],
+            )
+
+            # Find the most recent revision that has reference data
+            for rev in revisions:
+                if rev.data and rev.data.references:
+                    base_references = dict(rev.data.references)
+                    break
+
+        # Apply delta operations
+        if delta.set:
+            base_references.update(delta.set)
+
+        if delta.remove:
+            for key in delta.remove:
+                base_references.pop(key, None)
+
+        # Reconstruct commit with full data (no delta)
+        environment_revision_commit = EnvironmentRevisionCommit(
+            slug=environment_revision_commit.slug,
+            name=environment_revision_commit.name,
+            description=environment_revision_commit.description,
+            tags=environment_revision_commit.tags,
+            meta=environment_revision_commit.meta,
+            message=environment_revision_commit.message,
+            environment_id=environment_revision_commit.environment_id,
+            environment_variant_id=environment_revision_commit.environment_variant_id,
+            data=EnvironmentRevisionData(
+                references=base_references if base_references else None,
+            ),
+        )
+
+        # Re-enter with full data
+        return await self.commit_environment_revision(
+            project_id=project_id,
+            user_id=user_id,
+            environment_revision_commit=environment_revision_commit,
+        )
 
     async def log_environment_revisions(
         self,
