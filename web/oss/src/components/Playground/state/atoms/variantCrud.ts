@@ -6,7 +6,6 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
 
 import {drawerVariantIdAtom} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
-import {queryClient} from "@/oss/lib/api/queryClient"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
@@ -31,7 +30,11 @@ import type {
 
 import {selectedVariantsAtom} from "./core"
 import {parametersOverrideAtomFamily} from "./parametersOverride"
-import {invalidatePlaygroundQueriesAtom, waitForNewRevisionAfterMutationAtom} from "./queries"
+import {
+    invalidatePlaygroundQueriesAtom,
+    waitForNewRevisionAfterMutationAtom,
+    waitForRevisionRemovalAtom,
+} from "./queries"
 import {revisionListAtom} from "./variants"
 
 // Add variant mutation atom
@@ -363,69 +366,35 @@ export const deleteVariantMutationAtom = atom(
             }
 
             const store = getDefaultStore()
-            const initialCount = initialList.length
-
-            // Setup subscription to detect when revision list reflects removal
-            const waitForRemoval = new Promise<void>((resolve) => {
-                let unsub: undefined | (() => void)
-
-                const onChange = () => {
-                    try {
-                        const list = (store as any).get(revisionListAtom) as EnhancedVariant[]
-                        const exists = Array.isArray(list)
-                            ? list.some((r) => r?.id === revisionId)
-                            : false
-                        const decreased = Array.isArray(list) ? list.length < initialCount : false
-                        if (!exists && decreased) {
-                            // Update selection: same-variant newest preferred, then global newest
-                            const allSorted = (list || []).slice().sort((a: any, b: any) => {
-                                const at = a?.updatedAtTimestamp ?? a?.createdAtTimestamp ?? 0
-                                const bt = b?.updatedAtTimestamp ?? b?.createdAtTimestamp ?? 0
-                                return bt - at
-                            })
-                            const sameVariantSorted = allSorted.filter(
-                                (r: any) => r?.variantId === (currentRevision as any)?.variantId,
-                            )
-                            const preferred = sameVariantSorted[0]?.id || allSorted[0]?.id || null
-
-                            const currentSelected = (store as any).get(selectedVariantsAtom) || []
-                            let nextSelected = currentSelected.filter(
-                                (id: string) => id !== revisionId,
-                            )
-                            if (nextSelected.length === 0 && preferred) nextSelected = [preferred]
-                            void writePlaygroundSelectionToQuery(nextSelected)
-                            ;(store as any).set(drawerVariantIdAtom, nextSelected[0] ?? null)
-                            message.success("Revision deleted successfully")
-
-                            if (unsub) unsub()
-                            resolve()
-                        }
-                    } catch (e) {
-                        // ignore
-                    }
-                }
-
-                // If store.sub is available, use it; otherwise poll
-                if ((store as any).sub) {
-                    unsub = (store as any).sub(revisionListAtom, onChange)
-                } else {
-                    const iv = setInterval(onChange, 200)
-                    unsub = () => clearInterval(iv)
-                }
-            })
+            const variantId = (currentRevision as any).variantId
 
             // Perform server-side revision delete
-            await deleteSingleVariantRevision((currentRevision as any).variantId, revisionId)
+            await deleteSingleVariantRevision(variantId, revisionId)
 
-            // Invalidate and refetch variant-related queries (do not end mutation yet)
-            await Promise.all([
-                queryClient.invalidateQueries({queryKey: ["variants"]}),
-                queryClient.invalidateQueries({queryKey: ["variantRevisions"]}),
-            ])
+            // API call succeeded - the deletion is complete on the server
+            // Now invalidate queries and update UI state
 
-            // Wait until the list reflects the removal and selection was updated
-            await waitForRemoval
+            // Invalidate and refetch all playground-related queries
+            // This includes the entity package query keys that feed into playgroundRevisionListAtom
+            await set(invalidatePlaygroundQueriesAtom)
 
+            // Wait briefly for the revision to be removed from the list (best effort)
+            const {newSelectedId} = await set(waitForRevisionRemovalAtom, {
+                revisionId,
+                variantId,
+                timeoutMs: 5_000,
+            })
+
+            // Update selection: remove deleted revision, prefer same-variant newest
+            const currentSelected = store.get(selectedVariantsAtom) || []
+            let nextSelected = currentSelected.filter((id: string) => id !== revisionId)
+            if (nextSelected.length === 0 && newSelectedId) {
+                nextSelected = [newSelectedId]
+            }
+            void writePlaygroundSelectionToQuery(nextSelected)
+            store.set(drawerVariantIdAtom, nextSelected[0] ?? null)
+
+            // Always return success since the API call succeeded
             return {
                 success: true,
                 message: "Revision deleted successfully",

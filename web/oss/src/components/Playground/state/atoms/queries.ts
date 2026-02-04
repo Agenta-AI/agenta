@@ -101,6 +101,64 @@ export const waitForNewRevisionAfterMutationAtom = atom(
 )
 
 /**
+ * Writable atom that resolves when a revision is removed from the list
+ */
+export const waitForRevisionRemovalAtom = atom(
+    null,
+    async (
+        get,
+        _set,
+        params: {revisionId: string; variantId: string; timeoutMs?: number},
+    ): Promise<{removed: boolean; newSelectedId: string | null}> => {
+        const {revisionId, variantId, timeoutMs = 15_000} = params
+        const store = getDefaultStore()
+
+        return new Promise((resolve) => {
+            let intervalId: ReturnType<typeof setInterval> | null = null
+            let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+            const check = () => {
+                const list = (store.get(playgroundRevisionListAtom) || []) as any[]
+                const exists = list.some((r: any) => r?.id === revisionId)
+
+                // If the revision no longer exists in the list, it's been removed
+                // We don't require the list count to decrease since the list may have
+                // been repopulated with different items during the refetch
+                if (!exists) {
+                    if (intervalId) clearInterval(intervalId)
+                    if (timeoutId) clearTimeout(timeoutId)
+
+                    // Compute preferred next selection
+                    const allSorted = list.slice().sort((a: any, b: any) => {
+                        const at = a?.updatedAtTimestamp ?? a?.createdAtTimestamp ?? 0
+                        const bt = b?.updatedAtTimestamp ?? b?.createdAtTimestamp ?? 0
+                        return bt - at
+                    })
+                    const sameVariantSorted = allSorted.filter(
+                        (r: any) => r?.variantId === variantId,
+                    )
+                    const preferred = sameVariantSorted[0]?.id || allSorted[0]?.id || null
+
+                    resolve({removed: true, newSelectedId: preferred})
+                }
+            }
+
+            intervalId = setInterval(check, 200)
+            timeoutId = setTimeout(() => {
+                if (intervalId) clearInterval(intervalId)
+                // Timeout - check final state
+                const list = (store.get(playgroundRevisionListAtom) || []) as any[]
+                const exists = list.some((r: any) => r?.id === revisionId)
+                resolve({removed: !exists, newSelectedId: null})
+            }, timeoutMs)
+
+            // Run once immediately
+            check()
+        })
+    },
+)
+
+/**
  * Consolidated query invalidation atom
  * Invalidates queries and forces fresh refetch with cache busting
  *
