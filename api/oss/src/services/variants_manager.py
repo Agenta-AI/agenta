@@ -120,7 +120,7 @@ async def _fetch_variant(
     app_variant_revision = None
     app_variant = None
 
-    with suppress(verbose=True, message="_fetch_variant"):
+    with suppress():
         # by variant_id (could be variant ID or revision ID)
         if variant_ref.id:
             # First try as revision ID
@@ -159,36 +159,28 @@ async def _fetch_variant(
                     project_id=UUID(project_id),
                     app_name=application_ref.slug,
                 )
-                log.warning(f"[DEBUG _fetch_variant] fetch_app_by_name(slug={application_ref.slug!r}) => {app}")
                 if app:
                     application_ref.id = app.id
 
             if not application_ref.id:
-                log.warning(f"[DEBUG _fetch_variant] application_ref.id is None after app lookup, returning None")
                 return None, None
 
             # Fetch variant by slug (config_name)
-            log.warning(f"[DEBUG _fetch_variant] fetch_variant_by_slug(app_id={application_ref.id}, variant_slug={variant_ref.slug!r})")
             app_variant = await adapter.fetch_variant_by_slug(
                 project_id=UUID(project_id),
                 app_id=application_ref.id,
                 variant_slug=variant_ref.slug,
             )
-            log.warning(f"[DEBUG _fetch_variant] app_variant => {app_variant}")
-
             if not app_variant:
-                log.warning(f"[DEBUG _fetch_variant] app_variant is None, returning None")
                 return None, None
 
             # Get specific version or latest
             if variant_ref.version:
-                log.warning(f"[DEBUG _fetch_variant] fetch_revision_by_version(variant_id={app_variant.id}, version={variant_ref.version})")
                 app_variant_revision = await adapter.fetch_revision_by_version(
                     project_id=UUID(project_id),
                     variant_id=app_variant.id,
                     version=variant_ref.version,
                 )
-                log.warning(f"[DEBUG _fetch_variant] app_variant_revision => {app_variant_revision}")
             else:
                 app_variant_revision = await adapter.fetch_latest_revision(
                     project_id=UUID(project_id),
@@ -330,7 +322,7 @@ async def _fetch_environment(
 
     env_adapter = get_legacy_environments_adapter()
 
-    with suppress(verbose=True, message="_fetch_environment"):
+    with suppress():
         # Resolve the application slug (needed for reading revision data)
         app_slug: Optional[str] = None
         if application_ref and (application_ref.id or application_ref.slug):
@@ -404,14 +396,11 @@ async def _fetch_environment(
         # CASE 2: lookup by environment slug + application ref
         # -----------------------------------------------------------
         if environment_ref.slug:
-            log.warning(f"[DEBUG _fetch_environment] CASE 2: slug={environment_ref.slug!r}, app_slug={app_slug!r}")
             env = await env_adapter.environments_service.fetch_environment(
                 project_id=UUID(project_id),
                 environment_ref=Reference(slug=environment_ref.slug),
             )
-            log.warning(f"[DEBUG _fetch_environment] fetch_environment => {env}")
             if not env:
-                log.warning(f"[DEBUG _fetch_environment] env not found for slug={environment_ref.slug!r}")
                 return None, None
 
             env_shim = _EnvironmentShim(name=env.slug, id=env.id)
@@ -421,7 +410,6 @@ async def _fetch_environment(
                 project_id=UUID(project_id),
                 environment_ref=Reference(id=env.id),
             )
-            log.warning(f"[DEBUG _fetch_environment] env_variant => {env_variant}")
             if not env_variant:
                 return env_shim, None
 
@@ -430,8 +418,6 @@ async def _fetch_environment(
                 project_id=UUID(project_id),
                 environment_variant_refs=[Reference(id=env_variant.id)],
             )
-            log.warning(f"[DEBUG _fetch_environment] env_revisions count => {len(env_revisions) if env_revisions else 0}")
-
             if not env_revisions:
                 return env_shim, None
 
@@ -468,16 +454,11 @@ async def _fetch_environment(
 
             # Extract deployed_app_variant_revision_id from revision data
             deployed_variant_revision_id = None
-            log.warning(f"[DEBUG _fetch_environment] target_rev.id={target_rev.id}, target_rev.data={target_rev.data}, app_slug={app_slug!r}")
-            if target_rev.data and target_rev.data.references:
-                log.warning(f"[DEBUG _fetch_environment] references keys={list(target_rev.data.references.keys())}")
             if target_rev.data and target_rev.data.references and app_slug:
                 ref = target_rev.data.references.get(f"{app_slug}.revision")
-                log.warning(f"[DEBUG _fetch_environment] ref for key={app_slug}.revision => {ref}")
                 if ref and ref.id:
                     deployed_variant_revision_id = ref.id
 
-            log.warning(f"[DEBUG _fetch_environment] deployed_variant_revision_id={deployed_variant_revision_id}")
             rev_shim = _EnvironmentRevisionShim(
                 id=target_rev.id,
                 revision=version,

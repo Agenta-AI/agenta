@@ -668,11 +668,6 @@ class EnvironmentsService:
         if not revisions:
             return []
 
-        for rev in revisions:
-            log.warning(f"[DEBUG query_env_revisions] Revision id={rev.id}, data={rev.data}, data_type={type(rev.data)}")
-            dumped = rev.model_dump(mode="json")
-            log.warning(f"[DEBUG query_env_revisions] model_dump data={dumped.get('data')}")
-
         environment_revisions = [
             EnvironmentRevision(
                 **revision.model_dump(
@@ -681,9 +676,6 @@ class EnvironmentsService:
             )
             for revision in revisions
         ]
-
-        for erev in environment_revisions:
-            log.warning(f"[DEBUG query_env_revisions] EnvironmentRevision id={erev.id}, data={erev.data}")
 
         return environment_revisions
 
