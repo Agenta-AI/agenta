@@ -399,9 +399,195 @@ For entities requiring CRUD operations with draft state, loading indicators, and
 ```typescript
 import {testcase} from "@/oss/state/entities/testcase"
 
-// Full controller - state + dispatch
-function TestcaseEditor({testcaseId}: {testcaseId: string}) {
-  const [state, dispatch] = useAtom(testcase.controller(testcaseId))
+// Read rows
+const rows = useAtomValue(loadableBridge.selectors.rows(loadableId))
+
+// Add a row
+const addRow = useSetAtom(loadableBridge.actions.addRow)
+addRow(loadableId, { prompt: 'Hello, world!' })
+
+// Connect to a testset
+const connect = useSetAtom(loadableBridge.actions.connectToSource)
+connect(loadableId, testsetRevisionId, 'MyTestset v1', 'testcase')
+```
+
+**Available Selectors:**
+
+| Selector | Returns | Description |
+|----------|---------|-------------|
+| `rows(loadableId)` | `LoadableRow[]` | All rows in the loadable |
+| `columns(loadableId)` | `LoadableColumn[]` | Column definitions |
+| `activeRow(loadableId)` | `LoadableRow \| null` | Currently selected row |
+| `mode(loadableId)` | `'local' \| 'connected'` | Current mode |
+| `isDirty(loadableId)` | `boolean` | Has unsaved changes |
+| `connectedSource(loadableId)` | `{id, name}` | Connected source info |
+
+**Available Actions:**
+
+| Action | Parameters | Description |
+|--------|------------|-------------|
+| `addRow` | `(loadableId, data?)` | Add a new row |
+| `updateRow` | `(loadableId, rowId, data)` | Update row data |
+| `removeRow` | `(loadableId, rowId)` | Remove a row |
+| `setActiveRow` | `(loadableId, rowId)` | Select a row |
+| `connectToSource` | `(loadableId, sourceId, sourceName, sourceType)` | Connect to entity |
+| `disconnect` | `(loadableId)` | Switch to local mode |
+
+---
+
+### Runnable Bridge Pattern
+
+For managing executable entities (app revisions, evaluators), use the **Runnable Bridge** from `@agenta/entities/runnable`.
+
+**Full documentation:** `web/packages/agenta-entities/src/runnable/README.md`
+
+**Basic Usage:**
+
+```typescript
+import { runnableBridge } from '@agenta/entities/runnable'
+import { useAtomValue } from 'jotai'
+
+// Get runnable data
+const data = useAtomValue(runnableBridge.selectors.data(revisionId))
+
+// Get input/output ports
+const inputPorts = useAtomValue(runnableBridge.selectors.inputPorts(revisionId))
+const outputPorts = useAtomValue(runnableBridge.selectors.outputPorts(revisionId))
+
+// Access evaluator-specific features
+const evalController = runnableBridge.runnable('evaluatorRevision')
+const presets = useAtomValue(evalController.selectors.presets(evaluatorId))
+```
+
+**Available Selectors:**
+
+| Selector | Returns | Description |
+| -------- | ------- | ----------- |
+| `data(runnableId)` | `RunnableData \| null` | Runnable data |
+| `query(runnableId)` | `BridgeQueryState` | Query state with loading/error |
+| `isDirty(runnableId)` | `boolean` | Has unsaved changes |
+| `inputPorts(runnableId)` | `RunnablePort[]` | Input port definitions |
+| `outputPorts(runnableId)` | `RunnablePort[]` | Output port definitions |
+| `configuration(runnableId)` | `Record<string, unknown> \| null` | Configuration object |
+
+---
+
+### Entity Selection System
+
+For hierarchical entity selection (App → Variant → Revision), use the unified `EntityPicker` component from `@agenta/entity-ui`.
+
+**Full documentation:** `web/packages/agenta-entity-ui/src/selection/README.md`
+
+**EntityPicker with Variants:**
+
+```typescript
+import { EntityPicker, type AppRevisionSelectionResult, type TestsetSelectionResult } from '@agenta/entity-ui'
+
+// Cascading dropdowns (inline forms, compact space)
+<EntityPicker<AppRevisionSelectionResult>
+  variant="cascading"
+  adapter="appRevision"
+  onSelect={handleSelect}
+/>
+
+// Breadcrumb navigation (modals, full selection UI)
+<EntityPicker<AppRevisionSelectionResult>
+  variant="breadcrumb"
+  adapter="appRevision"
+  onSelect={handleSelect}
+  showSearch
+  showBreadcrumb
+  rootLabel="All Apps"
+/>
+
+// List with hover popovers (sidebars, 2-level hierarchies)
+<EntityPicker<TestsetSelectionResult>
+  variant="list-popover"
+  adapter="testset"
+  onSelect={handleSelect}
+  autoSelectLatest
+  selectLatestOnParentClick
+/>
+```
+
+**Mode-Specific Hooks:**
+
+```typescript
+import { useCascadingMode, useBreadcrumbMode, useListPopoverMode } from '@agenta/entity-ui'
+
+// For cascading dropdowns
+const { levels, isComplete, selection } = useCascadingMode({
+  adapter: 'appRevision',
+  instanceId: 'my-picker',
+  onSelect: handleSelect,
+})
+
+// For breadcrumb navigation
+const { breadcrumb, items, navigateDown, select } = useBreadcrumbMode({
+  adapter: 'appRevision',
+  instanceId: 'my-picker',
+  onSelect: handleSelect,
+})
+
+// For list with popovers
+const { parents, handleChildSelect } = useListPopoverMode({
+  adapter: 'testset',
+  instanceId: 'my-picker',
+  onSelect: handleSelect,
+})
+```
+
+**Pre-built Adapters:**
+
+| Adapter | Hierarchy | Selection Result |
+|---------|-----------|------------------|
+| `"appRevision"` | App → Variant → Revision | `AppRevisionSelectionResult` |
+| `"evaluatorRevision"` | Evaluator → Variant → Revision | `EvaluatorRevisionSelectionResult` |
+| `"testset"` | Testset → Revision | `TestsetSelectionResult` |
+
+---
+
+### Molecule Pattern (Entity State Management)
+
+For entities requiring CRUD operations with draft state, loading indicators, and cache management, use the **Molecule Pattern** from `@agenta/entities`.
+
+**Full documentation:** `web/packages/agenta-entities/src/shared/README.md`
+
+**What is a Molecule?**
+
+A molecule provides a unified API for entity state management:
+
+```typescript
+molecule.atoms.*        // Atom families for reactive subscriptions
+molecule.reducers.*     // Write operations
+molecule.get.*          // Imperative reads (snapshot from store)
+molecule.set.*          // Imperative writes
+molecule.useController  // React hook combining atoms + dispatch
+molecule.cleanup.*      // Memory management
+```
+
+**Quick Decision - Where to use which API:**
+
+```
+Where are you using it?
+         │
+    ┌────┼────┐
+    │    │    │
+ React  Atom  Callback
+    │    │    │
+    ▼    ▼    ▼
+useAtom  get(mol.   mol.get.*
+         atoms.*)   mol.set.*
+```
+
+**Basic Usage:**
+
+```typescript
+import { testcaseMolecule } from '@agenta/entities/testcase'
+
+// React hook - returns [state, dispatch]
+function TestcaseEditor({ id }: { id: string }) {
+  const [state, dispatch] = testcaseMolecule.useController(id)
 
   if (state.isPending) return <Skeleton />
   if (!state.data) return <NotFound />
@@ -755,4 +941,146 @@ const items = useMemo(
 )
 
 <AccordionTreePanel items={items} />
+```
+
+---
+
+### Shared Components and Package Architecture
+
+The monorepo uses workspace packages to share components, utilities, and logic across OSS and EE. Understanding which package to use and how to properly compose components is important for maintainability.
+
+**Key Documentation:**
+
+| Package | README Location |
+|---------|-----------------|
+| `@agenta/ui` | `web/packages/agenta-ui/README.md` |
+| `@agenta/entities` | `web/packages/agenta-entities/README.md` |
+| `@agenta/shared` | `web/packages/agenta-shared/README.md` |
+| `@agenta/playground` | `web/packages/agenta-playground/` |
+
+#### Package Overview
+
+| Package | Purpose | Key Exports |
+|---------|---------|-------------|
+| `@agenta/shared` | Pure utilities (no React) | Path utilities, common types |
+| `@agenta/ui` | Reusable React components | `EnhancedModal`, `InfiniteVirtualTable`, `cn`, `textColors`, presentational components |
+| `@agenta/entities` | Entity state/hooks/controllers | Molecules, bridges, UI components (modals, pickers) |
+| `@agenta/playground` | Playground-specific components | `PlaygroundContent`, `EntitySelector`, `InputMappingModal` |
+
+#### @agenta/entities Subpath Exports
+
+```typescript
+import { ... } from '@agenta/entities'           // Core utilities
+import { ... } from '@agenta/entities/shared'    // Molecule factories, transforms
+import { ... } from '@agenta/entities/trace'     // Trace/span molecule, schemas
+import { ... } from '@agenta/entities/testset'   // Testset/revision molecules
+import { ... } from '@agenta/entities/testcase'  // Testcase molecule
+import { ... } from '@agenta/entities/loadable'  // Loadable bridge
+import { ... } from '@agenta/entities/runnable'  // Runnable bridge
+import { ... } from '@agenta/entity-ui'        // UI components (modals, pickers)
+```
+
+#### EnhancedModal (Required for All New Modals)
+
+**All new modals MUST use `EnhancedModal` from `@agenta/ui`** instead of raw `antd Modal`:
+
+```typescript
+import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
+
+function MyModal({open, onClose}: {open: boolean; onClose: () => void}) {
+    return (
+        <EnhancedModal
+            open={open}
+            onCancel={onClose}
+            title="Modal Title"
+            footer={null}
+        >
+            <ModalContent>
+                {/* Main content */}
+            </ModalContent>
+            <ModalFooter>
+                <Button onClick={onClose}>Cancel</Button>
+                <Button type="primary">Confirm</Button>
+            </ModalFooter>
+        </EnhancedModal>
+    )
+}
+```
+
+**Why EnhancedModal:**
+
+- Consistent styling across the application
+- Proper scroll handling with `ModalContent`
+- Standardized footer layout with `ModalFooter`
+- Theme integration
+
+#### Style Utilities
+
+Use utilities from `@agenta/ui` for consistent styling:
+
+```typescript
+import {cn, textColors, bgColors} from "@agenta/ui"
+
+// cn - Combines class names with conditional support
+<div className={cn("base-class", isActive && "active-class")} />
+
+// textColors - Theme-aware text colors
+<span className={textColors.secondary}>Secondary text</span>
+
+// bgColors - Theme-aware background colors
+<div className={bgColors.hover}>Hoverable area</div>
+```
+
+#### Presentational Components
+
+Use section layout primitives from `@agenta/ui`:
+
+```typescript
+import {
+  SectionCard,
+  SectionLabel,
+  SectionHeaderRow,
+  ConfigBlock,
+  VersionBadge,
+  RevisionLabel,
+  StatusTag,
+  PanelHeader,
+  SourceIndicator,
+} from "@agenta/ui"
+
+// Section card with header
+<SectionCard>
+  <SectionHeaderRow
+    left={<SectionLabel>Configuration</SectionLabel>}
+    right={<Button>Edit</Button>}
+  />
+  <ConfigBlock title="Settings">
+    <Input />
+  </ConfigBlock>
+</SectionCard>
+```
+
+#### Package Selection Guide
+
+```text
+Need a modal?
+└─ Use: EnhancedModal from @agenta/ui
+
+Need class name utilities or theme colors?
+└─ Use: cn, textColors, bgColors from @agenta/ui
+
+Need section layout primitives?
+└─ Use: SectionCard, SectionLabel, ConfigBlock from @agenta/ui
+
+Need entity state management (molecules)?
+└─ Use: *Molecule from @agenta/entities/{entity}
+
+Need entity selection UI?
+└─ Use: EntityPicker, EntityCascader from @agenta/entity-ui
+
+Need loadable/runnable bridges?
+└─ Use: loadableBridge, runnableBridge from @agenta/entities/{type}
+
+Building playground features?
+└─ Use: Components from @agenta/playground
 ```
