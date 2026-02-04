@@ -1211,15 +1211,15 @@ class SimpleEvaluatorsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[SimpleEvaluator]:
-        evaluator_query = EvaluatorQuery(
-            **(
-                simple_evaluator_query.model_dump(
-                    mode="json",
-                )
-                if simple_evaluator_query
-                else {}
-            ),
+        query_data = (
+            simple_evaluator_query.model_dump(
+                mode="json",
+            )
+            if simple_evaluator_query
+            else {}
         )
+        query_data.setdefault("flags", {})
+        evaluator_query = EvaluatorQuery(**query_data)
 
         evaluator_queries = await self.evaluators_service.query_evaluators(
             project_id=project_id,

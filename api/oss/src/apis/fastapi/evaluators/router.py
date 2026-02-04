@@ -713,7 +713,7 @@ class EvaluatorsRouter:
         self,
         request: Request,
         *,
-        evaluator_variant_id: UUID,
+        evaluator_variant_id: Optional[UUID] = None,
         #
         evaluator_variant_fork_request: EvaluatorForkRequest,
     ):
@@ -725,11 +725,23 @@ class EvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        fork_request = evaluator_variant_fork_request.evaluator
+
+        if evaluator_variant_id:
+            if (
+                fork_request.evaluator_variant_id
+                and fork_request.evaluator_variant_id != evaluator_variant_id
+            ):
+                return EvaluatorVariantResponse()
+
+            if not fork_request.evaluator_variant_id:
+                fork_request.evaluator_variant_id = evaluator_variant_id
+
         evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_fork=evaluator_variant_fork_request.evaluator,
+            evaluator_fork=fork_request,
         )
 
         evaluator_variant_response = EvaluatorVariantResponse(

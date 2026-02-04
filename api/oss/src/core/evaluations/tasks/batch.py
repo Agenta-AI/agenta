@@ -7,7 +7,7 @@ from json import dumps
 from redis.asyncio import Redis
 from fastapi import Request
 
-from oss.src.utils.helpers import parse_url, get_slug_from_name_and_id
+
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
@@ -182,11 +182,6 @@ testsets_service = TestsetsService(
 
 simple_testsets_service = SimpleTestsetsService(
     testsets_service=testsets_service,
-)
-
-testsets_service = TestsetsService(
-    testsets_dao=testsets_dao,
-    testcases_service=testcases_service,
 )
 
 workflows_service = WorkflowsService(
