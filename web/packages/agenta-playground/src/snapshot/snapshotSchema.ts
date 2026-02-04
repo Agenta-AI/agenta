@@ -15,14 +15,14 @@
  * const snapshot: PlaygroundSnapshot = {
  *     v: SNAPSHOT_VERSION,
  *     selection: [
- *         { kind: 'commit', id: 'rev-123', runnableType: 'ossAppRevision' },
- *         { kind: 'draft', draftKey: 'dk-1', runnableType: 'ossAppRevision' },
+ *         { kind: 'commit', id: 'rev-123', runnableType: 'legacyAppRevision' },
+ *         { kind: 'draft', draftKey: 'dk-1', runnableType: 'legacyAppRevision' },
  *     ],
  *     drafts: [
  *         {
  *             draftKey: 'dk-1',
  *             sourceRevisionId: 'rev-456',
- *             runnableType: 'ossAppRevision',
+ *             runnableType: 'legacyAppRevision',
  *             patch: {
  *                 parameters: {...},
  *             },
@@ -54,7 +54,7 @@ export interface CommitSelectionItem {
     kind: "commit"
     /** Revision ID */
     id: string
-    /** Runnable type (e.g., 'ossAppRevision', 'appRevision', 'evaluatorRevision') */
+    /** Runnable type (e.g., 'legacyAppRevision', 'appRevision', 'evaluatorRevision') */
     runnableType: RunnableType
 }
 
@@ -66,7 +66,7 @@ export interface DraftSelectionItem {
     kind: "draft"
     /** Key referencing a draft in the drafts array */
     draftKey: string
-    /** Runnable type (e.g., 'ossAppRevision', 'appRevision', 'evaluatorRevision') */
+    /** Runnable type (e.g., 'legacyAppRevision', 'appRevision', 'evaluatorRevision') */
     runnableType: RunnableType
 }
 

@@ -9,7 +9,7 @@
  *
  * - **RunnableSnapshotAdapter**: Interface that each runnable type must implement
  * - **snapshotAdapterRegistry**: Registry for looking up adapters by runnable type
- * - Entity modules (ossAppRevision, appRevision, evaluatorRevision) provide their own adapters
+ * - Entity modules (legacyAppRevision, appRevision, evaluatorRevision) provide their own adapters
  *
  * ## Usage
  *
@@ -17,14 +17,14 @@
  * import { snapshotAdapterRegistry } from '@agenta/entities/runnable'
  *
  * // Get adapter for a runnable type
- * const adapter = snapshotAdapterRegistry.get('ossAppRevision')
+ * const adapter = snapshotAdapterRegistry.get('legacyAppRevision')
  * if (adapter) {
  *     const patch = adapter.buildDraftPatch(revisionId)
  *     adapter.applyDraftPatch(revisionId, patch)
  * }
  *
  * // Or use the helper that throws if adapter is missing
- * const adapter = snapshotAdapterRegistry.getOrThrow('ossAppRevision')
+ * const adapter = snapshotAdapterRegistry.getOrThrow('legacyAppRevision')
  * ```
  */
 

@@ -13,7 +13,7 @@
 
 import {useEffect, useRef} from "react"
 
-import {ossAppRevisionMolecule} from "@agenta/entities/ossAppRevision"
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {urlSnapshotController, pendingHydrations} from "@agenta/playground"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -30,8 +30,8 @@ const selectedDraftHashAtom = atom((get) => {
     const selectedVariants = get(selectedVariantsAtom)
 
     const parts = selectedVariants.map((revisionId) => {
-        const isDirty = get(ossAppRevisionMolecule.atoms.isDirty(revisionId))
-        const draft = get(ossAppRevisionMolecule.atoms.draft(revisionId))
+        const isDirty = get(legacyAppRevisionMolecule.atoms.isDirty(revisionId))
+        const draft = get(legacyAppRevisionMolecule.atoms.draft(revisionId))
         // Use full serialized string to detect any content change (not just length)
         const draftHash = draft ? JSON.stringify(draft) : ""
         return `${revisionId}:${isDirty}:${draftHash}`
@@ -49,7 +49,7 @@ const selectedServerDataHashAtom = atom((get) => {
     const selectedVariants = get(selectedVariantsAtom)
 
     const parts = selectedVariants.map((revisionId) => {
-        const serverData = get(ossAppRevisionMolecule.atoms.serverData(revisionId))
+        const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId))
         const hasData = serverData !== null && serverData !== undefined
         // Also track variantId since it's required for creating local drafts
         // variantId is set by useSetRevisionVariantContext after initial data load
@@ -79,7 +79,7 @@ const pendingHydrationSourceDataHashAtom = atom((get) => {
     // Track server data availability for each source ID
     const parts: string[] = []
     for (const sourceId of sourceIds) {
-        const serverData = get(ossAppRevisionMolecule.atoms.serverData(sourceId))
+        const serverData = get(legacyAppRevisionMolecule.atoms.serverData(sourceId))
         const hasData = serverData !== null && serverData !== undefined
         const hasVariantId = !!serverData?.variantId
         parts.push(`${sourceId}:${hasData}:${hasVariantId}`)

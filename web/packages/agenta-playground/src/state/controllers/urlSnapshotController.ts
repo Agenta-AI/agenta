@@ -13,7 +13,7 @@
  *
  * // OSS registers its resolver at app init
  * setRunnableTypeResolver({
- *     getType: (revisionId) => 'ossAppRevision'
+ *     getType: (revisionId) => 'legacyAppRevision'
  * })
  *
  * // Build encoded snapshot from selection
@@ -53,17 +53,17 @@ export interface RunnableTypeResolver {
      * Get the runnable type for a given revision ID.
      *
      * @param revisionId - The revision ID to resolve
-     * @returns The runnable type (e.g., 'ossAppRevision', 'appRevision')
+     * @returns The runnable type (e.g., 'legacyAppRevision', 'appRevision')
      */
     getType(revisionId: string): RunnableType
 }
 
 /**
- * Default resolver that returns 'ossAppRevision' for all IDs.
+ * Default resolver that returns 'legacyAppRevision' for all IDs.
  * This is a fallback - OSS should register its own resolver.
  */
 const defaultResolver: RunnableTypeResolver = {
-    getType: () => "ossAppRevision" as RunnableType,
+    getType: () => "legacyAppRevision" as RunnableType,
 }
 
 /**

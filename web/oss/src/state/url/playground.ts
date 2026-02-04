@@ -1,6 +1,6 @@
-// Import ossAppRevision to ensure the snapshot adapter is registered
+// Import legacyAppRevision to ensure the snapshot adapter is registered
 // This side-effect import must happen before any snapshot operations
-import "@agenta/entities/ossAppRevision"
+import "@agenta/entities/legacyAppRevision"
 
 import {
     urlSnapshotController,
@@ -26,10 +26,10 @@ import {latestAppRevisionIdAtom} from "@/oss/state/variant/selectors/variant"
 
 /**
  * Register the OSS runnable type resolver.
- * For OSS, all revisions are ossAppRevision type.
+ * For OSS, all revisions are legacyAppRevision type.
  */
 setRunnableTypeResolver({
-    getType: () => "ossAppRevision",
+    getType: () => "legacyAppRevision",
 })
 
 // ============================================================================
