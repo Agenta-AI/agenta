@@ -265,7 +265,7 @@ async def get_evaluator_configs(
         )
     ]
 
-    configs.sort(key=lambda c: c.created_at or "", reverse=True)
+    configs.sort(key=lambda c: c.updated_at or c.created_at or "", reverse=True)
 
     return configs
 
