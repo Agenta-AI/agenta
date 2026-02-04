@@ -1,0 +1,258 @@
+---
+title: Domain Verification
+description: Verify email domains to enable auto-join and domain-restricted access
+slug: /administration/access-control/domain-verification
+---
+
+# Domain Verification
+
+Domain verification establishes your organization's authority over an email domain (e.g., `acme.com`). Once verified, you can automatically add users with matching email domains and restrict access to verified domains only.
+
+:::info[Plan availability]
+Domain verification is available on **Business** and **Enterprise** plans. You can upgrade from your billing settings or see options at https://agenta.ai/pricing.
+:::
+
+## Why Verify Domains?
+
+Domain verification enables:
+
+- **Auto-join**: Users with `@yourcompany.com` emails can be automatically added to your organization
+- **Domain restrictions**: Only allow users from verified domains to access your organization
+- **SSO discovery**: Automatically show SSO options for verified domain emails
+
+## How It Works
+
+Domain verification uses DNS TXT records to prove you control a domain:
+
+1. You add a domain in Agenta
+2. Agenta generates a unique verification token
+3. You add a DNS TXT record with the token
+4. Agenta verifies the DNS record
+5. Domain is verified
+
+## Verification Steps
+
+### Step 1: Add Domain
+
+1. Navigate to **Settings** → **Access & Security** → **Domains**
+2. Click **"Add Domain"**
+3. Enter your domain (e.g., `acme.com`)
+4. Click **"Create"**
+
+### Step 2: Get Verification Token
+
+After adding the domain, you'll see:
+
+```
+Domain: acme.com
+Status: Unverified
+
+DNS Record to Add:
+_agenta-verification.acme.com TXT "agenta-verify=J8f2KmP9nQ4vR7sT"
+```
+
+Copy the full DNS record value.
+
+### Step 3: Add DNS TXT Record
+
+Add the TXT record in your DNS provider:
+
+#### Cloudflare
+
+1. Go to **DNS** → **Records**
+2. Click **Add record**
+3. Type: `TXT`
+4. Name: `_agenta-verification`
+5. Content: `agenta-verify=J8f2KmP9nQ4vR7sT`
+6. Click **Save**
+
+#### AWS Route 53
+
+1. Go to **Route 53** → **Hosted zones**
+2. Select your domain
+3. Click **Create record**
+4. Record name: `_agenta-verification`
+5. Record type: `TXT`
+6. Value: `"agenta-verify=J8f2KmP9nQ4vR7sT"`
+7. Click **Create records**
+
+#### Google Domains / Squarespace
+
+1. Go to **DNS** → **Custom records**
+2. Host name: `_agenta-verification`
+3. Type: `TXT`
+4. Data: `agenta-verify=J8f2KmP9nQ4vR7sT`
+5. Click **Save**
+
+#### Namecheap
+
+1. Go to **Advanced DNS**
+2. Add New Record
+3. Type: `TXT Record`
+4. Host: `_agenta-verification`
+5. Value: `agenta-verify=J8f2KmP9nQ4vR7sT`
+6. Click **Save**
+
+### Step 4: Verify Domain
+
+1. Wait for DNS propagation (usually 5-60 minutes)
+2. Return to **Settings** → **Domains**
+3. Click **"Verify"** on your domain
+4. If successful, status changes to **"Verified"** ✓
+
+## Using Verified Domains
+
+### Auto-Join
+
+Enable auto-join to automatically add users with verified domain emails:
+
+1. Navigate to **Settings** → **Access & Security**
+2. Enable **"Auto-join for verified domains"**
+3. Save changes
+
+**How it works:**
+- User signs up with `alice@acme.com`
+- Agenta sees `acme.com` is verified for your organization
+- User is automatically added as a member
+- No invitation needed
+
+### Domain-Only Access
+
+Restrict organization access to verified domains only:
+
+1. Navigate to **Settings** → **Access & Security**
+2. Enable **"Restrict to verified domains"**
+3. Save changes
+
+**How it works:**
+- Only users with verified domain emails can access
+- Users with other domains (e.g., `@gmail.com`) are denied
+- Even invited users must have a verified domain email
+
+:::warning[Existing Members]
+Enabling domain-only access may block existing members who don't have verified domain emails. Review your member list before enabling.
+:::
+
+## Multiple Domains
+
+Organizations can verify multiple domains:
+
+```
+Verified Domains:
+- acme.com
+- acme.co.uk
+- subsidiary.com
+```
+
+**Use cases:**
+- Company with multiple TLDs
+- Acquired subsidiaries
+- Regional domains
+
+Each domain:
+- Has its own verification token
+- Must be verified independently
+- Enables auto-join for that domain
+
+## Domain Authority
+
+### One Domain, One Organization
+
+A domain can only be verified by one organization globally.
+
+**Example:**
+- ACME Corp verifies `acme.com` → Success
+- Another organization tries to verify `acme.com` → Error: "Domain already verified"
+
+This prevents conflicts and ensures clear domain ownership.
+
+### What Verification Grants
+
+✓ Right to enable auto-join for the domain
+✓ Right to enable domain-only restrictions
+✓ Organizational authority over the domain
+
+✗ Does NOT grant authentication (users still prove identity)
+✗ Does NOT automatically migrate existing users
+✗ Does NOT affect other organizations
+
+## Troubleshooting
+
+### Verification Fails: "DNS record not found"
+
+**Common causes:**
+
+1. **DNS not propagated yet**
+   - Wait 5-60 minutes (can take up to 48 hours)
+   - Check propagation: `nslookup -type=TXT _agenta-verification.yourdomain.com`
+
+2. **Wrong record name**
+   - Should be: `_agenta-verification.yourdomain.com`
+   - NOT: `_agenta-verification` (missing domain)
+   - NOT: `agenta-verification` (missing underscore)
+
+3. **Wrong record type**
+   - Must be `TXT` record
+   - NOT `A` or `CNAME`
+
+4. **Wrong token value**
+   - Copy exact token from Agenta
+   - Include quotes if required by DNS provider
+
+### "Domain already verified by another organization"
+
+**Cause:** Another organization has already verified this domain
+
+**Solutions:**
+- Contact the other organization to release the domain
+- If you're the rightful owner, contact support with proof of ownership
+
+### Token Expired
+
+**Solution:**
+1. Go to **Settings** → **Domains**
+2. Click **"Refresh Token"** on your domain
+3. Update DNS record with new token
+4. Click **"Verify"** again
+
+## Best Practices
+
+### Security
+
+1. **Verify all company domains** - Prevent unauthorized claims
+2. **Monitor DNS changes** - Alert on unexpected modifications
+3. **Use DNSSEC** - Add DNS security if available
+4. **Limit DNS access** - Restrict who can modify DNS records
+
+### Administration
+
+1. **Verify before enabling restrictions** - Don't lock out existing members
+2. **Document verified domains** - Keep track of what's verified
+3. **Plan for acquisitions** - Verify subsidiary domains promptly
+4. **Regular audits** - Review verified domains periodically
+
+## FAQ
+
+### How long does DNS propagation take?
+
+Usually 5-60 minutes, but can take up to 48 hours depending on TTL settings.
+
+### Can I verify subdomains?
+
+Subdomain verification is not currently supported. Verify the parent domain instead (e.g., verify `acme.com` to cover all `@acme.com` emails).
+
+### What if I delete a verified domain?
+
+- Domain becomes unverified immediately
+- Auto-join stops working for that domain
+- Domain-only restrictions may block users
+
+### Do I need domain verification for SSO?
+
+No, domain verification is optional for SSO. However, it enables:
+- Automatic SSO discovery for verified domain users
+- Domain-restricted access policies
+
+### Can I verify domains I don't own?
+
+No, verification requires adding a DNS TXT record, which requires DNS access. You must own or control the domain.

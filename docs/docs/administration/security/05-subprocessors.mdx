@@ -1,0 +1,59 @@
+---
+title: Sub-Processors
+description: Third-party services used by Agenta Cloud
+slug: /administration/security/subprocessors
+---
+
+# Sub-Processors
+
+Last updated: February 4, 2026
+
+Agenta uses the following sub-processors to deliver the Agenta Cloud service. For questions, contact security@agenta.ai.
+
+## EU Region
+
+| Sub-processor | Purpose | Location |
+|---------------|---------|----------|
+| Amazon Web Services (AWS) | Cloud infrastructure | EU (Ireland) |
+| SuperTokens | Authentication | EU |
+| Daytona | Code execution sandbox | EU |
+| PostHog | Product analytics | EU |
+| New Relic | Application monitoring | EU |
+| Crisp | Customer support chat | EU |
+| Stripe | Payments and billing | USA |
+| Loops | Marketing email | USA |
+| SendGrid | Transactional email | USA |
+
+## US Region
+
+| Sub-processor | Purpose | Location |
+|---------------|---------|----------|
+| Amazon Web Services (AWS) | Cloud infrastructure | USA |
+| SuperTokens | Authentication | USA |
+| Daytona | Code execution sandbox | USA |
+| PostHog | Product analytics | EU |
+| New Relic | Application monitoring | EU |
+| Crisp | Customer support chat | EU |
+| Stripe | Payments and billing | USA |
+| Loops | Marketing email | USA |
+| SendGrid | Transactional email | USA |
+
+## LLM Providers
+
+Agenta does not process your data through LLM providers by default.
+
+When you use the playground or run evaluations:
+
+- You provide your own API keys (OpenAI, Anthropic, etc.)
+- Requests go directly from your browser or application to the LLM provider
+- Agenta does not store or proxy these requests
+
+For trial purposes, Agenta may provide demo API keys. Use your own keys for production workloads.
+
+## Self-Hosted
+
+This list applies to **Agenta Cloud** only. Self-hosted customers control their own infrastructure and sub-processors.
+
+## Changes
+
+We may update this list as our infrastructure evolves. Material changes will be communicated to customers with active subscriptions.

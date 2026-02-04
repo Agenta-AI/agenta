@@ -1,0 +1,115 @@
+---
+title: Organizations & Projects
+description: Manage organizations, projects, and team members in Agenta
+slug: /administration/access-control/organizations
+---
+
+# Organizations & Projects
+
+Agenta organizes work around **organizations** and **projects**.
+
+## Hierarchy
+
+```
+Organization
+└── Project(s)
+    └── Resources (prompts, evaluations, traces, etc.)
+```
+
+- **Organization**: Team container for members, billing, and access policies
+- **Projects**: Where you build and operate your LLM apps (prompts, evaluations, observability)
+
+## Organizations
+
+### Creating an Organization
+
+Organizations are created during signup or from the organization switcher.
+
+### Switching Organizations
+
+If your account belongs to multiple organizations, use the organization switcher in the UI to move between them. Your role and permissions can differ per organization.
+
+## Projects
+
+Projects live inside an organization and contain:
+
+- Prompt and configuration assets
+- Evaluation artifacts (test sets, runs, results)
+- Observability data (traces/spans)
+
+Project creation and visibility depend on your organization role.
+
+## Managing Members
+
+### Inviting Members
+
+1. Navigate to **Settings** → **Members**
+2. Click **Invite member**
+3. Enter the email address
+4. Choose a role
+5. Send the invitation
+
+### Roles
+
+Roles control what members can do within an organization and its projects:
+
+| Role | Summary |
+|------|---------|
+| **Owner** | Full control of the organization, including billing and member management |
+| **Admin** | Administer members and organization settings |
+| **Editor** | Create and edit project resources |
+| **Viewer** | Read-only access |
+| **Evaluator** | Run and review evaluations |
+| **Deployment Manager** | Manage deployments |
+
+See [RBAC](/administration/access-control/rbac) for details.
+
+### Changing Roles
+
+Owners and Admins can change roles from **Settings** → **Members**.
+
+### Removing Members
+
+Removing a member immediately revokes access to the organization and its projects.
+
+## Billing
+
+Billing and subscription management are linked to the organization.
+
+## Access Policies
+
+Organizations can configure:
+
+- **SSO** (Business and Enterprise)
+- **Domain verification** (Business and Enterprise)
+
+## Troubleshooting
+
+### Can't access an organization
+
+Common causes:
+
+- You're signed in with a different email than the one invited
+- The organization requires SSO and you haven't completed SSO sign-in
+- Your invitation expired
+
+### Can't invite members
+
+Common causes:
+
+- You don't have permission (need Owner or Admin)
+- You've reached member limits on your plan
+
+## FAQ
+
+### Can I belong to multiple organizations?
+
+Yes. You can switch between organizations from the organization switcher.
+
+### Can I transfer ownership?
+
+Yes. Owners can transfer ownership to another member from organization settings.
+
+### How many organizations can I create?
+
+Limits depend on your plan. Check your billing settings or contact sales@agenta.ai.
