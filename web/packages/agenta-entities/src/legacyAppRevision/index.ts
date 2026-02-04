@@ -302,6 +302,8 @@ export {
     createLocalDraftFromRevision,
     discardLocalDraft,
     discardAllLocalDrafts,
+    // App scoping setup
+    setCurrentAppIdAtom,
     // Re-exports
     isLocalDraftId,
     extractSourceIdFromDraft,

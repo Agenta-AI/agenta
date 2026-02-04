@@ -37,6 +37,7 @@ import {
     revisionEnhancedCustomPropertiesAtomFamily,
     revisionEnhancedPromptsAtomFamily,
     variantsListWithDraftsAtomFamily,
+    setCurrentAppIdAtom,
     type LegacyAppRevisionData,
 } from "@agenta/entities/legacyAppRevision"
 import {
@@ -52,6 +53,15 @@ import {atomFamily} from "jotai-family"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
+
+// ============================================================================
+// APP ID REGISTRATION FOR LOCAL DRAFTS
+// Wire up app scoping for local draft storage
+// ============================================================================
+
+// Register the app ID atom with the entities package to enable app-scoped local drafts
+// This must be called before any local draft operations
+setCurrentAppIdAtom(selectedAppIdAtom as ReturnType<typeof atom<string | null>>)
 
 // ============================================================================
 // REVISION DATA ADAPTER
