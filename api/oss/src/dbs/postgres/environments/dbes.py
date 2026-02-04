@@ -31,10 +31,19 @@ class EnvironmentArtifactDBE(Base, ProjectScopeDBA, ArtifactDBA):
             ["projects.id"],
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ["folder_id"],
+            ["folders.id"],
+            ondelete="SET NULL",
+        ),
         Index(
             "ix_environment_artifacts_project_id_slug",
             "project_id",
             "slug",
+        ),
+        Index(
+            "ix_environment_artifacts_folder_id",
+            "folder_id",
         ),
     )
 

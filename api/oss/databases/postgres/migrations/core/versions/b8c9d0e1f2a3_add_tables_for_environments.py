@@ -76,8 +76,13 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column(
-            "metadata",
+            "tags",
             postgresql.JSONB(none_as_null=True, astext_type=sa.Text()),
+            nullable=True,
+        ),
+        sa.Column(
+            "meta",
+            postgresql.JSON(none_as_null=True),
             nullable=True,
         ),
         sa.Column(
@@ -88,6 +93,11 @@ def upgrade() -> None:
         sa.Column(
             "description",
             sa.String(),
+            nullable=True,
+        ),
+        sa.Column(
+            "folder_id",
+            sa.UUID(),
             nullable=True,
         ),
         sa.PrimaryKeyConstraint(
@@ -103,10 +113,19 @@ def upgrade() -> None:
             ["projects.id"],
             ondelete="CASCADE",
         ),
+        sa.ForeignKeyConstraint(
+            ["folder_id"],
+            ["folders.id"],
+            ondelete="SET NULL",
+        ),
         sa.Index(
             "ix_environment_artifacts_project_id_slug",
             "project_id",
             "slug",
+        ),
+        sa.Index(
+            "ix_environment_artifacts_folder_id",
+            "folder_id",
         ),
     )
 
@@ -173,8 +192,13 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column(
-            "metadata",
+            "tags",
             postgresql.JSONB(none_as_null=True, astext_type=sa.Text()),
+            nullable=True,
+        ),
+        sa.Column(
+            "meta",
+            postgresql.JSON(none_as_null=True),
             nullable=True,
         ),
         sa.Column(
@@ -290,8 +314,13 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column(
-            "metadata",
+            "tags",
             postgresql.JSONB(none_as_null=True, astext_type=sa.Text()),
+            nullable=True,
+        ),
+        sa.Column(
+            "meta",
+            postgresql.JSON(none_as_null=True),
             nullable=True,
         ),
         sa.Column(

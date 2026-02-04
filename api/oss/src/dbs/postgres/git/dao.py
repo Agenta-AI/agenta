@@ -70,6 +70,13 @@ class GitDAO(GitDAOInterface):
         #
         artifact_id: Optional[UUID] = None,
     ) -> Optional[Artifact]:
+        print(
+            f"[DAO] create_artifact: DBE={self.ArtifactDBE.__name__}, "
+            f"project_id={project_id}, slug={artifact_create.slug}, "
+            f"artifact_id={artifact_id}, user_id={user_id}",
+            flush=True,
+        )
+
         artifact = Artifact(
             project_id=project_id,
             #
@@ -87,19 +94,37 @@ class GitDAO(GitDAOInterface):
             description=artifact_create.description,
         )
 
+        print(
+            f"[DAO] create_artifact: artifact DTO created, id={artifact.id}, "
+            f"flags={artifact.flags}, tags={artifact.tags}",
+            flush=True,
+        )
+
         artifact_dbe = map_dto_to_dbe(
             DBE=self.ArtifactDBE,  # type: ignore
             project_id=project_id,
             dto=artifact,
         )
 
+        print(
+            f"[DAO] create_artifact: artifact_dbe mapped, "
+            f"id={getattr(artifact_dbe, 'id', None)}, "
+            f"slug={getattr(artifact_dbe, 'slug', None)}, "
+            f"project_id={getattr(artifact_dbe, 'project_id', None)}",
+            flush=True,
+        )
+
         try:
             async with engine.core_session() as session:
+                print("[DAO] create_artifact: session opened, adding artifact_dbe", flush=True)
                 session.add(artifact_dbe)
 
+                print("[DAO] create_artifact: committing...", flush=True)
                 await session.commit()
+                print("[DAO] create_artifact: committed successfully", flush=True)
 
                 if not artifact_dbe:
+                    print("[DAO] create_artifact: artifact_dbe is falsy after commit!", flush=True)
                     return None
 
                 artifact = map_dbe_to_dto(
@@ -107,9 +132,20 @@ class GitDAO(GitDAOInterface):
                     dbe=artifact_dbe,  # type: ignore
                 )
 
+                print(
+                    f"[DAO] create_artifact: success, id={artifact.id}, slug={artifact.slug}",
+                    flush=True,
+                )
+
                 return artifact
 
         except Exception as e:
+            print(
+                f"[DAO] create_artifact: EXCEPTION: {type(e).__name__}: {e}",
+                flush=True,
+            )
+            import traceback
+            traceback.print_exc()
             check_entity_creation_conflict(e)
 
             raise
@@ -388,6 +424,13 @@ class GitDAO(GitDAOInterface):
         #
         variant_create: VariantCreate,
     ) -> Optional[Variant]:
+        print(
+            f"[DAO] create_variant: DBE={self.VariantDBE.__name__}, "
+            f"project_id={project_id}, slug={variant_create.slug}, "
+            f"artifact_id={variant_create.artifact_id}",
+            flush=True,
+        )
+
         variant = Variant(
             project_id=project_id,
             #
@@ -414,11 +457,15 @@ class GitDAO(GitDAOInterface):
 
         try:
             async with engine.core_session() as session:
+                print("[DAO] create_variant: session opened, adding variant_dbe", flush=True)
                 session.add(variant_dbe)
 
+                print("[DAO] create_variant: committing...", flush=True)
                 await session.commit()
+                print("[DAO] create_variant: committed successfully", flush=True)
 
                 if not variant_dbe:
+                    print("[DAO] create_variant: variant_dbe is falsy after commit!", flush=True)
                     return None
 
                 variant = map_dbe_to_dto(
@@ -426,9 +473,20 @@ class GitDAO(GitDAOInterface):
                     dbe=variant_dbe,  # type: ignore
                 )
 
+                print(
+                    f"[DAO] create_variant: success, id={variant.id}, slug={variant.slug}",
+                    flush=True,
+                )
+
                 return variant
 
         except Exception as e:
+            print(
+                f"[DAO] create_variant: EXCEPTION: {type(e).__name__}: {e}",
+                flush=True,
+            )
+            import traceback
+            traceback.print_exc()
             check_entity_creation_conflict(e)
 
             raise
@@ -828,6 +886,14 @@ class GitDAO(GitDAOInterface):
         #
         revision_create: RevisionCreate,
     ) -> Optional[Revision]:
+        print(
+            f"[DAO] create_revision: DBE={self.RevisionDBE.__name__}, "
+            f"project_id={project_id}, slug={revision_create.slug}, "
+            f"artifact_id={revision_create.artifact_id}, "
+            f"variant_id={revision_create.variant_id}",
+            flush=True,
+        )
+
         now = datetime.now(timezone.utc)
         revision = Revision(
             project_id=project_id,
@@ -860,11 +926,15 @@ class GitDAO(GitDAOInterface):
 
         try:
             async with engine.core_session() as session:
+                print("[DAO] create_revision: session opened, adding revision_dbe", flush=True)
                 session.add(revision_dbe)
 
+                print("[DAO] create_revision: committing...", flush=True)
                 await session.commit()
+                print("[DAO] create_revision: committed successfully", flush=True)
 
                 if not revision_dbe:
+                    print("[DAO] create_revision: revision_dbe is falsy after commit!", flush=True)
                     return None
 
                 revision = map_dbe_to_dto(
@@ -884,9 +954,20 @@ class GitDAO(GitDAOInterface):
                     version=revision.version,
                 )
 
+                print(
+                    f"[DAO] create_revision: success, id={revision.id}, version={revision.version}",
+                    flush=True,
+                )
+
                 return revision
 
         except Exception as e:
+            print(
+                f"[DAO] create_revision: EXCEPTION: {type(e).__name__}: {e}",
+                flush=True,
+            )
+            import traceback
+            traceback.print_exc()
             check_entity_creation_conflict(e)
 
             raise
@@ -1219,6 +1300,15 @@ class GitDAO(GitDAOInterface):
         #
         revision_commit: RevisionCommit,
     ) -> Optional[Revision]:
+        print(
+            f"[DAO] commit_revision: DBE={self.RevisionDBE.__name__}, "
+            f"project_id={project_id}, slug={revision_commit.slug}, "
+            f"artifact_id={revision_commit.artifact_id}, "
+            f"variant_id={revision_commit.variant_id}, "
+            f"data={revision_commit.data}",
+            flush=True,
+        )
+
         now = datetime.now(timezone.utc)
         revision = Revision(
             project_id=project_id,
@@ -1244,26 +1334,50 @@ class GitDAO(GitDAOInterface):
             data=revision_commit.data,
         )
 
+        print(
+            f"[DAO] commit_revision: revision.data={revision.data}",
+            flush=True,
+        )
+
         revision_dbe = map_dto_to_dbe(
             DBE=self.RevisionDBE,  # type: ignore
             project_id=project_id,
             dto=revision,
         )
 
+        print(
+            f"[DAO] commit_revision: revision_dbe.data={getattr(revision_dbe, 'data', 'N/A')}",
+            flush=True,
+        )
+
         try:
             async with engine.core_session() as session:
+                print("[DAO] commit_revision: session opened, adding revision_dbe", flush=True)
                 session.add(revision_dbe)
 
+                print("[DAO] commit_revision: committing...", flush=True)
                 await session.commit()
+                print("[DAO] commit_revision: committed, refreshing...", flush=True)
 
                 await session.refresh(revision_dbe)
 
                 if not revision_dbe:
+                    print("[DAO] commit_revision: revision_dbe is falsy after commit!", flush=True)
                     return None
+
+                print(
+                    f"[DAO] commit_revision: after refresh, revision_dbe.data={getattr(revision_dbe, 'data', 'N/A')}",
+                    flush=True,
+                )
 
                 revision = map_dbe_to_dto(
                     DTO=Revision,
                     dbe=revision_dbe,  # type: ignore
+                )
+
+                print(
+                    f"[DAO] commit_revision: after map_dbe_to_dto, revision.data={revision.data}",
+                    flush=True,
                 )
 
                 revision.version = await self._get_version(
@@ -1278,9 +1392,20 @@ class GitDAO(GitDAOInterface):
                     version=revision.version,
                 )
 
+                print(
+                    f"[DAO] commit_revision: success, id={revision.id}, version={revision.version}, data={revision.data}",
+                    flush=True,
+                )
+
                 return revision
 
         except Exception as e:
+            print(
+                f"[DAO] commit_revision: EXCEPTION: {type(e).__name__}: {e}",
+                flush=True,
+            )
+            import traceback
+            traceback.print_exc()
             check_entity_creation_conflict(e)
 
             raise
