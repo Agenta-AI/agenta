@@ -357,17 +357,22 @@ export function extractAllEndpointSchemas(
     primaryAgConfigSchema: EntitySchema | null
     primaryOutputsSchema: EntitySchema | null
 } {
-    const endpointNames = ["/test", "/run", "/generate", "/generate_deployed"] as const
+    const endpointNames = ["/test", "/run", "/generate", "/generate_deployed", "/"] as const
 
     const endpoints: RevisionSchemaState["endpoints"] = {
         test: extractEndpointSchema(spec, "/test", routePath),
         run: extractEndpointSchema(spec, "/run", routePath),
         generate: extractEndpointSchema(spec, "/generate", routePath),
         generateDeployed: extractEndpointSchema(spec, "/generate_deployed", routePath),
+        // Support root path endpoint for custom apps using @ag.route("/")
+        root: extractEndpointSchema(spec, "/", routePath),
     }
 
     // Find available endpoints
     const availableEndpoints = endpointNames.filter((name) => {
+        if (name === "/") {
+            return endpoints.root !== null
+        }
         const key = name.replace("/", "").replace("_deployed", "Deployed") as keyof typeof endpoints
         return endpoints[key] !== null
     })
@@ -377,20 +382,22 @@ export function extractAllEndpointSchemas(
         (ep) => ep?.messagesSchema !== null || ep?.requestProperties?.includes("messages"),
     )
 
-    // Get primary ag_config schema (prefer /test, then /run, then others)
+    // Get primary ag_config schema (prefer /test, then /run, then others, then root)
     const primaryAgConfigSchema =
         endpoints.test?.agConfigSchema ||
         endpoints.run?.agConfigSchema ||
         endpoints.generate?.agConfigSchema ||
         endpoints.generateDeployed?.agConfigSchema ||
+        endpoints.root?.agConfigSchema ||
         null
 
-    // Get primary outputs schema (prefer /test, then /run, then others)
+    // Get primary outputs schema (prefer /test, then /run, then others, then root)
     const primaryOutputsSchema =
         endpoints.test?.outputsSchema ||
         endpoints.run?.outputsSchema ||
         endpoints.generate?.outputsSchema ||
         endpoints.generateDeployed?.outputsSchema ||
+        endpoints.root?.outputsSchema ||
         null
 
     return {
@@ -414,6 +421,7 @@ export function createEmptyRevisionSchemaState(): RevisionSchemaState {
             run: null,
             generate: null,
             generateDeployed: null,
+            root: null,
         },
         availableEndpoints: [],
         isChatVariant: false,

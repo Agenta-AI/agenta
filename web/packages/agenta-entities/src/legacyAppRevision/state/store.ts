@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Entity Store
+ * LegacyAppRevision Entity Store
  *
  * Provides atoms for OSS app revision entity state:
  * - Query atom (server data)
@@ -17,12 +17,12 @@ import {produce} from "immer"
 import {atom} from "jotai"
 import type {Atom, WritableAtom} from "jotai"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {extractVariablesFromAgConfig} from "../../runnable/utils"
 import type {QueryState} from "../../shared"
 import type {ListQueryState} from "../../shared"
-import {isLocalDraftId, isPlaceholderId} from "../../shared"
+import {extractRoutePath, extractRuntimePrefix, isLocalDraftId, isPlaceholderId} from "../../shared"
 import {
     fetchOssRevisionById,
     fetchOssRevisionEnriched,
@@ -35,7 +35,7 @@ import {
     type RevisionListItem,
     type VariantDetail,
 } from "../api"
-import type {OssAppRevisionData} from "../core"
+import type {LegacyAppRevisionData} from "../core"
 import {
     stripVolatileKeys,
     enhancedPromptsToParameters,
@@ -47,10 +47,10 @@ import {
 // ============================================================================
 
 /**
- * Input port type for ossAppRevision
+ * Input port type for legacyAppRevision
  * Represents a variable expected by the prompt template
  */
-export interface OssAppRevisionInputPort {
+export interface LegacyAppRevisionInputPort {
     /** Unique key for the input (variable name) */
     key: string
     /** Display name */
@@ -109,25 +109,6 @@ export const variantDetailCacheAtomFamily = atomFamily((variantId: string) =>
     }),
 )
 
-/**
- * Variant context atom family
- * Stores the variantId associated with each revision for enriched queries.
- * This is set when a revision is selected/loaded in the UI.
- */
-export const revisionVariantContextAtomFamily = atomFamily((_revisionId: string) =>
-    atom<string | null>(null),
-)
-
-/**
- * Set variant context for a revision
- */
-export const setRevisionVariantContextAtom = atom(
-    null,
-    (_get, set, revisionId: string, variantId: string | null) => {
-        set(revisionVariantContextAtomFamily(revisionId), variantId)
-    },
-)
-
 // ============================================================================
 // QUERY ATOM FAMILY
 // ============================================================================
@@ -140,7 +121,7 @@ export const setRevisionVariantContextAtom = atom(
  * Skips queries for local draft IDs.
  */
 const directQueryAtomFamily = atomFamily((revisionId: string) =>
-    atomWithQuery<OssAppRevisionData | null>((get) => {
+    atomWithQuery<LegacyAppRevisionData | null>((get) => {
         const projectId = get(projectIdAtom)
         // Skip queries for local draft IDs and placeholder IDs - they don't exist on the server
         // Placeholder IDs are temporary IDs used during pending hydrations (e.g., "__pending_hydration__dk-xxx")
@@ -149,7 +130,7 @@ const directQueryAtomFamily = atomFamily((revisionId: string) =>
         const enabled = !!revisionId && !!projectId && !isLocal && !isPlaceholder
 
         return {
-            queryKey: ["ossAppRevision", revisionId, projectId],
+            queryKey: ["legacyAppRevision", revisionId, projectId],
             queryFn: () => fetchOssRevisionById(revisionId, projectId!),
             staleTime: 1000 * 60, // 1 minute
             refetchOnWindowFocus: false,
@@ -166,7 +147,7 @@ const directQueryAtomFamily = atomFamily((revisionId: string) =>
  * Skips queries for local draft IDs.
  */
 export const enrichedQueryAtomFamily = atomFamily((key: string) =>
-    atomWithQuery<OssAppRevisionData | null>((get) => {
+    atomWithQuery<LegacyAppRevisionData | null>((get) => {
         const projectId = get(projectIdAtom)
         const parsed = parseEnrichedKey(key)
         // Skip queries for local draft IDs and placeholder IDs
@@ -175,7 +156,7 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
         const enabled = !!parsed && !!projectId && !isLocal && !isPlaceholder
 
         return {
-            queryKey: ["ossAppRevisionEnriched", key, projectId],
+            queryKey: ["legacyAppRevisionEnriched", key, projectId],
             queryFn: async () => {
                 if (!parsed || !projectId) return null
                 return fetchOssRevisionEnriched(parsed.revisionId, parsed.variantId, projectId)
@@ -193,8 +174,8 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
  * Uses legacy API via fetchOssRevisionById.
  * Returns QueryState format for consistency with entity patterns.
  */
-export const ossAppRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
-    atom<QueryState<OssAppRevisionData>>((get) => {
+export const legacyAppRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
+    atom<QueryState<LegacyAppRevisionData>>((get) => {
         const query = get(directQueryAtomFamily(revisionId))
 
         if (query.isPending) {
@@ -231,8 +212,8 @@ export const ossAppRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
 /**
  * Draft state for local edits to OSS app revisions
  */
-export const ossAppRevisionDraftAtomFamily = atomFamily((_revisionId: string) =>
-    atom<OssAppRevisionData | null>(null),
+export const legacyAppRevisionDraftAtomFamily = atomFamily((_revisionId: string) =>
+    atom<LegacyAppRevisionData | null>(null),
 )
 
 /**
@@ -240,10 +221,10 @@ export const ossAppRevisionDraftAtomFamily = atomFamily((_revisionId: string) =>
  */
 function getDraftAtom(
     revisionId: string,
-): WritableAtom<OssAppRevisionData | null, [OssAppRevisionData | null], void> {
-    return ossAppRevisionDraftAtomFamily(revisionId) as WritableAtom<
-        OssAppRevisionData | null,
-        [OssAppRevisionData | null],
+): WritableAtom<LegacyAppRevisionData | null, [LegacyAppRevisionData | null], void> {
+    return legacyAppRevisionDraftAtomFamily(revisionId) as WritableAtom<
+        LegacyAppRevisionData | null,
+        [LegacyAppRevisionData | null],
         void
     >
 }
@@ -255,14 +236,14 @@ function getDraftAtom(
 /**
  * Entity atom - returns draft if exists, otherwise server data
  */
-export const ossAppRevisionEntityAtomFamily = atomFamily((revisionId: string) =>
-    atom<OssAppRevisionData | null>((get) => {
-        const draft = get(ossAppRevisionDraftAtomFamily(revisionId))
+export const legacyAppRevisionEntityAtomFamily = atomFamily((revisionId: string) =>
+    atom<LegacyAppRevisionData | null>((get) => {
+        const draft = get(legacyAppRevisionDraftAtomFamily(revisionId))
         if (draft) {
             return draft
         }
 
-        const query = get(ossAppRevisionQueryAtomFamily(revisionId))
+        const query = get(legacyAppRevisionQueryAtomFamily(revisionId))
         return query.data ?? null
     }),
 )
@@ -274,12 +255,12 @@ export const ossAppRevisionEntityAtomFamily = atomFamily((revisionId: string) =>
 /**
  * Check if an OSS app revision has local changes
  */
-export const ossAppRevisionIsDirtyAtomFamily = atomFamily((revisionId: string) =>
+export const legacyAppRevisionIsDirtyAtomFamily = atomFamily((revisionId: string) =>
     atom<boolean>((get) => {
-        const draft = get(ossAppRevisionDraftAtomFamily(revisionId))
+        const draft = get(legacyAppRevisionDraftAtomFamily(revisionId))
         if (!draft) return false
 
-        const query = get(ossAppRevisionQueryAtomFamily(revisionId))
+        const query = get(legacyAppRevisionQueryAtomFamily(revisionId))
         if (!query.data) return true // New entity
 
         // Compare draft with server data
@@ -297,10 +278,10 @@ export const ossAppRevisionIsDirtyAtomFamily = atomFamily((revisionId: string) =
  * Extracts template variables ({{variableName}}) from prompt messages
  * and returns them as input port definitions.
  */
-export const ossAppRevisionInputPortsAtomFamily = atomFamily((revisionId: string) =>
-    atom<OssAppRevisionInputPort[]>((get) => {
+export const legacyAppRevisionInputPortsAtomFamily = atomFamily((revisionId: string) =>
+    atom<LegacyAppRevisionInputPort[]>((get) => {
         // Use merged entity (draft + server) for reactive updates
-        const data = get(ossAppRevisionEntityAtomFamily(revisionId))
+        const data = get(legacyAppRevisionEntityAtomFamily(revisionId))
         if (!data) return []
 
         const parameters = data.parameters as Record<string, unknown> | undefined
@@ -521,6 +502,54 @@ export const revisionsListQueryStateAtomFamily = atomFamily((variantId: string) 
 )
 
 // ============================================================================
+// REVISION LIST CACHE LOOKUP
+// ============================================================================
+
+const findRevisionListItemInCache = (
+    queryClient: import("@tanstack/react-query").QueryClient,
+    revisionId: string,
+): RevisionListItem | null => {
+    const queries = queryClient.getQueriesData({queryKey: ["oss-revisions-for-selection"]})
+
+    for (const [_queryKey, data] of queries) {
+        if (!Array.isArray(data)) continue
+        const found = data.find((item) => (item as RevisionListItem)?.id === revisionId)
+        if (found) {
+            return found as RevisionListItem
+        }
+    }
+
+    return null
+}
+
+const revisionListItemFromCacheAtomFamily = atomFamily((revisionId: string) =>
+    atom<RevisionListItem | null>((get) => {
+        const queryClient = get(queryClientAtom)
+        return findRevisionListItemInCache(queryClient, revisionId)
+    }),
+)
+
+const mergeRevisionListContext = (
+    data: LegacyAppRevisionData | null,
+    listItem: RevisionListItem | null,
+): LegacyAppRevisionData | null => {
+    if (!data || !listItem) return data
+
+    const uri = data.uri ?? listItem.uri
+    const runtimePrefix = data.runtimePrefix ?? extractRuntimePrefix(uri)
+    const routePath = data.routePath ?? extractRoutePath(uri)
+
+    return {
+        ...data,
+        variantId: data.variantId ?? listItem.variantId,
+        appId: data.appId ?? listItem.appId,
+        uri,
+        runtimePrefix,
+        routePath,
+    }
+}
+
+// ============================================================================
 // LIST COMPOSITION WITH LOCAL DRAFTS
 // ============================================================================
 
@@ -616,7 +645,7 @@ export const revisionsListWithDraftsAtomFamily = atomFamily((variantId: string) 
         if (variantId === LOCAL_DRAFTS_VARIANT_ID && _localDraftsListAtom) {
             const localDrafts = get(_localDraftsListAtom) as {
                 id: string
-                data: OssAppRevisionData
+                data: LegacyAppRevisionData
                 sourceRevisionId: string | null
                 isDirty: boolean
             }[]
@@ -663,57 +692,51 @@ export const revisionsListWithDraftsAtomFamily = atomFamily((variantId: string) 
 
 /**
  * Get enriched server data for a revision.
- * Uses variant context to fetch complete data with URI.
+ * Uses revision list cache to fetch complete data with URI.
  */
-export const ossAppRevisionEnrichedDataFamily = atomFamily((revisionId: string) =>
-    atom<OssAppRevisionData | null>((get) => {
-        const variantId = get(revisionVariantContextAtomFamily(revisionId))
+export const legacyAppRevisionEnrichedDataFamily = atomFamily((revisionId: string) =>
+    atom<LegacyAppRevisionData | null>((get) => {
+        const listItem = get(revisionListItemFromCacheAtomFamily(revisionId))
+        const variantId = listItem?.variantId
 
-        // If we have variant context, use enriched query
+        // If we have a variantId from the list cache, use enriched query
         if (variantId) {
             const enrichedKey = createEnrichedKey(revisionId, variantId)
             const enrichedQuery = get(enrichedQueryAtomFamily(enrichedKey))
             if (enrichedQuery.data) {
-                return enrichedQuery.data
+                return mergeRevisionListContext(enrichedQuery.data, listItem)
             }
         }
 
         // Fall back to basic query (without URI enrichment)
-        const query = get(ossAppRevisionQueryAtomFamily(revisionId))
-        return query.data ?? null
+        const query = get(legacyAppRevisionQueryAtomFamily(revisionId))
+        return mergeRevisionListContext(query.data ?? null, listItem)
     }),
 )
 
 /**
- * @deprecated Use setRevisionVariantContextAtom instead.
  * Legacy server data storage - kept for backward compatibility during migration.
  */
-export const ossAppRevisionServerDataAtomFamily = atomFamily((_revisionId: string) =>
-    atom<OssAppRevisionData | null>(null),
+export const legacyAppRevisionServerDataAtomFamily = atomFamily((_revisionId: string) =>
+    atom<LegacyAppRevisionData | null>(null),
 )
 
 /**
- * @deprecated Use setRevisionVariantContextAtom to set variant context instead.
- * Set server data for a revision.
+ * Set server data for a revision (legacy bridge only).
  */
 export const setServerDataAtom = atom(
     null,
-    (_get, set, revisionId: string, data: OssAppRevisionData) => {
+    (_get, set, revisionId: string, data: LegacyAppRevisionData) => {
         // Store the data in legacy atom for backward compatibility
-        set(ossAppRevisionServerDataAtomFamily(revisionId), data)
-        // Also set variant context if available
-        if (data.variantId) {
-            set(revisionVariantContextAtomFamily(revisionId), data.variantId)
-        }
+        set(legacyAppRevisionServerDataAtomFamily(revisionId), data)
     },
 )
 
 /**
- * Clear server data and variant context for a revision.
+ * Clear server data and draft for a revision.
  */
 export const clearServerDataAtom = atom(null, (_get, set, revisionId: string) => {
-    set(ossAppRevisionServerDataAtomFamily(revisionId), null)
-    set(revisionVariantContextAtomFamily(revisionId), null)
+    set(legacyAppRevisionServerDataAtomFamily(revisionId), null)
     set(getDraftAtom(revisionId), null)
 })
 
@@ -721,16 +744,16 @@ export const clearServerDataAtom = atom(null, (_get, set, revisionId: string) =>
  * Entity atom with enrichment support.
  * Prefers: draft → merged server data (enriched + enhanced properties)
  */
-export const ossAppRevisionEntityWithBridgeAtomFamily = atomFamily((revisionId: string) =>
-    atom<OssAppRevisionData | null>((get) => {
+export const legacyAppRevisionEntityWithBridgeAtomFamily = atomFamily((revisionId: string) =>
+    atom<LegacyAppRevisionData | null>((get) => {
         // Check draft first
-        const draft = get(ossAppRevisionDraftAtomFamily(revisionId))
+        const draft = get(legacyAppRevisionDraftAtomFamily(revisionId))
         if (draft) {
             return draft
         }
 
         // Use server data selector which merges enriched data with enhanced properties
-        const serverData = get(ossAppRevisionServerDataSelectorFamily(revisionId))
+        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
         return serverData
     }),
 )
@@ -741,15 +764,16 @@ export const ossAppRevisionEntityWithBridgeAtomFamily = atomFamily((revisionId: 
  * Priority for base data: enriched → legacy → query
  * Then merges in enhancedPrompts/enhancedCustomProperties from legacy atom if present
  */
-export const ossAppRevisionServerDataSelectorFamily = atomFamily((revisionId: string) =>
-    atom<OssAppRevisionData | null>((get) => {
-        const bridgeData = get(ossAppRevisionServerDataAtomFamily(revisionId))
+export const legacyAppRevisionServerDataSelectorFamily = atomFamily((revisionId: string) =>
+    atom<LegacyAppRevisionData | null>((get) => {
+        const bridgeData = get(legacyAppRevisionServerDataAtomFamily(revisionId))
+        const listItem = get(revisionListItemFromCacheAtomFamily(revisionId))
         if (bridgeData) {
-            return bridgeData
+            return mergeRevisionListContext(bridgeData, listItem)
         }
 
-        const enrichedData = get(ossAppRevisionEnrichedDataFamily(revisionId))
-        return enrichedData
+        const enrichedData = get(legacyAppRevisionEnrichedDataFamily(revisionId))
+        return mergeRevisionListContext(enrichedData, listItem)
     }),
 )
 
@@ -761,15 +785,15 @@ export const ossAppRevisionServerDataSelectorFamily = atomFamily((revisionId: st
  * object, because enhanced prompts/properties are derived and may have different
  * structure even when the underlying data is the same.
  */
-export const ossAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revisionId: string) =>
+export const legacyAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revisionId: string) =>
     atom<boolean>((get) => {
-        const draft = get(ossAppRevisionDraftAtomFamily(revisionId))
+        const draft = get(legacyAppRevisionDraftAtomFamily(revisionId))
         if (!draft) {
             return false
         }
 
         // Get server data (enriched or legacy)
-        const serverData = get(ossAppRevisionServerDataSelectorFamily(revisionId))
+        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
         if (!serverData) {
             return true // New entity
         }
@@ -815,11 +839,11 @@ export const ossAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revisionId:
 /**
  * Update OSS app revision draft
  */
-export const updateOssAppRevisionAtom = atom(
+export const updateLegacyAppRevisionAtom = atom(
     null,
-    (get, set, revisionId: string, changes: Partial<OssAppRevisionData>) => {
-        const currentDraft = get(ossAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(ossAppRevisionServerDataSelectorFamily(revisionId))
+    (get, set, revisionId: string, changes: Partial<LegacyAppRevisionData>) => {
+        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
+        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
         const base = currentDraft || serverData
 
         if (!base) {
@@ -844,20 +868,19 @@ export const updateOssAppRevisionAtom = atom(
  *
  * This ensures the UI falls back to the original query data.
  */
-export const discardOssAppRevisionDraftAtom = atom(null, (get, set, revisionId: string) => {
-    // 1. Clear the draft atom
+export const discardLegacyAppRevisionDraftAtom = atom(null, (get, set, revisionId: string) => {
     set(getDraftAtom(revisionId), null)
 
     // 2. Clear enhanced prompts/custom properties from server data atom
     // These may have been seeded during initial derivation from schema
     // and need to be cleared so the UI re-derives from original query data
-    const serverData = get(ossAppRevisionServerDataAtomFamily(revisionId))
+    const serverData = get(legacyAppRevisionServerDataAtomFamily(revisionId))
     if (serverData && (serverData.enhancedPrompts || serverData.enhancedCustomProperties)) {
         const cleanedServerData = produce(serverData, (draft) => {
             delete draft.enhancedPrompts
             delete draft.enhancedCustomProperties
         })
-        set(ossAppRevisionServerDataAtomFamily(revisionId), cleanedServerData)
+        set(legacyAppRevisionServerDataAtomFamily(revisionId), cleanedServerData)
     }
 })
 
@@ -875,8 +898,8 @@ export const discardOssAppRevisionDraftAtom = atom(null, (get, set, revisionId: 
 export const setEnhancedPromptsAtom = atom(
     null,
     (get, set, revisionId: string, prompts: unknown[]) => {
-        const currentDraft = get(ossAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(ossAppRevisionServerDataSelectorFamily(revisionId))
+        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
+        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
         const base = currentDraft || serverData
 
         if (!base) {
@@ -903,7 +926,7 @@ export const setEnhancedPromptsAtom = atom(
                 draft.enhancedPrompts = prompts
             })
             // Update the legacy server data atom (which feeds into serverDataSelector)
-            set(ossAppRevisionServerDataAtomFamily(revisionId), updatedServerData)
+            set(legacyAppRevisionServerDataAtomFamily(revisionId), updatedServerData)
             return
         }
 
@@ -922,8 +945,8 @@ export const setEnhancedPromptsAtom = atom(
 export const mutateEnhancedPromptsAtom = atom(
     null,
     (get, set, revisionId: string, recipe: (draft: unknown[]) => void) => {
-        const currentDraft = get(ossAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(ossAppRevisionServerDataSelectorFamily(revisionId))
+        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
+        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
         const base = currentDraft || serverData
 
         if (!base) {
@@ -959,8 +982,8 @@ export const mutateEnhancedPromptsAtom = atom(
 export const setEnhancedCustomPropertiesAtom = atom(
     null,
     (get, set, revisionId: string, customProperties: Record<string, unknown>) => {
-        const currentDraft = get(ossAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(ossAppRevisionServerDataSelectorFamily(revisionId))
+        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
+        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
         const base = currentDraft || serverData
 
         if (!base) {
@@ -988,7 +1011,7 @@ export const setEnhancedCustomPropertiesAtom = atom(
                 draft.enhancedCustomProperties = customProperties
             })
             // Update the legacy server data atom (which feeds into serverDataSelector)
-            set(ossAppRevisionServerDataAtomFamily(revisionId), updatedServerData)
+            set(legacyAppRevisionServerDataAtomFamily(revisionId), updatedServerData)
             return
         }
 
@@ -1007,8 +1030,8 @@ export const setEnhancedCustomPropertiesAtom = atom(
 export const mutateEnhancedCustomPropertiesAtom = atom(
     null,
     (get, set, revisionId: string, recipe: (draft: Record<string, unknown>) => void) => {
-        const currentDraft = get(ossAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(ossAppRevisionServerDataSelectorFamily(revisionId))
+        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
+        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
         const base = currentDraft || serverData
 
         if (!base) return
@@ -1048,8 +1071,8 @@ export const updatePropertyAtom = atom(
     ) => {
         const {revisionId, propertyId, value} = params
 
-        const currentDraft = get(ossAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(ossAppRevisionServerDataSelectorFamily(revisionId))
+        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
+        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
         const base = currentDraft || serverData
 
         if (!base) {

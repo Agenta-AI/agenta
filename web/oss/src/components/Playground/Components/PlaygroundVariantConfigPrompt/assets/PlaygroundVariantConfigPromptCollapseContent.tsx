@@ -28,7 +28,11 @@ import ToolsRenderer from "./ToolsRenderer"
  * @component
  */
 
-const isCustomAtom = selectAtom(currentAppContextAtom, (ctx) => ctx.appType === "custom", deepEqual)
+const isCustomAtom = selectAtom(
+    currentAppContextAtom,
+    (ctx) => (ctx as {appType?: string | null} | null)?.appType === "custom",
+    deepEqual,
+)
 const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseContentProps> = ({
     variantId,
     promptId,

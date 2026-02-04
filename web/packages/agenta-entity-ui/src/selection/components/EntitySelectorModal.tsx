@@ -207,7 +207,7 @@ function formatEntityTypeLabel(type: SelectableEntityType): string {
         variant: "Variant",
         appRevision: "App Revision",
         ossVariant: "Variant",
-        ossAppRevision: "App Revision",
+        legacyAppRevision: "App Revision",
         evaluator: "Evaluator",
         evaluatorVariant: "Evaluator Variant",
         evaluatorRevision: "Evaluator Revision",

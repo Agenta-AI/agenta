@@ -1,7 +1,7 @@
 /**
- * OssAppRevision Local Drafts
+ * LegacyAppRevision Local Drafts
  *
- * Provides entity-level local draft management for ossAppRevision.
+ * Provides entity-level local draft management for legacyAppRevision.
  * Local drafts are revision copies that exist only in browser memory
  * and haven't been committed to the server.
  *
@@ -15,7 +15,7 @@
  *     localDraftsListAtom,
  *     createLocalDraftFromRevision,
  *     discardLocalDraft,
- * } from '@agenta/entities/ossAppRevision'
+ * } from '@agenta/entities/legacyAppRevision'
  *
  * // Get all local draft IDs
  * const draftIds = useAtomValue(localDraftIdsAtom)
@@ -35,13 +35,13 @@ import {atom, getDefaultStore} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 import {isLocalDraftId, extractSourceIdFromDraft} from "../../shared/utils/revisionLabel"
-import type {OssAppRevisionData} from "../core"
+import type {LegacyAppRevisionData} from "../core"
 import {cloneAsLocalDraft as cloneAsLocalDraftFactory} from "../core/factory"
 
 import {
-    ossAppRevisionServerDataAtomFamily,
-    ossAppRevisionEntityWithBridgeAtomFamily,
-    ossAppRevisionIsDirtyWithBridgeAtomFamily,
+    legacyAppRevisionServerDataAtomFamily,
+    legacyAppRevisionEntityWithBridgeAtomFamily,
+    legacyAppRevisionIsDirtyWithBridgeAtomFamily,
     setLocalDraftsAtoms,
 } from "./store"
 
@@ -62,7 +62,7 @@ function getImmediateSourceIdLocal(draftId: string): string | null {
 
     // PRIORITY 1: Check stored data for _sourceRevisionId
     // This is the most reliable source as createLocalDraftFromRevision stores it here
-    const serverData = store.get(ossAppRevisionServerDataAtomFamily(draftId)) as {
+    const serverData = store.get(legacyAppRevisionServerDataAtomFamily(draftId)) as {
         _sourceRevisionId?: string
     } | null
     if (serverData?._sourceRevisionId) {
@@ -148,7 +148,7 @@ export interface LocalDraftEntry {
     /** Local draft ID */
     id: string
     /** Full revision data */
-    data: OssAppRevisionData
+    data: LegacyAppRevisionData
     /** Source revision ID this draft was cloned from */
     sourceRevisionId: string | null
     /** Whether the draft has unsaved changes */
@@ -166,14 +166,14 @@ export const localDraftsListAtom = atom<LocalDraftEntry[]>((get) => {
 
     return localIds
         .map((id) => {
-            const data = get(ossAppRevisionEntityWithBridgeAtomFamily(id))
+            const data = get(legacyAppRevisionEntityWithBridgeAtomFamily(id))
             if (!data) return null
 
             return {
                 id,
                 data,
                 sourceRevisionId: extractSourceIdFromDraft(id),
-                isDirty: get(ossAppRevisionIsDirtyWithBridgeAtomFamily(id)),
+                isDirty: get(legacyAppRevisionIsDirtyWithBridgeAtomFamily(id)),
             }
         })
         .filter((entry): entry is LocalDraftEntry => entry !== null)
@@ -188,7 +188,7 @@ export function cleanupStaleLocalDrafts(): number {
     const localIds = store.get(localDraftIdsAtom)
 
     const validIds = localIds.filter((id) => {
-        const data = store.get(ossAppRevisionEntityWithBridgeAtomFamily(id))
+        const data = store.get(legacyAppRevisionEntityWithBridgeAtomFamily(id))
         return data !== null
     })
 
@@ -243,7 +243,7 @@ export function createLocalDraftFromRevision(sourceRevisionId: string): string |
     const store = getDefaultStore()
 
     // Get source data from molecule
-    const sourceData = store.get(ossAppRevisionEntityWithBridgeAtomFamily(sourceRevisionId))
+    const sourceData = store.get(legacyAppRevisionEntityWithBridgeAtomFamily(sourceRevisionId))
 
     if (!sourceData) {
         return null
@@ -262,7 +262,7 @@ export function createLocalDraftFromRevision(sourceRevisionId: string): string |
     // Get the root source data for the revision number (if different from immediate source)
     const rootSourceData =
         rootSourceRevisionId !== sourceRevisionId
-            ? store.get(ossAppRevisionEntityWithBridgeAtomFamily(rootSourceRevisionId))
+            ? store.get(legacyAppRevisionEntityWithBridgeAtomFamily(rootSourceRevisionId))
             : sourceData
 
     // Create local draft using factory
@@ -270,16 +270,47 @@ export function createLocalDraftFromRevision(sourceRevisionId: string): string |
         variantName: `${sourceData.variantName ?? "Variant (Draft)"}`,
     })
 
-    // Store the ROOT source revision ID in the data for reference
-    // This ensures snapshot encoding always gets the server revision ID
+    // When creating a draft-of-draft, inherit the ORIGINAL source info
+    // This ensures we always trace back to the root server revision
+    const isSourceALocalDraft = isLocalDraftId(sourceRevisionId)
+
+    // Type for accessing internal metadata fields on source data
+    type SourceDataWithMetadata = LegacyAppRevisionData & {
+        _sourceRevisionId?: string
+        _sourceVariantId?: string
+        _baseId?: string
+        baseId?: string
+    }
+    const sourceWithMeta = sourceData as SourceDataWithMetadata
+
+    // Get the original source revision ID (always points to a server revision)
+    // Use rootSourceRevisionId when available as it's the ultimate server revision
+    const originalSourceRevisionId = isSourceALocalDraft
+        ? (sourceWithMeta._sourceRevisionId ?? rootSourceRevisionId)
+        : rootSourceRevisionId
+
+    // Get the original variant ID (needed for API calls)
+    const originalSourceVariantId = isSourceALocalDraft
+        ? (sourceWithMeta._sourceVariantId ?? sourceData.variantId)
+        : sourceData.variantId
+
+    // Get the original base ID (needed for create variant API)
+    const originalBaseId = isSourceALocalDraft
+        ? (sourceWithMeta._baseId ?? sourceWithMeta.baseId)
+        : sourceWithMeta.baseId
+
+    // Store all source info in the data for reference
+    // _sourceRevision uses root source data when available for accurate version tracking
     const dataWithSource = {
         ...draftData,
-        _sourceRevisionId: rootSourceRevisionId,
+        _sourceRevisionId: originalSourceRevisionId,
+        _sourceVariantId: originalSourceVariantId,
+        _baseId: originalBaseId,
         _sourceRevision: rootSourceData?.revision ?? sourceData.revision,
-    } as OssAppRevisionData
+    } as LegacyAppRevisionData
 
     // Initialize in molecule's serverData (this makes it available via entityAtom)
-    store.set(ossAppRevisionServerDataAtomFamily(localId), dataWithSource)
+    store.set(legacyAppRevisionServerDataAtomFamily(localId), dataWithSource)
 
     // Track in local drafts list
     store.set(localDraftIdsAtom, (prev) => {
@@ -312,7 +343,7 @@ export function discardLocalDraft(localDraftId: string): boolean {
     store.set(localDraftIdsAtom, (prev) => prev.filter((id) => id !== localDraftId))
 
     // Clear molecule data
-    store.set(ossAppRevisionServerDataAtomFamily(localDraftId), null)
+    store.set(legacyAppRevisionServerDataAtomFamily(localDraftId), null)
 
     return true
 }
@@ -328,7 +359,7 @@ export function discardAllLocalDrafts(): number {
 
     // Clear each draft's data
     ids.forEach((id) => {
-        store.set(ossAppRevisionServerDataAtomFamily(id), null)
+        store.set(legacyAppRevisionServerDataAtomFamily(id), null)
     })
 
     // Clear the tracking list

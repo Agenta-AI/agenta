@@ -4,8 +4,6 @@ import {memo} from "react"
 
 import clsx from "clsx"
 
-import {useSetRevisionVariantContext} from "@/oss/state/newPlayground"
-
 import PlaygroundVariantConfigEditors from "./assets/Editors"
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
@@ -32,10 +30,6 @@ const PlaygroundVariantConfig: React.FC<
         revisionOverride?: number | string | null
     }
 > = ({variantId, className, embedded, variantNameOverride, revisionOverride, ...divProps}) => {
-    // Set variant context for enriched data fetching
-    // This enables the molecule to fetch complete revision data with URI from variant
-    useSetRevisionVariantContext(variantId)
-
     return (
         <div
             className={clsx(

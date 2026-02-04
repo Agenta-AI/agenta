@@ -1,4 +1,5 @@
-import {variantsListWithDraftsAtomFamily} from "@agenta/entities/ossAppRevision"
+import {variantsListWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {isLocalDraftId} from "@agenta/entities/shared"
 import {message} from "@agenta/ui/app-message"
 import {produce} from "immer"
 import {atom} from "jotai"
@@ -97,19 +98,33 @@ export const addVariantMutationAtom = atom(
                     appType: (get as any)(currentAppContextAtom)?.appType || undefined,
                 })?.ag_config ?? null
 
-            // Resolve baseId robustly: prefer adapted revision.baseId, fallback to parent variant
-            const parentBaseId = (() => {
-                try {
-                    const appId = get(selectedAppIdAtom)
-                    if (!appId) return undefined
-                    const parents =
-                        get(variantsListWithDraftsAtomFamily(appId))?.data ?? ([] as any[])
-                    const pv = parents.find((p: any) => p.id === currentBaseRevision.variantId)
-                    return pv?.baseId
-                } catch {
-                    return undefined
-                }
-            })()
+            // Resolve baseId robustly:
+            // 1. For local drafts, use stored _baseId (preserves original source's baseId)
+            // 2. Fall back to adapted revision.baseId
+            // 3. Fall back to parent variant lookup
+            const localDraftBaseId = isLocalDraftId(currentBaseRevision.id)
+                ? (currentBaseRevision as any)._baseId
+                : null
+
+            // For local drafts, use stored _sourceVariantId to look up parent variant
+            const resolvedVariantIdForLookup = isLocalDraftId(currentBaseRevision.id)
+                ? ((currentBaseRevision as any)._sourceVariantId ?? currentBaseRevision.variantId)
+                : currentBaseRevision.variantId
+
+            const parentBaseId =
+                localDraftBaseId ||
+                (() => {
+                    try {
+                        const appId = get(selectedAppIdAtom)
+                        if (!appId) return undefined
+                        const parents =
+                            get(variantsListWithDraftsAtomFamily(appId))?.data ?? ([] as any[])
+                        const pv = parents.find((p: any) => p.id === resolvedVariantIdForLookup)
+                        return pv?.baseId
+                    } catch {
+                        return undefined
+                    }
+                })()
             const resolvedBaseId = currentBaseRevision.baseId || parentBaseId
             if (!resolvedBaseId) {
                 throw new Error(

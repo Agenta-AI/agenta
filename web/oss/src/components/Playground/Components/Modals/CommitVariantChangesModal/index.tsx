@@ -8,12 +8,12 @@ import {Resizable} from "react-resizable"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {
-    revisionListAtom,
     saveVariantMutationAtom,
     selectedVariantsAtom,
 } from "@/oss/components/Playground/state/atoms"
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
+import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"
 
@@ -30,9 +30,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     ...props
 }) => {
     const {onCancel, ...modalProps} = props
-    // Get variant metadata from revision list
-    const revisions = useAtomValue(revisionListAtom)
-    const variant = revisions?.find((rev: any) => rev.id === variantId)
+    // Get variant metadata using molecule-backed atom (works for both server revisions and local drafts)
+    const variant = useAtomValue(moleculeBackedVariantAtomFamily(variantId || ""))
 
     // Extract values from variant
     const variantName = variant?.variantName

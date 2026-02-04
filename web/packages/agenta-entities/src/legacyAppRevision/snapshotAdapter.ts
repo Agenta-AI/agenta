@@ -1,7 +1,7 @@
 /**
- * OssAppRevision Snapshot Adapter
+ * LegacyAppRevision Snapshot Adapter
  *
- * Implements the RunnableSnapshotAdapter interface for OssAppRevision entities.
+ * Implements the RunnableSnapshotAdapter interface for LegacyAppRevision entities.
  * This adapter is registered with the snapshot adapter registry at import time.
  */
 
@@ -16,18 +16,21 @@ import {
 } from "../runnable/snapshotAdapter"
 import {isLocalDraftId, extractSourceIdFromDraft} from "../shared/utils/revisionLabel"
 
-import {buildOssAppRevisionDraftPatch, applyOssAppRevisionDraftPatch} from "./snapshot"
+import {buildLegacyAppRevisionDraftPatch, applyLegacyAppRevisionDraftPatch} from "./snapshot"
 import {createLocalDraftFromRevision} from "./state/localDrafts"
-import {ossAppRevisionDraftAtomFamily, ossAppRevisionServerDataAtomFamily} from "./state/store"
+import {
+    legacyAppRevisionDraftAtomFamily,
+    legacyAppRevisionServerDataAtomFamily,
+} from "./state/store"
 
 // ============================================================================
 // PATCH VALIDATION SCHEMA
 // ============================================================================
 
 /**
- * Zod schema for validating OssAppRevision draft patches.
+ * Zod schema for validating LegacyAppRevision draft patches.
  */
-const ossAppRevisionPatchSchema = z.object({
+const legacyAppRevisionPatchSchema = z.object({
     parameters: z.record(z.string(), z.unknown()),
 })
 
@@ -48,7 +51,7 @@ function getImmediateSourceId(draftId: string): string | null {
 
     // PRIORITY 1: Check stored data for _sourceRevisionId
     // This is the most reliable source as createLocalDraftFromRevision stores it here
-    const serverData = store.get(ossAppRevisionServerDataAtomFamily(draftId)) as {
+    const serverData = store.get(legacyAppRevisionServerDataAtomFamily(draftId)) as {
         _sourceRevisionId?: string
     } | null
     if (serverData?._sourceRevisionId) {
@@ -56,7 +59,7 @@ function getImmediateSourceId(draftId: string): string | null {
     }
 
     // PRIORITY 2: Check draft atom
-    const draftData = store.get(ossAppRevisionDraftAtomFamily(draftId)) as {
+    const draftData = store.get(legacyAppRevisionDraftAtomFamily(draftId)) as {
         _sourceRevisionId?: string
     } | null
     if (draftData?._sourceRevisionId) {
@@ -116,19 +119,19 @@ function resolveRootSourceId(id: string): string | null {
 // ============================================================================
 
 /**
- * Snapshot adapter for OssAppRevision entities.
+ * Snapshot adapter for LegacyAppRevision entities.
  *
  * Provides snapshot operations (build/apply patch, draft detection) for
  * the OSS app revision entity type.
  */
-export const ossAppRevisionSnapshotAdapter: RunnableSnapshotAdapter = {
-    type: "ossAppRevision",
+export const legacyAppRevisionSnapshotAdapter: RunnableSnapshotAdapter = {
+    type: "legacyAppRevision",
 
     buildDraftPatch(revisionId: string): BuildDraftPatchResult {
-        const result = buildOssAppRevisionDraftPatch(revisionId)
+        const result = buildLegacyAppRevisionDraftPatch(revisionId)
         return {
             hasDraft: result.hasDraft,
-            // Cast to RunnableDraftPatch (OssAppRevisionDraftPatch is compatible at runtime)
+            // Cast to RunnableDraftPatch (LegacyAppRevisionDraftPatch is compatible at runtime)
             patch: result.patch as RunnableDraftPatch | null,
             sourceRevisionId: result.sourceRevisionId,
         }
@@ -136,21 +139,21 @@ export const ossAppRevisionSnapshotAdapter: RunnableSnapshotAdapter = {
 
     applyDraftPatch(revisionId: string, patch: RunnableDraftPatch): boolean {
         // Validate patch using Zod schema
-        const parseResult = ossAppRevisionPatchSchema.safeParse(patch)
+        const parseResult = legacyAppRevisionPatchSchema.safeParse(patch)
         if (!parseResult.success) {
             console.warn(
-                "[OssAppRevisionSnapshotAdapter] Invalid patch format:",
+                "[LegacyAppRevisionSnapshotAdapter] Invalid patch format:",
                 parseResult.error.message,
             )
             return false
         }
 
-        return applyOssAppRevisionDraftPatch(revisionId, parseResult.data)
+        return applyLegacyAppRevisionDraftPatch(revisionId, parseResult.data)
     },
 
     getDraft(revisionId: string): unknown | null {
         const store = getDefaultStore()
-        return store.get(ossAppRevisionDraftAtomFamily(revisionId)) ?? null
+        return store.get(legacyAppRevisionDraftAtomFamily(revisionId)) ?? null
     },
 
     isLocalDraftId(id: string): boolean {
@@ -167,10 +170,10 @@ export const ossAppRevisionSnapshotAdapter: RunnableSnapshotAdapter = {
 
     createLocalDraftWithPatch(sourceRevisionId: string, patch: RunnableDraftPatch): string | null {
         // Validate patch using Zod schema
-        const parseResult = ossAppRevisionPatchSchema.safeParse(patch)
+        const parseResult = legacyAppRevisionPatchSchema.safeParse(patch)
         if (!parseResult.success) {
             console.warn(
-                "[OssAppRevisionSnapshotAdapter] Invalid patch format for createLocalDraftWithPatch:",
+                "[LegacyAppRevisionSnapshotAdapter] Invalid patch format for createLocalDraftWithPatch:",
                 parseResult.error.message,
             )
             return null
@@ -187,11 +190,11 @@ export const ossAppRevisionSnapshotAdapter: RunnableSnapshotAdapter = {
             }
 
             // Apply the patch to the new local draft
-            const applied = applyOssAppRevisionDraftPatch(localDraftId, parseResult.data)
+            const applied = applyLegacyAppRevisionDraftPatch(localDraftId, parseResult.data)
 
             if (!applied) {
                 console.warn(
-                    "[OssAppRevisionSnapshotAdapter] Failed to apply patch to new local draft:",
+                    "[LegacyAppRevisionSnapshotAdapter] Failed to apply patch to new local draft:",
                     localDraftId,
                 )
                 // Still return the draft ID - it was created, just without the patch
@@ -200,7 +203,7 @@ export const ossAppRevisionSnapshotAdapter: RunnableSnapshotAdapter = {
             return localDraftId
         } catch (error) {
             console.error(
-                "[OssAppRevisionSnapshotAdapter] Failed to create local draft with patch:",
+                "[LegacyAppRevisionSnapshotAdapter] Failed to create local draft with patch:",
                 error,
             )
             return null
@@ -213,4 +216,4 @@ export const ossAppRevisionSnapshotAdapter: RunnableSnapshotAdapter = {
 // ============================================================================
 
 // Register adapter when this module is imported
-snapshotAdapterRegistry.register(ossAppRevisionSnapshotAdapter)
+snapshotAdapterRegistry.register(legacyAppRevisionSnapshotAdapter)

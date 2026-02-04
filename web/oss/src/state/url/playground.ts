@@ -220,8 +220,17 @@ export const updatePlaygroundUrlWithDrafts = () => {
 const applyPlaygroundSelection = (store: Store, next: string[]) => {
     const sanitized = sanitizeRevisionList(next)
     const currentSelected = sanitizeRevisionList(store.get(selectedVariantsAtom))
-    if (!arraysEqual(currentSelected, sanitized)) {
-        store.set(selectedVariantsAtom, sanitized)
+
+    // Preserve local drafts that are in current selection but not in URL
+    // (local drafts are filtered out when writing to URL, so we need to keep them)
+    const localDraftsInCurrent = currentSelected.filter((id) => isLocalDraftId(id))
+    const mergedSelection =
+        sanitized.length > 0
+            ? [...sanitized, ...localDraftsInCurrent.filter((id) => !sanitized.includes(id))]
+            : sanitized
+
+    if (!arraysEqual(currentSelected, mergedSelection)) {
+        store.set(selectedVariantsAtom, mergedSelection)
     }
 
     const currentUrlSelection = sanitizeRevisionList(store.get(urlRevisionsAtom))
@@ -229,7 +238,7 @@ const applyPlaygroundSelection = (store: Store, next: string[]) => {
         store.set(urlRevisionsAtom, sanitized)
     }
 
-    const nextViewType = sanitized.length > 1 ? "comparison" : "single"
+    const nextViewType = mergedSelection.length > 1 ? "comparison" : "single"
     if (store.get(viewTypeAtom) !== nextViewType) {
         store.set(viewTypeAtom, nextViewType)
     }

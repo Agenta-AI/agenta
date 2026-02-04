@@ -1,7 +1,7 @@
 import {
-    ossAppRevisionMolecule,
+    legacyAppRevisionMolecule,
     revisionCustomPropertyKeysAtomFamily,
-} from "@agenta/entities/ossAppRevision"
+} from "@agenta/entities/legacyAppRevision"
 import {atom} from "jotai"
 import {RESET, atomFamily} from "jotai/utils"
 
@@ -30,11 +30,11 @@ export interface CustomPropsAtomParams {
  */
 const resolveRevisionSource = (get: any, revisionId: string): EnhancedVariant | undefined => {
     // Prefer merged data (includes draft changes)
-    const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId)) as any
+    const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId)) as any
     if (moleculeData) return moleculeData as EnhancedVariant
 
     // Fallback to server data if no merged data yet
-    const serverData = get(ossAppRevisionMolecule.atoms.serverData(revisionId)) as any
+    const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId)) as any
     if (serverData) return serverData as EnhancedVariant
 
     return undefined
@@ -82,7 +82,7 @@ export const derivedCustomPropsByRevisionAtomFamily = atomFamily((revisionId: st
 )
 
 /**
- * Custom properties atom family - single source of truth via ossAppRevisionMolecule.
+ * Custom properties atom family - single source of truth via legacyAppRevisionMolecule.
  *
  * - Read: molecule.data.enhancedCustomProperties (includes draft changes)
  * - Write: molecule.reducers.mutateEnhancedCustomProperties / setEnhancedCustomProperties
@@ -94,7 +94,7 @@ export const customPropertiesAtomFamily = atomFamily((params: CustomPropsAtomPar
         (get) => {
             // If a revision is provided, use molecule as single source
             if (params.revisionId) {
-                const moleculeData = get(ossAppRevisionMolecule.atoms.data(params.revisionId))
+                const moleculeData = get(legacyAppRevisionMolecule.atoms.data(params.revisionId))
                 if (moleculeData?.enhancedCustomProperties) {
                     return moleculeData.enhancedCustomProperties as Record<string, Enhanced<any>>
                 }
@@ -121,20 +121,20 @@ export const customPropertiesAtomFamily = atomFamily((params: CustomPropsAtomPar
             if (revisionId) {
                 if (update === RESET) {
                     // Discard draft via molecule
-                    set(ossAppRevisionMolecule.actions.discardDraft, revisionId)
+                    set(legacyAppRevisionMolecule.actions.discardDraft, revisionId)
                     return
                 }
 
                 // Route writes through molecule reducers
                 if (typeof update === "function") {
                     set(
-                        ossAppRevisionMolecule.reducers.mutateEnhancedCustomProperties,
+                        legacyAppRevisionMolecule.reducers.mutateEnhancedCustomProperties,
                         revisionId,
                         update as (draft: Record<string, unknown>) => void,
                     )
                 } else {
                     set(
-                        ossAppRevisionMolecule.reducers.setEnhancedCustomProperties,
+                        legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties,
                         revisionId,
                         update as Record<string, unknown>,
                     )

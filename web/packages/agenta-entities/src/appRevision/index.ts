@@ -97,6 +97,9 @@ export {
     transformEnhancedVariant,
     transformApiRevision,
     transformAppToListItem,
+    extractRevisionParametersFromEnhanced,
+    extractRevisionParametersFromApiRevision,
+    // Deprecated agConfig extraction
     extractAgConfigFromEnhanced,
     extractAgConfigFromApi,
     // List API functions

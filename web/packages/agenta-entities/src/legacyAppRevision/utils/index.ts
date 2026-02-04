@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Utilities
+ * LegacyAppRevision Utilities
  *
  * @packageDocumentation
  */

@@ -19,11 +19,15 @@ FROM base AS builder
 
 WORKDIR /app
 
+ENV NODE_OPTIONS="--max_old_space_size=4096"
+
 COPY --from=base ./out/json/ .
 COPY ./.husky /app/.husky
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store yes | pnpm install --frozen-lockfile --filter=@agenta/oss...
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store yes | pnpm install --frozen-lockfile
 COPY --from=base /out/full/ .
+COPY --from=base /packages/tsconfig.base.json /app/packages/tsconfig.base.json
+COPY --from=base /packages/css-modules.d.ts /app/packages/css-modules.d.ts
 
 RUN npx next telemetry disable
 

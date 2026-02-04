@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Snapshot Helpers
+ * LegacyAppRevision Snapshot Helpers
  *
  * Provides utilities for creating and applying draft patches for URL snapshot sharing.
  * These helpers enable capturing the current state of a draft revision and restoring
@@ -8,27 +8,27 @@
  * @example
  * ```typescript
  * import {
- *     buildOssAppRevisionDraftPatch,
- *     applyOssAppRevisionDraftPatch,
- *     type OssAppRevisionDraftPatch,
- * } from '@agenta/entities/ossAppRevision'
+ *     buildLegacyAppRevisionDraftPatch,
+ *     applyLegacyAppRevisionDraftPatch,
+ *     type LegacyAppRevisionDraftPatch,
+ * } from '@agenta/entities/legacyAppRevision'
  *
  * // Build a patch from current draft state
- * const patch = buildOssAppRevisionDraftPatch(revisionId)
+ * const patch = buildLegacyAppRevisionDraftPatch(revisionId)
  * // { parameters: {...} }
  *
  * // Apply a patch to create/update a draft
- * applyOssAppRevisionDraftPatch(revisionId, patch)
+ * applyLegacyAppRevisionDraftPatch(revisionId, patch)
  * ```
  */
 
 import {getDefaultStore} from "jotai/vanilla"
 
-import type {OssAppRevisionData} from "./core"
+import type {LegacyAppRevisionData} from "./core"
 import {
-    ossAppRevisionServerDataSelectorFamily,
-    ossAppRevisionDraftAtomFamily,
-    ossAppRevisionServerDataAtomFamily,
+    legacyAppRevisionServerDataSelectorFamily,
+    legacyAppRevisionDraftAtomFamily,
+    legacyAppRevisionServerDataAtomFamily,
 } from "./state/store"
 import {
     areParametersDifferent,
@@ -50,7 +50,7 @@ import {
  * work across browser tabs. The entity system will derive enhanced data from
  * the raw parameters when the patch is applied.
  */
-export interface OssAppRevisionDraftPatch {
+export interface LegacyAppRevisionDraftPatch {
     /** Raw parameters (ag_config) - the source of truth for all config data */
     parameters: Record<string, unknown>
 }
@@ -62,7 +62,7 @@ export interface BuildPatchResult {
     /** Whether the revision has draft changes */
     hasDraft: boolean
     /** The patch data (null if no draft) */
-    patch: OssAppRevisionDraftPatch | null
+    patch: LegacyAppRevisionDraftPatch | null
     /** Source revision ID */
     sourceRevisionId: string
 }
@@ -87,19 +87,19 @@ export interface BuildPatchResult {
  *
  * @example
  * ```typescript
- * const result = buildOssAppRevisionDraftPatch('rev-123')
+ * const result = buildLegacyAppRevisionDraftPatch('rev-123')
  * if (result.hasDraft && result.patch) {
  *     // Serialize patch for URL sharing
  *     const encoded = encodeSnapshot(result.patch)
  * }
  * ```
  */
-export function buildOssAppRevisionDraftPatch(revisionId: string): BuildPatchResult {
+export function buildLegacyAppRevisionDraftPatch(revisionId: string): BuildPatchResult {
     const store = getDefaultStore()
 
     // Get draft and server data
-    const draft = store.get(ossAppRevisionDraftAtomFamily(revisionId))
-    const serverData = store.get(ossAppRevisionServerDataSelectorFamily(revisionId))
+    const draft = store.get(legacyAppRevisionDraftAtomFamily(revisionId))
+    const serverData = store.get(legacyAppRevisionServerDataSelectorFamily(revisionId))
 
     // No draft means no changes to capture
     if (!draft) {
@@ -139,7 +139,7 @@ export function buildOssAppRevisionDraftPatch(revisionId: string): BuildPatchRes
     }
 
     // Build patch with raw parameters only
-    const patch: OssAppRevisionDraftPatch = {
+    const patch: LegacyAppRevisionDraftPatch = {
         parameters: draftParams,
     }
 
@@ -167,20 +167,20 @@ export function buildOssAppRevisionDraftPatch(revisionId: string): BuildPatchRes
  * @example
  * ```typescript
  * // After decoding a snapshot from URL
- * const success = applyOssAppRevisionDraftPatch('rev-123', decodedPatch)
+ * const success = applyLegacyAppRevisionDraftPatch('rev-123', decodedPatch)
  * if (success) {
  *     // Draft is now set with patched values
  * }
  * ```
  */
-export function applyOssAppRevisionDraftPatch(
+export function applyLegacyAppRevisionDraftPatch(
     revisionId: string,
-    patch: OssAppRevisionDraftPatch,
+    patch: LegacyAppRevisionDraftPatch,
 ): boolean {
     const store = getDefaultStore()
 
     // Get server data as base
-    const serverData = store.get(ossAppRevisionServerDataSelectorFamily(revisionId))
+    const serverData = store.get(legacyAppRevisionServerDataSelectorFamily(revisionId))
 
     if (!serverData) {
         // Server data not available yet - cannot apply patch
@@ -194,7 +194,7 @@ export function applyOssAppRevisionDraftPatch(
     // Build draft by applying patched parameters onto server data
     // IMPORTANT: We only patch parameters, NOT enhanced prompts/properties.
     // The entity system will derive enhanced data from the parameters.
-    const draft: OssAppRevisionData = {
+    const draft: LegacyAppRevisionData = {
         ...serverData,
         // For empty patches, preserve server parameters; otherwise use patch parameters
         parameters: isEmptyPatch ? serverData.parameters : patch.parameters,
@@ -204,7 +204,7 @@ export function applyOssAppRevisionDraftPatch(
     }
 
     // Set the draft
-    store.set(ossAppRevisionDraftAtomFamily(revisionId), draft)
+    store.set(legacyAppRevisionDraftAtomFamily(revisionId), draft)
 
     return true
 }
@@ -218,13 +218,13 @@ export function applyOssAppRevisionDraftPatch(
  * @param revisionId - The revision ID
  * @param data - The server data to initialize with
  */
-export function initializeServerData(revisionId: string, data: OssAppRevisionData): void {
+export function initializeServerData(revisionId: string, data: LegacyAppRevisionData): void {
     const store = getDefaultStore()
-    const existing = store.get(ossAppRevisionServerDataAtomFamily(revisionId))
+    const existing = store.get(legacyAppRevisionServerDataAtomFamily(revisionId))
 
     // Only set if not already present
     if (!existing) {
-        store.set(ossAppRevisionServerDataAtomFamily(revisionId), data)
+        store.set(legacyAppRevisionServerDataAtomFamily(revisionId), data)
     }
 }
 
@@ -239,13 +239,13 @@ export function initializeServerData(revisionId: string, data: OssAppRevisionDat
  */
 export function hasDraftChanges(revisionId: string): boolean {
     const store = getDefaultStore()
-    const draft = store.get(ossAppRevisionDraftAtomFamily(revisionId))
+    const draft = store.get(legacyAppRevisionDraftAtomFamily(revisionId))
 
     if (!draft) {
         return false
     }
 
-    const serverData = store.get(ossAppRevisionServerDataSelectorFamily(revisionId))
+    const serverData = store.get(legacyAppRevisionServerDataSelectorFamily(revisionId))
     if (!serverData) {
         // No server data means this is a new entity with changes
         return true

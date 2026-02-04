@@ -1,4 +1,4 @@
-import {ossAppRevisionMolecule} from "@agenta/entities/ossAppRevision"
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {produce} from "immer"
 import {atom} from "jotai"
 import {RESET, atomFamily} from "jotai/utils"
@@ -38,13 +38,13 @@ export interface PromptsAtomParams {
  */
 const resolveRevisionSource = (get: any, revisionId: string): EnhancedVariant | undefined => {
     // Prefer merged data (includes draft changes)
-    const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId)) as any
+    const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId)) as any
     if (moleculeData) {
         return moleculeData as EnhancedVariant
     }
 
     // Fallback to server data if no merged data yet
-    const serverData = get(ossAppRevisionMolecule.atoms.serverData(revisionId)) as any
+    const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId)) as any
     if (serverData) {
         return serverData as EnhancedVariant
     }
@@ -181,7 +181,7 @@ export const localPromptsByRevisionAtomFamily = atomFamily((revisionId: string) 
 )
 
 /**
- * Prompts atom family - single source of truth via ossAppRevisionMolecule.
+ * Prompts atom family - single source of truth via legacyAppRevisionMolecule.
  *
  * - Read: molecule.data.enhancedPrompts (includes draft changes)
  * - Write: molecule.reducers.mutateEnhancedPrompts / setEnhancedPrompts
@@ -194,7 +194,7 @@ export const promptsAtomFamily = atomFamily((revisionId: string) =>
             if (!revisionId) return []
 
             // Single source: molecule data (merged server + draft)
-            const moleculeData = get(ossAppRevisionMolecule.atoms.data(revisionId))
+            const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
             if (moleculeData?.enhancedPrompts && Array.isArray(moleculeData.enhancedPrompts)) {
                 return moleculeData.enhancedPrompts as EnhancedObjectConfig<AgentaConfigPrompt>[]
             }
@@ -206,15 +206,15 @@ export const promptsAtomFamily = atomFamily((revisionId: string) =>
         (_get, set, update) => {
             if (update === RESET) {
                 // Discard draft via molecule
-                set(ossAppRevisionMolecule.actions.discardDraft, revisionId)
+                set(legacyAppRevisionMolecule.actions.discardDraft, revisionId)
                 return
             }
 
             // Route writes through molecule reducers
             if (typeof update === "function") {
-                set(ossAppRevisionMolecule.reducers.mutateEnhancedPrompts, revisionId, update)
+                set(legacyAppRevisionMolecule.reducers.mutateEnhancedPrompts, revisionId, update)
             } else {
-                set(ossAppRevisionMolecule.reducers.setEnhancedPrompts, revisionId, update)
+                set(legacyAppRevisionMolecule.reducers.setEnhancedPrompts, revisionId, update)
             }
         },
     ),
@@ -317,14 +317,14 @@ export const promptVariablesAtomFamily = atomFamily((revisionId: string) =>
  * from the revision's parameters (ag_config). This is the preferred way
  * to get variables as it uses the molecule as single source of truth.
  *
- * @see ossAppRevisionMolecule.atoms.inputPorts
+ * @see legacyAppRevisionMolecule.atoms.inputPorts
  */
 export const stablePromptVariablesAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
         if (!revisionId) return [] as string[]
 
         // Use molecule's inputPorts - single source of truth for template variables
-        const inputPorts = get(ossAppRevisionMolecule.atoms.inputPorts(revisionId))
+        const inputPorts = get(legacyAppRevisionMolecule.atoms.inputPorts(revisionId))
         if (inputPorts && inputPorts.length > 0) {
             return inputPorts.map((port) => port.key)
         }

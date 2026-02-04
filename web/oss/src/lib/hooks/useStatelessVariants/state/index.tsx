@@ -3,7 +3,7 @@ import {
     getMetadataLazy as entityGetMetadataLazy,
     getAllMetadata as entityGetAllMetadata,
     type ConfigMetadata as EntityConfigMetadata,
-} from "@agenta/entities/ossAppRevision"
+} from "@agenta/entities/legacyAppRevision"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 

@@ -4,7 +4,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {
     variantsListWithDraftsAtomFamily,
     revisionsListWithDraftsAtomFamily,
-} from "@agenta/entities/ossAppRevision"
+} from "@agenta/entities/legacyAppRevision"
 import {SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
 import {Button, Flex, Input, Radio, Space, Typography} from "antd"

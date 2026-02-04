@@ -417,7 +417,7 @@ export {
 } from "./paginated"
 
 // ============================================================================
-// REVISION UTILITIES (shared between appRevision and ossAppRevision)
+// REVISION UTILITIES (shared between appRevision and legacyAppRevision)
 // ============================================================================
 
 export {
@@ -431,8 +431,12 @@ export {
     parseRevisionUri,
     extractRuntimePrefix,
     extractRoutePath,
-    // agConfig extraction
+    // Revision parameter extraction
     type RawAgConfig,
+    extractRevisionParameters,
+    extractRevisionParametersFromEnhanced,
+    extractRevisionParametersFromApiRevision,
+    // Deprecated agConfig aliases
     extractAgConfig,
     extractAgConfigFromEnhanced,
     extractAgConfigFromApiRevision,

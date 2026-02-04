@@ -19,7 +19,7 @@
  * ```
  */
 
-import {ossAppRevisionSnapshotAdapter} from "@agenta/entities/ossAppRevision"
+import {legacyAppRevisionSnapshotAdapter} from "@agenta/entities/legacyAppRevision"
 import {
     snapshotAdapterRegistry,
     type RunnableDraftPatch,
@@ -37,9 +37,9 @@ import {
     SNAPSHOT_VERSION,
 } from "../../snapshot"
 
-// Explicitly register the ossAppRevision adapter
+// Explicitly register the legacyAppRevision adapter
 // Side-effect imports don't work reliably across package boundaries
-snapshotAdapterRegistry.register(ossAppRevisionSnapshotAdapter)
+snapshotAdapterRegistry.register(legacyAppRevisionSnapshotAdapter)
 
 // ============================================================================
 // TYPES

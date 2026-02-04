@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Schema Atoms
+ * LegacyAppRevision Schema Atoms
  *
  * Entity-scoped schema atoms for OpenAPI schema fetching and selectors.
  *
@@ -32,7 +32,7 @@ import {
     serviceSchemaForRevisionAtomFamily,
     composedServiceSchemaAtomFamily,
 } from "./serviceSchemaAtoms"
-import {ossAppRevisionEntityWithBridgeAtomFamily} from "./store"
+import {legacyAppRevisionEntityWithBridgeAtomFamily} from "./store"
 
 // ============================================================================
 // METADATA STORE & ENHANCEMENT UTILITIES
@@ -61,6 +61,7 @@ const emptySchemaState: RevisionSchemaState = {
         run: null,
         generate: null,
         generateDeployed: null,
+        root: null,
     },
     availableEndpoints: [],
     isChatVariant: false,
@@ -74,12 +75,12 @@ const emptySchemaState: RevisionSchemaState = {
  */
 const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery<RevisionSchemaState>((get) => {
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const uri = entityData?.uri
         const enabled = !!revisionId && !!uri
 
         return {
-            queryKey: ["ossAppRevisionSchema", revisionId, uri],
+            queryKey: ["legacyAppRevisionSchema", revisionId, uri],
             queryFn: async (): Promise<RevisionSchemaState> => {
                 if (!uri) return emptySchemaState
 
@@ -92,11 +93,12 @@ const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
                     }
                 }
 
-                return buildRevisionSchemaState(
+                const schemaState = buildRevisionSchemaState(
                     result.schema as OpenAPISpec,
                     result.runtimePrefix,
                     result.routePath,
                 )
+                return schemaState
             },
             staleTime: 1000 * 60 * 5, // 5 minutes
             refetchOnWindowFocus: false,
@@ -122,7 +124,7 @@ const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
  * Downstream consumers are unaffected by this routing — they see the same
  * `{ data: RevisionSchemaState, isPending, isError, error }` interface.
  */
-export const ossAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
+export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
         // Layer 1: Try service schema (fast path for completion/chat apps)
         const serviceResult = get(serviceSchemaForRevisionAtomFamily(revisionId))
@@ -157,11 +159,11 @@ export const ossAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: strin
 
         // Check if the query is actually enabled (has URI)
         // A disabled query returns isPending: false but has no data - we should treat this as pending
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const hasUri = !!entityData?.uri
         const isQueryDisabled = !hasUri
 
-        // Treat disabled query (no URI yet) as pending
+        // If query is still pending (fetching) or no URI available, return pending
         if (query.isPending || isQueryDisabled) {
             return {
                 data: emptySchemaState,
@@ -198,7 +200,7 @@ export const ossAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: strin
  */
 export const revisionOpenApiSchemaAtomFamily = atomFamily((revisionId: string) =>
     atom<unknown | null>((get) => {
-        const query = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const query = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         return query.data?.openApiSchema ?? null
     }),
 )
@@ -208,7 +210,7 @@ export const revisionOpenApiSchemaAtomFamily = atomFamily((revisionId: string) =
  */
 export const revisionAgConfigSchemaAtomFamily = atomFamily((revisionId: string) =>
     atom<EntitySchema | null>((get) => {
-        const query = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const query = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         return query.data?.agConfigSchema ?? null
     }),
 )
@@ -265,7 +267,7 @@ function isPromptLikeStructure(value: unknown): boolean {
 export const revisionCustomPropertiesSchemaAtomFamily = atomFamily((revisionId: string) =>
     atom<EntitySchema | null>((get) => {
         const agConfigSchema = get(revisionAgConfigSchemaAtomFamily(revisionId))
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         if (!agConfigSchema?.properties) return null
@@ -351,13 +353,14 @@ export const revisionSchemaAtPathAtomFamily = atomFamily(
  */
 export const revisionEndpointsAtomFamily = atomFamily((revisionId: string) =>
     atom<RevisionSchemaState["endpoints"]>((get) => {
-        const query = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
+        const query = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         return (
             query.data?.endpoints ?? {
                 test: null,
                 run: null,
                 generate: null,
                 generateDeployed: null,
+                root: null,
             }
         )
     }),
@@ -393,17 +396,23 @@ export interface EnhancedCustomProperty {
 export const revisionEnhancedCustomPropertiesAtomFamily = atomFamily((revisionId: string) =>
     atom<Record<string, EnhancedCustomProperty>>((get) => {
         // Read directly from schema query to ensure subscription
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         // If schema is still loading, return empty
-        if (schemaQuery.isPending || !schemaQuery.data?.agConfigSchema?.properties) {
+        if (schemaQuery.isPending) {
             return {}
         }
 
-        const agConfigSchema = schemaQuery.data.agConfigSchema
         const result: Record<string, EnhancedCustomProperty> = {}
+
+        // Schema is required - no fallback to parameter inference
+        if (!schemaQuery.data?.agConfigSchema?.properties) {
+            return result
+        }
+
+        const agConfigSchema = schemaQuery.data.agConfigSchema
 
         // Extract non-prompt properties and enhance them
         Object.entries(agConfigSchema.properties).forEach(([key, prop]) => {
@@ -453,44 +462,31 @@ export const revisionEnhancedCustomPropertiesAtomFamily = atomFamily((revisionId
 export const revisionCustomPropertyKeysAtomFamily = atomFamily((revisionId: string) =>
     atom<string[]>((get) => {
         // Read directly from schema query to ensure subscription
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         const keys: string[] = []
 
-        // Strategy 1: Use schema if available (preferred - has x-parameters metadata)
-        if (schemaQuery.data?.agConfigSchema?.properties) {
-            const agConfigSchema = schemaQuery.data.agConfigSchema
-            Object.entries(agConfigSchema.properties).forEach(([key, prop]) => {
-                const xParams = (prop as Record<string, unknown>)?.["x-parameters"] as
-                    | Record<string, unknown>
-                    | undefined
-                const isPromptByMarker = xParams?.prompt === true
-
-                const savedValue = parameters?.[key]
-                const isPromptByStructure = isPromptLikeStructure(savedValue)
-
-                if (!isPromptByMarker && !isPromptByStructure) {
-                    keys.push(key)
-                }
-            })
-
+        // Schema is required - no fallback to parameter inference
+        if (!schemaQuery.data?.agConfigSchema?.properties) {
             return keys
         }
 
-        // Strategy 2: Derive from parameters if schema not available
-        // This mirrors how prompts are derived - use isPromptLikeStructure to identify prompts
-        if (parameters && Object.keys(parameters).length > 0) {
-            Object.entries(parameters).forEach(([key, value]) => {
-                // Skip prompt-like structures
-                if (!isPromptLikeStructure(value)) {
-                    keys.push(key)
-                }
-            })
+        const agConfigSchema = schemaQuery.data.agConfigSchema
+        Object.entries(agConfigSchema.properties).forEach(([key, prop]) => {
+            const xParams = (prop as Record<string, unknown>)?.["x-parameters"] as
+                | Record<string, unknown>
+                | undefined
+            const isPromptByMarker = xParams?.prompt === true
 
-            return keys
-        }
+            const savedValue = parameters?.[key]
+            const isPromptByStructure = isPromptLikeStructure(savedValue)
+
+            if (!isPromptByMarker && !isPromptByStructure) {
+                keys.push(key)
+            }
+        })
 
         return keys
     }),
@@ -510,14 +506,16 @@ export interface EnhancedPrompt {
     __test?: string
     messages?: {
         value: {
-            role: {value: string; __metadata?: string}
-            content: {value: string; __metadata?: string}
+            __id: string
+            role: {value: string; __id: string; __metadata?: string}
+            content: {value: string; __id: string; __metadata?: string}
         }[]
         __metadata?: string
     }
     llm_config?: {
-        value: Record<string, unknown>
+        __id: string
         __metadata?: string
+        [key: string]: unknown
     }
     [key: string]: unknown
 }
@@ -562,18 +560,20 @@ function mergePromptWithSaved(
 }
 
 /**
- * Create an enhanced value with metadata hash
+ * Create an enhanced value with __id and metadata hash
+ * The __id is required by UI components to identify and manage properties
  */
 function createEnhancedValue(
     value: unknown,
     schema: EntitySchemaProperty | undefined,
     key: string,
-): {value: unknown; __metadata?: string} {
+): {value: unknown; __id: string; __metadata?: string} {
+    const id = generateId()
     if (schema) {
         const metadataHash = hashAndStoreMetadata(schema, key)
-        return {value, __metadata: metadataHash}
+        return {value, __id: id, __metadata: metadataHash}
     }
-    return {value}
+    return {value, __id: id}
 }
 
 /**
@@ -606,7 +606,9 @@ function createEnhancedPrompt(
             | undefined
         const itemProperties = itemSchema?.properties
 
+        // Each message object needs __id for MessagesRenderer to render rich PromptMessageConfig
         const enhancedMessages = messages.map((msg, idx) => ({
+            __id: generateId(),
             role: createEnhancedValue(
                 msg.role,
                 itemProperties?.role as EntitySchemaProperty | undefined,
@@ -627,16 +629,47 @@ function createEnhancedPrompt(
         }
     }
 
-    // Process llm_config
+    // Process llm_config - enhance each property individually
     const llmConfig = mergedData.llm_config as Record<string, unknown> | undefined
-    if (llmConfig) {
-        const llmConfigSchema = schemaProperties?.llm_config as EntitySchemaProperty | undefined
-        result.llm_config = {
-            value: llmConfig,
+    const llmConfigSchema = schemaProperties?.llm_config as EntitySchemaProperty | undefined
+    const llmConfigSchemaProps = (llmConfigSchema as unknown as Record<string, unknown>)
+        ?.properties as Record<string, EntitySchemaProperty> | undefined
+
+    if (llmConfig || llmConfigSchemaProps) {
+        // Create enhanced llm_config with individually enhanced properties
+        const enhancedLlmConfig: NonNullable<EnhancedPrompt["llm_config"]> = {
+            __id: generateId(),
             __metadata: llmConfigSchema
                 ? hashAndStoreMetadata(llmConfigSchema, "llm_config")
                 : undefined,
         }
+
+        // First, enhance properties from saved/merged llm_config
+        if (llmConfig) {
+            Object.entries(llmConfig).forEach(([propKey, propValue]) => {
+                const propSchema = llmConfigSchemaProps?.[propKey]
+                enhancedLlmConfig[propKey] = createEnhancedValue(propValue, propSchema, propKey)
+            })
+        }
+
+        // Then, add schema-defined properties that don't have values yet (like response_format)
+        // This ensures the UI controls work even for optional fields
+        if (llmConfigSchemaProps) {
+            Object.entries(llmConfigSchemaProps).forEach(([propKey, propSchema]) => {
+                if (!(propKey in enhancedLlmConfig)) {
+                    // Get default value from schema if available
+                    const schemaDefault = (propSchema as unknown as Record<string, unknown>)
+                        ?.default
+                    enhancedLlmConfig[propKey] = createEnhancedValue(
+                        schemaDefault ?? null,
+                        propSchema,
+                        propKey,
+                    )
+                }
+            })
+        }
+
+        result.llm_config = enhancedLlmConfig
     }
 
     // Process other properties
@@ -681,6 +714,7 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
     // Process messages - handle both raw format and already-enhanced format
     const rawMessages = promptData.messages
     if (rawMessages && Array.isArray(rawMessages)) {
+        // Each message object needs __id for MessagesRenderer to render rich PromptMessageConfig
         const enhancedMessages = rawMessages.map((msg, idx: number) => {
             const msgRecord =
                 typeof msg === "object" && msg !== null ? (msg as Record<string, unknown>) : {}
@@ -688,6 +722,7 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
             const contentValue = unwrapEnhancedValue(msgRecord.content)
 
             return {
+                __id: generateId(),
                 role: createEnhancedValue(roleValue, undefined, `messages[${idx}].role`),
                 content: createEnhancedValue(contentValue, undefined, `messages[${idx}].content`),
             }
@@ -698,15 +733,24 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
         }
     }
 
-    // Process llm_config - handle both raw and enhanced format
+    // Process llm_config - enhance each property individually
     const rawLlmConfig = promptData.llm_config
     if (rawLlmConfig) {
         const llmConfigValue = unwrapEnhancedValue(rawLlmConfig)
 
         if (isRecord(llmConfigValue)) {
-            result.llm_config = {
-                value: llmConfigValue,
+            // Create enhanced llm_config with individually enhanced properties
+            const enhancedLlmConfig: NonNullable<EnhancedPrompt["llm_config"]> = {
+                __id: generateId(),
             }
+
+            // Enhance each property in llm_config individually
+            Object.entries(llmConfigValue).forEach(([propKey, propValue]) => {
+                const actualValue = unwrapEnhancedValue(propValue)
+                enhancedLlmConfig[propKey] = createEnhancedValue(actualValue, undefined, propKey)
+            })
+
+            result.llm_config = enhancedLlmConfig
         }
     }
 
@@ -733,8 +777,8 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
 export const revisionEnhancedPromptsAtomFamily = atomFamily((revisionId: string) =>
     atom<EnhancedPrompt[]>((get) => {
         // Read directly from schema query to ensure subscription
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         const result: EnhancedPrompt[] = []
@@ -797,8 +841,8 @@ export const revisionEnhancedPromptsAtomFamily = atomFamily((revisionId: string)
  */
 export const revisionPromptKeysAtomFamily = atomFamily((revisionId: string) =>
     atom<string[]>((get) => {
-        const schemaQuery = get(ossAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         if (schemaQuery.isPending || !schemaQuery.data?.agConfigSchema?.properties) {

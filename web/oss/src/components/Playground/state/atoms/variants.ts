@@ -9,7 +9,7 @@ import {
     type AppListItem,
     type VariantListItem,
     type RevisionListItem,
-} from "@agenta/entities/ossAppRevision"
+} from "@agenta/entities/legacyAppRevision"
 import {isPlaceholderId} from "@agenta/playground"
 import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
@@ -170,15 +170,26 @@ export const displayedVariantsAtom = selectAtom(
         const selected = state.selected || []
 
         // Filter selectedVariants (revision IDs) against actual revision data
-        // For local drafts, check if they're actually tracked (not just by ID format)
-        // Allow placeholder IDs through - they're temporary IDs for pending hydrations
-        // that will be replaced with actual local draft IDs when data loads
-        const displayedIds = selected.filter(
-            (id) =>
-                isPlaceholderId(id) ||
-                (isLocalDraftId(id) && state.trackedLocalDraftIds.includes(id)) ||
-                state.revisions?.some((revision: any) => revision.id === id),
-        )
+        // For local drafts, keep them if:
+        // 1. They're tracked in localDraftIdsAtom, OR
+        // 2. They're in the revision list (handles timing during state transitions)
+        // This prevents accidental loss of drafts during commit operations
+        // Allow placeholder IDs through - they're temporary IDs for pending URL hydrations
+        const displayedIds = selected.filter((id) => {
+            // Allow placeholder IDs through for URL state hydration
+            if (isPlaceholderId(id)) {
+                return true
+            }
+            if (isLocalDraftId(id)) {
+                // Keep local drafts that are tracked OR found in revision list
+                return (
+                    state.trackedLocalDraftIds.includes(id) ||
+                    state.revisions?.some((revision: any) => revision.id === id)
+                )
+            }
+            // For server revisions, check if they exist in the revision list
+            return state.revisions?.some((revision: any) => revision.id === id)
+        })
 
         return displayedIds
     },
@@ -233,14 +244,25 @@ export const earlyDisplayedVariantsAtom = selectAtom(
         const selected = state.selected || []
 
         // Filter selectedVariants (revision IDs) against early revision IDs
-        // For local drafts, check if they're actually tracked (not just by ID format)
-        // Allow placeholder IDs through - they're temporary IDs for pending hydrations
-        const displayedIds = selected.filter(
-            (id) =>
-                isPlaceholderId(id) ||
-                (isLocalDraftId(id) && state.trackedLocalDraftIds.includes(id)) ||
-                state.earlyRevisionIds.includes(id),
-        )
+        // For local drafts, keep them if:
+        // 1. They're tracked in localDraftIdsAtom, OR
+        // 2. They're in the early revision IDs list (handles timing during state transitions)
+        // This prevents accidental loss of drafts during commit operations
+        // Allow placeholder IDs through - they're temporary IDs for pending URL hydrations
+        const displayedIds = selected.filter((id) => {
+            // Allow placeholder IDs through for URL state hydration
+            if (isPlaceholderId(id)) {
+                return true
+            }
+            if (isLocalDraftId(id)) {
+                // Keep local drafts that are tracked OR found in early revision IDs
+                return (
+                    state.trackedLocalDraftIds.includes(id) || state.earlyRevisionIds.includes(id)
+                )
+            }
+            // For server revisions, check if they exist in early revision IDs
+            return state.earlyRevisionIds.includes(id)
+        })
         return displayedIds
     },
     isEqual,

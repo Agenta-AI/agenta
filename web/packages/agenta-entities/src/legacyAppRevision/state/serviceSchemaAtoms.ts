@@ -1,5 +1,5 @@
 /**
- * OssAppRevision Service Schema Prefetch Atoms
+ * LegacyAppRevision Service Schema Prefetch Atoms
  *
  * Provides a two-layer schema resolution strategy (same as appRevision):
  *
@@ -22,7 +22,7 @@ import {fetchServiceSchema} from "../../appRevision/api/schema"
 import type {RevisionSchemaState} from "../../appRevision/core"
 import {APP_SERVICE_TYPES, resolveServiceType, type AppServiceType} from "../../appRevision/core"
 
-import {appsListDataAtom, appsListAtom, ossAppRevisionEntityWithBridgeAtomFamily} from "./store"
+import {appsListDataAtom, appsListAtom, legacyAppRevisionEntityWithBridgeAtomFamily} from "./store"
 
 // ============================================================================
 // LAYER 1: SERVICE SCHEMA PREFETCH
@@ -77,9 +77,20 @@ type ServiceTypeLookup =
  */
 export const revisionServiceTypeLookupAtomFamily = atomFamily((revisionId: string) =>
     atom<ServiceTypeLookup>((get) => {
-        const entity = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const entity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const appId = entity?.appId
-        if (!appId) return {status: "pending"}
+
+        // If entity exists but has no appId, this is likely a custom app
+        // that was loaded without variant context enrichment.
+        // Treat as custom app (serviceType: null) to allow direct schema fetch.
+        if (!appId) {
+            // If we have entity data (parameters loaded), treat as custom app
+            // If no entity data at all, still pending
+            if (entity) {
+                return {status: "resolved", serviceType: null}
+            }
+            return {status: "pending"}
+        }
 
         // Try the overrideable apps list first, then fall back to the direct query
         const apps = get(appsListAtom)
@@ -91,17 +102,9 @@ export const revisionServiceTypeLookupAtomFamily = atomFamily((revisionId: strin
             return {status: "resolved", serviceType: resolveServiceType(directApp.appType)}
         }
 
-        return {status: "resolved", serviceType: resolveServiceType(app.appType)}
-    }),
-)
+        const resolvedType = resolveServiceType(app.appType)
 
-/**
- * @deprecated Use revisionServiceTypeLookupAtomFamily for richer status info
- */
-export const revisionServiceTypeAtomFamily = atomFamily((revisionId: string) =>
-    atom<AppServiceType | null>((get) => {
-        const lookup = get(revisionServiceTypeLookupAtomFamily(revisionId))
-        return lookup.status === "resolved" ? lookup.serviceType : null
+        return {status: "resolved", serviceType: resolvedType}
     }),
 )
 
@@ -158,7 +161,7 @@ export const composedServiceSchemaAtomFamily = atomFamily((revisionId: string) =
         }
 
         // Merge with revision-specific runtime context
-        const entity = get(ossAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const entity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
 
         return {
             ...serviceResult.data,

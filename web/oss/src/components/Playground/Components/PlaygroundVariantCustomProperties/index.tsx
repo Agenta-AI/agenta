@@ -3,8 +3,8 @@ import {memo, useCallback, useMemo} from "react"
 import {
     revisionEnhancedCustomPropertiesAtomFamily,
     metadataAtom,
-    ossAppRevisionSchemaQueryAtomFamily,
-} from "@agenta/entities/ossAppRevision"
+    legacyAppRevisionSchemaQueryAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {Collapse, Typography} from "antd"
 import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
@@ -157,7 +157,7 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
 
     // Subscribe directly to schema query to ensure re-render when async data arrives
     // This is the root subscription that triggers downstream atom updates
-    useAtomValue(ossAppRevisionSchemaQueryAtomFamily(variantId))
+    useAtomValue(legacyAppRevisionSchemaQueryAtomFamily(variantId))
 
     // Derive custom properties from spec + saved params using new selector
     const atomCustomPropertyIds = useAtomValue(customPropertyIdsByRevisionAtomFamily(variantId))
