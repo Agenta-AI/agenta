@@ -31,7 +31,6 @@ from agenta.sdk.models.shared import (
     Slug,
     Version,
     Reference,
-    ReferenceWithLimit,
     #
     AliasConfig,
     sync_alias,

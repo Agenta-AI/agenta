@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
-    ReferenceWithLimit,
 )
 from oss.src.core.testsets.dtos import (
     Testset,
@@ -112,8 +111,7 @@ class TestsetRevisionEditRequest(BaseModel):
 class TestsetRevisionQueryRequest(BaseModel):
     testset_revision: Optional[TestsetRevisionQuery] = None
     #
-    # Use ReferenceWithLimit to support per-testset limits (e.g., limit=1 for latest)
-    testset_refs: Optional[List[ReferenceWithLimit]] = None
+    testset_refs: Optional[List[Reference]] = None
     testset_variant_refs: Optional[List[Reference]] = None
     testset_revision_refs: Optional[List[Reference]] = None
     #
