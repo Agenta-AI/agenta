@@ -1035,7 +1035,7 @@ class LegacyApplicationsAdapter:
             if uri and uri.startswith("user:custom:"):
                 return "custom (sdk)"
             return "custom"
-        if flags.can_chat:
+        if flags.is_chat:
             return "chat"
         return "completion"
 

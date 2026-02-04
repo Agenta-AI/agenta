@@ -118,7 +118,7 @@ class DaytonaRunner(CodeRunner):
 
         # Get secrets from context (set by vault middleware)
         ctx = RunningContext.get()
-        secrets = getattr(ctx, "vault_secrets", [])
+        secrets = getattr(ctx, "vault_secrets", None) or []
 
         # Standard provider keys mapping
         provider_env_mapping = {

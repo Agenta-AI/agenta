@@ -26,6 +26,20 @@ export const shippedFeatures: ShippedFeature[] = [
   // Evaluation: 86B7FF
   // Integration: FFA500
   {
+    id: "prompt-folders",
+    title: "Folders for Prompt Organization",
+    description:
+      "Create folders and subfolders to organize prompts. Drag prompts between folders and search across everything.",
+    changelogPath: "/docs/changelog/prompt-folders",
+    shippedAt: "2026-02-04",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
     id: "trace-linking",
     title: "Navigation Links from Traces to App/Environment/Variant",
     description:
@@ -356,19 +370,6 @@ export const inProgressFeatures: PlannedFeature[] = [
     description:
       "We are making it easy to use and navigate in the playground with large testsets.",
     githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2731",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "prompt-folders",
-    title: "Folders for Prompt Organization",
-    description:
-      "Create folders and subfolders to organize prompts in the playground. Move prompts between folders and search within specific folders to structure prompt libraries.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2859",
     labels: [
       {
         name: "Playground",
