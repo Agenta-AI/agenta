@@ -36,10 +36,10 @@ import {
     hasUnsavedLocalDraftsAtom,
     revisionEnhancedCustomPropertiesAtomFamily,
     revisionEnhancedPromptsAtomFamily,
+    variantsListWithDraftsAtomFamily,
     type LegacyAppRevisionData,
 } from "@agenta/entities/legacyAppRevision"
 import {
-    extractSourceIdFromDraft,
     isLocalDraftId,
     getVersionLabel,
     formatLocalDraftLabel,
@@ -49,6 +49,7 @@ import {atom, getDefaultStore} from "jotai"
 import {atomFamily as atomFamilyJotaiUtils} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
@@ -467,11 +468,17 @@ export function isLocalDraft(id: string): boolean {
 }
 
 /**
- * Extract the source revision ID from a local draft ID.
+ * Extract the source revision ID from a local draft.
+ * Reads from molecule data where the source is actually stored.
  * Returns null if the ID is not a local draft.
  */
 export function getSourceRevisionId(localDraftId: string): string | null {
-    return extractSourceIdFromDraft(localDraftId)
+    if (!isLocalDraftId(localDraftId)) return null
+
+    // Read from molecule data where source is actually stored
+    // The _sourceRevisionId field is set when creating the draft
+    const data = legacyAppRevisionMolecule.get.data(localDraftId)
+    return (data as any)?._sourceRevisionId ?? null
 }
 
 /**
@@ -483,22 +490,23 @@ export function getSourceRevisionId(localDraftId: string): string | null {
 export function cloneAsLocalDraft(sourceRevisionId: string): string {
     const store = getDefaultStore()
 
-    // If source is a local draft, get its original source revision ID for variantId lookup
+    // Ensure source data exists in molecule (fallback to revision list when needed)
+    let sourceData = legacyAppRevisionMolecule.get.data(sourceRevisionId)
+
+    // If source is a local draft, get the original source revision ID for lookups
+    // Use _sourceRevisionId from molecule data (not ID parsing which doesn't work)
     let variantIdSource = sourceRevisionId
-    if (isLocalDraftId(sourceRevisionId)) {
-        const originalSourceId = extractSourceIdFromDraft(sourceRevisionId)
+    if (isLocalDraftId(sourceRevisionId) && sourceData) {
+        const originalSourceId = (sourceData as any)?._sourceRevisionId
         if (originalSourceId) {
             variantIdSource = originalSourceId
         }
     }
 
-    // Ensure source data exists in molecule (fallback to revision list when needed)
-    let sourceData = legacyAppRevisionMolecule.get.data(sourceRevisionId)
-
-    // If sourceData exists but is missing variantId, enrich it from revisionListAtom
+    // If sourceData exists but is missing variantId or baseId, enrich from revisionListAtom
     // This can happen when data comes from direct query which doesn't include variantId
     // or when cloning from a local draft
-    if (!sourceData || !sourceData.variantId) {
+    if (!sourceData || !sourceData.variantId || !(sourceData as any).baseId) {
         const revisions = store.get(revisionListAtom) || []
         // Look up variantId from the original source (not the local draft)
         const revisionFromList = revisions.find((r: any) => r.id === variantIdSource)
@@ -508,11 +516,28 @@ export function cloneAsLocalDraft(sourceRevisionId: string): string {
             if (adapted) {
                 // Merge with existing data if present, otherwise use adapted data
                 sourceData = sourceData ? {...sourceData, ...adapted} : adapted
+
+                // Also ensure baseId is available from the variants list
+                if (!(sourceData as any).baseId) {
+                    const appId = store.get(selectedAppIdAtom)
+                    if (appId) {
+                        const variantsList =
+                            store.get(variantsListWithDraftsAtomFamily(appId))?.data ?? []
+                        const parentVariant = variantsList.find(
+                            (v: any) => v.id === sourceData?.variantId,
+                        )
+                        if (parentVariant?.baseId) {
+                            ;(sourceData as any).baseId = parentVariant.baseId
+                        }
+                    }
+                }
+
                 legacyAppRevisionMolecule.set.serverData(sourceRevisionId, sourceData)
                 log("📋 Seeded molecule data for draft clone:", {
                     sourceRevisionId,
                     variantName: sourceData.variantName,
                     variantId: sourceData.variantId,
+                    baseId: (sourceData as any).baseId,
                 })
             }
         }

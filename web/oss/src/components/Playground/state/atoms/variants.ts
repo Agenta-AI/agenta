@@ -162,12 +162,21 @@ export const displayedVariantsAtom = selectAtom(
         const selected = state.selected || []
 
         // Filter selectedVariants (revision IDs) against actual revision data
-        // For local drafts, check if they're actually tracked (not just by ID format)
-        const displayedIds = selected.filter(
-            (id) =>
-                (isLocalDraftId(id) && state.trackedLocalDraftIds.includes(id)) ||
-                state.revisions?.some((revision: any) => revision.id === id),
-        )
+        // For local drafts, keep them if:
+        // 1. They're tracked in localDraftIdsAtom, OR
+        // 2. They're in the revision list (handles timing during state transitions)
+        // This prevents accidental loss of drafts during commit operations
+        const displayedIds = selected.filter((id) => {
+            if (isLocalDraftId(id)) {
+                // Keep local drafts that are tracked OR found in revision list
+                return (
+                    state.trackedLocalDraftIds.includes(id) ||
+                    state.revisions?.some((revision: any) => revision.id === id)
+                )
+            }
+            // For server revisions, check if they exist in the revision list
+            return state.revisions?.some((revision: any) => revision.id === id)
+        })
 
         return displayedIds
     },
@@ -222,12 +231,20 @@ export const earlyDisplayedVariantsAtom = selectAtom(
         const selected = state.selected || []
 
         // Filter selectedVariants (revision IDs) against early revision IDs
-        // For local drafts, check if they're actually tracked (not just by ID format)
-        const displayedIds = selected.filter(
-            (id) =>
-                (isLocalDraftId(id) && state.trackedLocalDraftIds.includes(id)) ||
-                state.earlyRevisionIds.includes(id),
-        )
+        // For local drafts, keep them if:
+        // 1. They're tracked in localDraftIdsAtom, OR
+        // 2. They're in the early revision IDs list (handles timing during state transitions)
+        // This prevents accidental loss of drafts during commit operations
+        const displayedIds = selected.filter((id) => {
+            if (isLocalDraftId(id)) {
+                // Keep local drafts that are tracked OR found in early revision IDs
+                return (
+                    state.trackedLocalDraftIds.includes(id) || state.earlyRevisionIds.includes(id)
+                )
+            }
+            // For server revisions, check if they exist in early revision IDs
+            return state.earlyRevisionIds.includes(id)
+        })
         return displayedIds
     },
     isEqual,
