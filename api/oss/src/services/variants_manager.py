@@ -277,6 +277,22 @@ async def _fetch_variant_versions(
     return variant_revisions
 
 
+def _extract_deployed_revision_id(
+    references: Optional[Dict],
+    app_slug: Optional[str],
+) -> Optional[UUID]:
+    """Extract the application_revision.id from the nested references dict."""
+    if not references or not app_slug:
+        return None
+    app_refs = references.get(f"{app_slug}.revision")
+    if not app_refs or not isinstance(app_refs, dict):
+        return None
+    revision_ref = app_refs.get("application_revision")
+    if revision_ref and hasattr(revision_ref, "id") and revision_ref.id:
+        return revision_ref.id
+    return None
+
+
 class _EnvironmentShim:
     """Lightweight shim mimicking old AppEnvironmentDB attributes."""
 
@@ -374,11 +390,10 @@ async def _fetch_environment(
                 return None, None
 
             # Extract deployed_app_variant_revision_id from revision data
-            deployed_variant_revision_id = None
-            if env_rev.data and env_rev.data.references and app_slug:
-                ref = env_rev.data.references.get(f"{app_slug}.revision")
-                if ref and ref.id:
-                    deployed_variant_revision_id = ref.id
+            deployed_variant_revision_id = _extract_deployed_revision_id(
+                env_rev.data.references if env_rev.data else None,
+                app_slug,
+            )
 
             env_shim = _EnvironmentShim(name=env.slug, id=env.id)
             rev_shim = _EnvironmentRevisionShim(
@@ -453,11 +468,10 @@ async def _fetch_environment(
                 return env_shim, None
 
             # Extract deployed_app_variant_revision_id from revision data
-            deployed_variant_revision_id = None
-            if target_rev.data and target_rev.data.references and app_slug:
-                ref = target_rev.data.references.get(f"{app_slug}.revision")
-                if ref and ref.id:
-                    deployed_variant_revision_id = ref.id
+            deployed_variant_revision_id = _extract_deployed_revision_id(
+                target_rev.data.references if target_rev.data else None,
+                app_slug,
+            )
 
             rev_shim = _EnvironmentRevisionShim(
                 id=target_rev.id,

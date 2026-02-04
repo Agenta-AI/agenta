@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from oss.src.models.db_models import (
     ProjectDB as ProjectDBE,
     AppDB,
+    AppVariantDB,
+    AppVariantRevisionsDB,
     AppEnvironmentDB,
     AppEnvironmentRevisionDB,
 )
@@ -22,11 +24,11 @@ from oss.src.dbs.postgres.environments.dbes import (
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.core.environments.service import (
     EnvironmentsService,
-    SimpleEnvironmentsService,
 )
 from oss.src.core.environments.dtos import (
-    SimpleEnvironment,
-    SimpleEnvironmentCreate,
+    Environment,
+    EnvironmentCreate,
+    EnvironmentVariantCreate,
     EnvironmentRevisionCommit,
     EnvironmentRevisionData,
 )
@@ -48,9 +50,65 @@ environments_dao = GitDAO(
 environments_service = EnvironmentsService(
     environments_dao=environments_dao,
 )
-simple_environments_service = SimpleEnvironmentsService(
-    environments_service=environments_service,
-)
+
+
+async def _resolve_full_refs(
+    *,
+    deployed_app_variant_revision_id: uuid.UUID,
+    app_id: uuid.UUID,
+    app_name: str,
+    connection: AsyncConnection,
+) -> Dict[str, Reference]:
+    """Resolve the full reference chain for a deployed app variant revision.
+
+    Returns a dict with keys: application, application_variant, application_revision.
+    """
+    # Fetch the app variant revision row
+    rev_query = select(
+        AppVariantRevisionsDB.id,
+        AppVariantRevisionsDB.variant_id,
+        AppVariantRevisionsDB.revision,
+        AppVariantRevisionsDB.config_name,
+    ).where(AppVariantRevisionsDB.id == deployed_app_variant_revision_id)
+    result = await connection.execute(rev_query)
+    rev_row = result.first()
+
+    variant_id = None
+    variant_name = None
+    rev_version = None
+    rev_slug = None
+
+    if rev_row is not None:
+        variant_id = rev_row.variant_id
+        rev_version = str(rev_row.revision) if rev_row.revision is not None else None
+        rev_slug = rev_row.config_name
+
+        # Fetch the app variant row
+        if variant_id is not None:
+            var_query = select(
+                AppVariantDB.id,
+                AppVariantDB.variant_name,
+            ).where(AppVariantDB.id == variant_id)
+            var_result = await connection.execute(var_query)
+            var_row = var_result.first()
+            if var_row is not None:
+                variant_name = var_row.variant_name
+
+    return {
+        "application": Reference(
+            id=app_id,
+            slug=app_name,
+        ),
+        "application_variant": Reference(
+            id=variant_id,
+            slug=variant_name,
+        ),
+        "application_revision": Reference(
+            id=deployed_app_variant_revision_id,
+            slug=rev_slug,
+            version=rev_version,
+        ),
+    }
 
 
 async def _fetch_app_name(
@@ -90,13 +148,15 @@ async def _transfer_environment_for_project(
     owner_id: UUID,
     env_name: str,
     app_revisions: Dict[str, List[Any]],
+    app_ids: Dict[str, uuid.UUID],
     connection: AsyncConnection,
-) -> Optional[SimpleEnvironment]:
+) -> Optional[Environment]:
     """
     Transfer a single environment (identified by env_name) for a project.
 
     app_revisions: dict mapping app_name -> list of AppEnvironmentRevisionDB rows
                    ordered by created_at ascending.
+    app_ids: dict mapping app_name -> app UUID.
     """
     # Check if environment already exists
     existing = await environments_service.fetch_environment(
@@ -113,21 +173,17 @@ async def _transfer_environment_for_project(
         )
         return None
 
-    # Create the environment artifact + default variant + initial commit
-    simple_env = await simple_environments_service.create(
+    # Create the environment artifact directly (not via SimpleEnvironmentsService)
+    environment = await environments_service.create_environment(
         project_id=project_id,
         user_id=owner_id,
-        simple_environment_create=SimpleEnvironmentCreate(
+        environment_create=EnvironmentCreate(
             slug=env_name,
             name=env_name,
-            description=None,
-            tags=None,
-            meta=None,
-            data=None,
         ),
     )
 
-    if simple_env is None:
+    if environment is None:
         click.echo(
             click.style(
                 f"  Failed to create environment '{env_name}'.",
@@ -136,15 +192,54 @@ async def _transfer_environment_for_project(
         )
         return None
 
+    # Create the default variant with slug = {env_name}.default
+    environment_variant = await environments_service.create_environment_variant(
+        project_id=project_id,
+        user_id=owner_id,
+        environment_variant_create=EnvironmentVariantCreate(
+            slug=f"{env_name}.default",
+            name=env_name,
+            environment_id=environment.id,
+        ),
+    )
+
+    if environment_variant is None:
+        click.echo(
+            click.style(
+                f"  Failed to create variant for environment '{env_name}'.",
+                fg="red",
+            )
+        )
+        return None
+
+    # Create the initial commit (v0) with no data
+    initial_revision_commit = EnvironmentRevisionCommit(
+        slug=uuid.uuid4().hex[-12:],
+        name=env_name,
+        data=None,
+        message="Initial commit",
+        environment_id=environment.id,
+        environment_variant_id=environment_variant.id,
+    )
+
+    initial_revision = await environments_service.commit_environment_revision(
+        project_id=project_id,
+        user_id=owner_id,
+        environment_revision_commit=initial_revision_commit,
+    )
+
+    if initial_revision is None:
+        return None
+
     # Determine the maximum number of revisions across all apps
     max_revisions = max(len(revs) for revs in app_revisions.values())
 
     if max_revisions == 0:
-        return simple_env
+        return environment
 
     # For each revision index, build merged data across apps and commit
     for rev_idx in range(max_revisions):
-        references: Dict[str, Reference] = {}
+        references: Dict[str, Dict[str, Reference]] = {}
 
         for app_name, revs in app_revisions.items():
             if not revs:
@@ -156,14 +251,23 @@ async def _transfer_environment_for_project(
                 # Carry forward: use the last available revision for this app
                 rev = revs[-1]
 
-            # Build the reference entry for this app using dot-notation key
+            # Build full references for this app
             if rev.deployed_app_variant_revision_id is not None:
-                references[f"{app_name}.revision"] = Reference(
-                    id=rev.deployed_app_variant_revision_id,
+                app_id = app_ids.get(app_name)
+                full_refs = await _resolve_full_refs(
+                    deployed_app_variant_revision_id=rev.deployed_app_variant_revision_id,
+                    app_id=app_id,
+                    app_name=app_name,
+                    connection=connection,
                 )
+                references[f"{app_name}.revision"] = full_refs
+
+        # Skip the first old revision (rev_idx == 0) if it has no deployments,
+        # since the initial commit (v0) already represents "nothing deployed".
+        if rev_idx == 0 and not references:
+            continue
 
         # Determine actor: modified_by_id -> created_by_id -> owner fallback
-        # Use the revision that was created at this index from the app with the most revisions
         representative_rev = None
         for _app_name, revs in app_revisions.items():
             if rev_idx < len(revs):
@@ -183,24 +287,12 @@ async def _transfer_environment_for_project(
         # Commit the revision
         revision_slug = uuid.uuid4().hex[-12:]
 
-        # Fetch the default variant
-        environment_variant = await environments_service.fetch_environment_variant(
-            project_id=project_id,
-            environment_ref=Reference(id=simple_env.id),
-        )
-
-        if environment_variant is None:
-            continue
-
         environment_revision_commit = EnvironmentRevisionCommit(
             slug=revision_slug,
             name=env_name,
-            description=None,
-            tags=None,
-            meta=None,
             data=EnvironmentRevisionData(references=references),
             message=commit_message,
-            environment_id=simple_env.id,
+            environment_id=environment.id,
             environment_variant_id=environment_variant.id,
         )
 
@@ -210,7 +302,7 @@ async def _transfer_environment_for_project(
             environment_revision_commit=environment_revision_commit,
         )
 
-    return simple_env
+    return environment
 
 
 async def migration_old_environments_to_new_environments(
@@ -273,11 +365,12 @@ async def migration_old_environments_to_new_environments(
         if not old_envs:
             continue
 
-        # Group by environment name -> app_id -> list of revisions
-        # env_name -> { app_name -> [revisions ordered by created_at] }
+        # Group by environment name -> app_name -> list of revisions
+        # Also track app_name -> app_id for resolving full refs
         env_groups: Dict[str, Dict[str, List[Any]]] = defaultdict(
             lambda: defaultdict(list)
         )
+        env_app_ids: Dict[str, Dict[str, uuid.UUID]] = defaultdict(dict)
 
         for old_env in old_envs:
             env_name = old_env.name
@@ -304,6 +397,7 @@ async def migration_old_environments_to_new_environments(
             revisions = result.fetchall()
 
             env_groups[env_name][app_name] = revisions
+            env_app_ids[env_name][app_name] = app_id
 
         # Process each environment name
         for env_name, app_revisions in env_groups.items():
@@ -312,6 +406,7 @@ async def migration_old_environments_to_new_environments(
                 owner_id=owner_id,
                 env_name=env_name,
                 app_revisions=app_revisions,
+                app_ids=env_app_ids[env_name],
                 connection=connection,
             )
             if new_env:

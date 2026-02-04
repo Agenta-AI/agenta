@@ -1231,6 +1231,29 @@ class LegacyEnvironmentsAdapter:
     # helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _extract_app_refs(
+        references: Optional[Dict[str, Any]],
+        app_slug: str,
+    ) -> tuple:
+        """Extract application_revision ref from the nested references dict.
+
+        Returns ``(app_refs_dict, application_revision_ref)`` where
+        ``app_refs_dict`` is the full ``{"application": ..., "application_variant": ..., ...}``
+        dict for the given app, and ``application_revision_ref`` is the
+        ``Reference`` for the revision (or ``None``).
+        """
+        if not references:
+            return None, None
+
+        ref_key = f"{app_slug}.revision"
+        app_refs = references.get(ref_key)
+        if not app_refs or not isinstance(app_refs, dict):
+            return None, None
+
+        revision_ref = app_refs.get("application_revision")
+        return app_refs, revision_ref
+
     async def _resolve_app_slug(
         self,
         *,
@@ -1330,19 +1353,18 @@ class LegacyEnvironmentsAdapter:
             revision_number = 0
 
             if latest_revision and latest_revision.data and latest_revision.data.references:
-                ref_key = f"{app_slug}.revision"
-                ref = latest_revision.data.references.get(ref_key)
-                if ref is not None:
-                    deployed_app_variant_revision_id = str(ref.id) if ref.id else None
+                app_refs, revision_ref = self._extract_app_refs(
+                    latest_revision.data.references, app_slug,
+                )
+                if revision_ref is not None and revision_ref.id:
+                    deployed_app_variant_revision_id = str(revision_ref.id)
 
-                    # Resolve variant name from the application variant revision
-                    if ref.id:
-                        deployed_app_variant_id, deployed_variant_name = (
-                            await self._resolve_variant_from_revision_id(
-                                project_id=project_id,
-                                variant_revision_id=ref.id,
-                            )
+                    deployed_app_variant_id, deployed_variant_name = (
+                        await self._resolve_variant_from_revision_id(
+                            project_id=project_id,
+                            variant_revision_id=revision_ref.id,
                         )
+                    )
 
             if latest_revision:
                 revision_number = latest_revision.version or 0
@@ -1467,6 +1489,23 @@ class LegacyEnvironmentsAdapter:
         if env_variant is None:
             raise ValueError(f"Environment variant not found for '{environment_name}'")
 
+        # Build full references for this app's deployment.
+        app_refs: Dict[str, Reference] = {
+            "application": Reference(
+                id=app_id,
+                slug=app_slug,
+            ),
+            "application_variant": Reference(
+                id=variant_id,
+                slug=variant.slug,
+            ),
+            "application_revision": Reference(
+                id=variant_revision_id,
+                slug=variant_revision.slug if variant_revision else None,
+                version=variant_revision.version if variant_revision else None,
+            ),
+        }
+
         # Use delta commit: set only this app's reference key.
         # The service handles fetching the base revision and merging.
         revision_slug = uuid4().hex[-12:]
@@ -1476,7 +1515,7 @@ class LegacyEnvironmentsAdapter:
             name=environment_name,
             delta=EnvironmentRevisionDelta(
                 set={
-                    f"{app_slug}.revision": Reference(id=variant_revision_id),
+                    f"{app_slug}.revision": app_refs,
                 },
             ),
             message=commit_message,
@@ -1541,12 +1580,14 @@ class LegacyEnvironmentsAdapter:
         if not latest or not latest.data or not latest.data.references:
             return None
 
-        ref = latest.data.references.get(f"{app_slug}.revision")
-        if ref is None or ref.id is None:
+        _, revision_ref = self._extract_app_refs(
+            latest.data.references, app_slug,
+        )
+        if revision_ref is None or revision_ref.id is None:
             return None
 
-        # ref.id is a variant revision ID; resolve to the parent variant
-        variant_revision_id = ref.id
+        # revision_ref.id is a variant revision ID; resolve to the parent variant
+        variant_revision_id = revision_ref.id
 
         app_revisions = await self.applications_service.query_application_revisions(
             project_id=project_id,
@@ -1620,13 +1661,15 @@ class LegacyEnvironmentsAdapter:
         revision_number = 0
 
         if latest and latest.data and latest.data.references:
-            ref = latest.data.references.get(f"{app_slug}.revision")
-            if ref and ref.id:
-                deployed_app_variant_revision_id = str(ref.id)
+            _, revision_ref = self._extract_app_refs(
+                latest.data.references, app_slug,
+            )
+            if revision_ref and revision_ref.id:
+                deployed_app_variant_revision_id = str(revision_ref.id)
                 deployed_app_variant_id, deployed_variant_name = (
                     await self._resolve_variant_from_revision_id(
                         project_id=project_id,
-                        variant_revision_id=ref.id,
+                        variant_revision_id=revision_ref.id,
                     )
                 )
 
@@ -1639,13 +1682,15 @@ class LegacyEnvironmentsAdapter:
             rev_deployed_variant_name = None
             rev_deployed_revision_id = None
             if rev.data and rev.data.references:
-                ref = rev.data.references.get(f"{app_slug}.revision")
-                if ref and ref.id:
-                    rev_deployed_revision_id = str(ref.id)
+                _, rev_revision_ref = self._extract_app_refs(
+                    rev.data.references, app_slug,
+                )
+                if rev_revision_ref and rev_revision_ref.id:
+                    rev_deployed_revision_id = str(rev_revision_ref.id)
                     _, rev_deployed_variant_name = (
                         await self._resolve_variant_from_revision_id(
                             project_id=project_id,
-                            variant_revision_id=ref.id,
+                            variant_revision_id=rev_revision_ref.id,
                         )
                     )
 

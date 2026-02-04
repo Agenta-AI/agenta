@@ -744,7 +744,7 @@ class EnvironmentsService:
             or environment_revision_commit.variant_id
         )
 
-        base_references: Dict[str, Reference] = {}
+        base_references: Dict[str, Dict[str, Reference]] = {}
 
         if variant_id:
             revisions = await self.query_environment_revisions(

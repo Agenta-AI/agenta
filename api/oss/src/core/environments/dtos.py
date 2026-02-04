@@ -95,13 +95,22 @@ class EnvironmentQueryFlags(BaseModel):
 
 
 class EnvironmentRevisionData(BaseModel):
-    """Dot-notation keyed references for environment revision data.
+    """Per-app references for environment revision data.
 
-    Keys use dot-notation paths (e.g., "my-app.variant", "my-app.revision").
-    Values are Reference objects containing id, slug, and/or version.
+    Keys are app-scoped identifiers (e.g., ``"pre.revision"``).
+    Values are dicts of entity-type → Reference, providing full traceability::
+
+        {
+            "pre.revision": {
+                "application": Reference(id=..., slug=..., version=...),
+                "application_variant": Reference(id=..., slug=..., version=...),
+                "application_revision": Reference(id=..., slug=..., version=...),
+            },
+            ...
+        }
     """
 
-    references: Optional[Dict[str, Reference]] = None
+    references: Optional[Dict[str, Dict[str, Reference]]] = None
 
 
 # revision delta ---------------------------------------------------------------
@@ -110,11 +119,11 @@ class EnvironmentRevisionData(BaseModel):
 class EnvironmentRevisionDelta(BaseModel):
     """Delta operations on environment revision references.
 
-    - ``set``: references to add or update (key → Reference).
+    - ``set``: references to add or update (key → dict of entity → Reference).
     - ``remove``: reference keys to remove.
     """
 
-    set: Optional[Dict[str, Reference]] = None
+    set: Optional[Dict[str, Dict[str, Reference]]] = None
     remove: Optional[List[str]] = None
 
 
