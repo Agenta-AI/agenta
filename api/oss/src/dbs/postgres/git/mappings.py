@@ -21,22 +21,7 @@ def map_dto_to_dbe(
     attributes = dto.model_dump(exclude_none=True)
     attributes["project_id"] = project_id
 
-    if "data" in attributes:
-        print(
-            f"[DAO] map_dto_to_dbe: DBE={DBE.__name__}, data={attributes['data']}",
-            flush=True,
-        )
-
-    try:
-        dbe = DBE(**attributes)
-    except Exception as e:
-        print(
-            f"[DAO] map_dto_to_dbe FAILED: DBE={DBE.__name__}, "
-            f"error={type(e).__name__}: {e}, "
-            f"attributes_keys={list(attributes.keys())}",
-            flush=True,
-        )
-        raise
+    dbe = DBE(**attributes)
 
     return dbe
 

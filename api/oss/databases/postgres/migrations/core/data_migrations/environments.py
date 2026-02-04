@@ -1,6 +1,5 @@
 import uuid
 import asyncio
-import traceback
 from uuid import UUID
 from typing import Optional, Dict, List, Any
 from collections import defaultdict
@@ -100,20 +99,10 @@ async def _transfer_environment_for_project(
                    ordered by created_at ascending.
     """
     # Check if environment already exists
-    try:
-        existing = await environments_service.fetch_environment(
-            project_id=project_id,
-            environment_ref=Reference(slug=env_name),
-        )
-    except Exception as e:
-        click.echo(
-            click.style(
-                f"  [DEBUG] Exception checking existing environment '{env_name}': {e}",
-                fg="red",
-            )
-        )
-        click.echo(click.style(traceback.format_exc(), fg="red"))
-        existing = None
+    existing = await environments_service.fetch_environment(
+        project_id=project_id,
+        environment_ref=Reference(slug=env_name),
+    )
 
     if existing is not None:
         click.echo(
@@ -125,64 +114,30 @@ async def _transfer_environment_for_project(
         return None
 
     # Create the environment artifact + default variant + initial commit
-    click.echo(
-        click.style(
-            f"  [DEBUG] Creating environment '{env_name}' for project={project_id}, owner={owner_id}",
-            fg="cyan",
-        )
+    simple_env = await simple_environments_service.create(
+        project_id=project_id,
+        user_id=owner_id,
+        simple_environment_create=SimpleEnvironmentCreate(
+            slug=env_name,
+            name=env_name,
+            description=None,
+            tags=None,
+            meta=None,
+            data=None,
+        ),
     )
-
-    try:
-        simple_env = await simple_environments_service.create(
-            project_id=project_id,
-            user_id=owner_id,
-            simple_environment_create=SimpleEnvironmentCreate(
-                slug=env_name,
-                name=env_name,
-                description=None,
-                tags=None,
-                meta=None,
-                data=None,
-            ),
-        )
-    except Exception as e:
-        click.echo(
-            click.style(
-                f"  [DEBUG] Exception in simple_environments_service.create() for '{env_name}': {e}",
-                fg="red",
-            )
-        )
-        click.echo(click.style(traceback.format_exc(), fg="red"))
-        simple_env = None
 
     if simple_env is None:
         click.echo(
             click.style(
-                f"  Failed to create environment '{env_name}'. "
-                f"The underlying DAO likely suppressed an exception — check application logs for [SUPPRESSED] entries.",
+                f"  Failed to create environment '{env_name}'.",
                 fg="red",
             )
         )
         return None
 
-    click.echo(
-        click.style(
-            f"  [DEBUG] Created environment '{env_name}' (id={simple_env.id}, variant_id={simple_env.variant_id}, revision_id={simple_env.revision_id})",
-            fg="green",
-        )
-    )
-
     # Determine the maximum number of revisions across all apps
     max_revisions = max(len(revs) for revs in app_revisions.values())
-
-    click.echo(
-        click.style(
-            f"  [DEBUG] env '{env_name}': app_revisions counts = "
-            f"{{{', '.join(f'{k}: {len(v)}' for k, v in app_revisions.items())}}},"
-            f" max_revisions={max_revisions}",
-            fg="cyan",
-        )
-    )
 
     if max_revisions == 0:
         return simple_env
@@ -228,37 +183,13 @@ async def _transfer_environment_for_project(
         # Commit the revision
         revision_slug = uuid.uuid4().hex[-12:]
 
-        click.echo(
-            click.style(
-                f"  [DEBUG] env '{env_name}' rev_idx={rev_idx}: "
-                f"references={{{', '.join(f'{k}: {v}' for k, v in references.items())}}}",
-                fg="cyan",
-            )
+        # Fetch the default variant
+        environment_variant = await environments_service.fetch_environment_variant(
+            project_id=project_id,
+            environment_ref=Reference(id=simple_env.id),
         )
 
-        # Fetch the default variant
-        try:
-            environment_variant = await environments_service.fetch_environment_variant(
-                project_id=project_id,
-                environment_ref=Reference(id=simple_env.id),
-            )
-        except Exception as e:
-            click.echo(
-                click.style(
-                    f"  [DEBUG] Exception fetching variant for env '{env_name}': {e}",
-                    fg="red",
-                )
-            )
-            click.echo(click.style(traceback.format_exc(), fg="red"))
-            environment_variant = None
-
         if environment_variant is None:
-            click.echo(
-                click.style(
-                    f"  [DEBUG] No variant found for env '{env_name}' (id={simple_env.id}), skipping revision commit.",
-                    fg="yellow",
-                )
-            )
             continue
 
         environment_revision_commit = EnvironmentRevisionCommit(
@@ -273,27 +204,11 @@ async def _transfer_environment_for_project(
             environment_variant_id=environment_variant.id,
         )
 
-        try:
-            committed = await environments_service.commit_environment_revision(
-                project_id=project_id,
-                user_id=actor_id,
-                environment_revision_commit=environment_revision_commit,
-            )
-            if committed is None:
-                click.echo(
-                    click.style(
-                        f"  [DEBUG] commit_environment_revision returned None for env '{env_name}' rev_idx={rev_idx}",
-                        fg="yellow",
-                    )
-                )
-        except Exception as e:
-            click.echo(
-                click.style(
-                    f"  [DEBUG] Exception committing revision {rev_idx} for env '{env_name}': {e}",
-                    fg="red",
-                )
-            )
-            click.echo(click.style(traceback.format_exc(), fg="red"))
+        await environments_service.commit_environment_revision(
+            project_id=project_id,
+            user_id=actor_id,
+            environment_revision_commit=environment_revision_commit,
+        )
 
     return simple_env
 
@@ -302,146 +217,112 @@ async def migration_old_environments_to_new_environments(
     connection: AsyncConnection,
 ):
     """Migrate old app-scoped environments to new project-scoped git-based environments."""
-    try:
-        # Get all distinct project_ids from the old environments table
-        project_ids_query = (
-            select(AppEnvironmentDB.project_id)
-            .distinct()
-            .where(AppEnvironmentDB.project_id.isnot(None))
-        )
-        result = await connection.execute(project_ids_query)
-        project_ids = [row[0] for row in result.fetchall()]
+    # Get all distinct project_ids from the old environments table
+    project_ids_query = (
+        select(AppEnvironmentDB.project_id)
+        .distinct()
+        .where(AppEnvironmentDB.project_id.isnot(None))
+    )
+    result = await connection.execute(project_ids_query)
+    project_ids = [row[0] for row in result.fetchall()]
 
-        total_projects = len(project_ids)
+    total_projects = len(project_ids)
+    click.echo(
+        click.style(
+            f"Found {total_projects} projects with environments to migrate.",
+            fg="yellow",
+        )
+    )
+
+    total_migrated = 0
+    skipped_projects = 0
+
+    for project_idx, project_id in enumerate(project_ids):
         click.echo(
             click.style(
-                f"Found {total_projects} projects with environments to migrate.",
+                f"Processing project {project_idx + 1}/{total_projects}: {project_id}",
                 fg="yellow",
             )
         )
 
-        total_migrated = 0
-        skipped_projects = 0
+        # Fetch project owner
+        owner_id = await _fetch_project_owner(
+            project_id=project_id,
+            connection=connection,
+        )
 
-        for project_idx, project_id in enumerate(project_ids):
-            try:
-                click.echo(
-                    click.style(
-                        f"Processing project {project_idx + 1}/{total_projects}: {project_id}",
-                        fg="yellow",
-                    )
+        if not owner_id:
+            click.echo(
+                click.style(
+                    f"  Skipping project {project_id}: no owner found.",
+                    fg="yellow",
                 )
+            )
+            skipped_projects += 1
+            continue
 
-                # Fetch project owner
-                owner_id = await _fetch_project_owner(
-                    project_id=project_id,
-                    connection=connection,
+        # Fetch all old environments for this project
+        envs_query = (
+            select(AppEnvironmentDB)
+            .where(AppEnvironmentDB.project_id == project_id)
+            .order_by(AppEnvironmentDB.name)
+        )
+        result = await connection.execute(envs_query)
+        old_envs = result.fetchall()
+
+        if not old_envs:
+            continue
+
+        # Group by environment name -> app_id -> list of revisions
+        # env_name -> { app_name -> [revisions ordered by created_at] }
+        env_groups: Dict[str, Dict[str, List[Any]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
+
+        for old_env in old_envs:
+            env_name = old_env.name
+            app_id = old_env.app_id
+
+            # Fetch app name
+            app_name = await _fetch_app_name(
+                app_id=app_id,
+                connection=connection,
+            )
+            if app_name is None:
+                app_name = str(app_id)
+
+            # Fetch revisions for this environment
+            revs_query = (
+                select(AppEnvironmentRevisionDB)
+                .where(
+                    AppEnvironmentRevisionDB.environment_id == old_env.id,
+                    AppEnvironmentRevisionDB.project_id == project_id,
                 )
+                .order_by(AppEnvironmentRevisionDB.created_at.asc())
+            )
+            result = await connection.execute(revs_query)
+            revisions = result.fetchall()
 
-                if not owner_id:
-                    click.echo(
-                        click.style(
-                            f"  Skipping project {project_id}: no owner found.",
-                            fg="yellow",
-                        )
-                    )
-                    skipped_projects += 1
-                    continue
+            env_groups[env_name][app_name] = revisions
 
-                # Fetch all old environments for this project
-                envs_query = (
-                    select(AppEnvironmentDB)
-                    .where(AppEnvironmentDB.project_id == project_id)
-                    .order_by(AppEnvironmentDB.name)
-                )
-                result = await connection.execute(envs_query)
-                old_envs = result.fetchall()
+        # Process each environment name
+        for env_name, app_revisions in env_groups.items():
+            new_env = await _transfer_environment_for_project(
+                project_id=project_id,
+                owner_id=owner_id,
+                env_name=env_name,
+                app_revisions=app_revisions,
+                connection=connection,
+            )
+            if new_env:
+                total_migrated += 1
 
-                if not old_envs:
-                    continue
-
-                # Group by environment name -> app_id -> list of revisions
-                # env_name -> { app_name -> [revisions ordered by created_at] }
-                env_groups: Dict[str, Dict[str, List[Any]]] = defaultdict(
-                    lambda: defaultdict(list)
-                )
-
-                for old_env in old_envs:
-                    env_name = old_env.name
-                    app_id = old_env.app_id
-
-                    # Fetch app name
-                    app_name = await _fetch_app_name(
-                        app_id=app_id,
-                        connection=connection,
-                    )
-                    if app_name is None:
-                        app_name = str(app_id)
-
-                    # Fetch revisions for this environment
-                    revs_query = (
-                        select(AppEnvironmentRevisionDB)
-                        .where(
-                            AppEnvironmentRevisionDB.environment_id == old_env.id,
-                            AppEnvironmentRevisionDB.project_id == project_id,
-                        )
-                        .order_by(AppEnvironmentRevisionDB.created_at.asc())
-                    )
-                    result = await connection.execute(revs_query)
-                    revisions = result.fetchall()
-
-                    env_groups[env_name][app_name] = revisions
-
-                # Process each environment name
-                for env_name, app_revisions in env_groups.items():
-                    try:
-                        new_env = await _transfer_environment_for_project(
-                            project_id=project_id,
-                            owner_id=owner_id,
-                            env_name=env_name,
-                            app_revisions=app_revisions,
-                            connection=connection,
-                        )
-                        if new_env:
-                            total_migrated += 1
-                    except Exception as e:
-                        click.echo(
-                            click.style(
-                                f"  Failed to migrate environment '{env_name}' "
-                                f"for project {project_id}: {str(e)}",
-                                fg="red",
-                            )
-                        )
-                        click.echo(click.style(traceback.format_exc(), fg="red"))
-
-            except Exception as e:
-                click.echo(
-                    click.style(
-                        f"Failed to process project {project_id}: {str(e)}",
-                        fg="red",
-                    )
-                )
-                click.echo(click.style(traceback.format_exc(), fg="red"))
-                skipped_projects += 1
-
-        click.echo(click.style(f"Total environments migrated: {total_migrated}", fg="yellow"))
-        click.echo(click.style(f"Skipped projects: {skipped_projects}", fg="yellow"))
-
-    except Exception as e:
-        click.echo(f"Error occurred: {e}")
-        click.echo(click.style(traceback.format_exc(), fg="red"))
+    click.echo(click.style(f"Total environments migrated: {total_migrated}", fg="yellow"))
+    click.echo(click.style(f"Skipped projects: {skipped_projects}", fg="yellow"))
 
 
 def run_migration(sqlalchemy_url: str):
-    import logging
     import concurrent.futures
-
-    # Enable logging so [SUPPRESSED] entries from @suppress_exceptions are visible
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(levelname)s %(name)s: %(message)s",
-        force=True,
-    )
 
     async def _start():
         connection = create_async_engine(url=sqlalchemy_url)

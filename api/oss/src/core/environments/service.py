@@ -690,17 +690,8 @@ class EnvironmentsService:
             mode="json",
             exclude_none=True,
         )
-        print(
-            f"[SVC] commit_environment_revision: dumped data={dumped.get('data')}",
-            flush=True,
-        )
 
         revision_commit = RevisionCommit(**dumped)
-
-        print(
-            f"[SVC] commit_environment_revision: revision_commit.data={revision_commit.data}",
-            flush=True,
-        )
 
         revision = await self.environments_dao.commit_revision(
             project_id=project_id,
@@ -712,20 +703,10 @@ class EnvironmentsService:
         if not revision:
             return None
 
-        print(
-            f"[SVC] commit_environment_revision: revision.data={revision.data}",
-            flush=True,
-        )
-
         environment_revision = EnvironmentRevision(
             **revision.model_dump(
                 mode="json",
             ),
-        )
-
-        print(
-            f"[SVC] commit_environment_revision: environment_revision.data={environment_revision.data}",
-            flush=True,
         )
 
         return environment_revision

@@ -20,6 +20,7 @@ from oss.src.core.applications.dtos import (
     Application,
     ApplicationCreate,
     ApplicationEdit,
+    ApplicationFlags,
     ApplicationQuery,
     ApplicationQueryFlags,
     #
@@ -117,7 +118,7 @@ class LegacyApplicationsAdapter:
         application_create = ApplicationCreate(
             slug=app_name,
             name=app_name,
-            flags=ApplicationQueryFlags(is_evaluator=False),
+            flags=ApplicationFlags(is_evaluator=False),
         )
 
         application = await self.applications_service.create_application(
