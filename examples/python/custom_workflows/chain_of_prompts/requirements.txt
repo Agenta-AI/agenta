@@ -2,3 +2,4 @@ agenta
 openai
 python-dotenv
 opentelemetry-instrumentation-openai
+uvicorn
