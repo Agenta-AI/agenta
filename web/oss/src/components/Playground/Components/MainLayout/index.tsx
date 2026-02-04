@@ -1,6 +1,5 @@
 import {memo, useCallback, useEffect, useRef} from "react"
 
-import {isPlaceholderId} from "@agenta/playground"
 import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
