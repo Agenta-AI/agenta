@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any
 
 import click
 from sqlalchemy.future import select
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from ee.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
@@ -65,15 +65,14 @@ def _get_application_flags(app_type: Optional[str]) -> dict:
     """Map app_type to workflow flags for applications.
 
     TEMPLATE types are treated as their SERVICE equivalents:
-        CHAT_TEMPLATE    → same as CHAT_SERVICE    (can_chat=True)
+        CHAT_TEMPLATE    → same as CHAT_SERVICE    (is_chat=True)
         COMPLETION_TEMPLATE → same as COMPLETION_SERVICE (default flags)
     """
     flags = {
         "is_custom": False,
         "is_evaluator": False,
         "is_human": False,
-        "can_chat": False,
-        "can_stream": False,
+        "is_chat": False,
     }
 
     if app_type is None:
@@ -83,7 +82,7 @@ def _get_application_flags(app_type: Optional[str]) -> dict:
         flags["is_custom"] = True
 
     if app_type in (AppType.CHAT_TEMPLATE.value, AppType.CHAT_SERVICE.value):
-        flags["can_chat"] = True
+        flags["is_chat"] = True
 
     return flags
 
@@ -410,6 +409,26 @@ async def migration_old_applications_to_new_workflow_applications(
 ):
     """Migrate old applications to new workflow-based system."""
     try:
+        # Add is_chat=false to all existing workflow records that don't have it yet
+        # (e.g., evaluators migrated earlier that predate this flag)
+        for table in ("workflow_artifacts", "workflow_variants", "workflow_revisions"):
+            result = await connection.execute(
+                text(
+                    f"""
+                    UPDATE {table}
+                    SET flags = COALESCE(flags, '{{}}'::jsonb) || '{{"is_chat": false}}'::jsonb
+                    WHERE flags IS NULL OR NOT (flags ? 'is_chat')
+                    """
+                )
+            )
+            click.echo(
+                click.style(
+                    f"Set is_chat=false on {result.rowcount} existing rows in {table}",
+                    fg="yellow",
+                )
+            )
+        await connection.commit()
+
         offset = 0
         total_migrated = 0
         skipped_records = 0
