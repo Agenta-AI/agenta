@@ -37,7 +37,7 @@ from oss.src.services.db_manager import fetch_evaluator_config
 
 
 # Define constants
-DEFAULT_BATCH_SIZE = 200
+DEFAULT_BATCH_SIZE = 1000
 
 # Initialize plug-ins for migration
 workflows_dao = GitDAO(
