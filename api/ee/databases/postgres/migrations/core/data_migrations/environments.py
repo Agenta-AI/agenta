@@ -39,7 +39,7 @@ from ee.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
 
 
 # Define constants
-DEFAULT_BATCH_SIZE = 200
+DEFAULT_BATCH_SIZE = 1000
 
 # Initialize plug-ins for migration
 environments_dao = GitDAO(

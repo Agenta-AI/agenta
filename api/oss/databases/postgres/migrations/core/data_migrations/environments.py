@@ -41,7 +41,7 @@ from oss.src.models.deprecated_models import (
 
 
 # Define constants
-DEFAULT_BATCH_SIZE = 200
+DEFAULT_BATCH_SIZE = 1000
 
 # Initialize plug-ins for migration
 environments_dao = GitDAO(
