@@ -5,6 +5,7 @@ from uuid import UUID
 from typing import Optional, Dict, Any
 
 import click
+from pydantic import field_validator
 from sqlalchemy.future import select
 from sqlalchemy import func, text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
@@ -242,6 +243,19 @@ async def _transfer_application(
         Variant as GitVariant,
         Revision as GitRevision,
     )
+
+    class LegacyVariant(GitVariant):
+        """GitVariant subclass that allows dots in slugs.
+
+        Legacy variant slugs use the compound format ``{app_slug}.{variant_name}``
+        which contains a dot.  Older SDK versions reject dots in the ``Slug``
+        validator, so we override the check here.
+        """
+
+        @field_validator("slug")
+        @classmethod
+        def check_url_safety(cls, v: Any) -> Any:  # noqa: N805
+            return v
     from oss.src.dbs.postgres.git.mappings import map_dto_to_dbe
     from oss.src.dbs.postgres.shared.engine import engine as db_engine
     from datetime import datetime, timezone
@@ -254,10 +268,24 @@ async def _transfer_application(
         **workflow_create.model_dump(mode="json", exclude_none=True),
     )
 
+    # Avoid slug collision with existing workflow artifacts (e.g. evaluators)
+    artifact_slug = git_artifact_create.slug
+    async with db_engine.core_session() as session:
+        existing = (
+            await session.execute(
+                select(WorkflowArtifactDBE).filter(
+                    WorkflowArtifactDBE.project_id == project_id,
+                    WorkflowArtifactDBE.slug == artifact_slug,
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            artifact_slug = f"_{artifact_slug}"
+
     artifact_dto = GitArtifact(
         project_id=project_id,
         id=app_id,
-        slug=git_artifact_create.slug,
+        slug=artifact_slug,
         created_at=datetime.now(timezone.utc),
         created_by_id=user_id,
         flags=git_artifact_create.flags,
@@ -306,7 +334,7 @@ async def _transfer_application(
         variant_slug = f"{slug}.{variant_name}"
 
         # Insert variant directly to preserve original ID
-        variant_dto = GitVariant(
+        variant_dto = LegacyVariant(
             id=variant_id,
             artifact_id=app_id,
             slug=variant_slug,
