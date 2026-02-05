@@ -1,14 +1,13 @@
-import {useEffect, useMemo} from "react"
+import {useMemo} from "react"
 
 import {Alert} from "antd"
 import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 import {selectAtom} from "jotai/utils"
 
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {promptVariablesByPromptAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import type {PromptCollapseContentProps} from "../types"
 
@@ -42,14 +41,6 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
 }) => {
     // Minimal subscriptions by stable key `${revisionId}:${promptId}`
     const compoundKey = `${variantId}:${promptId}`
-
-    // Seed local prompts cache once to avoid first-edit race between derived and local state
-    // Use molecule-backed prompts for single source of truth
-    const seedPrompts = useSetAtom(moleculeBackedPromptsAtomFamily(variantId))
-    useEffect(() => {
-        seedPrompts((draft: any) => draft)
-        // run once per variantId mount
-    }, [variantId])
 
     const promptVars = useAtomValue(
         useMemo(

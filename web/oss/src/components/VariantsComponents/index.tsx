@@ -171,7 +171,11 @@ const VariantsDashboard = () => {
     }, [baseRows, searchTerm])
 
     const tableRows = useMemo(() => {
-        if (displayMode !== "grouped") return filteredRows
+        if (displayMode !== "grouped") {
+            return [...filteredRows].sort(
+                (a: any, b: any) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0),
+            )
+        }
         // Group revisions by variantId; parent row uses latest revision id
         const byVariant: Record<string, any[]> = {}
         filteredRows.forEach((r: any) => {
@@ -190,6 +194,8 @@ const VariantsDashboard = () => {
                 children,
             })
         })
+        // Sort variant groups by latest revision timestamp (newest first)
+        groups.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0))
         return groups
     }, [filteredRows, displayMode])
 
