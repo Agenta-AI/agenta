@@ -14,8 +14,7 @@ import {getProjectValues} from "@/oss/state/project"
 export const fetchVaultSecret = async () => {
     const {projectId} = getProjectValues()
     if (!projectId) {
-        console.warn("[vault] fetchVaultSecret called without projectId, skipping request")
-        return []
+        throw new Error("[vault] Missing projectId for fetchVaultSecret")
     }
     const response = await axios.get(
         `${getAgentaApiUrl()}/vault/v1/secrets/?project_id=${projectId}`,
@@ -26,8 +25,7 @@ export const fetchVaultSecret = async () => {
 export const createVaultSecret = async <T>({payload}: {payload: T}) => {
     const {projectId} = getProjectValues()
     if (!projectId) {
-        console.warn("[vault] createVaultSecret called without projectId, skipping request")
-        return null
+        throw new Error("[vault] Missing projectId for createVaultSecret")
     }
     const response = await axios.post(
         `${getAgentaApiUrl()}/vault/v1/secrets/?project_id=${projectId}`,
@@ -45,8 +43,7 @@ export const updateVaultSecret = async <T>({
 }) => {
     const {projectId} = getProjectValues()
     if (!projectId) {
-        console.warn("[vault] updateVaultSecret called without projectId, skipping request")
-        return null
+        throw new Error("[vault] Missing projectId for updateVaultSecret")
     }
     const response = await axios.put(
         `${getAgentaApiUrl()}/vault/v1/secrets/${secret_id}?project_id=${projectId}`,
@@ -58,8 +55,7 @@ export const updateVaultSecret = async <T>({
 export const deleteVaultSecret = async ({secret_id}: {secret_id: string}) => {
     const {projectId} = getProjectValues()
     if (!projectId) {
-        console.warn("[vault] deleteVaultSecret called without projectId, skipping request")
-        return null
+        throw new Error("[vault] Missing projectId for deleteVaultSecret")
     }
     return await axios.delete(
         `${getAgentaApiUrl()}/vault/v1/secrets/${secret_id}?project_id=${projectId}`,
