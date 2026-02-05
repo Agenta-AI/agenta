@@ -1,4 +1,4 @@
-import {type ReactElement, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {type ReactElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {FloppyDiskBack} from "@phosphor-icons/react"
@@ -7,10 +7,7 @@ import dynamic from "next/dynamic"
 import {Resizable} from "react-resizable"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import {
-    saveVariantMutationAtom,
-    selectedVariantsAtom,
-} from "@/oss/components/Playground/state/atoms"
+import {saveVariantMutationAtom} from "@/oss/components/Playground/state/atoms"
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
@@ -39,12 +36,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     // Get mutation functions
     const saveVariant = useSetAtom(saveVariantMutationAtom)
     const createVariant = useSetAtom(createVariantMutationAtom)
-    const {isPending: isPublishing, mutateAsync: publish} = useAtomValue(publishMutationAtom)
+    const {mutateAsync: publish} = useAtomValue(publishMutationAtom)
 
     // Track loading state for mutations
     const [isMutating, setIsMutating] = useState(false)
-    // Wait for state to settle before closing
-    const [waitForRevisionId, setWaitForRevisionId] = useState<string | undefined>(undefined)
 
     const [selectedCommitType, setSelectedCommitType] = useState<SelectedCommitType>({
         type: "version",
@@ -54,18 +49,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(null)
     const [modalSize, setModalSize] = useState({width: 960, height: 640})
     const [viewport, setViewport] = useState({width: 0, height: 0})
-    const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-    const SETTLE_TIMEOUT_MS = 1500
 
     const onClose = useCallback(() => {
         onCancel?.({} as any)
         setIsMutating(false)
-        setWaitForRevisionId(undefined)
-        if (settleTimeoutRef.current) {
-            clearTimeout(settleTimeoutRef.current)
-            settleTimeoutRef.current = null
-        }
         setSelectedCommitType({
             type: "version",
         })
@@ -73,9 +60,6 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         setShouldDeploy(false)
         setSelectedEnvironment(null)
     }, [onCancel])
-
-    // Observe current selected revision(s) to know when state settles
-    const selectedRevisionIds = useAtomValue(selectedVariantsAtom)
 
     // Track viewport to clamp the resizable modal
     useEffect(() => {
@@ -116,90 +100,68 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         }))
     }, [viewport, minConstraints, computedMaxWidth, computedMaxHeight])
 
-    // Close when the state settles with the new revision
-    useEffect(() => {
-        if (!waitForRevisionId) return
+    const fireDeployAfterCommit = useCallback(
+        (resultVariant: any, environment: string, commitNote: string) => {
+            const variantIdForDeployment =
+                resultVariant?.variant_id || resultVariant?.variantId || variant?.variantId
 
-        // Wait for the state to reflect the new revision
-        if (selectedRevisionIds?.includes(waitForRevisionId)) {
-            if (settleTimeoutRef.current) {
-                clearTimeout(settleTimeoutRef.current)
-                settleTimeoutRef.current = null
-            }
-            onClose()
-        }
-    }, [selectedRevisionIds, waitForRevisionId, onClose])
+            const revisionIdForDeployment =
+                resultVariant?.id || resultVariant?.revision_id || variantId
 
-    useEffect(() => {
-        return () => {
-            if (settleTimeoutRef.current) {
-                clearTimeout(settleTimeoutRef.current)
-                settleTimeoutRef.current = null
-            }
-        }
-    }, [])
+            const revisionLabel = resultVariant?.revision
+                ? `v${resultVariant.revision}`
+                : "new version"
 
-    const startSettleWait = useCallback(
-        (nextRevisionId: string) => {
-            if (!nextRevisionId) return
-            setWaitForRevisionId(nextRevisionId)
-            if (settleTimeoutRef.current) {
-                clearTimeout(settleTimeoutRef.current)
-            }
-            settleTimeoutRef.current = setTimeout(() => {
-                settleTimeoutRef.current = null
-                onClose()
-            }, SETTLE_TIMEOUT_MS)
-        },
-        [onClose],
-    )
-
-    const handleDeployAfterCommit = useCallback(
-        async (resultVariant?: any) => {
-            if (!shouldDeploy || !selectedEnvironment) {
+            if (!variantIdForDeployment) {
+                message.error("Unable to deploy because the variant identifier is missing.")
                 return
             }
 
-            try {
-                const variantIdForDeployment =
-                    resultVariant?.variant_id || resultVariant?.variantId || variant?.variantId
+            const deployMessageKey = `deploy-${variantIdForDeployment}-${Date.now()}`
 
-                const revisionIdForDeployment =
-                    resultVariant?.id ||
-                    resultVariant?.revision_id ||
-                    waitForRevisionId ||
-                    variantId
+            message.loading({
+                content: `Deploying ${revisionLabel} to ${environment}`,
+                key: deployMessageKey,
+                duration: 0,
+            })
 
-                if (!variantIdForDeployment) {
-                    message.error("Unable to deploy because the variant identifier is missing.")
-                    return
-                }
-
-                await publish({
-                    type: "variant",
-                    variant_id: variantIdForDeployment,
-                    revision_id: revisionIdForDeployment ?? undefined,
-                    environment_name: selectedEnvironment,
-                    note,
+            publish({
+                type: "variant",
+                variant_id: variantIdForDeployment,
+                revision_id: revisionIdForDeployment ?? undefined,
+                environment_name: environment,
+                note: commitNote,
+            })
+                .then(() => {
+                    message.success({
+                        content: `${revisionLabel} has been successfully deployed to ${environment}`,
+                        key: deployMessageKey,
+                    })
                 })
-
-                message.success(`Deployment to ${selectedEnvironment} started`)
-            } catch (error) {
-                console.error("Failed to deploy after commit", error)
-                message.error("Failed to deploy to the selected environment.")
-            }
+                .catch((error) => {
+                    console.error("Failed to deploy after commit", error)
+                    message.error({
+                        content: `Failed to deploy ${revisionLabel} to ${environment}`,
+                        key: deployMessageKey,
+                    })
+                })
         },
-        [shouldDeploy, selectedEnvironment, publish, note, variant, variantId, waitForRevisionId],
+        [publish, variant, variantId],
     )
 
     const onSaveVariantChanges = useCallback(async () => {
+        // Capture deploy settings before mutation (modal will close after commit)
+        const deployEnabled = shouldDeploy
+        const deployEnvironment = selectedEnvironment
+        const commitNote = note
+
         try {
             setIsMutating(true)
 
             if (selectedCommitType?.type === "version") {
                 const result = await saveVariant?.({
                     variantId,
-                    note,
+                    note: commitNote,
                     commitType,
                 })
 
@@ -209,9 +171,11 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                         variantId: result.variant?.variantId,
                     })
 
-                    await handleDeployAfterCommit(result.variant)
+                    // Fire deploy in background (don't await) and close modal immediately
+                    if (deployEnabled && deployEnvironment) {
+                        fireDeployAfterCommit(result.variant, deployEnvironment, commitNote)
+                    }
 
-                    // Close modal immediately - the mutation already updated selectedVariantsAtom
                     setIsMutating(false)
                     onClose()
                     return
@@ -221,7 +185,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     revisionId: variantId,
                     baseVariantName: variantName || "",
                     newVariantName: selectedCommitType?.name as string,
-                    note,
+                    note: commitNote,
                     callback: (newVariant, state) => {
                         // Replace the local draft with the new variant, preserving other variants in selection
                         // Note: state is a mock object created by the mutation atom, not the full PlaygroundState
@@ -242,9 +206,11 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                         variantId: newVariantId,
                     })
 
-                    await handleDeployAfterCommit(result.variant)
+                    // Fire deploy in background (don't await) and close modal immediately
+                    if (deployEnabled && deployEnvironment) {
+                        fireDeployAfterCommit(result.variant, deployEnvironment, commitNote)
+                    }
 
-                    // Close modal immediately - the mutation already updated selectedVariantsAtom
                     setIsMutating(false)
                     onClose()
                     return
@@ -267,10 +233,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         onSuccess,
         variantId,
         commitType,
-        handleDeployAfterCommit,
+        shouldDeploy,
+        selectedEnvironment,
+        fireDeployAfterCommit,
         onClose,
-        selectedRevisionIds,
-        startSettleWait,
     ])
 
     const isOkDisabled =
@@ -312,7 +278,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         [modalSize, minConstraints, maxConstraints],
     )
 
-    const isDeploymentPending = isMutating || (shouldDeploy && isPublishing)
+    const isDeploymentPending = isMutating
 
     return (
         <EnhancedModal

@@ -61,12 +61,16 @@ const CommitVariantChangesModalContent = ({
         [selectedCommitType, setSelectedCommitType],
     )
 
+    // Snapshot target revision on first render so it doesn't shift while the modal is open
+    const settledTargetRevisionRef = useRef<number | null>(null)
+
     // Snapshot diff content using refs (no re-renders, computed on first mount)
     const initialOriginalRef = useRef<string | null>(null)
     const initialModifiedRef = useRef<string | null>(null)
 
     // Reset refs when the target variant changes
     useEffect(() => {
+        settledTargetRevisionRef.current = null
         initialOriginalRef.current = null
         initialModifiedRef.current = null
     }, [variantId])
@@ -84,7 +88,12 @@ const CommitVariantChangesModalContent = ({
 
     // Extract values from the variant object (safe now - after hooks and guard)
     const variantName = variant.variantName
-    const targetRevision = Number(latestRevisionForVariant?.revision ?? 0) + 1
+
+    // Settle the target revision on first render so it stays stable while the modal is open
+    if (settledTargetRevisionRef.current === null) {
+        settledTargetRevisionRef.current = Number(latestRevisionForVariant?.revision ?? 0) + 1
+    }
+    const targetRevision = settledTargetRevisionRef.current
     // For diff: compare serverData.parameters (original) vs currentAgConfig (current with edits)
     // variant comes from moleculeBackedVariantAtomFamily which merges serverData + draft
     const modifiedParams =
