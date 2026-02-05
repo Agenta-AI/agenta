@@ -1,11 +1,11 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Image from "next/image"
 
-import {message} from "@/oss/components/AppMessageContext"
 import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
 import axios from "@/oss/lib/api/assets/axiosConfig"

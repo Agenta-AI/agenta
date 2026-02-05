@@ -17,6 +17,7 @@ import {fetchSingleProfile} from "@/oss/services/api"
 import {fetchVariants as fetchAppVariants} from "@/oss/services/api"
 import {routerAppIdAtom, recentAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
+import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {environmentsAtom} from "@/oss/state/environment/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {projectScopedVariantsAtom} from "@/oss/state/projectVariantConfig"
@@ -220,6 +221,11 @@ export const appUriStateQueryAtom = atomWithQuery<UriState | undefined>((get) =>
     const appType = get(currentAppContextAtom)?.appType || null
     const isCustomApp = appType === "custom"
 
+    // Disable legacy schema fetch on /playground-test — the new playground uses
+    // package-layer schema atoms (service prefetch + per-revision fallback).
+    const appState = get(appStateSnapshotAtom)
+    const isNewPlayground = appState.pathname?.includes("/playground-test")
+
     const fetchRecursive = async (current: string, removed = ""): Promise<UriState> => {
         const result = await fetchOpenApiSchemaJson(current)
         if (result.schema) {
@@ -243,7 +249,7 @@ export const appUriStateQueryAtom = atomWithQuery<UriState | undefined>((get) =>
         queryFn: () => (firstUri ? fetchRecursive(firstUri) : Promise.resolve(undefined)),
         staleTime: isCustomApp ? undefined : 1000 * 60 * 5,
         placeholderData: (previousData) => previousData,
-        enabled: !!firstUri,
+        enabled: !!firstUri && !isNewPlayground,
         refetchInterval: isCustomApp ? 1000 * 60 * 1 : false,
     }
 })

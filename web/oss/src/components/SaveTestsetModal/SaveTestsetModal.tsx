@@ -1,9 +1,9 @@
 import {useCallback, useState} from "react"
 
 import EnhancedModal from "@agenta/oss/src/components/EnhancedUIs/Modal"
+import {message} from "@agenta/ui/app-message"
 import {Input} from "antd"
 
-import {message} from "@/oss/components/AppMessageContext"
 import useFocusInput from "@/oss/hooks/useFocusInput"
 import {createNewTestset} from "@/oss/services/testsets/api"
 
