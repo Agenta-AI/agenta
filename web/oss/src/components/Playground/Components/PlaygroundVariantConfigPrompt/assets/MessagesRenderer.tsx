@@ -49,7 +49,8 @@ const MessagesRenderer: React.FC<Props> = ({promptId, variantId, compoundKey, vi
                   })
                 : // Fallback for immutable/raw prompts without property ids
                   (rawMessages || []).map((m: any, idx: number) => {
-                      const role = m?.role || m?.role?.value || "user"
+                      // Handle both raw format (role: "user") and enhanced format (role: {value: "user"})
+                      const role = typeof m?.role === "string" ? m.role : (m?.role?.value ?? "user")
                       const content = m?.content?.value ?? m?.content
                       const text = Array.isArray(content)
                           ? content

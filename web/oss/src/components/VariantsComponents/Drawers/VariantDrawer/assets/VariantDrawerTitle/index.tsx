@@ -8,12 +8,14 @@ import {useRouter} from "next/router"
 
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
+import {
+    moleculeBackedVariantAtomFamily,
+    revisionIsDirtyAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {currentVariantAppStatusAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {VariantDrawerTitleProps} from "../types"
@@ -29,7 +31,7 @@ const NavControls = memo(
     }: Pick<VariantDrawerTitleProps, "variantId" | "variantIds" | "variants" | "isLoading">) => {
         const [, updateQuery] = useQuery("replace")
         const [displayMode] = useQueryParam("displayMode")
-        const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
+        const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
         const selectedParent = useMemo(() => {
             const parentId =
                 typeof selectedVariant?._parentVariant === "string"
@@ -145,8 +147,8 @@ const TitleActions = memo(
     }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "variants" | "isLoading">) => {
         const [, updateQuery] = useQuery("replace")
         const appStatus = useAtomValue(currentVariantAppStatusAtom)
-        const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
-        const isDirty = useAtomValue(variantIsDirtyAtomFamily(variantId))
+        const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
+        const isDirty = useAtomValue(revisionIsDirtyAtomFamily(variantId))
         const {goToPlayground} = usePlaygroundNavigation()
         const {appURL: _appURL} = useURL()
         const _router = useRouter()
