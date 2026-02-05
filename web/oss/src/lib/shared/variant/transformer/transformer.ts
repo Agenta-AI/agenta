@@ -123,6 +123,28 @@ export function derivePromptsFromSpec(
     return transformedPrompts
 }
 
+// Debug logging for development
+const DEBUG_TRANSFORMER = process.env.NODE_ENV === "development"
+const logTransformer = (...args: unknown[]) => {
+    if (DEBUG_TRANSFORMER) {
+        console.info("[transformer/deriveCustomProperties]", ...args)
+    }
+}
+
+/**
+ * Check if a property looks like a prompt based on its structure
+ * (has messages array and/or llm_config)
+ */
+function isPromptLikeStructure(value: unknown): boolean {
+    if (!value || typeof value !== "object") return false
+    const obj = value as Record<string, unknown>
+    // Check for messages array (prompt structure)
+    const hasMessages = Array.isArray(obj.messages)
+    // Check for llm_config (prompt structure)
+    const hasLlmConfig = obj.llm_config && typeof obj.llm_config === "object"
+    return hasMessages || hasLlmConfig
+}
+
 /**
  * Derive custom properties (non-prompt) from OpenAPI spec + saved parameters
  */
@@ -141,7 +163,8 @@ export function deriveCustomPropertiesFromSpec(
     const agConfig = requestSchema?.properties?.ag_config as AgentaConfigSchema
     const properties = agConfig?.properties || {}
 
-    const promptKeys = Object.keys(properties).filter((key) => {
+    // First, find prompt keys by x-parameters.prompt marker
+    const promptKeysByMarker = Object.keys(properties).filter((key) => {
         const property = properties[key] as Record<string, any>
         const hasXParams =
             "x-parameters" in property &&
@@ -150,8 +173,27 @@ export function deriveCustomPropertiesFromSpec(
         return hasXParams && Boolean(property["x-parameters"]?.prompt)
     })
 
+    // Also detect prompts by structure (for custom apps without x-parameters markers)
+    const promptKeysByStructure = Object.keys(parameters).filter((key) => {
+        // Skip if already identified by marker
+        if (promptKeysByMarker.includes(key)) return false
+        // Check if the saved value looks like a prompt
+        return isPromptLikeStructure((parameters as any)?.[key])
+    })
+
+    const allPromptKeys = [...promptKeysByMarker, ...promptKeysByStructure]
+
     const customPropertyKeys = Object.keys(properties).filter((property) => {
-        return !!property && !promptKeys.includes(property)
+        return !!property && !allPromptKeys.includes(property)
+    })
+
+    logTransformer("deriving custom properties", {
+        allPropertyKeys: Object.keys(properties),
+        promptKeysByMarker,
+        promptKeysByStructure,
+        allPromptKeys,
+        customPropertyKeys,
+        parametersKeys: Object.keys(parameters),
     })
 
     const customProperties = customPropertyKeys.reduce(

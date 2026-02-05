@@ -1,11 +1,11 @@
 import {useCallback} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Rocket} from "@phosphor-icons/react"
 import {Modal, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {Environment, JSSTheme} from "@/oss/lib/Types"
 import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"

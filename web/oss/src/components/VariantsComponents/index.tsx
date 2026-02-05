@@ -1,10 +1,14 @@
 // @ts-nocheck
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    variantsListWithDraftsAtomFamily,
+    revisionsListWithDraftsAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
 import {Button, Flex, Input, Radio, Space, Typography} from "antd"
-import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
+import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
@@ -19,17 +23,12 @@ import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useQueryParamState} from "@/oss/state/appState"
 import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
-import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {
     selectedVariantsCountAtom,
     variantTableSelectionAtomFamily,
 } from "@/oss/state/variant/atoms/selection"
-import {
-    modelNameByRevisionIdAtomFamily,
-    revisionListAtom,
-    variantDisplayNameByIdAtomFamily,
-} from "@/oss/state/variant/selectors/variant"
+import {modelNameByRevisionIdAtomFamily} from "@/oss/state/variant/selectors/variant"
 
 import DeploymentsDashboard from "../DeploymentsDashboard"
 import {envRevisionsAtom} from "../DeploymentsDashboard/atoms"
@@ -54,8 +53,39 @@ const VariantsDashboard = () => {
     const [searchTerm, setSearchTerm] = useState("")
     const {baseAppURL} = useURL()
     // Data: use all revisions list and map once to table rows (no slicing)
-    const revisions = useAtomValue(revisionListAtom)
-    const isVariantLoading = useAtomValue(variantsPendingAtom)
+    const emptyListAtom = useMemo(
+        () => atom({data: [], isPending: false, isError: false, error: null}),
+        [],
+    )
+    const variantsListAtom = useMemo(
+        () => (appId ? variantsListWithDraftsAtomFamily(appId) : emptyListAtom),
+        [appId, emptyListAtom],
+    )
+    const variantsQuery = useAtomValue(variantsListAtom)
+    const variants = variantsQuery.data ?? []
+    const revisionsListAtom = useMemo(
+        () =>
+            atom((get) => {
+                if (!appId) {
+                    return {data: [], isPending: false}
+                }
+                const listQuery = get(variantsListWithDraftsAtomFamily(appId))
+                const list = listQuery.data ?? []
+                let isPending = listQuery.isPending ?? false
+                const revisions = list.flatMap((variant: any) => {
+                    const revisionsQuery = get(revisionsListWithDraftsAtomFamily(variant.id))
+                    if (revisionsQuery.isPending) {
+                        isPending = true
+                    }
+                    return revisionsQuery.data ?? []
+                })
+                return {data: revisions, isPending}
+            }),
+        [appId],
+    )
+    const revisionsState = useAtomValue(revisionsListAtom)
+    const revisions = revisionsState.data ?? []
+    const isVariantLoading = revisionsState.isPending ?? false
     const {environments, isEnvironmentsLoading} = useEnvironments({appId})
 
     const deploymentRevisionsAtom = useMemo(
@@ -101,25 +131,38 @@ const VariantsDashboard = () => {
         recordWidgetEvent("registry_page_viewed")
     }, [recordWidgetEvent])
 
+    const variantNameMap = useMemo(() => {
+        const map: Record<string, string> = {}
+        variants.forEach((variant: any) => {
+            if (!variant?.id) return
+            map[variant.id] = (variant.name as string) || (variant.baseName as string) || variant.id
+        })
+        return map
+    }, [variants])
+
     const baseRows = useMemo(() => {
         const store = getDefaultStore()
-        return (revisions || []).map((r: any) => {
-            const ts = r.updatedAtTimestamp ?? r.createdAtTimestamp
-            const modelName = store.get(modelNameByRevisionIdAtomFamily(r.id))
-            const variantName = store.get(variantDisplayNameByIdAtomFamily(r.variantId))
-            return {
-                id: r.id,
-                variantId: r.variantId,
-                variantName,
-                commitMessage: r.commitMessage ?? r.commit_message ?? null,
-                createdAt: formatDate24(ts),
-                createdAtTimestamp: ts,
-                modifiedBy: r.modifiedBy ?? r.modified_by ?? r.createdBy ?? r.created_by,
-                modelName,
-                _revisionId: r.id,
-            }
-        })
-    }, [revisions])
+        return (revisions || [])
+            .map((r: any) => {
+                if (!r?.isLocalDraft && Number(r?.revision ?? 0) <= 0) return null
+                const timestamp = r.createdAt ? new Date(r.createdAt).valueOf() : Date.now()
+                const modelName = store.get(modelNameByRevisionIdAtomFamily(r.id))
+                const variantName = variantNameMap[r.variantId] ?? "-"
+                return {
+                    id: r.id,
+                    variantId: r.variantId,
+                    variantName,
+                    commitMessage: r.commitMessage ?? r.commit_message ?? null,
+                    createdAt: formatDate24(timestamp),
+                    createdAtTimestamp: timestamp,
+                    updatedAtTimestamp: timestamp,
+                    modifiedBy: r.author ?? r.modifiedBy ?? r.modified_by ?? null,
+                    modelName,
+                    _revisionId: r.id,
+                }
+            })
+            .filter(Boolean)
+    }, [revisions, variantNameMap])
 
     const filteredRows = useMemo(() => {
         if (!searchTerm) return baseRows
@@ -128,7 +171,11 @@ const VariantsDashboard = () => {
     }, [baseRows, searchTerm])
 
     const tableRows = useMemo(() => {
-        if (displayMode !== "grouped") return filteredRows
+        if (displayMode !== "grouped") {
+            return [...filteredRows].sort(
+                (a: any, b: any) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0),
+            )
+        }
         // Group revisions by variantId; parent row uses latest revision id
         const byVariant: Record<string, any[]> = {}
         filteredRows.forEach((r: any) => {
@@ -147,6 +194,8 @@ const VariantsDashboard = () => {
                 children,
             })
         })
+        // Sort variant groups by latest revision timestamp (newest first)
+        groups.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0))
         return groups
     }, [filteredRows, displayMode])
 
@@ -169,7 +218,7 @@ const VariantsDashboard = () => {
             const store = getDefaultStore()
             const revId = record?._revisionId ?? record?.id
             if (revId) {
-                store.get(promptsAtomFamily(revId))
+                store.get(moleculeBackedPromptsAtomFamily(revId))
             }
             if (revId) {
                 goToPlayground(revId)

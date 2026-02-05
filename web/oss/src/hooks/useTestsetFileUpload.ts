@@ -1,8 +1,8 @@
 import {useState, useCallback} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {UploadFile} from "antd"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
 import {isValidCSVFile, isValidJSONFile} from "@/oss/lib/helpers/fileManipulations"
 import {GenericObject} from "@/oss/lib/Types"

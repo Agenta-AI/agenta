@@ -1,7 +1,5 @@
 import {memo, useMemo} from "react"
 
-import {useAtomValue} from "jotai"
-
 import {
     CellContentPopover,
     ChatMessagesCellContent,
@@ -11,7 +9,8 @@ import {
     normalizeValue,
     safeJsonStringify,
     tryParseJson,
-} from "@/oss/components/CellRenderers"
+} from "@agenta/ui/cell-renderers"
+import {useAtomValue} from "jotai"
 
 import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
