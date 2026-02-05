@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "services"
-version = "0.81.2"
+version = "0.82.0"
 description = "Agenta Services (Chat & Completion)"
 authors = [
     "Mahmoud Mabrouk <mahmoud@agenta.ai>",
@@ -20,7 +20,7 @@ agenta = ">=0.79.0"
 
 # Server
 uvicorn = "^0.40"
-gunicorn = "^23"
+gunicorn = "^25"
 
 # Traces, Metrics, Logs
 structlog = "^25"

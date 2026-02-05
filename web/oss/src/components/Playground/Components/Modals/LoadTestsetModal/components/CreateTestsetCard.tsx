@@ -1,11 +1,11 @@
 import {useCallback, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {InboxOutlined} from "@ant-design/icons"
 import {ArrowLeft, Table, UploadSimple} from "@phosphor-icons/react"
 import {Button, Input, Typography, Upload} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {useTestsetFileUpload} from "@/oss/hooks/useTestsetFileUpload"
 import {enableRevisionsListQueryAtom} from "@/oss/state/entities/testset"
 import {selectedRevisionIdAtom, selectedTestsetIdAtom} from "@/oss/state/testsetSelection"

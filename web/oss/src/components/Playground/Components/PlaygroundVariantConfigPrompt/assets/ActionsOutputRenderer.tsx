@@ -117,7 +117,7 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                 <Input
                     allowClear
                     autoFocus
-                    bordered={false}
+                    variant="borderless"
                     placeholder="Search"
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}

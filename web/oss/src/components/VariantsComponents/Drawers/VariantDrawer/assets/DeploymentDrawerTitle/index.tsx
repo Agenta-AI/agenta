@@ -7,9 +7,9 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {openDeploymentConfirmationModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
+import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {deployedRevisionByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
 import {DeploymentDrawerTitleProps} from "../types"
@@ -20,7 +20,7 @@ const DeploymentDrawerTitle = ({
     onToggleWidth,
     isExpanded,
 }: DeploymentDrawerTitleProps) => {
-    const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId))
+    const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId))
     const [envName] = useQueryParam("selectedEnvName")
     const {isPending: isPublishing, mutateAsync: publish} = useAtomValue(publishMutationAtom)
     const deployedRevision = useAtomValue(deployedRevisionByEnvironmentAtomFamily(envName))
