@@ -14,6 +14,65 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
+
+def _extract_inputs_and_parameters(
+    raw_value: Any,
+) -> Optional[List[Tuple[str, Any]]]:
+    """
+    Extract user inputs and parameters from traceloop.entity.input.
+
+    For completion/chat built-in services, the structure is:
+    {"inputs": {"parameters": {...}, "inputs": {...}}}
+
+    This function separates user inputs from model parameters:
+    - User inputs go to ag.data.inputs
+    - Parameters go to ag.meta.request.parameters
+
+    For backwards compatibility, if the structure doesn't have both
+    "parameters" and "inputs" keys, it falls back to the original behavior.
+
+    Returns a list of (ag_key, value) tuples to be processed.
+    """
+    try:
+        if isinstance(raw_value, str):
+            data = loads(raw_value)
+        elif isinstance(raw_value, dict):
+            data = raw_value
+        else:
+            return None
+
+        inputs_data = data.get("inputs")
+        if inputs_data is None:
+            return None
+
+        results: List[Tuple[str, Any]] = []
+
+        # Check if this is the completion/chat v0 structure with nested parameters
+        if isinstance(inputs_data, dict) and "parameters" in inputs_data:
+            # Extract the actual user inputs (nested "inputs" key)
+            user_inputs = inputs_data.get("inputs")
+            if user_inputs is not None:
+                results.append(("ag.data.inputs", user_inputs))
+
+            # Extract parameters to metadata
+            parameters = inputs_data.get("parameters")
+            if parameters is not None:
+                results.append(("ag.meta.request.parameters", parameters))
+
+            # Handle any other keys besides "parameters" and "inputs"
+            # These might be additional user-provided data
+            for key, value in inputs_data.items():
+                if key not in ("parameters", "inputs") and value is not None:
+                    results.append((f"ag.data.inputs.{key}", value))
+        else:
+            # Backwards compatibility: original behavior for flat inputs
+            results.append(("ag.data.inputs", inputs_data))
+
+        return results if results else None
+    except Exception:
+        return None
+
+
 OPENLLMETRY_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
     ("llm.headers", "ag.meta.request.headers"),
     ("llm.request.type", "ag.type.node"),
@@ -38,14 +97,8 @@ OPENLLMETRY_ATTRIBUTES_PREFIX: List[Tuple[str, str]] = [
 OPENLLMETRY_ATTRIBUTES_DYNAMIC: List[
     Tuple[str, Callable[[Any], Optional[Tuple[str, Any]]]]
 ] = [
-    (
-        "traceloop.entity.input",
-        lambda x: (
-            ("ag.data.inputs", loads(x).get("inputs"))
-            if isinstance(x, str)
-            else (("ag.data.inputs", x.get("inputs")) if isinstance(x, dict) else None)
-        ),
-    ),
+    # NOTE: traceloop.entity.input is handled separately in process()
+    # via _extract_inputs_and_parameters() to properly filter parameters
     (
         "traceloop.entity.output",
         lambda x: (
@@ -76,13 +129,24 @@ class OpenLLMmetryAdapter(BaseAdapter):
 
         # Apply mappings (similar to _apply_semconv)
         for key, value in bag.span_attributes.items():
-            # 1. Check exact matches
+            # 1. Handle traceloop.entity.input specially to filter parameters
+            # from inputs (fixes issue where model parameters like temperature,
+            # model etc. were shown as part of inputs in trace overview)
+            if key == "traceloop.entity.input":
+                results = _extract_inputs_and_parameters(value)
+                if results:
+                    for ag_key, transformed_value in results:
+                        transformed_attributes[ag_key] = transformed_value
+                    has_openllmetry_data = True
+                continue
+
+            # 2. Check exact matches
             if key in self._exact_map:
                 ag_key = self._exact_map[key]
                 transformed_attributes[ag_key] = value
                 has_openllmetry_data = True
             else:
-                # 2. Check prefix matches
+                # 3. Check prefix matches
                 matched = False
                 for otel_prefix, ag_prefix in self._prefix_map.items():
                     if key.startswith(otel_prefix):
@@ -93,7 +157,7 @@ class OpenLLMmetryAdapter(BaseAdapter):
                         matched = True
                         break
 
-                # 3. Check dynamic matches
+                # 4. Check dynamic matches
                 if not matched and key in self._dynamic_map:
                     try:
                         transform_func = self._dynamic_map[key]
