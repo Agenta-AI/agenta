@@ -140,7 +140,10 @@ export function resolveChainInputs(
                 // Use prototype-less object to prevent prototype pollution
                 const existing = result[mapping.targetKey]
                 const targetObj: Record<string, unknown> =
-                    existing && typeof existing === "object" && existing !== null
+                    existing &&
+                    typeof existing === "object" &&
+                    existing !== null &&
+                    Object.getPrototypeOf(existing) === null
                         ? (existing as Record<string, unknown>)
                         : Object.create(null)
                 // keyInObject can be string or string[] - use first element if array
@@ -154,7 +157,12 @@ export function resolveChainInputs(
                     keyName !== "constructor" &&
                     keyName !== "prototype"
                 ) {
-                    targetObj[keyName] = value
+                    Object.defineProperty(targetObj, keyName, {
+                        value,
+                        writable: true,
+                        enumerable: true,
+                        configurable: true,
+                    })
                 }
                 result[mapping.targetKey] = targetObj
             } else {
@@ -298,15 +306,14 @@ export function autoMapInputs(
  * @returns Array of unique variable names found in the string
  */
 export function extractTemplateVariables(input: string): string[] {
-    // Use a non-backtracking regex to avoid ReDoS vulnerability
-    // Match {{ followed by content (non-greedy) followed by }}
-    const variablePattern = /\{\{([^}]*(?:\}(?!\})[^}]*)*)\}\}/g
+    // Simple pattern: match {{ then one or more non-brace characters, then }}
+    // Excludes { and } from variable names to prevent ReDoS backtracking
+    const variablePattern = /\{\{([^{}]+)\}\}/g
     const variables: string[] = []
 
     let match: RegExpExecArray | null
     while ((match = variablePattern.exec(input)) !== null) {
-        // Process escape sequences and trim
-        const variable = match[1].replaceAll(/\\(.)/g, "$1").trim()
+        const variable = match[1].trim()
         if (variable && !variables.includes(variable)) {
             variables.push(variable)
         }
