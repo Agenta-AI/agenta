@@ -45,7 +45,7 @@ const RegionSelector = () => {
     return (
         <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
-                <Text className="text-sm font-medium">Data Region</Text>
+                <Text className="text-sm font-medium">Data Residency</Text>
                 <Button
                     type="link"
                     className="!h-auto !p-0 !text-xs !text-colorTextSecondary hover:!text-colorText"
