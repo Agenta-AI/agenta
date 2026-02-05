@@ -2873,6 +2873,7 @@ async def fetch_app_variant_revision_by_id(
         result = await session.execute(
             select(AppVariantRevisionsDB)
             .options(
+                joinedload(AppVariantRevisionsDB.modified_by),
                 joinedload(AppVariantRevisionsDB.base.of_type(VariantBaseDB))
                 .joinedload(VariantBaseDB.deployment.of_type(DeploymentDB))
                 .load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore

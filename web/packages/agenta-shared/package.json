@@ -1,6 +1,6 @@
 {
     "name": "@agenta/shared",
-    "version": "0.75.0",
+    "version": "0.80.0",
     "private": true,
     "sideEffects": false,
     "main": "./src/index.ts",
@@ -26,6 +26,7 @@
         "jsonrepair": "^3.0.0"
     },
     "devDependencies": {
+        "typescript": "5.8.3",
         "@types/node": "^20.8.10",
         "@types/react": "^19.0.10"
     },
