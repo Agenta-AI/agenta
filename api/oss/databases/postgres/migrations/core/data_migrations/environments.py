@@ -1,10 +1,11 @@
 import uuid
 import asyncio
 from uuid import UUID
-from typing import Optional, Dict, List, Any
+from typing import Any, Optional, Dict, List
 from collections import defaultdict
 
 import click
+from pydantic import field_validator
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
@@ -192,11 +193,20 @@ async def _transfer_environment_for_project(
         )
         return None
 
+    # -- Legacy subclass: allow dots in slugs for compound env variant slugs ------
+    class LegacyEnvironmentVariantCreate(EnvironmentVariantCreate):
+        """EnvironmentVariantCreate that allows dots in slugs."""
+
+        @field_validator("slug")
+        @classmethod
+        def check_url_safety(cls, v: Any) -> Any:
+            return v
+
     # Create the default variant with slug = {env_name}.default
     environment_variant = await environments_service.create_environment_variant(
         project_id=project_id,
         user_id=owner_id,
-        environment_variant_create=EnvironmentVariantCreate(
+        environment_variant_create=LegacyEnvironmentVariantCreate(
             slug=f"{env_name}.default",
             name=env_name,
             environment_id=environment.id,
