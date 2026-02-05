@@ -451,8 +451,51 @@ export const moleculeBackedCustomPropertiesAtomFamily = atomFamily((revisionId: 
  */
 export const moleculePropertyUpdateAtom = atom(
     null,
-    (_get, set, params: {revisionId: string; propertyId: string; value: unknown}) => {
+    (get, set, params: {revisionId: string; propertyId: string; value: unknown}) => {
         const {revisionId, propertyId, value} = params
+
+        // Auto-seed enhanced prompts/custom properties if missing from molecule base data.
+        // When the Variant Drawer opens it seeds serverData with basic revision info
+        // (id, parameters, uri, etc.) but without enhancedPrompts/enhancedCustomProperties.
+        // The UI displays prompts via an entity-level fallback read path, but the write
+        // path (updatePropertyAtom) searches base.enhancedPrompts — which is undefined.
+        // Seeding here ensures the property can be found and a draft is created.
+        const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
+        if (moleculeData) {
+            let needsSeed = false
+            const seedData: Partial<LegacyAppRevisionData> = {}
+
+            if (!moleculeData.enhancedPrompts || moleculeData.enhancedPrompts.length === 0) {
+                const entityPrompts = get(revisionEnhancedPromptsAtomFamily(revisionId))
+                if (entityPrompts && entityPrompts.length > 0) {
+                    seedData.enhancedPrompts = entityPrompts as unknown[]
+                    needsSeed = true
+                }
+            }
+
+            if (
+                !moleculeData.enhancedCustomProperties ||
+                Object.keys(moleculeData.enhancedCustomProperties).length === 0
+            ) {
+                const entityCustomProps = get(
+                    revisionEnhancedCustomPropertiesAtomFamily(revisionId),
+                )
+                if (entityCustomProps && Object.keys(entityCustomProps).length > 0) {
+                    seedData.enhancedCustomProperties = entityCustomProps as Record<string, unknown>
+                    needsSeed = true
+                }
+            }
+
+            if (needsSeed) {
+                const currentServerData = legacyAppRevisionMolecule.get.serverData(revisionId)
+                if (currentServerData) {
+                    legacyAppRevisionMolecule.set.serverData(revisionId, {
+                        ...currentServerData,
+                        ...seedData,
+                    })
+                }
+            }
+        }
 
         set(legacyAppRevisionMolecule.reducers.updateProperty, {
             revisionId,
