@@ -131,10 +131,12 @@ class LegacyEnvironmentsAdapter:
             environment_variant_id=environment_variant.id,
         )
 
-        environment_revision = await self.environments_service.commit_environment_revision(
-            project_id=project_id,
-            user_id=user_id,
-            environment_revision_commit=environment_revision_commit,
+        environment_revision = (
+            await self.environments_service.commit_environment_revision(
+                project_id=project_id,
+                user_id=user_id,
+                environment_revision_commit=environment_revision_commit,
+            )
         )
 
         return environment_revision
@@ -161,26 +163,36 @@ class LegacyEnvironmentsAdapter:
         results: List[Dict[str, Any]] = []
 
         for environment in environments:
-            environment_variant = await self.environments_service.fetch_environment_variant(
-                project_id=project_id,
-                environment_ref=Reference(id=environment.id),
+            environment_variant = (
+                await self.environments_service.fetch_environment_variant(
+                    project_id=project_id,
+                    environment_ref=Reference(id=environment.id),
+                )
             )
 
             if environment_variant is None:
                 continue
 
-            latest_revision = await self.environments_service.fetch_environment_revision(
-                project_id=project_id,
-                environment_variant_ref=Reference(id=environment_variant.id),
+            latest_revision = (
+                await self.environments_service.fetch_environment_revision(
+                    project_id=project_id,
+                    environment_variant_ref=Reference(id=environment_variant.id),
+                )
             )
 
             deployed_variant_revision_id = None
-            if latest_revision and latest_revision.data and latest_revision.data.references:
+            if (
+                latest_revision
+                and latest_revision.data
+                and latest_revision.data.references
+            ):
                 revision_ref = latest_revision.data.references.get(
                     f"{app_slug}.revision"
                 )
                 if revision_ref is not None:
-                    deployed_variant_revision_id = str(revision_ref.id) if revision_ref.id else None
+                    deployed_variant_revision_id = (
+                        str(revision_ref.id) if revision_ref.id else None
+                    )
 
             results.append(
                 {
@@ -231,11 +243,11 @@ class LegacyEnvironmentsAdapter:
 
         deployed_variant_revision_id = None
         if latest_revision and latest_revision.data and latest_revision.data.references:
-            revision_ref = latest_revision.data.references.get(
-                f"{app_slug}.revision"
-            )
+            revision_ref = latest_revision.data.references.get(f"{app_slug}.revision")
             if revision_ref is not None:
-                deployed_variant_revision_id = str(revision_ref.id) if revision_ref.id else None
+                deployed_variant_revision_id = (
+                    str(revision_ref.id) if revision_ref.id else None
+                )
 
         return {
             "environment_id": environment.id,

@@ -366,10 +366,12 @@ async def _fetch_environment(
         # -----------------------------------------------------------
         if environment_ref.id:
             # The id here is an *environment revision* id.
-            env_revisions = env_adapter.environments_service.query_environment_revisions(
-                project_id=UUID(project_id),
-                environment_revision_refs=[Reference(id=environment_ref.id)],
-                windowing=Windowing(limit=1),
+            env_revisions = (
+                env_adapter.environments_service.query_environment_revisions(
+                    project_id=UUID(project_id),
+                    environment_revision_refs=[Reference(id=environment_ref.id)],
+                    windowing=Windowing(limit=1),
+                )
             )
             env_revisions = await env_revisions
             if not env_revisions:
@@ -421,17 +423,21 @@ async def _fetch_environment(
             env_shim = _EnvironmentShim(name=env.slug, id=env.id)
 
             # Fetch variant + revisions for this environment
-            env_variant = await env_adapter.environments_service.fetch_environment_variant(
-                project_id=UUID(project_id),
-                environment_ref=Reference(id=env.id),
+            env_variant = (
+                await env_adapter.environments_service.fetch_environment_variant(
+                    project_id=UUID(project_id),
+                    environment_ref=Reference(id=env.id),
+                )
             )
             if not env_variant:
                 return env_shim, None
 
             # Fetch all revisions (ordered latest-first via windowing)
-            env_revisions = await env_adapter.environments_service.query_environment_revisions(
-                project_id=UUID(project_id),
-                environment_variant_refs=[Reference(id=env_variant.id)],
+            env_revisions = (
+                await env_adapter.environments_service.query_environment_revisions(
+                    project_id=UUID(project_id),
+                    environment_variant_refs=[Reference(id=env_variant.id)],
+                )
             )
             if not env_revisions:
                 return env_shim, None
@@ -446,7 +452,12 @@ async def _fetch_environment(
                 # the requested app.  Revisions are returned latest-first
                 # (descending id via default windowing).
                 for rev in env_revisions:
-                    if ref_key and rev.data and rev.data.references and ref_key in rev.data.references:
+                    if (
+                        ref_key
+                        and rev.data
+                        and rev.data.references
+                        and ref_key in rev.data.references
+                    ):
                         target_rev = rev
                         version = rev.version
                         break

@@ -258,6 +258,7 @@ async def _transfer_application(
         @classmethod
         def check_url_safety(cls, v: Any) -> Any:  # noqa: N805
             return v
+
     from oss.src.dbs.postgres.git.mappings import map_dto_to_dbe
     from oss.src.dbs.postgres.shared.engine import engine as db_engine
     from datetime import datetime, timezone

@@ -11,7 +11,10 @@ from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 from oss.src.models import converters
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import db_manager, app_manager
-from oss.src.services.legacy_adapter import get_legacy_adapter, get_legacy_environments_adapter
+from oss.src.services.legacy_adapter import (
+    get_legacy_adapter,
+    get_legacy_environments_adapter,
+)
 from oss.src.models.api.api_models import (
     App,
     UpdateApp,

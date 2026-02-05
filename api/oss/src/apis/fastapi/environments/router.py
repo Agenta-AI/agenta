@@ -615,11 +615,13 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_variant = await self.environments_service.archive_environment_variant(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            environment_variant_id=environment_variant_id,
+        environment_variant = (
+            await self.environments_service.archive_environment_variant(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                environment_variant_id=environment_variant_id,
+            )
         )
 
         environment_variant_response = EnvironmentVariantResponse(
@@ -644,11 +646,13 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_variant = await self.environments_service.unarchive_environment_variant(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            environment_variant_id=environment_variant_id,
+        environment_variant = (
+            await self.environments_service.unarchive_environment_variant(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                environment_variant_id=environment_variant_id,
+            )
         )
 
         environment_variant_response = EnvironmentVariantResponse(
@@ -789,10 +793,12 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_revision = await self.environments_service.fetch_environment_revision(
-            project_id=UUID(request.state.project_id),
-            #
-            environment_revision_ref=Reference(id=environment_revision_id),
+        environment_revision = (
+            await self.environments_service.fetch_environment_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                environment_revision_ref=Reference(id=environment_revision_id),
+            )
         )
 
         return EnvironmentRevisionResponse(
@@ -849,11 +855,13 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_revision = await self.environments_service.archive_environment_revision(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            environment_revision_id=environment_revision_id,
+        environment_revision = (
+            await self.environments_service.archive_environment_revision(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                environment_revision_id=environment_revision_id,
+            )
         )
 
         return EnvironmentRevisionResponse(
@@ -876,11 +884,13 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_revision = await self.environments_service.unarchive_environment_revision(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            environment_revision_id=environment_revision_id,
+        environment_revision = (
+            await self.environments_service.unarchive_environment_revision(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                environment_revision_id=environment_revision_id,
+            )
         )
 
         return EnvironmentRevisionResponse(
@@ -889,7 +899,9 @@ class EnvironmentsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=EnvironmentRevisionsResponse(), exclude=[HTTPException])
+    @suppress_exceptions(
+        default=EnvironmentRevisionsResponse(), exclude=[HTTPException]
+    )
     async def query_environment_revisions(
         self,
         request: Request,
@@ -1006,10 +1018,12 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_revisions = await self.environments_service.log_environment_revisions(
-            project_id=UUID(request.state.project_id),
-            #
-            environment_revisions_log=environment_revisions_log_request.environment,
+        environment_revisions = (
+            await self.environments_service.log_environment_revisions(
+                project_id=UUID(request.state.project_id),
+                #
+                environment_revisions_log=environment_revisions_log_request.environment,
+            )
         )
 
         revisions_response = EnvironmentRevisionsResponse(
@@ -1027,7 +1041,9 @@ class SimpleEnvironmentsRouter:
         simple_environments_service: SimpleEnvironmentsService,
     ):
         self.simple_environments_service = simple_environments_service
-        self.environments_service = self.simple_environments_service.environments_service
+        self.environments_service = (
+            self.simple_environments_service.environments_service
+        )
 
         self.router = APIRouter()
 
@@ -1286,11 +1302,13 @@ class SimpleEnvironmentsRouter:
         if environment_variant is None:
             return SimpleEnvironmentResponse()
 
-        environment_variant = await self.environments_service.archive_environment_variant(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            environment_variant_id=environment_variant.id,  # type: ignore
+        environment_variant = (
+            await self.environments_service.archive_environment_variant(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                environment_variant_id=environment_variant.id,  # type: ignore
+            )
         )
 
         if environment_variant is None:
@@ -1311,9 +1329,7 @@ class SimpleEnvironmentsRouter:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(**environment.flags)
-                if environment.flags
-                else None
+                EnvironmentFlags(**environment.flags) if environment.flags else None
             ),
             tags=environment.tags,
             meta=environment.meta,
@@ -1375,11 +1391,13 @@ class SimpleEnvironmentsRouter:
         if environment_variant is None:
             return SimpleEnvironmentResponse()
 
-        environment_variant = await self.environments_service.unarchive_environment_variant(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            environment_variant_id=environment_variant.id,  # type: ignore
+        environment_variant = (
+            await self.environments_service.unarchive_environment_variant(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                environment_variant_id=environment_variant.id,  # type: ignore
+            )
         )
 
         if environment_variant is None:
@@ -1400,9 +1418,7 @@ class SimpleEnvironmentsRouter:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(**environment.flags)
-                if environment.flags
-                else None
+                EnvironmentFlags(**environment.flags) if environment.flags else None
             ),
             tags=environment.tags,
             meta=environment.meta,
@@ -1436,9 +1452,7 @@ class SimpleEnvironmentsRouter:
         simple_environments = await self.simple_environments_service.query(
             project_id=UUID(request.state.project_id),
             #
-            simple_environment_query=(
-                simple_environment_query_request.environment
-            ),
+            simple_environment_query=(simple_environment_query_request.environment),
             #
             simple_environment_refs=simple_environment_query_request.environment_refs,
             #

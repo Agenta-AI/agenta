@@ -1,3 +1,4 @@
+import re
 import uuid
 import asyncio
 from uuid import UUID
@@ -53,6 +54,13 @@ environments_service = EnvironmentsService(
 )
 
 
+def _sanitize_slug(value: Optional[str]) -> Optional[str]:
+    """Replace characters not allowed in slugs with underscores."""
+    if value is None:
+        return None
+    return re.sub(r"[^a-zA-Z0-9_.\-]", "_", value)
+
+
 async def _resolve_full_refs(
     *,
     deployed_app_variant_revision_id: uuid.UUID,
@@ -98,15 +106,15 @@ async def _resolve_full_refs(
     return {
         "application": Reference(
             id=app_id,
-            slug=app_name,
+            slug=_sanitize_slug(app_name),
         ),
         "application_variant": Reference(
             id=variant_id,
-            slug=variant_name,
+            slug=_sanitize_slug(variant_name),
         ),
         "application_revision": Reference(
             id=deployed_app_variant_revision_id,
-            slug=rev_slug,
+            slug=_sanitize_slug(rev_slug),
             version=rev_version,
         ),
     }
@@ -422,7 +430,9 @@ async def migration_old_environments_to_new_environments(
             if new_env:
                 total_migrated += 1
 
-    click.echo(click.style(f"Total environments migrated: {total_migrated}", fg="yellow"))
+    click.echo(
+        click.style(f"Total environments migrated: {total_migrated}", fg="yellow")
+    )
     click.echo(click.style(f"Skipped projects: {skipped_projects}", fg="yellow"))
 
 
@@ -432,9 +442,7 @@ def run_migration(sqlalchemy_url: str):
     async def _start():
         connection = create_async_engine(url=sqlalchemy_url)
         async with connection.connect() as connection:
-            await migration_old_environments_to_new_environments(
-                connection=connection
-            )
+            await migration_old_environments_to_new_environments(connection=connection)
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(asyncio.run, _start())

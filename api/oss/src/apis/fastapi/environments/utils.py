@@ -153,7 +153,8 @@ def merge_environment_query_requests(
 
     if query_request_params and query_request_body:
         return EnvironmentQueryRequest(
-            environment=query_request_body.environment or query_request_params.environment,
+            environment=query_request_body.environment
+            or query_request_params.environment,
             #
             environment_refs=query_request_body.environment_refs
             or query_request_params.environment_refs,

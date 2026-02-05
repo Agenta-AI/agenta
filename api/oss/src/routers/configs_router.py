@@ -8,7 +8,10 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.api_models import GetConfigResponse
-from oss.src.services.legacy_adapter import get_legacy_adapter, get_legacy_environments_adapter
+from oss.src.services.legacy_adapter import (
+    get_legacy_adapter,
+    get_legacy_environments_adapter,
+)
 
 if is_ee():
     from ee.src.models.shared_models import Permission
@@ -247,7 +250,9 @@ async def revert_deployment_revision(
         )
 
         variant_ref = ReferenceRequestModel(id=str(app_variant_revision.id))
-        environment_ref = ReferenceRequestModel(id=str(environment_revision.environment_id))
+        environment_ref = ReferenceRequestModel(
+            id=str(environment_revision.environment_id)
+        )
 
         return await configs_deploy(
             request,
