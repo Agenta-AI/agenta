@@ -268,10 +268,24 @@ async def _transfer_application(
         **workflow_create.model_dump(mode="json", exclude_none=True),
     )
 
+    # Avoid slug collision with existing workflow artifacts (e.g. evaluators)
+    artifact_slug = git_artifact_create.slug
+    async with db_engine.core_session() as session:
+        existing = (
+            await session.execute(
+                select(WorkflowArtifactDBE).filter(
+                    WorkflowArtifactDBE.project_id == project_id,
+                    WorkflowArtifactDBE.slug == artifact_slug,
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            artifact_slug = f"_{artifact_slug}"
+
     artifact_dto = GitArtifact(
         project_id=project_id,
         id=app_id,
-        slug=git_artifact_create.slug,
+        slug=artifact_slug,
         created_at=datetime.now(timezone.utc),
         created_by_id=user_id,
         flags=git_artifact_create.flags,
