@@ -223,7 +223,7 @@ const VariantsDashboard = () => {
     )
 
     const variantContent = (
-        <Space direction="vertical" className="w-full">
+        <Space orientation="vertical" className="w-full">
             <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 flex-1">
                     <Input.Search
