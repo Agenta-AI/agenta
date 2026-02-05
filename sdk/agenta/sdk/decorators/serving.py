@@ -934,9 +934,6 @@ class entrypoint:
                 existing["flags"] = {**existing_flags, **flags}
                 method_data["x-agenta"] = existing
 
-                # Backward-compatible alias (kept for now).
-                method_data["x-agenta-flags"] = dict(flags)
-
     def override_config_in_schema(
         self,
         openapi_schema: dict,
