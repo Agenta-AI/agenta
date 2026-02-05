@@ -10,13 +10,15 @@ from sqlalchemy import (
     ForeignKey,
     Enum,
     JSON,
+    Text,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy_json import mutable_json_type
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.models.shared_models import AppType
+from oss.src.core.webhooks.config import WEBHOOK_MAX_RETRIES
 
 
 CASCADE_ALL_DELETE = "all, delete-orphan"
@@ -937,4 +939,119 @@ class EvaluationScenarioDB(Base):
         "oss.src.models.db_models.EvaluationScenarioResultDB",
         cascade=CASCADE_ALL_DELETE,
         backref="evaluation_scenario",
+    )
+
+
+# --- Webhook Models ---
+
+
+class WebhookSubscriptionDB(Base):
+    """Webhook subscription configuration."""
+
+    __tablename__ = "webhook_subscriptions"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    workspace_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name = Column(String(255), nullable=False)
+    url = Column(String(2048), nullable=False)
+    events = Column(ARRAY(String), nullable=False, default=list)
+    secret = Column(String(128), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    meta = Column(JSONB, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    created_by_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    archived_at = Column(DateTime(timezone=True), nullable=True)
+
+    workspace = relationship(
+        "oss.src.models.db_models.WorkspaceDB",
+    )
+    created_by = relationship(
+        "oss.src.models.db_models.UserDB",
+    )
+
+
+class WebhookEventDB(Base):
+    """Webhook event outbox for transactional event emission."""
+
+    __tablename__ = "webhook_events"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    event_type = Column(String(100), nullable=False)
+    workspace_id = Column(UUID(as_uuid=True), nullable=False)
+    payload = Column(JSONB, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    processed = Column(Boolean, default=False, nullable=False)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class WebhookDeliveryDB(Base):
+    """Webhook delivery attempt history."""
+
+    __tablename__ = "webhook_deliveries"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    subscription_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("webhook_subscriptions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    event_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("webhook_events.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    event_type = Column(String(100), nullable=False)
+    payload = Column(JSONB, nullable=False)
+    status = Column(String(20), default="pending", nullable=False)
+    attempts = Column(Integer, default=0, nullable=False)
+    max_attempts = Column(Integer, default=WEBHOOK_MAX_RETRIES, nullable=False)
+    next_retry_at = Column(DateTime(timezone=True), nullable=True)
+    response_status_code = Column(Integer, nullable=True)
+    response_body = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    delivered_at = Column(DateTime(timezone=True), nullable=True)
+    failed_at = Column(DateTime(timezone=True), nullable=True)
+
+    subscription = relationship(
+        "oss.src.models.db_models.WebhookSubscriptionDB",
+    )
+    event = relationship(
+        "oss.src.models.db_models.WebhookEventDB",
     )

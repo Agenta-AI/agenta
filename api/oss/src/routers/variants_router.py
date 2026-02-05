@@ -1,5 +1,6 @@
 from typing import Any, Optional, Union, List
 from uuid import UUID
+from datetime import datetime, timezone
 
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, status
@@ -12,6 +13,7 @@ from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 from oss.src.models import converters
 from oss.src.utils.common import APIRouter
 from oss.src.services import app_manager, db_manager
+from oss.src.core.webhooks import trigger_webhook, WebhookEventType
 
 if is_ee():
     from ee.src.utils.permissions import (
@@ -801,6 +803,29 @@ async def configs_deploy(
             status_code=404,
             detail="Config not found.",
         )
+
+    # Trigger webhook
+    try:
+        if config.variant_ref and config.variant_ref.id:
+            revision = await db_manager.fetch_app_variant_revision_by_id(
+                str(config.variant_ref.id)
+            )
+            if revision:
+                await trigger_webhook(
+                    workspace_id=UUID(request.state.workspace_id),
+                    event_type=WebhookEventType.CONFIG_DEPLOYED,
+                    payload={
+                        "variant_id": str(revision.variant_id),
+                        "environment_name": config.environment_ref.slug
+                        if config.environment_ref
+                        else "production",
+                        "deployed_by": str(request.state.user_id),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "version": revision.revision,
+                    },
+                )
+    except Exception as e:
+        log.error(f"Failed to trigger webhook: {e}")
 
     await invalidate_cache(
         project_id=request.state.project_id,

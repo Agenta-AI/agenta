@@ -48,6 +48,7 @@ from oss.src.dbs.postgres.workflows.dbes import (
 
 # DAOs
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
@@ -56,6 +57,7 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.invocations.service import InvocationsService
 from oss.src.core.annotations.service import AnnotationsService
@@ -74,6 +76,7 @@ from oss.src.core.evaluations.service import SimpleEvaluationsService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
@@ -112,6 +115,7 @@ from oss.src.routers import (
 
 from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
+from entrypoints.worker_webhooks import webhooks_worker
 
 from redis.asyncio import Redis
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
@@ -193,6 +197,7 @@ if ee and is_ee():
 # DAOS -------------------------------------------------------------------------
 
 secrets_dao = SecretsDAO()
+webhooks_dao = WebhooksDAO()
 
 tracing_dao = TracingDAO()
 
@@ -225,6 +230,11 @@ folders_dao = FoldersDAO()
 
 vault_service = VaultService(
     secrets_dao=secrets_dao,
+)
+
+webhooks_service = WebhooksService(
+    dao=webhooks_dao,
+    webhooks_worker=webhooks_worker,
 )
 
 tracing_service = TracingService(
@@ -304,6 +314,10 @@ simple_evaluations_service = SimpleEvaluationsService(
 
 secrets = VaultRouter(
     vault_service=vault_service,
+)
+
+webhooks = WebhooksRouter(
+    webhooks_service=webhooks_service,
 )
 
 otlp = OTLPRouter(
@@ -390,6 +404,12 @@ app.include_router(
     secrets.router,
     prefix="/vault/v1",
     tags=["Secrets"],
+)
+
+app.include_router(
+    webhooks.router,
+    prefix="/webhooks",
+    tags=["Webhooks"],
 )
 
 app.include_router(

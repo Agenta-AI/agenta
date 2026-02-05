@@ -46,6 +46,10 @@ class Permission(str, Enum):
     # Service
     RUN_SERVICE = "run_service"
 
+    # Webhooks
+    VIEW_WEBHOOKS = "view_webhooks"
+    EDIT_WEBHOOKS = "edit_webhooks"
+
     # Vault Secret
     VIEW_SECRET = "view_secret"
     EDIT_SECRET = "edit_secret"
@@ -150,6 +154,7 @@ class Permission(str, Enum):
             cls.READ_SYSTEM,
             cls.VIEW_APPLICATIONS,
             cls.VIEW_SECRET,
+            cls.VIEW_WEBHOOKS,
             cls.VIEW_APP_ENVIRONMENT_DEPLOYMENT,
             cls.VIEW_TESTSET,
             cls.VIEW_EVALUATION,

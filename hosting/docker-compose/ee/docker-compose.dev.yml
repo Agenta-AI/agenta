@@ -186,6 +186,42 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
+    worker-webhooks:
+        # === IMAGE ================================================ #
+        image: agenta-ee-dev-api:latest
+        # === EXECUTION ============================================ #
+        command: >
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            python -m entrypoints.worker_webhooks
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../api/ee:/app/ee
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
+            - ../../../sdk:/sdk
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+
     cron:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
