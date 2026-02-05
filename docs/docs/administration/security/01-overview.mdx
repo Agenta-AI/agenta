@@ -1,0 +1,83 @@
+---
+title: Security Overview
+description: Learn about Agenta's security architecture, encryption, and data protection measures
+slug: /administration/security/overview
+---
+
+# Security Overview
+
+Your prompts, evaluation data, and production traces are core IP. We built Agenta to protect them with the same rigor you'd expect from any critical infrastructure: **SOC 2 Type II certified**, **AES-256 encryption** at rest, and **data residency options** in both US and EU regions.
+
+:::tip Trust Center
+Review our security controls, compliance certifications, and policies in our **[Trust Center](https://trustcenter.agenta.ai/)**.
+:::
+
+## Compliance
+
+Agenta is **SOC 2 Type II** certified. For details and to request access, see our **[Trust Center](https://trustcenter.agenta.ai/)**.
+
+## Encryption
+
+### Data at Rest
+
+All sensitive data stored in Agenta is encrypted at rest using **AES-256 encryption**:
+
+- **Secrets and API keys**: Encrypted using PostgreSQL's PGP symmetric encryption (AES-256)
+- **Databases and storage**: Encrypted at rest
+
+### Data in Transit
+
+All data transmitted to and from Agenta is encrypted using **TLS 1.2+**:
+
+- HTTPS enforced on all endpoints
+- No plaintext data transmission
+
+## Infrastructure Security
+
+### Cloud Infrastructure
+
+Agenta Cloud runs on AWS with SOC 2 compliant infrastructure:
+
+- **Network isolation**: Dedicated VPCs with public/private subnet isolation
+- **High availability**: Automatic failover across availability zones
+- **Redundant networking**: Built-in redundancy for reliable connectivity
+- **Security groups**: Principle of least privilege access rules
+- **DDoS protection**: Included by default
+
+### Access Controls
+
+- **Role-based access control (RBAC)**: Granular permissions for organization members
+- **SSO integration**: Single sign-on via OIDC (Business and Enterprise)
+- **API key management**: Scoped API keys with rotation support
+- **Audit logging**: Track access and changes
+
+## Application Security
+
+### Authentication
+
+- **Multiple authentication methods**: email:password/OTP, social OAuth, SSO
+- **Session management**: Secure session handling with automatic expiration
+- **Account linking**: Safely link multiple authentication methods
+
+### Authorization
+
+- **Organization isolation**: Data isolated between organizations
+- **Permission checks**: Every API request validated against user permissions
+- **Resource scoping**: API keys scoped to your organization
+
+## Monitoring & Incident Response
+
+### System Monitoring
+
+- **Status page**: Current status and incident updates at [status.agenta.ai](https://status.agenta.ai/)
+
+### Incident Response
+
+- We publish updates and incident timelines on the status page
+
+## Reporting Security Issues
+
+If you discover a security vulnerability, follow our coordinated disclosure process:
+
+- **Security policy**: https://github.com/Agenta-AI/agenta/security/policy
+- **Email**: security@agenta.ai
