@@ -15,8 +15,7 @@ from pydantic import BaseModel, HttpUrl, ValidationError
 from os import environ
 
 if TYPE_CHECKING:
-    from fastapi import Request, HTTPException, Body
-    from starlette.responses import Response as StarletteResponse, StreamingResponse
+    from fastapi import FastAPI, Request, HTTPException, Body
 else:
     # Lazy imports - only loaded when @entrypoint or @route is used
     Request = None
@@ -31,7 +30,6 @@ from agenta.sdk.contexts.tracing import (
     tracing_context_manager,
     TracingContext,
 )
-from agenta.sdk.router import router
 from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.helpers import get_current_version
@@ -40,7 +38,6 @@ from agenta.sdk.types import (
     MultipleChoice,
     BaseResponse,
     StreamResponse,
-    MCField,
 )
 
 import agenta as ag
@@ -562,7 +559,7 @@ class entrypoint:
                     result.headers.setdefault("x-ag-span-id", span_id)
 
                 return result
-        except:
+        except Exception:
             return result
 
         try:
@@ -574,7 +571,7 @@ class entrypoint:
                     trace_id=trace_id,
                     span_id=span_id,
                 )
-        except:
+        except Exception:
             return StreamingResponse(
                 result,
                 media_type="text/event-stream",
@@ -589,7 +586,7 @@ class entrypoint:
                 trace_id=trace_id,
                 span_id=span_id,
             )
-        except:  # pylint: disable=bare-except
+        except Exception:
             try:
                 return BaseResponse(
                     data=data,
@@ -598,7 +595,7 @@ class entrypoint:
                     trace_id=trace_id,
                     span_id=span_id,
                 )
-            except:  # pylint: disable=bare-except
+            except Exception:
                 return BaseResponse(
                     data=data,
                     content_type=content_type,
@@ -924,6 +921,20 @@ class entrypoint:
 
             flags = dict(route.get("flags") or {})
             for method_data in methods.values():
+                # Prefer a single vendor-extension namespace we can evolve over time.
+                existing = method_data.get("x-agenta")
+                if not isinstance(existing, dict):
+                    existing = {}
+
+                existing_flags = existing.get("flags")
+                if not isinstance(existing_flags, dict):
+                    existing_flags = {}
+
+                # Route-level flags override any previously set flags.
+                existing["flags"] = {**existing_flags, **flags}
+                method_data["x-agenta"] = existing
+
+                # Backward-compatible alias (kept for now).
                 method_data["x-agenta-flags"] = dict(flags)
 
     def override_config_in_schema(

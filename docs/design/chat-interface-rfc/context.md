@@ -33,7 +33,7 @@ The current chat detection mechanism is a heuristic based on input shape (checki
 | Type | Output Shape | Database Value |
 |------|-------------|----------------|
 | Chat | Message object (role, content) | `SERVICE:chat` |
-| Completion | String or JSON | `SERVICE:completion` |
+| Completion | Arbitrary JSON | `SERVICE:completion` |
 | Custom Workflow | Arbitrary JSON | `CUSTOM` |
 
 ### Chat Detection (Current)

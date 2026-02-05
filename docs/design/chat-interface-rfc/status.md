@@ -30,7 +30,7 @@ The new workflow system (`routing.py`) is used for internal orchestration only.
 |----------|-----------|
 | **Target legacy system first** | Custom workflows use legacy decorators, not new workflow system |
 | Add `flags` parameter to legacy `@ag.route`/`@ag.entrypoint` | Aligns legacy API with the newer flags-based interface |
-| Emit `x-agenta-flags` in legacy OpenAPI | Explicit, stable chat discovery via `/openapi.json` |
+| Emit `x-agenta.flags` in legacy OpenAPI | Explicit, stable chat discovery via `/openapi.json` |
 | Add `flags` parameter to new `@ag.route` | Interface consistency across systems |
 | (Optional) Add `is_chat` to `WorkflowFlags` | Type-hint / documentation for the new system |
 | Keep heuristic as fallback | Backward compatibility for existing apps |
@@ -56,7 +56,7 @@ The Fern client (`sdk/agenta/client/backend/`) is **not** manually maintained. I
 | File | Change | Status |
 |------|--------|--------|
 | `sdk/agenta/sdk/decorators/serving.py` | Add `flags` param to `route`/`entrypoint` classes | Done |
-| `sdk/agenta/sdk/decorators/serving.py` | Emit `x-agenta-flags` in OpenAPI schema in `openapi()` | Done |
+| `sdk/agenta/sdk/decorators/serving.py` | Emit `x-agenta.flags` in OpenAPI schema in `openapi()` | Done |
 | `services/oss/src/chat.py` | Set `flags={"is_chat": True}` on `@chat_route` | Done |
 
 ### Phase 1b: New Workflow System (Internal)
@@ -74,7 +74,7 @@ The Fern client (`sdk/agenta/client/backend/`) is **not** manually maintained. I
 
 | File | Change | Status |
 |------|--------|--------|
-| `web/oss/src/lib/shared/variant/genericTransformer/index.ts` | Read `x-agenta-flags.is_chat` from OpenAPI | Not started |
+| `web/oss/src/lib/shared/variant/genericTransformer/index.ts` | Read `x-agenta.flags.is_chat` from OpenAPI | Not started |
 | `web/oss/src/components/Playground/state/atoms/app.ts` | Update chat detection | Not started |
 
 ## Progress Log
@@ -85,15 +85,15 @@ The Fern client (`sdk/agenta/client/backend/`) is **not** manually maintained. I
 - Identified `WorkflowFlags` model locations
 - Discovered Fern client generation process
 - Documented implementation plan
-- Implemented legacy `flags` support and `x-agenta-flags` emission in OpenAPI
+- Implemented legacy `flags` support and `x-agenta.flags` emission in OpenAPI
 - Updated builtin chat service to set `flags={"is_chat": True}`
 - Added `flags` support to new `@ag.route` and propagated to `auto_workflow()`
 - Added `is_chat: bool = False` to `WorkflowFlags` in SDK and API models
-- Manually tested deployment at http://144.76.237.122:8180 - verified `x-agenta-flags.is_chat` appears in OpenAPI
+- Manually tested deployment at http://144.76.237.122:8180 - verified `x-agenta.flags.is_chat` appears in OpenAPI
 
 ## Next Steps
 
-1. **Phase 2:** Update frontend chat detection to read `x-agenta-flags.is_chat` (preferred) with heuristics fallback.
+1. **Phase 2:** Update frontend chat detection to read `x-agenta.flags.is_chat` (preferred) with heuristics fallback.
 
 ## Current State Summary
 
@@ -107,11 +107,11 @@ The Fern client (`sdk/agenta/client/backend/`) is **not** manually maintained. I
 
 **Does `@ag.route(flags={"is_chat": True})` work?** **YES**
 
-Legacy `route`/`entrypoint` now accept `flags` and emit `x-agenta-flags` in OpenAPI.
+Legacy `route`/`entrypoint` now accept `flags` and emit `x-agenta.flags` in OpenAPI.
 
 ## Open Questions
 
-1. **Should we emit `x-agenta-flags` on `/run`, `/test`, or both?**
+1. **Should we emit `x-agenta.flags` on `/run`, `/test`, or both?**
    - Decision: implemented for both `/run` and `/test` to avoid mode-specific gaps.
 
 2. **Should `is_chat` be inferred from input signature?**
