@@ -12,6 +12,198 @@
 ## PR instructions
 - If the user provides you with the issue id, title the PR: [issue-id] fix(frontend): <Title> where fix is the type (fix, feat, chore, ci, doc, test.. [we're using better-branch) and frontend is where and it could be api, sdk, frontend, docs, ..
 
+## Backend Architecture Patterns (OSS + EE)
+
+Use this section for all new backend work.
+
+### Backend repo map
+
+- `api/oss/src/*` is the OSS baseline backend (new + legacy coexist here).
+- `api/ee/src/*` is the EE extension backend (billing, organizations, workspace, meters, subscriptions, throttling).
+- `api/entrypoints/*` is the composition root (dependency wiring and route mounting).
+
+OSS and EE relationship:
+- OSS app is assembled first in `api/entrypoints/routers.py`.
+- When `is_ee()` is true, EE extends that app via:
+  - `ee.extend_main(app)` for extra routers/features.
+  - `ee.extend_app_schema(app)` for OpenAPI/security metadata.
+- EE is additive over OSS, not a separate backend architecture.
+
+Primary references:
+- `api/entrypoints/routers.py`
+- `api/ee/src/main.py`
+
+### Where to add new backend code
+
+- Add new domain features in:
+  - `api/oss/src/apis/fastapi/<domain>/`
+  - `api/oss/src/core/<domain>/`
+  - `api/oss/src/dbs/postgres/<domain>/`
+- Avoid adding net-new features to legacy paths:
+  - `api/oss/src/routers/*`
+  - `api/oss/src/services/*`
+
+### Standard domain folder structure
+
+For a new domain, follow this shape:
+
+- API layer: `api/oss/src/apis/fastapi/<domain>/`
+  - `router.py`: route registration + handlers
+  - `models.py`: request/response schemas
+  - `utils.py`: parsing/merge/normalization helpers
+- Core layer: `api/oss/src/core/<domain>/`
+  - `dtos.py` or `types.py`: domain data contracts
+  - `interfaces.py`: DAO/service contracts when needed
+  - `service.py`: business orchestration
+- DB layer: `api/oss/src/dbs/postgres/<domain>/`
+  - `dbes.py`: SQLAlchemy entities
+  - `dbas.py`: shared mixins (when needed)
+  - `dao.py`: Postgres implementation
+  - `mappings.py`: DTO <-> DBE mapping
+
+Example to copy:
+- `api/oss/src/apis/fastapi/workflows/`
+- `api/oss/src/core/workflows/`
+- `api/oss/src/dbs/postgres/workflows/`
+
+### Layering and dependency direction
+
+Required direction:
+- Router -> Service -> DAO Interface -> DAO Implementation -> DB
+
+Rules:
+- Core services depend on interfaces (`*DAOInterface`), not concrete DB implementations.
+- Wire concrete dependencies in `api/entrypoints/*` only.
+- Keep DTO/DBE mapping in `dbs/postgres/*/mappings.py`.
+- Do not return DBE objects from router/service contracts.
+
+### Endpoint design conventions
+
+Use consistent endpoint shapes across domains:
+
+- `POST /query` for filtering/search with payload support.
+- `POST /{id}/archive` and `POST /{id}/unarchive` for lifecycle state transitions.
+- For revisioned resources, expose:
+  - `/revisions/retrieve`
+  - `/revisions/commit`
+  - `/revisions/log`
+
+Request/response conventions:
+- Define explicit request/response models in `models.py`.
+- Response envelopes should include `count` plus payload (`item`/`items` style).
+- Set explicit `operation_id` on routes.
+
+Query conventions:
+- Parse params via `Depends(...)` and optionally parse request body JSON.
+- Merge params + body into one query object in `utils.py`.
+- Use cursor pagination via `Windowing`, not page-number pagination.
+
+References:
+- `api/oss/src/apis/fastapi/workflows/router.py`
+- `api/oss/src/apis/fastapi/workflows/utils.py`
+- `api/oss/src/apis/fastapi/shared/utils.py`
+- `api/oss/src/dbs/postgres/shared/utils.py`
+
+### Git-style Artifact/Variant/Revision pattern
+
+When a resource needs commit/history semantics, use the shared Git pattern instead of inventing a custom one.
+
+Use this pattern when you need:
+- revision history and auditability
+- latest vs specific revision retrieval
+- revision logs
+- variant forks/lineage
+
+Core contracts:
+- `api/oss/src/core/git/interfaces.py`
+- `api/oss/src/core/git/dtos.py`
+
+Postgres implementation:
+- `api/oss/src/dbs/postgres/git/dao.py`
+- `api/oss/src/dbs/postgres/git/dbas.py`
+
+Domain DBE examples:
+- `api/oss/src/dbs/postgres/workflows/dbes.py`
+- `api/oss/src/dbs/postgres/queries/dbes.py`
+- `api/oss/src/dbs/postgres/testsets/dbes.py`
+
+Service examples:
+- `api/oss/src/core/workflows/service.py`
+- `api/oss/src/core/queries/service.py`
+- `api/oss/src/core/testsets/service.py`
+
+Reuse pattern example:
+- Evaluators reuse workflow persistence and can preserve IDs through `workflow_id=evaluator_id`.
+- Reference: `api/oss/src/core/evaluators/service.py`
+
+### Scope, lifecycle, and archival rules
+
+- Always enforce tenant scope (`project_id` minimum) in DAO reads and writes.
+- For revisioned entities, prefer archive/unarchive (`deleted_at`, `deleted_by_id`) over hard deletes.
+- Respect `include_archived` in query paths.
+
+References:
+- `api/oss/src/dbs/postgres/shared/dbas.py`
+- `api/oss/src/dbs/postgres/git/dao.py`
+
+### Migration and compatibility rules
+
+Migration should preserve compatibility while moving to new APIs.
+
+- Keep old and new routes running in parallel until migration is complete.
+- New stack commonly ships under `/preview/*` while old endpoints remain mounted.
+- Prefer data compatibility adapters over breaking payload changes.
+- Preserve old IDs/shape when continuity is required.
+- If old storage temporarily carries new payload shape, mark it explicitly.
+
+Concrete examples:
+- Dual mounting and deprecations: `api/entrypoints/routers.py`
+- Legacy app storage marker (`WORKFLOW_MARKER_KEY`): `api/oss/src/core/applications/service.py`
+- Legacy dedup key normalization (`__dedup_id__` <-> `testcase_dedup_id`): `api/oss/src/apis/fastapi/testsets/router.py`
+
+### Router and function style conventions
+
+Router style:
+- Register routes inside router class `__init__` using `self.router.add_api_route(...)`.
+- Use `@intercept_exceptions()` at the route boundary.
+- Use `@suppress_exceptions(...)` only for controlled defaults.
+
+Function signature style:
+- Prefer keyword-only parameters using `*`.
+- Use grouped sections in signatures/calls with `#` separators for readability.
+
+Example:
+
+```python
+async def create_workflow(
+    self,
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    #
+    workflow_create: WorkflowCreate,
+    #
+    workflow_id: Optional[UUID] = None,
+) -> Optional[Workflow]:
+    ...
+```
+
+### Migration seams (do not copy for net-new code)
+
+These exist during transition but should not be copied into new implementations:
+
+- Core importing API routers/models directly
+  - `api/oss/src/core/invocations/service.py`
+  - `api/oss/src/core/annotations/service.py`
+- Core importing legacy `db_manager` in new modules
+  - `api/oss/src/core/workflows/service.py`
+  - `api/oss/src/core/testsets/service.py`
+  - `api/oss/src/core/evaluations/service.py`
+
+Preferred fix for new work:
+- introduce/extend core interfaces and adapters
+- keep strict layer boundaries
+
 ## Import Aliases Best Practices
 
 The monorepo uses TypeScript path aliases for cleaner imports. Understanding when to use each pattern is important for maintainability.
