@@ -24,7 +24,7 @@ SSO provides team benefits:
 
 ## Supported Protocols
 
-Agenta supports **OpenID Connect (OIDC)** for SSO. This works with most enterprise identity providers:
+Agenta currently supports **OpenID Connect (OIDC)** for SSO (with SAML/SCIM coming soon). This works with most enterprise identity providers:
 
 - Okta
 - Azure Active Directory (Entra ID)
@@ -52,7 +52,7 @@ Create an OIDC application in your IdP with these settings:
 |---------|-------|
 | **Application Type** | Web Application |
 | **Grant Type** | Authorization Code |
-| **Redirect URI** | `https://{region}.cloud.agenta.ai/auth/callback/sso:{org}:{provider}` |
+| **Redirect URI** | `https://{region}.cloud.agenta.ai/auth/callback/sso:{organization_slug}:{provider_slug}` |
 | **Scopes** | `openid`, `email`, `profile` |
 
 You'll need these values from your IdP:
@@ -65,7 +65,7 @@ You'll need these values from your IdP:
 1. Navigate to **Settings** → **Access & Security** → **SSO Providers**
 2. Click **"Add Provider"**
 3. Enter the provider details:
-   - Provider name (e.g., "Okta", "Azure AD")
+   - Provider slu (e.g., "okta", "azure", "google")
    - Issuer URL
    - Client ID
    - Client Secret
@@ -123,7 +123,7 @@ allow_sso: true
 - Email and social sign-in disabled
 
 :::warning[Prevent Lockout]
-Always ensure at least one authentication method is available. Consider keeping a backup admin account with email access until SSO is fully tested.
+Always ensure at least one authentication method is available. Consider keeping a backup admin account with email access (`allow_root: true`) until SSO is fully tested.
 :::
 
 ## Multiple SSO Providers
@@ -147,7 +147,7 @@ Users choose which provider to authenticate with when signing in.
    - Application type: Web Application
 
 2. **Configure Settings**
-   - Sign-in redirect URI: `https://{region}.cloud.agenta.ai/auth/callback/sso:{org}:okta`
+   - Sign-in redirect URI: `https://{region}.cloud.agenta.ai/auth/callback/sso:{organization_slug}:okta`
    - Sign-out redirect URI: `https://{region}.cloud.agenta.ai`
    - Assignments: Assign users/groups
 
@@ -161,7 +161,7 @@ Users choose which provider to authenticate with when signing in.
 1. **Register Application**
    - Azure Portal → App registrations → New registration
    - Supported account types: Choose appropriate option
-   - Redirect URI: Web, `https://{region}.cloud.agenta.ai/auth/callback/sso:{org}:azure`
+   - Redirect URI: Web, `https://{region}.cloud.agenta.ai/auth/callback/sso:{organization_slug}:azure`
 
 2. **Configure Authentication**
    - Add platform: Web
@@ -180,7 +180,7 @@ Users choose which provider to authenticate with when signing in.
    - Application type: Web application
 
 2. **Configure Settings**
-   - Authorized redirect URIs: `https://{region}.cloud.agenta.ai/auth/callback/sso:{org}:google`
+   - Authorized redirect URIs: `https://{region}.cloud.agenta.ai/auth/callback/sso:{organization_slug}:google`
 
 3. **Get Credentials**
    - Copy Client ID
@@ -207,7 +207,7 @@ Users choose which provider to authenticate with when signing in.
 
 **Solution:**
 1. Check the exact redirect URI format
-2. Update your IdP to match: `https://{region}.cloud.agenta.ai/auth/callback/sso:{org}:{provider}`
+2. Update your IdP to match: `https://{region}.cloud.agenta.ai/auth/callback/sso:{organization_slug}:{provider_slug}`
 3. Ensure no trailing slashes or typos
 
 ### "Invalid client credentials"
@@ -246,11 +246,16 @@ Users choose which provider to authenticate with when signing in.
 
 ### Can I use SAML instead of OIDC?
 
-Currently, only OIDC is supported. SAML support may be added in the future.
+Currently, only OIDC is supported. SAML support will be added in the future.
+
+
+### Can I use SCIM along with SSO?
+
+Currently, only SCIM is not supported. SCIM support will be added in the future.
 
 ### What happens if my IdP goes down?
 
-Users won't be able to authenticate via SSO. If SSO is the only allowed method, users will be locked out until the IdP is restored. Consider keeping a backup authentication method for emergencies.
+Users won't be able to authenticate via SSO. If SSO is the only allowed method, users will be locked out until the IdP is restored. Consider keeping admin access on, on a separate non-personal account (`allow_root: true`) if this is important to you.
 
 ### Can users still use email/password after SSO is enabled?
 
