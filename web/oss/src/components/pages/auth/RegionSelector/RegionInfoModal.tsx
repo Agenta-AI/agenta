@@ -16,10 +16,10 @@ const RegionInfoModal = ({open, onClose}: RegionInfoModalProps) => {
                 </Paragraph>
                 <ul className="list-disc pl-5 text-[#586673]">
                     <li>EU: Frankfurt, Germany</li>
-                    <li>US: Virginia, USA</li>
+                    <li>US: Ohio, United States</li>
                 </ul>
                 <Paragraph className="!m-0 text-[#586673]">
-                    Regions are completely separate. No data is shared between regions. Choose a
+                    Regions are completely isolated. No data is shared between regions. Choose a
                     region based on data residency requirements and latency needs.
                 </Paragraph>
                 <Paragraph className="!m-0 text-[#586673]">
