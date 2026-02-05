@@ -1,23 +1,25 @@
 /**
- * AppRevision Entity Relations
+ * LegacyAppRevision Entity Relations
  *
- * Defines the parent-child relationships for app revision entities:
+ * Defines the parent-child relationships for OSS app revision entities:
  * - app → variant
- * - variant → appRevision
+ * - variant → legacyAppRevision
  *
  * These relations enable:
  * - Selection adapter generation (EntityPicker)
  * - Hierarchy navigation in cascading selectors
  * - Unified entity discovery
  *
+ * Note: This mirrors the appRevision relations but uses the legacy API endpoints.
+ *
  * @example
  * ```typescript
- * import { appToVariantRelation, variantToRevisionRelation } from '@agenta/entities/appRevision'
+ * import { ossAppToVariantRelation, ossVariantToRevisionRelation } from '@agenta/entities/legacyAppRevision'
  * import { entityRelationRegistry } from '@agenta/entities/shared'
  *
  * // Relations are auto-registered when this module is imported
- * const path = entityRelationRegistry.getPath("app", "appRevision")
- * // Returns: ["app", "variant", "appRevision"]
+ * const path = entityRelationRegistry.getPath("app", "legacyAppRevision")
+ * // Returns: ["app", "variant", "legacyAppRevision"]
  * ```
  */
 
@@ -26,7 +28,7 @@ import {atom} from "jotai"
 import type {EntityRelation, ListQueryState} from "../shared/molecule/types"
 import {entityRelationRegistry} from "../shared/relations/registry"
 
-import {appRevisionMolecule} from "./state/molecule"
+import {legacyAppRevisionMolecule} from "./state/molecule"
 import {
     appsQueryAtom,
     variantsQueryAtomFamily,
@@ -44,7 +46,7 @@ import {
  * Wraps the apps query to provide a ListQueryState for the root level.
  * This is a static atom (no parent ID) since apps are at the root.
  */
-const appsListAtom = atom<ListQueryState<AppListItem>>((get) => {
+export const ossAppsListAtom = atom<ListQueryState<AppListItem>>((get) => {
     const query = get(appsQueryAtom)
 
     return {
@@ -59,7 +61,7 @@ const appsListAtom = atom<ListQueryState<AppListItem>>((get) => {
  * Root-level relation type for apps.
  * Apps don't have a parent, so this is a special case.
  */
-export interface AppRootEntity {
+export interface OssAppRootEntity {
     id: string
     name: string
 }
@@ -71,7 +73,7 @@ export interface AppRootEntity {
 /**
  * Creates a ListQueryState from the variants list query.
  */
-const variantListAtomFamily = (appId: string) =>
+const ossVariantListAtomFamily = (appId: string) =>
     atom<ListQueryState<VariantListItem>>((get) => {
         const query = get(variantsQueryAtomFamily(appId))
 
@@ -84,7 +86,7 @@ const variantListAtomFamily = (appId: string) =>
     })
 
 /**
- * Relation from app to its variants.
+ * Relation from app to its variants (OSS version).
  *
  * Apps contain multiple variants (different configurations/prompts).
  * This relation enables the second level of the app → variant → revision hierarchy.
@@ -92,10 +94,10 @@ const variantListAtomFamily = (appId: string) =>
  * Note: childMolecule is undefined because variants are intermediate entities
  * without their own molecule. The selection adapter uses listAtomFamily for dropdown.
  */
-export const appToVariantRelation: EntityRelation<AppListItem, VariantListItem> = {
-    name: "variants",
+export const ossAppToVariantRelation: EntityRelation<AppListItem, VariantListItem> = {
+    name: "ossVariants",
     parentType: "app",
-    childType: "variant",
+    childType: "ossVariant",
 
     // Apps don't embed variant IDs in a simple field - they're fetched via API
     childIdsPath: () => [],
@@ -106,13 +108,15 @@ export const appToVariantRelation: EntityRelation<AppListItem, VariantListItem> 
     // Reference mode - variants are fetched separately
     mode: "reference",
 
-    // No child molecule for variants (they're intermediate entities, not full entities)
-    // The selection adapter uses listAtomFamily for dropdown population
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childMolecule: undefined as any,
+    // No child molecule for variants (they're intermediate entities)
+
+    childMolecule: undefined as unknown as EntityRelation<
+        AppListItem,
+        VariantListItem
+    >["childMolecule"],
 
     // List atom for selection UI
-    listAtomFamily: variantListAtomFamily,
+    listAtomFamily: ossVariantListAtomFamily,
 
     // Selection UI config
     selection: {
@@ -132,7 +136,7 @@ export const appToVariantRelation: EntityRelation<AppListItem, VariantListItem> 
 /**
  * Creates a ListQueryState from the revisions list query.
  */
-const revisionListAtomFamily = (variantId: string) =>
+const ossRevisionListAtomFamily = (variantId: string) =>
     atom<ListQueryState<RevisionListItem>>((get) => {
         const query = get(revisionsQueryAtomFamily(variantId))
 
@@ -145,19 +149,18 @@ const revisionListAtomFamily = (variantId: string) =>
     })
 
 /**
- * Relation from variant to its revisions.
+ * Relation from variant to its revisions (OSS version).
  *
  * Each variant can have multiple revisions (version history).
  * This is the leaf level of the app → variant → revision hierarchy.
  *
- * Note: The relation uses RevisionListItem for list display, while appRevisionMolecule
- * provides full AppRevisionData when a revision is selected. Type assertion is used
- * because the molecule data type (AppRevisionData) differs from the list item type.
+ * Note: Type assertion needed because molecule data type (LegacyAppRevisionData)
+ * differs from list item type (RevisionListItem).
  */
-export const variantToRevisionRelation: EntityRelation<VariantListItem, RevisionListItem> = {
-    name: "revisions",
-    parentType: "variant",
-    childType: "appRevision",
+export const ossVariantToRevisionRelation: EntityRelation<VariantListItem, RevisionListItem> = {
+    name: "ossRevisions",
+    parentType: "ossVariant",
+    childType: "legacyAppRevision",
 
     // Variants don't embed revision IDs - they're fetched via API
     childIdsPath: () => [],
@@ -169,13 +172,14 @@ export const variantToRevisionRelation: EntityRelation<VariantListItem, Revision
     mode: "reference",
 
     // Child molecule for fetching full revision data
-    // Note: Type assertion used because molecule data type (AppRevisionData)
-    // differs from list item type (RevisionListItem)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childMolecule: appRevisionMolecule as any,
+
+    childMolecule: legacyAppRevisionMolecule as unknown as EntityRelation<
+        VariantListItem,
+        RevisionListItem
+    >["childMolecule"],
 
     // List atom for selection UI
-    listAtomFamily: revisionListAtomFamily,
+    listAtomFamily: ossRevisionListAtomFamily,
 
     // Selection UI config
     selection: {
@@ -193,26 +197,20 @@ export const variantToRevisionRelation: EntityRelation<VariantListItem, Revision
 // ============================================================================
 
 /**
- * Register all app revision relations.
+ * Register all OSS app revision relations.
  * Called automatically when this module is imported.
  */
-export function registerAppRevisionRelations(): void {
-    entityRelationRegistry.register(appToVariantRelation)
-    entityRelationRegistry.register(variantToRevisionRelation)
+export function registerLegacyAppRevisionRelations(): void {
+    entityRelationRegistry.register(ossAppToVariantRelation)
+    entityRelationRegistry.register(ossVariantToRevisionRelation)
 }
 
 // Auto-register on import
-registerAppRevisionRelations()
+registerLegacyAppRevisionRelations()
 
 // ============================================================================
 // EXPORTS FOR SELECTION ADAPTERS
 // ============================================================================
-
-/**
- * Static apps list atom for root-level selection.
- * Used by selection adapters for the first level of hierarchy.
- */
-export {appsListAtom}
 
 /**
  * Re-export list item types for adapter use.

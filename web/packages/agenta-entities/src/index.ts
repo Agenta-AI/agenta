@@ -135,6 +135,24 @@ export {testsetMolecule as testset} from "./testset"
 export {appRevisionMolecule as appRevision} from "./appRevision"
 
 /**
+ * OSS app revision entity controller.
+ * Uses the legacy backend API (AppVariantRevision model).
+ * Implements RunnableCapability for input/output ports.
+ *
+ * Backend endpoints:
+ * - GET /variants/{variant_id}/revisions/{revision_number}/
+ * - POST /variants/revisions/query/
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(legacyAppRevision.atoms.data(revisionId))
+ * const inputPorts = useAtomValue(legacyAppRevision.selectors.inputPorts(revisionId))
+ * const isDirty = useAtomValue(legacyAppRevision.atoms.isDirty(revisionId))
+ * ```
+ */
+export {legacyAppRevisionMolecule as legacyAppRevision} from "./legacyAppRevision"
+
+/**
  * Trace span entity controller.
  * Manages trace span state with attribute editing.
  */
@@ -178,6 +196,7 @@ export {runnableBridge as runnable} from "./runnable"
 export type {Testcase} from "./testcase"
 export type {Revision, Testset} from "./testset"
 export type {AppRevisionData} from "./appRevision"
+export type {LegacyAppRevisionData} from "./legacyAppRevision"
 export type {TraceSpan} from "./trace"
 
 // Public API interfaces
@@ -200,6 +219,10 @@ export type {
 
 export {testsetSelectionConfig, type TestsetSelectionConfig} from "./testset"
 export {appRevisionSelectionConfig, type AppRevisionSelectionConfig} from "./appRevision"
+export {
+    legacyAppRevisionSelectionConfig,
+    type LegacyAppRevisionSelectionConfig,
+} from "./legacyAppRevision"
 
 // ============================================================================
 // SUBPATH IMPORTS (Advanced Usage)

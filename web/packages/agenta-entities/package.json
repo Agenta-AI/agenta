@@ -16,6 +16,7 @@
         "./shared/user": "./src/shared/user/index.ts",
         "./appRevision": "./src/appRevision/index.ts",
         "./appRevision/state": "./src/appRevision/state/index.ts",
+        "./legacyAppRevision": "./src/legacyAppRevision/index.ts",
         "./evaluatorRevision": "./src/evaluatorRevision/index.ts",
         "./loadable": "./src/loadable/index.ts",
         "./runnable": "./src/runnable/index.ts",
@@ -26,7 +27,8 @@
     "dependencies": {
         "@agenta/shared": "workspace:../agenta-shared",
         "jotai-scheduler": "^0.0.5",
-        "lodash": "^4.17.21"
+        "lodash": "^4.17.21",
+        "stable-hash": "^0.0.6"
     },
     "devDependencies": {
         "@floating-ui/react": "^0.26.0",
@@ -79,10 +81,10 @@
         "clsx": ">=2.0.0",
         "fast-deep-equal": ">=3.0.0",
         "immer": ">=10.0.0",
-        "js-yaml": ">=4.0.0",
         "jotai": ">=2.0.0",
         "jotai-family": ">=0.1.0",
         "jotai-tanstack-query": ">=0.9.0",
+        "js-yaml": ">=4.0.0",
         "lexical": ">=0.38.0",
         "react": ">=18.0.0",
         "usehooks-ts": ">=3.0.0",

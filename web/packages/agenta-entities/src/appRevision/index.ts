@@ -97,9 +97,11 @@ export {
     transformEnhancedVariant,
     transformApiRevision,
     transformAppToListItem,
+    extractRevisionParametersFromEnhanced,
+    extractRevisionParametersFromApiRevision,
+    // Deprecated agConfig extraction
     extractAgConfigFromEnhanced,
     extractAgConfigFromApi,
-    isValidUUID,
     // List API functions
     fetchVariantsList,
     fetchRevisionsList,

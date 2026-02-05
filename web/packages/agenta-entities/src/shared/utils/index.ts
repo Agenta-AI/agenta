@@ -129,3 +129,60 @@ export {
     type CreateNullSafeSelectorsConfig,
     type NullSafeSelectors,
 } from "./nullSafeAtoms"
+
+// Revision label utilities
+export {
+    // Types
+    type VersionedEntity,
+    type RevisionLabelOptions,
+    type RevisionLabelInfo,
+    // Local draft detection
+    isLocalDraftId,
+    extractSourceIdFromDraft,
+    // Version formatting
+    getVersionLabel,
+    formatLocalDraftLabel,
+    // Revision label formatting
+    getRevisionLabel,
+    getFullRevisionLabel,
+    // Comprehensive label info
+    getRevisionLabelInfo,
+} from "./revisionLabel"
+
+// Revision utilities (shared between appRevision and legacyAppRevision)
+export {
+    // Type guards
+    isArray,
+    isRecord,
+    toArray,
+    isValidUUID,
+    // URI parsing
+    type ParsedUriInfo,
+    parseRevisionUri,
+    extractRuntimePrefix,
+    extractRoutePath,
+    // Revision parameter extraction
+    type RawAgConfig,
+    extractRevisionParameters,
+    extractRevisionParametersFromEnhanced,
+    extractRevisionParametersFromApiRevision,
+    // Deprecated agConfig aliases
+    extractAgConfig,
+    extractAgConfigFromEnhanced,
+    extractAgConfigFromApiRevision,
+    // List item types
+    type AppListItem,
+    type VariantListItem,
+    type RevisionListItem,
+    // API response types
+    type ApiVariant,
+    type ApiRevisionListItem,
+    type ApiApp,
+    // Transform utilities
+    transformAppToListItem,
+    transformVariantToListItem,
+    transformRevisionToListItem,
+    // Enhanced variant types
+    type EnhancedVariantLike,
+    extractUriFromEnhanced,
+} from "./revisionUtils"

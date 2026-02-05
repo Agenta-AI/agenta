@@ -13,11 +13,12 @@ export {
     transformEnhancedVariant,
     transformApiRevision,
     transformAppToListItem,
-    // AgConfig extraction
+    // Revision parameter extraction
+    extractRevisionParametersFromEnhanced,
+    extractRevisionParametersFromApiRevision,
+    // Deprecated agConfig extraction
     extractAgConfigFromEnhanced,
     extractAgConfigFromApi,
-    // Validation
-    isValidUUID,
     // List API functions
     fetchAppsList,
     fetchVariantsList,

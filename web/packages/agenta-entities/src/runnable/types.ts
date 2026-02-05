@@ -11,12 +11,17 @@
 /**
  * Types of entities that can be added to the playground
  */
-export type EntityType = "appRevision" | "evaluatorRevision" | "testcase" | "span"
+export type EntityType =
+    | "appRevision"
+    | "legacyAppRevision"
+    | "evaluatorRevision"
+    | "testcase"
+    | "span"
 
 /**
  * Types of runnables (entities that can be executed)
  */
-export type RunnableType = "appRevision" | "evaluatorRevision"
+export type RunnableType = "appRevision" | "legacyAppRevision" | "evaluatorRevision"
 
 /**
  * Entity selection result from the entity selector modal

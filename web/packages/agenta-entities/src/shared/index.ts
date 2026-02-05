@@ -196,6 +196,17 @@ export {
     type AtomFamilyFn,
     type CreateNullSafeSelectorsConfig,
     type NullSafeSelectors,
+    // Revision label utilities
+    type VersionedEntity,
+    type RevisionLabelOptions,
+    type RevisionLabelInfo,
+    isLocalDraftId,
+    extractSourceIdFromDraft,
+    getVersionLabel,
+    formatLocalDraftLabel,
+    getRevisionLabel,
+    getFullRevisionLabel,
+    getRevisionLabelInfo,
 } from "./utils"
 
 // ============================================================================
@@ -403,3 +414,44 @@ export {
     type TableRowHelpers,
     type TableRowHelpersConfig,
 } from "./paginated"
+
+// ============================================================================
+// REVISION UTILITIES (shared between appRevision and legacyAppRevision)
+// ============================================================================
+
+export {
+    // Type guards
+    isArray,
+    isRecord,
+    toArray,
+    isValidUUID,
+    // URI parsing
+    type ParsedUriInfo,
+    parseRevisionUri,
+    extractRuntimePrefix,
+    extractRoutePath,
+    // Revision parameter extraction
+    type RawAgConfig,
+    extractRevisionParameters,
+    extractRevisionParametersFromEnhanced,
+    extractRevisionParametersFromApiRevision,
+    // Deprecated agConfig aliases
+    extractAgConfig,
+    extractAgConfigFromEnhanced,
+    extractAgConfigFromApiRevision,
+    // List item types
+    type AppListItem,
+    type VariantListItem,
+    type RevisionListItem,
+    // API response types
+    type ApiVariant,
+    type ApiRevisionListItem,
+    type ApiApp,
+    // Transform utilities
+    transformAppToListItem,
+    transformVariantToListItem,
+    transformRevisionToListItem,
+    // Enhanced variant types
+    type EnhancedVariantLike,
+    extractUriFromEnhanced,
+} from "./utils"

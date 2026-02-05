@@ -704,6 +704,9 @@ importers:
       react:
         specifier: '>=18.0.0'
         version: 19.0.0
+      stable-hash:
+        specifier: ^0.0.6
+        version: 0.0.6
       uuid:
         specifier: '>=9.0.0'
         version: 11.1.0
@@ -988,7 +991,7 @@ importers:
         version: 2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0)
       next:
         specifier: '>=14.0.0'
-        version: 15.5.9(@babel/core@7.28.5)(@playwright/test@1.57.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+        version: 15.5.10(@babel/core@7.28.5)(@playwright/test@1.57.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react:
         specifier: '>=18.0.0'
         version: 19.0.0
@@ -1994,9 +1997,6 @@ packages:
   '@next/env@15.5.10':
     resolution: {integrity: sha512-plg+9A/KoZcTS26fe15LHg+QxReTazrIOoKKUC3Uz4leGGeNPgLHdevVraAAOX0snnUs3WkRx3eUQpj9mreG6A==}
 
-  '@next/env@15.5.9':
-    resolution: {integrity: sha512-4GlTZ+EJM7WaW2HEZcyU317tIQDjkQIyENDLxYJfSWlfqguN+dHkZgyQTV/7ykvobU7yEH5gKvreNrH4B6QgIg==}
-
   '@next/eslint-plugin-next@15.5.10':
     resolution: {integrity: sha512-fDpxcy6G7Il4lQVVsaJD0fdC2/+SmuBGTF+edRLlsR4ZFOE3W2VyzrrGYdg/pHW8TydeAdSVM+mIzITGtZ3yWA==}
 
@@ -2237,6 +2237,13 @@ packages:
         optional: true
       moment:
         optional: true
+
+  '@rc-component/portal@2.0.1':
+    resolution: {integrity: sha512-46KYuA7Udb1LAaLIdDrfmDz3wzyeEZxIURJCn+heoQVbhtW5PQkhBSQtRus+DUdsknmTFQulxSnqrbX3CI4yXw==}
+    engines: {node: '>=12.x'}
+    peerDependencies:
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
 
   '@rc-component/portal@2.2.0':
     resolution: {integrity: sha512-oc6FlA+uXCMiwArHsJyHcIkX4q6uKyndrPol2eWX8YPkAnztHOPsFIRtmWG4BMlGE5h7YIRE3NiaJ5VS8Lb1QQ==}
@@ -4648,27 +4655,6 @@ packages:
       sass:
         optional: true
 
-  next@15.5.9:
-    resolution: {integrity: sha512-agNLK89seZEtC5zUHwtut0+tNrc0Xw4FT/Dg+B/VLEo9pAcS9rtTKpek3V6kVcVwsB2YlqMaHdfZL4eLEVYuCg==}
-    engines: {node: ^18.18.0 || ^19.8.0 || >= 20.0.0}
-    hasBin: true
-    peerDependencies:
-      '@opentelemetry/api': ^1.1.0
-      '@playwright/test': ^1.51.1
-      babel-plugin-react-compiler: '*'
-      react: ^18.2.0 || 19.0.0-rc-de68d2f4-20241204 || ^19.0.0
-      react-dom: ^18.2.0 || 19.0.0-rc-de68d2f4-20241204 || ^19.0.0
-      sass: ^1.3.0
-    peerDependenciesMeta:
-      '@opentelemetry/api':
-        optional: true
-      '@playwright/test':
-        optional: true
-      babel-plugin-react-compiler:
-        optional: true
-      sass:
-        optional: true
-
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
@@ -6268,13 +6254,13 @@ snapshots:
 
   '@floating-ui/react-dom@1.3.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
-      '@floating-ui/dom': 1.7.4
+      '@floating-ui/dom': 1.7.2
       react: 19.0.0
       react-dom: 19.0.0(react@19.0.0)
 
   '@floating-ui/react-dom@2.1.4(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
-      '@floating-ui/dom': 1.7.4
+      '@floating-ui/dom': 1.7.2
       react: 19.0.0
       react-dom: 19.0.0(react@19.0.0)
 
@@ -6707,8 +6693,6 @@ snapshots:
 
   '@next/env@15.5.10': {}
 
-  '@next/env@15.5.9': {}
-
   '@next/eslint-plugin-next@15.5.10':
     dependencies:
       fast-glob: 3.3.1
@@ -6817,7 +6801,7 @@ snapshots:
   '@rc-component/dialog@1.5.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
       '@rc-component/motion': 1.1.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@rc-component/portal': 2.2.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      '@rc-component/portal': 2.0.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@rc-component/util': 1.7.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       clsx: 2.1.1
       react: 19.0.0
@@ -6826,7 +6810,7 @@ snapshots:
   '@rc-component/drawer@1.3.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
       '@rc-component/motion': 1.1.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@rc-component/portal': 2.2.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      '@rc-component/portal': 2.0.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@rc-component/util': 1.7.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       clsx: 2.1.1
       react: 19.0.0
@@ -6851,7 +6835,7 @@ snapshots:
   '@rc-component/image@1.5.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
       '@rc-component/motion': 1.1.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@rc-component/portal': 2.2.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      '@rc-component/portal': 2.0.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@rc-component/util': 1.7.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       clsx: 2.1.1
       react: 19.0.0
@@ -6946,6 +6930,13 @@ snapshots:
     optionalDependencies:
       date-fns: 3.6.0
       dayjs: 1.11.13
+
+  '@rc-component/portal@2.0.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
+    dependencies:
+      '@rc-component/util': 1.7.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      clsx: 2.1.1
+      react: 19.0.0
+      react-dom: 19.0.0(react@19.0.0)
 
   '@rc-component/portal@2.2.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
@@ -7060,7 +7051,7 @@ snapshots:
 
   '@rc-component/tour@2.2.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
-      '@rc-component/portal': 2.2.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      '@rc-component/portal': 2.0.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@rc-component/trigger': 3.8.2(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@rc-component/util': 1.7.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       clsx: 2.1.1
@@ -9621,30 +9612,6 @@ snapshots:
   next@15.5.10(@babel/core@7.28.5)(@playwright/test@1.57.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
     dependencies:
       '@next/env': 15.5.10
-      '@swc/helpers': 0.5.15
-      caniuse-lite: 1.0.30001760
-      postcss: 8.4.31
-      react: 19.0.0
-      react-dom: 19.0.0(react@19.0.0)
-      styled-jsx: 5.1.6(@babel/core@7.28.5)(react@19.0.0)
-    optionalDependencies:
-      '@next/swc-darwin-arm64': 15.5.7
-      '@next/swc-darwin-x64': 15.5.7
-      '@next/swc-linux-arm64-gnu': 15.5.7
-      '@next/swc-linux-arm64-musl': 15.5.7
-      '@next/swc-linux-x64-gnu': 15.5.7
-      '@next/swc-linux-x64-musl': 15.5.7
-      '@next/swc-win32-arm64-msvc': 15.5.7
-      '@next/swc-win32-x64-msvc': 15.5.7
-      '@playwright/test': 1.57.0
-      sharp: 0.34.5
-    transitivePeerDependencies:
-      - '@babel/core'
-      - babel-plugin-macros
-
-  next@15.5.9(@babel/core@7.28.5)(@playwright/test@1.57.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
-    dependencies:
-      '@next/env': 15.5.9
       '@swc/helpers': 0.5.15
       caniuse-lite: 1.0.30001760
       postcss: 8.4.31
