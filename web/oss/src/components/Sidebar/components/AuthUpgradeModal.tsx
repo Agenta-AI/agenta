@@ -1,5 +1,6 @@
 import {useMemo, useRef, useState} from "react"
 
+import {EnhancedModal as Modal} from "@agenta/ui"
 import {
     AppleOutlined,
     FacebookOutlined,
@@ -9,7 +10,6 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
-import {EnhancedModal as Modal} from "@agenta/ui"
 import {Alert, Button, Divider, Typography} from "antd"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
