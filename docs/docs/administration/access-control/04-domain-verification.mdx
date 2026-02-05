@@ -1,12 +1,12 @@
 ---
-title: Domain Verification
-description: Verify email domains to enable auto-join and domain-restricted access
+title: Verified Domains
+description: Verify domains to enable auto-join and domain-only access
 slug: /administration/access-control/domain-verification
 ---
 
 # Domain Verification
 
-Domain verification establishes your organization's authority over an email domain (e.g., `acme.com`). Once verified, you can automatically add users with matching email domains and restrict access to verified domains only.
+Domain verification establishes your organization's authority over a domain (e.g., `acme.com`). Once verified, you can automatically add users with matching email domains and restrict access to verified domains only.
 
 :::info[Plan availability]
 Domain verification is available on **Business** and **Enterprise** plans. You can upgrade from your billing settings or see options at https://agenta.ai/pricing.
@@ -45,10 +45,10 @@ After adding the domain, you'll see:
 
 ```
 Domain: acme.com
-Status: Unverified
+Status: Pending
 
 DNS Record to Add:
-_agenta-verification.acme.com TXT "agenta-verify=J8f2KmP9nQ4vR7sT"
+_agenta-verification.acme.com TXT "agenta-verification=J8f2KmP9nQ4vR7sT"
 ```
 
 Copy the full DNS record value.
@@ -63,7 +63,7 @@ Add the TXT record in your DNS provider:
 2. Click **Add record**
 3. Type: `TXT`
 4. Name: `_agenta-verification`
-5. Content: `agenta-verify=J8f2KmP9nQ4vR7sT`
+5. Content: `agenta-verification=J8f2KmP9nQ4vR7sT`
 6. Click **Save**
 
 #### AWS Route 53
@@ -73,7 +73,7 @@ Add the TXT record in your DNS provider:
 3. Click **Create record**
 4. Record name: `_agenta-verification`
 5. Record type: `TXT`
-6. Value: `"agenta-verify=J8f2KmP9nQ4vR7sT"`
+6. Value: `"agenta-verification=J8f2KmP9nQ4vR7sT"`
 7. Click **Create records**
 
 #### Google Domains / Squarespace
@@ -81,7 +81,7 @@ Add the TXT record in your DNS provider:
 1. Go to **DNS** → **Custom records**
 2. Host name: `_agenta-verification`
 3. Type: `TXT`
-4. Data: `agenta-verify=J8f2KmP9nQ4vR7sT`
+4. Data: `agenta-verification=J8f2KmP9nQ4vR7sT`
 5. Click **Save**
 
 #### Namecheap
@@ -90,7 +90,7 @@ Add the TXT record in your DNS provider:
 2. Add New Record
 3. Type: `TXT Record`
 4. Host: `_agenta-verification`
-5. Value: `agenta-verify=J8f2KmP9nQ4vR7sT`
+5. Value: `agenta-verification=J8f2KmP9nQ4vR7sT`
 6. Click **Save**
 
 ### Step 4: Verify Domain
@@ -172,7 +172,7 @@ This prevents conflicts and ensures clear domain ownership.
 ✓ Right to enable domain-only restrictions
 ✓ Organizational authority over the domain
 
-✗ Does NOT grant authentication (users still prove identity)
+✗ Does NOT grant authentication (user accounts still prove identity)
 ✗ Does NOT automatically migrate existing users
 ✗ Does NOT affect other organizations
 
@@ -239,7 +239,7 @@ Usually 5-60 minutes, but can take up to 48 hours depending on TTL settings.
 
 ### Can I verify subdomains?
 
-Subdomain verification is not currently supported. Verify the parent domain instead (e.g., verify `acme.com` to cover all `@acme.com` emails).
+Subdomain verification is not currently supported. Verify the parent domain instead (e.g., verify `acme.com` to cover all `@acme.com` emails). This will be available soon.
 
 ### What if I delete a verified domain?
 
