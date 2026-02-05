@@ -44,7 +44,7 @@ from oss.src.utils.helpers import get_slug_from_name_and_id
 
 
 # Define constants
-DEFAULT_BATCH_SIZE = 200
+DEFAULT_BATCH_SIZE = 1000
 WORKFLOW_MARKER_KEY = "__workflow__"
 
 
