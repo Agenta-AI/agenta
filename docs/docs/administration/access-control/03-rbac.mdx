@@ -1,0 +1,73 @@
+---
+title: Role-Based Access Control (RBAC)
+description: Understand roles and permissions in Agenta organizations
+slug: /administration/access-control/rbac
+---
+
+# Role-Based Access Control (RBAC)
+
+Agenta uses role-based access control (RBAC) to manage what members can do inside an **organization** and its **projects**.
+
+:::info[Plan availability]
+RBAC is available on **Business** and **Enterprise** plans. You can upgrade from your billing settings or see options at https://agenta.ai/pricing.
+:::
+
+## Roles
+
+Agenta provides these built-in roles:
+
+| Role | What it is for |
+|------|-----------------|
+| **Owner** | Full control of the organization, including member management |
+| **Admin** | Administer members and organization settings |
+| **Editor** | Create and edit most resources in projects |
+| **Viewer** | Read-only access |
+| **Evaluator** | Run evaluations and review results |
+| **Deployment Manager** | Manage deployments |
+
+## Permissions
+
+Under the hood, Agenta authorizes requests using granular permissions. These permissions cover actions and resources across the application, such as:
+
+- Applications and variants
+- Workflows
+- Evaluations and test sets
+- Observability (traces/spans, annotations)
+- Secrets and API keys
+- Deployments and environments
+- Organization membership and roles
+- Billing (for owners)
+
+Owners have full access. Other roles have a default permission set aligned with their responsibilities.
+
+## Managing Roles
+
+### Assign a Role
+
+When inviting a member, choose a role from **Settings** → **Members**.
+
+### Change a Role
+
+Owners and Admins can change roles from **Settings** → **Members**.
+
+## Best Practices
+
+- Give most contributors **Editor** access, and reserve **Owner** access for a small number of people.
+- Use **Viewer** for stakeholders who need visibility but should not change production configurations.
+- Use **Evaluator** for teammates focused on running evaluations.
+- Use **Deployment Manager** for teammates focused on guarded deployments.
+
+## FAQ
+
+### Can I set different roles per project?
+
+Project-level roles are currently not supported. This will be available in the future.
+
+### Can I create custom roles?
+
+Custom roles are not currently supported. This will be available in the future.
+
+### What's the difference between Owner and Admin?
+
+- **Owner**: Full control of the organization, including billing.
+- **Admin**: Administer members and settings, without full owner privileges.
