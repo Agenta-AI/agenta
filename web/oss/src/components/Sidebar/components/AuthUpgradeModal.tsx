@@ -170,7 +170,7 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
             title="Additional authentication required"
             footer={null}
             width={520}
-            destroyOnClose
+            destroyOnHidden
         >
             <div className="flex flex-col gap-4">
                 {organizationName && (
