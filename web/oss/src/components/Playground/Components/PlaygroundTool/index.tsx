@@ -8,9 +8,11 @@ import {v4 as uuidv4} from "uuid"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import LLMIconMap from "@/oss/components/LLMIcons"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {
+    moleculeBackedVariantAtomFamily,
+    moleculeBackedPromptsAtomFamily,
+} from "@/oss/components/Playground/state/atoms"
 import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import toolsSpecs from "../PlaygroundVariantConfigPrompt/assets/tools.specs.json"
@@ -394,10 +396,14 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
     const fallbackIcon =
         fallbackProvider?.iconKey != null ? LLMIconMap[fallbackProvider.iconKey] : undefined
 
-    useAtomValue(variantByRevisionIdAtomFamily(variantId))
+    // Use molecule-backed atoms for single source of truth
+    useAtomValue(moleculeBackedVariantAtomFamily(variantId))
     const appUriInfo = useAtomValue(appUriInfoAtom)
     const setPrompts = useSetAtom(
-        useMemo(() => promptsAtomFamily(variantId), [variantId, appUriInfo?.routePath]),
+        useMemo(
+            () => moleculeBackedPromptsAtomFamily(variantId),
+            [variantId, appUriInfo?.routePath],
+        ),
     )
 
     const deleteMessage = useCallback(() => {
