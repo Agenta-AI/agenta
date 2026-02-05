@@ -241,6 +241,7 @@ export interface VariantListItem {
     appId: string
     baseId?: string
     baseName?: string
+    uri?: string
 }
 
 /**
@@ -250,6 +251,8 @@ export interface RevisionListItem {
     id: string
     revision: number
     variantId: string
+    appId?: string
+    uri?: string
     commitMessage?: string
     createdAt?: string
     author?: string
@@ -268,6 +271,7 @@ export interface ApiVariant {
     base_id: string
     base_name: string
     app_id: string
+    uri?: string
     revision?: number
     created_at?: string
     updated_at?: string
@@ -329,6 +333,7 @@ export function transformVariantToListItem(
         appId: variant.app_id || fallbackAppId || "",
         baseId: variant.base_id,
         baseName: variant.base_name,
+        uri: variant.uri,
     }
 }
 
@@ -338,11 +343,14 @@ export function transformVariantToListItem(
 export function transformRevisionToListItem(
     revision: ApiRevisionListItem,
     variantId: string,
+    context?: {appId?: string; uri?: string},
 ): RevisionListItem {
     return {
         id: revision.id,
         revision: revision.revision,
         variantId,
+        appId: context?.appId,
+        uri: context?.uri,
         commitMessage: revision.commit_message,
         createdAt: revision.created_at,
         author: revision.modified_by,

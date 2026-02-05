@@ -26,6 +26,7 @@
         "jsonrepair": "^3.0.0"
     },
     "devDependencies": {
+        "typescript": "5.8.3",
         "@types/node": "^20.8.10",
         "@types/react": "^19.0.10"
     },

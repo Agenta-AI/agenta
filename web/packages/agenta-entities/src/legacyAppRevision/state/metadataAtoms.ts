@@ -214,6 +214,88 @@ function normalizeOptions(rawOptions: unknown[] | undefined): SelectOptions | un
 }
 
 /**
+ * Check if a schema is a const-discriminated anyOf (like response_format)
+ */
+function isConstDiscriminatedAnyOf(schemaRecord: Record<string, unknown>): boolean {
+    const anyOf = schemaRecord.anyOf as unknown[] | undefined
+    if (!anyOf || !Array.isArray(anyOf)) return false
+
+    // Check if at least one anyOf branch has a const-discriminated type property
+    return anyOf.some((branch) => {
+        if (typeof branch !== "object" || branch === null) return false
+        const branchRecord = branch as Record<string, unknown>
+        if (branchRecord.type !== "object") return false
+        const props = branchRecord.properties as Record<string, unknown> | undefined
+        if (!props) return false
+        const typeProp = props.type as Record<string, unknown> | undefined
+        return typeProp && "const" in typeProp
+    })
+}
+
+/**
+ * Process a const-discriminated anyOf schema into compound metadata
+ * This handles schemas like response_format with type: text | json_object | json_schema
+ */
+function processAnyOfToCompound(
+    schemaRecord: Record<string, unknown>,
+    key: string,
+): ConfigMetadata {
+    const anyOf = schemaRecord.anyOf as unknown[]
+    const options: {label: string; value: string; config?: Record<string, unknown>}[] = []
+
+    for (const branch of anyOf) {
+        if (typeof branch !== "object" || branch === null) continue
+        const branchRecord = branch as Record<string, unknown>
+
+        // Skip null type branches (for nullable)
+        if (branchRecord.type === "null") continue
+
+        // Handle const-discriminated objects
+        if (branchRecord.type === "object") {
+            const props = branchRecord.properties as Record<string, unknown> | undefined
+            if (!props) continue
+
+            const typeProp = props.type as Record<string, unknown> | undefined
+            if (typeProp && "const" in typeProp) {
+                const formatType = typeProp.const as string
+                const label = (branchRecord.title as string) || formatType
+
+                // Extract additional configuration from other properties
+                const extraConfig: Record<string, unknown> = {}
+                for (const [propKey, propValue] of Object.entries(props)) {
+                    if (propKey !== "type") {
+                        extraConfig[propKey] = propValue
+                    }
+                }
+
+                options.push({
+                    label,
+                    value: formatType,
+                    config: {
+                        type: formatType,
+                        ...extraConfig,
+                    },
+                })
+            }
+        }
+    }
+
+    return {
+        type: "compound",
+        title: (schemaRecord.title as string) || key,
+        description: schemaRecord.description as string | undefined,
+        key,
+        nullable: anyOf.some(
+            (s) =>
+                typeof s === "object" &&
+                s !== null &&
+                (s as Record<string, unknown>).type === "null",
+        ),
+        options,
+    } as ConfigMetadata
+}
+
+/**
  * Hash a schema property and store it in the metadata atom.
  * Returns the hash for use as __metadata.
  *
@@ -221,10 +303,25 @@ function normalizeOptions(rawOptions: unknown[] | undefined): SelectOptions | un
  * - integer → number with isInteger: true
  * - minimum/maximum → min/max
  * - enum → options array
+ * - anyOf with const-discriminated type → compound
  */
 export function hashMetadata(schema: EntitySchemaProperty, key: string): string {
     const schemaRecord = schema as unknown as Record<string, unknown>
     const schemaType = schema.type as string
+
+    // Check for anyOf schemas (like response_format) and convert to compound
+    if (isConstDiscriminatedAnyOf(schemaRecord)) {
+        const metadata = processAnyOfToCompound(schemaRecord, key)
+
+        // Generate stable hash
+        const weakHash = stableHash(metadata)
+        const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
+
+        // Store in global metadata atom
+        updateMetadataAtom({[hash]: metadata})
+
+        return hash
+    }
 
     // Convert integer to number with isInteger flag (OSS convention)
     const isInteger = schemaType === "integer"

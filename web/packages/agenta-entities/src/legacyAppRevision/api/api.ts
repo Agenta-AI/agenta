@@ -566,15 +566,22 @@ export async function fetchRevisionsList(
     if (!projectId || !variantId) return []
 
     try {
-        const response = await axios.get(`${getAgentaApiUrl()}/variants/${variantId}/revisions`, {
-            params: {project_id: projectId},
-        })
+        const [response, variantDetail] = await Promise.all([
+            axios.get(`${getAgentaApiUrl()}/variants/${variantId}/revisions`, {
+                params: {project_id: projectId},
+            }),
+            fetchVariantDetail(variantId, projectId),
+        ])
 
         const data = response.data as ApiRevisionListItem[] | undefined
         if (!data || !Array.isArray(data)) return []
 
+        const context = variantDetail
+            ? {appId: variantDetail.appId, uri: variantDetail.uri}
+            : undefined
+
         // Transform using shared utility
-        return data.map((rev) => transformRevisionToListItem(rev, variantId))
+        return data.map((rev) => transformRevisionToListItem(rev, variantId, context))
     } catch (error) {
         console.error("[fetchRevisionsList] Failed to fetch revisions:", error)
         return []

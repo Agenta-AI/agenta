@@ -17,7 +17,7 @@ import {
     chatTurnIdsAtom,
     // logicalTurnIndexAtom,
 } from "@/oss/state/generation/entities"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {cancelTestAtom} from "@/oss/state/newPlayground/mutations/execution"
 import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
 
@@ -88,7 +88,7 @@ export const attachAssistantToLastTurnAtom = atom(
         // Build assistant message using baseline metadata if available
         let node: any
         try {
-            const revPrompts = (get(promptsAtomFamily(baseline)) || []) as any[]
+            const revPrompts = (get(moleculeBackedPromptsAtomFamily(baseline)) || []) as any[]
             const sample = revPrompts
                 .flatMap((p: any) => p?.messages?.value || [])
                 .find(Boolean) as any
@@ -144,7 +144,7 @@ export const runChatTurnAtom = atom(
         if (variantId) {
             const rowId = turnId
             // map[variantId] || `turn-${variantId}-${turnId}`
-            set(triggerWebWorkerTestAtom, {rowId, variantId, messageId})
+            set(triggerWebWorkerTestAtom, {rowId, revisionId: variantId, messageId})
             return
         }
 
@@ -161,7 +161,7 @@ export const runChatTurnAtom = atom(
             for (const rev of displayed) {
                 const rowId = turnId
                 //  map[rev] || `turn-${rev}-${turnId}`
-                set(triggerWebWorkerTestAtom, {rowId, variantId: rev, messageId})
+                set(triggerWebWorkerTestAtom, {rowId, revisionId: rev, messageId})
             }
         } else {
             // Single run without variant and no displayed revisions: let worker resolve baseline

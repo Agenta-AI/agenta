@@ -17,12 +17,12 @@ import {produce} from "immer"
 import {atom} from "jotai"
 import type {Atom, WritableAtom} from "jotai"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {extractVariablesFromAgConfig} from "../../runnable/utils"
 import type {QueryState} from "../../shared"
 import type {ListQueryState} from "../../shared"
-import {isLocalDraftId} from "../../shared"
+import {extractRoutePath, extractRuntimePrefix, isLocalDraftId} from "../../shared"
 import {
     fetchOssRevisionById,
     fetchOssRevisionEnriched,
@@ -102,25 +102,6 @@ export const variantDetailCacheAtomFamily = atomFamily((variantId: string) =>
             enabled,
         }
     }),
-)
-
-/**
- * Variant context atom family
- * Stores the variantId associated with each revision for enriched queries.
- * This is set when a revision is selected/loaded in the UI.
- */
-export const revisionVariantContextAtomFamily = atomFamily((_revisionId: string) =>
-    atom<string | null>(null),
-)
-
-/**
- * Set variant context for a revision
- */
-export const setRevisionVariantContextAtom = atom(
-    null,
-    (_get, set, revisionId: string, variantId: string | null) => {
-        set(revisionVariantContextAtomFamily(revisionId), variantId)
-    },
 )
 
 // ============================================================================
@@ -532,6 +513,54 @@ export const revisionsListQueryStateAtomFamily = atomFamily((variantId: string) 
 )
 
 // ============================================================================
+// REVISION LIST CACHE LOOKUP
+// ============================================================================
+
+const findRevisionListItemInCache = (
+    queryClient: import("@tanstack/react-query").QueryClient,
+    revisionId: string,
+): RevisionListItem | null => {
+    const queries = queryClient.getQueriesData({queryKey: ["oss-revisions-for-selection"]})
+
+    for (const [_queryKey, data] of queries) {
+        if (!Array.isArray(data)) continue
+        const found = data.find((item) => (item as RevisionListItem)?.id === revisionId)
+        if (found) {
+            return found as RevisionListItem
+        }
+    }
+
+    return null
+}
+
+const revisionListItemFromCacheAtomFamily = atomFamily((revisionId: string) =>
+    atom<RevisionListItem | null>((get) => {
+        const queryClient = get(queryClientAtom)
+        return findRevisionListItemInCache(queryClient, revisionId)
+    }),
+)
+
+const mergeRevisionListContext = (
+    data: LegacyAppRevisionData | null,
+    listItem: RevisionListItem | null,
+): LegacyAppRevisionData | null => {
+    if (!data || !listItem) return data
+
+    const uri = data.uri ?? listItem.uri
+    const runtimePrefix = data.runtimePrefix ?? extractRuntimePrefix(uri)
+    const routePath = data.routePath ?? extractRoutePath(uri)
+
+    return {
+        ...data,
+        variantId: data.variantId ?? listItem.variantId,
+        appId: data.appId ?? listItem.appId,
+        uri,
+        runtimePrefix,
+        routePath,
+    }
+}
+
+// ============================================================================
 // LIST COMPOSITION WITH LOCAL DRAFTS
 // ============================================================================
 
@@ -674,29 +703,29 @@ export const revisionsListWithDraftsAtomFamily = atomFamily((variantId: string) 
 
 /**
  * Get enriched server data for a revision.
- * Uses variant context to fetch complete data with URI.
+ * Uses revision list cache to fetch complete data with URI.
  */
 export const legacyAppRevisionEnrichedDataFamily = atomFamily((revisionId: string) =>
     atom<LegacyAppRevisionData | null>((get) => {
-        const variantId = get(revisionVariantContextAtomFamily(revisionId))
+        const listItem = get(revisionListItemFromCacheAtomFamily(revisionId))
+        const variantId = listItem?.variantId
 
-        // If we have variant context, use enriched query
+        // If we have a variantId from the list cache, use enriched query
         if (variantId) {
             const enrichedKey = createEnrichedKey(revisionId, variantId)
             const enrichedQuery = get(enrichedQueryAtomFamily(enrichedKey))
             if (enrichedQuery.data) {
-                return enrichedQuery.data
+                return mergeRevisionListContext(enrichedQuery.data, listItem)
             }
         }
 
         // Fall back to basic query (without URI enrichment)
         const query = get(legacyAppRevisionQueryAtomFamily(revisionId))
-        return query.data ?? null
+        return mergeRevisionListContext(query.data ?? null, listItem)
     }),
 )
 
 /**
- * @deprecated Use setRevisionVariantContextAtom instead.
  * Legacy server data storage - kept for backward compatibility during migration.
  */
 export const legacyAppRevisionServerDataAtomFamily = atomFamily((_revisionId: string) =>
@@ -704,27 +733,21 @@ export const legacyAppRevisionServerDataAtomFamily = atomFamily((_revisionId: st
 )
 
 /**
- * @deprecated Use setRevisionVariantContextAtom to set variant context instead.
- * Set server data for a revision.
+ * Set server data for a revision (legacy bridge only).
  */
 export const setServerDataAtom = atom(
     null,
     (_get, set, revisionId: string, data: LegacyAppRevisionData) => {
         // Store the data in legacy atom for backward compatibility
         set(legacyAppRevisionServerDataAtomFamily(revisionId), data)
-        // Also set variant context if available
-        if (data.variantId) {
-            set(revisionVariantContextAtomFamily(revisionId), data.variantId)
-        }
     },
 )
 
 /**
- * Clear server data and variant context for a revision.
+ * Clear server data and draft for a revision.
  */
 export const clearServerDataAtom = atom(null, (_get, set, revisionId: string) => {
     set(legacyAppRevisionServerDataAtomFamily(revisionId), null)
-    set(revisionVariantContextAtomFamily(revisionId), null)
     set(getDraftAtom(revisionId), null)
 })
 
@@ -755,12 +778,13 @@ export const legacyAppRevisionEntityWithBridgeAtomFamily = atomFamily((revisionI
 export const legacyAppRevisionServerDataSelectorFamily = atomFamily((revisionId: string) =>
     atom<LegacyAppRevisionData | null>((get) => {
         const bridgeData = get(legacyAppRevisionServerDataAtomFamily(revisionId))
+        const listItem = get(revisionListItemFromCacheAtomFamily(revisionId))
         if (bridgeData) {
-            return bridgeData
+            return mergeRevisionListContext(bridgeData, listItem)
         }
 
         const enrichedData = get(legacyAppRevisionEnrichedDataFamily(revisionId))
-        return enrichedData
+        return mergeRevisionListContext(enrichedData, listItem)
     }),
 )
 
@@ -815,9 +839,28 @@ export const updateLegacyAppRevisionAtom = atom(
 
 /**
  * Discard OSS app revision draft
+ *
+ * Clears both:
+ * 1. The draft atom (local edits)
+ * 2. The enhanced prompts/custom properties from server data atom
+ *    (these may have been seeded during initial derivation from schema)
+ *
+ * This ensures the UI falls back to the original query data.
  */
-export const discardLegacyAppRevisionDraftAtom = atom(null, (_get, set, revisionId: string) => {
+export const discardLegacyAppRevisionDraftAtom = atom(null, (get, set, revisionId: string) => {
     set(getDraftAtom(revisionId), null)
+
+    // 2. Clear enhanced prompts/custom properties from server data atom
+    // These may have been seeded during initial derivation from schema
+    // and need to be cleared so the UI re-derives from original query data
+    const serverData = get(legacyAppRevisionServerDataAtomFamily(revisionId))
+    if (serverData && (serverData.enhancedPrompts || serverData.enhancedCustomProperties)) {
+        const cleanedServerData = produce(serverData, (draft) => {
+            delete draft.enhancedPrompts
+            delete draft.enhancedCustomProperties
+        })
+        set(legacyAppRevisionServerDataAtomFamily(revisionId), cleanedServerData)
+    }
 })
 
 // ============================================================================
@@ -1081,7 +1124,57 @@ export const updatePropertyAtom = atom(
 )
 
 /**
- * Helper to recursively find and update a property by __id
+ * Helper to recursively find and update a property by __id in an object
+ *
+ * Searches:
+ * - Direct properties with __id
+ * - Nested objects (e.g., llmConfig.model, llmConfig.temperature)
+ * - Arrays (recurses into them)
+ *
+ * When a property is found:
+ * - If it has `value` directly, update that
+ * - Otherwise replace the entire property
+ */
+function updatePropertyInObject(
+    obj: Record<string, unknown>,
+    propertyId: string,
+    value: unknown,
+): boolean {
+    for (const key of Object.keys(obj)) {
+        const prop = obj[key]
+        if (!prop || typeof prop !== "object") continue
+
+        const typedProp = prop as {__id?: string; value?: unknown; [key: string]: unknown}
+
+        // Check if this property matches
+        if (typedProp.__id === propertyId) {
+            const hasValue = "value" in typedProp
+            if (hasValue) {
+                typedProp.value = value
+            } else {
+                obj[key] = value
+            }
+            return true
+        }
+
+        // Recurse into arrays
+        if (Array.isArray(prop)) {
+            if (updatePropertyInArray(prop, propertyId, value, 0)) {
+                return true
+            }
+        }
+        // Recurse into nested objects (e.g., llmConfig contains model, temperature, etc.)
+        else if (typeof prop === "object" && prop !== null) {
+            if (updatePropertyInObject(typedProp as Record<string, unknown>, propertyId, value)) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+/**
+ * Helper to recursively find and update a property by __id in an array
  *
  * Searches both:
  * - Array elements (items in arrays)
@@ -1118,42 +1211,9 @@ function updatePropertyInArray(
             return true
         }
 
-        // Check nested object properties (e.g., message.content, message.role)
-        for (const key of Object.keys(typedItem)) {
-            const nested = typedItem[key]
-            if (!nested || typeof nested !== "object") continue
-
-            // Check if this nested object is the property we're looking for
-            const nestedTyped = nested as {__id?: string; value?: unknown}
-            if (nestedTyped.__id === propertyId) {
-                const hasValue = "value" in nestedTyped
-                if (hasValue) {
-                    nestedTyped.value = value
-                } else {
-                    typedItem[key] = value
-                }
-                return true
-            }
-
-            // Recurse into arrays
-            if (Array.isArray(nested)) {
-                if (updatePropertyInArray(nested, propertyId, value, depth + 1)) {
-                    return true
-                }
-            }
-            // Recurse into nested objects that have their own structure
-            else if (typeof nested === "object" && nested !== null) {
-                // Check if this is a container object with nested properties
-                const nestedObj = nested as Record<string, unknown>
-                for (const nestedKey of Object.keys(nestedObj)) {
-                    const deepNested = nestedObj[nestedKey]
-                    if (Array.isArray(deepNested)) {
-                        if (updatePropertyInArray(deepNested, propertyId, value, depth + 1)) {
-                            return true
-                        }
-                    }
-                }
-            }
+        // Recurse into the object's properties (handles llmConfig.model, etc.)
+        if (updatePropertyInObject(typedItem as Record<string, unknown>, propertyId, value)) {
+            return true
         }
     }
     return false

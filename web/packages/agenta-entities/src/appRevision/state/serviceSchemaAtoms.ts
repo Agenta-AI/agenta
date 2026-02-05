@@ -117,16 +117,6 @@ export const revisionServiceTypeLookupAtomFamily = atomFamily((revisionId: strin
     }),
 )
 
-/**
- * @deprecated Use revisionServiceTypeLookupAtomFamily for richer status info
- */
-export const revisionServiceTypeAtomFamily = atomFamily((revisionId: string) =>
-    atom<AppServiceType | null>((get) => {
-        const lookup = get(revisionServiceTypeLookupAtomFamily(revisionId))
-        return lookup.status === "resolved" ? lookup.serviceType : null
-    }),
-)
-
 // ============================================================================
 // SERVICE SCHEMA SELECTOR
 // ============================================================================

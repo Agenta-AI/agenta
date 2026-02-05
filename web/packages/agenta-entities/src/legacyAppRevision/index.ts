@@ -169,8 +169,6 @@ export {
     // Enriched query atoms (with URI from variant)
     enrichedQueryAtomFamily,
     variantDetailCacheAtomFamily,
-    revisionVariantContextAtomFamily,
-    setRevisionVariantContextAtom,
     legacyAppRevisionEnrichedDataFamily,
     createEnrichedKey,
     type EnrichedQueryKey,
@@ -266,7 +264,7 @@ export {
 } from "./state"
 
 // ============================================================================
-// COMMIT - Legacy commit abstraction (temporary until migration to appRevision)
+// COMMIT
 // ============================================================================
 
 export {
@@ -304,6 +302,8 @@ export {
     createLocalDraftFromRevision,
     discardLocalDraft,
     discardAllLocalDrafts,
+    // App scoping setup
+    setCurrentAppIdAtom,
     // Re-exports
     isLocalDraftId,
     extractSourceIdFromDraft,

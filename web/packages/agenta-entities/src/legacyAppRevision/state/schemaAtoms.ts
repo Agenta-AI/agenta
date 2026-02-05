@@ -27,7 +27,7 @@ import type {EntitySchema, EntitySchemaProperty} from "../../shared"
 import {fetchRevisionSchema, buildRevisionSchemaState, type OpenAPISpec} from "../api"
 import type {RevisionSchemaState} from "../core"
 
-import {hashMetadata as hashAndStoreMetadata} from "./metadataAtoms"
+import {hashMetadata as hashAndStoreMetadata, updateMetadataAtom} from "./metadataAtoms"
 import {
     serviceSchemaForRevisionAtomFamily,
     composedServiceSchemaAtomFamily,
@@ -42,9 +42,91 @@ import {legacyAppRevisionEntityWithBridgeAtomFamily} from "./store"
 export {metadataAtom as customPropertyMetadataAtom} from "./metadataAtoms"
 
 /**
+ * Simple hash function that preserves all metadata fields including 'name'.
+ * Unlike hashAndStoreMetadata which transforms schemas, this stores the object as-is.
+ * Used specifically for tool configuration metadata where 'name' field is required.
+ */
+function hashAndStoreRawMetadata(metadata: Record<string, unknown>): string {
+    // Use a stable JSON string for hashing
+    const jsonString = JSON.stringify(metadata, Object.keys(metadata).sort())
+    // Simple hash based on string content
+    let hash = 0
+    for (let i = 0; i < jsonString.length; i++) {
+        const chr = jsonString.charCodeAt(i)
+        hash = (hash << 5) - hash + chr
+        hash |= 0 // Convert to 32bit integer
+    }
+    const hashKey = `raw_${Math.abs(hash).toString(16)}`
+    // Store the raw metadata - cast to ConfigMetadata compatible type
+
+    updateMetadataAtom({[hashKey]: metadata as unknown as import("./metadataAtoms").ConfigMetadata})
+    return hashKey
+}
+
+/**
  * Generate a unique ID for enhanced properties (same as OSS)
  */
 const generateId = () => uuidv4()
+
+/**
+ * Static schema for tool configuration - used to generate metadata hash.
+ * This matches the schema used when adding tools via addPromptToolMutationAtomFamily.
+ */
+const TOOL_CONFIGURATION_SCHEMA = {
+    type: "object",
+    name: "ToolConfiguration",
+    description: "Tool configuration",
+    properties: {
+        type: {
+            type: "string",
+            description: "Type of the tool",
+        },
+        name: {
+            type: "string",
+            description: "Name of the tool",
+        },
+        description: {
+            type: "string",
+            description: "Description of the tool",
+        },
+        parameters: {
+            type: "object",
+            properties: {
+                type: {
+                    type: "string",
+                    enum: ["object", "function"],
+                },
+            },
+        },
+    },
+    required: ["name", "description", "parameters"],
+}
+
+/**
+ * Enhance an array of tools by adding __id and __metadata to each item.
+ * This is necessary for UI components (ToolsRenderer) that rely on __id to identify tools.
+ *
+ * Uses hashAndStoreRawMetadata to preserve the 'name' field which is required
+ * by renderMap.object to detect ToolConfiguration and render PlaygroundTool.
+ */
+function enhanceToolsArray(tools: unknown[]): unknown[] {
+    if (!Array.isArray(tools)) return []
+
+    return tools.map((tool) => {
+        // If tool already has __id (e.g., from draft state), preserve it
+        if (tool && typeof tool === "object" && "__id" in tool) {
+            return tool
+        }
+
+        // Enhance the tool with __id and __metadata
+        // Use hashAndStoreRawMetadata to preserve all fields including 'name'
+        return {
+            __id: generateId(),
+            __metadata: hashAndStoreRawMetadata(TOOL_CONFIGURATION_SCHEMA),
+            value: tool,
+        }
+    })
+}
 
 // ============================================================================
 // SCHEMA QUERY
@@ -61,6 +143,7 @@ const emptySchemaState: RevisionSchemaState = {
         run: null,
         generate: null,
         generateDeployed: null,
+        root: null,
     },
     availableEndpoints: [],
     isChatVariant: false,
@@ -92,11 +175,12 @@ const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
                     }
                 }
 
-                return buildRevisionSchemaState(
+                const schemaState = buildRevisionSchemaState(
                     result.schema as OpenAPISpec,
                     result.runtimePrefix,
                     result.routePath,
                 )
+                return schemaState
             },
             staleTime: 1000 * 60 * 5, // 5 minutes
             refetchOnWindowFocus: false,
@@ -161,7 +245,7 @@ export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: st
         const hasUri = !!entityData?.uri
         const isQueryDisabled = !hasUri
 
-        // Treat disabled query (no URI yet) as pending
+        // If query is still pending (fetching) or no URI available, return pending
         if (query.isPending || isQueryDisabled) {
             return {
                 data: emptySchemaState,
@@ -358,6 +442,7 @@ export const revisionEndpointsAtomFamily = atomFamily((revisionId: string) =>
                 run: null,
                 generate: null,
                 generateDeployed: null,
+                root: null,
             }
         )
     }),
@@ -398,12 +483,18 @@ export const revisionEnhancedCustomPropertiesAtomFamily = atomFamily((revisionId
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
 
         // If schema is still loading, return empty
-        if (schemaQuery.isPending || !schemaQuery.data?.agConfigSchema?.properties) {
+        if (schemaQuery.isPending) {
             return {}
         }
 
-        const agConfigSchema = schemaQuery.data.agConfigSchema
         const result: Record<string, EnhancedCustomProperty> = {}
+
+        // Schema is required - no fallback to parameter inference
+        if (!schemaQuery.data?.agConfigSchema?.properties) {
+            return result
+        }
+
+        const agConfigSchema = schemaQuery.data.agConfigSchema
 
         // Extract non-prompt properties and enhance them
         Object.entries(agConfigSchema.properties).forEach(([key, prop]) => {
@@ -459,38 +550,25 @@ export const revisionCustomPropertyKeysAtomFamily = atomFamily((revisionId: stri
 
         const keys: string[] = []
 
-        // Strategy 1: Use schema if available (preferred - has x-parameters metadata)
-        if (schemaQuery.data?.agConfigSchema?.properties) {
-            const agConfigSchema = schemaQuery.data.agConfigSchema
-            Object.entries(agConfigSchema.properties).forEach(([key, prop]) => {
-                const xParams = (prop as Record<string, unknown>)?.["x-parameters"] as
-                    | Record<string, unknown>
-                    | undefined
-                const isPromptByMarker = xParams?.prompt === true
-
-                const savedValue = parameters?.[key]
-                const isPromptByStructure = isPromptLikeStructure(savedValue)
-
-                if (!isPromptByMarker && !isPromptByStructure) {
-                    keys.push(key)
-                }
-            })
-
+        // Schema is required - no fallback to parameter inference
+        if (!schemaQuery.data?.agConfigSchema?.properties) {
             return keys
         }
 
-        // Strategy 2: Derive from parameters if schema not available
-        // This mirrors how prompts are derived - use isPromptLikeStructure to identify prompts
-        if (parameters && Object.keys(parameters).length > 0) {
-            Object.entries(parameters).forEach(([key, value]) => {
-                // Skip prompt-like structures
-                if (!isPromptLikeStructure(value)) {
-                    keys.push(key)
-                }
-            })
+        const agConfigSchema = schemaQuery.data.agConfigSchema
+        Object.entries(agConfigSchema.properties).forEach(([key, prop]) => {
+            const xParams = (prop as Record<string, unknown>)?.["x-parameters"] as
+                | Record<string, unknown>
+                | undefined
+            const isPromptByMarker = xParams?.prompt === true
 
-            return keys
-        }
+            const savedValue = parameters?.[key]
+            const isPromptByStructure = isPromptLikeStructure(savedValue)
+
+            if (!isPromptByMarker && !isPromptByStructure) {
+                keys.push(key)
+            }
+        })
 
         return keys
     }),
@@ -510,14 +588,16 @@ export interface EnhancedPrompt {
     __test?: string
     messages?: {
         value: {
-            role: {value: string; __metadata?: string}
-            content: {value: string; __metadata?: string}
+            __id: string
+            role: {value: string; __id: string; __metadata?: string}
+            content: {value: string; __id: string; __metadata?: string}
         }[]
         __metadata?: string
     }
     llm_config?: {
-        value: Record<string, unknown>
+        __id: string
         __metadata?: string
+        [key: string]: unknown
     }
     [key: string]: unknown
 }
@@ -562,18 +642,20 @@ function mergePromptWithSaved(
 }
 
 /**
- * Create an enhanced value with metadata hash
+ * Create an enhanced value with __id and metadata hash
+ * The __id is required by UI components to identify and manage properties
  */
 function createEnhancedValue(
     value: unknown,
     schema: EntitySchemaProperty | undefined,
     key: string,
-): {value: unknown; __metadata?: string} {
+): {value: unknown; __id: string; __metadata?: string} {
+    const id = generateId()
     if (schema) {
         const metadataHash = hashAndStoreMetadata(schema, key)
-        return {value, __metadata: metadataHash}
+        return {value, __id: id, __metadata: metadataHash}
     }
-    return {value}
+    return {value, __id: id}
 }
 
 /**
@@ -606,7 +688,9 @@ function createEnhancedPrompt(
             | undefined
         const itemProperties = itemSchema?.properties
 
+        // Each message object needs __id for MessagesRenderer to render rich PromptMessageConfig
         const enhancedMessages = messages.map((msg, idx) => ({
+            __id: generateId(),
             role: createEnhancedValue(
                 msg.role,
                 itemProperties?.role as EntitySchemaProperty | undefined,
@@ -627,16 +711,60 @@ function createEnhancedPrompt(
         }
     }
 
-    // Process llm_config
+    // Process llm_config - enhance each property individually
     const llmConfig = mergedData.llm_config as Record<string, unknown> | undefined
-    if (llmConfig) {
-        const llmConfigSchema = schemaProperties?.llm_config as EntitySchemaProperty | undefined
-        result.llm_config = {
-            value: llmConfig,
+    const llmConfigSchema = schemaProperties?.llm_config as EntitySchemaProperty | undefined
+    const llmConfigSchemaProps = (llmConfigSchema as unknown as Record<string, unknown>)
+        ?.properties as Record<string, EntitySchemaProperty> | undefined
+
+    if (llmConfig || llmConfigSchemaProps) {
+        // Create enhanced llm_config with individually enhanced properties
+        const enhancedLlmConfig: NonNullable<EnhancedPrompt["llm_config"]> = {
+            __id: generateId(),
             __metadata: llmConfigSchema
                 ? hashAndStoreMetadata(llmConfigSchema, "llm_config")
                 : undefined,
         }
+
+        // First, enhance properties from saved/merged llm_config
+        if (llmConfig) {
+            Object.entries(llmConfig).forEach(([propKey, propValue]) => {
+                const propSchema = llmConfigSchemaProps?.[propKey]
+
+                // Special handling for tools array - each tool needs its own __id
+                if (propKey === "tools" && Array.isArray(propValue)) {
+                    const enhancedTools = enhanceToolsArray(propValue)
+                    enhancedLlmConfig[propKey] = {
+                        value: enhancedTools,
+                        __id: generateId(),
+                        __metadata: propSchema
+                            ? hashAndStoreMetadata(propSchema, propKey)
+                            : undefined,
+                    }
+                } else {
+                    enhancedLlmConfig[propKey] = createEnhancedValue(propValue, propSchema, propKey)
+                }
+            })
+        }
+
+        // Then, add schema-defined properties that don't have values yet (like response_format)
+        // This ensures the UI controls work even for optional fields
+        if (llmConfigSchemaProps) {
+            Object.entries(llmConfigSchemaProps).forEach(([propKey, propSchema]) => {
+                if (!(propKey in enhancedLlmConfig)) {
+                    // Get default value from schema if available
+                    const schemaDefault = (propSchema as unknown as Record<string, unknown>)
+                        ?.default
+                    enhancedLlmConfig[propKey] = createEnhancedValue(
+                        schemaDefault ?? null,
+                        propSchema,
+                        propKey,
+                    )
+                }
+            })
+        }
+
+        result.llm_config = enhancedLlmConfig
     }
 
     // Process other properties
@@ -681,6 +809,7 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
     // Process messages - handle both raw format and already-enhanced format
     const rawMessages = promptData.messages
     if (rawMessages && Array.isArray(rawMessages)) {
+        // Each message object needs __id for MessagesRenderer to render rich PromptMessageConfig
         const enhancedMessages = rawMessages.map((msg, idx: number) => {
             const msgRecord =
                 typeof msg === "object" && msg !== null ? (msg as Record<string, unknown>) : {}
@@ -688,6 +817,7 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
             const contentValue = unwrapEnhancedValue(msgRecord.content)
 
             return {
+                __id: generateId(),
                 role: createEnhancedValue(roleValue, undefined, `messages[${idx}].role`),
                 content: createEnhancedValue(contentValue, undefined, `messages[${idx}].content`),
             }
@@ -698,15 +828,38 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
         }
     }
 
-    // Process llm_config - handle both raw and enhanced format
+    // Process llm_config - enhance each property individually
     const rawLlmConfig = promptData.llm_config
     if (rawLlmConfig) {
         const llmConfigValue = unwrapEnhancedValue(rawLlmConfig)
 
         if (isRecord(llmConfigValue)) {
-            result.llm_config = {
-                value: llmConfigValue,
+            // Create enhanced llm_config with individually enhanced properties
+            const enhancedLlmConfig: NonNullable<EnhancedPrompt["llm_config"]> = {
+                __id: generateId(),
             }
+
+            // Enhance each property in llm_config individually
+            Object.entries(llmConfigValue).forEach(([propKey, propValue]) => {
+                const actualValue = unwrapEnhancedValue(propValue)
+
+                // Special handling for tools array - each tool needs its own __id
+                if (propKey === "tools" && Array.isArray(actualValue)) {
+                    const enhancedTools = enhanceToolsArray(actualValue)
+                    enhancedLlmConfig[propKey] = {
+                        value: enhancedTools,
+                        __id: generateId(),
+                    }
+                } else {
+                    enhancedLlmConfig[propKey] = createEnhancedValue(
+                        actualValue,
+                        undefined,
+                        propKey,
+                    )
+                }
+            })
+
+            result.llm_config = enhancedLlmConfig
         }
     }
 
@@ -764,6 +917,7 @@ export const revisionEnhancedPromptsAtomFamily = atomFamily((revisionId: string)
 
                     // Create enhanced prompt
                     const enhancedPrompt = createEnhancedPrompt(mergedData, propSchema, key)
+
                     result.push(enhancedPrompt)
                 }
             })

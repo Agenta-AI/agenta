@@ -250,6 +250,7 @@ const variantCommitAtom = atom(null, async (get, set, params: CommitParams): Pro
     }
 
     // Extract variantId - required for the API call
+    // The variantId should be present in entity data via revision list enrichment
     const variantId = data.variantId
     if (!variantId) {
         throw new Error(`No variantId found for entity: ${id}`)

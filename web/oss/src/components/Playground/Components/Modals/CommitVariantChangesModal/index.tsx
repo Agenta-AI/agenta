@@ -8,12 +8,12 @@ import {Resizable} from "react-resizable"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {
-    revisionListAtom,
     saveVariantMutationAtom,
     selectedVariantsAtom,
 } from "@/oss/components/Playground/state/atoms"
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
+import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"
 
@@ -30,9 +30,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     ...props
 }) => {
     const {onCancel, ...modalProps} = props
-    // Get variant metadata from revision list
-    const revisions = useAtomValue(revisionListAtom)
-    const variant = revisions?.find((rev: any) => rev.id === variantId)
+    // Get variant metadata using molecule-backed atom (works for both server revisions and local drafts)
+    const variant = useAtomValue(moleculeBackedVariantAtomFamily(variantId || ""))
 
     // Extract values from variant
     const variantName = variant?.variantName
@@ -212,15 +211,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
                     await handleDeployAfterCommit(result.variant)
 
-                    // Wait for the state to settle with the new revision
-                    const nextRevisionId = result.variant?.id
-                    const isAlreadySelected =
-                        nextRevisionId && selectedRevisionIds?.includes(nextRevisionId)
-                    const wasSelected = selectedRevisionIds?.includes(variantId)
-                    if (nextRevisionId && wasSelected && !isAlreadySelected) {
-                        startSettleWait(nextRevisionId)
-                        return // Let selection settle or timeout close
-                    }
+                    // Close modal immediately - the mutation already updated selectedVariantsAtom
+                    setIsMutating(false)
+                    onClose()
+                    return
                 }
             } else if (selectedCommitType?.type === "variant" && selectedCommitType?.name) {
                 const result = await createVariant?.({
@@ -229,10 +223,13 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     newVariantName: selectedCommitType?.name as string,
                     note,
                     callback: (newVariant, state) => {
-                        // For new variant creation, switch to display ONLY the newly created variant
+                        // Replace the local draft with the new variant, preserving other variants in selection
                         // Note: state is a mock object created by the mutation atom, not the full PlaygroundState
-                        ;(state as any).selected = [newVariant.id]
-                        ;(state as any).variants = [newVariant.id]
+                        const currentSelected = (state as any).selected as string[]
+                        ;(state as any).selected = currentSelected.map((id: string) =>
+                            id === variantId ? newVariant.id : id,
+                        )
+                        ;(state as any).variants = (state as any).selected
                     },
                 })
 
@@ -247,14 +244,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
                     await handleDeployAfterCommit(result.variant)
 
-                    // Wait for the state to settle with the new revision (same as version commits)
-                    const isAlreadySelected =
-                        newRevisionId && selectedRevisionIds?.includes(newRevisionId)
-                    const wasSelected = selectedRevisionIds?.includes(variantId)
-                    if (newRevisionId && wasSelected && !isAlreadySelected) {
-                        startSettleWait(newRevisionId)
-                        return // Let selection settle or timeout close
-                    }
+                    // Close modal immediately - the mutation already updated selectedVariantsAtom
+                    setIsMutating(false)
+                    onClose()
+                    return
                 }
             }
 

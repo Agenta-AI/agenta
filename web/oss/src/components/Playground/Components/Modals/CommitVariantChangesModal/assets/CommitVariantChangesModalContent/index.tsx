@@ -1,19 +1,23 @@
-import {useCallback, useEffect, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Checkbox, Input, Radio, RadioChangeEvent, Select, Tooltip, Typography} from "antd"
+import {Checkbox, Input, Radio, RadioChangeEvent, Select, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import DiffView from "@/oss/components/Editor/DiffView"
 import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import Version from "@/oss/components/Playground/assets/Version"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {newestRevisionForVariantIdAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {
+    moleculeBackedVariantAtomFamily,
+    newestRevisionForVariantIdAtomFamily,
+    parametersOverrideAtomFamily,
+} from "@/oss/components/Playground/state/atoms"
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {revisionLabelInfoAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {CommitVariantChangesModalContentProps} from "../types"
 
@@ -32,13 +36,23 @@ const CommitVariantChangesModalContent = ({
     onSelectEnvironment,
     isDeploymentPending,
 }: CommitVariantChangesModalContentProps) => {
-    // All hooks must be called before any early returns (React hooks rule)
-    const variant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
+    // Use molecule-backed variant for single source of truth (merged data = serverData + draft)
+    const variant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
+    // Get serverData (initial state) - this is the baseline before any edits
+    const serverData = useAtomValue(
+        useMemo(() => legacyAppRevisionMolecule.atoms.serverData(variantId), [variantId]),
+    ) as any
     const latestRevisionForVariant = useAtomValue(
         newestRevisionForVariantIdAtomFamily(variant?.variantId || ""),
     ) as any
-    const derivedAgConfig = useAtomValue(transformedPromptsAtomFamily(variantId))?.ag_config
+    // Get current (modified) ag_config - includes local edits via molecule
+    const currentAgConfig = useAtomValue(transformedPromptsAtomFamily(variantId))?.ag_config
     const jsonOverride = useAtomValue(parametersOverrideAtomFamily(variantId))
+
+    // Use revision label API to properly handle local drafts
+    const revisionLabelInfo = useAtomValue(
+        useMemo(() => revisionLabelInfoAtomFamily(variantId), [variantId]),
+    )
 
     const onChange = useCallback(
         (e: RadioChangeEvent) => {
@@ -70,20 +84,22 @@ const CommitVariantChangesModalContent = ({
 
     // Extract values from the variant object (safe now - after hooks and guard)
     const variantName = variant.variantName
-    const revision = variant.revision
     const targetRevision = Number(latestRevisionForVariant?.revision ?? 0) + 1
-    const params = commitType === "parameters" && jsonOverride ? jsonOverride : derivedAgConfig
-    const oldParams = variant.parameters
-    const sanitizedOldParams = stripAgentaMetadataDeep(oldParams)
-    const sanitizedParams = stripAgentaMetadataDeep(params)
+    // For diff: compare serverData.parameters (original) vs currentAgConfig (current with edits)
+    // variant comes from moleculeBackedVariantAtomFamily which merges serverData + draft
+    const modifiedParams =
+        commitType === "parameters" && jsonOverride ? jsonOverride : currentAgConfig
+    // Use serverData.parameters as the original (initial state before edits)
+    const originalParams = serverData?.parameters
+    const sanitizedOriginalParams = stripAgentaMetadataDeep(originalParams)
+    const sanitizedModifiedParams = stripAgentaMetadataDeep(modifiedParams)
 
     // Compute snapshot lazily on first render after mount
     if (variant && initialOriginalRef.current === null && initialModifiedRef.current === null) {
         try {
-            initialOriginalRef.current = JSON.stringify(sanitizedOldParams)
-            // Use the same transformed local prompts ag_config that drives dirty-state
-            if (params !== undefined) {
-                initialModifiedRef.current = JSON.stringify(sanitizedParams)
+            initialOriginalRef.current = JSON.stringify(sanitizedOriginalParams ?? {})
+            if (modifiedParams !== undefined) {
+                initialModifiedRef.current = JSON.stringify(sanitizedModifiedParams ?? {})
             }
         } catch {
             // Keep refs null; we will fall back to live values below
@@ -98,9 +114,10 @@ const CommitVariantChangesModalContent = ({
     }))
 
     // Ensure DiffView gets strings even when params are undefined
-    const originalForDiff = initialOriginalRef.current ?? JSON.stringify(sanitizedOldParams ?? {})
+    const originalForDiff =
+        initialOriginalRef.current ?? JSON.stringify(sanitizedOriginalParams ?? {})
     const modifiedForDiff =
-        initialModifiedRef.current ?? JSON.stringify(sanitizedParams ?? sanitizedOldParams ?? {})
+        initialModifiedRef.current ?? JSON.stringify(sanitizedModifiedParams ?? {})
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-6 md:flex-row">
@@ -126,7 +143,14 @@ const CommitVariantChangesModalContent = ({
                             <div className="mt-2 flex flex-wrap items-center gap-2 pl-6 text-sm text-[#475569]">
                                 <Text className="font-medium text-[#0F172A]">{variantName}</Text>
                                 <div className="flex items-center gap-2">
-                                    <Version revision={revision} />
+                                    {/* Use revision label API for proper local draft display */}
+                                    <Tag
+                                        color="default"
+                                        bordered={false}
+                                        className="bg-[rgba(5,23,41,0.06)]"
+                                    >
+                                        {revisionLabelInfo.label}
+                                    </Tag>
                                     <ArrowRight size={14} />
                                     <Version revision={targetRevision} />
                                 </div>

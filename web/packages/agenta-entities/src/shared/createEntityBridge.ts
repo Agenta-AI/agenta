@@ -257,8 +257,6 @@ export function createLoadableBridge(config: CreateLoadableBridgeConfig): Loadab
         addRow: atom(null, (get, set, loadableId: string, data: Record<string, unknown> = {}) => {
             const state = get(loadableStateFamily(loadableId))
 
-            // TODO: When connected, route through molecule
-            // For now, just update local state
             const newRow: LoadableRow = {
                 id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
                 data,
@@ -275,7 +273,6 @@ export function createLoadableBridge(config: CreateLoadableBridgeConfig): Loadab
             (get, set, loadableId: string, rowId: string, data: Record<string, unknown>) => {
                 const state = get(loadableStateFamily(loadableId))
 
-                // TODO: When connected, route through molecule
                 set(loadableStateFamily(loadableId), {
                     ...state,
                     rows: state.rows.map((row) =>
@@ -288,7 +285,6 @@ export function createLoadableBridge(config: CreateLoadableBridgeConfig): Loadab
         removeRow: atom(null, (get, set, loadableId: string, rowId: string) => {
             const state = get(loadableStateFamily(loadableId))
 
-            // TODO: When connected, route through molecule
             set(loadableStateFamily(loadableId), {
                 ...state,
                 rows: state.rows.filter((row) => row.id !== rowId),
@@ -399,12 +395,10 @@ export function createLoadableBridge(config: CreateLoadableBridgeConfig): Loadab
         }),
 
         save: atom(null, async (_get, _set, _loadableId: string) => {
-            // TODO: Implement save through molecule
             console.warn("save not yet implemented")
         }),
 
         discard: atom(null, (_get, _set, _loadableId: string) => {
-            // TODO: Implement discard through molecule
             console.warn("discard not yet implemented")
         }),
     }

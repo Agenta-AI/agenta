@@ -6,13 +6,11 @@ import {ArrowCounterClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {selectedVariantsAtom} from "@/oss/components/Playground/state/atoms"
-import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
-    clearLocalPromptsForRevisionAtomFamily,
-    clearLocalTransformedPromptsForRevisionAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
+    selectedVariantsAtom,
+    parametersOverrideAtomFamily,
+} from "@/oss/components/Playground/state/atoms"
+import {discardRevisionDraftAtom} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {removeVariantFromSelectionMutationAtom} from "../../../state/atoms/variantCrudMutations"
 import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
@@ -34,29 +32,18 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
         removeVariantFromSelection(variantId)
     }, [removeVariantFromSelection, variantId])
 
-    const clearPrompts = useSetAtom(clearLocalPromptsForRevisionAtomFamily(variantId || "") as any)
-    const clearTransformed = useSetAtom(
-        clearLocalTransformedPromptsForRevisionAtomFamily(variantId || "") as any,
-    )
-    const clearCustomProps = useSetAtom(
-        clearLocalCustomPropsForRevisionAtomFamily(variantId || "") as any,
-    )
+    const discardDraft = useSetAtom(discardRevisionDraftAtom)
     const setParamsOverride = useSetAtom(parametersOverrideAtomFamily(variantId || "") as any)
 
     const handleDiscardDraft: NonNullable<MenuProps["onClick"]> = (e) => {
         e?.domEvent?.stopPropagation()
         if (!variantId) return
         try {
-            clearPrompts()
-            clearCustomProps()
-            clearTransformed()
+            discardDraft(variantId)
             setParamsOverride(null)
-            // Prune dynamically added variables and re-add current ones based on prompts
-
             message.success("Draft changes discarded")
         } catch (err) {
             message.error("Failed to discard draft changes")
-
             console.error(err)
         }
     }

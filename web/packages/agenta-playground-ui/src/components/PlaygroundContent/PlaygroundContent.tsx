@@ -453,11 +453,22 @@ export function PlaygroundContent() {
     // CHAIN EXECUTION (via hook)
     // ========================================================================
 
-    const {
-        executeRow: handleExecuteRow,
-        executeAll: handleExecuteAll,
-        isExecuting,
-    } = useChainExecution(loadableId)
+    const {runStep, isExecuting} = useChainExecution()
+
+    // Wrap runStep to match expected callback signatures
+    const handleExecuteRow = useCallback(
+        (rowId: string, data: Record<string, unknown>) => {
+            runStep({stepId: rowId, data})
+        },
+        [runStep],
+    )
+
+    const handleExecuteAll = useCallback(() => {
+        // Execute all rows sequentially
+        rows.forEach((row) => {
+            runStep({stepId: row.id, data: row.data})
+        })
+    }, [runStep, rows])
 
     // ========================================================================
     // RENDER

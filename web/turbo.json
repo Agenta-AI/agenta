@@ -47,23 +47,47 @@
             "outputs": []
         },
         "@agenta/shared#build": {
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": [".tsbuildinfo"]
         },
         "@agenta/ui#build": {
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": [".tsbuildinfo"]
         },
         "@agenta/entities#build": {
             "dependsOn": ["@agenta/shared#build", "@agenta/ui#build"],
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
+        "@agenta/entity-ui#build": {
+            "dependsOn": ["@agenta/shared#build", "@agenta/ui#build", "@agenta/entities#build"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
+        "@agenta/playground#build": {
+            "dependsOn": ["@agenta/shared#build", "@agenta/entities#build"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
+        "@agenta/playground-ui#build": {
+            "dependsOn": [
+                "@agenta/shared#build",
+                "@agenta/ui#build",
+                "@agenta/entities#build",
+                "@agenta/entity-ui#build",
+                "@agenta/playground#build"
+            ],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": [".tsbuildinfo"]
         },
         "@agenta/oss#build": {
             "dependsOn": [
                 "@agenta/shared#build",
                 "@agenta/ui#build",
-                "@agenta/entities#build"
+                "@agenta/entities#build",
+                "@agenta/entity-ui#build",
+                "@agenta/playground#build",
+                "@agenta/playground-ui#build"
             ],
             "inputs": [
                 "src/**",
@@ -81,7 +105,10 @@
                 "@agenta/oss#build",
                 "@agenta/shared#build",
                 "@agenta/ui#build",
-                "@agenta/entities#build"
+                "@agenta/entities#build",
+                "@agenta/entity-ui#build",
+                "@agenta/playground#build",
+                "@agenta/playground-ui#build"
             ],
             "inputs": [
                 "src/**",
@@ -106,11 +133,26 @@
             "inputs": ["src/**/*.ts", "src/**/*.tsx"],
             "outputs": []
         },
+        "@agenta/entity-ui#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx"],
+            "outputs": []
+        },
+        "@agenta/playground#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx"],
+            "outputs": []
+        },
+        "@agenta/playground-ui#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx"],
+            "outputs": []
+        },
         "@agenta/oss#lint": {
             "dependsOn": [
                 "@agenta/shared#lint",
                 "@agenta/ui#lint",
-                "@agenta/entities#lint"
+                "@agenta/entities#lint",
+                "@agenta/entity-ui#lint",
+                "@agenta/playground#lint",
+                "@agenta/playground-ui#lint"
             ],
             "inputs": [
                 "src/**/*.ts",
@@ -131,23 +173,47 @@
             "outputs": []
         },
         "@agenta/shared#types:check": {
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": []
         },
         "@agenta/ui#types:check": {
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": []
         },
         "@agenta/entities#types:check": {
             "dependsOn": ["@agenta/shared#types:check", "@agenta/ui#types:check"],
-            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/entity-ui#types:check": {
+            "dependsOn": ["@agenta/shared#types:check", "@agenta/ui#types:check", "@agenta/entities#types:check"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/playground#types:check": {
+            "dependsOn": ["@agenta/shared#types:check", "@agenta/entities#types:check"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/playground-ui#types:check": {
+            "dependsOn": [
+                "@agenta/shared#types:check",
+                "@agenta/ui#types:check",
+                "@agenta/entities#types:check",
+                "@agenta/entity-ui#types:check",
+                "@agenta/playground#types:check"
+            ],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": []
         },
         "@agenta/oss#types:check": {
             "dependsOn": [
                 "@agenta/shared#types:check",
                 "@agenta/ui#types:check",
-                "@agenta/entities#types:check"
+                "@agenta/entities#types:check",
+                "@agenta/entity-ui#types:check",
+                "@agenta/playground#types:check",
+                "@agenta/playground-ui#types:check"
             ],
             "inputs": [
                 "src/**",

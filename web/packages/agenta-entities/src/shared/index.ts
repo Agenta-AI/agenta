@@ -295,7 +295,7 @@ export {
     // Type guards
     hasSelectionConfig,
     hasBindingConfig,
-    // Binding utilities (Phase 3)
+    // Binding utilities
     loadableBindingRelation,
     getLoadableId,
     parseLoadableId,
