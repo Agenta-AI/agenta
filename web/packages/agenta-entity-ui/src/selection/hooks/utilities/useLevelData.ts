@@ -170,8 +170,17 @@ export function useLevelData<T = unknown>(options: UseLevelDataOptions<T>): UseL
         }
     }, [isEnabled, parentId, levelConfig])
 
+    // Apply filterItems if configured
+    const filteredItems = useMemo(() => {
+        const rawItems = (queryState.data ?? []) as T[]
+        if (levelConfig.filterItems) {
+            return rawItems.filter(levelConfig.filterItems)
+        }
+        return rawItems
+    }, [queryState.data, levelConfig.filterItems])
+
     return {
-        items: (queryState.data ?? []) as T[],
+        items: filteredItems,
         query: {
             isPending: queryState.isPending,
             isError: queryState.isError,
@@ -262,8 +271,17 @@ export function usePaginatedLevelData<T = unknown>(
         isFetchingNextPage: false,
     }
 
+    // Apply filterItems if configured
+    const filteredItems = useMemo(() => {
+        const rawItems = (queryState.data ?? []) as T[]
+        if (levelConfig.filterItems) {
+            return rawItems.filter(levelConfig.filterItems)
+        }
+        return rawItems
+    }, [queryState.data, levelConfig.filterItems])
+
     return {
-        items: (queryState.data ?? []) as T[],
+        items: filteredItems,
         query: {
             isPending: queryState.isPending,
             isError: queryState.isError,

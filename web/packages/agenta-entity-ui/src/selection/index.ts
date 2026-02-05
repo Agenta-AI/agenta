@@ -149,6 +149,7 @@ export {
     CascadingVariant,
     BreadcrumbVariant,
     ListPopoverVariant,
+    TreeSelectPopupContent,
     // Shared components (for customization)
     LevelSelect,
     ChildPopoverContent,
@@ -177,6 +178,7 @@ export type {
     CascadingVariantProps,
     BreadcrumbVariantProps,
     ListPopoverVariantProps,
+    TreeSelectPopupContentProps,
     LevelSelectProps,
     ChildPopoverContentProps,
     AutoSelectHandlerProps,
@@ -187,6 +189,8 @@ export type {
 // Pre-built adapters
 export {
     appRevisionAdapter,
+    legacyAppRevisionAdapter,
+    createLegacyAppRevisionAdapter,
     evaluatorRevisionAdapter,
     setEvaluatorRevisionAtoms,
     testsetAdapter,
@@ -194,6 +198,8 @@ export {
 
 export type {
     AppRevisionSelectionResult,
+    LegacyAppRevisionSelectionResult,
+    CreateLegacyAppRevisionAdapterOptions,
     EvaluatorRevisionSelectionResult,
     TestsetSelectionResult,
 } from "./adapters"

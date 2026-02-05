@@ -95,6 +95,8 @@ export function createAdapter<TSelection>(
             getDescription: level.getDescription,
             // Lifecycle callbacks
             onBeforeLoad: level.onBeforeLoad,
+            // Filtering
+            filterItems: level.filterItems,
         }
     })
 

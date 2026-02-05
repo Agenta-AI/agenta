@@ -49,5 +49,16 @@ export type {
 export * from "./utilities"
 
 // Modes (re-exported from useEntitySelection for convenience)
-export {useChildrenData, useAutoSelectLatestChild} from "./modes"
-export type {UseAutoSelectLatestChildOptions} from "./modes"
+export {
+    useChildrenData,
+    useAutoSelectLatestChild,
+    useTreeSelectMode,
+    useChildDataForParent,
+} from "./modes"
+export type {
+    UseAutoSelectLatestChildOptions,
+    TreeSelectItemAction,
+    TreeSelectNode,
+    UseTreeSelectModeOptions,
+    UseTreeSelectModeResult,
+} from "./modes"

@@ -300,6 +300,160 @@ export interface ListPopoverVariantProps<
 }
 
 // ============================================================================
+// TREE-SELECT VARIANT PROPS
+// ============================================================================
+
+/**
+ * Action handler for custom actions on tree items
+ */
+export interface TreeSelectItemAction {
+    /** Unique key for the action */
+    key: string
+    /** Action handler - receives the item and mouse event */
+    handler: (item: unknown, event: React.MouseEvent) => void
+    /** Whether to show this action for the item */
+    shouldShow?: (item: unknown) => boolean
+}
+
+/**
+ * Props for tree-select variant (Variant → Revision style)
+ *
+ * Renders an Ant Design TreeSelect with expandable parent groups
+ * containing selectable children. Designed for 2-level hierarchies.
+ */
+export interface TreeSelectVariantProps<
+    TSelection = EntitySelectionResult,
+> extends EntityPickerBaseProps<TSelection> {
+    variant: "tree-select"
+
+    /**
+     * Currently selected value (child ID)
+     */
+    selectedValue?: string | null
+
+    /**
+     * Set of parent IDs that should be disabled
+     */
+    disabledParentIds?: Set<string>
+
+    /**
+     * Set of child IDs that should be disabled
+     */
+    disabledChildIds?: Set<string>
+
+    /**
+     * Custom actions for child items (e.g., "Create local copy", "Discard")
+     */
+    childActions?: TreeSelectItemAction[]
+
+    /**
+     * Custom actions for parent items
+     */
+    parentActions?: TreeSelectItemAction[]
+
+    /**
+     * Custom title renderer for parent nodes
+     */
+    renderParentTitle?: (parent: unknown, defaultNode: React.ReactNode) => React.ReactNode
+
+    /**
+     * Custom title renderer for child nodes
+     */
+    renderChildTitle?: (
+        child: unknown,
+        parent: unknown,
+        defaultNode: React.ReactNode,
+    ) => React.ReactNode
+
+    /**
+     * Custom renderer for the selected label (value display).
+     */
+    renderSelectedLabel?: (
+        child: unknown,
+        parent: unknown,
+        defaultNode: React.ReactNode,
+    ) => React.ReactNode
+
+    /**
+     * Whether to expand all nodes by default
+     * @default true
+     */
+    defaultExpandAll?: boolean
+
+    /**
+     * Filter function for parents (in addition to search)
+     */
+    parentFilter?: (parent: unknown) => boolean
+
+    /**
+     * Filter function for children (in addition to search)
+     */
+    childFilter?: (child: unknown, parent: unknown) => boolean
+
+    /**
+     * TreeSelect component size
+     * @default "small"
+     */
+    size?: "small" | "middle" | "large"
+
+    /**
+     * Placeholder text
+     * @default "Select..."
+     */
+    placeholder?: string
+
+    /**
+     * Dropdown style override
+     */
+    dropdownStyle?: React.CSSProperties
+
+    /**
+     * Dropdown className
+     */
+    dropdownClassName?: string
+
+    /**
+     * Tree node label prop
+     * @default "label"
+     */
+    treeNodeLabelProp?: string
+
+    /**
+     * Whether popup width matches select width
+     * @default false
+     */
+    popupMatchSelectWidth?: boolean
+
+    /**
+     * Minimum popup width
+     * @default 280
+     */
+    popupMinWidth?: number
+
+    /**
+     * Maximum height for the dropdown
+     * @default 400
+     */
+    maxHeight?: number
+
+    /**
+     * Custom header content in popup (rendered below search row)
+     */
+    popupHeader?: React.ReactNode
+
+    /**
+     * Action element rendered inline with search input (e.g., "Create new" button)
+     * Displayed to the right of the search input in the same row.
+     */
+    popupHeaderAction?: React.ReactNode
+
+    /**
+     * Custom footer content in popup
+     */
+    popupFooter?: React.ReactNode
+}
+
+// ============================================================================
 // UNION TYPE
 // ============================================================================
 
@@ -310,3 +464,4 @@ export type EntityPickerProps<TSelection = EntitySelectionResult> =
     | CascadingVariantProps<TSelection>
     | BreadcrumbVariantProps<TSelection>
     | ListPopoverVariantProps<TSelection>
+    | TreeSelectVariantProps<TSelection>

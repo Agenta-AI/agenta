@@ -74,6 +74,11 @@ export interface LevelOverride<T = unknown> {
     isSelectable?: boolean | ((entity: T) => boolean)
     /** Callback before loading */
     onBeforeLoad?: (parentId: string) => void
+    /**
+     * Filter function to exclude items from the list.
+     * Return true to include the item, false to exclude it.
+     */
+    filterItems?: (entity: T) => boolean
 }
 
 /**
@@ -218,6 +223,7 @@ function applyOverrides<T>(
                     : () => overrides.isSelectable as boolean
                 : baseLevel.isSelectable,
         onBeforeLoad: overrides.onBeforeLoad ?? baseLevel.onBeforeLoad,
+        filterItems: overrides.filterItems ?? baseLevel.filterItems,
     }
 }
 
