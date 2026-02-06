@@ -261,6 +261,7 @@ async def create_app(
         user_id=UUID(request.state.user_id),
         app_name=payload.app_name,
         folder_id=UUID(payload.folder_id) if payload.folder_id else None,
+        template_key=payload.template_key,
     )
 
     if app_output is None:

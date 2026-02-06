@@ -58,6 +58,7 @@ log = get_module_logger(__name__)
 
 
 @router.post("/from-base/", operation_id="add_variant_from_base_and_config")
+@intercept_exceptions()
 async def add_variant_from_base_and_config(
     payload: AddVariantFromBasePayload,
     request: Request,
@@ -74,20 +75,12 @@ async def add_variant_from_base_and_config(
     Returns:
         Union[AppVariantResponse, Any]: New variant details or exception.
     """
-
-    # Use old base table to get project_id for permission check
-    base_db = await db_manager.fetch_base_by_id(payload.base_id)
-
-    if not base_db:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Base with ID '{payload.base_id}' not found",
-        )
+    project_id = UUID(request.state.project_id)
 
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(base_db.project_id),
+            project_id=request.state.project_id,
             permission=Permission.EDIT_APPLICATIONS,
         )
         if not has_permission:
@@ -98,18 +91,18 @@ async def add_variant_from_base_and_config(
                 status_code=403,
             )
 
-    # Determine new variant name
+    # Determine new variant name (base_id is variant_id in new system)
     new_variant_name = (
         payload.new_variant_name
         if payload.new_variant_name
         else payload.new_config_name
         if payload.new_config_name
-        else base_db.base_name
+        else "default"
     )
 
     adapter = get_legacy_adapter()
     app_variant = await adapter.create_variant_from_base_id(
-        project_id=UUID(str(base_db.project_id)),
+        project_id=project_id,
         user_id=UUID(request.state.user_id),
         base_id=UUID(payload.base_id),
         variant_name=new_variant_name,
@@ -485,15 +478,17 @@ async def query_variant_revisions(
                 status_code=403,
             )
 
+    adapter = get_legacy_adapter()
     revisions = []
     for revision_id in payload.revision_ids:
         try:
-            revision_db = await db_manager.fetch_app_variant_revision_by_id(
-                variant_revision_id=str(revision_id)
+            revision = await adapter.fetch_revision_by_id(
+                project_id=UUID(request.state.project_id),
+                revision_id=revision_id,
             )
-            if revision_db:
-                revision_output = await converters.app_variant_db_revision_to_output(
-                    revision_db
+            if revision:
+                revision_output = adapter._application_revision_to_variant_revision(
+                    revision
                 )
                 revisions.append(revision_output)
         except Exception as e:
