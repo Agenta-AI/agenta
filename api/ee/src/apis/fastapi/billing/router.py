@@ -11,8 +11,10 @@ import stripe
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import acquire_lock, release_lock
+from oss.src.utils.caching import acquire_lock, release_lock, renew_lock
 from oss.src.utils.env import env
+
+from ee.src.utils.billing import compute_billing_period
 
 from oss.src.services.db_manager import (
     get_user_with_id,
@@ -351,7 +353,8 @@ class BillingRouter:
                     )
 
                 anchor = datetime.fromtimestamp(
-                    stripe_event.data.object.billing_cycle_anchor
+                    stripe_event.data.object.billing_cycle_anchor,
+                    tz=timezone.utc,
                 ).day
 
             elif stripe_event.type == "invoice.payment_failed":
@@ -811,10 +814,7 @@ class BillingRouter:
 
         plan = subscription.plan
         anchor_day = subscription.anchor
-        if not anchor_day or now.day < anchor_day:
-            anchor_month = now.month
-        else:
-            anchor_month = (now.month % 12) + 1
+        anchor_year, anchor_month = compute_billing_period(now=now, anchor=anchor_day)
 
         entitlements = ENTITLEMENTS.get(plan)
 
@@ -837,10 +837,12 @@ class BillingRouter:
 
                 for meter in meters:
                     if meter.key == key:
-                        if meter.month != 0 and meter.month != anchor_month:
-                            continue
-
-                        value = meter.value
+                        # Gauges use month=0 (non-periodic), always match
+                        if meter.month == 0:
+                            value = meter.value
+                        # Counters: match both year and month for the current billing period
+                        elif meter.year == anchor_year and meter.month == anchor_month:
+                            value = meter.value
 
                 usage[key] = {
                     "value": value,
@@ -858,11 +860,13 @@ class BillingRouter:
     ):
         log.info("[report] [endpoint] Trigger")
 
+        LOCK_TTL = 3600  # 1 hour
+
         try:
             lock_key = await acquire_lock(
                 namespace="meters:report",
                 key={},
-                ttl=3600,  # 1 hour
+                ttl=LOCK_TTL,
             )
 
             if not lock_key:
@@ -874,9 +878,16 @@ class BillingRouter:
 
             log.info("[report] [endpoint] Lock acquired")
 
+            async def _renew_lock():
+                return await renew_lock(
+                    namespace="meters:report",
+                    key={},
+                    ttl=LOCK_TTL,
+                )
+
             try:
                 log.info("[report] [endpoint] Reporting usage started")
-                await self.meters_service.report()
+                await self.meters_service.report(renew=_renew_lock)
                 log.info("[report] [endpoint] Reporting usage completed")
 
                 return JSONResponse(
