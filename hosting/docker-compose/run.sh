@@ -122,11 +122,18 @@ if [[ -z "$ENV_FILE" ]]; then
     ENV_FILE=".env.$LICENSE.$STAGE"
 fi
 
+if [[ "$ENV_FILE" = /* || "$ENV_FILE" == ./* || "$ENV_FILE" == ../* || "$ENV_FILE" == */* ]]; then
+    ENV_FILE_PATH="$ENV_FILE"
+else
+    ENV_FILE_PATH="./hosting/docker-compose/$LICENSE/$ENV_FILE"
+fi
+
+
 # Export the ENV_FILE to the environment
 export ENV_FILE="$ENV_FILE"
 
 # Always append --env-file flag to COMPOSE_CMD
-COMPOSE_CMD+=" --env-file ./hosting/docker-compose/$LICENSE/$ENV_FILE"
+COMPOSE_CMD+=" --env-file $ENV_FILE_PATH"
 
 if $WITH_WEB; then
     COMPOSE_CMD+=" --profile with-web"
@@ -176,6 +183,12 @@ if ! $WITH_WEB ; then
         error_exit "Web directory not found!"
     fi
 
+    if [[ -f "$ENV_FILE_PATH" ]]; then
+        set -a
+        . "$ENV_FILE_PATH"
+        set +a
+    fi
+
     cd web
     pnpm install || error_exit "Failed to install dependencies in web."
 
@@ -185,6 +198,7 @@ if ! $WITH_WEB ; then
 
     echo "Starting development server for $LICENSE..."
 
+    export AGENTA_WEB_URL
     sh -c "AGENTA_LICENSE=${LICENSE} ENTRYPOINT_DIR=. sh ./entrypoint.sh"
 
     cd $LICENSE
