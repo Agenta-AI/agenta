@@ -11,14 +11,9 @@ from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.environments.dtos import (
-    EnvironmentQuery,
     EnvironmentFlags,
     EnvironmentEdit,
     #
-    EnvironmentRevision,
-    EnvironmentRevisionData,
-    #
-    SimpleEnvironmentQuery,
     SimpleEnvironment,
 )
 from oss.src.core.environments.service import (
