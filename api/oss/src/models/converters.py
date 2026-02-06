@@ -97,7 +97,9 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         config_name=app_variant_db.config_name,  # type: ignore
         uri=uri,  # type: ignore
         revision=app_variant_db.revision,  # type: ignore
-        created_at=str(app_variant_db.created_at) if app_variant_db.created_at else None,
+        created_at=str(app_variant_db.created_at)
+        if app_variant_db.created_at
+        else None,
         updated_at=str(updated_at) if updated_at else None,
         modified_by_id=str(modified_by_id) if modified_by_id else None,
     )
@@ -295,7 +297,9 @@ def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
         name=evaluator_config.name,
         evaluator_key=evaluator_config.evaluator_key,
         settings_values=evaluator_config.settings_values,
-        created_at=str(evaluator_config.created_at) if evaluator_config.created_at else None,
+        created_at=str(evaluator_config.created_at)
+        if evaluator_config.created_at
+        else None,
         updated_at=str(updated_at) if updated_at else None,
     )
 
