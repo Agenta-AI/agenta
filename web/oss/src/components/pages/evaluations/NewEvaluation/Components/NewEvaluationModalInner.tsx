@@ -1,10 +1,10 @@
 import {useCallback, memo, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {FIRST_EVALUATION_TOUR_ID} from "@/oss/components/Onboarding/tours/firstEvaluationTour"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
@@ -446,7 +446,7 @@ const NewEvaluationModalInner = ({
                         testset_id: selectedTestsetId,
                         testset_revision_id: selectedTestsetRevisionId,
                         revisions_ids: selectedVariantRevisionIds,
-                        evaluators_configs: selectedEvalConfigs,
+                        evaluator_ids: selectedEvalConfigs,
                         rate_limit: rateLimitValues,
                         correct_answer_column: correct_answer_column,
                         name: evaluationName,

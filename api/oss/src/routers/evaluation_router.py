@@ -68,7 +68,6 @@ from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsS
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
-from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
@@ -159,10 +158,6 @@ tracing_router = TracingRouter(
 
 simple_testsets_router = SimpleTestsetsRouter(
     simple_testsets_service=simple_testsets_service,
-)
-
-simple_evaluators_router = SimpleEvaluatorsRouter(
-    simple_evaluators_service=simple_evaluators_service,
 )
 
 router = APIRouter()
@@ -604,14 +599,13 @@ async def start_evaluation(
                 #
                 revision_id=payload.revisions_ids[i],
                 #
-                autoeval_ids=payload.evaluators_configs,
+                evaluator_ids=payload.evaluator_ids,
                 #
                 evaluations_service=evaluations_service,
+                evaluators_service=evaluators_service,
                 queries_service=queries_service,
                 workflows_service=workflows_service,
                 testsets_service=testsets_service,
-                simple_evaluators_router=simple_evaluators_router,
-                tracing_router=tracing_router,
             )
 
             if not run:
@@ -624,14 +618,6 @@ async def start_evaluation(
                 user_id=request.state.user_id,
                 #
                 run_id=run.id,
-                #
-                testset_revision_id=payload.testset_revision_id,
-                #
-                revision_id=payload.revisions_ids[i],
-                #
-                autoeval_ids=payload.evaluators_configs,
-                #
-                run_config=payload.rate_limit.model_dump(mode="json"),
             )
         # ----------------------------------------------------------------------
 

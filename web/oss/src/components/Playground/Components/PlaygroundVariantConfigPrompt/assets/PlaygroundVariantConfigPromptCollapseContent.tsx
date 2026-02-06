@@ -1,16 +1,13 @@
-import {useEffect, useMemo} from "react"
+import {useMemo} from "react"
 
 import {Alert} from "antd"
 import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 import {selectAtom} from "jotai/utils"
 
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
-import {
-    promptsAtomFamily,
-    promptVariablesByPromptAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
+import {promptVariablesByPromptAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 
 import type {PromptCollapseContentProps} from "../types"
 
@@ -30,7 +27,11 @@ import ToolsRenderer from "./ToolsRenderer"
  * @component
  */
 
-const isCustomAtom = selectAtom(currentAppContextAtom, (ctx) => ctx.appType === "custom", deepEqual)
+const isCustomAtom = selectAtom(
+    currentAppContextAtom,
+    (ctx) => (ctx as {appType?: string | null} | null)?.appType === "custom",
+    deepEqual,
+)
 const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseContentProps> = ({
     variantId,
     promptId,
@@ -40,13 +41,6 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
 }) => {
     // Minimal subscriptions by stable key `${revisionId}:${promptId}`
     const compoundKey = `${variantId}:${promptId}`
-
-    // Seed local prompts cache once to avoid first-edit race between derived and local state
-    const seedPrompts = useSetAtom(promptsAtomFamily(variantId))
-    useEffect(() => {
-        seedPrompts((draft: any) => draft)
-        // run once per variantId mount
-    }, [variantId])
 
     const promptVars = useAtomValue(
         useMemo(
@@ -70,7 +64,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
             {!isCustom && !hasVariable && !viewOnly && (
                 <Alert
                     closable
-                    message={
+                    title={
                         <>
                             Insert a <span className="font-semibold">{"{{variable}}"}</span> in your
                             template to create an input.

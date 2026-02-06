@@ -1549,9 +1549,6 @@ class SimpleEvaluationsService:
                 log.info("[EVAL] [failure] invalid simple evaluation flags")
                 return None
 
-            # Default: expect callers to provide testset revision ids; keep evaluator JIT as-is
-            evaluation_jit = evaluation.jit or {"testsets": False, "evaluators": True}
-
             run_data = await self._make_evaluation_run_data(
                 project_id=project_id,
                 user_id=user_id,
@@ -1562,8 +1559,6 @@ class SimpleEvaluationsService:
                 evaluator_steps=evaluation.data.evaluator_steps,
                 #
                 repeats=evaluation.data.repeats,
-                #
-                jit=evaluation_jit,
             )
 
             if not run_data:
@@ -1613,7 +1608,7 @@ class SimpleEvaluationsService:
             log.info("[EVAL] [success]     ", id=run.id)
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [failure]     ", exc_info=True)
             return None
 
@@ -1792,7 +1787,7 @@ class SimpleEvaluationsService:
 
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [failure]     ", exc_info=True)
             return None
 
@@ -1911,6 +1906,12 @@ class SimpleEvaluationsService:
                     )
                     return None
 
+                # SDK evaluations set status="running" — the loop runs locally,
+                # so do NOT dispatch the legacy worker.
+                if _evaluation.data.status == "running":
+                    _evaluation = await self._parse_evaluation_run(run=run)
+                    return _evaluation
+
                 if self.evaluations_worker is None:
                     log.warning(
                         "[EVAL] Taskiq client missing; cannot dispatch evaluation run",
@@ -1939,7 +1940,7 @@ class SimpleEvaluationsService:
 
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [start] [failure]", exc_info=True)
             return None
 
@@ -2024,8 +2025,6 @@ class SimpleEvaluationsService:
         evaluator_steps: Optional[Target] = None,
         #
         repeats: Optional[int] = None,
-        #
-        jit: Optional[Dict[str, bool]] = None,
     ) -> Optional[EvaluationRunData]:
         # IMPLICIT FLAG: is_multivariate=False
         # IMPLICIT FLAG: all_inputs=True
@@ -2128,54 +2127,6 @@ class SimpleEvaluationsService:
                     testset_revision_id: DEFAULT_ORIGIN_TESTSETS
                     for testset_revision_id in testset_steps
                 }
-
-            # JIT MIGRATION ================================================== #
-            if jit and jit.get("testsets"):
-                _testset_steps = deepcopy(testset_steps or {})
-                testset_steps = dict()
-
-                for testset_id, origin in _testset_steps.items():
-                    testset_ref = Reference(id=testset_id)
-
-                    simple_testset = await self.simple_testsets_service.transfer(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        testset_id=testset_id,
-                    )
-
-                    if (
-                        not simple_testset
-                        or not simple_testset.id
-                        or not simple_testset.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not transfer simple testset",
-                            id=testset_ref.id,
-                        )
-                        return None
-
-                    testset_revision = (
-                        await self.testsets_service.fetch_testset_revision(
-                            project_id=project_id,
-                            #
-                            testset_ref=testset_ref,
-                        )
-                    )
-
-                    if (
-                        not testset_revision
-                        or not testset_revision.id
-                        or not testset_revision.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not find testset revision",
-                            id=testset_ref.id,
-                        )
-                        return None
-
-                    testset_steps[testset_revision.id] = origin
-            # ================================================================ #
 
             for testset_revision_id, origin in (testset_steps or {}).items():
                 testset_revision_ref = Reference(id=testset_revision_id)
@@ -2361,54 +2312,6 @@ class SimpleEvaluationsService:
                     evaluator_revision_id: DEFAULT_ORIGIN_EVALUATORS
                     for evaluator_revision_id in evaluator_steps
                 }
-
-            # JIT MIGRATION ================================================== #
-            if jit and jit.get("evaluators"):
-                _evaluator_steps = deepcopy(evaluator_steps or {})
-                evaluator_steps = dict()
-
-                for evaluator_id, origin in _evaluator_steps.items():
-                    evaluator_ref = Reference(id=evaluator_id)
-
-                    simple_evaluator = await self.simple_evaluators_service.transfer(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        evaluator_id=evaluator_id,
-                    )
-
-                    if (
-                        not simple_evaluator
-                        or not simple_evaluator.id
-                        or not simple_evaluator.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not transfer simple evaluator",
-                            id=evaluator_ref.id,
-                        )
-                        return None
-
-                    evaluator_revision = (
-                        await self.evaluators_service.fetch_evaluator_revision(
-                            project_id=project_id,
-                            #
-                            evaluator_ref=evaluator_ref,
-                        )
-                    )
-
-                    if (
-                        not evaluator_revision
-                        or not evaluator_revision.id
-                        or not evaluator_revision.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not find evaluator revision",
-                            id=evaluator_ref.id,
-                        )
-                        return None
-
-                    evaluator_steps[evaluator_revision.id] = origin
-            # ================================================================ #
 
             for evaluator_revision_id, origin in (evaluator_steps or {}).items():
                 evaluator_revision_ref = Reference(id=evaluator_revision_id)

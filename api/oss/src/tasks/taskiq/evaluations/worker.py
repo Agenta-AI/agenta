@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 from datetime import datetime
 
@@ -6,9 +6,9 @@ from taskiq import AsyncBroker
 
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import TestsetsService
-from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 
 from oss.src.core.queries.service import QueriesService
+from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluations.service import EvaluationsService
 
@@ -37,7 +37,7 @@ class EvaluationsWorker:
         broker: AsyncBroker,
         #
         tracing_router: TracingRouter,
-        simple_evaluators_router: SimpleEvaluatorsRouter,
+        simple_evaluators_service: SimpleEvaluatorsService,
         #
         testsets_service: TestsetsService,
         queries_service: QueriesService,
@@ -54,7 +54,7 @@ class EvaluationsWorker:
         #
         self.tracing_router = tracing_router
         self.testsets_service = testsets_service
-        self.simple_evaluators_router = simple_evaluators_router
+        self.simple_evaluators_service = simple_evaluators_service
         #
         self.queries_service = queries_service
         self.workflows_service = workflows_service
@@ -76,12 +76,6 @@ class EvaluationsWorker:
             user_id: UUID,
             #
             run_id: UUID,
-            #
-            testset_revision_id: str,
-            revision_id: str,
-            autoeval_ids: Optional[List[str]],
-            #
-            run_config: Dict[str, int],
         ) -> Any:
             """Legacy annotation task - wraps the existing annotate function."""
             log.info(
@@ -97,15 +91,9 @@ class EvaluationsWorker:
                 #
                 run_id=run_id,
                 #
-                testset_revision_id=testset_revision_id,
-                revision_id=revision_id,
-                autoeval_ids=autoeval_ids,
-                #
-                run_config=run_config,
-                #
                 tracing_router=self.tracing_router,
                 testsets_service=self.testsets_service,
-                simple_evaluators_router=self.simple_evaluators_router,
+                simple_evaluators_service=self.simple_evaluators_service,
                 #
                 queries_service=self.queries_service,
                 workflows_service=self.workflows_service,

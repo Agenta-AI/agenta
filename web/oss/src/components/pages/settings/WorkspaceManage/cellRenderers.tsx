@@ -1,11 +1,11 @@
 import {useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {EditOutlined, MoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Input, Modal, Space, Tag, Tooltip, Typography} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {message} from "@/oss/components/AppMessageContext"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"

@@ -39,7 +39,6 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 
 import agenta as ag
 
@@ -157,21 +156,20 @@ tracing_router = TracingRouter(
     tracing_worker=tracing_worker,
 )
 
-simple_evaluators_router = SimpleEvaluatorsRouter(
-    simple_evaluators_service=simple_evaluators_service,
-)
-
 evaluations_worker = EvaluationsWorker(
     broker=broker,
     #
     tracing_router=tracing_router,
-    simple_evaluators_router=simple_evaluators_router,
+    simple_evaluators_service=simple_evaluators_service,
     #
     testsets_service=testsets_service,
     queries_service=queries_service,
     workflows_service=workflows_service,
     evaluations_service=evaluations_service,
 )
+
+# Wire evaluations_worker into evaluations_service (circular dependency)
+evaluations_service.evaluations_worker = evaluations_worker
 
 
 def main() -> int:
