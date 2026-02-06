@@ -146,7 +146,9 @@ CATALOG = [
             "Unlimited prompts",
             "20 evaluations/month",
             "5k traces/month",
-            "2 seats",
+            "2 seats included",
+            "30 days retention period",
+            "Community support via Github",
         ],
     },
     {
@@ -194,9 +196,10 @@ CATALOG = [
         "features": [
             "Unlimited prompts",
             "Unlimited evaluations",
-            "10k free traces/month",
-            "3 free seats",
-            "Up to 10 seats",
+            "10k traces / month included then $5 for every 10k",
+            "3 seats included then $20 per seat",
+            "90 days retention period",
+            "In-app support",
         ],
     },
     {
@@ -229,14 +232,15 @@ CATALOG = [
         "features": [
             "Everything in Pro",
             "Unlimited seats",
-            "1M free traces/month",
-            "Multiple workspaces [soon]",
+            "1M traces / month included then $5 for every 10k",
+            "Multiple workspaces",
             "Roles and RBAC",
-            "SSO and MFA [soon]",
+            "Enterprise SSO",
             "SOC 2 reports",
             "HIPAA BAA [soon]",
             "Private Slack Channel",
             "Business SLA",
+            "365 days retention period",
         ],
     },
     {

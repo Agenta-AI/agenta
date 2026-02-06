@@ -43,7 +43,7 @@ const PROVIDER_ICON_MAP: Record<string, string> = {
     cohere: "Cohere",
     deepinfra: "DeepInfra",
     openrouter: "OpenRouter",
-    perplexity: "Perplexity AI",
+    perplexityai: "Perplexity AI",
     together_ai: "Together AI",
     vertex_ai: "Google Vertex AI",
     bedrock: "AWS Bedrock",

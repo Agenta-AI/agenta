@@ -196,8 +196,8 @@ async def fetch_evaluation_ids(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -249,8 +249,8 @@ async def fetch_evaluation_status(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -301,8 +301,8 @@ async def fetch_evaluation_results(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -351,8 +351,8 @@ async def fetch_evaluation_scenarios(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -390,8 +390,8 @@ async def fetch_list_evaluations(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -434,8 +434,8 @@ async def fetch_evaluation(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -474,8 +474,8 @@ async def delete_evaluations(
             permission=Permission.DELETE_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -526,8 +526,8 @@ async def fetch_evaluation_scenarios_comparison_results(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,

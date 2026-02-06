@@ -19,6 +19,9 @@ export {
     setWidgetSectionExpandedAtom,
     hasSeenCloseTooltipAtom,
     openWidgetAtom,
+    computedExpandedSectionsAtom,
+    firstIncompleteSectionIdAtom,
+    setWidgetSectionManuallyCollapsedAtom,
 } from "./store"
 
 export {defaultWidgetConfig} from "./config"
