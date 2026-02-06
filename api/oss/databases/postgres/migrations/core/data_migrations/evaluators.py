@@ -184,7 +184,7 @@ async def _fetch_project_owners_batch(
     rows = result.fetchall()
 
     return {
-        row.project_id: UUID(row.owner_id) for row in rows if row.owner_id is not None
+        row.project_id: row.owner_id for row in rows if row.owner_id is not None
     }
 
 
