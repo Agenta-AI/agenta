@@ -689,7 +689,8 @@ class EnvironmentsRouter:
                     **body_json
                 )
 
-        except:
+        except (ValueError, UnicodeDecodeError):
+            # Body may be missing or contain invalid JSON; ignore and rely on query params only.
             pass
 
         environment_variant_query_request = merge_environment_variant_query_requests(
