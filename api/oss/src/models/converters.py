@@ -51,10 +51,6 @@ from oss.src.models.api.api_models import (
     WithPagination,
 )
 
-from oss.src.models.shared_models import (
-    AggregatedResult,
-    EvaluationScenarioResult,
-)
 
 log = get_module_logger(__name__)
 
@@ -108,6 +104,9 @@ async def app_variant_db_revisions_to_output(
         app_variant_revisions.append(
             AppVariantRevision(
                 id=str(app_variant_revision_db.id) or None,
+                variant_id=str(app_variant_revision_db.variant_id)
+                if app_variant_revision_db.variant_id
+                else None,
                 revision=app_variant_revision_db.revision,
                 modified_by=app_variant_revision_db.modified_by.username,
                 config={
@@ -126,6 +125,9 @@ async def app_variant_db_revision_to_output(
 ) -> AppVariantRevision:
     return AppVariantRevision(
         id=str(app_variant_revision_db.id) or None,
+        variant_id=str(app_variant_revision_db.variant_id)
+        if app_variant_revision_db.variant_id
+        else None,
         revision=app_variant_revision_db.revision,
         modified_by=app_variant_revision_db.modified_by.username,
         config=ConfigDB(
