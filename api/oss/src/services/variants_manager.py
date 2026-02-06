@@ -574,6 +574,7 @@ async def _update_environment(
             user_id=UUID(user_id),
             variant_id=variant_id,
             environment_name=environment_name,
+            revision_id=variant_revision_id,
             commit_message=commit_message,
         )
 

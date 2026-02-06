@@ -17,7 +17,7 @@ const VariantDetailsRenderer = ({
     return record.variant ? (
         <VariantDetailsWithStatus
             variantName={record.variant?.variantName || record.variant?.name || ""}
-            revision={record.revision}
+            revision={record.variant?.revision}
             variant={record.variant}
             {...props}
         />

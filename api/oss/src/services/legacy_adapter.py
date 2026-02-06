@@ -1554,10 +1554,14 @@ class LegacyEnvironmentsAdapter:
         user_id: UUID,
         variant_id: UUID,
         environment_name: str,
+        revision_id: Optional[UUID] = None,
         commit_message: Optional[str] = None,
     ) -> Optional[tuple]:
         """
         Deploy a variant to an environment.
+
+        Args:
+            revision_id: Specific revision to deploy. If None, deploys the latest.
 
         Returns ``(environment_name, revision_version)`` on success, or None.
         """
@@ -1566,7 +1570,7 @@ class LegacyEnvironmentsAdapter:
             EnvironmentRevisionDelta,
         )
 
-        # Resolve the variant to get app_id and latest revision
+        # Resolve the variant to get app_id
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
@@ -1585,13 +1589,25 @@ class LegacyEnvironmentsAdapter:
         if app_slug is None:
             raise ValueError("Application not found")
 
-        # Get latest application variant revision
-        app_revisions = await self.applications_service.query_application_revisions(
-            project_id=project_id,
-            application_variant_refs=[Reference(id=variant_id)],
-            windowing=Windowing(limit=1),
-        )
-        variant_revision = app_revisions[0] if app_revisions else None
+        # Get the specific revision or fallback to latest
+        variant_revision = None
+        if revision_id:
+            # Fetch specific revision by ID
+            revisions = await self.applications_service.query_application_revisions(
+                project_id=project_id,
+                application_revision_refs=[Reference(id=revision_id)],
+                windowing=Windowing(limit=1),
+            )
+            variant_revision = revisions[0] if revisions else None
+        else:
+            # Fetch latest revision
+            revisions = await self.applications_service.query_application_revisions(
+                project_id=project_id,
+                application_variant_refs=[Reference(id=variant_id)],
+                windowing=Windowing(limit=1),
+            )
+            variant_revision = revisions[0] if revisions else None
+
         variant_revision_id = variant_revision.id if variant_revision else variant_id
 
         # Get or create the environment
@@ -1748,7 +1764,7 @@ class LegacyEnvironmentsAdapter:
         Return legacy-shaped environment + revisions for the extended output.
 
         Returns a dict with all ``EnvironmentOutputExtended`` fields, or None
-        if the environment doesn't exist.
+        if the app doesn't exist.
         """
         app_slug = await self._resolve_app_slug(
             project_id=project_id,
@@ -1761,15 +1777,35 @@ class LegacyEnvironmentsAdapter:
             project_id=project_id,
             environment_ref=Reference(slug=environment_name),
         )
+
+        # If environment doesn't exist in new tables, return empty result
         if env is None:
-            return None
+            return {
+                "name": environment_name,
+                "app_id": str(app_id),
+                "project_id": str(project_id),
+                "deployed_app_variant_id": None,
+                "deployed_variant_name": None,
+                "deployed_app_variant_revision_id": None,
+                "revision": 0,
+                "revisions": [],
+            }
 
         env_variant = await self.environments_service.fetch_environment_variant(
             project_id=project_id,
             environment_ref=Reference(id=env.id),
         )
         if env_variant is None:
-            return None
+            return {
+                "name": environment_name,
+                "app_id": str(app_id),
+                "project_id": str(project_id),
+                "deployed_app_variant_id": None,
+                "deployed_variant_name": None,
+                "deployed_app_variant_revision_id": None,
+                "revision": 0,
+                "revisions": [],
+            }
 
         # Fetch all revisions
         all_revisions = await self.environments_service.query_environment_revisions(

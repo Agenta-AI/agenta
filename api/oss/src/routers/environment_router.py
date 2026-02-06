@@ -4,7 +4,6 @@ from fastapi.responses import JSONResponse
 from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.services import app_manager
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.utils.caching import invalidate_cache
 from oss.src.models.api.api_models import DeployToEnvironmentPayload
@@ -55,14 +54,6 @@ async def deploy_to_environment(
         variant_id=UUID(payload.variant_id),
         environment_name=payload.environment_name,
         commit_message=payload.commit_message,
-    )
-
-    # Update last_modified_by app information
-    await app_manager.update_last_modified_by(
-        user_uid=request.state.user_id,
-        object_id=payload.variant_id,
-        object_type="variant",
-        project_id=request.state.project_id,
     )
 
     await invalidate_cache(

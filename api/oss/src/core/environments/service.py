@@ -747,9 +747,11 @@ class EnvironmentsService:
         base_references: Dict[str, Dict[str, Reference]] = {}
 
         if variant_id:
+            # Fetch revisions ordered by newest first (windowing applies descending order)
             revisions = await self.query_environment_revisions(
                 project_id=project_id,
                 environment_variant_refs=[Reference(id=variant_id)],
+                windowing=Windowing(),  # Ensures descending order by ID (UUID7)
             )
 
             # Find the most recent revision that has reference data
