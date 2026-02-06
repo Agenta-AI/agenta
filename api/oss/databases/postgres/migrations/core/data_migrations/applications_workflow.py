@@ -163,8 +163,11 @@ async def _fetch_app_variants(
     app_id: UUID,
     connection: AsyncConnection,
 ):
-    """Fetch all variants for an app."""
-    query = select(AppVariantDB).where(AppVariantDB.app_id == app_id)
+    """Fetch all non-hidden variants for an app."""
+    query = select(AppVariantDB).where(
+        AppVariantDB.app_id == app_id,
+        AppVariantDB.hidden.isnot(True),
+    )
     result = await connection.execute(query)
     return result.fetchall()
 
