@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {CloseOutlined} from "@ant-design/icons"
 import {ArrowLeft, Info, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Form, Input, Space, Tag, Tooltip, Typography} from "antd"
@@ -8,7 +9,6 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
 import {EvaluationSettingsTemplate, JSSTheme, SettingsPreset} from "@/oss/lib/Types"

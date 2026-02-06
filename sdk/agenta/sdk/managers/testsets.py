@@ -127,11 +127,15 @@ async def _fetch_simple_testset(
 
         testsets = response.json().get("testsets", [])
 
-        if testsets:
-            first = testsets[0]
+        # Exact name match — the query endpoint uses ilike (fuzzy),
+        # so we must filter client-side to avoid picking the wrong testset.
+        matched = next(
+            (ts for ts in testsets if ts.get("name") == name),
+            None,
+        )
 
-            if first.get("id"):
-                return await _fetch_simple_testset(testset_id=UUID(first["id"]))
+        if matched and matched.get("id"):
+            return await _fetch_simple_testset(testset_id=UUID(matched["id"]))
 
     return None
 

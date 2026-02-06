@@ -293,7 +293,7 @@ class SimpleEvaluatorEdit(Identifier, Header, Metadata):
     data: Optional[SimpleEvaluatorData] = None
 
 
-class SimpleEvaluatorQuery(Metadata):
+class SimpleEvaluatorQuery(Header, Metadata):
     flags: Optional[SimpleEvaluatorQueryFlags] = None
 
 

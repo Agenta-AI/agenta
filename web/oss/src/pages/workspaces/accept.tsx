@@ -1,12 +1,12 @@
 import {useEffect, useRef, useState, type FC} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Button, Card, Typography} from "antd"
 import {getDefaultStore, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
-import {message} from "@/oss/components/AppMessageContext"
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
 import {normalizeInviteError} from "@/oss/lib/helpers/authMessages"
 import {isEE} from "@/oss/lib/helpers/isEE"
