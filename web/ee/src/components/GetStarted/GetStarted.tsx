@@ -208,7 +208,7 @@ const GetStarted = () => {
                     </div>
                     <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
                         <div className="text-lg font-semibold mb-2">Trace your application</div>
-                        <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
+                        <div className="text-[var(--ant-color-text-secondary)] text-sm text-center leading-relaxed">
                             Monitor and debug your application.
                         </div>
                     </div>
@@ -223,7 +223,7 @@ const GetStarted = () => {
                     </div>
                     <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
                         <div className="text-lg font-semibold mb-2">Create and test prompts</div>
-                        <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
+                        <div className="text-[var(--ant-color-text-secondary)] text-sm text-center leading-relaxed">
                             Manage and test prompts across models
                         </div>
                     </div>
@@ -238,7 +238,7 @@ const GetStarted = () => {
                     </div>
                     <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
                         <div className="text-lg font-semibold mb-2">Run an evaluation from SDK</div>
-                        <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
+                        <div className="text-[var(--ant-color-text-secondary)] text-sm text-center leading-relaxed">
                             Evaluate complex AI apps to compare changes and ensure they are
                             reliable.
                         </div>

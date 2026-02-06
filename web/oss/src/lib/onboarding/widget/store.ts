@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
     COMPLETED_TASKS: "widget-events",
     EXPANDED_SECTIONS: "widget-expanded",
     HAS_SEEN_CLOSE_TOOLTIP: "widget-seen-close-tooltip",
+    MANUALLY_COLLAPSED: "widget-manually-collapsed",
 } as const
 
 const createScopedStorageKey = (userId: string, key: string) => `agenta:onboarding:${userId}:${key}`
@@ -179,6 +180,26 @@ export const onboardingWidgetExpandedSectionsAtom = atom(
     },
 )
 
+const widgetManuallyCollapsedSectionsAtomFamily = atomFamily((userId: string) =>
+    atomWithStorage<Record<string, boolean>>(
+        createScopedStorageKey(userId, STORAGE_KEYS.MANUALLY_COLLAPSED),
+        {},
+    ),
+)
+
+export const onboardingWidgetManuallyCollapsedAtom = atom(
+    (get) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return {}
+        return get(widgetManuallyCollapsedSectionsAtomFamily(userId))
+    },
+    (get, set, next: Record<string, boolean>) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return
+        set(widgetManuallyCollapsedSectionsAtomFamily(userId), next)
+    },
+)
+
 export const onboardingWidgetCompletionAtom = atom((get) => {
     const config = get(onboardingWidgetConfigAtom)
     const events = get(onboardingWidgetEventsAtom)
@@ -191,6 +212,58 @@ export const onboardingWidgetCompletionAtom = atom((get) => {
     })
 
     return completionMap
+})
+
+export const firstIncompleteSectionIdAtom = atom((get) => {
+    const config = get(onboardingWidgetConfigAtom)
+    const completionMap = get(onboardingWidgetCompletionAtom)
+
+    // Find first section with at least one incomplete item
+    for (const section of config.sections) {
+        const hasIncompleteItems = section.items.some((item) => !completionMap[item.id])
+        if (hasIncompleteItems) {
+            return section.id
+        }
+    }
+
+    // All sections complete - return first section to show achievement
+    return config.sections.length > 0 ? config.sections[0].id : null
+})
+
+export const computedExpandedSectionsAtom = atom((get) => {
+    const config = get(onboardingWidgetConfigAtom)
+    const firstIncomplete = get(firstIncompleteSectionIdAtom)
+    const manuallyCollapsed = get(onboardingWidgetManuallyCollapsedAtom)
+    const explicitExpanded = get(onboardingWidgetExpandedSectionsAtom)
+
+    const computed: Record<string, boolean> = {}
+
+    config.sections.forEach((section) => {
+        const sectionId = section.id
+
+        // Priority 1: If user manually collapsed this section, respect that
+        if (manuallyCollapsed[sectionId]) {
+            computed[sectionId] = false
+            return
+        }
+
+        // Priority 2: If user manually expanded this section, respect that
+        if (explicitExpanded[sectionId] === true) {
+            computed[sectionId] = true
+            return
+        }
+
+        // Priority 3: Auto-expand first incomplete section
+        if (sectionId === firstIncomplete) {
+            computed[sectionId] = true
+            return
+        }
+
+        // Default: collapsed
+        computed[sectionId] = false
+    })
+
+    return computed
 })
 
 export const setOnboardingWidgetConfigAtom = atom(
@@ -217,6 +290,24 @@ export const setWidgetSectionExpandedAtom = atom(
             ...previous,
             [params.sectionId]: params.expanded,
         })
+    },
+)
+
+export const setWidgetSectionManuallyCollapsedAtom = atom(
+    null,
+    (get, set, params: {sectionId: string; collapsed: boolean}) => {
+        const previous = get(onboardingWidgetManuallyCollapsedAtom)
+        if (params.collapsed) {
+            set(onboardingWidgetManuallyCollapsedAtom, {
+                ...previous,
+                [params.sectionId]: true,
+            })
+        } else {
+            // Remove from manually collapsed when user expands
+            const next = {...previous}
+            delete next[params.sectionId]
+            set(onboardingWidgetManuallyCollapsedAtom, next)
+        }
     },
 )
 
