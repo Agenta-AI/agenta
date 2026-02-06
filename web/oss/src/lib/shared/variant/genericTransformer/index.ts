@@ -244,8 +244,18 @@ function transformValue<T>(
 export function transformPrimitive<T>(value: T, metadata: ConfigMetadata): Enhanced<T> {
     const metadataHash = hashMetadata(metadata)
 
+    // Unwrap already-enhanced values to prevent double-wrapping
+    const unwrapped =
+        value &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        "__id" in (value as Record<string, unknown>) &&
+        "value" in (value as Record<string, unknown>)
+            ? ((value as {value: unknown}).value as T)
+            : value
+
     return {
-        value,
+        value: unwrapped,
         __id: generateId(),
         __metadata: metadataHash,
     } as Enhanced<T>

@@ -2,8 +2,8 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
-    variantsListWithDraftsAtomFamily,
-    revisionsListWithDraftsAtomFamily,
+    variantsListQueryStateAtomFamily,
+    revisionsListQueryStateAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
 import {SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
@@ -58,7 +58,7 @@ const VariantsDashboard = () => {
         [],
     )
     const variantsListAtom = useMemo(
-        () => (appId ? variantsListWithDraftsAtomFamily(appId) : emptyListAtom),
+        () => (appId ? variantsListQueryStateAtomFamily(appId) : emptyListAtom),
         [appId, emptyListAtom],
     )
     const variantsQuery = useAtomValue(variantsListAtom)
@@ -69,11 +69,11 @@ const VariantsDashboard = () => {
                 if (!appId) {
                     return {data: [], isPending: false}
                 }
-                const listQuery = get(variantsListWithDraftsAtomFamily(appId))
+                const listQuery = get(variantsListQueryStateAtomFamily(appId))
                 const list = listQuery.data ?? []
                 let isPending = listQuery.isPending ?? false
                 const revisions = list.flatMap((variant: any) => {
-                    const revisionsQuery = get(revisionsListWithDraftsAtomFamily(variant.id))
+                    const revisionsQuery = get(revisionsListQueryStateAtomFamily(variant.id))
                     if (revisionsQuery.isPending) {
                         isPending = true
                     }
@@ -144,7 +144,7 @@ const VariantsDashboard = () => {
         const store = getDefaultStore()
         return (revisions || [])
             .map((r: any) => {
-                if (!r?.isLocalDraft && Number(r?.revision ?? 0) <= 0) return null
+                if (Number(r?.revision ?? 0) <= 0) return null
                 const timestamp = r.createdAt ? new Date(r.createdAt).valueOf() : Date.now()
                 const modelName = store.get(modelNameByRevisionIdAtomFamily(r.id))
                 const variantName = variantNameMap[r.variantId] ?? "-"

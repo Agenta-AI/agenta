@@ -3,22 +3,33 @@
 import "@agenta/entities/legacyAppRevision"
 
 import {
+    isLocalDraftId,
+    legacyAppRevisionMolecule,
+    localDraftIdsAtom,
+} from "@agenta/entities/legacyAppRevision"
+import {
     urlSnapshotController,
     setRunnableTypeResolver,
     setSelectionUpdateCallback,
     isPlaceholderId,
+    pendingHydrations,
+    pendingHydrationsAtom,
+    applyPendingHydration,
 } from "@agenta/playground"
-import {getDefaultStore} from "jotai"
+import {atom, getDefaultStore} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
 import {
     selectedVariantsAtom,
-    viewTypeAtom,
     urlRevisionsAtom,
     isSelectionStorageHydrated,
+    revisionListAtom,
+    playgroundRevisionListAtom,
+    playgroundRevisionsReadyAtom,
+    playgroundLatestRevisionIdAtom,
 } from "@/oss/components/Playground/state/atoms"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
-import {latestAppRevisionIdAtom} from "@/oss/state/variant/selectors/variant"
+import {isLocalDraft} from "@/oss/state/newPlayground"
 
 // ============================================================================
 // OSS RUNNABLE TYPE RESOLVER
@@ -238,10 +249,8 @@ const applyPlaygroundSelection = (store: Store, next: string[]) => {
         store.set(urlRevisionsAtom, sanitized)
     }
 
-    const nextViewType = mergedSelection.length > 1 ? "comparison" : "single"
-    if (store.get(viewTypeAtom) !== nextViewType) {
-        store.set(viewTypeAtom, nextViewType)
-    }
+    // viewTypeAtom was removed - isComparisonViewAtom derives comparison state
+    // directly from selectedVariantsAtom, so no manual sync needed.
 }
 
 let lastPlaygroundAppId: string | null = null
@@ -269,9 +278,9 @@ export const ensurePlaygroundDefaults = (store: Store) => {
     // If there are valid selected revisions, don't override
     if (selected.length > 0) return
 
-    // Use latestAppRevisionIdAtom - same source as "Last modified" tag
-    // This ensures default selection matches the tag shown in the UI
-    const latestRevisionId = store.get(latestAppRevisionIdAtom)
+    // Derives from the same entity store that powers the playground's revision
+    // list, so it's always available when the playground's data has loaded.
+    const latestRevisionId = store.get(playgroundLatestRevisionIdAtom)
     if (!latestRevisionId) return
 
     applyPlaygroundSelection(store, [latestRevisionId])
@@ -320,10 +329,10 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
         // Skip URL revision processing if there are pending hydrations
         // This happens when we just processed a snapshot and the selection includes placeholder IDs
         // that haven't been resolved yet. We don't want to overwrite them with deduplicated URL revisions.
-        const hasPendingHydrations = store.get(
-            urlSnapshotController.selectors.pendingHydrationCount,
-        )
-        if (hasPendingHydrations > 0 && isPlaygroundRoute) {
+        // NOTE: Read directly from the pendingHydrations Map instead of the atom selector,
+        // because the atom (pendingHydrationCountAtom) has no Jotai dependencies and caches
+        // its initial value, making it stale when hydrations are added later.
+        if (pendingHydrations.size > 0 && isPlaygroundRoute) {
             return
         }
 
@@ -354,5 +363,219 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
         }
     } catch (err) {
         console.error("Failed to sync playground state from URL:", nextUrl, err)
+    }
+}
+
+// ============================================================================
+// DERIVED ATOM: Draft hash for URL sync
+// ============================================================================
+
+/**
+ * Derived atom that computes a hash of all selected revisions' draft states.
+ * Used by the playgroundSyncAtom subscription to detect draft changes and
+ * update the URL accordingly. Moved here from usePlaygroundUrlSync.ts to
+ * decouple from React.
+ */
+const selectedDraftHashAtom = atom((get) => {
+    const selectedVariants = get(selectedVariantsAtom)
+
+    const parts = selectedVariants.map((revisionId) => {
+        const isDirty = get(legacyAppRevisionMolecule.atoms.isDirty(revisionId))
+        const draft = get(legacyAppRevisionMolecule.atoms.draft(revisionId))
+        const draftHash = draft ? JSON.stringify(draft) : ""
+        return `${revisionId}:${isDirty}:${draftHash}`
+    })
+
+    return parts.join("|")
+})
+
+// ============================================================================
+// PLAYGROUND SYNC ATOM
+// ============================================================================
+
+/**
+ * Imperative playground state synchronization atom.
+ *
+ * Uses `onMount` to set up `store.sub()` subscriptions that replace
+ * the React useEffect hooks from usePlaygroundUrlSync and MainLayout.
+ *
+ * Responsibilities:
+ * 1. Apply pending hydrations when server data loads (replaces usePlaygroundUrlSync Effect 2)
+ * 2. Apply default selection when revisions load (replaces usePlaygroundUrlSync Effect 1)
+ * 3. Update URL when draft content changes (replaces usePlaygroundUrlSync Effect 3)
+ * 4. Clean stale IDs from selection (replaces MainLayout validation useEffect)
+ *
+ * Mount this atom via `useAtomValue(playgroundSyncAtom)` at the Playground root.
+ */
+export const playgroundSyncAtom = atom(0)
+
+playgroundSyncAtom.onMount = (set) => {
+    if (!isBrowser) return
+
+    const store = getDefaultStore()
+    const unsubs: (() => void)[] = []
+
+    // -----------------------------------------------------------------------
+    // SUB 1: Apply pending hydrations when server data loads
+    // -----------------------------------------------------------------------
+    // Track which source IDs we're subscribed to, so we can add/remove subs dynamically
+    const sourceIdSubs = new Map<string, () => void>()
+
+    const reconcilePendingHydrationSubs = () => {
+        const pending = store.get(pendingHydrationsAtom)
+
+        // Collect current source IDs
+        const currentSourceIds = new Set<string>()
+        for (const [, hydration] of pending.entries()) {
+            currentSourceIds.add(hydration.sourceRevisionId)
+        }
+
+        // Remove subs for source IDs no longer pending
+        for (const [sourceId, unsub] of sourceIdSubs.entries()) {
+            if (!currentSourceIds.has(sourceId)) {
+                unsub()
+                sourceIdSubs.delete(sourceId)
+            }
+        }
+
+        // Add subs for new source IDs
+        for (const sourceId of currentSourceIds) {
+            if (sourceIdSubs.has(sourceId)) continue
+
+            const serverDataAtom = legacyAppRevisionMolecule.atoms.serverData(sourceId)
+            const unsub = store.sub(serverDataAtom, () => {
+                const serverData = store.get(serverDataAtom)
+                if (serverData && serverData.variantId) {
+                    // Try to apply all pending hydrations for this source
+                    const currentPending = store.get(pendingHydrationsAtom)
+                    for (const [draftKey, hydration] of currentPending.entries()) {
+                        if (hydration.sourceRevisionId === sourceId) {
+                            applyPendingHydration(draftKey)
+                        }
+                    }
+                }
+            })
+            sourceIdSubs.set(sourceId, unsub)
+        }
+    }
+
+    // Subscribe to pendingHydrationsAtom to manage per-source subscriptions
+    const unsubPending = store.sub(pendingHydrationsAtom, () => {
+        reconcilePendingHydrationSubs()
+        set((prev) => prev + 1)
+    })
+    unsubs.push(unsubPending)
+
+    // Initial reconciliation for any hydrations already pending at mount time
+    reconcilePendingHydrationSubs()
+
+    // Also do an immediate check for any pending hydrations whose source data is already loaded
+    {
+        const pending = store.get(pendingHydrationsAtom)
+        for (const [draftKey, hydration] of pending.entries()) {
+            const serverData = store.get(
+                legacyAppRevisionMolecule.atoms.serverData(hydration.sourceRevisionId),
+            )
+            if (serverData && serverData.variantId) {
+                applyPendingHydration(draftKey)
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // SUB 2: Apply default selection when revisions load
+    // -----------------------------------------------------------------------
+    // Uses dual subscription: revisionListAtom fires when data arrives,
+    // playgroundRevisionsReadyAtom fires when ALL variant revision queries
+    // have completed. Both are needed because revisionListAtom may fire
+    // before readiness (partial data), and readiness may fire after the
+    // revision list has already settled.
+    let hasAppliedDefaults = false
+    const tryApplyDefaults = () => {
+        if (hasAppliedDefaults) return
+        const isReady = store.get(playgroundRevisionsReadyAtom)
+        if (!isReady) return
+        const selected = store.get(selectedVariantsAtom)
+        if (selected.length > 0) {
+            hasAppliedDefaults = true
+            return
+        }
+        hasAppliedDefaults = true
+        ensurePlaygroundDefaults(store)
+    }
+    const unsubRevisions = store.sub(revisionListAtom, tryApplyDefaults)
+    const unsubReady = store.sub(playgroundRevisionsReadyAtom, tryApplyDefaults)
+    unsubs.push(unsubRevisions)
+    unsubs.push(unsubReady)
+
+    // -----------------------------------------------------------------------
+    // SUB 3: Update URL when draft content changes
+    // -----------------------------------------------------------------------
+    let prevDraftHash = store.get(selectedDraftHashAtom)
+    const unsubDraftHash = store.sub(selectedDraftHashAtom, () => {
+        const hash = store.get(selectedDraftHashAtom)
+        if (hash !== prevDraftHash) {
+            prevDraftHash = hash
+            updatePlaygroundUrlWithDrafts()
+        }
+    })
+    unsubs.push(unsubDraftHash)
+
+    // -----------------------------------------------------------------------
+    // SUB 4: Clean stale IDs from selection when revision list changes
+    // (replaces MainLayout validation useEffect)
+    // -----------------------------------------------------------------------
+    const unsubValidation = store.sub(playgroundRevisionListAtom, () => {
+        const revisionList = store.get(playgroundRevisionListAtom)
+        if (!revisionList || revisionList.length === 0) return
+
+        const selected = store.get(selectedVariantsAtom)
+        if (selected.length === 0) return
+
+        // Don't filter until all revision queries have completed.
+        // During incremental loading, some variants' revisions may not be
+        // in the list yet — filtering now would incorrectly remove them.
+        const isReady = store.get(playgroundRevisionsReadyAtom)
+        if (!isReady) return
+
+        const revisionIds = new Set(
+            revisionList.map((revision: any) => revision?.id).filter(Boolean),
+        )
+
+        const trackedLocalDraftIds = new Set(store.get(localDraftIdsAtom) || [])
+
+        const valid = selected.filter((id) => {
+            if (revisionIds.has(id) || isPlaceholderId(id)) return true
+            if (isLocalDraftId(id)) return trackedLocalDraftIds.has(id)
+            return false
+        })
+
+        if (process.env.NODE_ENV !== "production" && !arraysEqual(valid, selected)) {
+            const removed = selected.filter((id) => !valid.includes(id))
+            console.log("[SUB4] Cleaning stale IDs", {
+                selected,
+                valid,
+                removed,
+                revisionIdsInList: [...revisionIds],
+            })
+        }
+
+        if (valid.length === 0) {
+            ensurePlaygroundDefaults(store)
+        } else if (!arraysEqual(valid, selected)) {
+            store.set(selectedVariantsAtom, valid)
+            const urlSelection = valid.filter((id) => !isLocalDraft(id))
+            writePlaygroundSelectionToQuery(urlSelection)
+        }
+    })
+    unsubs.push(unsubValidation)
+
+    // -----------------------------------------------------------------------
+    // CLEANUP
+    // -----------------------------------------------------------------------
+    return () => {
+        for (const unsub of unsubs) unsub()
+        for (const [, unsub] of sourceIdSubs) unsub()
+        sourceIdSubs.clear()
     }
 }

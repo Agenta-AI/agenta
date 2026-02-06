@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {legacyAppRevisionEntityWithBridgeAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {Typography} from "antd"
 import deepEqual from "fast-deep-equal"
 import {atom, useAtomValue, useSetAtom} from "jotai"
@@ -7,13 +8,12 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {
     getMetadataLazy,
     metadataSelectorFamily,
-    metadataAtom,
+    getAllMetadata,
 } from "@/oss/lib/hooks/useStatelessVariants/state"
 import {
     moleculeBackedPromptsAtomFamily,
     moleculeBackedCustomPropertiesAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
-import {getEnhancedRevisionById} from "@/oss/state/variant/atoms/fetcher"
 
 import {usePromptsSource} from "../../context/PromptsSource"
 import {findPropertyInObject, findPropertyById} from "../../hooks/usePlayground/assets/helpers"
@@ -74,7 +74,7 @@ const PlaygroundVariantPropertyControl = ({
                 }
 
                 // Fallback: try custom properties derived from OpenAPI spec
-                const variant = getEnhancedRevisionById(get as any, revIdForPrompts)
+                const variant = get(legacyAppRevisionEntityWithBridgeAtomFamily(revIdForPrompts))
                 if (variant) {
                     const customProps = get(
                         moleculeBackedCustomPropertiesAtomFamily(revIdForPrompts),
@@ -110,7 +110,7 @@ const PlaygroundVariantPropertyControl = ({
                 // Use molecule-backed prompts for single source of truth
                 const prompts = get(moleculeBackedPromptsAtomFamily(revIdForPrompts))
                 const list = (prompts as any[]) || []
-                const metadataMap = get(metadataAtom) as Record<string, any>
+                const metadataMap = getAllMetadata() as Record<string, any>
                 const property =
                     findPropertyInObject(list, propertyId) ||
                     findPropertyById(list as any, propertyId)
@@ -123,7 +123,7 @@ const PlaygroundVariantPropertyControl = ({
                 }
 
                 // Fallback: custom properties metadata (molecule-backed)
-                const variant = getEnhancedRevisionById(get as any, revIdForPrompts)
+                const variant = get(legacyAppRevisionEntityWithBridgeAtomFamily(revIdForPrompts))
                 if (variant) {
                     const customProps = get(
                         moleculeBackedCustomPropertiesAtomFamily(revIdForPrompts),

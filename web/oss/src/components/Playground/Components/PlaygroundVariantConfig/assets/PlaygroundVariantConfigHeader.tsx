@@ -15,10 +15,12 @@ import {
     legacyAppRevisionMolecule,
     moleculeBackedVariantAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
-import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
 import {selectedVariantsAtom} from "../../../state/atoms/core"
-// import {baselineVariantAtomFamily} from "../../../state/atoms/dirtyState"
+import {
+    playgroundRevisionDeploymentAtomFamily,
+    playgroundLatestAppRevisionIdAtom,
+} from "../../../state/atoms/pipelineBBridge"
 import {switchVariantAtom} from "../../../state/atoms/urlSync"
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
@@ -51,8 +53,9 @@ const PlaygroundVariantConfigHeader = ({
     const baseline = useAtomValue(moleculeBackedVariantAtomFamily(variantId || ""))
     const moleculeData = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId || ""))
     const deployment = useAtomValue(
-        revisionDeploymentAtomFamily((baseline?.id as string) || ""),
+        playgroundRevisionDeploymentAtomFamily((baseline?.id as string) || ""),
     ) as any
+    const latestAppRevisionId = useAtomValue(playgroundLatestAppRevisionIdAtom)
 
     // For local drafts, get data from molecule
     const effectiveData = isLocalDraftVariant ? moleculeData : baseline
@@ -164,6 +167,7 @@ const PlaygroundVariantConfigHeader = ({
                                 hideName={!embedded}
                                 variantName={displayName as any}
                                 showRevisionAsTag={true}
+                                latestAppRevisionId={latestAppRevisionId}
                             />
                         )}
                     </>

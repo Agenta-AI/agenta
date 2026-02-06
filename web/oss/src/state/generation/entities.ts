@@ -12,7 +12,7 @@ import {
     isComparisonViewAtom,
 } from "@/oss/components/Playground/state/atoms/variants"
 import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms/variants"
-import {metadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {mergedMetadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {buildUserMessage} from "@/oss/state/newPlayground/helpers/messageFactory"
 
@@ -80,7 +80,9 @@ export const chatTurnIdsAtom = atom(
         const baseline = (displayed[0] || "") as string
         const byBaseline = get(chatTurnIdsByBaselineAtom) || {}
         const existing = map[key]
-        if (Array.isArray(existing) && existing.length > 0) return existing
+        if (Array.isArray(existing) && existing.length > 0) {
+            return existing
+        }
 
         // Fallback to baseline-scoped list when switching displayed sets (e.g., unloading/replacing revisions)
         const baselineList = (baseline && byBaseline[baseline]) || []
@@ -115,11 +117,10 @@ export const chatTurnIdsAtom = atom(
 )
 
 export const messageSchemaMetadataAtom = selectAtom(
-    metadataAtom,
+    mergedMetadataAtom,
     (all) => {
-        const entry = Object.entries((all || {}) as Record<string, any>).find(
-            ([, v]) => v && v.title === "Message" && v.type === "object",
-        )
+        const entries = Object.entries((all || {}) as Record<string, any>)
+        const entry = entries.find(([, v]) => v && v.title === "Message" && v.type === "object")
         return (entry?.[1] as any) || null
     },
     Object.is,
@@ -135,11 +136,8 @@ function synthesizeTurn(
     const revisionId = match?.[1] || ""
     const sessionId = revisionId ? `session-${revisionId}` : "session-"
 
-    let userMsg: any = null
-
-    if (metadata) {
-        userMsg = buildUserMessage(metadata)
-    }
+    // buildUserMessage handles null metadata via getAllMetadata() fallback
+    const userMsg = buildUserMessage(metadata)
 
     return {
         id: rowId,
@@ -212,12 +210,23 @@ export const chatTurnsByIdFamilyAtom = atomFamily((rowId: string) =>
             // React to visible row structure
             const meta = get(messageSchemaMetadataAtom) as any
             const cache = get(chatTurnsByIdCacheAtom) || {}
-            if (rowId in cache) return cache[rowId]
+            if (rowId in cache) {
+                console.log(
+                    "[DEBUG chatTurnsByIdFamilyAtom READ] rowId=",
+                    rowId,
+                    "source=cache",
+                    "userMsg=",
+                    !!cache[rowId]?.userMessage,
+                )
+                return cache[rowId]
+            }
             const base = get(chatTurnsByIdStorageAtom) || {}
             const existing = base[rowId]
-            if (existing) return existing
-            // Try immediate synthesis via existing metadata
-            let newTurn = meta ? synthesizeTurn(rowId, meta, get) : null
+            if (existing) {
+                return existing
+            }
+            // Synthesize turn — buildUserMessage handles missing metadata via fallback
+            const newTurn = synthesizeTurn(rowId, meta, get)
 
             if (newTurn) {
                 getDefaultStore().set(chatTurnsByIdCacheAtom, {...cache, [rowId]: newTurn})
@@ -239,8 +248,8 @@ export const chatTurnsByIdFamilyAtom = atomFamily((rowId: string) =>
             ) as ChatTurn | null
 
             const meta = get(messageSchemaMetadataAtom) as any
-            // Try existing or synthesized; if metadata wasn't ready earlier, attempt an on-demand synthesis now
-            let prevVal = prevExisting ?? (meta ? synthesizeTurn(rowId, meta, get) : null)
+            // Try existing or synthesized; buildUserMessage handles missing metadata via fallback
+            let prevVal = prevExisting ?? synthesizeTurn(rowId, meta, get)
             if (!prevVal) {
                 return
             }

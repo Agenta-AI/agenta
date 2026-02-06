@@ -152,6 +152,7 @@ const VariantDrawerContent = ({
     onToggleOriginal,
 }: VariantDrawerContentProps) => {
     const router = useRouter()
+    console.log("VariantDrawerContent")
     const {goToPlayground} = usePlaygroundNavigation()
 
     const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))

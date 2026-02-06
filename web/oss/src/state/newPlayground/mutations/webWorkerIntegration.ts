@@ -5,8 +5,12 @@ import {atomFamily} from "jotai/utils"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {hashResponse} from "@/oss/components/Playground/assets/hash"
-import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms"
+import {appChatModeAtom, generationRowIdsAtom} from "@/oss/components/Playground/state/atoms"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {
+    playgroundAppUriInfoAtom,
+    playgroundAppSchemaAtom,
+} from "@/oss/components/Playground/state/atoms/pipelineBBridge"
 import {
     displayedVariantsAtom,
     revisionListAtom,
@@ -48,7 +52,6 @@ import {
 } from "@/oss/state/newPlayground/legacyEntityBridge"
 import {variableValuesSelectorFamily} from "@/oss/state/newPlayground/selectors/variables"
 import {getProjectValues} from "@/oss/state/project"
-import {appUriInfoAtom, getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
 // (runnableBridge imported above with external deps)
 
 import {selectedAppIdAtom} from "../../app"
@@ -111,17 +114,10 @@ function resolveEffectiveRevisionId(
     return effectiveId || null
 }
 
-function detectIsChatVariant(get: any, rowId: string): boolean {
-    const spec = getSpecLazy()
-    const appUri = get(appUriInfoAtom)
-    if (spec) {
-        const properties = (
-            spec.paths[(appUri?.routePath || "") + "/run"] ||
-            spec.paths[(appUri?.routePath || "") + "/test"]
-        )?.post?.requestBody?.content["application/json"]?.schema?.properties
-        return properties?.messages !== undefined
-    }
-    return false
+function detectIsChatVariant(get: any, _rowId: string): boolean {
+    // Use the same chat mode detection as the rendering layer (Pipeline B / runnableBridge)
+    // instead of manually parsing raw OpenAPI paths which can miss the messages schema.
+    return Boolean(get(appChatModeAtom))
 }
 
 interface ResolvedVariableKeys {
@@ -399,7 +395,7 @@ export const triggerWebWorkerTestAtom = atom(
         const appId = get(selectedAppIdAtom)
         const {appType} = (get(currentAppContextAtom) as any) || {}
         const jwt = await getJWT()
-        const uri = get(appUriInfoAtom) || ({} as any)
+        const uri = get(playgroundAppUriInfoAtom) || ({} as any)
         const rawRepetitions = get(repetitionCountAtom)
         const repetitions = Array.isArray(displayed) && displayed.length > 1 ? 1 : rawRepetitions
 
@@ -425,7 +421,7 @@ export const triggerWebWorkerTestAtom = atom(
             headers,
             projectId,
             chatHistory: sanitizedChatHistory,
-            spec: getSpecLazy(),
+            spec: get(playgroundAppSchemaAtom),
             runId,
             prompts: sanitizedPrompts,
             // variables: promptVars,
@@ -442,12 +438,6 @@ export const triggerWebWorkerTestAtom = atom(
             isChat: isChatVariant,
             appType,
         }
-        console.debug("[WW] post runVariantInputRow", {
-            rowId,
-            variantId: effectiveId,
-            isChatVariant,
-            hasJwt: Boolean(jwt),
-        })
         postMessageToWorker(createWorkerMessage("runVariantInputRow", payload))
     },
 )

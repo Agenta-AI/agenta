@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {legacyAppRevisionEntityWithBridgeAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {Input, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -13,7 +14,6 @@ import {
     moleculeBackedPromptsAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
 import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
-import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import toolsSpecs from "../PlaygroundVariantConfigPrompt/assets/tools.specs.json"
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControl/assets/PlaygroundVariantPropertyControlWrapper"
@@ -398,11 +398,13 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
 
     // Use molecule-backed atoms for single source of truth
     useAtomValue(moleculeBackedVariantAtomFamily(variantId))
-    const appUriInfo = useAtomValue(appUriInfoAtom)
+    const entityData = useAtomValue(
+        useMemo(() => legacyAppRevisionEntityWithBridgeAtomFamily(variantId), [variantId]),
+    )
     const setPrompts = useSetAtom(
         useMemo(
             () => moleculeBackedPromptsAtomFamily(variantId),
-            [variantId, appUriInfo?.routePath],
+            [variantId, entityData?.routePath],
         ),
     )
 
@@ -415,16 +417,19 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
         }
         setPrompts((prevPrompts: any[] = []) => {
             return prevPrompts.map((prompt: any) => {
-                const toolsArr = prompt?.llmConfig?.tools?.value
+                // Use whichever key the prompt has (entity uses llm_config, OSS uses llmConfig)
+                const configKey = prompt?.llm_config ? "llm_config" : "llmConfig"
+                const llm = prompt?.[configKey]
+                const toolsArr = llm?.tools?.value
                 if (Array.isArray(toolsArr)) {
                     const updatedTools = toolsArr.filter((tool: any) => tool.__id !== id)
                     if (updatedTools.length !== toolsArr.length) {
                         return {
                             ...prompt,
-                            llmConfig: {
-                                ...prompt.llmConfig,
+                            [configKey]: {
+                                ...llm,
                                 tools: {
-                                    ...prompt.llmConfig?.tools,
+                                    ...llm?.tools,
                                     value: updatedTools,
                                 },
                             },

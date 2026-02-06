@@ -1,10 +1,13 @@
 import {useEffect, useMemo} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {
+    legacyAppRevisionMolecule,
+    revisionOpenApiSchemaAtomFamily,
+    legacyAppRevisionEntityWithBridgeAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {
     revisionListAtom,
@@ -29,8 +32,20 @@ export function useVariantPrompts(variantId: string | undefined): {
 } {
     const revisions = useAtomValue(revisionListAtom)
     const revisionCount = revisions?.length ?? 0
-    const spec = useAtomValue(appSchemaAtom)
-    const routePath = useAtomValue(appUriInfoAtom)?.routePath
+    const specAtom = useMemo(
+        () => (variantId ? revisionOpenApiSchemaAtomFamily(variantId) : atom(null)),
+        [variantId],
+    )
+    const spec = useAtomValue(specAtom)
+    const routePathAtom = useMemo(
+        () =>
+            atom((get) => {
+                if (!variantId) return undefined
+                return get(legacyAppRevisionEntityWithBridgeAtomFamily(variantId))?.routePath
+            }),
+        [variantId],
+    )
+    const routePath = useAtomValue(routePathAtom)
 
     // No playground clone needed: prompts are stored per-revision locally
     useEffect(() => {
@@ -92,6 +107,7 @@ export function useVariantPrompts(variantId: string | undefined): {
         }
     }, [variantId, hasMoleculePrompts, variant, spec, routePath, setPrompts])
 
+    const variantExists = Boolean(variant)
     const debug = useMemo(
         () => ({
             revisionCount,
@@ -104,16 +120,16 @@ export function useVariantPrompts(variantId: string | undefined): {
         if (process.env.NODE_ENV !== "production") {
             console.info("[useVariantPrompts]", {
                 variantId,
-                variantExists: Boolean(variant),
+                variantExists,
                 ...debug,
             })
         }
-    }, [variantId, variant, debug])
+    }, [variantId, variantExists, debug])
 
     return {
         promptIds,
         hasPrompts: promptIds.length > 0,
-        variantExists: Boolean(variant),
+        variantExists,
         debug,
     }
 }

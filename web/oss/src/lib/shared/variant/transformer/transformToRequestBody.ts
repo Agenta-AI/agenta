@@ -58,7 +58,11 @@ export function transformToRequestBody({
     const reqSchema = spec ? getRequestSchema(spec, {routePath}) : undefined
     const hasInputsProperty = Boolean((reqSchema as any)?.properties?.inputs)
     const hasMessagesProperty = Boolean((reqSchema as any)?.properties?.messages)
-    const isCustomBySchema = Boolean(spec) && !hasInputsProperty && !hasMessagesProperty
+    // When isChat is explicitly true (detected via runnableBridge / appChatModeAtom),
+    // never treat the endpoint as custom-by-schema. The schema lookup via getRequestSchema
+    // can fail when OpenAPI path patterns don't match, producing a false positive.
+    const isCustomBySchema =
+        Boolean(spec) && !hasInputsProperty && !hasMessagesProperty && !(isChat ?? variant?.isChat)
     const isCustomByAppType = (appType || "").toLowerCase() === "custom"
     const isCustomFinal = Boolean(isCustom) || isCustomBySchema || isCustomByAppType
 
@@ -175,16 +179,28 @@ export function transformToRequestBody({
             allMetadata,
         ) as Record<string, any>) || {}
 
-    // Preserve custom properties from original parameters that aren't in enhanced format
+    // Preserve custom properties from original parameters that aren't in enhanced format.
     // This handles custom apps where properties like max_tweet_length, output_format, etc.
-    // are stored directly in parameters but not in the enhanced customProperties
+    // are stored directly in parameters but not in the enhanced customProperties.
+    //
+    // When enhanced prompts exist, legacy flat fields (system_prompt, user_prompt,
+    // temperature, model, etc.) in originalParams are superseded by the structured
+    // prompt format (messages + llm_config) and must NOT be copied over.
     const promptKeys = new Set(Object.keys(promptConfigs))
     const customKeys = new Set(Object.keys(customConfigs))
+    const hasEnhancedPrompts = promptKeys.size > 0
     for (const [key, value] of Object.entries(originalParams)) {
         // Skip if it's a prompt config or already in customConfigs
         if (promptKeys.has(key) || customKeys.has(key)) continue
         // Skip if it's a nested object with llm_config or messages (it's a prompt, not custom property)
         if (value && typeof value === "object" && (value.llm_config || value.messages)) continue
+        // When enhanced prompts exist, skip primitive legacy fields (system_prompt, temperature, etc.)
+        // — they are superseded by the structured prompt format
+        if (
+            hasEnhancedPrompts &&
+            (typeof value !== "object" || value === null || Array.isArray(value))
+        )
+            continue
         // Preserve the custom property
         customConfigs[key] = value
     }
@@ -319,7 +335,7 @@ export function transformToRequestBody({
                 keys.forEach((k) => {
                     if (!(k in data)) data[k] = _defaultForKey(k)
                 })
-            } else if (!(isChat ?? variant?.isChat)) {
+            } else {
                 data.inputs = {...(data.inputs || {}), ...variableValues}
             }
         }
@@ -403,6 +419,24 @@ export function transformToRequestBody({
                     const vv = variableValues ? (variableValues as any)[k] : undefined
                     ;(data.inputs as any)[k] = vv !== undefined ? vv : _defaultForKey(k)
                 }
+            }
+        }
+    }
+    // 3) Chat variants always require an `inputs` field. The schema-based guard above
+    //    may not fire when getRequestSchema fails to match OpenAPI paths. Ensure inputs
+    //    is present with all resolved variable keys populated.
+    if ((isChat ?? variant?.isChat) && !isCustomByAppType) {
+        if (!("inputs" in data)) {
+            data.inputs = {}
+        }
+        if (variableValues && Object.keys(variableValues).length > 0) {
+            data.inputs = {...(data.inputs || {}), ...variableValues}
+        }
+        const keys = resolvedVariables ?? (variables || [])
+        for (const k of keys) {
+            if (!k || typeof k !== "string") continue
+            if (!Object.prototype.hasOwnProperty.call(data.inputs as any, k)) {
+                ;(data.inputs as any)[k] = _defaultForKey(k)
             }
         }
     }

@@ -46,13 +46,14 @@ import {
     formatLocalDraftLabel,
     type RevisionLabelInfo,
 } from "@agenta/entities/shared"
+import {produce} from "immer"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily as atomFamilyJotaiUtils} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
+import {playgroundRevisionDeploymentAtomFamily} from "@/oss/components/Playground/state/atoms/pipelineBBridge"
+import {playgroundRevisionListAtom} from "@/oss/components/Playground/state/atoms/variants"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
-import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
-import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 // Bridge initialization flag for debug utilities
 let bridgeInitialized = false
@@ -94,9 +95,6 @@ function adaptRevisionToLegacyFormat(revision: any, variant?: any): LegacyAppRev
         commitMessage: revision.commitMessage,
     }
 }
-
-// Debug logging (only in development)
-const DEBUG = process.env.NODE_ENV !== "production"
 
 // ============================================================================
 // MOLECULE ACCESS HELPERS
@@ -202,9 +200,8 @@ export const debugBridge = {
 }
 
 // Expose debug utilities to window in development
-if (typeof window !== "undefined" && DEBUG) {
+if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
     ;(window as any).__legacyEntityBridge = debugBridge
-    console.log("🔧 Debug utilities available at window.__legacyEntityBridge")
 }
 
 // ============================================================================
@@ -217,7 +214,7 @@ if (typeof window !== "undefined" && DEBUG) {
  *
  * This is a drop-in replacement for variantByRevisionIdAtomFamily that:
  * 1. First checks if molecule has data (populated via useSyncRevisionToMolecule)
- * 2. Falls back to legacy revisionListAtom lookup
+ * 2. Falls back to legacy playgroundRevisionListAtom lookup
  *
  * Benefits:
  * - Returns molecule data which includes draft state when available
@@ -235,7 +232,7 @@ export const moleculeBackedVariantAtomFamily = atomFamilyJotaiUtils((revisionId:
         const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
 
         // Also get legacy revision data for fallback fields (e.g., variantName)
-        const revisions = get(revisionListAtom) || []
+        const revisions = get(playgroundRevisionListAtom) || []
         const legacyRevision = revisions.find((r: any) => r.id === revisionId) as any
 
         if (moleculeData) {
@@ -334,7 +331,11 @@ export const moleculeBackedPromptsAtomFamily = atomFamilyJotaiUtils((revisionId:
             // Try molecule first (has draft merged)
             const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
 
-            if (moleculeData?.enhancedPrompts && Array.isArray(moleculeData.enhancedPrompts)) {
+            if (
+                moleculeData?.enhancedPrompts &&
+                Array.isArray(moleculeData.enhancedPrompts) &&
+                moleculeData.enhancedPrompts.length > 0
+            ) {
                 return moleculeData.enhancedPrompts
             }
 
@@ -344,20 +345,59 @@ export const moleculeBackedPromptsAtomFamily = atomFamilyJotaiUtils((revisionId:
                 legacyAppRevisionMolecule.selectors.enhancedPrompts?.(revisionId) ??
                     revisionEnhancedPromptsAtomFamily(revisionId),
             )
+
             if (entityPrompts && Array.isArray(entityPrompts) && entityPrompts.length > 0) {
                 return entityPrompts
             }
 
             return []
         },
-        (_get, set, update: ((draft: unknown[]) => void) | unknown[]) => {
-            if (typeof update === "function") {
-                // Immer recipe - use molecule's mutate reducer
-                set(legacyAppRevisionMolecule.reducers.mutateEnhancedPrompts, revisionId, update)
-            } else {
-                // Direct value - use molecule's set reducer
+        (get, set, update: ((draft: unknown[]) => void) | unknown[]) => {
+            // Check if the molecule's base already has enhancedPrompts.
+            // mutateEnhancedPrompts operates on base.enhancedPrompts — if that's
+            // empty the mutation silently does nothing. When base lacks prompts
+            // (common on initial load / after reload), we pre-apply the mutation
+            // to entity-derived prompts and write the result in a single step
+            // via setEnhancedPrompts, avoiding the seed-then-mutate race.
+            const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
+            const draft = get(legacyAppRevisionMolecule.atoms.draft(revisionId))
+            const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId))
+            const base = draft || serverData
+            const baseHasPrompts =
+                base?.enhancedPrompts &&
+                Array.isArray(base.enhancedPrompts) &&
+                base.enhancedPrompts.length > 0
+
+            if (typeof update !== "function") {
+                // Direct value — always safe
                 set(legacyAppRevisionMolecule.reducers.setEnhancedPrompts, revisionId, update)
+                return
             }
+
+            if (baseHasPrompts) {
+                // Normal path — base has prompts, mutation reducer will work
+                set(legacyAppRevisionMolecule.reducers.mutateEnhancedPrompts, revisionId, update)
+                return
+            }
+
+            // Base lacks enhancedPrompts — derive from entity, apply recipe, set result
+            const entityPrompts = get(revisionEnhancedPromptsAtomFamily(revisionId))
+            const sourcePrompts =
+                entityPrompts && Array.isArray(entityPrompts) && entityPrompts.length > 0
+                    ? (entityPrompts as unknown[])
+                    : (moleculeData?.enhancedPrompts as unknown[]) || []
+
+            if (sourcePrompts.length === 0) {
+                // Nothing to mutate — no prompts available anywhere
+                return
+            }
+
+            // Apply the Immer recipe to entity-derived prompts
+            const mutated = produce(sourcePrompts, update)
+
+            // Write the result directly — setEnhancedPrompts handles
+            // initial seeding (writes to serverData) vs draft updates
+            set(legacyAppRevisionMolecule.reducers.setEnhancedPrompts, revisionId, mutated)
         },
     ),
 )
@@ -395,23 +435,47 @@ export const moleculeBackedCustomPropertiesAtomFamily = atomFamily((revisionId: 
             return {}
         },
         (
-            _get,
+            get,
             set,
             update: ((draft: Record<string, unknown>) => void) | Record<string, unknown>,
         ) => {
-            if (typeof update === "function") {
-                set(
-                    legacyAppRevisionMolecule.reducers.mutateEnhancedCustomProperties,
-                    revisionId,
-                    update,
-                )
-            } else {
+            if (typeof update !== "function") {
                 set(
                     legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties,
                     revisionId,
                     update,
                 )
+                return
             }
+
+            // Check if mutation base has custom properties
+            const draft = get(legacyAppRevisionMolecule.atoms.draft(revisionId))
+            const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId))
+            const base = draft || serverData
+            const baseHasProps =
+                base?.enhancedCustomProperties &&
+                Object.keys(base.enhancedCustomProperties).length > 0
+
+            if (baseHasProps) {
+                set(
+                    legacyAppRevisionMolecule.reducers.mutateEnhancedCustomProperties,
+                    revisionId,
+                    update,
+                )
+                return
+            }
+
+            // Base lacks custom properties — derive, apply recipe, set result
+            const entityCustomProps = get(revisionEnhancedCustomPropertiesAtomFamily(revisionId))
+            const sourceProps =
+                entityCustomProps && Object.keys(entityCustomProps).length > 0
+                    ? (entityCustomProps as Record<string, unknown>)
+                    : (base?.enhancedCustomProperties as Record<string, unknown>) || {}
+
+            if (Object.keys(sourceProps).length === 0) return
+
+            const mutated = produce(sourceProps, update)
+            set(legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties, revisionId, mutated)
         },
     ),
 )
@@ -437,45 +501,48 @@ export const moleculePropertyUpdateAtom = atom(
     (get, set, params: {revisionId: string; propertyId: string; value: unknown}) => {
         const {revisionId, propertyId, value} = params
 
-        // Auto-seed enhanced prompts/custom properties if missing from molecule base data.
-        // When the Variant Drawer opens it seeds serverData with basic revision info
-        // (id, parameters, uri, etc.) but without enhancedPrompts/enhancedCustomProperties.
-        // The UI displays prompts via an entity-level fallback read path, but the write
-        // path (updatePropertyAtom) searches base.enhancedPrompts — which is undefined.
-        // Seeding here ensures the property can be found and a draft is created.
-        const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
-        if (moleculeData) {
-            let needsSeed = false
-            const seedData: Partial<LegacyAppRevisionData> = {}
+        // updatePropertyAtom searches base.enhancedPrompts / base.enhancedCustomProperties
+        // to find the property by __id. If base lacks enhanced data (common on initial load
+        // before any user edit), seed them first. We seed by writing to serverData via
+        // setEnhancedPrompts/setEnhancedCustomProperties — these atoms handle initial seeding
+        // by writing to legacyAppRevisionServerDataAtomFamily (not creating a draft).
+        //
+        // IMPORTANT: We must seed BEFORE calling updateProperty, and the seeding must be
+        // visible to updateProperty's get(). We do this by using the molecule's set reducers
+        // which write to the actual store atoms within the same transaction.
+        const currentDraft = get(legacyAppRevisionMolecule.atoms.draft(revisionId))
+        const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId))
+        const base = currentDraft || serverData
 
-            if (!moleculeData.enhancedPrompts || moleculeData.enhancedPrompts.length === 0) {
+        if (base) {
+            const needsPromptSeed = !base.enhancedPrompts || base.enhancedPrompts.length === 0
+            const needsCustomPropsSeed =
+                !base.enhancedCustomProperties ||
+                Object.keys(base.enhancedCustomProperties).length === 0
+
+            if (needsPromptSeed) {
                 const entityPrompts = get(revisionEnhancedPromptsAtomFamily(revisionId))
                 if (entityPrompts && entityPrompts.length > 0) {
-                    seedData.enhancedPrompts = entityPrompts as unknown[]
-                    needsSeed = true
+                    // setEnhancedPrompts detects initial seeding (no draft, no existing prompts)
+                    // and writes to serverData atom, making prompts available to updateProperty
+                    set(
+                        legacyAppRevisionMolecule.reducers.setEnhancedPrompts,
+                        revisionId,
+                        entityPrompts as unknown[],
+                    )
                 }
             }
 
-            if (
-                !moleculeData.enhancedCustomProperties ||
-                Object.keys(moleculeData.enhancedCustomProperties).length === 0
-            ) {
+            if (needsCustomPropsSeed) {
                 const entityCustomProps = get(
                     revisionEnhancedCustomPropertiesAtomFamily(revisionId),
                 )
                 if (entityCustomProps && Object.keys(entityCustomProps).length > 0) {
-                    seedData.enhancedCustomProperties = entityCustomProps as Record<string, unknown>
-                    needsSeed = true
-                }
-            }
-
-            if (needsSeed) {
-                const currentServerData = legacyAppRevisionMolecule.get.serverData(revisionId)
-                if (currentServerData) {
-                    legacyAppRevisionMolecule.set.serverData(revisionId, {
-                        ...currentServerData,
-                        ...seedData,
-                    })
+                    set(
+                        legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties,
+                        revisionId,
+                        entityCustomProps as Record<string, unknown>,
+                    )
                 }
             }
         }
@@ -541,11 +608,12 @@ export function cloneAsLocalDraft(sourceRevisionId: string): string | null {
         }
     }
 
-    // If sourceData exists but is missing variantId or baseId, enrich from revisionListAtom
+    // If sourceData exists but is missing variantId or baseId, enrich from playgroundRevisionListAtom
     // This can happen when data comes from direct query which doesn't include variantId
     // or when cloning from a local draft
     if (!sourceData || !sourceData.variantId || !(sourceData as any).baseId) {
-        const revisions = store.get(revisionListAtom) || []
+        const revisions = store.get(playgroundRevisionListAtom) || []
+
         // Look up variantId from the original source (not the local draft)
         const revisionFromList = revisions.find((r: any) => r.id === variantIdSource)
 
@@ -571,14 +639,6 @@ export function cloneAsLocalDraft(sourceRevisionId: string): string | null {
                 }
 
                 legacyAppRevisionMolecule.set.serverData(sourceRevisionId, sourceData)
-                if (DEBUG) {
-                    console.log("📋 Seeded molecule data for draft clone:", {
-                        sourceRevisionId,
-                        variantName: sourceData.variantName,
-                        variantId: sourceData.variantId,
-                        baseId: (sourceData as any).baseId,
-                    })
-                }
             }
         }
     }
@@ -687,7 +747,7 @@ export interface OssRevisionLabelInfo extends RevisionLabelInfo {
  *
  * This is the single source of truth for revision display labels in the OSS playground.
  * It handles:
- * 1. Regular revisions - looks up from revisionListAtom or molecule data
+ * 1. Regular revisions - looks up from playgroundRevisionListAtom or molecule data
  * 2. Local drafts - reads from molecule data (which stores _sourceRevision)
  *
  * Uses shared formatting utilities from @agenta/entities/shared for consistency.
@@ -741,8 +801,8 @@ export const revisionLabelInfoAtomFamily = atomFamilyJotaiUtils((revisionId: str
             }
         }
 
-        // Fallback to revisionListAtom lookup
-        const revisions = get(revisionListAtom) || []
+        // Fallback to playgroundRevisionListAtom lookup
+        const revisions = get(playgroundRevisionListAtom) || []
         const revision = revisions.find((r: any) => r.id === revisionId)
 
         if (revision) {
@@ -839,8 +899,8 @@ export interface PlaygroundVariantMetaMap {
  * Atom that provides aggregated metadata for playground variant/revision UI.
  *
  * This replaces `variantOptionsAtomFamily` from optionsSelectors.ts by:
- * 1. Using revisionListAtom (molecule-backed) for structure
- * 2. Aggregating deployment environments via revisionDeploymentAtomFamily
+ * 1. Using playgroundRevisionListAtom (molecule-backed) for structure
+ * 2. Aggregating deployment environments via playgroundRevisionDeploymentAtomFamily
  * 3. Including local draft info (isLocalDraft, isDirty)
  *
  * Components use this for custom rendering in EntityPicker (deployment badges, etc.)
@@ -857,7 +917,7 @@ export const playgroundVariantMetaMapAtom = atom<PlaygroundVariantMetaMap>((get)
     const revisions = new Map<string, PlaygroundRevisionMeta>()
 
     // Get all revisions from the molecule-backed list
-    const allRevisions = get(revisionListAtom) || []
+    const allRevisions = get(playgroundRevisionListAtom) || []
 
     // Group revisions by variantId
     const revisionsByVariant = new Map<string, typeof allRevisions>()
@@ -881,7 +941,7 @@ export const playgroundVariantMetaMapAtom = atom<PlaygroundVariantMetaMap>((get)
 
         for (const rev of variantRevisions) {
             const revId = (rev as any).id
-            const envs = get(revisionDeploymentAtomFamily(revId)) || []
+            const envs = get(playgroundRevisionDeploymentAtomFamily(revId)) || []
             for (const env of envs as {name: string}[]) {
                 if (!seenEnvNames.has(env.name)) {
                     seenEnvNames.add(env.name)
@@ -905,7 +965,7 @@ export const playgroundVariantMetaMapAtom = atom<PlaygroundVariantMetaMap>((get)
         const isLocal = isLocalDraftId(revId)
 
         // Get deployment info for this specific revision
-        const envs = get(revisionDeploymentAtomFamily(revId)) || []
+        const envs = get(playgroundRevisionDeploymentAtomFamily(revId)) || []
 
         // Get dirty state
         const isDirty = isLocal ? true : get(legacyAppRevisionMolecule.atoms.isDirty(revId))

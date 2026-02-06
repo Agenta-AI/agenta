@@ -112,7 +112,9 @@ export function buildUserMessage(
             const found = entries.find(([, v]) => v?.title === "Message" && v?.type === "object")
             const messageMetaId = found?.[0]
             if (messageMetaId) messageSchema = getMetadataLazy(messageMetaId)
-        } catch {}
+        } catch {
+            // getAllMetadata not available yet
+        }
     }
 
     if (messageSchema) {

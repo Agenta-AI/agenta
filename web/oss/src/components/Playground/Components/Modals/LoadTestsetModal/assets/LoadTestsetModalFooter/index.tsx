@@ -1,13 +1,13 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {legacyAppRevisionEntityWithBridgeAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {message} from "@agenta/ui/app-message"
 import {Play} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {saveNewTestsetAtom} from "@/oss/state/entities/testcase"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
-import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {useTestsetInputsAnalysis} from "../../hooks/useTestsetInputsAnalysis"
 import {LoadTestsetModalFooterProps} from "../types"
@@ -22,8 +22,16 @@ const LoadTestsetModalFooter = ({
     isCreatingNew,
     newTestsetName,
 }: LoadTestsetModalFooterProps) => {
-    const appUriInfo = useAtomValue(appUriInfoAtom)
-    const routePath = appUriInfo?.routePath
+    const entityData = useAtomValue(
+        useMemo(
+            () =>
+                selectedRevisionId
+                    ? legacyAppRevisionEntityWithBridgeAtomFamily(selectedRevisionId)
+                    : atom(null),
+            [selectedRevisionId],
+        ),
+    )
+    const routePath = entityData?.routePath
     const projectId = useAtomValue(projectIdAtom)
     const saveNewTestset = useSetAtom(saveNewTestsetAtom)
     const [isSaving, setIsSaving] = useState(false)

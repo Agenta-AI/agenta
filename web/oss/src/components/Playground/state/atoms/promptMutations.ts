@@ -92,7 +92,7 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
     atom(
         null,
         (
-            _get,
+            get,
             set,
             params?: {
                 payload?: Record<string, any>
@@ -104,6 +104,7 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
             },
         ) => {
             const [revisionId, promptId] = compoundKey.split(":", 2)
+
             const payload = params?.payload
             const source = params?.source ?? (payload ? "builtin" : "inline")
             const providerKey = params?.providerKey
@@ -171,13 +172,18 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
                 const list = Array.isArray(prev) ? prev : []
                 const next = list.map((p: any) => {
                     if (!(p?.__id === promptId || p?.__name === promptId)) return p
-                    const currentTools = p?.llmConfig?.tools?.value || []
+                    // Use whichever key the prompt already has (entity uses llm_config,
+                    // OSS transformer uses llmConfig). Writing to the wrong key
+                    // creates a split that drops responseFormat.
+                    const configKey = p?.llm_config ? "llm_config" : "llmConfig"
+                    const llm = p?.[configKey] || {}
+                    const currentTools = llm?.tools?.value || []
                     return {
                         ...p,
-                        llmConfig: {
-                            ...p.llmConfig,
+                        [configKey]: {
+                            ...llm,
                             tools: {
-                                ...p.llmConfig?.tools,
+                                ...llm?.tools,
                                 value: [...currentTools, newTool],
                             },
                         },

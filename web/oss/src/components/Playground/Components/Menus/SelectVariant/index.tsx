@@ -25,6 +25,7 @@ import {
 } from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {selectedVariantsAtom} from "../../../state/atoms/core"
+import {playgroundLatestAppRevisionIdAtom} from "../../../state/atoms/pipelineBBridge"
 import {
     createPlaygroundSelectionAdapter,
     type PlaygroundRevisionSelectionResult,
@@ -47,6 +48,7 @@ const SelectVariant = ({
 
     // Get metadata map for custom rendering (replaces variantOptionsAtomFamily)
     const metaMap = useAtomValue(playgroundVariantMetaMapAtom)
+    const latestAppRevisionId = useAtomValue(playgroundLatestAppRevisionIdAtom)
 
     // Create adapter scoped to current app (memoized)
     const adapter = useMemo(() => createPlaygroundSelectionAdapter(appId), [appId])
@@ -193,6 +195,7 @@ const SelectVariant = ({
                         hideName
                         showBadges
                         showLatestTag={showLatestTag}
+                        latestAppRevisionId={latestAppRevisionId}
                     />
                     {showAsCompare && (
                         <Tooltip title="Create local copy for comparison">
@@ -216,6 +219,7 @@ const SelectVariant = ({
             handleCreateLocalCopy,
             handleDiscardLocalDraft,
             disabledIds,
+            latestAppRevisionId,
         ],
     )
 
@@ -249,8 +253,10 @@ const SelectVariant = ({
     const handleCompareButtonClick = useCallback(() => {
         // Get the last visible revision ID from value prop (rightmost in compare mode)
         const lastRevisionId = Array.isArray(value) ? value[value.length - 1] : value
+
         if (lastRevisionId) {
             const localDraftId = cloneAsLocalDraft(lastRevisionId)
+
             if (localDraftId) {
                 setSelectedVariants((prev) => [...prev, localDraftId])
                 recordWidgetEvent("playground_compared_side_by_side")

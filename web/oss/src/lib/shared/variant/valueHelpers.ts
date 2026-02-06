@@ -40,6 +40,7 @@ export function shouldIncludeValue(value: unknown): boolean {
 
 export const checkValidity = (obj: Record<string, any>, metadata: ConfigMetadata) => {
     if (!isObjectMetadata(metadata)) return true
+    if (!metadata.properties) return true
 
     for (const [propName, propMetadata] of Object.entries(metadata.properties)) {
         const snakeCasePropName = toSnakeCase(propName)
@@ -109,6 +110,24 @@ export function extractValueByMetadata(
             metadata.type === "number" ||
             metadata.type === "boolean")
     ) {
+        // When metadata is missing and value is a complex type (array/object),
+        // recursively process it to strip nested __id/__metadata wrappers
+        if (!metadata && enhanced.value !== null && enhanced.value !== undefined) {
+            if (Array.isArray(enhanced.value)) {
+                return enhanced.value
+                    .map((item: Record<string, any>) =>
+                        extractValueByMetadata(item, allMetadata, debug),
+                    )
+                    .filter(shouldIncludeValue)
+            }
+            if (typeof enhanced.value === "object") {
+                return extractValueByMetadata(
+                    enhanced.value as Record<string, any>,
+                    allMetadata,
+                    debug,
+                )
+            }
+        }
         return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined
     }
 

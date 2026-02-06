@@ -4,7 +4,7 @@ import {drawerVariantIdAtom} from "@/oss/components/VariantsComponents/Drawers/V
 import {discardLocalDraft, isLocalDraft} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
-import {selectedVariantsAtom, viewTypeAtom} from "./core"
+import {selectedVariantsAtom} from "./core"
 import {addVariantMutationAtom} from "./variantCrud"
 
 /**
@@ -26,7 +26,6 @@ export const removeVariantFromSelectionMutationAtom = atom(null, (get, set, vari
 
     // Keep selection state in sync even if URL doesn't change (e.g., local draft removal)
     set(selectedVariantsAtom, updatedSelected)
-    set(viewTypeAtom, updatedSelected.length > 1 ? "comparison" : "single")
 
     // Update selection and URL (playground will read this)
     void writePlaygroundSelectionToQuery(updatedSelected)

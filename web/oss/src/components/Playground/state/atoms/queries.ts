@@ -1,8 +1,6 @@
 /**
  * Query helpers and revision-tracking selectors
  * Scope: query invalidation and waiting for new revisions.
- *
- * WP-6.4: Updated to use playgroundRevisionListAtom (molecule-backed)
  */
 import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
@@ -12,7 +10,6 @@ import {queryClient} from "@/oss/lib/api/queryClient"
 
 import {playgroundRevisionListAtom} from "./variants"
 
-// WP-6.4: Updated to use playgroundRevisionListAtom
 export const variantRevisionsForVariantIdAtomFamily = atomFamily((variantId: string) =>
     selectAtom(
         atom((get) => get(playgroundRevisionListAtom) || []),

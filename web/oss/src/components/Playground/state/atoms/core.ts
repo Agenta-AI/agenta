@@ -1,7 +1,7 @@
 import {atom} from "jotai"
 
 import {routerAppIdAtom, recentAppIdAtom} from "../../../../state/app/atoms/fetcher"
-import type {TestRunState, ViewType} from "../types"
+import type {TestRunState} from "../types"
 
 // Currently displayed variant IDs (per app)
 // No localStorage persistence - URL is the source of truth for sharing.
@@ -28,9 +28,6 @@ export const selectedVariantsAtom = atom(
  * With no localStorage, this is always true (no async hydration needed).
  */
 export const isSelectionStorageHydrated = () => true
-
-// Single or comparison view
-export const viewTypeAtom = atom<ViewType>("single")
 
 // View state only — generation data lives in normalized entities
 

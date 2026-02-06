@@ -234,7 +234,13 @@ export function cleanupStaleLocalDrafts(): number {
 
     const removedCount = localIds.length - validIds.length
     if (removedCount > 0) {
-        store.set(localDraftIdsAtom, validIds)
+        // Write to the underlying per-app storage atom (localDraftIdsAtom is read-only derived)
+        const appId = _currentAppIdAtom
+            ? store.get(_currentAppIdAtom) || "__global__"
+            : "__global__"
+        const allDrafts = {...store.get(localDraftIdsByAppAtom)}
+        allDrafts[appId] = validIds
+        store.set(localDraftIdsByAppAtom, allDrafts)
     }
 
     return removedCount

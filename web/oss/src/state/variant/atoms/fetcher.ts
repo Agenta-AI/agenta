@@ -83,6 +83,7 @@ export const variantRevisionsQueryFamily = atomFamily((variantId: string) =>
         // Depend on variants query to ensure revisions refetch when variants change
         const variantsQuery = get(variantsQueryAtom)
         const enabled = !!variantId && !!projectId
+        console.log("variantRevisionsQueryFamily")
         return {
             queryKey: ["variantRevisions", variantId, variantsQuery.dataUpdatedAt],
             queryFn: async () => {
@@ -143,6 +144,7 @@ export const variantRevisionsQueryFamily = atomFamily((variantId: string) =>
 export const revisionsByVariantIdAtomFamily = atomFamily(
     (variantId: string) =>
         selectAtom(variantRevisionsQueryFamily(variantId), (res) => {
+            console.log("variantRevisionsQueryFamily - revisionsByVariantIdAtomFamily")
             const data = (res as any)?.data ?? res
             return (Array.isArray(data) ? data : []) as VariantRevision[]
         }),
@@ -153,6 +155,7 @@ export const revisionsByVariantIdAtomFamily = atomFamily(
 export const allRevisionsAtom = atom((get) => {
     const vars = get(variantsAtom)
     const out: EnhancedVariant[] = []
+    console.log("variantRevisionsQueryFamily - allRevisionsAtom")
     vars.forEach((v) => {
         const revs = (get(revisionsByVariantIdAtomFamily(v.variantId)) as any[]) || []
         revs.forEach((r: any) => {
@@ -168,6 +171,7 @@ export const allRevisionsAtom = atom((get) => {
 export const enhancedRevisionsFlatAtom = atom<EnhancedVariant[]>((get) => {
     const vars = get(variantsAtom)
     const out: EnhancedVariant[] = []
+    console.log("variantRevisionsQueryFamily - enhancedRevisionsFlatAtom")
     vars.forEach((v: any) => {
         const revs = get(revisionsByVariantIdAtomFamily(v.variantId)) as any[]
         ;(revs || []).forEach((r: any) => {
@@ -193,6 +197,7 @@ export const sortedEnhancedRevisionsAtom = selectAtom(
 export const revisionMapAtom = atom<Record<string, EnhancedVariant[]>>((get) => {
     const vars = get(variantsAtom) as any[]
     const map: Record<string, EnhancedVariant[]> = {}
+    console.log("variantRevisionsQueryFamily - revisionMapAtom")
     vars.forEach((v: any) => {
         const revs = get(revisionsByVariantIdAtomFamily(v.variantId)) as any[]
         const arr: EnhancedVariant[] = []
@@ -328,6 +333,7 @@ const userIdsAtom = atom<string[]>((get) => {
     const variants = get(variantsAtom) as any[]
     const ids = new Set<string>()
 
+    console.log("variantRevisionsQueryFamily - userIdsAtom")
     variants.forEach((v) => {
         const modBy =
             (v as any).modifiedById ??
@@ -356,6 +362,7 @@ const userIdsAtom = atom<string[]>((get) => {
 
 // Normalized: global reverse index of revisions by id -> {variantId}
 export const revisionIndexAtom = atom((get) => {
+    console.log("variantRevisionsQueryFamily - revisionIndexAtom")
     const variants = get(variantsAtom)
     const index = new Map<string, {variantId: string}>()
     variants.forEach((v) => {
@@ -381,6 +388,7 @@ export const revisionIdToVariantIdAtom = atom((get) => {
 export const enhancedRevisionByIdAtomFamily = atomFamily(
     (revisionId: string) =>
         atom<EnhancedVariant | undefined>((get) => {
+            console.log("variantRevisionsQueryFamily - enhancedRevisionByIdAtomFamily")
             const map = get(revisionIdToVariantIdAtom)
             const variantId = map[revisionId]
             if (!variantId) return undefined
@@ -395,6 +403,7 @@ export function getEnhancedRevisionById(
     get: (an: any) => any,
     revisionId: string,
 ): EnhancedVariant | undefined {
+    console.log("variantRevisionsQueryFamily - getEnhancedRevisionById")
     // First, check app-context variants
     const map = get(revisionIdToVariantIdAtom)
     const variantId = map[revisionId]
@@ -487,6 +496,7 @@ export const variantsLoadingAtom = selectAtom(
 // Map of variantId -> whether its revisions query has fetched at least once
 export const revisionsFetchedMapAtom = atom((get) => {
     const list = get(variantsAtom) as any[]
+    console.log("variantRevisionsQueryFamily - revisionsFetchedMapAtom")
     const map: Record<string, boolean> = {}
     list.forEach((v) => {
         const q = get(variantRevisionsQueryFamily((v as any).variantId)) as any
@@ -499,6 +509,7 @@ export const revisionsFetchedMapAtom = atom((get) => {
 
 export const revisionsPendingAtom = atom((get) => {
     const list = get(variantsAtom) as any[]
+    console.log("variantRevisionsQueryFamily - revisionsPendingAtom")
     if (!list || list.length === 0) return true
     return list.some((v) => {
         const q = get(variantRevisionsQueryFamily((v as any).variantId)) as any
@@ -534,6 +545,7 @@ export const allVariantsLoadingAtom = atom((get) => {
 // Optimized: per-environment deployed variant selector (proper atomFamily)
 export const deployedVariantByEnvironmentAtomFamily = atomFamily((envName: string) =>
     atom<EnhancedVariant | null>((get) => {
+        console.log("variantRevisionsQueryFamily - deployedVariantByEnvironmentAtomFamily")
         const environments = get(environmentsAtom)
         const targetEnv = environments.find((e: any) => e.name === envName)
         if (!targetEnv) return null

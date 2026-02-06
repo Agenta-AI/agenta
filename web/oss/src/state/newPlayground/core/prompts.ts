@@ -1,16 +1,23 @@
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {
+    legacyAppRevisionMolecule,
+    revisionEnhancedPromptsAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {produce} from "immer"
 import {atom} from "jotai"
 import {RESET, atomFamily} from "jotai/utils"
 
-import {metadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {
+    playgroundAppSchemaAtom,
+    playgroundAppRoutePathAtom,
+} from "@/oss/components/Playground/state/atoms/pipelineBBridge"
+import {mergedMetadataAtom, getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import type {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {extractVariables} from "@/oss/lib/shared/variant/inputHelpers"
 import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import type {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
+import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {
     customPropertiesByRevisionAtomFamily,
@@ -57,11 +64,11 @@ const resolveRevisionSource = (get: any, revisionId: string): EnhancedVariant | 
 export const derivedPromptsByRevisionAtomFamily = atomFamily((revisionId: string) =>
     atom<EnhancedObjectConfig<AgentaConfigPrompt>[]>((get) => {
         const variant = resolveRevisionSource(get, revisionId)
-        const spec = get(appSchemaAtom)
+        const spec = get(playgroundAppSchemaAtom)
         if (!variant || !spec) {
             return []
         }
-        const routePath = get(appUriInfoAtom)?.routePath
+        const routePath = get(playgroundAppRoutePathAtom)
         const prompts = derivePromptsFromSpec(variant as any, spec as any, routePath)
         return prompts
     }),
@@ -80,7 +87,7 @@ const derivedTransformedPromptsByRevisionAtomFamily = atomFamily((revisionId: st
         const variables = get(stablePromptVariablesAtomFamily(revisionId))
         const appType = get(currentAppContextAtom)?.appType || undefined
         const isChat = get(variantFlagsAtomFamily({revisionId}))?.isChat
-        const metadata = get(metadataAtom)
+        const metadata = get(mergedMetadataAtom)
         return transformToRequestBody({
             variant: variant as any,
             prompts,
@@ -101,9 +108,14 @@ const buildLiveTransformedPrompts = (get: any, revisionId: string) => {
     const customProps = get(customPropertiesByRevisionAtomFamily(revisionId))
     const appType = get(currentAppContextAtom)?.appType || undefined
     const isChat = get(variantFlagsAtomFamily({revisionId}))?.isChat
-    const metadata = get(metadataAtom)
+    // Use imperative getAllMetadata() instead of reactive get(mergedMetadataAtom)
+    // to include pending metadata updates that haven't been flushed via microtask yet.
+    // This is critical when derivePromptsFromSpec registers metadata via hashMetadata()
+    // in the same synchronous evaluation chain — those entries are in pendingMetadataUpdates
+    // but not yet in the reactive atom.
+    const metadata = getAllMetadata()
 
-    const transformed = transformToRequestBody({
+    return transformToRequestBody({
         variant: variant as any,
         prompts: promptsForTransform,
         customProperties: customProps,
@@ -113,8 +125,6 @@ const buildLiveTransformedPrompts = (get: any, revisionId: string) => {
         appType,
         variables,
     })
-
-    return transformed
 }
 
 const collectVariablesFromPrompts = (prompts: any[]): string[] => {
@@ -149,8 +159,8 @@ const derivedStablePromptVariablesAtomFamily = atomFamily((revisionId: string) =
     atom((get) => {
         try {
             const variant = resolveRevisionSource(get, revisionId)
-            const spec = get(appSchemaAtom)
-            const routePath = get(appUriInfoAtom)?.routePath
+            const spec = get(playgroundAppSchemaAtom)
+            const routePath = get(playgroundAppRoutePathAtom)
             if (!variant || !spec) return [] as string[]
             const prompts = derivePromptsFromSpec(variant as any, spec as any, routePath)
             const vars = collectVariablesFromPrompts(prompts as any[])
@@ -195,13 +205,27 @@ export const promptsAtomFamily = atomFamily((revisionId: string) =>
 
             // Single source: molecule data (merged server + draft)
             const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
-            if (moleculeData?.enhancedPrompts && Array.isArray(moleculeData.enhancedPrompts)) {
+            if (
+                moleculeData?.enhancedPrompts &&
+                Array.isArray(moleculeData.enhancedPrompts) &&
+                moleculeData.enhancedPrompts.length > 0
+            ) {
                 return moleculeData.enhancedPrompts as EnhancedObjectConfig<AgentaConfigPrompt>[]
             }
 
-            // Fallback to derived prompts if molecule not yet populated
-            const derived = get(derivedPromptsByRevisionAtomFamily(revisionId))
-            return derived
+            // Fallback to entity-level derived prompts (per-revision schema query).
+            // This matches moleculeBackedPromptsAtomFamily's fallback path, ensuring
+            // that both the UI and transformedPromptsAtomFamily use the same data source.
+            // The per-revision schema query may resolve before the app-scoped
+            // playgroundAppSchemaAtom, so this fallback is more reliable than
+            // derivedPromptsByRevisionAtomFamily (which depends on app-scoped atoms).
+            const entityPrompts = get(revisionEnhancedPromptsAtomFamily(revisionId))
+            if (entityPrompts && Array.isArray(entityPrompts) && entityPrompts.length > 0) {
+                return entityPrompts as EnhancedObjectConfig<AgentaConfigPrompt>[]
+            }
+
+            // Final fallback: derive from app-scoped schema
+            return get(derivedPromptsByRevisionAtomFamily(revisionId))
         },
         (_get, set, update) => {
             if (update === RESET) {
@@ -344,11 +368,14 @@ export const promptVariablesByPromptAtomFamily = atomFamily(
             // Do not derive variables from prompt messages for custom workflows
             const flags = get(variantFlagsAtomFamily({revisionId: p.revisionId}))
             if (flags?.isCustom) return [] as string[]
-            const prompts = get(promptsAtomFamily(p.revisionId))
+            // Use moleculeBackedPromptsAtomFamily — same source as the component's
+            // promptId (from useVariantPrompts). Using a different source
+            // (e.g. promptsAtomFamily) can produce __id mismatches during initial load.
+            const prompts = get(moleculeBackedPromptsAtomFamily(p.revisionId))
             const list = Array.isArray(prompts) ? prompts : []
             const target =
-                list.find((pr: any) => pr?.__name === p.promptId) ||
-                list.find((pr: any) => pr?.__id === p.promptId)
+                list.find((pr: any) => pr?.__id === p.promptId) ||
+                list.find((pr: any) => pr?.__name === p.promptId)
             if (!target) return [] as string[]
             return collectVariablesFromPrompts([target])
         }),

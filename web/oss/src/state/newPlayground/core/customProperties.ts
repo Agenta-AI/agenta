@@ -5,10 +5,13 @@ import {
 import {atom} from "jotai"
 import {RESET, atomFamily} from "jotai/utils"
 
+import {
+    playgroundAppSchemaAtom,
+    playgroundAppRoutePathAtom,
+} from "@/oss/components/Playground/state/atoms/pipelineBBridge"
 import type {Enhanced} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {deriveCustomPropertiesFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 /**
  * Writable custom properties selector
@@ -60,7 +63,7 @@ const logCustomProps = (...args: unknown[]) => {
 export const derivedCustomPropsByRevisionAtomFamily = atomFamily((revisionId: string) =>
     atom<Record<string, Enhanced<any>>>((get) => {
         const variant = resolveRevisionSource(get, revisionId)
-        const spec = get(appSchemaAtom)
+        const spec = get(playgroundAppSchemaAtom)
         if (!variant || !spec) {
             logCustomProps("derivedCustomProps: missing variant or spec", {
                 revisionId,
@@ -69,7 +72,7 @@ export const derivedCustomPropsByRevisionAtomFamily = atomFamily((revisionId: st
             })
             return {}
         }
-        const routePath = get(appUriInfoAtom)?.routePath
+        const routePath = get(playgroundAppRoutePathAtom)
         const customProps = deriveCustomPropertiesFromSpec(variant as any, spec as any, routePath)
         logCustomProps("derivedCustomProps: derived", {
             revisionId,
@@ -103,8 +106,8 @@ export const customPropertiesAtomFamily = atomFamily((params: CustomPropsAtomPar
             }
 
             // Otherwise derive from spec + saved config (pure)
-            const spec = get(appSchemaAtom)
-            const routePath = params.routePath ?? get(appUriInfoAtom)?.routePath
+            const spec = get(playgroundAppSchemaAtom)
+            const routePath = params.routePath ?? get(playgroundAppRoutePathAtom)
             if (!spec || !params.variant) return {}
             return deriveCustomPropertiesFromSpec(params.variant, spec, routePath)
         },
@@ -155,7 +158,7 @@ export const customPropertiesAtomFamily = atomFamily((params: CustomPropsAtomPar
  */
 export const customPropertiesByRevisionAtomFamily = atomFamily((revisionId: string) =>
     atom<Record<string, Enhanced<any>>>((get) => {
-        const routePath = get(appUriInfoAtom)?.routePath
+        const routePath = get(playgroundAppRoutePathAtom)
         return get(
             customPropertiesAtomFamily({
                 revisionId,

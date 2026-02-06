@@ -2,6 +2,7 @@ import {
     updateMetadataAtom as entityUpdateMetadataAtom,
     getMetadataLazy as entityGetMetadataLazy,
     getAllMetadata as entityGetAllMetadata,
+    metadataAtom as entityMetadataAtom,
     type ConfigMetadata as EntityConfigMetadata,
 } from "@agenta/entities/legacyAppRevision"
 import {atom, getDefaultStore} from "jotai"
@@ -71,20 +72,35 @@ export const updateResponseAtom = (metadata: Record<string, TestResult>) => {
 // Atom to store metadata - keep local for OSS compatibility
 // but also sync to entity package's metadata atom
 export const metadataAtom = atom<Record<string, ConfigMetadata>>({})
+
+// Merged metadata atom: reads from both local OSS and entity stores.
+// Entity code (Pipeline B) writes metadata to entity's metadataAtom via batched microtasks.
+// Without this merge, OSS components subscribed only to the local store would never
+// see entity-created metadata, causing property controls to fall back to string type.
+export const mergedMetadataAtom = atom((get) => {
+    const local = get(metadataAtom)
+    const entity = get(entityMetadataAtom)
+    return {...entity, ...local}
+})
+
 // Per-key selector family to avoid re-renders on unrelated keys
 export const metadataSelectorFamily = atomFamily((hash: string | undefined) =>
     selectAtom(
-        metadataAtom,
+        mergedMetadataAtom,
         (m) => (hash ? (m[hash] as ConfigMetadata | undefined) : undefined),
         Object.is,
     ),
 )
-// Lazy reader for metadata - check both local and entity stores
+// Lazy reader for metadata - check pending, local, and entity stores
 export const getMetadataLazy = <T extends ConfigMetadata>(hash?: string | T): T | null => {
     if (!hash) return null
     if (typeof hash !== "string") {
         return hash as T
     }
+
+    // Check pending updates first (not yet flushed to atom)
+    const pending = pendingMetadataUpdates[hash] as T | undefined
+    if (pending) return pending
 
     // Try local store first, then entity store
     const local = atomStore.get(metadataAtom)[hash] as T | undefined
@@ -94,10 +110,10 @@ export const getMetadataLazy = <T extends ConfigMetadata>(hash?: string | T): T 
     return entityGetMetadataLazy(hash) as T | null
 }
 export const getAllMetadata = (): Record<string, ConfigMetadata> => {
-    // Merge both stores
+    // Merge all stores including pending updates
     const local = atomStore.get(metadataAtom) || {}
     const entity = entityGetAllMetadata() || {}
-    return {...entity, ...local} as Record<string, ConfigMetadata>
+    return {...entity, ...local, ...pendingMetadataUpdates} as Record<string, ConfigMetadata>
 }
 
 export const updateMetadataAtom = (metadata: Record<string, ConfigMetadata>) => {

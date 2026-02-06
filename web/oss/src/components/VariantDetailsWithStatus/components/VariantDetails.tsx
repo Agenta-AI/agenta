@@ -1,10 +1,12 @@
 // no react hooks needed here beyond Jotai
 
+import {useMemo} from "react"
+
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
 import {Dropdown, Space, Tag, Typography} from "antd"
 import type {MenuProps} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {Variant} from "@/oss/lib/Types"
@@ -18,6 +20,8 @@ interface VariantDetailsProps {
     showRevisionAsTag?: boolean
     hasChanges?: boolean
     showLatestTag?: boolean
+    /** When provided, skips subscribing to Pipeline A's latestAppRevisionIdAtom */
+    latestAppRevisionId?: string | null
 }
 
 const VariantDetails = ({
@@ -27,8 +31,16 @@ const VariantDetails = ({
     showRevisionAsTag = true,
     hasChanges = false,
     showLatestTag = true,
+    latestAppRevisionId: latestAppRevisionIdProp,
 }: VariantDetailsProps) => {
-    const latestAppRevisionId = useAtomValue(latestAppRevisionIdAtom)
+    const latestRevIdAtom = useMemo(
+        () =>
+            latestAppRevisionIdProp !== undefined
+                ? atom(() => latestAppRevisionIdProp)
+                : latestAppRevisionIdAtom,
+        [latestAppRevisionIdProp],
+    )
+    const latestAppRevisionId = useAtomValue(latestRevIdAtom)
     const currentRevisionId = (variant as any)?.id as string | undefined
     const isAppLatest = !!currentRevisionId && currentRevisionId === latestAppRevisionId
     const discardDraft = useSetAtom(discardRevisionDraftAtom)

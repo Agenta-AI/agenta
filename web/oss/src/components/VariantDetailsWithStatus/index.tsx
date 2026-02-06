@@ -17,6 +17,7 @@ const VariantDetailsWithStatus = ({
     showRevisionAsTag,
     showStable = false,
     showLatestTag = true,
+    latestAppRevisionId,
 }: {
     variant?: Pick<Variant, "deployedIn" | "isLatestRevision" | "id">
     hideName?: boolean
@@ -27,6 +28,8 @@ const VariantDetailsWithStatus = ({
     showStable?: boolean
     showLatestTag?: boolean
     className?: string
+    /** When provided, skips subscribing to Pipeline A's latestAppRevisionIdAtom */
+    latestAppRevisionId?: string | null
 }) => {
     const _isDirty = useAtomValue(revisionIsDirtyAtomFamily(variant?.id || ""))
     const isDirty = showStable ? false : _isDirty
@@ -40,6 +43,7 @@ const VariantDetailsWithStatus = ({
                 showRevisionAsTag={showRevisionAsTag}
                 hasChanges={isDirty}
                 showLatestTag={showLatestTag}
+                latestAppRevisionId={latestAppRevisionId}
             />
             {showBadges && variant && <EnvironmentStatus variant={variant} />}
         </div>
