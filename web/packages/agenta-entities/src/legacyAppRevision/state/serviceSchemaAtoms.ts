@@ -22,7 +22,12 @@ import {fetchServiceSchema} from "../../appRevision/api/schema"
 import type {RevisionSchemaState} from "../../appRevision/core"
 import {APP_SERVICE_TYPES, resolveServiceType, type AppServiceType} from "../../appRevision/core"
 
-import {appsListDataAtom, appsListAtom, legacyAppRevisionEntityWithBridgeAtomFamily} from "./store"
+import {
+    appsListDataAtom,
+    appsListAtom,
+    appsQueryAtom,
+    legacyAppRevisionEntityWithBridgeAtomFamily,
+} from "./store"
 
 // ============================================================================
 // LAYER 1: SERVICE SCHEMA PREFETCH
@@ -109,15 +114,32 @@ export const revisionServiceTypeLookupAtomFamily = atomFamily((revisionId: strin
             const directApps = get(appsListDataAtom)
             const directApp = directApps.find((a) => a.id === appId)
             if (!directApp) {
-                if (DEBUG) {
-                    console.log("[serviceTypeLookup] app not found in any list → pending", {
-                        revisionId,
-                        appId,
-                        appsCount: apps.length,
-                        directAppsCount: directApps.length,
-                    })
+                // Check if the apps query is still loading — if so, wait for it.
+                // If the query has finished loading and the app still isn't found,
+                // treat as custom app (serviceType: null) to allow Layer 2 fallback
+                // instead of staying stuck as "pending" forever.
+                const appsQuery = get(appsQueryAtom)
+                if (appsQuery.isPending) {
+                    if (DEBUG) {
+                        console.log(
+                            "[serviceTypeLookup] app not found, query still loading → pending",
+                            {revisionId, appId},
+                        )
+                    }
+                    return {status: "pending"}
                 }
-                return {status: "pending"}
+                if (DEBUG) {
+                    console.log(
+                        "[serviceTypeLookup] app not found in loaded list → falling through to direct schema",
+                        {
+                            revisionId,
+                            appId,
+                            appsCount: apps.length,
+                            directAppsCount: directApps.length,
+                        },
+                    )
+                }
+                return {status: "resolved", serviceType: null}
             }
             const resolved = resolveServiceType(directApp.appType)
             if (DEBUG) {

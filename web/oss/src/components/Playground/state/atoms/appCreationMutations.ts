@@ -264,7 +264,13 @@ export const createAppMutationAtom = atom(
                 folderId,
             })
 
-            await queryClient.invalidateQueries({queryKey: ["apps"]})
+            await Promise.all([
+                queryClient.invalidateQueries({queryKey: ["apps"]}),
+                queryClient.invalidateQueries({
+                    queryKey: ["oss-apps-for-selection"],
+                    exact: false,
+                }),
+            ])
             set(recentAppIdAtom, app.app_id)
 
             // Step 2: Create the variant
