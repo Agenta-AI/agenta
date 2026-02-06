@@ -64,8 +64,6 @@ from oss.src.apis.fastapi.environments.utils import (
     parse_environment_revision_query_request_from_params,
     parse_environment_revision_query_request_from_body,
     merge_environment_revision_query_requests,
-    parse_environment_revision_retrieve_request_from_params,
-    parse_environment_revision_retrieve_request_from_body,
 )
 
 if is_ee():
