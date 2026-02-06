@@ -80,9 +80,13 @@ class TestsetRevisionsLog(
 
 
 class TestsetFlags(BaseModel):
-    pass
+    """Placeholder for testset-level flags.
 
-
+    This model is intentionally empty but kept as a dedicated type so that:
+    - existing references to `flags: Optional[TestsetFlags]` remain valid, and
+    - structured flags can be added here in the future without breaking the
+      surrounding DTOs.
+    """
 class Testset(Artifact):
     flags: Optional[TestsetFlags] = None
 
