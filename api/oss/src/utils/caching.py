@@ -661,9 +661,7 @@ async def renew_lock(
                 )
             return True
         else:
-            log.warn(
-                f"[lock] RENEW FAILED (expired): namespace={namespace} key={key}"
-            )
+            log.warn(f"[lock] RENEW FAILED (expired): namespace={namespace} key={key}")
             return False
 
     except Exception as e:

@@ -16,6 +16,7 @@ from ee.src.utils.billing import compute_billing_period
 
 # ---- Helpers ----
 
+
 def dt(year: int, month: int, day: int) -> datetime:
     """Create a timezone-aware UTC datetime."""
     return datetime(year, month, day, 12, 0, 0, tzinfo=timezone.utc)
@@ -29,6 +30,7 @@ def next_month(year: int, month: int):
 
 
 # ---- Core rule tests ----
+
 
 class TestBillingPeriodBasicRules:
     """Test the three core rules of billing period computation."""
@@ -70,6 +72,7 @@ class TestBillingPeriodBasicRules:
 
 
 # ---- December / year boundary tests ----
+
 
 class TestBillingPeriodDecemberBoundary:
     """Test year rollover when current month is December."""
@@ -113,6 +116,7 @@ class TestBillingPeriodDecemberBoundary:
 
 # ---- November (the month before December) ----
 
+
 class TestBillingPeriodNovember:
     """Test November to ensure proper transition to December (same year)."""
 
@@ -136,6 +140,7 @@ class TestBillingPeriodNovember:
 
 
 # ---- February edge cases (28/29 days, anchor > days in month) ----
+
 
 class TestBillingPeriodFebruary:
     """Test February with anchors that exceed the number of days in February."""
@@ -204,6 +209,7 @@ class TestBillingPeriodFebruary:
 
 # ---- Months with 30 days (Apr, Jun, Sep, Nov) ----
 
+
 class TestBillingPeriod30DayMonths:
     """Test months with 30 days when anchor is 31."""
 
@@ -233,6 +239,7 @@ class TestBillingPeriod30DayMonths:
 
 
 # ---- January boundary (anchor=1) ----
+
 
 class TestBillingPeriodJanuary:
     """Test January with anchor=1 (every day on or after 1st advances)."""
