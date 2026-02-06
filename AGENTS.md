@@ -2,7 +2,7 @@
 
 ## Dev Environment Tips
 - If you make changes to the frontend, make sure to run `pnpm lint-fix` within the web folder
-- If you make changes to the backend or sdk, make sure to run `ruff format` and `ruff check --fix` within the sdk or api folder
+- If you make changes to the API or SDK, make sure to run `ruff format` and `ruff check --fix` within the SDK or API folder
 - If you update Ant Design tokens, run `pnpm generate:tailwind-tokens` in the web folder and commit the generated file
 
 
@@ -10,16 +10,16 @@
 - Tests are currently still not working and should not be run 
 
 ## PR instructions
-- If the user provides you with the issue id, title the PR: [issue-id] fix(frontend): <Title> where fix is the type (fix, feat, chore, ci, doc, test.. [we're using better-branch) and frontend is where and it could be api, sdk, frontend, docs, ..
+- If the user provides you with the issue id, title the PR: [issue-id] fix(frontend): <Title> where fix is the type (fix, feat, chore, ci, doc, test.. [we're using better-branch) and frontend is where and it could be API, SDK, frontend, docs, ..
 
-## Backend Architecture Patterns (OSS + EE)
+## API Architecture Patterns (OSS + EE)
 
-Use this section for all new backend work.
+Use this section for all new work.
 
-### Backend repo map
+### API repo map
 
-- `api/oss/src/*` is the OSS baseline backend (new + legacy coexist here).
-- `api/ee/src/*` is the EE extension backend (billing, organizations, workspace, meters, subscriptions, throttling).
+- `api/oss/src/*` is the OSS baseline API (new + legacy coexist here).
+- `api/ee/src/*` is the EE extension API (billing, organizations, workspace, meters, subscriptions, throttling).
 - `api/entrypoints/*` is the composition root (dependency wiring and route mounting).
 
 OSS and EE relationship:
@@ -27,13 +27,13 @@ OSS and EE relationship:
 - When `is_ee()` is true, EE extends that app via:
   - `ee.extend_main(app)` for extra routers/features.
   - `ee.extend_app_schema(app)` for OpenAPI/security metadata.
-- EE is additive over OSS, not a separate backend architecture.
+- EE is additive over OSS, not a separate API architecture.
 
 Primary references:
 - `api/entrypoints/routers.py`
 - `api/ee/src/main.py`
 
-### Where to add new backend code
+### Where to add new API code
 
 - Add new domain features in:
   - `api/oss/src/apis/fastapi/<domain>/`
@@ -76,6 +76,7 @@ Rules:
 - Wire concrete dependencies in `api/entrypoints/*` only.
 - Keep DTO/DBE mapping in `dbs/postgres/*/mappings.py`.
 - Do not return DBE objects from router/service contracts.
+- As much as possible, define appropriate service exceptions (avoid leaking database exceptions).
 
 ### Endpoint design conventions
 
