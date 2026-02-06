@@ -1461,19 +1461,20 @@ class LegacyEnvironmentsAdapter:
             project_id=project_id,
         )
 
-        results: List[dict] = []
-        for env in environments:
-            env_ref = Reference(id=env.id)
+        # --- Pass 1: collect env variants and latest revisions (still N queries
+        #     for fetch_environment_variant / query_environment_revisions, but
+        #     the expensive _resolve_variant_from_revision_id is batched below).
+        env_data: List[tuple] = []  # (env, latest_revision, revision_ref_id)
+        app_revision_ids: List[UUID] = []
 
-            # fetch default variant
+        for env in environments:
             variant = await self.environments_service.fetch_environment_variant(
                 project_id=project_id,
-                environment_ref=env_ref,
+                environment_ref=Reference(id=env.id),
             )
             if variant is None:
                 continue
 
-            # fetch latest revision
             revisions = await self.environments_service.query_environment_revisions(
                 project_id=project_id,
                 environment_variant_refs=[Reference(id=variant.id)],
@@ -1481,30 +1482,72 @@ class LegacyEnvironmentsAdapter:
             )
             latest_revision = revisions[0] if revisions else None
 
-            deployed_app_variant_revision_id = None
-            deployed_app_variant_id = None
-            deployed_variant_name = None
-            revision_number = 0
-
+            revision_ref_id = None
             if (
                 latest_revision
                 and latest_revision.data
                 and latest_revision.data.references
             ):
-                app_refs, revision_ref = self._extract_app_refs(
+                _, revision_ref = self._extract_app_refs(
                     latest_revision.data.references,
                     app_slug,
                 )
                 if revision_ref is not None and revision_ref.id:
-                    deployed_app_variant_revision_id = str(revision_ref.id)
+                    revision_ref_id = revision_ref.id
+                    app_revision_ids.append(revision_ref_id)
 
-                    (
-                        deployed_app_variant_id,
-                        deployed_variant_name,
-                    ) = await self._resolve_variant_from_revision_id(
+            env_data.append((env, latest_revision, revision_ref_id))
+
+        # --- Batch resolve: revision IDs -> variant IDs -> variant names
+        #     Replaces N * 2 queries with 2 queries total.
+        revision_to_variant_id: Dict[UUID, UUID] = {}
+        variant_id_to_name: Dict[UUID, str] = {}
+
+        if app_revision_ids:
+            app_revisions = (
+                await self.applications_service.query_application_revisions(
+                    project_id=project_id,
+                    application_revision_refs=[
+                        Reference(id=rid) for rid in app_revision_ids
+                    ],
+                )
+            )
+
+            variant_ids_to_fetch: List[UUID] = []
+            for rev in app_revisions:
+                vid = rev.application_variant_id or getattr(rev, "variant_id", None)
+                if vid and rev.id:
+                    revision_to_variant_id[rev.id] = vid
+                    variant_ids_to_fetch.append(vid)
+
+            if variant_ids_to_fetch:
+                unique_variant_ids = list(set(variant_ids_to_fetch))
+                app_variants = (
+                    await self.applications_service.query_application_variants(
                         project_id=project_id,
-                        variant_revision_id=revision_ref.id,
+                        application_variant_refs=[
+                            Reference(id=vid) for vid in unique_variant_ids
+                        ],
                     )
+                )
+                for v in app_variants:
+                    if v.id:
+                        variant_id_to_name[v.id] = v.name or v.slug
+
+        # --- Pass 2: build results using pre-fetched maps
+        results: List[dict] = []
+        for env, latest_revision, revision_ref_id in env_data:
+            deployed_app_variant_revision_id = None
+            deployed_app_variant_id = None
+            deployed_variant_name = None
+            revision_number = 0
+
+            if revision_ref_id:
+                deployed_app_variant_revision_id = str(revision_ref_id)
+                vid = revision_to_variant_id.get(revision_ref_id)
+                if vid:
+                    deployed_app_variant_id = str(vid)
+                    deployed_variant_name = variant_id_to_name.get(vid)
 
             if latest_revision:
                 revision_number = latest_revision.version or 0
@@ -1626,7 +1669,10 @@ class LegacyEnvironmentsAdapter:
             )
             variant_revision = revisions[0] if revisions else None
 
-        variant_revision_id = variant_revision.id if variant_revision else variant_id
+        if variant_revision is None:
+            raise ValueError("No revision found for the variant to deploy")
+
+        variant_revision_id = variant_revision.id
 
         # Get or create the environment
         simple_env = await self._get_or_create_environment(
@@ -1659,8 +1705,8 @@ class LegacyEnvironmentsAdapter:
             ),
             "application_revision": Reference(
                 id=variant_revision_id,
-                slug=variant_revision.slug if variant_revision else None,
-                version=variant_revision.version if variant_revision else None,
+                slug=variant_revision.slug,
+                version=variant_revision.version,
             ),
         }
 

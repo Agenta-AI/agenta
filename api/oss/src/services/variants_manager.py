@@ -977,7 +977,10 @@ async def fork_config_by_variant_ref(
             project_id=project_id,
             app_id=app_variant.application_id,
         )
-        fork_slug = f"{app.slug}.{variant_ref.slug}" if app else variant_ref.slug
+        if not app:
+            log.error(f"App not found for application_id: {app_variant.application_id}")
+            return None
+        fork_slug = f"{app.slug}.{variant_ref.slug}"
     else:
         # app_variant.slug is already compound; append a unique suffix
         fork_slug = app_variant.slug + "_" + uuid4().hex[-12:]
@@ -1146,9 +1149,13 @@ async def deploy_config(
     if not app_environment:
         return None
 
+    if not user_id:
+        log.error("User ID is required for deploying a config")
+        return None
+
     await _update_environment(
         project_id=project_id,
-        user_id=user_id,  # type: ignore
+        user_id=user_id,
         environment_name=app_environment.name,
         variant_id=app_variant.id,
         variant_revision_id=app_variant_revision.id,

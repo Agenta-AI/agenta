@@ -724,18 +724,18 @@ async def configs_fetch(
             user_id=request.state.user_id,
         )
 
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail="Config not found.",
+        )
+
     await set_cache(
         project_id=request.state.project_id,
         namespace="configs_fetch",
         key=cache_key,
         value=config,
     )
-
-    if not config:
-        raise HTTPException(
-            status_code=404,
-            detail="Config not found.",
-        )
 
     return config
 
