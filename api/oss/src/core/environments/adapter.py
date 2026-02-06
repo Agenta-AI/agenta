@@ -106,15 +106,17 @@ class LegacyEnvironmentsAdapter:
         )
 
         # Build new references: start with existing, update the app key
-        references: Dict[str, Reference] = {}
+        references: Dict[str, Dict[str, Reference]] = {}
         if latest_revision and latest_revision.data and latest_revision.data.references:
             references = dict(latest_revision.data.references)
 
         # Update the app's revision reference using dot-notation key
         if variant_revision_id is not None:
-            references[f"{app_slug}.revision"] = Reference(
-                id=variant_revision_id,
-            )
+            references[f"{app_slug}.revision"] = {
+                "application_revision": Reference(
+                    id=variant_revision_id,
+                ),
+            }
 
         # Commit new revision
         revision_slug = uuid.uuid4().hex[-12:]
@@ -186,13 +188,13 @@ class LegacyEnvironmentsAdapter:
                 and latest_revision.data
                 and latest_revision.data.references
             ):
-                revision_ref = latest_revision.data.references.get(
+                app_refs = latest_revision.data.references.get(
                     f"{app_slug}.revision"
                 )
-                if revision_ref is not None:
-                    deployed_variant_revision_id = (
-                        str(revision_ref.id) if revision_ref.id else None
-                    )
+                if isinstance(app_refs, dict):
+                    revision_ref = app_refs.get("application_revision")
+                    if revision_ref is not None and revision_ref.id:
+                        deployed_variant_revision_id = str(revision_ref.id)
 
             results.append(
                 {
@@ -243,11 +245,11 @@ class LegacyEnvironmentsAdapter:
 
         deployed_variant_revision_id = None
         if latest_revision and latest_revision.data and latest_revision.data.references:
-            revision_ref = latest_revision.data.references.get(f"{app_slug}.revision")
-            if revision_ref is not None:
-                deployed_variant_revision_id = (
-                    str(revision_ref.id) if revision_ref.id else None
-                )
+            app_refs = latest_revision.data.references.get(f"{app_slug}.revision")
+            if isinstance(app_refs, dict):
+                revision_ref = app_refs.get("application_revision")
+                if revision_ref is not None and revision_ref.id:
+                    deployed_variant_revision_id = str(revision_ref.id)
 
         return {
             "environment_id": environment.id,
