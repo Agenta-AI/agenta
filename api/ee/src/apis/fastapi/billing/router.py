@@ -225,7 +225,10 @@ class BillingRouter:
             )
         except ValueError as e:
             log.error("Could not construct stripe event: %s", e)
-            raise HTTPException(status_code=400, detail="Invalid payload") from e
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid payload",
+            ) from e
 
         try:
             sig_header = request.headers.get("stripe-signature")
@@ -249,7 +252,7 @@ class BillingRouter:
             if not hasattr(stripe_event.data.object, "metadata"):
                 log.warn("Skipping stripe event: %s (no metadata)", stripe_event.type)
                 return JSONResponse(
-                    status_code=status.HTTP_403_FORBIDDEN,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     content={"status": "error", "message": "Metadata not found"},
                 )
             else:
@@ -264,7 +267,7 @@ class BillingRouter:
                 log.warn("Skipping stripe event: %s (no metadata)", stripe_event.type)
 
                 return JSONResponse(
-                    status_code=status.HTTP_403_FORBIDDEN,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     content={"status": "error", "message": "Metadata not found"},
                 )
             else:
@@ -273,7 +276,7 @@ class BillingRouter:
         if "target" not in metadata:
             log.warn("Skipping stripe event: %s (no target)", stripe_event.type)
             return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 content={"status": "error", "message": "Target not found"},
             )
 
@@ -286,14 +289,14 @@ class BillingRouter:
                 target,
             )
             return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={"status": "error", "message": "Target mismatch"},
+                status_code=status.HTTP_200_OK,
+                content={"status": "skip", "message": "Target mismatch"},
             )
 
         if "organization_id" not in metadata:
             log.warn("Skipping stripe event: %s (no organization)", stripe_event.type)
             return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 content={"status": "error", "message": "Organization ID not found"},
             )
 
@@ -321,7 +324,7 @@ class BillingRouter:
                         stripe_event.type,
                     )
                     return JSONResponse(
-                        status_code=status.HTTP_403_FORBIDDEN,
+                        status_code=status.HTTP_400_BAD_REQUEST,
                         content={
                             "status": "error",
                             "message": "Subscription ID not found",
@@ -333,7 +336,7 @@ class BillingRouter:
                 if "plan" not in metadata:
                     log.warn("Skipping stripe event: %s (no plan)", stripe_event.type)
                     return JSONResponse(
-                        status_code=status.HTTP_403_FORBIDDEN,
+                        status_code=status.HTTP_400_BAD_REQUEST,
                         content={
                             "status": "error",
                             "message": "Plan not found",
@@ -345,7 +348,7 @@ class BillingRouter:
                 if "billing_cycle_anchor" not in stripe_event.data.object:
                     log.warn("Skipping stripe event: %s (no anchor)", stripe_event.type)
                     return JSONResponse(
-                        status_code=status.HTTP_403_FORBIDDEN,
+                        status_code=status.HTTP_400_BAD_REQUEST,
                         content={
                             "status": "error",
                             "message": "Anchor not found",

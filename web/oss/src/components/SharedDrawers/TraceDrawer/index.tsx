@@ -143,7 +143,7 @@ const TraceDrawerButton = ({
                     onClick={handleOpen}
                     {...passthroughProps}
                     {...props}
-                    disabled={!hasTrace || !traceId || !!result?.error}
+                    disabled={!hasTrace || !traceId}
                     className={clsx([props.className])}
                 >
                     {label}

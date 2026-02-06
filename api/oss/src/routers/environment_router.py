@@ -41,8 +41,8 @@ async def deploy_to_environment(
             permission=Permission.DEPLOY_APPLICATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,

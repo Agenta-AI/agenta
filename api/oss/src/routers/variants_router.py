@@ -83,8 +83,8 @@ async def add_variant_from_base_and_config(
             permission=Permission.EDIT_APPLICATIONS,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -148,8 +148,8 @@ async def remove_variant(
                 permission=Permission.EDIT_APPLICATIONS_VARIANT,
             )
             if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                log.error(error_msg)
+                error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+                # log.debug(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -205,8 +205,8 @@ async def update_variant_parameters(
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                log.error(error_msg)
+                error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+                # log.debug(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -275,8 +275,8 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
                 permission=Permission.EDIT_APPLICATIONS,
             )
             if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                log.error(error_msg)
+                error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+                # log.debug(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -333,8 +333,8 @@ async def get_variant(
             permission=Permission.VIEW_APPLICATIONS,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -374,8 +374,8 @@ async def get_variant_revisions(
             permission=Permission.VIEW_APPLICATIONS,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -421,8 +421,8 @@ async def get_variant_revision(
             permission=Permission.VIEW_APPLICATIONS,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -468,7 +468,7 @@ async def query_variant_revisions(
         )
         if not has_permission:
             error_msg = "You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -523,8 +523,8 @@ async def remove_variant_revision(
                 permission=Permission.EDIT_APPLICATIONS_VARIANT,
             )
             if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                log.error(error_msg)
+                error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+                # log.debug(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,

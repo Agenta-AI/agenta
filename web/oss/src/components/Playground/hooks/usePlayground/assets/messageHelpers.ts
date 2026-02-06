@@ -48,7 +48,7 @@ export const createMessageFromSchema = (
                 !Array.isArray(baseValue) &&
                 "value" in baseValue
             ) {
-                ;(baseValue as any).value = ""
+                ;(baseValue as any).value = "user"
             }
 
             const jsonValue = json?.[key] ?? json?.[toSnakeCase(key)]
