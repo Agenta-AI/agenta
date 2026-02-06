@@ -977,12 +977,14 @@ class EnvironmentsRouter:
                 project_id=UUID(request.state.project_id),
                 environment_ref=Reference(id=commit.environment_id),
             )
-            if (
-                environment
-                and environment.flags
-                and isinstance(environment.flags, dict)
-                and environment.flags.get("is_guarded")
-            ):
+            is_guarded = False
+            if environment and environment.flags:
+                flags = environment.flags
+                if isinstance(flags, EnvironmentFlags):
+                    is_guarded = bool(getattr(flags, "is_guarded", False))
+                elif isinstance(flags, dict):
+                    is_guarded = bool(flags.get("is_guarded", False))
+            if is_guarded:
                 if not await check_action_access(  # type: ignore
                     user_uid=request.state.user_id,
                     project_id=request.state.project_id,
@@ -1214,12 +1216,14 @@ class SimpleEnvironmentsRouter:
                 project_id=UUID(request.state.project_id),
                 environment_ref=Reference(id=environment_id),
             )
-            if (
-                environment
-                and environment.flags
-                and isinstance(environment.flags, dict)
-                and environment.flags.get("is_guarded")
-            ):
+            is_guarded = False
+            if environment and environment.flags:
+                flags = environment.flags
+                if isinstance(flags, EnvironmentFlags):
+                    is_guarded = bool(getattr(flags, "is_guarded", False))
+                elif isinstance(flags, dict):
+                    is_guarded = bool(flags.get("is_guarded", False))
+            if is_guarded:
                 if not await check_action_access(  # type: ignore
                     user_uid=request.state.user_id,
                     project_id=request.state.project_id,
@@ -1270,11 +1274,14 @@ class SimpleEnvironmentsRouter:
 
         # If guarded, require DEPLOY_ENVIRONMENTS permission
         if is_ee():
-            if (
-                environment.flags
-                and isinstance(environment.flags, dict)
-                and environment.flags.get("is_guarded")
-            ):
+            is_guarded = False
+            if environment.flags:
+                flags = environment.flags
+                if isinstance(flags, EnvironmentFlags):
+                    is_guarded = bool(getattr(flags, "is_guarded", False))
+                elif isinstance(flags, dict):
+                    is_guarded = bool(flags.get("is_guarded", False))
+            if is_guarded:
                 if not await check_action_access(  # type: ignore
                     user_uid=request.state.user_id,
                     project_id=request.state.project_id,
