@@ -1,7 +1,7 @@
 """migrate old evaluators to new evaluators data structure
 
 Revision ID: d4e5f6a7b8c9
-Revises: c3b2a1d4e5f6
+Revises: a2b3c4d5e6f7
 Create Date: 2026-01-20 00:00:00.000000
 
 """
@@ -15,7 +15,7 @@ from oss.databases.postgres.migrations.core.data_migrations.evaluators import (
 
 # revision identifiers, used by Alembic.
 revision: str = "d4e5f6a7b8c9"
-down_revision: Union[str, None] = "c3b2a1d4e5f6"
+down_revision: Union[str, None] = "a2b3c4d5e6f7"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
