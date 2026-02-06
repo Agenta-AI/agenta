@@ -21,6 +21,7 @@ from oss.src.core.applications.dtos import (
     ApplicationCreate,
     ApplicationEdit,
     ApplicationQuery,
+    ApplicationFlags,
     ApplicationQueryFlags,
     #
     ApplicationVariant,
@@ -112,12 +113,16 @@ class LegacyApplicationsAdapter:
         user_id: UUID,
         app_name: str,
         folder_id: Optional[UUID] = None,
+        template_key: Optional[str] = None,
     ) -> Optional[CreateAppOutput]:
         """Create an app and return in legacy format."""
+        # Convert template_key to flags
+        flags = self._template_key_to_flags(template_key)
+
         application_create = ApplicationCreate(
             slug=app_name,
             name=app_name,
-            flags=ApplicationQueryFlags(is_evaluator=False),
+            flags=flags,
         )
 
         application = await self.applications_service.create_application(
@@ -282,15 +287,21 @@ class LegacyApplicationsAdapter:
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = (
-            f"{application.slug}.{variant_name}" if application else variant_name
-        )
+
+        if not application:
+            return None
+
+        compound_slug = f"{application.slug}.{variant_name}"
+
+        # Get flags from the application
+        flags = application.flags or ApplicationFlags()
 
         # Create a new variant
         variant_create = ApplicationVariantCreate(
             slug=compound_slug,
             name=variant_name,
             application_id=app_id,
+            flags=flags,
         )
 
         variant = await self.applications_service.create_application_variant(
@@ -315,6 +326,7 @@ class LegacyApplicationsAdapter:
             application_variant_id=variant.id,
             data=revision_data,
             message=commit_message or "Initial commit",
+            flags=flags,
         )
 
         revision = await self.applications_service.commit_application_revision(
@@ -345,6 +357,9 @@ class LegacyApplicationsAdapter:
         if not variant:
             return None
 
+        # Get flags from the variant
+        flags = variant.flags or ApplicationFlags()
+
         # Get URL from latest revision to preserve it
         latest = await self.fetch_latest_revision(
             project_id=project_id,
@@ -365,6 +380,7 @@ class LegacyApplicationsAdapter:
             application_variant_id=variant_id,
             data=revision_data,
             message=commit_message,
+            flags=flags,
         )
 
         revision = await self.applications_service.commit_application_revision(
@@ -457,15 +473,21 @@ class LegacyApplicationsAdapter:
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = (
-            f"{application.slug}.{variant_name}" if application else variant_name
-        )
+
+        if not application:
+            return None
+
+        compound_slug = f"{application.slug}.{variant_name}"
+
+        # Get flags from the application
+        flags = application.flags or ApplicationFlags()
 
         # Create a new variant
         variant_create = ApplicationVariantCreate(
             slug=compound_slug,
             name=variant_name,
             application_id=app_id,
+            flags=flags,
         )
 
         variant = await self.applications_service.create_application_variant(
@@ -490,6 +512,7 @@ class LegacyApplicationsAdapter:
             application_variant_id=variant.id,
             data=revision_data,
             message=commit_message or f"Created variant from URL: {url}",
+            flags=flags,
         )
 
         revision = await self.applications_service.commit_application_revision(
@@ -692,11 +715,24 @@ class LegacyApplicationsAdapter:
         """
         from oss.src.core.applications.dtos import ApplicationRevisionData
 
+        # Fetch the application to get its flags
+        application = await self.applications_service.fetch_application(
+            project_id=project_id,
+            application_ref=Reference(id=app_id),
+        )
+
+        if not application:
+            return None
+
+        # Get flags from the application
+        flags = application.flags or ApplicationFlags()
+
         # Create the variant
         variant_create = ApplicationVariantCreate(
             slug=variant_slug,
             name=variant_slug,
             application_id=app_id,
+            flags=flags,
         )
 
         variant = await self.applications_service.create_application_variant(
@@ -722,6 +758,7 @@ class LegacyApplicationsAdapter:
             application_variant_id=variant.id,
             data=revision_data,
             message=commit_message or "Initial commit",
+            flags=flags,
         )
 
         revision = await self.applications_service.commit_application_revision(
@@ -756,6 +793,9 @@ class LegacyApplicationsAdapter:
         if not variant:
             return None
 
+        # Get flags from the variant
+        flags = variant.flags or ApplicationFlags()
+
         # Get URL from latest revision if not provided
         if url is None:
             latest = await self.fetch_latest_revision(
@@ -778,6 +818,7 @@ class LegacyApplicationsAdapter:
             application_variant_id=variant_id,
             data=revision_data,
             message=commit_message,
+            flags=flags,
         )
 
         return await self.applications_service.commit_application_revision(
@@ -834,6 +875,9 @@ class LegacyApplicationsAdapter:
         if not variant:
             return None
 
+        # Get flags from the variant
+        flags = variant.flags or ApplicationFlags()
+
         # Get the latest revision to preserve other data
         revisions = await self.applications_service.query_application_revisions(
             project_id=project_id,
@@ -861,6 +905,7 @@ class LegacyApplicationsAdapter:
             application_variant_id=variant_id,
             data=revision_data,
             message=commit_message or f"Updated URL to: {url}",
+            flags=flags,
         )
 
         revision = await self.applications_service.commit_application_revision(
@@ -901,37 +946,58 @@ class LegacyApplicationsAdapter:
         Create a new variant from a legacy base_id.
 
         In the old system, base_id referred to VariantBaseDB which was tied to an app.
-        In the new system, we use the base to look up the app_id, then create a variant.
+        In the new system, base_id is actually a variant_id, so we fetch the variant
+        to get the app_id and URL from its latest revision.
         """
-        from oss.src.services import db_manager
         from oss.src.core.applications.dtos import ApplicationRevisionData
 
-        # Use old base table to get the app_id and URL
-        base_db = await db_manager.fetch_base_by_id(str(base_id))
-        if not base_db:
+        # In the new system, base_id is actually a variant_id
+        # Fetch the source variant to get app info
+        source_variant = await self.applications_service.fetch_application_variant(
+            project_id=project_id,
+            application_variant_ref=Reference(id=base_id),
+        )
+
+        if not source_variant:
             return None
 
-        app_id = base_db.app_id
+        app_id = source_variant.application_id
 
-        # Get URL from base's deployment if available
+        # Get URL and parameters from the source variant's latest revision
         url = None
-        if base_db.deployment_id and base_db.deployment:
-            url = base_db.deployment.uri
+        source_parameters = {}
+        latest_revision = await self.fetch_latest_revision(
+            project_id=project_id,
+            variant_id=base_id,
+        )
+        if latest_revision and latest_revision.data:
+            url = latest_revision.data.url
+            source_parameters = latest_revision.data.parameters or {}
 
-        # Build compound slug: {app_slug}.{variant_name}
+        # Use provided parameters, falling back to source parameters
+        final_parameters = parameters if parameters else source_parameters
+
+        # Fetch the application to get its slug
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
         )
-        compound_slug = (
-            f"{application.slug}.{variant_name}" if application else variant_name
-        )
+
+        if not application:
+            return None
+
+        # Build compound slug: {app_slug}.{variant_name}
+        compound_slug = f"{application.slug}.{variant_name}"
+
+        # Copy flags from source variant
+        flags = source_variant.flags or ApplicationFlags()
 
         # Create a new variant under the app
         variant_create = ApplicationVariantCreate(
             slug=compound_slug,
             name=variant_name,
             application_id=app_id,
+            flags=flags,
         )
 
         variant = await self.applications_service.create_application_variant(
@@ -943,26 +1009,49 @@ class LegacyApplicationsAdapter:
         if not variant:
             return None
 
-        # Create revision data with parameters and URL
-        revision_data = ApplicationRevisionData(
+        # Create v0 - initial commit with URL only
+        v0_revision_data = ApplicationRevisionData(
             version="2025.07.14",
             url=url,
-            parameters=parameters,
         )
 
-        revision_commit = ApplicationRevisionCommit(
+        v0_revision_commit = ApplicationRevisionCommit(
             slug=uuid4().hex[-12:],
             name=variant_name,
             application_id=app_id,
             application_variant_id=variant.id,
-            data=revision_data,
+            data=v0_revision_data,
+            message="Initial commit",
+            flags=flags,
+        )
+
+        await self.applications_service.commit_application_revision(
+            project_id=project_id,
+            user_id=user_id,
+            application_revision_commit=v0_revision_commit,
+        )
+
+        # Create v1 - with parameters from base
+        v1_revision_data = ApplicationRevisionData(
+            version="2025.07.14",
+            url=url,
+            parameters=final_parameters,
+        )
+
+        v1_revision_commit = ApplicationRevisionCommit(
+            slug=uuid4().hex[-12:],
+            name=variant_name,
+            application_id=app_id,
+            application_variant_id=variant.id,
+            data=v1_revision_data,
             message=commit_message or "Created from base",
+            flags=flags,
         )
 
         revision = await self.applications_service.commit_application_revision(
             project_id=project_id,
             user_id=user_id,
-            application_revision_commit=revision_commit,
+            application_revision_commit=v1_revision_commit,
         )
 
         return self._application_variant_to_legacy(variant, revision, project_id)
@@ -970,6 +1059,19 @@ class LegacyApplicationsAdapter:
     # -------------------------------------------------------------------------
     # HELPERS
     # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _template_key_to_flags(template_key: Optional[str]) -> ApplicationFlags:
+        """Convert template_key to ApplicationFlags."""
+        from oss.src.models.shared_models import AppType
+
+        if template_key in [AppType.CHAT_SERVICE, AppType.CHAT_TEMPLATE]:
+            return ApplicationFlags(is_chat=True)
+        elif template_key in [AppType.CUSTOM, AppType.SDK_CUSTOM]:
+            return ApplicationFlags(is_custom=True)
+        else:
+            # Default: completion or other
+            return ApplicationFlags()
 
     async def _resolve_app_uri(
         self,
@@ -1042,12 +1144,15 @@ class LegacyApplicationsAdapter:
         uri: Optional[str] = None,
     ) -> App:
         """Convert Application DTO to legacy App model."""
+        # Fall back to created_at if no update has occurred
+        updated_at = application.updated_at or application.created_at
+
         return App(
             app_id=str(application.id),
             app_name=application.name or application.slug,
             app_type=self._flags_to_app_type(application, uri=uri),
             created_at=str(application.created_at) if application.created_at else None,
-            updated_at=str(application.updated_at) if application.updated_at else None,
+            updated_at=str(updated_at) if updated_at else None,
         )
 
     def _application_to_create_output(
@@ -1057,12 +1162,15 @@ class LegacyApplicationsAdapter:
         uri: Optional[str] = None,
     ) -> CreateAppOutput:
         """Convert Application DTO to legacy CreateAppOutput."""
+        # Fall back to created_at if no update has occurred
+        updated_at = application.updated_at or application.created_at
+
         return CreateAppOutput(
             app_id=str(application.id),
             app_name=application.name or application.slug,
             app_type=self._flags_to_app_type(application, uri=uri),
             created_at=str(application.created_at) if application.created_at else None,
-            updated_at=str(application.updated_at) if application.updated_at else None,
+            updated_at=str(updated_at) if updated_at else None,
             folder_id=str(application.folder_id) if application.folder_id else None,
         )
 
@@ -1073,12 +1181,15 @@ class LegacyApplicationsAdapter:
         uri: Optional[str] = None,
     ) -> ReadAppOutput:
         """Convert Application DTO to legacy ReadAppOutput."""
+        # Fall back to created_at if no update has occurred
+        updated_at = application.updated_at or application.created_at
+
         return ReadAppOutput(
             app_id=str(application.id),
             app_name=application.name or application.slug,
             app_type=self._flags_to_app_type(application, uri=uri),
             created_at=str(application.created_at) if application.created_at else None,
-            updated_at=str(application.updated_at) if application.updated_at else None,
+            updated_at=str(updated_at) if updated_at else None,
             folder_id=str(application.folder_id) if application.folder_id else None,
         )
 
@@ -1089,12 +1200,15 @@ class LegacyApplicationsAdapter:
         uri: Optional[str] = None,
     ) -> UpdateAppOutput:
         """Convert Application DTO to legacy UpdateAppOutput."""
+        # Fall back to created_at if no update has occurred
+        updated_at = application.updated_at or application.created_at
+
         return UpdateAppOutput(
             app_id=str(application.id),
             app_name=application.name or application.slug,
             app_type=self._flags_to_app_type(application, uri=uri),
             created_at=str(application.created_at) if application.created_at else None,
-            updated_at=str(application.updated_at) if application.updated_at else None,
+            updated_at=str(updated_at) if updated_at else None,
             folder_id=str(application.folder_id) if application.folder_id else None,
         )
 
@@ -1110,6 +1224,10 @@ class LegacyApplicationsAdapter:
         if revision and revision.data:
             uri = revision.data.url or revision.data.uri
 
+        # Fall back to created_* fields if no update has occurred
+        modified_by = variant.updated_by_id or variant.created_by_id
+        updated_at = variant.updated_at or variant.created_at
+
         return AppVariantResponse(
             app_id=str(variant.application_id),
             app_name=variant.name or variant.slug,
@@ -1122,10 +1240,8 @@ class LegacyApplicationsAdapter:
             uri=uri,
             revision=revision.version if revision else 1,
             created_at=str(variant.created_at) if variant.created_at else None,
-            updated_at=str(variant.updated_at) if variant.updated_at else None,
-            modified_by_id=(
-                str(variant.updated_by_id) if variant.updated_by_id else None
-            ),
+            updated_at=str(updated_at) if updated_at else None,
+            modified_by_id=str(modified_by) if modified_by else None,
         )
 
     def _application_revision_to_variant_revision(
@@ -1140,7 +1256,7 @@ class LegacyApplicationsAdapter:
         return AppVariantRevision(
             id=str(revision.id) if revision.id else None,
             revision=revision.version or 1,
-            modified_by=str(revision.updated_by_id) if revision.updated_by_id else "",
+            modified_by=None,
             config=ConfigDB(
                 config_name=revision.name or revision.slug,
                 parameters=parameters,
