@@ -36,9 +36,7 @@ from oss.src.core.environments.dtos import (
     EnvironmentRevisionData,
 )
 from oss.src.core.shared.dtos import Reference
-from oss.src.models.deprecated_models import (
-    DeprecatedOrganizationDB,
-)
+from oss.src.models.db_models import OrganizationDB
 
 
 # Define constants
@@ -149,12 +147,12 @@ async def _fetch_project_owners_batch(
     organization_owner_query = (
         select(
             ProjectDBE.id.label("project_id"),
-            DeprecatedOrganizationDB.owner.label("owner_id"),
+            OrganizationDB.owner_id.label("owner_id"),
         )
         .select_from(ProjectDBE)
         .join(
-            DeprecatedOrganizationDB,
-            ProjectDBE.organization_id == DeprecatedOrganizationDB.id,
+            OrganizationDB,
+            ProjectDBE.organization_id == OrganizationDB.id,
         )
         .where(ProjectDBE.id.in_(project_ids))
     )

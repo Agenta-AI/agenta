@@ -37,9 +37,7 @@ from oss.src.core.applications.dtos import (
     ApplicationRevisionData,
     ApplicationFlags,
 )
-from oss.src.models.deprecated_models import (
-    DeprecatedOrganizationDB,
-)
+from oss.src.models.db_models import OrganizationDB
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.shared.dtos import Reference
 from oss.src.utils.helpers import get_slug_from_name_and_id
@@ -438,17 +436,17 @@ async def _fetch_project_owner(
 ) -> Optional[uuid.UUID]:
     """Fetch the owner user ID for a given project."""
     organization_owner_query = (
-        select(DeprecatedOrganizationDB.owner)
+        select(OrganizationDB.owner_id)
         .select_from(ProjectDBE)
         .join(
-            DeprecatedOrganizationDB,
-            ProjectDBE.organization_id == DeprecatedOrganizationDB.id,
+            OrganizationDB,
+            ProjectDBE.organization_id == OrganizationDB.id,
         )
         .where(ProjectDBE.id == project_id)
     )
     result = await connection.execute(organization_owner_query)
-    owner = result.scalar_one_or_none()
-    return UUID(owner) if owner is not None else None
+    owner_id = result.scalar_one_or_none()
+    return owner_id if owner_id is not None else None
 
 
 async def migration_old_applications_to_new_workflow_applications(

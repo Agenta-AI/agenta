@@ -28,8 +28,8 @@ from oss.src.core.evaluators.dtos import (
 from oss.src.core.evaluators.utils import build_evaluator_data
 from oss.src.models.deprecated_models import (
     DeprecatedAutoEvaluatorConfigDBwProject as DeprecatedEvaluatorConfigDBwProject,
-    DeprecatedOrganizationDB,
 )
+from oss.src.models.db_models import OrganizationDB
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.shared.dtos import Reference
 from oss.src.utils.helpers import get_slug_from_name_and_id
@@ -170,12 +170,12 @@ async def _fetch_project_owners_batch(
     organization_owner_query = (
         select(
             ProjectDBE.id.label("project_id"),
-            DeprecatedOrganizationDB.owner.label("owner_id"),
+            OrganizationDB.owner_id.label("owner_id"),
         )
         .select_from(ProjectDBE)
         .join(
-            DeprecatedOrganizationDB,
-            ProjectDBE.organization_id == DeprecatedOrganizationDB.id,
+            OrganizationDB,
+            ProjectDBE.organization_id == OrganizationDB.id,
         )
         .where(ProjectDBE.id.in_(project_ids))
     )
