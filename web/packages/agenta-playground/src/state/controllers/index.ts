@@ -14,6 +14,7 @@ export {
     applyPendingHydrationsForRevision,
     clearPendingHydrations,
     pendingHydrations,
+    pendingHydrationsAtom,
     setSelectionUpdateCallback,
     isPlaceholderId,
 } from "./playgroundSnapshotController"

@@ -42,6 +42,7 @@ export {
     applyPendingHydrationsForRevision,
     clearPendingHydrations,
     pendingHydrations,
+    pendingHydrationsAtom,
     setSelectionUpdateCallback,
     isPlaceholderId,
     urlSnapshotController,

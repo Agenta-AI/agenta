@@ -31,7 +31,7 @@ import type {RunnableType} from "../types"
 
 import {
     playgroundSnapshotController,
-    pendingHydrations,
+    pendingHydrationsAtom,
     applyPendingHydrationsForRevision,
     type SnapshotSelectionInput,
     type CreateSnapshotResult,
@@ -255,19 +255,16 @@ const buildUrlComponentsAtom = atom(null, (get, set, selectionIds: string[]): Ur
 
 /**
  * Selector that returns true when all pending hydrations have been applied.
- * OSS subscribes to this atom to know when to clear the URL hash.
- *
- * Note: This is a simple check of the pendingHydrations map size.
- * The map is mutated by applyPendingHydration, so consumers should
- * re-read this atom after triggering hydration application.
+ * Now properly reactive - reads from pendingHydrationsAtom so it re-evaluates
+ * whenever the map changes.
  */
-const hydrationCompleteAtom = atom(() => pendingHydrations.size === 0)
+const hydrationCompleteAtom = atom((get) => get(pendingHydrationsAtom).size === 0)
 
 /**
  * Selector that returns the current count of pending hydrations.
- * Useful for debugging and progress tracking.
+ * Now properly reactive via pendingHydrationsAtom dependency.
  */
-const pendingHydrationCountAtom = atom(() => pendingHydrations.size)
+const pendingHydrationCountAtom = atom((get) => get(pendingHydrationsAtom).size)
 
 // ============================================================================
 // HYDRATION ACTIONS
@@ -328,7 +325,7 @@ const hydrateFromUrlAtom = atom(null, (get, set, encodedSnapshot: string): Hydra
         return {
             ok: true,
             selection: hydrateResult.selection,
-            hasPendingHydrations: pendingHydrations.size > 0,
+            hasPendingHydrations: get(pendingHydrationsAtom).size > 0,
         }
     } catch (err) {
         return {

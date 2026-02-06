@@ -26,6 +26,7 @@ import {
     type RunnableType,
 } from "@agenta/entities/runnable"
 import {atom} from "jotai"
+import {getDefaultStore} from "jotai/vanilla"
 import {v4 as uuidv4} from "uuid"
 
 import {
@@ -272,11 +273,52 @@ export function isPlaceholderId(id: string): boolean {
 }
 
 /**
- * Map of draftKey to pending hydration patches.
+ * Jotai atom holding the map of draftKey to pending hydration patches.
  * Keyed by draftKey (not sourceRevisionId) to support multiple drafts from the same source.
  * When the revision data loads, we apply the patch via applyPendingHydration.
+ *
+ * This is an atom (not a plain Map) so that derived atoms like hydrationCompleteAtom
+ * can reactively track changes.
  */
-export const pendingHydrations = new Map<string, PendingHydration>()
+export const pendingHydrationsAtom = atom(new Map<string, PendingHydration>())
+
+// Imperative helpers for reading/writing the atom from plain functions
+function getPendingHydrations(): Map<string, PendingHydration> {
+    return getDefaultStore().get(pendingHydrationsAtom)
+}
+
+function setPendingHydrations(next: Map<string, PendingHydration>): void {
+    getDefaultStore().set(pendingHydrationsAtom, next)
+}
+
+function deletePendingHydration(draftKey: string): void {
+    const current = getPendingHydrations()
+    if (!current.has(draftKey)) return
+    const next = new Map(current)
+    next.delete(draftKey)
+    setPendingHydrations(next)
+}
+
+/**
+ * @deprecated Use pendingHydrationsAtom instead. This getter exists for backward compatibility.
+ */
+export const pendingHydrations = {
+    get size() {
+        return getPendingHydrations().size
+    },
+    get(key: string) {
+        return getPendingHydrations().get(key)
+    },
+    has(key: string) {
+        return getPendingHydrations().has(key)
+    },
+    entries() {
+        return getPendingHydrations().entries()
+    },
+    [Symbol.iterator]() {
+        return getPendingHydrations()[Symbol.iterator]()
+    },
+}
 
 /**
  * Callback to update selection when a local draft is created from pending hydration.
@@ -312,14 +354,14 @@ export function setSelectionUpdateCallback(
  */
 const hydrateSnapshotAtom = atom(
     null,
-    (_get, _set, snapshot: PlaygroundSnapshot): HydrateSnapshotResult => {
+    (_get, set, snapshot: PlaygroundSnapshot): HydrateSnapshotResult => {
         try {
             const newSelection: string[] = []
             const draftKeyToSourceRevisionId: Record<string, string> = {}
             const warnings: string[] = []
 
-            // Clear any previous pending hydrations
-            pendingHydrations.clear()
+            // Start with a fresh pending hydrations map
+            const nextPending = new Map<string, PendingHydration>()
 
             // Build a map of draftKey -> draft entry for quick lookup
             const draftMap = new Map<string, SnapshotDraftEntry>()
@@ -410,7 +452,7 @@ const hydrateSnapshotAtom = atom(
 
                         // Queue the patch to be applied when revision data loads
                         // Mark this as needing to create a local draft
-                        pendingHydrations.set(item.draftKey, {
+                        nextPending.set(item.draftKey, {
                             draftKey: item.draftKey,
                             sourceRevisionId: draftEntry.sourceRevisionId,
                             runnableType: draftEntry.runnableType,
@@ -427,7 +469,7 @@ const hydrateSnapshotAtom = atom(
 
                         // Queue the patch to be applied when revision data loads
                         // Don't create a local draft - just apply the patch to the source
-                        pendingHydrations.set(item.draftKey, {
+                        nextPending.set(item.draftKey, {
                             draftKey: item.draftKey,
                             sourceRevisionId: draftEntry.sourceRevisionId,
                             runnableType: draftEntry.runnableType,
@@ -441,6 +483,9 @@ const hydrateSnapshotAtom = atom(
                     draftKeyToSourceRevisionId[item.draftKey] = draftEntry.sourceRevisionId
                 }
             }
+
+            // Commit the new pending hydrations map atomically
+            set(pendingHydrationsAtom, nextPending)
 
             return {
                 ok: true,
@@ -469,7 +514,8 @@ const hydrateSnapshotAtom = atom(
  * @returns true if a patch was applied or skipped (done), false if not found or failed
  */
 export function applyPendingHydration(draftKey: string): boolean {
-    const pending = pendingHydrations.get(draftKey)
+    const currentPending = getPendingHydrations()
+    const pending = currentPending.get(draftKey)
     if (!pending) {
         return false
     }
@@ -477,17 +523,36 @@ export function applyPendingHydration(draftKey: string): boolean {
     const {sourceRevisionId, runnableType, patch, createLocalDraft, selectionIndex, placeholderId} =
         pending
 
+    if (process.env.NODE_ENV !== "production") {
+        console.log("[Hydration] applyPendingHydration", {
+            draftKey,
+            sourceRevisionId,
+            createLocalDraft,
+            selectionIndex,
+            placeholderId,
+        })
+    }
+
     // Get adapter for this runnable type
     const adapter = snapshotAdapterRegistry.get(runnableType)
     if (!adapter) {
         console.warn(`[Snapshot Controller] No adapter for runnable type: ${runnableType}`)
-        pendingHydrations.delete(draftKey)
+        deletePendingHydration(draftKey)
         return false
     }
 
     // If this hydration should create a new local draft (for compare mode support)
     if (createLocalDraft && adapter.createLocalDraftWithPatch) {
         const localDraftId = adapter.createLocalDraftWithPatch(sourceRevisionId, patch)
+
+        if (process.env.NODE_ENV !== "production") {
+            console.log("[Hydration] createLocalDraftWithPatch result", {
+                draftKey,
+                sourceRevisionId,
+                localDraftId,
+                hasCallback: !!selectionUpdateCallback,
+            })
+        }
 
         if (localDraftId) {
             // Successfully created local draft - update selection via callback
@@ -496,11 +561,17 @@ export function applyPendingHydration(draftKey: string): boolean {
                 const idToReplace = placeholderId ?? sourceRevisionId
                 selectionUpdateCallback(idToReplace, localDraftId, selectionIndex)
             }
-            pendingHydrations.delete(draftKey)
+            deletePendingHydration(draftKey)
             return true
         }
 
         // Creation failed - source data not ready yet, keep pending for retry
+        if (process.env.NODE_ENV !== "production") {
+            console.warn("[Hydration] createLocalDraftWithPatch returned null - source not ready", {
+                draftKey,
+                sourceRevisionId,
+            })
+        }
         return false
     }
 
@@ -512,7 +583,7 @@ export function applyPendingHydration(draftKey: string): boolean {
     const existingDraft = adapter.getDraft(sourceRevisionId)
     if (existingDraft) {
         // Remove from pending since we're intentionally skipping
-        pendingHydrations.delete(draftKey)
+        deletePendingHydration(draftKey)
         return true // Return true to indicate we're done with this hydration
     }
 
@@ -521,7 +592,7 @@ export function applyPendingHydration(draftKey: string): boolean {
 
     // Only remove from pending on success - keep it for retry if server data wasn't ready
     if (success) {
-        pendingHydrations.delete(draftKey)
+        deletePendingHydration(draftKey)
     }
 
     return success
@@ -536,8 +607,9 @@ export function applyPendingHydration(draftKey: string): boolean {
  */
 export function applyPendingHydrationsForRevision(sourceRevisionId: string): number {
     let applied = 0
+    const currentPending = getPendingHydrations()
 
-    for (const [draftKey, pending] of pendingHydrations.entries()) {
+    for (const [draftKey, pending] of currentPending.entries()) {
         if (pending.sourceRevisionId === sourceRevisionId) {
             if (applyPendingHydration(draftKey)) {
                 applied++
@@ -553,7 +625,7 @@ export function applyPendingHydrationsForRevision(sourceRevisionId: string): num
  * Useful for manual cleanup when navigating away from a snapshot URL.
  */
 export function clearPendingHydrations(): void {
-    pendingHydrations.clear()
+    setPendingHydrations(new Map())
 }
 
 // ============================================================================
