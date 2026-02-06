@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-02-04-prompt-folders",
+        "title": "Folders for Prompt Organization",
+        "description": "Organize prompts with folders and subfolders. Drag, move, and search.",
+        "link": "https://agenta.ai/docs/changelog/prompt-folders"
+    },
+    {
         "id": "changelog-2026-01-29-onboarding",
         "title": "Onboarding Widget & Walkthroughs",
         "description": "Guided tours to help you explore the playground, evaluations, and observability.",

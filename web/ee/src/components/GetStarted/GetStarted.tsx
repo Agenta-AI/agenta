@@ -1,5 +1,6 @@
 import {useCallback, useMemo} from "react"
 
+import {RunEvaluationView} from "@agenta/oss/src/components/GetStarted/views/RunEvaluationView"
 import {ArrowLeftIcon, CodeIcon, TreeViewIcon, RocketIcon, SparkleIcon} from "@phosphor-icons/react"
 import {Typography, Card, Button, message} from "antd"
 import {useRouter} from "next/router"
@@ -12,8 +13,6 @@ import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {useProjectData} from "@/oss/state/project/hooks"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
-
-import {RunEvaluationView} from "./views/RunEvaluationView"
 
 const {Title} = Typography
 

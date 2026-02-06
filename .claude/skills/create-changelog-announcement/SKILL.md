@@ -187,7 +187,7 @@ tags: [vX.Y.Z]
 description: "One-sentence description of the feature."
 ---
 
-# Feature Name
+{/* NOTE: Do NOT add an H1 heading here. The frontmatter title is automatically rendered as H1 by Docusaurus. */}
 
 ## Overview
 
@@ -346,13 +346,13 @@ cd docs && npm run build
 ```mdx
 ---
 title: "Chat Sessions in Observability"
+slug: chat-sessions-observability
+date: 2026-01-09
+tags: [v0.73.0]
 description: "Track and analyze multi-turn conversations with session grouping, cost analytics, and conversation flow visualization."
-authors: [agenta]
-tags: [observability, sessions, tracing]
-hide_table_of_contents: false
 ---
 
-# Chat Sessions in Observability
+{/* NOTE: Do NOT add an H1 heading here. The frontmatter title is automatically rendered as H1 by Docusaurus. */}
 
 ## Overview
 

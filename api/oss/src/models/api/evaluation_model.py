@@ -297,7 +297,7 @@ class LMProvidersEnum(str, Enum):
 class NewEvaluation(BaseModel):
     name: Optional[str] = None
     revisions_ids: List[str]
-    evaluators_configs: List[str]
+    evaluator_ids: List[str]
     testset_revision_id: str
     rate_limit: LLMRunRateLimit
     correct_answer_column: Optional[str] = None
@@ -312,4 +312,4 @@ class NewEvaluatorConfig(BaseModel):
 class UpdateEvaluatorConfig(BaseModel):
     name: Optional[str] = None
     evaluator_key: Optional[str] = None
-    settings_values: Optional[dict]
+    settings_values: Optional[dict] = None
