@@ -29,7 +29,7 @@ export const usageQueryAtom = atomWithQuery((get) => {
             return response.data as DataUsageType
         },
         staleTime: 1000 * 60 * 2, // 2 minutes
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,
         refetchOnReconnect: false,
         refetchOnMount: true,
         enabled: !!user && !!projectId,
@@ -63,7 +63,7 @@ export const subscriptionQueryAtom = atomWithQuery((get) => {
             return response.data as SubscriptionType
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,
         refetchOnReconnect: false,
         refetchOnMount: true,
         enabled: sessionExists && !!organizationId && !!user && !!projectId,

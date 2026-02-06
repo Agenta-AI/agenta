@@ -43,8 +43,8 @@ async def get_config(
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                log.error(error_msg)
+                error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+                # log.debug(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -281,7 +281,7 @@ async def revert_deployment_revision(
         )
         if not has_permission:
             error_msg = "You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
