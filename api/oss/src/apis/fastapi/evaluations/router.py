@@ -1176,7 +1176,7 @@ class EvaluationsRouter:
 
         return scenario_id_response
 
-    # EVALAUTION RESULTS -------------------------------------------------------
+    # EVALUATION RESULTS -------------------------------------------------------
 
     # POST /evaluations/results/
     @intercept_exceptions()
@@ -1608,7 +1608,7 @@ class EvaluationsRouter:
         queues = await self.evaluations_service.edit_queues(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
-            # s
+            #
             queues=queues_edit_request.queues,
         )
 

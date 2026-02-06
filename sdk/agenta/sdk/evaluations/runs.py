@@ -20,7 +20,7 @@ async def afetch(
 
     try:
         response.raise_for_status()
-    except:
+    except Exception:
         print(response.text)
         raise
 
@@ -80,7 +80,7 @@ async def acreate(
 
     try:
         response.raise_for_status()
-    except:
+    except Exception:
         print(response.text)
         raise
 
@@ -107,7 +107,7 @@ async def aclose(
 
     try:
         response.raise_for_status()
-    except:
+    except Exception:
         print(response.text)
         raise
 
@@ -132,7 +132,7 @@ async def aurl(
 
     try:
         response.raise_for_status()
-    except:
+    except Exception:
         print(response.text)
         raise
 

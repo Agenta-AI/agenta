@@ -2,7 +2,7 @@ import uuid
 import asyncio
 import traceback
 from uuid import UUID
-from typing import Optional
+from typing import Optional, Dict, List
 
 import click
 from sqlalchemy.future import select
@@ -155,24 +155,37 @@ async def _transfer_evaluator(
     return simple_evaluator
 
 
-async def _fetch_project_owner(
+async def _fetch_project_owners_batch(
     *,
-    project_id: uuid.UUID,
+    project_ids: List[uuid.UUID],
     connection: AsyncConnection,
-) -> Optional[uuid.UUID]:
-    """Fetch the owner user ID for a given project."""
+) -> Dict[uuid.UUID, uuid.UUID]:
+    """Fetch owner user IDs for multiple projects in a single query.
+
+    Returns a dict mapping project_id -> owner_user_id.
+    """
+    if not project_ids:
+        return {}
+
     organization_owner_query = (
-        select(DeprecatedOrganizationDB.owner)
+        select(
+            ProjectDBE.id.label("project_id"),
+            DeprecatedOrganizationDB.owner.label("owner_id"),
+        )
         .select_from(ProjectDBE)
         .join(
             DeprecatedOrganizationDB,
             ProjectDBE.organization_id == DeprecatedOrganizationDB.id,
         )
-        .where(ProjectDBE.id == project_id)
+        .where(ProjectDBE.id.in_(project_ids))
     )
+
     result = await connection.execute(organization_owner_query)
-    owner = result.scalar_one_or_none()
-    return UUID(owner) if owner is not None else None
+    rows = result.fetchall()
+
+    return {
+        row.project_id: UUID(row.owner_id) for row in rows if row.owner_id is not None
+    }
 
 
 async def migration_old_evaluator_configs_to_new_evaluator_configs(
@@ -206,6 +219,7 @@ async def migration_old_evaluator_configs_to_new_evaluator_configs(
             result = await connection.execute(
                 select(DeprecatedEvaluatorConfigDBwProject)
                 .filter(DeprecatedEvaluatorConfigDBwProject.project_id.isnot(None))
+                .order_by(DeprecatedEvaluatorConfigDBwProject.id)
                 .offset(offset)
                 .limit(DEFAULT_BATCH_SIZE)
             )
@@ -214,15 +228,25 @@ async def migration_old_evaluator_configs_to_new_evaluator_configs(
             if not evaluator_configs_rows:
                 break
 
+            # STEP 2: Batch fetch all project owners for this batch
+            unique_project_ids = list(
+                {
+                    row.project_id
+                    for row in evaluator_configs_rows
+                    if row.project_id is not None
+                }
+            )
+            project_owners = await _fetch_project_owners_batch(
+                project_ids=unique_project_ids,
+                connection=connection,
+            )
+
             # Process and transfer records to evaluator workflows
             batch_succeeded = 0
             for old_evaluator in evaluator_configs_rows:
                 try:
-                    # STEP 2: Get owner from project_id
-                    owner = await _fetch_project_owner(
-                        project_id=old_evaluator.project_id,  # type: ignore
-                        connection=connection,
-                    )
+                    # Get owner from pre-fetched batch
+                    owner = project_owners.get(old_evaluator.project_id)
                     if not owner:
                         skipped_records += 1
                         click.echo(
