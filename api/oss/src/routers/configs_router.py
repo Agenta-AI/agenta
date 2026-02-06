@@ -312,7 +312,7 @@ async def revert_deployment_revision(
             f"No environment found for deployment revision: {deployment_revision_id}",
         )
 
-    variant_ref = ReferenceRequestModel(id=deployed_variant_revision_id)
+    variant_ref = ReferenceRequestModel(id=str(deployed_variant_revision_id))
     environment_ref = ReferenceRequestModel(slug=env.slug)
 
     return await configs_deploy(
