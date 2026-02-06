@@ -55,6 +55,19 @@ from oss.src.models.shared_models import ConfigDB
 log = get_module_logger(__name__)
 
 
+async def _resolve_username(user_id: Optional[UUID]) -> Optional[str]:
+    """Resolve a user UUID to their username. Returns None on failure."""
+    if not user_id:
+        return None
+    try:
+        from oss.src.services import db_manager
+
+        user = await db_manager.get_user_with_id(user_id=str(user_id))
+        return user.username if user else None
+    except Exception:
+        return None
+
+
 class LegacyApplicationsAdapter:
     """
     Adapts ApplicationsService to legacy API response formats.
@@ -235,7 +248,7 @@ class LegacyApplicationsAdapter:
 
             latest_revision = revisions[0] if revisions else None
             variants.append(
-                self._application_variant_to_legacy(
+                await self._application_variant_to_legacy(
                     variant,
                     latest_revision,
                     project_id,
@@ -268,7 +281,7 @@ class LegacyApplicationsAdapter:
 
         latest_revision = revisions[0] if revisions else None
 
-        return self._application_variant_to_legacy(variant, latest_revision, project_id)
+        return await self._application_variant_to_legacy(variant, latest_revision, project_id)
 
     async def create_variant_from_base(
         self,
@@ -336,7 +349,7 @@ class LegacyApplicationsAdapter:
             application_revision_commit=revision_commit,
         )
 
-        return self._application_variant_to_legacy(variant, revision, project_id)
+        return await self._application_variant_to_legacy(variant, revision, project_id)
 
     async def update_variant_parameters(
         self,
@@ -393,7 +406,7 @@ class LegacyApplicationsAdapter:
         if not revision:
             return None
 
-        return self._application_revision_to_variant_revision(revision)
+        return await self._application_revision_to_variant_revision(revision)
 
     async def list_variant_revisions(
         self,
@@ -411,9 +424,10 @@ class LegacyApplicationsAdapter:
             application_revisions_log=revisions_log,
         )
 
-        return [
-            self._application_revision_to_variant_revision(rev) for rev in revisions
-        ]
+        result = []
+        for rev in revisions:
+            result.append(await self._application_revision_to_variant_revision(rev))
+        return result
 
     async def fetch_variant_revision(
         self,
@@ -434,7 +448,7 @@ class LegacyApplicationsAdapter:
 
         for rev in revisions:
             if rev.version == str(revision_number):
-                return self._application_revision_to_variant_revision(rev)
+                return await self._application_revision_to_variant_revision(rev)
 
         return None
 
@@ -522,7 +536,7 @@ class LegacyApplicationsAdapter:
             application_revision_commit=revision_commit,
         )
 
-        return self._application_variant_to_legacy(variant, revision, project_id)
+        return await self._application_variant_to_legacy(variant, revision, project_id)
 
     async def fetch_app_by_name(
         self,
@@ -918,7 +932,7 @@ class LegacyApplicationsAdapter:
             application_revision_commit=revision_commit,
         )
 
-        return self._application_variant_to_legacy(variant, revision, project_id)
+        return await self._application_variant_to_legacy(variant, revision, project_id)
 
     async def archive_variant_revision(
         self,
@@ -1058,7 +1072,7 @@ class LegacyApplicationsAdapter:
             application_revision_commit=v1_revision_commit,
         )
 
-        return self._application_variant_to_legacy(variant, revision, project_id)
+        return await self._application_variant_to_legacy(variant, revision, project_id)
 
     # -------------------------------------------------------------------------
     # HELPERS
@@ -1216,7 +1230,7 @@ class LegacyApplicationsAdapter:
             folder_id=str(application.folder_id) if application.folder_id else None,
         )
 
-    def _application_variant_to_legacy(
+    async def _application_variant_to_legacy(
         self,
         variant: ApplicationVariant,
         revision: Optional[ApplicationRevision],
@@ -1229,7 +1243,8 @@ class LegacyApplicationsAdapter:
             uri = revision.data.url or revision.data.uri
 
         # Fall back to created_* fields if no update has occurred
-        modified_by = variant.updated_by_id or variant.created_by_id
+        modified_by_id = variant.updated_by_id or variant.created_by_id
+        modified_by = await _resolve_username(modified_by_id)
         updated_at = variant.updated_at or variant.created_at
 
         return AppVariantResponse(
@@ -1245,10 +1260,10 @@ class LegacyApplicationsAdapter:
             revision=revision.version if revision else 1,
             created_at=str(variant.created_at) if variant.created_at else None,
             updated_at=str(updated_at) if updated_at else None,
-            modified_by_id=str(modified_by) if modified_by else None,
+            modified_by_id=modified_by,
         )
 
-    def _application_revision_to_variant_revision(
+    async def _application_revision_to_variant_revision(
         self,
         revision: ApplicationRevision,
     ) -> AppVariantRevision:
@@ -1257,10 +1272,13 @@ class LegacyApplicationsAdapter:
         if revision.data:
             parameters = revision.data.parameters or {}
 
+        modified_by_id = revision.updated_by_id or revision.created_by_id
+        modified_by = await _resolve_username(modified_by_id)
+
         return AppVariantRevision(
             id=str(revision.id) if revision.id else None,
             revision=revision.version or 1,
-            modified_by=None,
+            modified_by=modified_by,
             config=ConfigDB(
                 config_name=revision.name or revision.slug,
                 parameters=parameters,
@@ -1859,11 +1877,14 @@ class LegacyEnvironmentsAdapter:
                         variant_revision_id=rev_revision_ref.id,
                     )
 
+            rev_modified_by_id = rev.updated_by_id or rev.created_by_id
+            rev_modified_by = await _resolve_username(rev_modified_by_id)
+
             revision_list.append(
                 {
                     "id": str(rev.id) if rev.id else None,
                     "revision": rev.version or 0,
-                    "modified_by": str(rev.updated_by_id) if rev.updated_by_id else "",
+                    "modified_by": rev_modified_by or "",
                     "deployed_app_variant_revision": rev_deployed_revision_id,
                     "deployment": None,
                     "commit_message": rev.message,

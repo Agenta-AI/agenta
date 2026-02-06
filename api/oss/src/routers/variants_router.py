@@ -487,7 +487,7 @@ async def query_variant_revisions(
                 revision_id=revision_id,
             )
             if revision:
-                revision_output = adapter._application_revision_to_variant_revision(
+                revision_output = await adapter._application_revision_to_variant_revision(
                     revision
                 )
                 revisions.append(revision_output)
