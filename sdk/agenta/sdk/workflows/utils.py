@@ -23,6 +23,7 @@ from agenta.sdk.workflows.handlers import (
     auto_levenshtein_distance_v0,
     auto_similarity_match_v0,
     auto_semantic_similarity_v0,
+    hook_v0,
     completion_v0,
     chat_v0,
 )
@@ -46,6 +47,7 @@ from agenta.sdk.workflows.interfaces import (
     auto_levenshtein_distance_v0_interface,
     auto_similarity_match_v0_interface,
     auto_semantic_similarity_v0_interface,
+    hook_v0_interface,
     completion_v0_interface,
     chat_v0_interface,
 )
@@ -70,6 +72,7 @@ from agenta.sdk.workflows.configurations import (
     auto_levenshtein_distance_v0_configuration,
     auto_similarity_match_v0_configuration,
     auto_semantic_similarity_v0_configuration,
+    hook_v0_configuration,
     completion_v0_configuration,
     chat_v0_configuration,
 )
@@ -95,6 +98,7 @@ INTERFACE_REGISTRY: dict = dict(
             auto_levenshtein_distance=dict(v0=auto_levenshtein_distance_v0_interface),
             auto_similarity_match=dict(v0=auto_similarity_match_v0_interface),
             auto_semantic_similarity=dict(v0=auto_semantic_similarity_v0_interface),
+            hook=dict(v0=hook_v0_interface),
             completion=dict(v0=completion_v0_interface),
             chat=dict(v0=chat_v0_interface),
         ),
@@ -124,6 +128,7 @@ CONFIGURATION_REGISTRY: dict = dict(
             ),
             auto_similarity_match=dict(v0=auto_similarity_match_v0_configuration),
             auto_semantic_similarity=dict(v0=auto_semantic_similarity_v0_configuration),
+            hook=dict(v0=hook_v0_configuration),
             completion=dict(v0=completion_v0_configuration),
             chat=dict(v0=chat_v0_configuration),
         ),
@@ -179,6 +184,7 @@ HANDLER_REGISTRY: dict = dict(
             auto_levenshtein_distance=dict(v0=auto_levenshtein_distance_v0),
             auto_similarity_match=dict(v0=auto_similarity_match_v0),
             auto_semantic_similarity=dict(v0=auto_semantic_similarity_v0),
+            hook=dict(v0=hook_v0),
             completion=dict(v0=completion_v0),
             chat=dict(v0=chat_v0),
         ),

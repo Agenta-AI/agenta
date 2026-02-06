@@ -68,7 +68,7 @@ broker = RedisStreamBroker(
 )
 
 
-# EVALSS ------------------------------------------------------------------
+# EVALS -------------------------------------------------------------------
 # Instantiate workers (analogous to router instantiation in routers.py)
 
 tracing_dao = TracingDAO()
