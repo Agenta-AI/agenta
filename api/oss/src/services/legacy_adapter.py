@@ -452,9 +452,7 @@ class LegacyApplicationsAdapter:
         )
 
         # Batch-resolve usernames for all revisions
-        user_ids = [
-            rev.updated_by_id or rev.created_by_id for rev in revisions
-        ]
+        user_ids = [rev.updated_by_id or rev.created_by_id for rev in revisions]
         username_map = await _resolve_usernames(
             [uid for uid in user_ids if uid is not None]
         )
@@ -1950,9 +1948,7 @@ class LegacyEnvironmentsAdapter:
             revision_number = latest.version or 0
 
         # Batch-resolve usernames for all revisions
-        rev_user_ids = [
-            rev.updated_by_id or rev.created_by_id for rev in all_revisions
-        ]
+        rev_user_ids = [rev.updated_by_id or rev.created_by_id for rev in all_revisions]
         username_map = await _resolve_usernames(
             [uid for uid in rev_user_ids if uid is not None]
         )
@@ -1978,7 +1974,9 @@ class LegacyEnvironmentsAdapter:
                     )
 
             rev_modified_by_id = rev.updated_by_id or rev.created_by_id
-            rev_modified_by = username_map.get(rev_modified_by_id) if rev_modified_by_id else None
+            rev_modified_by = (
+                username_map.get(rev_modified_by_id) if rev_modified_by_id else None
+            )
 
             revision_list.append(
                 {
