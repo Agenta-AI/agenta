@@ -161,8 +161,11 @@ async def _fetch_app_variants(
     app_id: UUID,
     connection: AsyncConnection,
 ):
-    """Fetch all variants for an app."""
-    query = select(AppVariantDB).where(AppVariantDB.app_id == app_id)
+    """Fetch all non-hidden variants for an app."""
+    query = select(AppVariantDB).where(
+        AppVariantDB.app_id == app_id,
+        AppVariantDB.hidden.isnot(True),
+    )
     result = await connection.execute(query)
     return result.fetchall()
 
@@ -326,6 +329,16 @@ async def _transfer_application(
         app_id=app_id,
         connection=connection,
     )
+
+    # Deduplicate: keep latest variant per compound slug
+    seen_slugs: Dict[str, Any] = {}
+    for variant in variants:
+        variant_name = variant.variant_name or "default"
+        compound_slug = f"{slug}.{variant_name}"
+        existing = seen_slugs.get(compound_slug)
+        if existing is None or (variant.created_at and existing.created_at and variant.created_at > existing.created_at):
+            seen_slugs[compound_slug] = variant
+    variants = list(seen_slugs.values())
 
     for variant in variants:
         variant_id = variant.id
