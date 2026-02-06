@@ -1,5 +1,6 @@
 import {useMemo, useRef, useState} from "react"
 
+import {EnhancedModal as Modal} from "@agenta/ui"
 import {
     AppleOutlined,
     FacebookOutlined,
@@ -9,7 +10,7 @@ import {
     TwitterOutlined,
     GlobalOutlined,
 } from "@ant-design/icons"
-import {Alert, Button, Divider, Modal, Typography} from "antd"
+import {Alert, Button, Divider, Typography} from "antd"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
 import EmailPasswordSignIn from "@/oss/components/pages/auth/EmailPasswordSignIn"
@@ -170,7 +171,6 @@ const AuthUpgradeModal = ({open, organizationName, detail, onCancel}: AuthUpgrad
             title="Additional authentication required"
             footer={null}
             width={520}
-            destroyOnClose
         >
             <div className="flex flex-col gap-4">
                 {organizationName && (
