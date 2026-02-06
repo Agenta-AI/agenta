@@ -170,10 +170,12 @@ async def get_config_deployment_revision(
     # Find the first deployed_app_variant_revision_id in references
     deployed_variant_revision_id = None
     if env_rev.data and env_rev.data.references:
-        for key, ref in env_rev.data.references.items():
-            if key.endswith(".revision") and ref.id:
-                deployed_variant_revision_id = ref.id
-                break
+        for key, refs_dict in env_rev.data.references.items():
+            if key.endswith(".revision") and isinstance(refs_dict, dict):
+                app_revision_ref = refs_dict.get("application_revision")
+                if app_revision_ref and app_revision_ref.id:
+                    deployed_variant_revision_id = app_revision_ref.id
+                    break
 
     if not deployed_variant_revision_id:
         raise HTTPException(
@@ -279,10 +281,12 @@ async def revert_deployment_revision(
     # Find the deployed variant revision ID from references
     deployed_variant_revision_id = None
     if env_rev.data and env_rev.data.references:
-        for key, ref in env_rev.data.references.items():
-            if key.endswith(".revision") and ref.id:
-                deployed_variant_revision_id = ref.id
-                break
+        for key, refs_dict in env_rev.data.references.items():
+            if key.endswith(".revision") and isinstance(refs_dict, dict):
+                app_revision_ref = refs_dict.get("application_revision")
+                if app_revision_ref and app_revision_ref.id:
+                    deployed_variant_revision_id = app_revision_ref.id
+                    break
 
     if not deployed_variant_revision_id:
         raise HTTPException(
