@@ -487,8 +487,8 @@ async def query_variant_revisions(
                 revision_id=revision_id,
             )
             if revision:
-                revision_output = adapter._application_revision_to_variant_revision(
-                    revision
+                revision_output = (
+                    await adapter._application_revision_to_variant_revision(revision)
                 )
                 revisions.append(revision_output)
         except Exception as e:
@@ -724,18 +724,18 @@ async def configs_fetch(
             user_id=request.state.user_id,
         )
 
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail="Config not found.",
+        )
+
     await set_cache(
         project_id=request.state.project_id,
         namespace="configs_fetch",
         key=cache_key,
         value=config,
     )
-
-    if not config:
-        raise HTTPException(
-            status_code=404,
-            detail="Config not found.",
-        )
 
     return config
 

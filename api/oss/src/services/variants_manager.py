@@ -15,21 +15,14 @@ from oss.src.core.applications.dtos import (
     ApplicationRevision,
 )
 
-# Old DB models - only for environments (keeping on old tables temporarily)
-from oss.src.services.db_manager import (
-    AppEnvironmentDB,
-    AppEnvironmentRevisionDB,
-)
-
-# Old DB functions - only for environments
+# Old DB function - still needed for user lookup
 from oss.src.services.db_manager import (
     get_user_with_id,
-    fetch_app_environment_by_id,
-    fetch_app_environment_revision,
-    fetch_app_environment_by_name_and_appid,
-    fetch_app_environment_revision_by_version,
-    deploy_to_environment,
 )
+
+# New environment adapter
+from oss.src.services.legacy_adapter import get_legacy_environments_adapter
+from oss.src.core.shared.dtos import Reference, Windowing
 
 
 log = get_module_logger(__name__)
@@ -178,7 +171,6 @@ async def _fetch_variant(
                 app_id=application_ref.id,
                 variant_slug=variant_ref.slug,
             )
-
             if not app_variant:
                 return None, None
 
@@ -285,94 +277,244 @@ async def _fetch_variant_versions(
     return variant_revisions
 
 
+def _extract_deployed_revision_id(
+    references: Optional[Dict],
+    app_slug: Optional[str],
+) -> Optional[UUID]:
+    """Extract the application_revision.id from the nested references dict.
+
+    Each entry in ``references`` maps an app-scoped key
+    (e.g. ``"my-app.revision"``) to a dict with keys
+    ``"application"``, ``"application_variant"``, ``"application_revision"``,
+    whose values are ``Reference`` objects (or raw dicts when Pydantic
+    deserialization was skipped).
+    """
+    if not references or not app_slug:
+        return None
+    app_refs = references.get(f"{app_slug}.revision")
+    if not app_refs or not isinstance(app_refs, dict):
+        return None
+    revision_ref = app_refs.get("application_revision")
+    if revision_ref is None:
+        return None
+    # Reference object (normal path)
+    if hasattr(revision_ref, "id") and revision_ref.id:
+        return revision_ref.id
+    # Raw dict fallback (e.g. un-hydrated JSON from DB)
+    if isinstance(revision_ref, dict):
+        rev_id = revision_ref.get("id")
+        if isinstance(rev_id, UUID):
+            return rev_id
+        if isinstance(rev_id, str):
+            with suppress(Exception):
+                return UUID(rev_id)
+    return None
+
+
+class _EnvironmentShim:
+    """Lightweight shim mimicking old AppEnvironmentDB attributes."""
+
+    def __init__(self, *, name: str, id: Optional[UUID] = None):
+        self.name = name
+        self.id = id
+
+
+class _EnvironmentRevisionShim:
+    """Lightweight shim mimicking old AppEnvironmentRevisionDB attributes."""
+
+    def __init__(
+        self,
+        *,
+        id: Optional[UUID] = None,
+        revision: Optional[int] = None,
+        deployed_app_variant_revision_id: Optional[UUID] = None,
+        environment_id: Optional[UUID] = None,
+        commit_message: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        project_id: Optional[str] = None,
+    ):
+        self.id = id
+        self.revision = revision
+        self.deployed_app_variant_revision_id = deployed_app_variant_revision_id
+        self.environment_id = environment_id
+        self.commit_message = commit_message
+        self.created_at = created_at
+        self.project_id = project_id
+
+
 async def _fetch_environment(
     project_id: str,
     environment_ref: ReferenceDTO,
     application_ref: Optional[ReferenceDTO] = None,
-) -> Tuple[Optional[AppEnvironmentDB], Optional[AppEnvironmentRevisionDB]]:
-    app_environment_revision = None
-    app_environment = None
+) -> Tuple[Optional[_EnvironmentShim], Optional[_EnvironmentRevisionShim]]:
+    """Fetch environment and revision from the new git-based environment tables.
+
+    Returns shim objects that provide the same attributes as the old
+    AppEnvironmentDB / AppEnvironmentRevisionDB so that callers don't
+    need to change.
+    """
+
+    env_adapter = get_legacy_environments_adapter()
 
     with suppress():
-        # by environment_id
-        if environment_ref.id:
-            environment_ref.version = None
-
-            app_environment_revision = await fetch_app_environment_revision(
-                # project_id=project_id,
-                revision_id=environment_ref.id.hex,
-            )
-
-            if not app_environment_revision:
-                return None, None
-
-            app_environment_revision.revision = None
-
-            app_environment = await fetch_app_environment_by_id(
-                # project_id=project_id,
-                environment_id=app_environment_revision.environment_id.hex,
-            )
-
-            if not app_environment:
-                return None, None
-
-        # by application_id, environment_slug, and ...
-        elif (
-            application_ref
-            and (application_ref.id or application_ref.slug)
-            and environment_ref.slug
-        ):
+        # Resolve the application slug (needed for reading revision data)
+        app_slug: Optional[str] = None
+        if application_ref and (application_ref.id or application_ref.slug):
+            if application_ref.slug:
+                app_slug = application_ref.slug
+            if application_ref.id and not app_slug:
+                app_slug = await env_adapter._resolve_app_slug(
+                    project_id=UUID(project_id),
+                    app_id=application_ref.id,
+                )
+            # Resolve id from slug if needed
             if not application_ref.id and application_ref.slug:
-                # Use adapter to fetch app by name
                 adapter = get_legacy_adapter()
                 app = await adapter.fetch_app_by_name(
                     project_id=UUID(project_id),
                     app_name=application_ref.slug,
                 )
-
                 if app:
                     application_ref.id = app.id
+                    if not app_slug:
+                        app_slug = app.slug
 
-            if not application_ref.id:
+        # -----------------------------------------------------------
+        # CASE 1: lookup by environment revision id
+        # -----------------------------------------------------------
+        if environment_ref.id:
+            # The id here is an *environment revision* id.
+            env_revisions = (
+                env_adapter.environments_service.query_environment_revisions(
+                    project_id=UUID(project_id),
+                    environment_revision_refs=[Reference(id=environment_ref.id)],
+                    windowing=Windowing(limit=1),
+                )
+            )
+            env_revisions = await env_revisions
+            if not env_revisions:
                 return None, None
 
-            # ASSUMPTION : single or first base, not default base.
-            # TODO: handle default base and then {environment_name} as {base_name}.{environment_ref.slug},
-            #       and then use fetch_app_environment_by_name_and_appid() instead.
-            app_environment = await fetch_app_environment_by_name_and_appid(
-                # project_id=project_id,
-                app_id=application_ref.id.hex,
-                environment_name=environment_ref.slug,
+            env_rev = env_revisions[0]
+
+            # Resolve the environment artifact from the revision
+            env_id = env_rev.environment_id or env_rev.artifact_id
+            if not env_id:
+                return None, None
+
+            env = await env_adapter.environments_service.fetch_environment(
+                project_id=UUID(project_id),
+                environment_ref=Reference(id=env_id),
+            )
+            if not env:
+                return None, None
+
+            # Extract deployed_app_variant_revision_id from revision data
+            deployed_variant_revision_id = _extract_deployed_revision_id(
+                env_rev.data.references if env_rev.data else None,
+                app_slug,
             )
 
-            if not app_environment:
+            env_shim = _EnvironmentShim(name=env.slug, id=env.id)
+            rev_shim = _EnvironmentRevisionShim(
+                id=env_rev.id,
+                revision=None,
+                deployed_app_variant_revision_id=deployed_variant_revision_id,
+                environment_id=env.id,
+                commit_message=env_rev.message,
+                created_at=env_rev.created_at,
+                project_id=project_id,
+            )
+            return env_shim, rev_shim
+
+        # -----------------------------------------------------------
+        # CASE 2: lookup by environment slug + application ref
+        # -----------------------------------------------------------
+        if environment_ref.slug:
+            env = await env_adapter.environments_service.fetch_environment(
+                project_id=UUID(project_id),
+                environment_ref=Reference(slug=environment_ref.slug),
+            )
+            if not env:
                 return None, None
 
-            # ... environment_version or latest environment version
-            # in the case of environments, the latest version is indicated by a None,
-            # as opposed to the latest version of a variant which is indicated by a version number
-            # coming from the app_variant revision.
+            env_shim = _EnvironmentShim(name=env.slug, id=env.id)
 
-            with suppress(verbose=False):
-                (
-                    app_environment_revision,
-                    version,
-                ) = await fetch_app_environment_revision_by_version(
-                    project_id=project_id,
-                    # application_id=application_ref.id.hex,
-                    app_environment_id=app_environment.id.hex,
-                    version=environment_ref.version,
+            # Fetch variant + revisions for this environment
+            env_variant = (
+                await env_adapter.environments_service.fetch_environment_variant(
+                    project_id=UUID(project_id),
+                    environment_ref=Reference(id=env.id),
                 )
+            )
+            if not env_variant:
+                return env_shim, None
 
-            if not app_environment_revision:
-                return app_environment, None
+            # Fetch all revisions (ordered latest-first via descending UUID7)
+            env_revisions = (
+                await env_adapter.environments_service.query_environment_revisions(
+                    project_id=UUID(project_id),
+                    environment_variant_refs=[Reference(id=env_variant.id)],
+                    windowing=Windowing(),
+                )
+            )
+            if not env_revisions:
+                return env_shim, None
 
-            app_environment_revision.revision = version
+            # Resolve version: None or 0 means latest, positive means offset
+            target_rev = None
+            version = None
+            ref_key = f"{app_slug}.revision" if app_slug else None
 
-    if not (app_environment_revision and app_environment):
-        return None, None
+            if environment_ref.version is None or environment_ref.version == 0:
+                # Latest: find the most recent revision that has data for
+                # the requested app.  Revisions are returned latest-first
+                # (descending id via default windowing).
+                for rev in env_revisions:
+                    if (
+                        ref_key
+                        and rev.data
+                        and rev.data.references
+                        and ref_key in rev.data.references
+                    ):
+                        target_rev = rev
+                        version = rev.version
+                        break
+                # If no revision has the app key, fall back to the first
+                # revision overall (mirrors the old behaviour).
+                if target_rev is None and env_revisions:
+                    target_rev = env_revisions[0]
+                    version = target_rev.version if target_rev else None
+            else:
+                # Specific version
+                version_str = str(environment_ref.version)
+                for rev in env_revisions:
+                    if str(rev.version) == version_str:
+                        target_rev = rev
+                        version = rev.version
+                        break
 
-    return app_environment, app_environment_revision
+            if not target_rev:
+                return env_shim, None
+
+            # Extract deployed_app_variant_revision_id from revision data
+            deployed_variant_revision_id = _extract_deployed_revision_id(
+                target_rev.data.references if target_rev.data else None,
+                app_slug,
+            )
+
+            rev_shim = _EnvironmentRevisionShim(
+                id=target_rev.id,
+                revision=version,
+                deployed_app_variant_revision_id=deployed_variant_revision_id,
+                environment_id=env.id,
+                commit_message=target_rev.message,
+                created_at=target_rev.created_at,
+                project_id=project_id,
+            )
+            return env_shim, rev_shim
+
+    return None, None
 
 
 async def _create_variant(
@@ -436,24 +578,23 @@ async def _update_variant(
 
 
 async def _update_environment(
-    project_id: str,
-    user_id: str,
+    project_id: UUID,
+    user_id: UUID,
     environment_name: str,
     variant_id: UUID,
     variant_revision_id: Optional[UUID] = None,
     commit_message: Optional[str] = None,
 ):
-    """Update environment deployment - uses old environment tables."""
+    """Update environment deployment - uses new git-based environment tables."""
     with suppress():
-        await deploy_to_environment(
-            # project_id=project_id,
+        env_adapter = get_legacy_environments_adapter()
+        await env_adapter.deploy_to_environment(
+            project_id=project_id,
+            user_id=user_id,
+            variant_id=variant_id,
             environment_name=environment_name,
-            variant_id=variant_id.hex,
-            variant_revision_id=(
-                variant_revision_id.hex if variant_revision_id else None
-            ),
+            revision_id=variant_revision_id,
             commit_message=commit_message,
-            **{"user_uid": user_id},
         )
 
 
@@ -855,7 +996,10 @@ async def fork_config_by_variant_ref(
             project_id=project_id,
             app_id=app_variant.application_id,
         )
-        fork_slug = f"{app.slug}.{variant_ref.slug}" if app else variant_ref.slug
+        if not app:
+            log.error(f"App not found for application_id: {app_variant.application_id}")
+            return None
+        fork_slug = f"{app.slug}.{variant_ref.slug}"
     else:
         # app_variant.slug is already compound; append a unique suffix
         fork_slug = app_variant.slug + "_" + uuid4().hex[-12:]
@@ -1024,9 +1168,13 @@ async def deploy_config(
     if not app_environment:
         return None
 
+    if not user_id:
+        log.error("User ID is required for deploying a config")
+        return None
+
     await _update_environment(
-        project_id=project_id,
-        user_id=user_id,  # type: ignore
+        project_id=UUID(project_id),
+        user_id=UUID(user_id),
         environment_name=app_environment.name,
         variant_id=app_variant.id,
         variant_revision_id=app_variant_revision.id,
