@@ -32,11 +32,11 @@ COPY ./sd[k] /app/sdk/
 RUN if [ -f /app/sdk/pyproject.toml ]; then pip install -e /app/sdk; fi
 
 # Verify which agenta package is active (output visible in build logs)
-RUN python -c "\
-import agenta; loc = getattr(agenta, '__file__', '?'); \
-print(f'[SDK CHECK] agenta={loc}'); \
-print(f'[SDK CHECK] is_local={\"app/sdk\" in (loc or \"\")}')" \
-|| echo '[SDK CHECK] verification failed'
+RUN python -c '\
+import agenta; loc = getattr(agenta, "__file__", "?"); \
+print(f"[SDK CHECK] agenta={loc}"); \
+print(f"[SDK CHECK] is_local={"app/sdk" in (loc or "")}")' \
+|| echo "[SDK CHECK] verification failed"
 
 # PYTHONPATH includes /app/sdk - if local SDK exists it takes precedence over PyPI version
 ENV PYTHONPATH=/app:/app/sdk
