@@ -1,5 +1,6 @@
 from os import getenv
 from json import loads
+import asyncio
 from typing import List, Optional
 from traceback import format_exc
 from uuid import UUID
@@ -7,7 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import acquire_lock, release_lock
+from oss.src.utils.caching import AGENTA_LOCK_TTL, acquire_lock, release_lock
 
 from oss.src.services import db_manager
 from oss.src.utils.common import is_ee
@@ -166,13 +167,46 @@ async def create_accounts_with_status(
     lock_acquired = await acquire_lock(
         namespace="account-creation",
         key=email,
+        ttl=AGENTA_LOCK_TTL,
     )
 
     if not lock_acquired:
-        # Another request is already creating this account.
+        # Another request is already creating this account. Do not treat this call as
+        # a new signup; wait briefly for the other request to finish.
         log.info("[scopes] account creation lock already taken")
-        user = await db_manager.get_user_with_email(email=email)
-        return user, False
+        # Wait slightly longer than the lock TTL to tolerate slow DB commits and
+        # the org/workspace bootstrap that happens under the lock.
+        wait_total_seconds = float(AGENTA_LOCK_TTL + 5)
+        wait_interval_seconds = 0.2
+        max_attempts = int(wait_total_seconds / wait_interval_seconds)
+
+        user = None
+        for _ in range(max_attempts):
+            user = await db_manager.get_user_with_email(email=email)
+            if user is not None:
+                return user, False
+            await asyncio.sleep(wait_interval_seconds)
+
+        # The lock holder might have crashed or exceeded TTL; try to acquire and
+        # complete the creation ourselves.
+        lock_acquired = await acquire_lock(
+            namespace="account-creation",
+            key=email,
+            ttl=AGENTA_LOCK_TTL,
+        )
+
+        if not lock_acquired:
+            # One last check before failing.
+            user = await db_manager.get_user_with_email(email=email)
+            if user is not None:
+                return user, False
+
+            log.error(
+                "[scopes] account creation lock held but user not found",
+                email=email,
+                waited_seconds=wait_total_seconds,
+            )
+            raise RuntimeError("account creation lock held but user not found")
 
     # We have the lock - proceed with account creation
     log.info("[scopes] account creation lock acquired")

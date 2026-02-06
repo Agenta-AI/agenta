@@ -251,11 +251,13 @@ async def _create_account(email: str, uid: str) -> bool:
             # This avoids the FK violation where org.owner_id references non-existent user
             user_db, user_created = await create_accounts_with_status(payload)
 
-            # Now create organization with the real user ID
-            organization_db = await setup_oss_organization_for_first_user(
-                user_id=user_db.id,
-                user_email=email,
-            )
+            # Avoid duplicate org creation if another request already bootstrapped.
+            organization_db = await get_oss_organization()
+            if not organization_db:
+                organization_db = await setup_oss_organization_for_first_user(
+                    user_id=user_db.id,
+                    user_email=email,
+                )
 
             # Assign user to organization
             from oss.src.services.db_manager import _assign_user_to_organization_oss
@@ -803,6 +805,9 @@ def override_passwordless_functions(
         is_new_user = await _create_account(normalized_email, user_id_str)
         user_context["is_new_user"] = is_new_user
 
+        # Ensure we always have an internal_user reference, even if identity creation fails.
+        internal_user = await get_user_with_email(normalized_email)
+
         # Extract domain from email
         domain = (
             normalized_email.split("@")[1]
@@ -895,11 +900,15 @@ def override_emailpassword_functions(
         normalized_email = email.lower()
         existing_user = await get_user_with_email(normalized_email)
 
+        internal_user = existing_user
+
         # If no internal user, create one (this can happen when ST user exists but internal doesn't)
         if not existing_user:
             is_new_user = await _create_account(normalized_email, result.user.id)
             user_context["is_new_user"] = is_new_user
 
+            # Internal user should now exist even if created by another concurrent request.
+            internal_user = await get_user_with_email(normalized_email)
         else:
             user_context["is_new_user"] = False
 
@@ -978,6 +987,9 @@ def override_emailpassword_functions(
         normalized_email = email.lower()
         is_new_user = await _create_account(normalized_email, result.user.id)
         user_context["is_new_user"] = is_new_user
+
+        # Ensure we always have an internal_user reference, even if identity creation fails.
+        internal_user = await get_user_with_email(normalized_email)
 
         # Extract domain from email
         domain = email.split("@")[1] if "@" in email and email.count("@") == 1 else None
