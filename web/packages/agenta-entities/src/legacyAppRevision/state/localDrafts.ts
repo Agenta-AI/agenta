@@ -286,12 +286,24 @@ export function createLocalDraftFromRevision(sourceRevisionId: string): string |
     const sourceData = store.get(legacyAppRevisionEntityWithBridgeAtomFamily(sourceRevisionId))
 
     if (!sourceData) {
+        if (process.env.NODE_ENV !== "production") {
+            console.warn("[Hydration][createLocalDraftFromRevision] BAIL: no sourceData", {
+                sourceRevisionId,
+            })
+        }
         return null
     }
 
     // Check if variantId is available - it's required for cloning
     // variantId is typically set by useSetRevisionVariantContext after revision data loads
     if (!sourceData.variantId) {
+        if (process.env.NODE_ENV !== "production") {
+            console.warn("[Hydration][createLocalDraftFromRevision] BAIL: no variantId", {
+                sourceRevisionId,
+                hasData: true,
+                keys: Object.keys(sourceData).slice(0, 10),
+            })
+        }
         return null
     }
 
@@ -353,11 +365,38 @@ export function createLocalDraftFromRevision(sourceRevisionId: string): string |
     store.set(legacyAppRevisionServerDataAtomFamily(localId), dataWithSource)
 
     // Track in local drafts list, scoped by app ID
-    const appId = dataWithSource.appId || "__global__"
+    // Use the registered current app ID atom as fallback when dataWithSource.appId is missing.
+    // This happens when cloning from a local draft whose source data doesn't have appId set.
+    // The read side (localDraftIdsAtom) uses getCurrentAppId which reads from _currentAppIdAtom,
+    // so the write side must match to avoid storing under "__global__" while reading under the real app ID.
+    let appId = dataWithSource.appId
+    if (!appId) {
+        appId = _currentAppIdAtom ? (store.get(_currentAppIdAtom) ?? "__global__") : "__global__"
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+        console.log("[Compare][createLocalDraftFromRevision] tracking draft", {
+            localId,
+            appId,
+            dataAppId: dataWithSource.appId,
+            sourceRevisionId,
+            variantId: sourceData.variantId,
+            hasDataWithSource: !!dataWithSource,
+        })
+    }
+
     store.set(localDraftIdsByAppAtom, (prev) => {
         const appDrafts = prev[appId] || []
         if (appDrafts.includes(localId)) return prev
-        return {...prev, [appId]: [...appDrafts, localId]}
+        const next = {...prev, [appId]: [...appDrafts, localId]}
+        if (process.env.NODE_ENV !== "production") {
+            console.log("[Compare][createLocalDraftFromRevision] localDraftIdsByApp updated", {
+                appId,
+                prevDrafts: appDrafts,
+                newDrafts: next[appId],
+            })
+        }
+        return next
     })
 
     return localId

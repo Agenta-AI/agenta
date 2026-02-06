@@ -241,21 +241,29 @@ export function areParametersDifferent(
     },
     serverParams: Record<string, unknown>,
 ): boolean {
-    // Start with draft parameters
-    let draftParams = {...(draftData.parameters ?? {})}
+    const hasEnhancedPrompts = draftData.enhancedPrompts && Array.isArray(draftData.enhancedPrompts)
+    const hasEnhancedCustomProps =
+        draftData.enhancedCustomProperties && typeof draftData.enhancedCustomProperties === "object"
+
+    // When enhanced data exists, use SERVER params as the base for conversion.
+    // This preserves key ordering from the server, preventing false positives
+    // from toSnakeCaseDeep key reordering in the enhanced → raw conversion.
+    let draftParams: Record<string, unknown>
+    if (hasEnhancedPrompts || hasEnhancedCustomProps) {
+        draftParams = {...serverParams}
+    } else {
+        draftParams = {...(draftData.parameters ?? {})}
+    }
 
     // If draft has enhanced prompts, convert them back to parameters
-    if (draftData.enhancedPrompts && Array.isArray(draftData.enhancedPrompts)) {
-        draftParams = enhancedPromptsToParameters(draftData.enhancedPrompts, draftParams)
+    if (hasEnhancedPrompts) {
+        draftParams = enhancedPromptsToParameters(draftData.enhancedPrompts!, draftParams)
     }
 
     // If draft has enhanced custom properties, convert them back to parameters
-    if (
-        draftData.enhancedCustomProperties &&
-        typeof draftData.enhancedCustomProperties === "object"
-    ) {
+    if (hasEnhancedCustomProps) {
         draftParams = enhancedCustomPropertiesToParameters(
-            draftData.enhancedCustomProperties,
+            draftData.enhancedCustomProperties!,
             draftParams,
         )
     }

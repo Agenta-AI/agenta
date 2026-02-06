@@ -185,6 +185,10 @@ export const getMetadataLazy = <T extends ConfigMetadata>(hash?: string | T): T 
         return hash as T
     }
 
+    // Check pending updates first (not yet flushed to atom via microtask)
+    const pending = pendingMetadataUpdates[hash] as T | undefined
+    if (pending) return pending
+
     const store = getDefaultStore()
     return (store.get(metadataAtom)[hash] as T) || null
 }
@@ -194,7 +198,12 @@ export const getMetadataLazy = <T extends ConfigMetadata>(hash?: string | T): T 
  */
 export const getAllMetadata = (): Record<string, ConfigMetadata> => {
     const store = getDefaultStore()
-    return store.get(metadataAtom) || {}
+    const committed = store.get(metadataAtom) || {}
+    // Include pending updates not yet flushed via microtask
+    if (Object.keys(pendingMetadataUpdates).length > 0) {
+        return {...committed, ...pendingMetadataUpdates}
+    }
+    return committed
 }
 
 // ============================================================================
@@ -202,25 +211,108 @@ export const getAllMetadata = (): Record<string, ConfigMetadata> => {
 // ============================================================================
 
 /**
- * Normalize enum/choices to SelectOptions format
+ * Build a flat lookup map from x-model-metadata for option metadata enrichment.
+ * x-model-metadata is typically structured as { provider: { model: metadata } }.
  */
-function normalizeOptions(rawOptions: unknown[] | undefined): SelectOptions | undefined {
-    if (!rawOptions || !Array.isArray(rawOptions)) return undefined
+function buildModelMetadataLookup(
+    metadata?: Record<string, unknown>,
+): Map<string, Record<string, unknown>> {
+    const lookup = new Map<string, Record<string, unknown>>()
+    if (!metadata) return lookup
 
-    return rawOptions.map((opt) => ({
-        label: String(opt),
-        value: String(opt),
-    }))
+    for (const providerData of Object.values(metadata)) {
+        if (providerData && typeof providerData === "object") {
+            for (const [model, modelData] of Object.entries(
+                providerData as Record<string, unknown>,
+            )) {
+                if (modelData && typeof modelData === "object") {
+                    lookup.set(model, modelData as Record<string, unknown>)
+                }
+            }
+        }
+    }
+    return lookup
 }
 
 /**
- * Check if a schema is a const-discriminated anyOf (like response_format)
+ * Normalize enum/choices to SelectOptions format.
+ * Handles:
+ * - string[] (flat enum)
+ * - Record<string, string[]> (grouped choices, e.g. { OpenAI: ["gpt-4", ...] })
+ * - x-model-metadata for per-option metadata enrichment
+ */
+function normalizeOptions(
+    rawOptions: unknown,
+    modelMetadata?: Record<string, unknown>,
+): SelectOptions | undefined {
+    if (!rawOptions) return undefined
+
+    const metadataLookup = buildModelMetadataLookup(modelMetadata)
+
+    const getMetadata = (value: string): Record<string, unknown> | undefined => {
+        if (!modelMetadata) return undefined
+        if (metadataLookup.has(value)) return metadataLookup.get(value)
+        // Backward compatibility: check root-level keys
+        if (modelMetadata[value] && typeof modelMetadata[value] === "object") {
+            return modelMetadata[value] as Record<string, unknown>
+        }
+        return undefined
+    }
+
+    // Flat string array: ["gpt-4", "gpt-3.5-turbo"]
+    if (Array.isArray(rawOptions)) {
+        return rawOptions.map(
+            (opt): BaseOption => ({
+                label: String(opt),
+                value: String(opt),
+                metadata: getMetadata(String(opt)),
+            }),
+        )
+    }
+
+    // Grouped choices: { OpenAI: ["gpt-4", ...], Anthropic: ["claude-3", ...] }
+    if (typeof rawOptions === "object" && rawOptions !== null) {
+        const entries = Object.entries(rawOptions as Record<string, unknown>)
+        const isGrouped = entries.every(
+            ([, arr]) => Array.isArray(arr) && arr.every((item) => typeof item === "string"),
+        )
+        if (isGrouped) {
+            return entries.map(
+                ([group, values]): OptionGroup => ({
+                    label: group,
+                    options: (values as string[]).map(
+                        (value): BaseOption => ({
+                            label: value,
+                            value,
+                            group,
+                            metadata: getMetadata(value),
+                        }),
+                    ),
+                }),
+            )
+        }
+    }
+
+    return undefined
+}
+
+/**
+ * Extract raw options from a schema property (enum or choices).
+ */
+function getSchemaOptions(schema: Record<string, unknown>): unknown {
+    if (schema.enum) return schema.enum
+    if (schema.choices) return schema.choices
+    return undefined
+}
+
+/**
+ * Check if a schema is a const-discriminated anyOf (like response_format).
+ * These have anyOf branches where at least one is an object with properties.type.const.
  */
 function isConstDiscriminatedAnyOf(schemaRecord: Record<string, unknown>): boolean {
     const anyOf = schemaRecord.anyOf as unknown[] | undefined
     if (!anyOf || !Array.isArray(anyOf)) return false
 
-    // Check if at least one anyOf branch has a const-discriminated type property
     return anyOf.some((branch) => {
         if (typeof branch !== "object" || branch === null) return false
         const branchRecord = branch as Record<string, unknown>
@@ -233,8 +325,8 @@ function isConstDiscriminatedAnyOf(schemaRecord: Record<string, unknown>): boole
 }
 
 /**
- * Process a const-discriminated anyOf schema into compound metadata
- * This handles schemas like response_format with type: text | json_object | json_schema
+ * Process a const-discriminated anyOf schema into compound metadata.
+ * Handles schemas like response_format with type: text | json_object | json_schema.
  */
 function processAnyOfToCompound(
     schemaRecord: Record<string, unknown>,
@@ -247,10 +339,8 @@ function processAnyOfToCompound(
         if (typeof branch !== "object" || branch === null) continue
         const branchRecord = branch as Record<string, unknown>
 
-        // Skip null type branches (for nullable)
         if (branchRecord.type === "null") continue
 
-        // Handle const-discriminated objects
         if (branchRecord.type === "object") {
             const props = branchRecord.properties as Record<string, unknown> | undefined
             if (!props) continue
@@ -260,7 +350,6 @@ function processAnyOfToCompound(
                 const formatType = typeProp.const as string
                 const label = (branchRecord.title as string) || formatType
 
-                // Extract additional configuration from other properties
                 const extraConfig: Record<string, unknown> = {}
                 for (const [propKey, propValue] of Object.entries(props)) {
                     if (propKey !== "type") {
@@ -271,10 +360,7 @@ function processAnyOfToCompound(
                 options.push({
                     label,
                     value: formatType,
-                    config: {
-                        type: formatType,
-                        ...extraConfig,
-                    },
+                    config: {type: formatType, ...extraConfig},
                 })
             }
         }
@@ -296,28 +382,138 @@ function processAnyOfToCompound(
 }
 
 /**
+ * Unwrap anyOf schemas to extract the effective (non-null) branch.
+ * Returns the unwrapped schema, nullable flag, and parent title/description.
+ *
+ * Handles:
+ * - Simple nullable: anyOf: [{type: "number", min: 0, max: 1}, {type: "null"}]
+ * - Multi-branch unions are left as-is (handled by compound logic)
+ */
+function unwrapAnyOf(schemaRecord: Record<string, unknown>): {
+    schema: Record<string, unknown>
+    nullable: boolean
+} {
+    const anyOf = schemaRecord.anyOf as unknown[] | undefined
+    if (!anyOf || !Array.isArray(anyOf)) {
+        return {schema: schemaRecord, nullable: false}
+    }
+
+    const nullBranches = anyOf.filter(
+        (s) =>
+            typeof s === "object" && s !== null && (s as Record<string, unknown>).type === "null",
+    )
+    const nonNullBranches = anyOf.filter(
+        (s) =>
+            typeof s === "object" && s !== null && (s as Record<string, unknown>).type !== "null",
+    ) as Record<string, unknown>[]
+
+    const nullable = nullBranches.length > 0
+
+    // Single non-null branch: unwrap and merge with parent properties
+    if (nonNullBranches.length === 1) {
+        const branch = nonNullBranches[0]
+        return {
+            schema: {
+                ...schemaRecord,
+                ...branch,
+                // Preserve parent title/description as fallback
+                title: (branch.title as string) || (schemaRecord.title as string),
+                description: (branch.description as string) || (schemaRecord.description as string),
+                // Remove anyOf from merged schema
+                anyOf: undefined,
+            },
+            nullable,
+        }
+    }
+
+    // Multiple non-null branches: keep as-is for compound handling
+    return {schema: schemaRecord, nullable}
+}
+
+/**
  * Hash a schema property and store it in the metadata atom.
  * Returns the hash for use as __metadata.
  *
- * Transforms OpenAPI schema to OSS-compatible ConfigMetadata format:
+ * Transforms OpenAPI schema to OSS-compatible ConfigMetadata format,
+ * mirroring the genericTransformer's createMetadata logic:
  * - integer → number with isInteger: true
  * - minimum/maximum → min/max
- * - enum → options array
+ * - enum/choices → options array with x-model-metadata enrichment
+ * - anyOf with null → nullable unwrap
  * - anyOf with const-discriminated type → compound
  */
 export function hashMetadata(schema: EntitySchemaProperty, key: string): string {
     const schemaRecord = schema as unknown as Record<string, unknown>
-    const schemaType = schema.type as string
 
-    // Check for anyOf schemas (like response_format) and convert to compound
+    // Check for const-discriminated anyOf (e.g., response_format) → compound
     if (isConstDiscriminatedAnyOf(schemaRecord)) {
         const metadata = processAnyOfToCompound(schemaRecord, key)
 
-        // Generate stable hash
         const weakHash = stableHash(metadata)
         const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
+        updateMetadataAtom({[hash]: metadata})
 
-        // Store in global metadata atom
+        return hash
+    }
+
+    // Unwrap nullable anyOf: anyOf: [{type: "number", ...}, {type: "null"}]
+    const {schema: effectiveSchema, nullable} = unwrapAnyOf(schemaRecord)
+
+    const schemaType = effectiveSchema.type as string
+
+    // Handle array type: recursively hash items schema to produce itemMetadata
+    if (schemaType === "array") {
+        const itemsSchema = effectiveSchema.items as Record<string, unknown> | undefined
+        const itemMetadata = itemsSchema
+            ? hashMetadataToObject(itemsSchema as EntitySchemaProperty, `${key}[]`)
+            : undefined
+
+        const metadata: ConfigMetadata = {
+            type: "array",
+            title: (effectiveSchema.title as string) || key,
+            description: effectiveSchema.description as string | undefined,
+            key,
+            nullable,
+            itemMetadata,
+            minItems: effectiveSchema.minItems as number | undefined,
+            maxItems: effectiveSchema.maxItems as number | undefined,
+        } as ConfigMetadata
+
+        const weakHash = stableHash(metadata)
+        const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
+        updateMetadataAtom({[hash]: metadata})
+
+        return hash
+    }
+
+    // Handle object type: recursively hash each property
+    if (schemaType === "object") {
+        const props = effectiveSchema.properties as Record<string, unknown> | undefined
+        const processedProperties: Record<string, ConfigMetadata> = {}
+
+        if (props) {
+            for (const [propKey, propSchema] of Object.entries(props)) {
+                if (propSchema && typeof propSchema === "object") {
+                    processedProperties[propKey] = hashMetadataToObject(
+                        propSchema as EntitySchemaProperty,
+                        propKey,
+                    )
+                }
+            }
+        }
+
+        const metadata: ConfigMetadata = {
+            type: "object",
+            title: (effectiveSchema.title as string) || key,
+            description: effectiveSchema.description as string | undefined,
+            key,
+            nullable,
+            properties:
+                Object.keys(processedProperties).length > 0 ? processedProperties : undefined,
+        } as ConfigMetadata
+
+        const weakHash = stableHash(metadata)
+        const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
         updateMetadataAtom({[hash]: metadata})
 
         return hash
@@ -328,15 +524,20 @@ export function hashMetadata(schema: EntitySchemaProperty, key: string): string 
     const type = isInteger ? "number" : schemaType || "string"
 
     // Get min/max values (OSS uses min/max, not minimum/maximum)
-    const minimum = schemaRecord.minimum as number | undefined
-    const maximum = schemaRecord.maximum as number | undefined
+    const minimum = effectiveSchema.minimum as number | undefined
+    const maximum = effectiveSchema.maximum as number | undefined
+
+    // Extract options from enum or choices, enriched with x-model-metadata
+    const rawOptions = getSchemaOptions(effectiveSchema)
+    const modelMetadata = effectiveSchema["x-model-metadata"] as Record<string, unknown> | undefined
 
     // Build metadata in OSS-compatible format
     const metadata: ConfigMetadata = {
         type,
-        title: schema.title || key,
-        description: schema.description,
+        title: (effectiveSchema.title as string) || key,
+        description: effectiveSchema.description as string | undefined,
         key,
+        nullable,
         // Number-specific fields
         ...(type === "number" && {
             min: minimum,
@@ -345,22 +546,32 @@ export function hashMetadata(schema: EntitySchemaProperty, key: string): string 
         }),
         // String-specific fields
         ...(type === "string" && {
-            options: normalizeOptions(schema.enum),
-            allowFreeform: !schema.enum,
-            format: schemaRecord.format as string | undefined,
-            pattern: schemaRecord.pattern as string | undefined,
+            options: normalizeOptions(rawOptions, modelMetadata),
+            allowFreeform: !rawOptions,
+            format: effectiveSchema.format as string | undefined,
+            pattern: effectiveSchema.pattern as string | undefined,
         }),
         // Boolean doesn't need extra fields
     }
 
-    // Generate stable hash
     const weakHash = stableHash(metadata)
     const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
-
-    // Store in global metadata atom
     updateMetadataAtom({[hash]: metadata})
 
     return hash
+}
+
+/**
+ * Hash a schema property and return the metadata object (not just the hash).
+ * Used internally for building nested metadata (itemMetadata, properties).
+ */
+function hashMetadataToObject(schema: EntitySchemaProperty, key: string): ConfigMetadata {
+    const hash = hashMetadata(schema, key)
+    // Read back from store (includes pending)
+    const pending = pendingMetadataUpdates[hash] as ConfigMetadata | undefined
+    if (pending) return pending
+    const store = getDefaultStore()
+    return (store.get(metadataAtom)[hash] as ConfigMetadata) || {type: "string", key}
 }
 
 /**

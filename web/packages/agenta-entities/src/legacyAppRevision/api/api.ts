@@ -128,7 +128,7 @@ export function transformApiRevision(
 
     const result: LegacyAppRevisionData = {
         id: apiRevision.id || `${ctx.variantId}_rev_${apiRevision.revision}`,
-        variantId: ctx.variantId,
+        variantId: ctx.variantId ?? apiRevision.variant_id ?? undefined,
         appId: ctx.appId,
         revision: apiRevision.revision || 1,
         isLatestRevision: ctx.isLatestRevision,

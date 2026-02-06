@@ -110,17 +110,28 @@ export function buildLegacyAppRevisionDraftPatch(revisionId: string): BuildPatch
         }
     }
 
-    // Start with draft parameters as base
-    let draftParams = {...(draft.parameters ?? {})}
     const serverParams = serverData?.parameters ?? {}
+    const hasEnhancedPrompts = draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)
+    const hasEnhancedCustomProps =
+        draft.enhancedCustomProperties && typeof draft.enhancedCustomProperties === "object"
+
+    // When enhanced data exists, use SERVER params as the base for conversion.
+    // This preserves key ordering from the server, preventing key order drift
+    // across save/reload cycles (enhanced → toSnakeCaseDeep can reorder keys).
+    let draftParams: Record<string, unknown>
+    if (hasEnhancedPrompts || hasEnhancedCustomProps) {
+        draftParams = {...serverParams}
+    } else {
+        draftParams = {...(draft.parameters ?? {})}
+    }
 
     // If draft has enhanced prompts, convert them back to raw parameters
-    if (draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)) {
-        draftParams = enhancedPromptsToParameters(draft.enhancedPrompts, draftParams)
+    if (hasEnhancedPrompts) {
+        draftParams = enhancedPromptsToParameters(draft.enhancedPrompts!, draftParams)
     }
 
     // If draft has enhanced custom properties, convert them back to raw parameters
-    if (draft.enhancedCustomProperties && typeof draft.enhancedCustomProperties === "object") {
+    if (hasEnhancedCustomProps) {
         draftParams = enhancedCustomPropertiesToParameters(
             draft.enhancedCustomProperties as Record<string, unknown>,
             draftParams,
@@ -251,22 +262,18 @@ export function hasDraftChanges(revisionId: string): boolean {
         return true
     }
 
-    // Convert enhanced data back to parameters for comparison
-    let draftParams = {...(draft.parameters ?? {})}
-
-    if (draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)) {
-        draftParams = enhancedPromptsToParameters(draft.enhancedPrompts, draftParams)
-    }
-
-    if (draft.enhancedCustomProperties && typeof draft.enhancedCustomProperties === "object") {
-        draftParams = enhancedCustomPropertiesToParameters(
-            draft.enhancedCustomProperties as Record<string, unknown>,
-            draftParams,
-        )
-    }
-
     const serverParams = serverData.parameters ?? {}
 
-    // Use shared comparison that preserves null values
-    return areParametersDifferent({parameters: draftParams}, serverParams)
+    // Pass enhanced data through to areParametersDifferent so it can use
+    // serverParams as the base for conversion (preserving key ordering).
+    return areParametersDifferent(
+        {
+            parameters: draft.parameters,
+            enhancedPrompts: draft.enhancedPrompts as unknown[] | undefined,
+            enhancedCustomProperties: draft.enhancedCustomProperties as
+                | Record<string, unknown>
+                | undefined,
+        },
+        serverParams,
+    )
 }

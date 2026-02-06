@@ -803,18 +803,35 @@ export const legacyAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revision
         // when user edits, but server data doesn't have them (they're empty []).
         // We need to convert enhanced data back to parameters for comparison.
 
-        // Start with draft parameters
-        let draftParams = {...(draft.parameters ?? {})}
         const serverParams = serverData.parameters ?? {}
+        const hasEnhancedPrompts = draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)
+        const hasEnhancedCustomProps =
+            draft.enhancedCustomProperties && typeof draft.enhancedCustomProperties === "object"
+
+        // When enhanced data exists, use SERVER params as the base for conversion.
+        // This ensures that when the user manually reverts changes back to the original,
+        // the resulting parameters have the same key ordering as server data.
+        // Using draft.parameters as the base would fail because URL-hydrated draft
+        // parameters go through transformToRequestBody → toSnakeCaseDeep which may
+        // produce different key ordering than the original server parameters.
+        //
+        // When no enhanced data exists (e.g., right after URL hydration before seed),
+        // compare draft.parameters directly.
+        let draftParams: Record<string, unknown>
+        if (hasEnhancedPrompts || hasEnhancedCustomProps) {
+            draftParams = {...serverParams}
+        } else {
+            draftParams = {...(draft.parameters ?? {})}
+        }
 
         // If draft has enhanced prompts, convert them back to parameters
         // This captures any edits the user made through the enhanced prompt UI
-        if (draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)) {
-            draftParams = enhancedPromptsToParameters(draft.enhancedPrompts, draftParams)
+        if (hasEnhancedPrompts) {
+            draftParams = enhancedPromptsToParameters(draft.enhancedPrompts!, draftParams)
         }
 
         // If draft has enhanced custom properties, convert them back to parameters
-        if (draft.enhancedCustomProperties && typeof draft.enhancedCustomProperties === "object") {
+        if (hasEnhancedCustomProps) {
             draftParams = enhancedCustomPropertiesToParameters(
                 draft.enhancedCustomProperties as Record<string, unknown>,
                 draftParams,

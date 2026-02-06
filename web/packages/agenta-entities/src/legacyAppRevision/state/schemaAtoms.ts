@@ -208,12 +208,29 @@ const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
  */
 export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
+        const DEBUG = process.env.NODE_ENV !== "production"
+
         // Layer 1: Try service schema (fast path for completion/chat apps)
         const serviceResult = get(serviceSchemaForRevisionAtomFamily(revisionId))
+
+        if (DEBUG) {
+            console.log("[schemaQueryRouter]", {
+                revisionId,
+                serviceIsAvailable: serviceResult.isAvailable,
+                serviceIsPending: serviceResult.isPending,
+                serviceHasData: !!serviceResult.data,
+                serviceAgConfigKeys: serviceResult.data?.agConfigSchema?.properties
+                    ? Object.keys(serviceResult.data.agConfigSchema.properties)
+                    : [],
+            })
+        }
 
         if (serviceResult.isAvailable) {
             // Service schema route is active for this revision
             if (serviceResult.isPending) {
+                if (DEBUG) {
+                    console.log("[schemaQueryRouter] → service pending", {revisionId})
+                }
                 return {
                     data: emptySchemaState,
                     isPending: true,
@@ -225,6 +242,15 @@ export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: st
             // Compose with revision-specific runtime context
             const composed = get(composedServiceSchemaAtomFamily(revisionId))
             if (composed) {
+                if (DEBUG) {
+                    console.log("[schemaQueryRouter] → service schema composed", {
+                        revisionId,
+                        hasAgConfigSchema: !!composed.agConfigSchema,
+                        agConfigKeys: composed.agConfigSchema?.properties
+                            ? Object.keys(composed.agConfigSchema.properties)
+                            : [],
+                    })
+                }
                 return {
                     data: composed,
                     isPending: false,
@@ -233,6 +259,11 @@ export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: st
                 }
             }
 
+            if (DEBUG) {
+                console.log("[schemaQueryRouter] → service composition failed, falling through", {
+                    revisionId,
+                })
+            }
             // Service schema fetch succeeded but composition failed — fall through
         }
 
@@ -244,6 +275,17 @@ export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: st
         const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const hasUri = !!entityData?.uri
         const isQueryDisabled = !hasUri
+
+        if (DEBUG) {
+            console.log("[schemaQueryRouter] → Layer 2 direct query", {
+                revisionId,
+                hasUri,
+                isQueryDisabled,
+                queryPending: query.isPending,
+                queryError: query.isError,
+                hasQueryData: !!query.data,
+            })
+        }
 
         // If query is still pending (fetching) or no URI available, return pending
         if (query.isPending || isQueryDisabled) {
@@ -340,6 +382,43 @@ function isPromptLikeStructure(value: unknown): boolean {
 }
 
 /**
+ * Check if a schema property looks like a prompt based on its schema structure.
+ *
+ * This is a fallback detection strategy for when:
+ * 1. `x-parameters.prompt` marker is missing (e.g., service schemas after dereferencing)
+ * 2. Saved parameter values are not available (entity data not yet synced)
+ *
+ * A prompt schema typically has sub-properties like `messages` (array) and/or
+ * `llm_config` (object), or legacy `system_prompt`/`user_prompt` fields.
+ */
+function isPromptLikeSchema(prop: EntitySchemaProperty): boolean {
+    if (!prop || typeof prop !== "object") return false
+    const properties = (prop as unknown as Record<string, unknown>).properties as
+        | Record<string, EntitySchemaProperty>
+        | undefined
+    if (!properties) return false
+
+    // Check for messages sub-property (array of message objects)
+    const messagesSchema = properties.messages
+    const hasMessages =
+        messagesSchema != null &&
+        ((messagesSchema as unknown as Record<string, unknown>).type === "array" ||
+            (messagesSchema as unknown as Record<string, unknown>).items != null)
+
+    // Check for llm_config sub-property (object with model settings)
+    const llmConfigSchema = properties.llm_config
+    const hasLlmConfig =
+        llmConfigSchema != null &&
+        ((llmConfigSchema as unknown as Record<string, unknown>).type === "object" ||
+            (llmConfigSchema as unknown as Record<string, unknown>).properties != null)
+
+    // Check for legacy prompt fields
+    const hasLegacyPrompt = "system_prompt" in properties && "user_prompt" in properties
+
+    return (hasMessages && hasLlmConfig) || hasLegacyPrompt
+}
+
+/**
  * Extract custom properties schema (non-prompt properties)
  *
  * Identifies prompts by:
@@ -367,8 +446,11 @@ export const revisionCustomPropertiesSchemaAtomFamily = atomFamily((revisionId: 
             const savedValue = parameters?.[key]
             const isPromptByStructure = isPromptLikeStructure(savedValue)
 
+            // Check for prompt-like schema structure (fallback when marker/params unavailable)
+            const isPromptBySchema = isPromptLikeSchema(prop)
+
             // Only include if NOT a prompt
-            if (!isPromptByMarker && !isPromptByStructure) {
+            if (!isPromptByMarker && !isPromptByStructure && !isPromptBySchema) {
                 customProperties[key] = prop
             }
         })
@@ -510,8 +592,11 @@ export const revisionEnhancedCustomPropertiesAtomFamily = atomFamily((revisionId
             const savedValue = parameters?.[key]
             const isPromptByStructure = isPromptLikeStructure(savedValue)
 
+            // Check for prompt-like schema structure (fallback when marker/params unavailable)
+            const isPromptBySchema = isPromptLikeSchema(propSchema)
+
             // Only include if NOT a prompt
-            if (!isPromptByMarker && !isPromptByStructure) {
+            if (!isPromptByMarker && !isPromptByStructure && !isPromptBySchema) {
                 // Get default value from schema
                 const schemaDefault = (agConfigSchema as unknown as Record<string, unknown>)
                     ?.default as Record<string, unknown> | undefined
@@ -565,7 +650,9 @@ export const revisionCustomPropertyKeysAtomFamily = atomFamily((revisionId: stri
             const savedValue = parameters?.[key]
             const isPromptByStructure = isPromptLikeStructure(savedValue)
 
-            if (!isPromptByMarker && !isPromptByStructure) {
+            const isPromptBySchema = isPromptLikeSchema(prop)
+
+            if (!isPromptByMarker && !isPromptByStructure && !isPromptBySchema) {
                 keys.push(key)
             }
         })
@@ -642,6 +729,23 @@ function mergePromptWithSaved(
 }
 
 /**
+ * Unwrap a value that may already be in enhanced format ({value, __id, __metadata}).
+ * Returns the raw inner value to prevent double-wrapping.
+ */
+function unwrapIfEnhanced(value: unknown): unknown {
+    if (
+        value &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        "__id" in (value as Record<string, unknown>) &&
+        "value" in (value as Record<string, unknown>)
+    ) {
+        return (value as {value: unknown}).value
+    }
+    return value
+}
+
+/**
  * Create an enhanced value with __id and metadata hash
  * The __id is required by UI components to identify and manage properties
  */
@@ -651,11 +755,12 @@ function createEnhancedValue(
     key: string,
 ): {value: unknown; __id: string; __metadata?: string} {
     const id = generateId()
+    const unwrapped = unwrapIfEnhanced(value)
     if (schema) {
         const metadataHash = hashAndStoreMetadata(schema, key)
-        return {value, __id: id, __metadata: metadataHash}
+        return {value: unwrapped, __id: id, __metadata: metadataHash}
     }
-    return {value, __id: id}
+    return {value: unwrapped, __id: id}
 }
 
 /**
@@ -885,10 +990,29 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
  */
 export const revisionEnhancedPromptsAtomFamily = atomFamily((revisionId: string) =>
     atom<EnhancedPrompt[]>((get) => {
+        const DEBUG = process.env.NODE_ENV !== "production"
+
         // Read directly from schema query to ensure subscription
         const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const parameters = entityData?.parameters as Record<string, unknown> | undefined
+
+        if (DEBUG) {
+            console.log("[revisionEnhancedPrompts]", {
+                revisionId,
+                schemaQueryPending: schemaQuery.isPending,
+                schemaQueryError: schemaQuery.isError,
+                hasAgConfigSchema: !!schemaQuery.data?.agConfigSchema,
+                agConfigSchemaKeys: schemaQuery.data?.agConfigSchema?.properties
+                    ? Object.keys(schemaQuery.data.agConfigSchema.properties)
+                    : [],
+                hasEntityData: !!entityData,
+                hasParameters: !!parameters,
+                parameterKeys: parameters ? Object.keys(parameters) : [],
+                entityAppId: entityData?.appId,
+                entityUri: entityData?.uri,
+            })
+        }
 
         const result: EnhancedPrompt[] = []
 
@@ -910,8 +1034,23 @@ export const revisionEnhancedPromptsAtomFamily = atomFamily((revisionId: string)
                 const savedValue = parameters?.[key]
                 const isPromptByStructure = isPromptLikeStructure(savedValue)
 
+                // Check for prompt-like schema structure (fallback when marker/params unavailable)
+                const isPromptBySchema = isPromptLikeSchema(propSchema)
+
+                if (DEBUG) {
+                    console.log("[revisionEnhancedPrompts] property check", {
+                        revisionId,
+                        key,
+                        isPromptByMarker,
+                        isPromptByStructure,
+                        isPromptBySchema,
+                        hasSavedValue: savedValue !== undefined,
+                        savedValueType: typeof savedValue,
+                    })
+                }
+
                 // Only include if IS a prompt
-                if (isPromptByMarker || isPromptByStructure) {
+                if (isPromptByMarker || isPromptByStructure || isPromptBySchema) {
                     // Merge schema defaults with saved values
                     const mergedData = mergePromptWithSaved(propSchema, savedValue, key)
 
@@ -921,6 +1060,14 @@ export const revisionEnhancedPromptsAtomFamily = atomFamily((revisionId: string)
                     result.push(enhancedPrompt)
                 }
             })
+
+            if (DEBUG) {
+                console.log("[revisionEnhancedPrompts] Strategy 1 result", {
+                    revisionId,
+                    promptCount: result.length,
+                    promptIds: result.map((p) => p.__id),
+                })
+            }
 
             return result
         }
@@ -939,7 +1086,18 @@ export const revisionEnhancedPromptsAtomFamily = atomFamily((revisionId: string)
                 }
             })
 
+            if (DEBUG) {
+                console.log("[revisionEnhancedPrompts] Strategy 2 result", {
+                    revisionId,
+                    promptCount: result.length,
+                })
+            }
+
             return result
+        }
+
+        if (DEBUG) {
+            console.log("[revisionEnhancedPrompts] → returning EMPTY", {revisionId})
         }
 
         return result
@@ -971,7 +1129,9 @@ export const revisionPromptKeysAtomFamily = atomFamily((revisionId: string) =>
             const savedValue = parameters?.[key]
             const isPromptByStructure = isPromptLikeStructure(savedValue)
 
-            if (isPromptByMarker || isPromptByStructure) {
+            const isPromptBySchema = isPromptLikeSchema(prop)
+
+            if (isPromptByMarker || isPromptByStructure || isPromptBySchema) {
                 keys.push(key)
             }
         })

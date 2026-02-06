@@ -77,6 +77,7 @@ type ServiceTypeLookup =
  */
 export const revisionServiceTypeLookupAtomFamily = atomFamily((revisionId: string) =>
     atom<ServiceTypeLookup>((get) => {
+        const DEBUG = process.env.NODE_ENV !== "production"
         const entity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const appId = entity?.appId
 
@@ -87,7 +88,16 @@ export const revisionServiceTypeLookupAtomFamily = atomFamily((revisionId: strin
             // If we have entity data (parameters loaded), treat as custom app
             // If no entity data at all, still pending
             if (entity) {
+                if (DEBUG) {
+                    console.log("[serviceTypeLookup] entity exists but no appId → custom app", {
+                        revisionId,
+                        entityKeys: Object.keys(entity),
+                    })
+                }
                 return {status: "resolved", serviceType: null}
+            }
+            if (DEBUG) {
+                console.log("[serviceTypeLookup] no entity data → pending", {revisionId})
             }
             return {status: "pending"}
         }
@@ -98,11 +108,39 @@ export const revisionServiceTypeLookupAtomFamily = atomFamily((revisionId: strin
         if (!app) {
             const directApps = get(appsListDataAtom)
             const directApp = directApps.find((a) => a.id === appId)
-            if (!directApp) return {status: "pending"}
-            return {status: "resolved", serviceType: resolveServiceType(directApp.appType)}
+            if (!directApp) {
+                if (DEBUG) {
+                    console.log("[serviceTypeLookup] app not found in any list → pending", {
+                        revisionId,
+                        appId,
+                        appsCount: apps.length,
+                        directAppsCount: directApps.length,
+                    })
+                }
+                return {status: "pending"}
+            }
+            const resolved = resolveServiceType(directApp.appType)
+            if (DEBUG) {
+                console.log("[serviceTypeLookup] resolved from directApps", {
+                    revisionId,
+                    appId,
+                    appType: directApp.appType,
+                    serviceType: resolved,
+                })
+            }
+            return {status: "resolved", serviceType: resolved}
         }
 
         const resolvedType = resolveServiceType(app.appType)
+
+        if (DEBUG) {
+            console.log("[serviceTypeLookup] resolved from appsListAtom", {
+                revisionId,
+                appId,
+                appType: app.appType,
+                serviceType: resolvedType,
+            })
+        }
 
         return {status: "resolved", serviceType: resolvedType}
     }),
