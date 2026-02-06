@@ -282,6 +282,9 @@ class SimpleApplication(Identifier, Slug, Lifecycle, Header, Metadata):
 
     data: Optional[SimpleApplicationData] = None
 
+    variant_id: Optional[UUID] = None
+    revision_id: Optional[UUID] = None
+
 
 class SimpleApplicationCreate(Slug, Header, Metadata):
     flags: Optional[SimpleApplicationFlags] = None

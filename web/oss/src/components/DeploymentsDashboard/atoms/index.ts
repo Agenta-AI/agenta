@@ -80,14 +80,13 @@ export const processedDeploymentRevisionsAtom = atom<DeploymentRevisionWithVaria
     }
 
     return envRevisions.revisions
+        .filter((rev) => rev.revision !== null && rev.revision !== undefined && rev.revision >= 0)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .map((rev, index) => ({
+        .map((rev) => ({
             ...rev,
             created_at: formatDay({date: rev.created_at}),
             variant: variants.find((variant) => variant.id === rev.deployed_app_variant_revision),
-            environment_revision: envRevisions.revisions?.length
-                ? envRevisions.revisions.length - index
-                : 0,
+            environment_revision: rev.revision,
         }))
 })
 
