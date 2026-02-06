@@ -87,6 +87,8 @@ class TestsetFlags(BaseModel):
     - structured flags can be added here in the future without breaking the
       surrounding DTOs.
     """
+
+
 class Testset(Artifact):
     flags: Optional[TestsetFlags] = None
 

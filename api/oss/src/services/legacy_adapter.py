@@ -281,7 +281,9 @@ class LegacyApplicationsAdapter:
 
         latest_revision = revisions[0] if revisions else None
 
-        return await self._application_variant_to_legacy(variant, latest_revision, project_id)
+        return await self._application_variant_to_legacy(
+            variant, latest_revision, project_id
+        )
 
     async def create_variant_from_base(
         self,
@@ -1504,13 +1506,11 @@ class LegacyEnvironmentsAdapter:
         variant_id_to_name: Dict[UUID, str] = {}
 
         if app_revision_ids:
-            app_revisions = (
-                await self.applications_service.query_application_revisions(
-                    project_id=project_id,
-                    application_revision_refs=[
-                        Reference(id=rid) for rid in app_revision_ids
-                    ],
-                )
+            app_revisions = await self.applications_service.query_application_revisions(
+                project_id=project_id,
+                application_revision_refs=[
+                    Reference(id=rid) for rid in app_revision_ids
+                ],
             )
 
             variant_ids_to_fetch: List[UUID] = []
@@ -1871,10 +1871,11 @@ class LegacyEnvironmentsAdapter:
                 "revisions": [],
             }
 
-        # Fetch all revisions
+        # Fetch all revisions (ordered latest-first via descending UUID7)
         all_revisions = await self.environments_service.query_environment_revisions(
             project_id=project_id,
             environment_variant_refs=[Reference(id=env_variant.id)],
+            windowing=Windowing(),
         )
 
         # Get latest for the top-level environment output

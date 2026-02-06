@@ -187,9 +187,7 @@ class LegacyEnvironmentsAdapter:
                 and latest_revision.data
                 and latest_revision.data.references
             ):
-                app_refs = latest_revision.data.references.get(
-                    f"{app_slug}.revision"
-                )
+                app_refs = latest_revision.data.references.get(f"{app_slug}.revision")
                 if isinstance(app_refs, dict):
                     revision_ref = app_refs.get("application_revision")
                     if revision_ref is not None and revision_ref.id:

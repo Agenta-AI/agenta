@@ -281,15 +281,33 @@ def _extract_deployed_revision_id(
     references: Optional[Dict],
     app_slug: Optional[str],
 ) -> Optional[UUID]:
-    """Extract the application_revision.id from the nested references dict."""
+    """Extract the application_revision.id from the nested references dict.
+
+    Each entry in ``references`` maps an app-scoped key
+    (e.g. ``"my-app.revision"``) to a dict with keys
+    ``"application"``, ``"application_variant"``, ``"application_revision"``,
+    whose values are ``Reference`` objects (or raw dicts when Pydantic
+    deserialization was skipped).
+    """
     if not references or not app_slug:
         return None
     app_refs = references.get(f"{app_slug}.revision")
     if not app_refs or not isinstance(app_refs, dict):
         return None
     revision_ref = app_refs.get("application_revision")
-    if revision_ref and hasattr(revision_ref, "id") and revision_ref.id:
+    if revision_ref is None:
+        return None
+    # Reference object (normal path)
+    if hasattr(revision_ref, "id") and revision_ref.id:
         return revision_ref.id
+    # Raw dict fallback (e.g. un-hydrated JSON from DB)
+    if isinstance(revision_ref, dict):
+        rev_id = revision_ref.get("id")
+        if isinstance(rev_id, UUID):
+            return rev_id
+        if isinstance(rev_id, str):
+            with suppress(Exception):
+                return UUID(rev_id)
     return None
 
 
@@ -432,11 +450,12 @@ async def _fetch_environment(
             if not env_variant:
                 return env_shim, None
 
-            # Fetch all revisions (ordered latest-first via windowing)
+            # Fetch all revisions (ordered latest-first via descending UUID7)
             env_revisions = (
                 await env_adapter.environments_service.query_environment_revisions(
                     project_id=UUID(project_id),
                     environment_variant_refs=[Reference(id=env_variant.id)],
+                    windowing=Windowing(),
                 )
             )
             if not env_revisions:
@@ -559,8 +578,8 @@ async def _update_variant(
 
 
 async def _update_environment(
-    project_id: str,
-    user_id: str,
+    project_id: UUID,
+    user_id: UUID,
     environment_name: str,
     variant_id: UUID,
     variant_revision_id: Optional[UUID] = None,
@@ -570,8 +589,8 @@ async def _update_environment(
     with suppress():
         env_adapter = get_legacy_environments_adapter()
         await env_adapter.deploy_to_environment(
-            project_id=UUID(project_id),
-            user_id=UUID(user_id),
+            project_id=project_id,
+            user_id=user_id,
             variant_id=variant_id,
             environment_name=environment_name,
             revision_id=variant_revision_id,
@@ -1154,8 +1173,8 @@ async def deploy_config(
         return None
 
     await _update_environment(
-        project_id=project_id,
-        user_id=user_id,
+        project_id=UUID(project_id),
+        user_id=UUID(user_id),
         environment_name=app_environment.name,
         variant_id=app_variant.id,
         variant_revision_id=app_variant_revision.id,

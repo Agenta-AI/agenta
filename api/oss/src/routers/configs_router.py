@@ -50,10 +50,15 @@ async def get_config(
                     status_code=403,
                 )
 
+        if not environment_name and not config_name:
+            raise HTTPException(
+                status_code=400,
+                detail="Either environment_name or config_name is required",
+            )
+
         # in case environment_name is provided, find the variant deployed
         if environment_name:
             env_adapter = get_legacy_environments_adapter()
-            app_adapter = get_legacy_adapter()
 
             env_dicts = await env_adapter.list_environments(
                 project_id=UUID(str(base_db.project_id)),
@@ -89,7 +94,7 @@ async def get_config(
                 "name": found_variant_revision.config_name,
                 "parameters": found_variant_revision.config_parameters,
             }
-        elif config_name:
+        else:
             variants_db = await db_manager.list_variants_for_base(base_db)
             found_variant = next(
                 (
@@ -109,10 +114,6 @@ async def get_config(
                 "name": found_variant.config_name,
                 "parameters": found_variant.config_parameters,
             }
-
-        assert "name" and "parameters" in config, (
-            "'name' and 'parameters' not found in configuration"
-        )
         return GetConfigResponse(
             config_name=config["name"],  # type: ignore
             current_version=variant_revision,  # type: ignore
