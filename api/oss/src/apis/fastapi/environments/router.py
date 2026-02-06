@@ -929,8 +929,12 @@ class EnvironmentsRouter:
                     **body_json
                 )
 
-        except:
-            pass
+        except Exception as exc:
+            # Ignore JSON parsing issues and proceed without a body filter.
+            log.debug(
+                "Failed to parse environment revision query request body as JSON: %s",
+                exc,
+            )
 
         environment_revision_query_request = merge_environment_revision_query_requests(
             query_request_params,
