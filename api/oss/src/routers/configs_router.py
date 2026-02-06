@@ -1,5 +1,5 @@
 from uuid import UUID
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
@@ -23,6 +23,22 @@ from oss.src.routers.variants_router import configs_deploy, ReferenceRequestMode
 router = APIRouter()
 
 log = get_module_logger(__name__)
+
+
+def _safe_ref_id(ref: Any) -> Optional[UUID]:
+    """Extract the UUID id from a Reference object or raw dict."""
+    if hasattr(ref, "id") and ref.id:
+        return ref.id if isinstance(ref.id, UUID) else UUID(str(ref.id))
+    if isinstance(ref, dict):
+        rid = ref.get("id")
+        if isinstance(rid, UUID):
+            return rid
+        if isinstance(rid, str):
+            try:
+                return UUID(rid)
+            except (ValueError, AttributeError):
+                return None
+    return None
 
 
 @router.get("/", response_model=GetConfigResponse, operation_id="get_config")
@@ -175,9 +191,11 @@ async def get_config_deployment_revision(
         for key, refs_dict in env_rev.data.references.items():
             if key.endswith(".revision") and isinstance(refs_dict, dict):
                 app_revision_ref = refs_dict.get("application_revision")
-                if app_revision_ref and app_revision_ref.id:
-                    deployed_variant_revision_id = app_revision_ref.id
-                    break
+                if app_revision_ref:
+                    ref_id = _safe_ref_id(app_revision_ref)
+                    if ref_id:
+                        deployed_variant_revision_id = ref_id
+                        break
 
     if not deployed_variant_revision_id:
         raise HTTPException(
@@ -293,9 +311,11 @@ async def revert_deployment_revision(
         for key, refs_dict in env_rev.data.references.items():
             if key.endswith(".revision") and isinstance(refs_dict, dict):
                 app_revision_ref = refs_dict.get("application_revision")
-                if app_revision_ref and app_revision_ref.id:
-                    deployed_variant_revision_id = app_revision_ref.id
-                    break
+                if app_revision_ref:
+                    ref_id = _safe_ref_id(app_revision_ref)
+                    if ref_id:
+                        deployed_variant_revision_id = ref_id
+                        break
 
     if not deployed_variant_revision_id:
         raise HTTPException(

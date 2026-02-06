@@ -266,6 +266,8 @@ async def _transfer_environment_for_project(
         return None
 
     # Determine the maximum number of revisions across all apps
+    if not app_revisions:
+        return environment
     max_revisions = max(len(revs) for revs in app_revisions.values())
 
     if max_revisions == 0:
@@ -480,13 +482,10 @@ async def migration_old_environments_to_new_environments(
 
 
 def run_migration(sqlalchemy_url: str):
-    import concurrent.futures
-
     async def _start():
-        connection = create_async_engine(url=sqlalchemy_url)
-        async with connection.connect() as connection:
+        engine = create_async_engine(url=sqlalchemy_url)
+        async with engine.begin() as connection:
             await migration_old_environments_to_new_environments(connection=connection)
+        await engine.dispose()
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future = executor.submit(asyncio.run, _start())
-        future.result()
+    asyncio.run(_start())
