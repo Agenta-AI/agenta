@@ -483,10 +483,14 @@ async def migration_old_environments_to_new_environments(
 
 
 def run_migration(sqlalchemy_url: str):
+    import concurrent.futures
+
     async def _start():
         engine = create_async_engine(url=sqlalchemy_url)
         async with engine.begin() as connection:
             await migration_old_environments_to_new_environments(connection=connection)
         await engine.dispose()
 
-    asyncio.run(_start())
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(asyncio.run, _start())
+        future.result()
