@@ -332,6 +332,16 @@ async def _transfer_application(
         connection=connection,
     )
 
+    # Deduplicate: keep latest variant per compound slug
+    seen_slugs: Dict[str, Any] = {}
+    for variant in variants:
+        variant_name = variant.variant_name or "default"
+        compound_slug = f"{slug}.{variant_name}"
+        existing = seen_slugs.get(compound_slug)
+        if existing is None or (variant.created_at and existing.created_at and variant.created_at > existing.created_at):
+            seen_slugs[compound_slug] = variant
+    variants = list(seen_slugs.values())
+
     for variant in variants:
         variant_id = variant.id
         variant_name = variant.variant_name or "default"
