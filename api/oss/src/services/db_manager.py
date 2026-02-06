@@ -1410,12 +1410,28 @@ async def create_accounts(payload: dict) -> UserDB:
         UserDB: instance of user
     """
 
+    user_db, _created = await create_accounts_with_status(payload)
+    return user_db
+
+
+async def create_accounts_with_status(payload: dict):
+    """Create a new account and return whether the user row was inserted.
+
+    This is a legacy helper for auth flows that need to avoid side-effects
+    (analytics) when concurrent requests race to create the same user.
+
+    Returns:
+        Tuple[UserDB, bool]: (user, created)
+    """
+
     # Create user
     user_info = {**payload, "username": payload["email"].split("@")[0]}
     # Remove OSS-specific fields that shouldn't go to UserDB
     user_info.pop("organization_id", None)
 
-    user_db = await user_service.create_new_user(payload=user_info)
+    user_db, user_created = await user_service.create_new_user_with_status(
+        payload=user_info
+    )
 
     # Delegate organization/workspace assignment to implementation-specific function
     if is_ee():
@@ -1432,7 +1448,7 @@ async def create_accounts(payload: dict) -> UserDB:
                 email=payload["email"],
             )
 
-    return user_db
+    return user_db, user_created
 
 
 async def _assign_user_to_organization_oss(

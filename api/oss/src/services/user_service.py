@@ -1,5 +1,6 @@
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound, IntegrityError
+from typing import Tuple
 from supertokens_python.recipe.emailpassword.asyncio import create_reset_password_link
 
 from oss.src.utils.env import env
@@ -61,20 +62,30 @@ async def create_new_user(payload: dict) -> UserDB:
         UserDB: The created or existing user object.
     """
 
-    # Check if user already exists (happy path optimization)
+    user, _created = await create_new_user_with_status(payload)
+    return user
+
+
+async def create_new_user_with_status(payload: dict) -> Tuple[UserDB, bool]:
+    """Create a new user and return whether it was newly created.
+
+    This is the race-safe variant of create_new_user(). It uses the same
+    check-before-create approach and falls back on IntegrityError to handle
+    parallel requests.
+
+    Returns:
+        (user, created): created is True only when this call inserted the row.
+    """
+
     existing_user = await db_manager.get_user_with_email(payload["email"])
     if existing_user:
-        return existing_user
+        return existing_user, False
 
-    # Attempt to create new user
     try:
         async with engine.core_session() as session:
             user = UserDB(**payload)
-
             session.add(user)
-
             await session.commit()
-
             await session.refresh(user)
 
             log.info(
@@ -82,17 +93,13 @@ async def create_new_user(payload: dict) -> UserDB:
                 user_id=user.id,
             )
 
-            return user
+            return user, True
 
     except IntegrityError:
-        # Race condition: another request created user between check and create
-        # Fetch and return the existing user
         existing_user = await db_manager.get_user_with_email(payload["email"])
         if existing_user:
-            return existing_user
-        else:
-            # Should never happen, but re-raise if user still doesn't exist
-            raise
+            return existing_user, False
+        raise
 
 
 async def update_user(user_uid: str, payload: UserUpdate) -> UserDB:

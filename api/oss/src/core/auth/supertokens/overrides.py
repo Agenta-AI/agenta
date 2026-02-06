@@ -69,13 +69,13 @@ identities_dao = IdentitiesDAO()
 # Organization providers DAO (EE only)
 if is_ee():
     from ee.src.dbs.postgres.organizations.dao import OrganizationProvidersDAO
-    from ee.src.services.commoners import create_accounts
+    from ee.src.services.commoners import create_accounts_with_status
     from oss.src.core.secrets.services import VaultService
     from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 
     providers_dao = OrganizationProvidersDAO()
 else:
-    from oss.src.services.db_manager import create_accounts
+    from oss.src.services.db_manager import create_accounts_with_status
 
     providers_dao = None
 
@@ -241,7 +241,7 @@ async def _create_account(email: str, uid: str) -> bool:
     # For EE: organization is created inside create_accounts
     # For OSS: we need to handle first user specially to avoid FK violation
     if is_ee():
-        await create_accounts(payload)
+        _user_db, user_created = await create_accounts_with_status(payload)
     else:
         # OSS: Check if this is the first user signup
         first_user = await is_first_user_signup()
@@ -249,13 +249,15 @@ async def _create_account(email: str, uid: str) -> bool:
         if first_user:
             # First user: Create user first, then organization
             # This avoids the FK violation where org.owner_id references non-existent user
-            user_db = await create_accounts(payload)
+            user_db, user_created = await create_accounts_with_status(payload)
 
-            # Now create organization with the real user ID
-            organization_db = await setup_oss_organization_for_first_user(
-                user_id=user_db.id,
-                user_email=email,
-            )
+            # Avoid duplicate org creation if another request already bootstrapped.
+            organization_db = await get_oss_organization()
+            if not organization_db:
+                organization_db = await setup_oss_organization_for_first_user(
+                    user_id=user_db.id,
+                    user_email=email,
+                )
 
             # Assign user to organization
             from oss.src.services.db_manager import _assign_user_to_organization_oss
@@ -284,9 +286,9 @@ async def _create_account(email: str, uid: str) -> bool:
                 )
 
             payload["organization_id"] = str(organization_db.id)
-            await create_accounts(payload)
+            _user_db, user_created = await create_accounts_with_status(payload)
 
-    if env.posthog.enabled and env.posthog.api_key:
+    if user_created and env.posthog.enabled and env.posthog.api_key:
         try:
             posthog.capture(
                 distinct_id=email,
@@ -299,7 +301,7 @@ async def _create_account(email: str, uid: str) -> bool:
         except Exception:
             log.error("[AUTH] Failed to capture PostHog signup event", exc_info=True)
     log.info("[AUTH] _create_account done", email=email, uid=uid)
-    return True
+    return user_created
 
 
 async def _create_identity_if_user_exists(

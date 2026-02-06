@@ -1,5 +1,6 @@
 from os import getenv
 from json import loads
+import asyncio
 from typing import List, Optional
 from traceback import format_exc
 from uuid import UUID
@@ -7,7 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import acquire_lock, release_lock
+from oss.src.utils.caching import AGENTA_LOCK_TTL, acquire_lock, release_lock
 
 from oss.src.services import db_manager
 from oss.src.utils.common import is_ee
@@ -19,7 +20,7 @@ from ee.src.services.db_manager_ee import (
 )
 from ee.src.models.api.organization_models import CreateOrganization
 from oss.src.services.user_service import (
-    create_new_user,
+    create_new_user_with_status,
     delete_user,
 )
 from oss.src.models.db_models import OrganizationDB
@@ -126,6 +127,30 @@ async def create_accounts(
         payload (dict): The required payload. It consists of; user_id and user_email
         organization_name (str): Optional name override for the organization.
         use_reverse_trial (bool): Use reverse trial (True) or hobby plan (False). Default: True
+
+    Returns:
+        UserDB: instance of user
+    """
+
+    user, _created = await create_accounts_with_status(
+        payload,
+        organization_name=organization_name,
+        use_reverse_trial=use_reverse_trial,
+    )
+    if user is None:
+        raise RuntimeError("create_accounts failed: user not created")
+    return user
+
+
+async def create_accounts_with_status(
+    payload: dict,
+    organization_name: Optional[str] = None,
+    use_reverse_trial: bool = True,
+):
+    """Like create_accounts but returns whether the user row was inserted.
+
+    Returns:
+        Tuple[UserDB, bool]: (user, created)
     """
 
     # Only keep fields expected by UserDB to avoid TypeErrors (e.g., organization_id)
@@ -142,25 +167,54 @@ async def create_accounts(
     lock_acquired = await acquire_lock(
         namespace="account-creation",
         key=email,
+        ttl=AGENTA_LOCK_TTL,
     )
 
     if not lock_acquired:
-        # Another request is already creating this account - just return the existing user
+        # Another request is already creating this account. Do not treat this call as
+        # a new signup; wait briefly for the other request to finish.
         log.info("[scopes] account creation lock already taken")
-        user = await db_manager.get_user_with_email(email=email)
-        return user
+        # Wait slightly longer than the lock TTL to tolerate slow DB commits and
+        # the org/workspace bootstrap that happens under the lock.
+        wait_total_seconds = float(AGENTA_LOCK_TTL + 5)
+        wait_interval_seconds = 0.2
+        max_attempts = int(wait_total_seconds / wait_interval_seconds)
+
+        user = None
+        for _ in range(max_attempts):
+            user = await db_manager.get_user_with_email(email=email)
+            if user is not None:
+                return user, False
+            await asyncio.sleep(wait_interval_seconds)
+
+        # The lock holder might have crashed or exceeded TTL; try to acquire and
+        # complete the creation ourselves.
+        lock_acquired = await acquire_lock(
+            namespace="account-creation",
+            key=email,
+            ttl=AGENTA_LOCK_TTL,
+        )
+
+        if not lock_acquired:
+            # One last check before failing.
+            user = await db_manager.get_user_with_email(email=email)
+            if user is not None:
+                return user, False
+
+            log.error(
+                "[scopes] account creation lock held but user not found",
+                email=email,
+                waited_seconds=wait_total_seconds,
+            )
+            raise RuntimeError("account creation lock held but user not found")
 
     # We have the lock - proceed with account creation
     log.info("[scopes] account creation lock acquired")
 
     try:
         # Get or create user
-        user = await db_manager.get_user_with_email(email=user_dict["email"])
-        user_is_new = user is None
-
-        if user is None:
-            # Create user (idempotent - returns existing if found)
-            user = await create_new_user(user_dict)
+        user, user_is_new = await create_new_user_with_status(user_dict)
+        if user_is_new:
             log.info("[scopes] User [%s] created", user.id)
 
         # Check if user already has organizations (to detect if setup already ran)
@@ -229,7 +283,7 @@ async def create_accounts(
             except ConnectionError as ex:
                 log.warn("error adding contact to loops %s", ex)
 
-        return user
+        return user, user_is_new
 
     finally:
         # Always release the lock when done (or on error)
