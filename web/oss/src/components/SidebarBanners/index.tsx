@@ -25,7 +25,7 @@ const SidebarBanners = () => {
     }
 
     return (
-        <div className="w-[215px] shrink-0 mb-6">
+        <div className="w-[215px] shrink-0">
             <SidebarBanner
                 banner={topBanner}
                 onDismiss={topBanner.dismissible ? handleDismiss : undefined}
