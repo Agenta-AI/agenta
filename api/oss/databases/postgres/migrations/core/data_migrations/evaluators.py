@@ -183,9 +183,7 @@ async def _fetch_project_owners_batch(
     result = await connection.execute(organization_owner_query)
     rows = result.fetchall()
 
-    return {
-        row.project_id: row.owner_id for row in rows if row.owner_id is not None
-    }
+    return {row.project_id: row.owner_id for row in rows if row.owner_id is not None}
 
 
 async def migration_old_evaluator_configs_to_new_evaluator_configs(
