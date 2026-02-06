@@ -74,25 +74,26 @@ async def get_config(
                     detail=f"Environment name {environment_name} not found for base {str(base_db.id)}",
                 )
 
-            # Fetch the variant revision to get config parameters
-            found_variant_revision = await db_manager.fetch_app_variant_revision_by_id(
-                found_env["deployed_app_variant_revision_id"]
+            # Fetch the revision via the applications service (git model)
+            app_adapter = get_legacy_adapter()
+            app_revision = await app_adapter.fetch_revision_by_id(
+                project_id=UUID(str(base_db.project_id)),
+                revision_id=UUID(found_env["deployed_app_variant_revision_id"]),
             )
-            if not found_variant_revision:
+            if not app_revision:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Environment name {environment_name} not found for base {str(base_db.id)}",
                 )
-            if str(found_variant_revision.base_id) != str(base_db.id):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Environment {environment_name} does not deploy base {str(base_db.id)}",
-                )
 
-            variant_revision = found_variant_revision.revision
+            parameters = {}
+            if app_revision.data:
+                parameters = app_revision.data.parameters or {}
+
+            variant_revision = app_revision.version
             config = {
-                "name": found_variant_revision.config_name,
-                "parameters": found_variant_revision.config_parameters,
+                "name": app_revision.name or app_revision.slug,
+                "parameters": parameters,
             }
         else:
             variants_db = await db_manager.list_variants_for_base(base_db)
@@ -184,18 +185,25 @@ async def get_config_deployment_revision(
             f"No configuration found for deployment revision {deployment_revision_id}",
         )
 
-    variant_revision = await db_manager.fetch_app_variant_revision_by_id(
-        str(deployed_variant_revision_id)
+    app_adapter = get_legacy_adapter()
+    app_revision = await app_adapter.fetch_revision_by_id(
+        project_id=UUID(request.state.project_id),
+        revision_id=deployed_variant_revision_id,
     )
-    if not variant_revision:
+    if not app_revision:
         raise HTTPException(
             404,
             f"No configuration found for deployment revision {deployment_revision_id}",
         )
 
+    parameters = {}
+    if app_revision.data:
+        parameters = app_revision.data.parameters or {}
+
     return GetConfigResponse(
-        **variant_revision.get_config(),
+        config_name=app_revision.name or app_revision.slug,
         current_version=env_rev.version,  # type: ignore
+        parameters=parameters,
     )
 
 

@@ -22,7 +22,6 @@ from oss.src.core.applications.dtos import (
     ApplicationEdit,
     ApplicationFlags,
     ApplicationQuery,
-    ApplicationFlags,
     ApplicationQueryFlags,
     #
     ApplicationVariant,
@@ -66,6 +65,22 @@ async def _resolve_username(user_id: Optional[UUID]) -> Optional[str]:
         return user.username if user else None
     except Exception:
         return None
+
+
+async def _resolve_usernames(user_ids: List[UUID]) -> Dict[UUID, str]:
+    """Batch-resolve user UUIDs to usernames in a single query."""
+    if not user_ids:
+        return {}
+    try:
+        from oss.src.services import db_manager
+
+        unique_ids = list({uid for uid in user_ids if uid is not None})
+        if not unique_ids:
+            return {}
+        users = await db_manager.get_users_by_ids([str(uid) for uid in unique_ids])
+        return {user.id: user.username for user in users if user.username}
+    except Exception:
+        return {}
 
 
 class LegacyApplicationsAdapter:
@@ -237,6 +252,15 @@ class LegacyApplicationsAdapter:
             )
         )
 
+        # Batch-resolve usernames for all variants
+        user_ids = [
+            variant.updated_by_id or variant.created_by_id
+            for variant in application_variants
+        ]
+        username_map = await _resolve_usernames(
+            [uid for uid in user_ids if uid is not None]
+        )
+
         variants = []
         for variant in application_variants:
             # Get the latest revision for this variant
@@ -252,6 +276,7 @@ class LegacyApplicationsAdapter:
                     variant,
                     latest_revision,
                     project_id,
+                    username_map=username_map,
                 )
             )
 
@@ -426,9 +451,21 @@ class LegacyApplicationsAdapter:
             application_revisions_log=revisions_log,
         )
 
+        # Batch-resolve usernames for all revisions
+        user_ids = [
+            rev.updated_by_id or rev.created_by_id for rev in revisions
+        ]
+        username_map = await _resolve_usernames(
+            [uid for uid in user_ids if uid is not None]
+        )
+
         result = []
         for rev in revisions:
-            result.append(await self._application_revision_to_variant_revision(rev))
+            result.append(
+                await self._application_revision_to_variant_revision(
+                    rev, username_map=username_map
+                )
+            )
         return result
 
     async def fetch_variant_revision(
@@ -1237,6 +1274,7 @@ class LegacyApplicationsAdapter:
         variant: ApplicationVariant,
         revision: Optional[ApplicationRevision],
         project_id: UUID,
+        username_map: Optional[Dict[UUID, str]] = None,
     ) -> AppVariantResponse:
         """Convert ApplicationVariant to legacy AppVariantResponse."""
         # Extract URL from revision data if available
@@ -1246,7 +1284,10 @@ class LegacyApplicationsAdapter:
 
         # Fall back to created_* fields if no update has occurred
         modified_by_id = variant.updated_by_id or variant.created_by_id
-        modified_by = await _resolve_username(modified_by_id)
+        if username_map is not None and modified_by_id:
+            modified_by = username_map.get(modified_by_id)
+        else:
+            modified_by = await _resolve_username(modified_by_id)
         updated_at = variant.updated_at or variant.created_at
 
         return AppVariantResponse(
@@ -1268,6 +1309,7 @@ class LegacyApplicationsAdapter:
     async def _application_revision_to_variant_revision(
         self,
         revision: ApplicationRevision,
+        username_map: Optional[Dict[UUID, str]] = None,
     ) -> AppVariantRevision:
         """Convert ApplicationRevision to legacy AppVariantRevision."""
         parameters = {}
@@ -1275,7 +1317,10 @@ class LegacyApplicationsAdapter:
             parameters = revision.data.parameters or {}
 
         modified_by_id = revision.updated_by_id or revision.created_by_id
-        modified_by = await _resolve_username(modified_by_id)
+        if username_map is not None and modified_by_id:
+            modified_by = username_map.get(modified_by_id)
+        else:
+            modified_by = await _resolve_username(modified_by_id)
 
         return AppVariantRevision(
             id=str(revision.id) if revision.id else None,
@@ -1904,6 +1949,14 @@ class LegacyEnvironmentsAdapter:
         if latest:
             revision_number = latest.version or 0
 
+        # Batch-resolve usernames for all revisions
+        rev_user_ids = [
+            rev.updated_by_id or rev.created_by_id for rev in all_revisions
+        ]
+        username_map = await _resolve_usernames(
+            [uid for uid in rev_user_ids if uid is not None]
+        )
+
         # Build revision list
         revision_list = []
         for rev in all_revisions:
@@ -1925,7 +1978,7 @@ class LegacyEnvironmentsAdapter:
                     )
 
             rev_modified_by_id = rev.updated_by_id or rev.created_by_id
-            rev_modified_by = await _resolve_username(rev_modified_by_id)
+            rev_modified_by = username_map.get(rev_modified_by_id) if rev_modified_by_id else None
 
             revision_list.append(
                 {
