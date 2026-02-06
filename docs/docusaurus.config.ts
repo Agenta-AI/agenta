@@ -150,6 +150,17 @@ const config: Config = {
             },
           },
         },
+        {
+          type: "docSidebar",
+          sidebarId: "administrationSidebar",
+          position: "left",
+          label: "Enterprise",
+          customProps: {
+            icon: {
+              name: "shield",
+            },
+          },
+        },
 
         // {
         //   to: "https://github.com/orgs/Agenta-AI/projects/13/views/1",

@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Button, Spin, Typography} from "antd"
 import dayjs from "dayjs"
 import {useRouter} from "next/router"
 
-import {message} from "@/oss/components/AppMessageContext"
 import useURL from "@/oss/hooks/useURL"
 import {Plan} from "@/oss/lib/Types"
 import {editSubscriptionInfo, useSubscriptionData, useUsageData} from "@/oss/services/billing"

@@ -17,6 +17,8 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {message} from "@agenta/ui/app-message"
 import {
     CheckCircleOutlined,
     CloseCircleOutlined,
@@ -31,7 +33,6 @@ import yaml from "js-yaml"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
 import type {LoadTestsetSelectionPayload} from "@/oss/components/Playground/Components/Modals/LoadTestsetModal/assets/types"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
@@ -289,6 +290,35 @@ const DebugSection = () => {
         if (v.appId) setLastAppId(v.appId)
         if (v.variantId) setLastVariantId(v.variantId)
     }, [_selectedVariant, setLastAppId, setLastVariantId])
+
+    // Seed molecule with revision data so atoms like transformedPromptsAtomFamily work correctly
+    // This ensures the molecule has URI and parameters for schema-based prompts derivation
+    useEffect(() => {
+        if (!selectedVariant?.id) return
+        if (!selectedVariant?.uri) return
+
+        // Check if molecule already has data
+        const currentData = legacyAppRevisionMolecule.get.serverData(selectedVariant.id)
+        if (currentData?.uri) return
+
+        // Seed molecule with revision data
+        legacyAppRevisionMolecule.set.serverData(selectedVariant.id, {
+            id: selectedVariant.id,
+            variantId: (selectedVariant as any).variantId,
+            variantName: (selectedVariant as any).variantName,
+            appId: (selectedVariant as any).appId,
+            uri: selectedVariant.uri,
+            revision: (selectedVariant as any).revision,
+            parameters: selectedVariant.parameters,
+            baseId: (selectedVariant as any).baseId,
+            baseName: (selectedVariant as any).baseName,
+            configName: (selectedVariant as any).configName,
+            commitMessage: (selectedVariant as any).commitMessage,
+            createdAt: (selectedVariant as any).createdAt,
+            updatedAt: (selectedVariant as any).updatedAt,
+            modifiedById: (selectedVariant as any).modifiedById,
+        })
+    }, [selectedVariant?.id, selectedVariant?.uri, selectedVariant?.parameters])
 
     // Variant flags (custom/chat) from global atoms for the selected revision
     const flags = useAtomValue(
