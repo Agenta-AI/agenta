@@ -37,7 +37,7 @@ from oss.src.services.db_manager import fetch_evaluator_config
 
 
 # Define constants
-DEFAULT_BATCH_SIZE = 1000
+DEFAULT_BATCH_SIZE = 200
 
 # Initialize plug-ins for migration
 workflows_dao = GitDAO(
@@ -233,7 +233,11 @@ async def migration_old_evaluator_configs_to_new_evaluator_configs(
 
             # STEP 2: Batch fetch all project owners for this batch
             unique_project_ids = list(
-                {row.project_id for row in evaluator_configs_rows if row.project_id is not None}
+                {
+                    row.project_id
+                    for row in evaluator_configs_rows
+                    if row.project_id is not None
+                }
             )
             project_owners = await _fetch_project_owners_batch(
                 project_ids=unique_project_ids,

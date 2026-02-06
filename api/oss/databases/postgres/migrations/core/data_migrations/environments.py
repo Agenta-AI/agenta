@@ -7,6 +7,7 @@ from collections import defaultdict
 
 import click
 from pydantic import field_validator
+from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
@@ -41,7 +42,7 @@ from oss.src.models.deprecated_models import (
 
 
 # Define constants
-DEFAULT_BATCH_SIZE = 1000
+DEFAULT_BATCH_SIZE = 200
 
 # Initialize plug-ins for migration
 environments_dao = GitDAO(
@@ -120,35 +121,50 @@ async def _resolve_full_refs(
     }
 
 
-async def _fetch_app_name(
+async def _fetch_app_names_batch(
     *,
-    app_id: uuid.UUID,
+    app_ids: List[uuid.UUID],
     connection: AsyncConnection,
-) -> Optional[str]:
-    """Fetch the app_name for a given app_id."""
-    query = select(AppDB.app_name).where(AppDB.id == app_id)
+) -> Dict[uuid.UUID, str]:
+    """Fetch app names for multiple app_ids in a single query."""
+    if not app_ids:
+        return {}
+    query = select(AppDB.id, AppDB.app_name).where(AppDB.id.in_(app_ids))
     result = await connection.execute(query)
-    return result.scalar_one_or_none()
+    return {row.id: row.app_name for row in result.fetchall()}
 
 
-async def _fetch_project_owner(
+async def _fetch_project_owners_batch(
     *,
-    project_id: uuid.UUID,
+    project_ids: List[uuid.UUID],
     connection: AsyncConnection,
-) -> Optional[uuid.UUID]:
-    """Fetch the owner user ID for a given project."""
+) -> Dict[uuid.UUID, uuid.UUID]:
+    """Fetch owner user IDs for multiple projects in a single query.
+
+    Returns a dict mapping project_id -> owner_user_id.
+    """
+    if not project_ids:
+        return {}
+
     organization_owner_query = (
-        select(DeprecatedOrganizationDB.owner)
+        select(
+            ProjectDBE.id.label("project_id"),
+            DeprecatedOrganizationDB.owner.label("owner_id"),
+        )
         .select_from(ProjectDBE)
         .join(
             DeprecatedOrganizationDB,
             ProjectDBE.organization_id == DeprecatedOrganizationDB.id,
         )
-        .where(ProjectDBE.id == project_id)
+        .where(ProjectDBE.id.in_(project_ids))
     )
+
     result = await connection.execute(organization_owner_query)
-    owner = result.scalar_one_or_none()
-    return UUID(owner) if owner is not None else None
+    rows = result.fetchall()
+
+    return {
+        row.project_id: UUID(row.owner_id) for row in rows if row.owner_id is not None
+    }
 
 
 async def _transfer_environment_for_project(
@@ -327,16 +343,13 @@ async def migration_old_environments_to_new_environments(
     connection: AsyncConnection,
 ):
     """Migrate old app-scoped environments to new project-scoped git-based environments."""
-    # Get all distinct project_ids from the old environments table
-    project_ids_query = (
-        select(AppEnvironmentDB.project_id)
-        .distinct()
-        .where(AppEnvironmentDB.project_id.isnot(None))
+    # Count total projects
+    count_query = select(func.count(AppEnvironmentDB.project_id.distinct())).where(
+        AppEnvironmentDB.project_id.isnot(None)
     )
-    result = await connection.execute(project_ids_query)
-    project_ids = [row[0] for row in result.fetchall()]
+    result = await connection.execute(count_query)
+    total_projects = result.scalar() or 0
 
-    total_projects = len(project_ids)
     click.echo(
         click.style(
             f"Found {total_projects} projects with environments to migrate.",
@@ -346,89 +359,119 @@ async def migration_old_environments_to_new_environments(
 
     total_migrated = 0
     skipped_projects = 0
+    offset = 0
 
-    for project_idx, project_id in enumerate(project_ids):
-        click.echo(
-            click.style(
-                f"Processing project {project_idx + 1}/{total_projects}: {project_id}",
-                fg="yellow",
-            )
+    while True:
+        # Fetch batch of project_ids
+        project_ids_query = (
+            select(AppEnvironmentDB.project_id)
+            .distinct()
+            .where(AppEnvironmentDB.project_id.isnot(None))
+            .order_by(AppEnvironmentDB.project_id)
+            .offset(offset)
+            .limit(DEFAULT_BATCH_SIZE)
         )
+        result = await connection.execute(project_ids_query)
+        project_ids = [row[0] for row in result.fetchall()]
 
-        # Fetch project owner
-        owner_id = await _fetch_project_owner(
-            project_id=project_id,
+        if not project_ids:
+            break
+
+        # Batch fetch project owners for this batch
+        project_owners = await _fetch_project_owners_batch(
+            project_ids=project_ids,
             connection=connection,
         )
 
-        if not owner_id:
+        for project_idx, project_id in enumerate(project_ids):
+            global_idx = offset + project_idx + 1
             click.echo(
                 click.style(
-                    f"  Skipping project {project_id}: no owner found.",
+                    f"Processing project {global_idx}/{total_projects}: {project_id}",
                     fg="yellow",
                 )
             )
-            skipped_projects += 1
-            continue
 
-        # Fetch all old environments for this project
-        envs_query = (
-            select(AppEnvironmentDB)
-            .where(AppEnvironmentDB.project_id == project_id)
-            .order_by(AppEnvironmentDB.name)
-        )
-        result = await connection.execute(envs_query)
-        old_envs = result.fetchall()
+            # Get owner from pre-fetched batch
+            owner_id = project_owners.get(project_id)
 
-        if not old_envs:
-            continue
-
-        # Group by environment name -> app_name -> list of revisions
-        # Also track app_name -> app_id for resolving full refs
-        env_groups: Dict[str, Dict[str, List[Any]]] = defaultdict(
-            lambda: defaultdict(list)
-        )
-        env_app_ids: Dict[str, Dict[str, uuid.UUID]] = defaultdict(dict)
-
-        for old_env in old_envs:
-            env_name = old_env.name
-            app_id = old_env.app_id
-
-            # Fetch app name
-            app_name = await _fetch_app_name(
-                app_id=app_id,
-                connection=connection,
-            )
-            if app_name is None:
-                app_name = str(app_id)
-
-            # Fetch revisions for this environment
-            revs_query = (
-                select(AppEnvironmentRevisionDB)
-                .where(
-                    AppEnvironmentRevisionDB.environment_id == old_env.id,
-                    AppEnvironmentRevisionDB.project_id == project_id,
+            if not owner_id:
+                click.echo(
+                    click.style(
+                        f"  Skipping project {project_id}: no owner found.",
+                        fg="yellow",
+                    )
                 )
-                .order_by(AppEnvironmentRevisionDB.created_at.asc())
+                skipped_projects += 1
+                continue
+
+            # Fetch all old environments for this project
+            envs_query = (
+                select(AppEnvironmentDB)
+                .where(AppEnvironmentDB.project_id == project_id)
+                .order_by(AppEnvironmentDB.name)
             )
-            result = await connection.execute(revs_query)
-            revisions = result.fetchall()
+            result = await connection.execute(envs_query)
+            old_envs = result.fetchall()
 
-            env_groups[env_name][app_name] = revisions
-            env_app_ids[env_name][app_name] = app_id
+            if not old_envs:
+                continue
 
-        # Process each environment name
-        for env_name, app_revisions in env_groups.items():
-            new_env = await _transfer_environment_for_project(
-                project_id=project_id,
-                owner_id=owner_id,
-                env_name=env_name,
-                app_revisions=app_revisions,
-                app_ids=env_app_ids[env_name],
+            # Batch fetch all app names for this project's environments
+            unique_app_ids = list(
+                {old_env.app_id for old_env in old_envs if old_env.app_id is not None}
+            )
+            app_names_map = await _fetch_app_names_batch(
+                app_ids=unique_app_ids,
                 connection=connection,
             )
-            if new_env:
-                total_migrated += 1
+
+            # Group by environment name -> app_name -> list of revisions
+            # Also track app_name -> app_id for resolving full refs
+            env_groups: Dict[str, Dict[str, List[Any]]] = defaultdict(
+                lambda: defaultdict(list)
+            )
+            env_app_ids: Dict[str, Dict[str, uuid.UUID]] = defaultdict(dict)
+
+            for old_env in old_envs:
+                env_name = old_env.name
+                app_id = old_env.app_id
+
+                # Get app name from pre-fetched batch
+                app_name = app_names_map.get(app_id)
+                if app_name is None:
+                    app_name = str(app_id)
+
+                # Fetch revisions for this environment
+                revs_query = (
+                    select(AppEnvironmentRevisionDB)
+                    .where(
+                        AppEnvironmentRevisionDB.environment_id == old_env.id,
+                        AppEnvironmentRevisionDB.project_id == project_id,
+                    )
+                    .order_by(AppEnvironmentRevisionDB.created_at.asc())
+                )
+                result = await connection.execute(revs_query)
+                revisions = result.fetchall()
+
+                env_groups[env_name][app_name] = revisions
+                env_app_ids[env_name][app_name] = app_id
+
+            # Process each environment name
+            for env_name, app_revisions in env_groups.items():
+                new_env = await _transfer_environment_for_project(
+                    project_id=project_id,
+                    owner_id=owner_id,
+                    env_name=env_name,
+                    app_revisions=app_revisions,
+                    app_ids=env_app_ids[env_name],
+                    connection=connection,
+                )
+                if new_env:
+                    total_migrated += 1
+
+        # Move to next batch
+        offset += DEFAULT_BATCH_SIZE
 
     click.echo(
         click.style(f"Total environments migrated: {total_migrated}", fg="yellow")
