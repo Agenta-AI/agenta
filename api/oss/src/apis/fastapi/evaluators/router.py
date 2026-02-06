@@ -713,7 +713,7 @@ class EvaluatorsRouter:
         self,
         request: Request,
         *,
-        evaluator_variant_id: UUID,
+        evaluator_variant_id: Optional[UUID] = None,
         #
         evaluator_variant_fork_request: EvaluatorForkRequest,
     ):
@@ -725,11 +725,23 @@ class EvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        fork_request = evaluator_variant_fork_request.evaluator
+
+        if evaluator_variant_id:
+            if (
+                fork_request.evaluator_variant_id
+                and fork_request.evaluator_variant_id != evaluator_variant_id
+            ):
+                return EvaluatorVariantResponse()
+
+            if not fork_request.evaluator_variant_id:
+                fork_request.evaluator_variant_id = evaluator_variant_id
+
         evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_fork=evaluator_variant_fork_request.evaluator,
+            evaluator_fork=fork_request,
         )
 
         evaluator_variant_response = EvaluatorVariantResponse(
@@ -1098,16 +1110,6 @@ class SimpleEvaluatorsRouter:
             operation_id="query_simple_evaluators",
             status_code=status.HTTP_200_OK,
             response_model=SimpleEvaluatorsResponse,
-            response_model_exclude_none=True,
-        )
-
-        self.router.add_api_route(
-            "/{evaluator_id}/transfer",
-            self.transfer_simple_evaluator,
-            methods=["POST"],
-            operation_id="transfer_simple_evaluator",
-            status_code=status.HTTP_200_OK,
-            response_model=SimpleEvaluatorResponse,
             response_model_exclude_none=True,
         )
 
@@ -1551,31 +1553,3 @@ class SimpleEvaluatorsRouter:
         )
 
         return simple_evaluators_response
-
-    @intercept_exceptions()
-    async def transfer_simple_evaluator(
-        self,
-        *,
-        request: Request,
-        evaluator_id: UUID,
-    ) -> SimpleEvaluatorResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        simple_evaluator = await self.simple_evaluators_service.transfer(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            evaluator_id=evaluator_id,
-        )
-
-        simple_evaluator_response = SimpleEvaluatorResponse(
-            count=1 if simple_evaluator else 0,
-            evaluator=simple_evaluator,
-        )
-
-        return simple_evaluator_response

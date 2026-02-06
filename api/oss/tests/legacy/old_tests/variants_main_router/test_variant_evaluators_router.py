@@ -386,7 +386,7 @@ async def test_rag_experiment_tree_maps_correctly(
         "mapping": mapper_to_run_rag_faithfulness_evaluation,
     }
     response = await test_client.post(
-        f"{BACKEND_API_HOST}/evaluators/map/",
+        f"{BACKEND_API_HOST}/evaluators/map",
         json=payload,
         timeout=timeout,
     )
@@ -408,7 +408,7 @@ async def test_simple_experiment_tree_maps_correctly(
         "mapping": mapper_to_run_auto_exact_match_evaluation,
     }
     response = await test_client.post(
-        f"{BACKEND_API_HOST}/evaluators/map/",
+        f"{BACKEND_API_HOST}/evaluators/map",
         json=payload,
         timeout=timeout,
     )
@@ -429,7 +429,7 @@ async def test_rag_faithfulness_evaluator_run(
         "credentials": {"OPENAI_API_KEY": os.environ["OPENAI_API_KEY"]},
     }
     response = await test_client.post(
-        f"{BACKEND_API_HOST}/evaluators/rag_faithfulness/run/",
+        f"{BACKEND_API_HOST}/evaluators/rag_faithfulness/run",
         json=payload,
         timeout=timeout,
     )
@@ -452,7 +452,7 @@ async def test_custom_code_evaluator_run(custom_code_snippet):
         },
     }
     response = await test_client.post(
-        f"{BACKEND_API_HOST}/evaluators/auto_custom_code_run/run/",
+        f"{BACKEND_API_HOST}/evaluators/auto_custom_code_run/run",
         json=payload,
         timeout=timeout,
     )
@@ -468,7 +468,7 @@ async def test_run_evaluators_via_api(
     evaluators_response_status_code = []
     for evaluator_key, evaluator_payload in evaluators_payload_data.items():
         response = await test_client.post(
-            f"{BACKEND_API_HOST}/evaluators/{evaluator_key}/run/",
+            f"{BACKEND_API_HOST}/evaluators/{evaluator_key}/run",
             json=evaluator_payload,
             timeout=timeout,
         )
