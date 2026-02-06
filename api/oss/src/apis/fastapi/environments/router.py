@@ -477,8 +477,9 @@ class EnvironmentsRouter:
                     **body_json
                 )
 
-        except:
-            pass
+        except Exception:
+            # Failed to parse JSON body; proceed as if no body was provided.
+            log.debug("Failed to parse JSON body for environment query.", exc_info=True)
 
         environment_query_request = merge_environment_query_requests(
             query_request_params,
