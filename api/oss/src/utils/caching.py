@@ -12,7 +12,7 @@ from oss.src.utils.env import env
 
 log = get_module_logger(__name__)
 
-AGENTA_LOCK_TTL = 15  # seconds
+AGENTA_LOCK_TTL = 15  # 5 seconds
 AGENTA_CACHE_TTL = 5 * 60  # 5 minutes
 AGENTA_CACHE_LOCAL_TTL = 60  # 60 seconds for local in-memory cache (Layer 1)
 
