@@ -119,6 +119,152 @@ from oss.src.core.evaluations.utils import (
 log = get_module_logger(__name__)
 
 
+# --- compatibility shim for new workflow-based revisions ----------------------
+
+
+class _AppInfo:
+    """
+    Bundles all the application-related data that setup_evaluation and
+    evaluate_batch_testset need, abstracted over the old (AppVariantRevisionsDB)
+    and new (workflow tables) storage systems.
+    """
+
+    def __init__(
+        self,
+        *,
+        revision_id: UUID,
+        variant_id: UUID,
+        app_id: UUID,
+        app_name: str,
+        uri: str,
+        config_parameters: dict,
+    ):
+        self.revision_id = revision_id
+        self.variant_id = variant_id
+        self.app_id = app_id
+        self.app_name = app_name
+        self.uri = uri
+        self.config_parameters = config_parameters
+
+
+async def _resolve_app_info(
+    revision_id: str,
+    project_id: UUID,
+) -> Optional[_AppInfo]:
+    """
+    Resolve all application information needed for evaluations.
+
+    Tries the legacy tables first (AppVariantRevisionsDB → AppVariantDB →
+    AppDB → DeploymentDB).  If the revision is not found in the legacy
+    tables, falls back to the new workflow-based tables.
+    """
+    from oss.src.core.applications.services import ApplicationsService
+
+    # 1) Legacy lookup ----------------------------------------------------------
+    revision = await fetch_app_variant_revision_by_id(revision_id)
+    if revision is not None:
+        variant = await fetch_app_variant_by_id(str(revision.variant_id))
+        if variant is None:
+            raise ValueError(f"App variant with id {revision.variant_id} not found!")
+
+        app = await fetch_app_by_id(str(variant.app_id))
+        if app is None:
+            raise ValueError(f"App with id {variant.app_id} not found!")
+
+        deployment = await get_deployment_by_id(str(revision.base.deployment_id))
+        if deployment is None:
+            raise ValueError(
+                f"Deployment with id {revision.base.deployment_id} not found!"
+            )
+
+        uri = parse_url(url=deployment.uri)
+        if uri is None:
+            raise ValueError(f"Invalid URI for deployment {deployment.id}!")
+
+        if revision.config_parameters is None:
+            raise ValueError(f"Revision parameters for variant {variant.id} not found!")
+
+        return _AppInfo(
+            revision_id=UUID(str(revision.id)),
+            variant_id=UUID(str(variant.id)),
+            app_id=UUID(str(app.id)),
+            app_name=app.app_name,
+            uri=uri,
+            config_parameters=revision.config_parameters,
+        )
+
+    # 2) New workflow lookup ----------------------------------------------------
+    log.info(
+        "[COMPAT] Legacy revision not found, trying workflow tables",
+        revision_id=revision_id,
+    )
+
+    workflows_dao = GitDAO(
+        ArtifactDBE=WorkflowArtifactDBE,
+        VariantDBE=WorkflowVariantDBE,
+        RevisionDBE=WorkflowRevisionDBE,
+    )
+    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    applications_service = ApplicationsService(
+        workflows_service=workflows_service,
+    )
+
+    app_revision = await applications_service.fetch_application_revision(
+        project_id=project_id,
+        application_revision_ref=Reference(id=UUID(revision_id)),
+    )
+
+    if app_revision is None:
+        return None
+
+    # Resolve variant
+    app_variant = await applications_service.fetch_application_variant(
+        project_id=project_id,
+        application_variant_ref=Reference(id=app_revision.application_variant_id),
+    )
+
+    if app_variant is None:
+        raise ValueError(
+            f"Application variant with id {app_revision.application_variant_id} not found!"
+        )
+
+    # Resolve application (artifact)
+    application = await applications_service.fetch_application(
+        project_id=project_id,
+        application_ref=Reference(id=app_variant.application_id),
+    )
+
+    if application is None:
+        raise ValueError(f"Application with id {app_variant.application_id} not found!")
+
+    # Extract URI from revision data
+    deployment_uri = None
+    if app_revision.data:
+        deployment_uri = app_revision.data.url or getattr(
+            app_revision.data, "uri", None
+        )
+
+    if not deployment_uri:
+        raise ValueError(f"No deployment URI found for revision {revision_id}!")
+
+    uri = parse_url(url=deployment_uri)
+    if uri is None:
+        raise ValueError(f"Invalid URI for revision {revision_id}!")
+
+    config_parameters = app_revision.data.parameters if app_revision.data else None
+    if config_parameters is None:
+        raise ValueError(f"Revision parameters for revision {revision_id} not found!")
+
+    return _AppInfo(
+        revision_id=app_revision.id,
+        variant_id=app_variant.id,
+        app_id=application.id,
+        app_name=application.name or application.slug,
+        uri=uri,
+        config_parameters=config_parameters,
+    )
+
+
 # ------------------------------------------------------------------------------
 
 
@@ -295,56 +441,28 @@ async def setup_evaluation(
         application_references = dict()
 
         if revision_id:
-            revision = await fetch_app_variant_revision_by_id(revision_id)
+            app_info = await _resolve_app_info(
+                revision_id=revision_id,
+                project_id=project_id,
+            )
 
-            if revision is None:
+            if app_info is None:
                 raise ValueError(f"App revision with id {revision_id} not found!")
 
             application_references["revision"] = Reference(
-                id=UUID(str(revision.id)),
+                id=app_info.revision_id,
             )
-
-            variant = await fetch_app_variant_by_id(str(revision.variant_id))
-
-            if variant is None:
-                raise ValueError(
-                    f"App variant with id {revision.variant_id} not found!"
-                )
 
             application_references["variant"] = Reference(
-                id=UUID(str(variant.id)),
+                id=app_info.variant_id,
             )
-
-            app = await fetch_app_by_id(str(variant.app_id))
-
-            if app is None:
-                raise ValueError(f"App with id {variant.app_id} not found!")
 
             application_references["artifact"] = Reference(
-                id=UUID(str(app.id)),
+                id=app_info.app_id,
             )
 
-            deployment = await get_deployment_by_id(str(revision.base.deployment_id))
-
-            if deployment is None:
-                raise ValueError(
-                    f"Deployment with id {revision.base.deployment_id} not found!"
-                )
-
-            uri = parse_url(url=deployment.uri)
-
-            if uri is None:
-                raise ValueError(f"Invalid URI for deployment {deployment.id}!")
-
-            revision_parameters = revision.config_parameters
-
-            if revision_parameters is None:
-                raise ValueError(
-                    f"Revision parameters for variant {variant.id} not found!"
-                )
-
             invocation_steps_keys.append(
-                get_slug_from_name_and_id(app.app_name, revision.id)
+                get_slug_from_name_and_id(app_info.app_name, app_info.revision_id)
             )
         # ----------------------------------------------------------------------
 
@@ -809,37 +927,16 @@ async def evaluate_batch_testset(
         # ----------------------------------------------------------------------
 
         # fetch application ----------------------------------------------------
-        revision = await fetch_app_variant_revision_by_id(revision_id)
+        app_info = await _resolve_app_info(
+            revision_id=revision_id,
+            project_id=project_id,
+        )
 
-        if revision is None:
+        if app_info is None:
             raise ValueError(f"App revision with id {revision_id} not found!")
 
-        variant = await fetch_app_variant_by_id(str(revision.variant_id))
-
-        if variant is None:
-            raise ValueError(f"App variant with id {revision.variant_id} not found!")
-
-        app = await fetch_app_by_id(str(variant.app_id))
-
-        if app is None:
-            raise ValueError(f"App with id {variant.app_id} not found!")
-
-        deployment = await get_deployment_by_id(str(revision.base.deployment_id))
-
-        if deployment is None:
-            raise ValueError(
-                f"Deployment with id {revision.base.deployment_id} not found!"
-            )
-
-        uri = parse_url(url=deployment.uri)
-
-        if uri is None:
-            raise ValueError(f"Invalid URI for deployment {deployment.id}!")
-
-        revision_parameters = revision.config_parameters
-
-        if revision_parameters is None:
-            raise ValueError(f"Revision parameters for variant {variant.id} not found!")
+        uri = app_info.uri
+        revision_parameters = app_info.config_parameters
         # ----------------------------------------------------------------------
 
         # fetch evaluators -----------------------------------------------------
@@ -957,13 +1054,13 @@ async def evaluate_batch_testset(
             parameters=revision_parameters,  # type: ignore
             uri=uri,
             rate_limit_config=run_config,
-            application_id=str(app.id),  # DO NOT REMOVE
+            application_id=str(app_info.app_id),  # DO NOT REMOVE
             references={
                 "testset": {"id": str(testset_id)},
                 "testset_revision": {"id": str(testset_revision_id)},
-                "application": {"id": str(app.id)},
-                "application_variant": {"id": str(variant.id)},
-                "application_revision": {"id": str(revision.id)},
+                "application": {"id": str(app_info.app_id)},
+                "application_variant": {"id": str(app_info.variant_id)},
+                "application_revision": {"id": str(app_info.revision_id)},
             },
             scenarios=[
                 s.model_dump(
