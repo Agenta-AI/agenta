@@ -2,21 +2,18 @@ import {produce} from "immer"
 import {atom} from "jotai"
 
 import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
-import {
-    displayedVariantsAtom,
-    // displayedVariantsVariablesAtom,
-} from "@/oss/components/Playground/state/atoms"
+import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 // import {updateGenerationDataPropertyMutationAtom} from "@/oss/components/Playground/state/atoms/propertyMutations"
 import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {
     chatSessionsByIdAtom,
     // chatSessionIdsAtom,
-    chatTurnsByIdAtom,
+    // chatTurnsByIdAtom, // Moved
     // chatTurnsByIdFamilyAtom,
     chatTurnIdsAtom,
-    // logicalTurnIndexAtom,
 } from "@/oss/state/generation/entities"
+import {chatTurnsByIdAtom} from "@/oss/state/generation/selectors"
 import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {cancelTestAtom} from "@/oss/state/newPlayground/mutations/execution"
 import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
@@ -153,7 +150,6 @@ export const runChatTurnAtom = atom(
 
         set(chatTurnIdsAtom, (prev) => {
             const newIds = [...prev]
-            newIds.slice(0, currentIndex + 1)
             return newIds.slice(0, currentIndex + 1)
         })
 

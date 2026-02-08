@@ -3,13 +3,14 @@ import type {Getter, Setter} from "jotai"
 import {displayedVariantsVariablesAtom} from "@/oss/components/Playground/state/atoms"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {
+    allChatTurnIdsMapAtom,
     chatTurnIdsAtom,
     chatTurnIdsByBaselineAtom,
-    allChatTurnIdsMapAtom,
-    chatTurnsByIdAtom,
+    // chatTurnsByIdAtom, // Moved
     chatTurnsByIdCacheAtom,
     runStatusByRowRevisionAtom,
 } from "@/oss/state/generation/entities"
+import {chatTurnsByIdAtom} from "@/oss/state/generation/selectors"
 import {responseByRowRevisionAtomFamily} from "@/oss/state/newPlayground/generation/runtime"
 
 // PropertyNode is the shared structure used by variables and messages throughout UI

@@ -9,7 +9,7 @@ import {atomFamily, selectAtom} from "jotai/utils"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {generationLogicalTurnIdsAtom as chatLogicalIdsAtom} from "@/oss/state/generation/compat"
-import {runStatusByRowRevisionAtom, inputRowIdsAtom} from "@/oss/state/generation/entities"
+import {inputRowIdsAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 import {rowResponsesForDisplayAtomFamily} from "@/oss/state/generation/selectors"
 import {
     loadingByRowRevisionAtomFamily,
@@ -157,7 +157,6 @@ export const generationRowIdsAtom = selectAtom(
         const isChat = get(appChatModeAtom)
         if (isChat) {
             const logicalIds = ((get(chatLogicalIdsAtom) as string[]) || []).filter(Boolean)
-
             return logicalIds
         }
 

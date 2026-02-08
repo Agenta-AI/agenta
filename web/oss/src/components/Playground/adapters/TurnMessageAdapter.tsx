@@ -89,8 +89,10 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const msg = useMemo(() => {
         if (messageOverride) return messageOverride
         const t = turn
-        if (!t) return null
-        if (kind === "assistant") return t?.assistantMessageByRevision?.[variantId] || null
+        if (kind === "assistant") {
+            const m = t?.assistantMessageByRevision?.[variantId] || null
+            return m
+        }
         if (kind === "tool") return toolMessage
         return t?.userMessage || null
     }, [turn, variantId, kind, toolMessage, messageOverride])
@@ -301,7 +303,9 @@ const TurnMessageAdapter: React.FC<Props> = ({
         if (isToolKind) return
         const logicalId = String(rowId)
         const messageId = (msg as any)?.__id as string | undefined
-        // 1) prune message if applicable
+        // 1) Clear response cache FIRST to prevent stale data display
+        setResponse(null)
+        // 2) prune message and tool responses if applicable
         setTurn((draft: any) => {
             if (!draft) return
             if (!draft.assistantMessageByRevision) draft.assistantMessageByRevision = {}
@@ -313,9 +317,18 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 // Rerunning a user message should clear any assistant response on this row/revision
                 draft.assistantMessageByRevision[variantId] = null
             }
+            // Clear tool responses for this revision
+            if (draft.toolResponsesByRevision && variantId in draft.toolResponsesByRevision) {
+                delete draft.toolResponsesByRevision[variantId]
+                // Clean up empty object
+                if (Object.keys(draft.toolResponsesByRevision).length === 0) {
+                    delete draft.toolResponsesByRevision
+                }
+            }
         })
+        // 3) Trigger rerun
         rerun({turnId: logicalId, variantId, messageId})
-    }, [rerun, rowId, variantId, msg, kind, setTurn, isToolKind])
+    }, [rerun, rowId, variantId, msg, kind, setTurn, setResponse, isToolKind])
 
     const resultHashes = useMemo(() => {
         try {

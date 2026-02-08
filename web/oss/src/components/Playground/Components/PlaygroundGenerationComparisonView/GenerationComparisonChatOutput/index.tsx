@@ -11,18 +11,19 @@ import {
     generationInputRowIdsAtom,
     generationRowIdsAtom,
 } from "@/oss/components/Playground/state/atoms/generationProperties"
-import {chatTurnsByIdAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
+import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
+import {chatTurnsByIdAtom} from "@/oss/state/generation/selectors"
 import {
     addChatTurnAtom,
-    runChatTurnAtom,
     cancelChatTurnAtom,
+    runChatTurnAtom,
 } from "@/oss/state/newPlayground/chat/actions"
 
 import LastTurnFooterControls from "../../ChatCommon/LastTurnFooterControls"
 import GenerationChatTurnNormalized from "../../PlaygroundGenerations/assets/GenerationChatTurnNormalized"
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
 
-import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputCellProps} from "./types"
+import {GenerationComparisonChatOutputCellProps, GenerationComparisonChatOutputProps} from "./types"
 
 // No local schema plumbing; PromptMessageConfig derives structure internally
 

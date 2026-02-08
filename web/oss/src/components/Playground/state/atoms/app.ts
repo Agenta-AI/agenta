@@ -17,10 +17,11 @@ export const appChatModeAtom = selectAtom(
         if (!first) return undefined
         const spec = getSpecLazy()
         if (spec) {
-            return detectChatVariantFromOpenAISchema(spec, {
+            const result = detectChatVariantFromOpenAISchema(spec, {
                 routePath: appUri?.routePath,
                 runtimePrefix: appUri?.runtimePrefix || "",
             })
+            return result
         } else {
             return undefined
         }

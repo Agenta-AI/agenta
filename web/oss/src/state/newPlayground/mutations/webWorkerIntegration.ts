@@ -21,7 +21,7 @@ import {getJWT} from "@/oss/services/api"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
     chatTurnIdsAtom,
-    chatTurnsByIdAtom,
+    // chatTurnsByIdAtom, // Moved
     chatTurnsByIdFamilyAtom,
     inputRowsByIdAtom,
     inputRowsByIdFamilyAtom,
@@ -29,7 +29,7 @@ import {
     rowIdIndexAtom,
     runStatusByRowRevisionAtom,
 } from "@/oss/state/generation/entities"
-import {rowVariablesAtomFamily} from "@/oss/state/generation/selectors"
+import {chatTurnsByIdAtom, rowVariablesAtomFamily} from "@/oss/state/generation/selectors"
 import {promptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {repetitionCountAtom} from "@/oss/state/newPlayground/generation/options"
 import {
@@ -42,9 +42,9 @@ import {
     buildToolMessages,
 } from "@/oss/state/newPlayground/helpers/messageFactory"
 import {
-    moleculeBackedVariantAtomFamily,
-    moleculeBackedPromptsAtomFamily,
     moleculeBackedCustomPropertiesAtomFamily,
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
 import {variableValuesSelectorFamily} from "@/oss/state/newPlayground/selectors/variables"
 import {getProjectValues} from "@/oss/state/project"

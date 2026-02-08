@@ -6,10 +6,10 @@ import {atom} from "jotai"
 import {appTypeAtom} from "@/oss/components/Playground/state/atoms/app"
 
 import {
-    inputRowIdsAtom,
     chatSessionIdsAtom,
     chatSessionsByIdAtom,
     chatTurnIdsAtom,
+    inputRowIdsAtom,
 } from "./entities"
 
 // Unifies row ids used for generation rendering across modes

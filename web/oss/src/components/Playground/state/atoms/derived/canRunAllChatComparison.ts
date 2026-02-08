@@ -2,9 +2,10 @@ import {atom} from "jotai"
 
 import {
     chatSessionsByIdAtom,
-    chatTurnsByIdAtom,
+    // chatTurnsByIdAtom, // Moved
     logicalTurnIndexAtom,
 } from "@/oss/state/generation/entities"
+import {chatTurnsByIdAtom} from "@/oss/state/generation/selectors"
 
 import {appChatModeAtom} from "../app"
 import {displayedVariantsAtom} from "../variants"

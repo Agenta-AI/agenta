@@ -89,12 +89,11 @@ const GenerationChatTurnNormalized = ({
         })
     }, [cancelTurn, resolvedTurnId, turnId, effectiveRevisionId])
 
-    const sessionRowId = useMemo(
-        () =>
-            (resolvedTurnId ||
-                (variantId && turnId ? `turn-${variantId}-${turnId}` : turnId)) as string,
-        [resolvedTurnId, variantId, turnId],
-    )
+    const sessionRowId = useMemo(() => {
+        const id = (resolvedTurnId ||
+            (variantId && turnId ? `turn-${variantId}-${turnId}` : turnId)) as string
+        return id
+    }, [resolvedTurnId, variantId, turnId])
 
     const assistantMsg = useAtomValue(
         useMemo(

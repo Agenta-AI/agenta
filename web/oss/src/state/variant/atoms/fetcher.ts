@@ -2,8 +2,7 @@
 import deepEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily, loadable, selectAtom} from "jotai/utils"
-import {queryClientAtom} from "jotai-tanstack-query"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {formatDay, parseDate} from "@/oss/lib/helpers/dateTimeHelper"
 import {snakeToCamel} from "@/oss/lib/helpers/utils"
@@ -13,9 +12,8 @@ import {fetchOpenApiSchemaJson} from "@/oss/lib/shared/variant/transformer"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {findRevisionDeployment} from "@/oss/lib/shared/variant/utils"
 import type {Variant, VariantRevision} from "@/oss/lib/Types"
-import {fetchSingleProfile} from "@/oss/services/api"
-import {fetchVariants as fetchAppVariants} from "@/oss/services/api"
-import {routerAppIdAtom, recentAppIdAtom} from "@/oss/state/app/atoms/fetcher"
+import {fetchVariants as fetchAppVariants, fetchSingleProfile} from "@/oss/services/api"
+import {recentAppIdAtom, routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {environmentsAtom} from "@/oss/state/environment/atoms/fetcher"
@@ -316,7 +314,7 @@ export const getSpecLazy = () => {
         const store = getDefaultStore()
         const schema = store.get(appSchemaAtom) as any
         return schema || null
-    } catch {
+    } catch (e) {
         return null
     }
 }
@@ -579,4 +577,4 @@ export const revisionDeploymentAtomFamily = atomFamily((revisionId: string) =>
 )
 
 // Re-export app status atoms for centralized access
-export {appStatusAtom, variantAppStatusAtomFamily, currentVariantAppStatusAtom} from "./appStatus"
+export {appStatusAtom, currentVariantAppStatusAtom, variantAppStatusAtomFamily} from "./appStatus"
