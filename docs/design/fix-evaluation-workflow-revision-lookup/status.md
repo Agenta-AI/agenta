@@ -1,6 +1,6 @@
 # Status: Fix Evaluation Workflow Revision Lookup
 
-## Current State: Implementation Complete
+## Current State: PR Created - Awaiting Review
 
 ### Completed
 
@@ -10,10 +10,10 @@
 - [x] Updated `evaluate_batch_testset()` to use new helper
 - [x] Lint check passed (no new errors)
 - [x] Design documentation created
+- [x] PR created: https://github.com/Agenta-AI/agenta/pull/3662
 
 ### Pending
 
-- [ ] Create PR
 - [ ] Testing on cloud environment
 - [ ] Review and merge
 
