@@ -83,13 +83,7 @@ from oss.src.core.evaluators.service import SimpleEvaluatorsService
 
 from oss.src.core.evaluations.utils import filter_scenario_ids
 
-from oss.src.models.db_models import AppVariantRevisionsDB
-
-from oss.src.services.db_manager import (
-    fetch_app_by_id,
-    fetch_app_variant_by_id,
-    fetch_app_variant_revision_by_id,
-)
+from oss.src.services.legacy_adapter import get_legacy_adapter
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 
@@ -2218,7 +2212,6 @@ class SimpleEvaluationsService:
             # fetch applications -----------------------------------------------
             application_invocation_steps_keys: List[str] = list()
             application_references: Dict[str, Dict[str, Reference]] = dict()
-            application_revisions: Dict[str, AppVariantRevisionsDB] = dict()
             application_origins: Dict[str, Origin] = dict()
 
             if isinstance(application_steps, list):
@@ -2227,11 +2220,15 @@ class SimpleEvaluationsService:
                     for application_revision_id in application_steps
                 }
 
+            # Use adapter to fetch from workflow tables (v0.84.0+ migration)
+            adapter = get_legacy_adapter()
+
             for application_revision_id, origin in (application_steps or {}).items():
                 application_revision_ref = Reference(id=application_revision_id)
 
-                application_revision = await fetch_app_variant_revision_by_id(
-                    variant_revision_id=str(application_revision_ref.id),
+                application_revision = await adapter.fetch_revision_by_id(
+                    project_id=project_id,
+                    revision_id=application_revision_ref.id,
                 )
 
                 if not application_revision:
@@ -2242,11 +2239,12 @@ class SimpleEvaluationsService:
                     return None
 
                 application_variant_ref = Reference(
-                    id=UUID(str(application_revision.variant_id))
+                    id=application_revision.application_variant_id
                 )
 
-                application_variant = await fetch_app_variant_by_id(
-                    app_variant_id=str(application_variant_ref.id),
+                application_variant = await adapter.fetch_variant_by_id(
+                    project_id=project_id,
+                    variant_id=application_variant_ref.id,
                 )
 
                 if not application_variant:
@@ -2256,10 +2254,11 @@ class SimpleEvaluationsService:
                     )
                     return None
 
-                application_ref = Reference(id=UUID(str(application_variant.app_id)))
+                application_ref = Reference(id=application_variant.application_id)
 
-                application = await fetch_app_by_id(
-                    app_id=str(application_ref.id),
+                application = await adapter.fetch_app_by_id(
+                    project_id=project_id,
+                    app_id=application_ref.id,
                 )
 
                 if not application:
@@ -2270,8 +2269,8 @@ class SimpleEvaluationsService:
                     return None
 
                 application_revision_slug = get_slug_from_name_and_id(
-                    str(application_revision.config_name),
-                    UUID(str(application_revision.id)),
+                    str(application_revision.slug),
+                    application_revision.id,
                 )
 
                 step_key = "application-" + application_revision_slug
@@ -2281,20 +2280,18 @@ class SimpleEvaluationsService:
                 application_references[step_key] = dict(
                     application=Reference(
                         id=application_ref.id,
-                        slug=str(application.app_name),
+                        slug=application.slug,
                     ),
                     application_variant=Reference(
                         id=application_variant_ref.id,
-                        slug=str(application_variant.variant_name),
+                        slug=application_variant.slug,
                     ),
                     application_revision=Reference(
                         id=application_revision_ref.id,
-                        slug=str(application_revision.config_name),
-                        version=str(application_revision.revision),
+                        slug=application_revision.slug,
+                        version=application_revision.version,
                     ),
                 )
-
-                application_revisions[step_key] = application_revision
 
                 application_origins[step_key] = origin
 
