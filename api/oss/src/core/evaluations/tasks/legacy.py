@@ -10,13 +10,8 @@ from oss.src.utils.common import is_ee
 from oss.src.services.auth_service import sign_secret_token
 from oss.src.services import llm_apps_service
 from oss.src.models.shared_models import InvokationResult
-from oss.src.services.db_manager import (
-    fetch_app_by_id,
-    fetch_app_variant_by_id,
-    fetch_app_variant_revision_by_id,
-    get_deployment_by_id,
-    get_project_by_id,
-)
+from oss.src.services.db_manager import get_project_by_id
+from oss.src.services.legacy_adapter import get_legacy_adapter
 from oss.src.core.secrets.utils import get_llm_providers_secrets
 
 if is_ee():
@@ -35,15 +30,8 @@ from oss.src.dbs.postgres.testsets.dbes import (
     TestsetVariantDBE,
     TestsetRevisionDBE,
 )
-from oss.src.dbs.postgres.workflows.dbes import (
-    WorkflowArtifactDBE,
-    WorkflowVariantDBE,
-    WorkflowRevisionDBE,
-)
-
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
-from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
 
 from oss.src.core.tracing.service import TracingService
@@ -119,14 +107,16 @@ from oss.src.core.evaluations.utils import (
 log = get_module_logger(__name__)
 
 
-# --- compatibility shim for new workflow-based revisions ----------------------
+# --- Application lookup using LegacyApplicationsAdapter -----------------------
 
 
 class _AppInfo:
     """
     Bundles all the application-related data that setup_evaluation and
-    evaluate_batch_testset need, abstracted over the old (AppVariantRevisionsDB)
-    and new (workflow tables) storage systems.
+    evaluate_batch_testset need.
+
+    Uses the LegacyApplicationsAdapter which queries the new workflow tables
+    (where all application data now lives after the v0.84.0 migration).
     """
 
     def __init__(
@@ -154,73 +144,25 @@ async def _resolve_app_info(
     """
     Resolve all application information needed for evaluations.
 
-    Tries the legacy tables first (AppVariantRevisionsDB → AppVariantDB →
-    AppDB → DeploymentDB).  If the revision is not found in the legacy
-    tables, falls back to the new workflow-based tables.
+    Uses the LegacyApplicationsAdapter to fetch from the workflow tables.
+    This is the same pattern used by app_router.py and variants_router.py
+    after the v0.84.0 migration.
     """
-    from oss.src.core.applications.services import ApplicationsService
+    adapter = get_legacy_adapter()
 
-    # 1) Legacy lookup ----------------------------------------------------------
-    revision = await fetch_app_variant_revision_by_id(revision_id)
-    if revision is not None:
-        variant = await fetch_app_variant_by_id(str(revision.variant_id))
-        if variant is None:
-            raise ValueError(f"App variant with id {revision.variant_id} not found!")
-
-        app = await fetch_app_by_id(str(variant.app_id))
-        if app is None:
-            raise ValueError(f"App with id {variant.app_id} not found!")
-
-        deployment = await get_deployment_by_id(str(revision.base.deployment_id))
-        if deployment is None:
-            raise ValueError(
-                f"Deployment with id {revision.base.deployment_id} not found!"
-            )
-
-        uri = parse_url(url=deployment.uri)
-        if uri is None:
-            raise ValueError(f"Invalid URI for deployment {deployment.id}!")
-
-        if revision.config_parameters is None:
-            raise ValueError(f"Revision parameters for variant {variant.id} not found!")
-
-        return _AppInfo(
-            revision_id=UUID(str(revision.id)),
-            variant_id=UUID(str(variant.id)),
-            app_id=UUID(str(app.id)),
-            app_name=app.app_name,
-            uri=uri,
-            config_parameters=revision.config_parameters,
-        )
-
-    # 2) New workflow lookup ----------------------------------------------------
-    log.info(
-        "[COMPAT] Legacy revision not found, trying workflow tables",
-        revision_id=revision_id,
-    )
-
-    workflows_dao = GitDAO(
-        ArtifactDBE=WorkflowArtifactDBE,
-        VariantDBE=WorkflowVariantDBE,
-        RevisionDBE=WorkflowRevisionDBE,
-    )
-    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
-    applications_service = ApplicationsService(
-        workflows_service=workflows_service,
-    )
-
-    app_revision = await applications_service.fetch_application_revision(
+    # Fetch revision from workflow tables via adapter
+    app_revision = await adapter.fetch_revision_by_id(
         project_id=project_id,
-        application_revision_ref=Reference(id=UUID(revision_id)),
+        revision_id=UUID(revision_id),
     )
 
     if app_revision is None:
         return None
 
-    # Resolve variant
-    app_variant = await applications_service.fetch_application_variant(
+    # Fetch variant
+    app_variant = await adapter.fetch_variant_by_id(
         project_id=project_id,
-        application_variant_ref=Reference(id=app_revision.application_variant_id),
+        variant_id=app_revision.application_variant_id,
     )
 
     if app_variant is None:
@@ -228,10 +170,10 @@ async def _resolve_app_info(
             f"Application variant with id {app_revision.application_variant_id} not found!"
         )
 
-    # Resolve application (artifact)
-    application = await applications_service.fetch_application(
+    # Fetch application
+    application = await adapter.fetch_app_by_id(
         project_id=project_id,
-        application_ref=Reference(id=app_variant.application_id),
+        app_id=app_variant.application_id,
     )
 
     if application is None:
