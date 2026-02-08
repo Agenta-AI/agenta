@@ -2,7 +2,7 @@ class TestEvaluationMetricsBasics:
     def test_create_evaluation_metrics(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         runs = [
-            {"name": "test_evaluation_steps_basics"},
+            {"name": "test_evaluation_metrics_basics"},
         ]
 
         response = authed_api(
@@ -46,7 +46,7 @@ class TestEvaluationMetricsBasics:
     def test_edit_evaluation_metrics(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         runs = [
-            {"name": "test_evaluation_steps_basics"},
+            {"name": "test_edit_evaluation_metrics"},
         ]
 
         response = authed_api(
@@ -108,7 +108,7 @@ class TestEvaluationMetricsBasics:
     def test_delete_evaluation_metrics(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         runs = [
-            {"name": "test_evaluation_steps_basics"},
+            {"name": "test_delete_evaluation_metrics"},
         ]
 
         response = authed_api(
@@ -176,7 +176,7 @@ class TestEvaluationMetricsBasics:
     def test_fetch_evaluation_metric(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         runs = [
-            {"name": "test_evaluation_steps_basics"},
+            {"name": "test_fetch_evaluation_metric"},
         ]
 
         response = authed_api(
@@ -214,28 +214,35 @@ class TestEvaluationMetricsBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
+        # NOTE: GET /metrics/{id} does not exist, use POST /metrics/query
         response = authed_api(
-            "GET",
-            f"/preview/evaluations/metrics/{metric['id']}",
+            "POST",
+            "/preview/evaluations/metrics/query",
+            json={
+                "metrics": {
+                    "run_id": run_id,
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        print(response)
-        assert response["count"] == 1
-        assert response["metric"]["id"] == metric["id"]
-        assert response["metric"]["data"]["integer_metric"] == 42
-        assert response["metric"]["data"]["float_metric"] == 3.14
-        assert response["metric"]["data"]["string_metric"] == "test"
-        assert response["metric"]["data"]["boolean_metric"] is True
+        assert response["count"] >= 1
+        metric_ids = [m["id"] for m in response["metrics"]]
+        assert metric["id"] in metric_ids
+        matched = [m for m in response["metrics"] if m["id"] == metric["id"]][0]
+        assert matched["data"]["integer_metric"] == 42
+        assert matched["data"]["float_metric"] == 3.14
+        assert matched["data"]["string_metric"] == "test"
+        assert matched["data"]["boolean_metric"] is True
         # ----------------------------------------------------------------------
 
     def test_edit_evaluation_metric(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         runs = [
-            {"name": "test_evaluation_steps_basics"},
+            {"name": "test_edit_evaluation_metric"},
         ]
 
         response = authed_api(
@@ -298,7 +305,7 @@ class TestEvaluationMetricsBasics:
     def test_delete_evaluation_metric(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         runs = [
-            {"name": "test_evaluation_steps_basics"},
+            {"name": "test_delete_evaluation_metric"},
         ]
 
         response = authed_api(

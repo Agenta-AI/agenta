@@ -1,6 +1,4 @@
 from uuid import uuid4
-from json import dumps
-from urllib.parse import quote
 
 import pytest
 
@@ -110,8 +108,9 @@ class TestEvaluationRunsQueries:
     def test_query_evaluations_runs_non_archived(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/evaluations/runs/",
+            "POST",
+            "/preview/evaluations/runs/query",
+            json={},
         )
         # ----------------------------------------------------------------------
 
@@ -124,8 +123,11 @@ class TestEvaluationRunsQueries:
     def test_query_evaluations_runs_include_archived(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/evaluations/runs/?include_archived=true",
+            "POST",
+            "/preview/evaluations/runs/query",
+            json={
+                "include_archived": True,
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -137,15 +139,15 @@ class TestEvaluationRunsQueries:
 
     def test_query_evaluations_runs_by_flags(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
-        flags = {
-            "is_closed": True,
-        }
-
-        flags = quote(dumps(flags))
-
         response = authed_api(
-            "GET",
-            f"/preview/evaluations/runs/?flags={flags}&include_archived=true",
+            "POST",
+            "/preview/evaluations/runs/query",
+            json={
+                "include_archived": True,
+                "run": {
+                    "flags": {"is_closed": True},
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -161,15 +163,17 @@ class TestEvaluationRunsQueries:
 
     def test_query_evaluations_runs_by_tags(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
-        tags = {
-            "tags1": "value1",
-            "tags2": "value2",
-        }
-        tags = quote(dumps(tags))
-
         response = authed_api(
-            "GET",
-            f"/preview/evaluations/runs/?tags={tags}",
+            "POST",
+            "/preview/evaluations/runs/query",
+            json={
+                "run": {
+                    "tags": {
+                        "tags1": "value1",
+                        "tags2": "value2",
+                    },
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -184,14 +188,17 @@ class TestEvaluationRunsQueries:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        tags = {
-            "tags1": "value2",
-            "tags2": "value3",
-        }
-        tags = quote(dumps(tags))
         response = authed_api(
-            "GET",
-            f"/preview/evaluations/runs/?tags={tags}",
+            "POST",
+            "/preview/evaluations/runs/query",
+            json={
+                "run": {
+                    "tags": {
+                        "tags1": "value2",
+                        "tags2": "value3",
+                    },
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -207,15 +214,17 @@ class TestEvaluationRunsQueries:
 
     def test_query_evaluations_runs_by_meta(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
-        meta = {
-            "meta1": "value1",
-            "meta2": "value2",
-        }
-        meta = quote(dumps(meta))
-
         response = authed_api(
-            "GET",
-            f"/preview/evaluations/runs/?meta={meta}",
+            "POST",
+            "/preview/evaluations/runs/query",
+            json={
+                "run": {
+                    "meta": {
+                        "meta1": "value1",
+                        "meta2": "value2",
+                    },
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -230,14 +239,17 @@ class TestEvaluationRunsQueries:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        meta = {
-            "meta1": "value2",
-            "meta2": "value3",
-        }
-        meta = quote(dumps(meta))
         response = authed_api(
-            "GET",
-            f"/preview/evaluations/runs/?meta={meta}",
+            "POST",
+            "/preview/evaluations/runs/query",
+            json={
+                "run": {
+                    "meta": {
+                        "meta1": "value2",
+                        "meta2": "value3",
+                    },
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -254,8 +266,13 @@ class TestEvaluationRunsQueries:
     def test_query_evaluations_runs_by_status(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/evaluations/runs/?status=success",
+            "POST",
+            "/preview/evaluations/runs/query",
+            json={
+                "run": {
+                    "status": "success",
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -268,8 +285,13 @@ class TestEvaluationRunsQueries:
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/evaluations/runs/?status=pending",
+            "POST",
+            "/preview/evaluations/runs/query",
+            json={
+                "run": {
+                    "status": "pending",
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -282,8 +304,14 @@ class TestEvaluationRunsQueries:
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/evaluations/runs/?status=failure&include_archived=true",
+            "POST",
+            "/preview/evaluations/runs/query",
+            json={
+                "include_archived": True,
+                "run": {
+                    "status": "failure",
+                },
+            },
         )
         # ----------------------------------------------------------------------
 

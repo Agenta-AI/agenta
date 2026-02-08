@@ -105,7 +105,7 @@ def mock_data(authed_api):
     ]
     response = authed_api(
         "POST",
-        "/preview/tracing/spans/",
+        "/preview/tracing/spans/ingest",
         json={"spans": spans},
     )
 

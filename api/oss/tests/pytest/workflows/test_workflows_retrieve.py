@@ -201,7 +201,10 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve?workflow_revision_id={revision_id}",
+            "/preview/workflows/revisions/retrieve",
+            json={
+                "workflow_revision_ref": {"id": revision_id},
+            },
         )
 
         assert response.status_code == 200
@@ -220,8 +223,10 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve"
-            f"?workflow_revision_slug={revision_slug}",
+            "/preview/workflows/revisions/retrieve",
+            json={
+                "workflow_revision_ref": {"slug": revision_slug},
+            },
         )
 
         assert response.status_code == 200
@@ -243,9 +248,11 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve"
-            f"?workflow_variant_id={variant_id}"
-            f"&workflow_revision_version={revision_version}",
+            "/preview/workflows/revisions/retrieve",
+            json={
+                "workflow_variant_ref": {"id": variant_id},
+                "workflow_revision_ref": {"version": revision_version},
+            },
         )
 
         assert response.status_code == 200
@@ -267,9 +274,11 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve"
-            f"?workflow_variant_slug={variant_slug}"
-            f"&workflow_revision_version={revision_version}",
+            "/preview/workflows/revisions/retrieve",
+            json={
+                "workflow_variant_ref": {"slug": variant_slug},
+                "workflow_revision_ref": {"version": revision_version},
+            },
         )
 
         assert response.status_code == 200
@@ -288,7 +297,10 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve?workflow_variant_id={variant_id}",
+            "/preview/workflows/revisions/retrieve",
+            json={
+                "workflow_variant_ref": {"id": variant_id},
+            },
         )
 
         assert response.status_code == 200
@@ -307,8 +319,10 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve"
-            f"?workflow_variant_slug={variant_slug}",
+            "/preview/workflows/revisions/retrieve",
+            json={
+                "workflow_variant_ref": {"slug": variant_slug},
+            },
         )
 
         assert response.status_code == 200

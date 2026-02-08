@@ -92,29 +92,35 @@ class TestTestsetsQueries:
     def test_list_testsets(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/simple/testsets/",
+            "POST",
+            "/preview/simple/testsets/query",
+            json={},
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] == 1
+        testset_ids = [t["id"] for t in response["testsets"]]
+        assert mock_data["testsets"][0]["id"] in testset_ids
+        assert mock_data["testsets"][1]["id"] not in testset_ids  # archived
         # ----------------------------------------------------------------------
 
     def test_query_testsets_non_archived(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/simple/testsets/",
+            "POST",
+            "/preview/simple/testsets/query",
+            json={},
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] == 1
+        testset_ids = [t["id"] for t in response["testsets"]]
+        assert mock_data["testsets"][0]["id"] in testset_ids
+        assert mock_data["testsets"][1]["id"] not in testset_ids  # archived
         # ----------------------------------------------------------------------
 
     def test_query_testsets_all(self, authed_api, mock_data):
@@ -131,7 +137,9 @@ class TestTestsetsQueries:
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] == 2
+        testset_ids = [t["id"] for t in response["testsets"]]
+        assert mock_data["testsets"][0]["id"] in testset_ids
+        assert mock_data["testsets"][1]["id"] in testset_ids
         # ----------------------------------------------------------------------
 
     def test_query_testsets_by_tags(self, authed_api, mock_data):

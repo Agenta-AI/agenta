@@ -1,6 +1,4 @@
 from uuid import uuid4
-from json import dumps
-from urllib.parse import quote
 
 import pytest
 
@@ -152,8 +150,11 @@ class TestEvaluationScenariosQueries:
     def test_query_evaluation_scenarios_all(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/evaluations/scenarios/",
+            "POST",
+            "/preview/evaluations/scenarios/query",
+            json={
+                "scenario": {},
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -165,14 +166,15 @@ class TestEvaluationScenariosQueries:
         # ----------------------------------------------------------------------
 
     def test_query_evaluation_scenarios_by_tags(self, authed_api, mock_data):
-        # ARRANGE ---------------------------------------------------------------
-        tags = {"tags1": "value1"}
-        # ----------------------------------------------------------------------
-
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            f"/preview/evaluations/scenarios/?tags={quote(dumps(tags))}",
+            "POST",
+            "/preview/evaluations/scenarios/query",
+            json={
+                "scenario": {
+                    "tags": {"tags1": "value1"},
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -184,14 +186,15 @@ class TestEvaluationScenariosQueries:
         # ----------------------------------------------------------------------
 
     def test_query_evaluation_scenarios_by_meta(self, authed_api, mock_data):
-        # ARRANGE ---------------------------------------------------------------
-        meta = {"meta1": "value1"}
-        # ----------------------------------------------------------------------
-
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            f"/preview/evaluations/scenarios/?meta={quote(dumps(meta))}",
+            "POST",
+            "/preview/evaluations/scenarios/query",
+            json={
+                "scenario": {
+                    "meta": {"meta1": "value1"},
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -203,14 +206,16 @@ class TestEvaluationScenariosQueries:
         # ----------------------------------------------------------------------
 
     def test_query_evaluation_scenarios_by_run_ids(self, authed_api, mock_data):
-        # ARRANGE ---------------------------------------------------------------
-        run_id = mock_data["runs"][0]["id"]
-        # ----------------------------------------------------------------------
-
         # ACT ------------------------------------------------------------------
+        run_id = mock_data["runs"][0]["id"]
         response = authed_api(
-            "GET",
-            f"/preview/evaluations/scenarios/?run_ids={run_id}",
+            "POST",
+            "/preview/evaluations/scenarios/query",
+            json={
+                "scenario": {
+                    "run_ids": [run_id],
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -224,8 +229,13 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         run_id = mock_data["runs"][1]["id"]
         response = authed_api(
-            "GET",
-            f"/preview/evaluations/scenarios/?run_ids={run_id}",
+            "POST",
+            "/preview/evaluations/scenarios/query",
+            json={
+                "scenario": {
+                    "run_ids": [run_id],
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -240,8 +250,13 @@ class TestEvaluationScenariosQueries:
         run_1_id = mock_data["runs"][0]["id"]
         run_2_id = mock_data["runs"][1]["id"]
         response = authed_api(
-            "GET",
-            f"/preview/evaluations/scenarios/?run_ids={run_1_id}&run_ids={run_2_id}",
+            "POST",
+            "/preview/evaluations/scenarios/query",
+            json={
+                "scenario": {
+                    "run_ids": [run_1_id, run_2_id],
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -254,8 +269,13 @@ class TestEvaluationScenariosQueries:
     def test_query_evaluation_scenarios_by_status(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/evaluations/scenarios/?status=success",
+            "POST",
+            "/preview/evaluations/scenarios/query",
+            json={
+                "scenario": {
+                    "status": "success",
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -267,8 +287,13 @@ class TestEvaluationScenariosQueries:
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/evaluations/scenarios/?status=pending",
+            "POST",
+            "/preview/evaluations/scenarios/query",
+            json={
+                "scenario": {
+                    "status": "pending",
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -280,8 +305,13 @@ class TestEvaluationScenariosQueries:
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/evaluations/scenarios/?status=running",
+            "POST",
+            "/preview/evaluations/scenarios/query",
+            json={
+                "scenario": {
+                    "status": "running",
+                },
+            },
         )
         # ----------------------------------------------------------------------
 

@@ -46,20 +46,18 @@ def mock_data(authed_api):
 
 
 class TestEvaluationResultsBasics:
-    def test_create_evaluation_steps(self, authed_api, mock_data):
+    def test_create_evaluation_results(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
         scenario_id = mock_data["scenarios"][0]["id"]
 
-        key = "input"
-        repeat_id = str(uuid4())
-        retry_id = str(uuid4())
+        step_key = "input"
+        repeat_idx = 0
 
-        steps = [
+        results = [
             {
-                "key": "input",
-                "repeat_id": repeat_id,
-                "retry_id": retry_id,
+                "step_key": step_key,
+                "repeat_idx": repeat_idx,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
@@ -70,7 +68,7 @@ class TestEvaluationResultsBasics:
         response = authed_api(
             "POST",
             "/preview/evaluations/results/",
-            json={"steps": steps},
+            json={"results": results},
         )
         # ----------------------------------------------------------------------
 
@@ -78,43 +76,34 @@ class TestEvaluationResultsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["steps"][0]["key"] == key
-        assert response["steps"][0]["repeat_id"] == repeat_id
-        assert response["steps"][0]["retry_id"] == retry_id
-        assert response["steps"][0]["scenario_id"] == scenario_id
-        assert response["steps"][0]["run_id"] == run_id
+        assert response["results"][0]["step_key"] == step_key
+        assert response["results"][0]["repeat_idx"] == repeat_idx
+        assert response["results"][0]["scenario_id"] == scenario_id
+        assert response["results"][0]["run_id"] == run_id
         # ----------------------------------------------------------------------
 
-    def test_fetch_evaluation_steps(self, authed_api, mock_data):
+    def test_fetch_evaluation_results(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
         scenario_id = mock_data["scenarios"][1]["id"]
 
-        key_1 = "input"
-        key_2 = "invocation"
-        key_3 = "annotation"
-        repeat_id = str(uuid4())
-        retry_id = str(uuid4())
+        step_key_1 = "input"
+        step_key_2 = "invocation"
+        step_key_3 = "annotation"
 
-        steps = [
+        results = [
             {
-                "key": key_1,
-                "repeat_id": repeat_id,
-                "retry_id": retry_id,
+                "step_key": step_key_1,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
             {
-                "key": key_2,
-                "repeat_id": repeat_id,
-                "retry_id": retry_id,
+                "step_key": step_key_2,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
             {
-                "key": key_3,
-                "repeat_id": repeat_id,
-                "retry_id": retry_id,
+                "step_key": step_key_3,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
@@ -123,7 +112,7 @@ class TestEvaluationResultsBasics:
         response = authed_api(
             "POST",
             "/preview/evaluations/results/",
-            json={"steps": steps},
+            json={"results": results},
         )
 
         assert response.status_code == 200
@@ -133,9 +122,13 @@ class TestEvaluationResultsBasics:
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/evaluations/results/",
-            params={"scenario_id": scenario_id},
+            "POST",
+            "/preview/evaluations/results/query",
+            json={
+                "result": {
+                    "scenario_id": scenario_id,
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -143,41 +136,34 @@ class TestEvaluationResultsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 3
-        assert response["steps"][0]["key"] == key_1
-        assert response["steps"][1]["key"] == key_2
-        assert response["steps"][2]["key"] == key_3
+        step_keys = [r["step_key"] for r in response["results"]]
+        assert step_key_1 in step_keys
+        assert step_key_2 in step_keys
+        assert step_key_3 in step_keys
         # ----------------------------------------------------------------------
 
-    def test_edit_evaluation_steps(self, authed_api, mock_data):
+    def test_edit_evaluation_results(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
         scenario_id = mock_data["scenarios"][0]["id"]
 
-        key_1 = "input"
-        key_2 = "invocation"
-        key_3 = "annotation"
-        repeat_id = str(uuid4())
-        retry_id = str(uuid4())
+        step_key_1 = "input"
+        step_key_2 = "invocation"
+        step_key_3 = "annotation"
 
-        steps = [
+        results = [
             {
-                "key": key_1,
-                "repeat_id": repeat_id,
-                "retry_id": retry_id,
+                "step_key": step_key_1,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
             {
-                "key": key_2,
-                "repeat_id": repeat_id,
-                "retry_id": retry_id,
+                "step_key": step_key_2,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
             {
-                "key": key_3,
-                "repeat_id": repeat_id,
-                "retry_id": retry_id,
+                "step_key": step_key_3,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
@@ -186,62 +172,52 @@ class TestEvaluationResultsBasics:
         response = authed_api(
             "POST",
             "/preview/evaluations/results/",
-            json={"steps": steps},
+            json={"results": results},
         )
 
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 3
-        assert response["steps"][0]["key"] == key_1
-        assert response["steps"][1]["key"] == key_2
-        assert response["steps"][2]["key"] == key_3
 
-        steps = response["steps"]
-        result_ids = [step["id"] for step in steps]
+        results = response["results"]
+        result_ids = [r["id"] for r in results]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        steps[0]["status"] = "success"
-        steps[1]["status"] = "failure"
-        steps[2]["status"] = "cancelled"
+        results[0]["status"] = "success"
+        results[1]["status"] = "failure"
+        results[2]["status"] = "cancelled"
 
         response = authed_api(
             "PATCH",
             "/preview/evaluations/results/",
-            json={"steps": steps},
+            json={"results": results},
         )
-
-        assert response.status_code == 200
-        response = response.json()
-        assert response["count"] == 3
-        assert response["steps"][0]["id"] == result_ids[0]
-        assert response["steps"][0]["status"] == "success"
-        assert response["steps"][1]["id"] == result_ids[1]
-        assert response["steps"][1]["status"] == "failure"
-        assert response["steps"][2]["id"] == result_ids[2]
-        assert response["steps"][2]["status"] == "cancelled"
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
-
+        assert response.status_code == 200
+        response = response.json()
+        assert response["count"] == 3
+        patched = {r["id"]: r for r in response["results"]}
+        assert patched[result_ids[0]]["status"] == "success"
+        assert patched[result_ids[1]]["status"] == "failure"
+        assert patched[result_ids[2]]["status"] == "cancelled"
         # ----------------------------------------------------------------------
 
-    def test_delete_evaluation_steps(self, authed_api, mock_data):
+    def test_delete_evaluation_results(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
         scenario_id = mock_data["scenarios"][0]["id"]
 
-        key_1 = "input"
-        key_2 = "invocation"
-
-        steps = [
+        results = [
             {
-                "key": key_1,
+                "step_key": "input",
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
             {
-                "key": key_2,
+                "step_key": "invocation",
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
@@ -250,14 +226,14 @@ class TestEvaluationResultsBasics:
         response = authed_api(
             "POST",
             "/preview/evaluations/results/",
-            json={"steps": steps},
+            json={"results": results},
         )
 
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 2
 
-        result_ids = [step["id"] for step in response["steps"]]
+        result_ids = [r["id"] for r in response["results"]]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -289,16 +265,14 @@ class TestEvaluationResultsBasics:
         assert response["count"] == 0
         # ----------------------------------------------------------------------
 
-    def test_fetch_evaluation_step(self, authed_api, mock_data):
+    def test_fetch_evaluation_result(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
         scenario_id = mock_data["scenarios"][2]["id"]
 
-        key_1 = "input"
-
-        steps = [
+        results = [
             {
-                "key": key_1,
+                "step_key": "input",
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
@@ -307,14 +281,14 @@ class TestEvaluationResultsBasics:
         response = authed_api(
             "POST",
             "/preview/evaluations/results/",
-            json={"steps": steps},
+            json={"results": results},
         )
 
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
 
-        result_id = response["steps"][0]["id"]
+        result_id = response["results"][0]["id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -328,19 +302,17 @@ class TestEvaluationResultsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["step"]["id"] == result_id
+        assert response["result"]["id"] == result_id
         # ----------------------------------------------------------------------
 
-    def test_edit_evaluation_step(self, authed_api, mock_data):
+    def test_edit_evaluation_result(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
         scenario_id = mock_data["scenarios"][0]["id"]
 
-        key_1 = "input"
-
-        steps = [
+        results = [
             {
-                "key": key_1,
+                "step_key": "input",
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
@@ -349,48 +321,45 @@ class TestEvaluationResultsBasics:
         response = authed_api(
             "POST",
             "/preview/evaluations/results/",
-            json={"steps": steps},
+            json={"results": results},
         )
 
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["steps"][0]["key"] == key_1
-        assert response["steps"][0]["status"] == "pending"
+        assert response["results"][0]["step_key"] == "input"
+        assert response["results"][0]["status"] == "pending"
 
-        step = response["steps"][0]
-        result_id = step["id"]
+        result = response["results"][0]
+        result_id = result["id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        step["status"] = "success"
+        result["status"] = "success"
 
         response = authed_api(
             "PATCH",
             f"/preview/evaluations/results/{result_id}",
-            json={"step": step},
+            json={"result": result},
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        print(response)
         assert response["count"] == 1
-        assert response["step"]["id"] == result_id
-        assert response["step"]["status"] == "success"
+        assert response["result"]["id"] == result_id
+        assert response["result"]["status"] == "success"
         # ----------------------------------------------------------------------
 
-    def test_delete_evaluation_step(self, authed_api, mock_data):
+    def test_delete_evaluation_result(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
         scenario_id = mock_data["scenarios"][0]["id"]
 
-        key_1 = "input"
-
-        steps = [
+        results = [
             {
-                "key": key_1,
+                "step_key": "input",
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
@@ -399,14 +368,14 @@ class TestEvaluationResultsBasics:
         response = authed_api(
             "POST",
             "/preview/evaluations/results/",
-            json={"steps": steps},
+            json={"results": results},
         )
 
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
 
-        result_id = response["steps"][0]["id"]
+        result_id = response["results"][0]["id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------

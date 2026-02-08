@@ -98,29 +98,34 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "GET",
-            f"/preview/simple/testsets/testcases/{testcase_id}",
+            f"/preview/testcases/{testcase_id}",
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        print(response)
         assert response["testcase"] == testcases[0]
         # ----------------------------------------------------------------------
 
     def test_list_testcases(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
+        testset = mock_data["testsets"][0]
+        testset_id = testset["id"]
+
         response = authed_api(
-            "GET",
-            "/preview/simple/testsets/testcases/",
+            "POST",
+            "/preview/testcases/query",
+            json={
+                "testset_id": testset_id,
+            },
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] == 6
+        assert response["count"] == len(testset["data"]["testcases"])
         # ----------------------------------------------------------------------
 
     def test_query_testcases_by_testcase_ids(self, authed_api, mock_data):
@@ -131,7 +136,7 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/testcases/query",
+            "/preview/testcases/query",
             json={
                 "testcase_ids": testcase_ids,
             },
@@ -151,7 +156,7 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/testcases/query",
+            "/preview/testcases/query",
             json={
                 "testset_id": testset_id,
             },

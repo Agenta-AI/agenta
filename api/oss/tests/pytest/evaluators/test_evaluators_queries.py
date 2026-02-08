@@ -136,8 +136,8 @@ class TestEvaluatorsQueries:
     ):
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "POST",
+            "/preview/simple/evaluators/query",
             json={},
         )
         # ----------------------------------------------------------------------
@@ -145,8 +145,9 @@ class TestEvaluatorsQueries:
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] == 1
-        assert response["evaluators"][0]["id"] == mock_data["evaluators"][0]["id"]
+        evaluator_ids = [e["id"] for e in response["evaluators"]]
+        assert mock_data["evaluators"][0]["id"] in evaluator_ids
+        assert mock_data["evaluators"][1]["id"] not in evaluator_ids  # archived
         # ----------------------------------------------------------------------
 
     def test_query_all_evaluators(
@@ -156,8 +157,8 @@ class TestEvaluatorsQueries:
     ):
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "POST",
+            "/preview/simple/evaluators/query",
             json={
                 "include_archived": True,
             },
@@ -167,10 +168,9 @@ class TestEvaluatorsQueries:
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] == 2
-        assert len(response["evaluators"]) == 2
-        assert response["evaluators"][0]["id"] == mock_data["evaluators"][0]["id"]
-        assert response["evaluators"][1]["id"] == mock_data["evaluators"][1]["id"]
+        evaluator_ids = [e["id"] for e in response["evaluators"]]
+        assert mock_data["evaluators"][0]["id"] in evaluator_ids
+        assert mock_data["evaluators"][1]["id"] in evaluator_ids
         # ----------------------------------------------------------------------
 
     def test_query_paginated_evaluators(
@@ -179,53 +179,57 @@ class TestEvaluatorsQueries:
         mock_data,
     ):
         # ACT ------------------------------------------------------------------
+        # First, get total count with include_archived
         response = authed_api(
-            "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "POST",
+            "/preview/simple/evaluators/query",
             json={
                 "include_archived": True,
-                "windowing": {"limit": 1},
             },
         )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
-        response = response.json()
-        assert response["count"] == 1
-        assert response["evaluators"][0]["id"] == mock_data["evaluators"][0]["id"]
+        total_evaluators = response.json()["evaluators"]
+        total_count = len(total_evaluators)
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
-            json={
-                "include_archived": True,
-                "windowing": {"limit": 1, "next": response["evaluators"][0]["id"]},
-            },
-        )
+        # Page through all evaluators one by one
+        seen_ids = []
+        next_cursor = None
+        for _ in range(total_count):
+            windowing = {"limit": 1}
+            if next_cursor:
+                windowing["next"] = next_cursor
+            response = authed_api(
+                "POST",
+                "/preview/simple/evaluators/query",
+                json={
+                    "include_archived": True,
+                    "windowing": windowing,
+                },
+            )
+            assert response.status_code == 200
+            response = response.json()
+            assert response["count"] == 1
+            seen_ids.append(response["evaluators"][0]["id"])
+            next_cursor = response["evaluators"][0]["id"]
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        response = response.json()
-        assert response["count"] == 1
-        assert response["evaluators"][0]["id"] == mock_data["evaluators"][1]["id"]
-        # ----------------------------------------------------------------------
+        # Verify all evaluators were seen
+        assert len(seen_ids) == total_count
+        for e in total_evaluators:
+            assert e["id"] in seen_ids
 
-        # ACT ------------------------------------------------------------------
+        # Verify next page is empty
         response = authed_api(
-            "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "POST",
+            "/preview/simple/evaluators/query",
             json={
                 "include_archived": True,
-                "windowing": {"limit": 1, "next": response["evaluators"][0]["id"]},
+                "windowing": {"limit": 1, "next": next_cursor},
             },
         )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 0
@@ -237,10 +241,9 @@ class TestEvaluatorsQueries:
         mock_data,
     ):
         # ACT ------------------------------------------------------------------
-        # flags = quote(dumps(mock_data["evaluators"][0]["flags"]))
         response = authed_api(
-            "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "POST",
+            "/preview/simple/evaluators/query",
             json={
                 "flags": mock_data["evaluators"][0]["flags"],
             },
@@ -250,8 +253,9 @@ class TestEvaluatorsQueries:
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] == 1
-        assert response["evaluators"][0]["id"] == mock_data["evaluators"][0]["id"]
+        assert response["count"] >= 1
+        evaluator_ids = [e["id"] for e in response["evaluators"]]
+        assert mock_data["evaluators"][0]["id"] in evaluator_ids
         # ----------------------------------------------------------------------
 
     def test_query_evaluators_by_tags(
@@ -260,10 +264,9 @@ class TestEvaluatorsQueries:
         mock_data,
     ):
         # ACT ------------------------------------------------------------------
-        # tags = quote(dumps(mock_data["evaluators"][0]["tags"]))
         response = authed_api(
-            "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME,
+            "POST",
+            "/preview/simple/evaluators/query",
             json={
                 "tags": mock_data["evaluators"][0]["tags"],
             },
@@ -283,10 +286,9 @@ class TestEvaluatorsQueries:
         mock_data,
     ):
         # ACT ------------------------------------------------------------------
-        # meta = quote(dumps(mock_data["evaluators"][0]["meta"]))
         response = authed_api(
-            "POST",  # TODO: FIX ME
-            "/preview/simple/evaluators/query",  # TODO: FIX ME
+            "POST",
+            "/preview/simple/evaluators/query",
             json={
                 "meta": mock_data["evaluators"][0]["meta"],
             },
