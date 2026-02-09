@@ -88,7 +88,7 @@ export const chatTurnIdsAtom = atom(
         const baselineList = (baseline && byBaseline[baseline]) || []
         if (Array.isArray(baselineList) && baselineList.length > 0) {
             // Seed per-set entry from baseline-scoped history
-            Promise.resolve().then(() => {
+            queueMicrotask(() => {
                 getDefaultStore().set(allChatTurnIdsMapAtom, (prev) => {
                     const current = prev[key]
                     if (current) return prev // Already updated
@@ -101,7 +101,7 @@ export const chatTurnIdsAtom = atom(
         // Nothing yet: initialize a first logical id and seed both map and master
         const generated = `lt-${generateId()}`
         const nextList = [generated]
-        Promise.resolve().then(() => {
+        queueMicrotask(() => {
             const store = getDefaultStore()
             if (baseline) {
                 store.set(chatTurnIdsByBaselineAtom, (prev) => ({

@@ -64,7 +64,6 @@ export const rowChatTurnAtomFamily = atomFamily((p: {rowId: string; turnId: stri
 export const rowVariablesAtomFamily = atomFamily((p: {rowId: string; revisionId: string}) =>
     atom((get) => {
         const row = get(inputRowAtomFamily(p.rowId)) as InputRow | null
-        console.log("rowVariablesAtomFamily", row)
         return row?.variables ?? []
     }),
 )

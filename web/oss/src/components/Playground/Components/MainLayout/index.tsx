@@ -17,9 +17,9 @@ import {
     appChatModeAtom,
     displayedVariantsAtom,
     isComparisonViewAtom,
-    selectedVariantsAtom,
     // WP-8.1: Use playgroundRevisionListAtom (molecule-backed) instead of legacy selector
     playgroundRevisionListAtom,
+    selectedVariantsAtom,
 } from "../../state/atoms"
 import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
 import PlaygroundComparisonGenerationInputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonInputHeader/index."
