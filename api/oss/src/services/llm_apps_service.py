@@ -6,9 +6,11 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils import common  # noqa: F401
 from oss.src.services import helpers
 from oss.src.services.auth_service import sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
+from oss.src.apis.fastapi.tracing.utils import make_hash_id  # noqa: F401
 from oss.src.models.shared_models import InvokationResult, Result, Error
 
 log = get_module_logger(__name__)
@@ -166,8 +168,8 @@ async def make_payload(
                 item = datapoint.get(input_name, "")
                 inputs[input_name] = item
         elif param["type"] == "messages":
-            # TODO: Right now the FE is saving chats always under the column name chats. The whole logic for handling chats and dynamic inputs is convoluted and needs rework in time.
-            chat_data = datapoint.get("messages") or datapoint.get("chat", "")
+            # TODO: The FE hardcodes "messages" as the testset column name for chat data.
+            chat_data = datapoint.get("messages", "")
             item = json.loads(chat_data)
             payload[param["name"]] = item
         elif param["type"] == "file_url":
@@ -186,7 +188,7 @@ async def make_payload(
         inputs = {key: datapoint.get(key, None) for key in input_keys}
 
         if is_chat:
-            messages_data = datapoint.get("messages") or datapoint.get("chat", "[]")
+            messages_data = datapoint.get("messages", "[]")
             messages = json.loads(messages_data)
             payload["messages"] = messages
     except Exception as e:  # pylint: disable=broad-exception-caught
@@ -373,6 +375,10 @@ async def run_with_retry(
 
     if "references" in kwargs and "testcase_id" in input_data:
         kwargs["references"]["testcase"] = {"id": input_data["testcase_id"]}
+
+    references = kwargs.get("references", None)  # noqa: F841
+    links = kwargs.get("links", None)  # noqa: F841
+    # hash_id = make_hash_id(references=references, links=links)
 
     retries = 0
     last_exception = None
