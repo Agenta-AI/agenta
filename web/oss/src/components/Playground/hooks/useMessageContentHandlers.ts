@@ -223,6 +223,12 @@ export function useMessageContentHandlers() {
                 baseArray = [...(contentProperty!.value as AnyObj[])]
             } else {
                 const textNode = buildTextNode((contentProperty as AnyObj)?.__metadata)
+                // Preserve existing text when converting from string to array
+                const existingText =
+                    typeof contentProperty?.value === "string" ? contentProperty.value : ""
+                if (existingText && textNode?.text) {
+                    textNode.text = {...textNode.text, value: existingText}
+                }
                 baseArray = [textNode]
             }
             baseArray.push(newNode)
