@@ -520,6 +520,26 @@ async def verify_bearer_token(
 
             raise UnauthorizedException()
 
+        # Verify the authenticated user is a member of the requested project.
+        # Only needed when the caller supplied an explicit project_id
+        # (default-project path already resolves the user's own workspace).
+        if is_ee() and query_project_id:
+            project_members = await db_manager_ee.get_project_members(
+                project_id=project_id
+            )
+            member_user_ids = {str(m.user_id) for m in project_members}
+
+            if user_id not in member_user_ids:
+                await set_cache(
+                    project_id=query_project_id,
+                    user_id=user_id,
+                    namespace="verify_bearer_token",
+                    key=cache_key,
+                    value={"deny": True},
+                )
+
+                raise UnauthorizedException()
+
         # ----------------------------------------------------------------------
         try:
             _cache_key = {}
