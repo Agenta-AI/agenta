@@ -406,7 +406,6 @@ export const renderMap: RenderFunctions = {
         //    or provider tool types like web_search_preview, code_interpreter, etc.)
         const value = props.value
         const isToolByName = metadata.name === "ToolConfiguration"
-        console.log("ToolByName", value)
         const isToolByStructure =
             value &&
             typeof value === "object" && // OpenAI function tool format
