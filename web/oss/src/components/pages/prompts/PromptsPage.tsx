@@ -11,8 +11,10 @@ import {getTemplateKey, timeout} from "@/oss/components/pages/app-management/ass
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import DeleteAppModal from "@/oss/components/pages/app-management/modals/DeleteAppModal"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
-import EditAppModal from "@/oss/components/pages/app-management/modals/EditAppModal"
-import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
+// TEMPORARY: Disablig name editing
+// import EditAppModal from "@/oss/components/pages/app-management/modals/EditAppModal"
+// TEMPORARY: Disablig name editing
+// import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
@@ -101,7 +103,8 @@ const PromptsPage = () => {
     const [isMovingItem, setIsMovingItem] = useState(false)
     const [isDeletingFolder, setIsDeletingFolder] = useState(false)
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
-    const openEditAppModal = useSetAtom(openEditAppModalAtom)
+    // TEMPORARY: Disablig name editing
+    // const openEditAppModal = useSetAtom(openEditAppModalAtom)
     const setPromptsTableMeta = useSetAtom(promptsTableMetaAtom)
 
     useBreadcrumbsEffect({breadcrumbs: {prompts: {label: "prompts"}}}, [])
@@ -768,7 +771,8 @@ const PromptsPage = () => {
         onDeleteFolder: handleOpenDeleteModal,
         onMoveItem: handleOpenMoveModal,
         onOpenAppOverview: handleOpenAppOverview,
-        onOpenEditAppModal: openEditAppModal,
+        // TEMPORARY: Disablig name editing
+        // onOpenEditAppModal: openEditAppModal,
         onOpenDeleteAppModal: openDeleteAppModal,
         getAppTypeIcon: renderAppTypeIcon,
     })
@@ -877,7 +881,8 @@ const PromptsPage = () => {
             />
 
             <DeleteAppModal />
-            <EditAppModal />
+            {/* TEMPORARY: Disablig name editing */}
+            {/* <EditAppModal /> */}
         </PageLayout>
     )
 }

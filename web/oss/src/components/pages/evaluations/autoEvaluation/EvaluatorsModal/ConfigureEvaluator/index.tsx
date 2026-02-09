@@ -540,7 +540,8 @@ const ConfigureEvaluator = ({
                                             ]}
                                             className="w-full"
                                         >
-                                            <Input />
+                                            {/* TEMPORARY: Disablig name editing */}
+                                            <Input disabled={editMode} />
                                         </Form.Item>
                                     </div>
 
@@ -658,7 +659,8 @@ const ConfigureEvaluator = ({
                                             ]}
                                             className="w-full"
                                         >
-                                            <Input />
+                                            {/* TEMPORARY: Disablig name editing */}
+                                            <Input disabled={editMode} />
                                         </Form.Item>
                                     </div>
 

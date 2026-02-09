@@ -1,5 +1,7 @@
 import {MoreOutlined} from "@ant-design/icons"
-import {GearSix, Note, PencilLine, Trash} from "@phosphor-icons/react"
+import {GearSix, Note, Trash} from "@phosphor-icons/react"
+// TEMPORARY: Disablig name editing
+// import {PencilLine} from "@phosphor-icons/react"
 import {Button, Dropdown, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
@@ -14,10 +16,16 @@ import {getAppTypeIcon} from "../../prompts/assets/iconHelpers"
 interface AppTableProps {
     filteredApps: ListAppsItem[]
     openDeleteAppModal: (appDetails: ListAppsItem) => void
-    openEditAppModal: (appDetails: ListAppsItem) => void
+    // TEMPORARY: Disablig name editing
+    // openEditAppModal: (appDetails: ListAppsItem) => void
 }
 
-const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTableProps) => {
+const AppTable = ({
+    filteredApps,
+    openDeleteAppModal,
+    // TEMPORARY: Disablig name editing
+    // openEditAppModal,
+}: AppTableProps) => {
     const router = useRouter()
     const {baseAppURL} = useURL()
 
@@ -79,16 +87,17 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
                                         router.push(`${baseAppURL}/${record.app_id}/overview`)
                                     },
                                 },
-                                {type: "divider"},
-                                {
-                                    key: "rename_app",
-                                    label: "Rename",
-                                    icon: <PencilLine size={16} />,
-                                    onClick: (e: any) => {
-                                        e.domEvent.stopPropagation()
-                                        openEditAppModal(record)
-                                    },
-                                },
+                                // TEMPORARY: Disablig name editing
+                                // {type: "divider"},
+                                // {
+                                //     key: "rename_app",
+                                //     label: "Rename",
+                                //     icon: <PencilLine size={16} />,
+                                //     onClick: (e: any) => {
+                                //         e.domEvent.stopPropagation()
+                                //         openEditAppModal(record)
+                                //     },
+                                // },
                                 {
                                     key: "delete_app",
                                     label: "Delete",
