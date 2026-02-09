@@ -60,7 +60,6 @@ export const latestRevisionIdByVariantIdAtomFamily = atomFamily((variantId: stri
     selectAtom(
         revisionsByVariantIdAtomFamily(variantId),
         (revs: any[]) => {
-            console.log("variantRevisionsQueryFamily - latestRevisionIdByVariantIdAtomFamily")
             if (!Array.isArray(revs) || revs.length === 0) return null
             // Prefer createdAtTimestamp when available, fallback to numeric revision
             const latest = revs.reduce((acc: any, r: any) => {
@@ -80,7 +79,6 @@ export const latestRevisionInfoByVariantIdAtomFamily = atomFamily((variantId: st
     selectAtom(
         revisionsByVariantIdAtomFamily(variantId),
         (revs: any[]) => {
-            console.log("variantRevisionsQueryFamily - latestRevisionInfoByVariantIdAtomFamily")
             if (!Array.isArray(revs) || revs.length === 0) return null
             return revs.reduce((acc: any, r: any) => {
                 if (!acc) return r

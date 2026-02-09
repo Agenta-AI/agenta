@@ -66,7 +66,6 @@ const buildEnhancedRevisions = async (
     projectId: string,
 ): Promise<EnhancedVariant[]> => {
     const parent = toParentVariant(variant)
-    console.log("buildEnhancedRevisions")
     const revisions = await fetchRevisions(variant.variantId, projectId)
 
     if (!Array.isArray(revisions) || revisions.length === 0) {
@@ -124,7 +123,6 @@ const buildEnhancedRevisions = async (
 export const useAppVariantRevisions = (appId?: string | null) => {
     const projectId = useAtomValue(projectIdAtom)
 
-    console.log("useAppVariantRevisions")
     const query = useQuery({
         queryKey: ["appVariantRevisions", projectId, appId],
         staleTime: 15_000,
