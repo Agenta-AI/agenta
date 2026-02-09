@@ -133,7 +133,8 @@ export const playgroundIsChatModeAtom = atom<boolean | undefined>((get) => {
  */
 export const playgroundRevisionDeploymentAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const envs = get(environmentsAtom) as any[]
+        const envs = get(environmentsAtom)
+        if (!Array.isArray(envs)) return null
         const camel = envs.map((env: any) =>
             Object.fromEntries(Object.entries(env).map(([k, v]) => [snakeToCamel(k), v])),
         ) as any[]
@@ -147,7 +148,8 @@ export const playgroundRevisionDeploymentAtomFamily = atomFamily((revisionId: st
  */
 export const deployedRevisionIdByEnvironmentAtomFamily = atomFamily((envName: string) =>
     atom<string | null>((get) => {
-        const envs = get(environmentsAtom) as any[]
+        const envs = get(environmentsAtom)
+        if (!Array.isArray(envs)) return null
         const env = envs.find((e: any) => e.name === envName || e.environment_name === envName)
         return env?.deployed_app_variant_revision_id ?? env?.deployedAppVariantRevisionId ?? null
     }),

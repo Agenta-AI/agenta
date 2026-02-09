@@ -17,11 +17,8 @@ import {
 import {isLocalDraftId} from "../shared/utils/revisionLabel"
 
 import {buildLegacyAppRevisionDraftPatch, applyLegacyAppRevisionDraftPatch} from "./snapshot"
-import {createLocalDraftFromRevision, localDraftIdsAtom} from "./state/localDrafts"
-import {
-    legacyAppRevisionDraftAtomFamily,
-    legacyAppRevisionServerDataAtomFamily,
-} from "./state/store"
+import {createLocalDraftFromRevision} from "./state/localDrafts"
+import {legacyAppRevisionDraftAtomFamily} from "./state/store"
 import {resolveRootSourceId} from "./utils/sourceResolution"
 
 // ============================================================================
@@ -101,23 +98,6 @@ export const legacyAppRevisionSnapshotAdapter: RunnableSnapshotAdapter = {
         }
 
         try {
-            // Deduplication: check if a local draft already exists for this root source.
-            // This prevents HMR re-hydration from creating duplicate drafts when the
-            // URL snapshot hash is re-processed after module reload.
-            const store = getDefaultStore()
-            const rootSource = resolveRootSourceId(sourceRevisionId) ?? sourceRevisionId
-            const existingDraftIds = store.get(localDraftIdsAtom)
-            for (const existingId of existingDraftIds) {
-                const existingData = store.get(
-                    legacyAppRevisionServerDataAtomFamily(existingId),
-                ) as {
-                    _sourceRevisionId?: string
-                } | null
-                if (existingData?._sourceRevisionId === rootSource) {
-                    return existingId
-                }
-            }
-
             // Create a new local draft from the source revision
             // This may return null if source data is not available yet
             const localDraftId = createLocalDraftFromRevision(sourceRevisionId)
