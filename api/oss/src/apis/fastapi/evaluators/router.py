@@ -80,7 +80,7 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
-# TEMPORARY: Disablig name editing
+# TEMPORARY: Disabling name editing
 RENAME_EVALUATORS_DISABLED_MESSAGE = "Renaming evaluators is temporarily disabled."
 
 
@@ -400,7 +400,7 @@ class EvaluatorsRouter:
         if str(evaluator_id) != str(evaluator_edit_request.evaluator.id):
             return EvaluatorResponse()
 
-        # TEMPORARY: Disablig name editing
+        # TEMPORARY: Disabling name editing
         existing_evaluator = await self.evaluators_service.fetch_evaluator(
             project_id=UUID(request.state.project_id),
             evaluator_ref=Reference(id=evaluator_id),
@@ -1218,7 +1218,7 @@ class SimpleEvaluatorsRouter:
         if str(evaluator_id) != str(simple_evaluator_edit_request.evaluator.id):
             return SimpleEvaluatorResponse()
 
-        # TEMPORARY: Disablig name editing
+        # TEMPORARY: Disabling name editing
         existing_simple_evaluator = await self.simple_evaluators_service.fetch(
             project_id=UUID(request.state.project_id),
             evaluator_id=evaluator_id,

@@ -5,7 +5,7 @@ import {Button, Flex, Input, Pagination, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
-// TEMPORARY: Disablig name editing
+// TEMPORARY: Disabling name editing
 // import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import usePagination from "@/oss/hooks/usePagination"
 import {ListAppsItem} from "@/oss/lib/Types"
@@ -33,7 +33,7 @@ const ApplicationManagementSection = ({
     setSearchTerm,
 }: ApplicationManagementSectionProps) => {
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
-    // TEMPORARY: Disablig name editing
+    // TEMPORARY: Disabling name editing
     // const openEditAppModal = useSetAtom(openEditAppModalAtom)
 
     const {
@@ -73,9 +73,9 @@ const ApplicationManagementSection = ({
                 {apps.length ? (
                     <>
                         <div>
-                            {/* TEMPORARY: Disablig name editing */}
+                            {/* TEMPORARY: Disabling name editing */}
                             {/*
-                            TEMPORARY: Disablig name editing
+                            TEMPORARY: Disabling name editing
                             openEditAppModal={openEditAppModal}
                             */}
                             <AppTable

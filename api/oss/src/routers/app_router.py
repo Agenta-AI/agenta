@@ -63,7 +63,7 @@ from oss.src.models.shared_models import AppType
 router = APIRouter()
 
 log = get_module_logger(__name__)
-# TEMPORARY: Disablig name editing
+# TEMPORARY: Disabling name editing
 RENAME_APPS_DISABLED_MESSAGE = "Renaming applications is temporarily disabled."
 
 
@@ -368,7 +368,7 @@ async def update_app(
                 status_code=403,
             )
 
-    # TEMPORARY: Disablig name editing
+    # TEMPORARY: Disabling name editing
     if (
         "app_name" in payload.model_fields_set
         and payload.app_name is not None

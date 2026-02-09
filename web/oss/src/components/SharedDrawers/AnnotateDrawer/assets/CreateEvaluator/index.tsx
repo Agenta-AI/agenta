@@ -299,7 +299,7 @@ const CreateEvaluator = ({
                     rules={[{required: true, message: "Evaluator name is required!"}]}
                     className="mb-0"
                 >
-                    {/* TEMPORARY: Disablig name editing */}
+                    {/* TEMPORARY: Disabling name editing */}
                     <Input placeholder="Enter a name" disabled={isEditMode} />
                 </Form.Item>
             </div>

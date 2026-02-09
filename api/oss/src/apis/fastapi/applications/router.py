@@ -62,7 +62,7 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
-# TEMPORARY: Disablig name editing
+# TEMPORARY: Disabling name editing
 RENAME_APPS_DISABLED_MESSAGE = "Renaming applications is temporarily disabled."
 
 
@@ -385,7 +385,7 @@ class ApplicationsRouter:
                 detail="Application ID in path does not match application ID in request body.",
             )
 
-        # TEMPORARY: Disablig name editing
+        # TEMPORARY: Disabling name editing
         existing_application = await self.applications_service.fetch_application(
             project_id=UUID(request.state.project_id),
             application_ref=Reference(id=application_id),

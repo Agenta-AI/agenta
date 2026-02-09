@@ -1,6 +1,6 @@
 import {MoreOutlined} from "@ant-design/icons"
 import {GearSix, Note, Trash} from "@phosphor-icons/react"
-// TEMPORARY: Disablig name editing
+// TEMPORARY: Disabling name editing
 // import {PencilLine} from "@phosphor-icons/react"
 import {Button, Dropdown, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
@@ -16,14 +16,14 @@ import {getAppTypeIcon} from "../../prompts/assets/iconHelpers"
 interface AppTableProps {
     filteredApps: ListAppsItem[]
     openDeleteAppModal: (appDetails: ListAppsItem) => void
-    // TEMPORARY: Disablig name editing
+    // TEMPORARY: Disabling name editing
     // openEditAppModal: (appDetails: ListAppsItem) => void
 }
 
 const AppTable = ({
     filteredApps,
     openDeleteAppModal,
-    // TEMPORARY: Disablig name editing
+    // TEMPORARY: Disabling name editing
     // openEditAppModal,
 }: AppTableProps) => {
     const router = useRouter()
@@ -87,7 +87,7 @@ const AppTable = ({
                                         router.push(`${baseAppURL}/${record.app_id}/overview`)
                                     },
                                 },
-                                // TEMPORARY: Disablig name editing
+                                // TEMPORARY: Disabling name editing
                                 // {type: "divider"},
                                 // {
                                 //     key: "rename_app",
