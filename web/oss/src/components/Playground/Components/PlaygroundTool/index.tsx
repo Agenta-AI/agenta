@@ -120,8 +120,17 @@ function matchesToolPayload(toolObj: ToolObj, payload: Record<string, any>): boo
     const toolObjAny = toolObj as any
     if (typeof payload.type === "string" && toolObjAny.type === payload.type) return true
     if (typeof payload.name === "string" && toolObjAny.name === payload.name) return true
+    // Single-key existence check for provider-specific keys (e.g. Google's {code_execution: {}}).
+    // Exclude common fields like "type" and "name" because they appear across providers and
+    // would cause false positives (e.g. Anthropic tools matching OpenAI's web_search spec).
     const payloadKeys = Object.keys(payload)
-    if (payloadKeys.length === 1 && payloadKeys[0] in toolObjAny) return true
+    if (
+        payloadKeys.length === 1 &&
+        payloadKeys[0] !== "type" &&
+        payloadKeys[0] !== "name" &&
+        payloadKeys[0] in toolObjAny
+    )
+        return true
     return false
 }
 
