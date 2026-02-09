@@ -168,8 +168,10 @@ async def make_payload(
                 item = datapoint.get(input_name, "")
                 inputs[input_name] = item
         elif param["type"] == "messages":
-            # TODO: The FE hardcodes "messages" as the testset column name for chat data.
-            chat_data = datapoint.get("messages", "")
+            # TODO: The FE uses both "messages" and "chat" as testset column names
+            # for chat data ("chat" is hardcoded in SaveTestsetModal when re-saving
+            # evaluation results). Prefer "messages", fall back to "chat".
+            chat_data = datapoint.get("messages") or datapoint.get("chat", "")
             item = json.loads(chat_data)
             payload[param["name"]] = item
         elif param["type"] == "file_url":
@@ -188,7 +190,7 @@ async def make_payload(
         inputs = {key: datapoint.get(key, None) for key in input_keys}
 
         if is_chat:
-            messages_data = datapoint.get("messages", "[]")
+            messages_data = datapoint.get("messages") or datapoint.get("chat", "[]")
             messages = json.loads(messages_data)
             payload["messages"] = messages
     except Exception as e:  # pylint: disable=broad-exception-caught
