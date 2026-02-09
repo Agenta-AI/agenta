@@ -12,13 +12,10 @@ export const buildCurlSnippet = (
   -d '{
     "variant_ref": {
       "slug": "${variantSlug}",
-      "version": ${variantVersion},
-      "id": null
+      "version": ${variantVersion}
     },
     "application_ref": {
-      "slug": "${appSlug}",
-      "version": null,
-      "id": null
+      "slug": "${appSlug}"
     }
   }'
 `

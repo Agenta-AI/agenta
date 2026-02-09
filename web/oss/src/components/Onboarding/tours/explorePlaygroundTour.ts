@@ -25,11 +25,13 @@ const explorePlaygroundTour: OnboardingTour = {
             title: "Run Your Prompt",
             content: "Click Run to test your prompt with the current inputs. Try it now.",
             selector: '[data-tour="run-button"]',
-            side: "bottom",
+            side: "left",
             showControls: true,
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            pointerPadding: 10,
+            pointerRadius: 8,
         },
         {
             icon: "🗂️",
@@ -42,6 +44,8 @@ const explorePlaygroundTour: OnboardingTour = {
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            pointerPadding: 10,
+            pointerRadius: 8,
         },
         {
             icon: "💾",
@@ -54,6 +58,8 @@ const explorePlaygroundTour: OnboardingTour = {
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            pointerPadding: 10,
+            pointerRadius: 8,
         },
         {
             icon: "⚖️",
@@ -66,6 +72,8 @@ const explorePlaygroundTour: OnboardingTour = {
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            pointerPadding: 10,
+            pointerRadius: 8,
         },
     ],
 }

@@ -148,6 +148,21 @@ const SettingsIcon: IconComponent = (props) => (
   </svg>
 );
 
+const ShieldIcon: IconComponent = (props) => {
+  const {colorMode} = useColorMode();
+  const isDark = colorMode === 'dark';
+
+  return isDark ? (
+    <svg {...filledSvgProps} {...props}>
+      <path d="M12 1.95898L3 4.95898V11.9119C3 14.6493 4.18351 16.6696 5.85876 18.2592C7.5058 19.822 9.65956 20.997 11.6439 22.0675L12 22.2596L12.3561 22.0675C14.3404 20.997 16.4942 19.822 18.1412 18.2592C19.8165 16.6696 21 14.6493 21 11.9119V4.95898L12 1.95898Z" />
+    </svg>
+  ) : (
+    <svg {...strokeSvgProps} {...props}>
+      <path d="M20 5.75L12 3L4 5.75V11.9123C4 16.8848 8 19 12 21.1579C16 19 20 16.8848 20 11.9123V5.75Z" />
+    </svg>
+  );
+};
+
 const ServerIcon: IconComponent = (props) => {
   const {colorMode} = useColorMode();
   const isDark = colorMode === 'dark';
@@ -198,6 +213,7 @@ const ICON_LIBRARIES: Record<string, IconLibrary> = {
     clock: ClockIcon,
     cookbook: CookbookIcon,
     settings: SettingsIcon,
+    shield: ShieldIcon,
     server: ServerIcon,
     sun: SunIcon,
     moon: MoonIcon,

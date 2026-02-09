@@ -59,28 +59,6 @@ from agenta.sdk.models.git import (
 )
 
 
-# oss.src.core.workflows.dtos
-from typing import Optional, Dict, Any
-from uuid import UUID, uuid4
-from urllib.parse import urlparse
-
-from pydantic import (
-    BaseModel,
-    Field,
-    model_validator,
-    ValidationError,
-)
-
-from jsonschema import (
-    Draft202012Validator,
-    Draft201909Validator,
-    Draft7Validator,
-    Draft4Validator,
-    Draft6Validator,
-)
-from jsonschema.exceptions import SchemaError
-
-
 class JsonSchemas(BaseModel):
     parameters: Optional[Schema] = None
     inputs: Optional[Schema] = None
@@ -719,35 +697,40 @@ class ApplicationRevisionsResponse(BaseModel):
 # simple applications ------------------------------------------------------------
 
 
-class LegacyApplicationFlags(WorkflowFlags):
+class SimpleApplicationFlags(ApplicationFlags):
     pass
 
 
-class LegacyApplicationData(WorkflowRevisionData):
+class SimpleApplicationData(ApplicationRevisionData):
     pass
 
 
-class LegacyApplication(Identifier, Slug, Lifecycle, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
+class SimpleApplication(Identifier, Slug, Lifecycle, Header, Metadata):
+    flags: Optional[SimpleApplicationFlags] = None
 
-    data: Optional[LegacyApplicationData] = None
-
-
-class LegacyApplicationCreate(Slug, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
-
-    data: Optional[LegacyApplicationData] = None
+    data: Optional[SimpleApplicationData] = None
 
 
-class LegacyApplicationEdit(Identifier, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
+class SimpleApplicationCreate(Slug, Header, Metadata):
+    flags: Optional[SimpleApplicationFlags] = None
 
-    data: Optional[LegacyApplicationData] = None
+    data: Optional[SimpleApplicationData] = None
 
 
-class LegacyApplicationResponse(BaseModel):
+class SimpleApplicationEdit(Identifier, Header, Metadata):
+    flags: Optional[SimpleApplicationFlags] = None
+
+    data: Optional[SimpleApplicationData] = None
+
+
+class SimpleApplicationResponse(BaseModel):
     count: int = 0
-    application: Optional[LegacyApplication] = None
+    application: Optional[SimpleApplication] = None
+
+
+class SimpleApplicationsResponse(BaseModel):
+    count: int = 0
+    applications: List[SimpleApplication] = []
 
 
 # end of oss.src.core.applications.dtos

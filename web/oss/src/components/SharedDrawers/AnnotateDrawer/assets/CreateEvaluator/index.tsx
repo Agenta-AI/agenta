@@ -330,6 +330,7 @@ const CreateEvaluator = ({
                 >
                     <Input
                         placeholder="Enter a unique slug"
+                        disabled={isEditMode}
                         onChange={() => !slugTouched && setSlugTouched(true)}
                     />
                 </Form.Item>

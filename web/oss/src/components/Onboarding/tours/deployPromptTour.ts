@@ -25,18 +25,18 @@ const deployPromptTour: OnboardingTour = {
             showControls: true,
             showSkip: true,
         },
-        {
-            icon: "📋",
-            title: "Open the Registry",
-            content:
-                "The registry shows all your committed prompt versions. Click here to open it.",
-            selector: '[data-menu-id="rc-menu-uuid-app-variants-link"]',
-            side: "right",
-            showControls: true,
-            showSkip: true,
-            selectorRetryAttempts: 10,
-            selectorRetryDelay: 200,
-        },
+        // {
+        //     icon: "📋",
+        //     title: "Open the Registry",
+        //     content:
+        //         "The registry shows all your committed prompt versions. Click here to open it.",
+        //     selector: '[data-menu-id="rc-menu-uuid-app-variants-link"]',
+        //     side: "right",
+        //     showControls: true,
+        //     showSkip: true,
+        //     selectorRetryAttempts: 10,
+        //     selectorRetryDelay: 200,
+        // },
         {
             icon: "📄",
             title: "Select a Version",
@@ -45,6 +45,8 @@ const deployPromptTour: OnboardingTour = {
             side: "bottom",
             showControls: true,
             showSkip: true,
+            pointerPadding: 10,
+            pointerRadius: 8,
             nextAction: {
                 selector: '[data-tour="version-row"]',
                 type: "click",
@@ -71,6 +73,8 @@ const deployPromptTour: OnboardingTour = {
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            pointerPadding: 10,
+            pointerRadius: 8,
             nextAction: {
                 selector: '[data-tour="deploy-button"]',
                 type: "click",
@@ -101,6 +105,8 @@ const deployPromptTour: OnboardingTour = {
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            pointerPadding: 10,
+            pointerRadius: 8,
             prevAction: {
                 selector: '[data-tour="deploy-variant-modal-cancel-button"]',
                 type: "click",
@@ -118,6 +124,8 @@ const deployPromptTour: OnboardingTour = {
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            pointerPadding: 10,
+            pointerRadius: 8,
             nextAction: {
                 selector: '[data-tour="deploy-variant-modal-deploy-button"]',
                 type: "click",

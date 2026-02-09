@@ -112,6 +112,11 @@ class Permission(str, Enum):
     VIEW_EVALUATORS = "view_evaluators"
     EDIT_EVALUATORS = "edit_evaluators"
 
+    # Environments
+    VIEW_ENVIRONMENTS = "view_environments"
+    EDIT_ENVIRONMENTS = "edit_environments"
+    DEPLOY_ENVIRONMENTS = "deploy_environments"
+
     # Queries
     VIEW_QUERIES = "view_queries"
     EDIT_QUERIES = "edit_queries"
@@ -163,6 +168,7 @@ class Permission(str, Enum):
             cls.VIEW_SPANS,
             cls.VIEW_FOLDERS,
             cls.VIEW_API_KEYS,
+            cls.VIEW_ENVIRONMENTS,
         ]
         defaults = {
             WorkspaceRole.OWNER: [p for p in cls],
@@ -184,10 +190,11 @@ class Permission(str, Enum):
                     cls.ADD_USER_TO_WORKSPACE,
                     cls.ADD_USER_TO_ORGANIZATION,
                     cls.EDIT_BILLING,
+                    cls.DEPLOY_ENVIRONMENTS,
                 ]
             ],
             WorkspaceRole.DEPLOYMENT_MANAGER: VIEWER_PERMISSIONS
-            + [cls.DEPLOY_APPLICATION],
+            + [cls.DEPLOY_APPLICATION, cls.DEPLOY_ENVIRONMENTS, cls.EDIT_ENVIRONMENTS],
             WorkspaceRole.WORKSPACE_ADMIN: [
                 p
                 for p in cls
