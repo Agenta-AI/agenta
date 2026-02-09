@@ -1,0 +1,63 @@
+name: agenta-ee-gh-override
+
+services:
+  web:
+    build:
+      context: ../../../web
+      dockerfile: ee/docker/Dockerfile.gh
+    command: sh -c "node ./ee/server.js"
+    env_file:
+      - ${ENV_FILE:-../ee/.env.ee.dev.jp}
+
+  api:
+    build:
+      context: ../../../api
+      dockerfile: ee/docker/Dockerfile.gh
+    env_file:
+      - ${ENV_FILE:-../ee/.env.ee.dev.jp}
+
+  worker-evaluations:
+    build:
+      context: ../../../api
+      dockerfile: ee/docker/Dockerfile.gh
+    env_file:
+      - ${ENV_FILE:-../ee/.env.ee.dev.jp}
+
+  worker-tracing:
+    build:
+      context: ../../../api
+      dockerfile: ee/docker/Dockerfile.gh
+    env_file:
+      - ${ENV_FILE:-../ee/.env.ee.dev.jp}
+
+  cron:
+    build:
+      context: ../../../api
+      dockerfile: ee/docker/Dockerfile.gh
+    env_file:
+      - ${ENV_FILE:-../ee/.env.ee.dev.jp}
+
+  alembic:
+    build:
+      context: ../../../api
+      dockerfile: ee/docker/Dockerfile.gh
+    command: sh -c "python -m ee.databases.postgres.migrations.runner"
+    env_file:
+      - ${ENV_FILE:-../ee/.env.ee.dev.jp}
+
+  services:
+    build:
+      context: ../../../services
+      dockerfile: ee/docker/Dockerfile.gh
+    env_file:
+      - ${ENV_FILE:-../ee/.env.ee.dev.jp}
+
+  postgres:
+    volumes:
+      - postgres-data:/var/lib/postgresql/data/
+      - ../../../api/ee/databases/postgres/init-db-ee.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U username -d agenta_ee_core"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

@@ -19,11 +19,14 @@ COPY ./pyproject.toml ./poetry.lock* /app/
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/pypoetry \
-    poetry install --only main --no-root --no-interaction --no-ansi
+    poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
+    && pip install --no-cache-dir -r /tmp/requirements.txt \
+    && rm -f /tmp/requirements.txt
 
 COPY ./ee /app/ee/
 COPY ./oss /app/oss/
 COPY ./entrypoints /app/entrypoints/
+RUN mkdir -p /app/sdk
 COPY ./sd[k] /app/sdk/
 
 RUN if [ -f /app/sdk/pyproject.toml ]; then pip install --editable /app/sdk; fi
