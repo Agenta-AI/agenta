@@ -1,7 +1,7 @@
+import {getMetadataLazy} from "@agenta/entities/legacyAppRevision"
 import {Tooltip, Typography} from "antd"
 import dynamic from "next/dynamic"
 
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {EnhancedConfigValue} from "@/oss/lib/shared/variant/genericTransformer/types"
 
 import {findPropertyInObject} from "../../../hooks/usePlayground/assets/helpers"

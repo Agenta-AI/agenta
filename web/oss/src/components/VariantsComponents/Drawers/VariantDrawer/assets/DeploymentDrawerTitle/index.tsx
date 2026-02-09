@@ -8,10 +8,10 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
 import {openDeploymentConfirmationModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
+import {deployedRevisionIdByEnvironmentAtomFamily} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
-import {deployedRevisionByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
 import {DeploymentDrawerTitleProps} from "../types"
 
@@ -26,8 +26,10 @@ const DeploymentDrawerTitle = ({
     const envRevisions = useAtomValue(envRevisionsAtom)
     const envName = envNameParam || envRevisions?.name || ""
     const {isPending: isPublishing, mutateAsync: publish} = useAtomValue(publishMutationAtom)
-    const deployedRevision = useAtomValue(deployedRevisionByEnvironmentAtomFamily(envName))
-    const canRevert = variantId !== deployedRevision?.id
+    const deployedRevisionId = useAtomValue(
+        deployedRevisionIdByEnvironmentAtomFamily(envName ?? ""),
+    )
+    const canRevert = variantId !== deployedRevisionId
     const openDeploymentConfirmationModal = useSetAtom(openDeploymentConfirmationModalAtom)
 
     const handleRevert = useCallback(() => {

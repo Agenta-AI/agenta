@@ -14,11 +14,14 @@
         ".": "./src/index.ts",
         "./state": "./src/state/index.ts",
         "./react": "./src/react/index.ts",
-        "./hooks": "./src/hooks/index.ts"
+        "./hooks": "./src/hooks/index.ts",
+        "./snapshot": "./src/snapshot/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
-        "@agenta/shared": "workspace:../agenta-shared"
+        "@agenta/shared": "workspace:../agenta-shared",
+        "lz-string": "^1.5.0",
+        "uuid": "^11.1.0"
     },
     "peerDependencies": {
         "jotai": ">=2.0.0",
@@ -26,6 +29,7 @@
         "react": ">=18.0.0"
     },
     "devDependencies": {
+        "@types/lz-string": "^1.5.0",
         "typescript": "5.8.3",
         "@types/node": "^20.8.10",
         "@types/react": "^19.0.10",

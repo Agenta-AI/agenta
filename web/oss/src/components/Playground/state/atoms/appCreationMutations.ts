@@ -1,3 +1,4 @@
+import {metadataAtom, type ConfigMetadata} from "@agenta/entities/legacyAppRevision"
 import {atom, getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
@@ -5,10 +6,8 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {fetchJson} from "@/oss/lib/api/assets/fetchClient"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
-import {metadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {fetchOpenApiSchemaJson, findCustomWorkflowPath} from "@/oss/lib/shared/variant"
 import {detectChatVariantFromOpenAISchema} from "@/oss/lib/shared/variant/genericTransformer"
-import {ConfigMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {extractVariables} from "@/oss/lib/shared/variant/inputHelpers"
 import {
     deriveCustomPropertiesFromSpec,
@@ -91,16 +90,6 @@ const createApp = async ({
         basePayload.folder_id = folderId
     }
 
-    if (process.env.NODE_ENV === "development") {
-        console.log("[app:create] createApp payload preview", {
-            app_name: appName,
-            template_key: templateKey,
-            organization_id,
-            workspace_id,
-            projectId,
-            folder_id: folderId,
-        })
-    }
     const response = await fetchJson(url, {
         method: "POST",
         body: JSON.stringify(
@@ -264,7 +253,13 @@ export const createAppMutationAtom = atom(
                 folderId,
             })
 
-            await queryClient.invalidateQueries({queryKey: ["apps"]})
+            await Promise.all([
+                queryClient.invalidateQueries({queryKey: ["apps"]}),
+                queryClient.invalidateQueries({
+                    queryKey: ["oss-apps-for-selection"],
+                    exact: false,
+                }),
+            ])
             set(recentAppIdAtom, app.app_id)
 
             // Step 2: Create the variant
@@ -378,7 +373,6 @@ export const createAppMutationAtom = atom(
                 variables,
             })
 
-            console.log("[CREATE_APP] get parameters:", parameters)
             // Exclude system_prompt and user_prompt keys as per original logic
             if (parameters?.ag_config) {
                 for (const key in parameters.ag_config) {
