@@ -72,6 +72,8 @@ export interface CreateSnapshotResult {
     warning?: boolean
     /** Encoded length in bytes */
     length?: number
+    /** Warnings about adapter issues during creation */
+    warnings?: string[]
 }
 
 /**
@@ -223,6 +225,7 @@ const createSnapshotAtom = atom(
                 encoded: encodeResult.encoded,
                 warning: encodeResult.warning,
                 length: encodeResult.length,
+                warnings: warnings.length > 0 ? warnings : undefined,
             }
         } catch (err) {
             return {
@@ -602,6 +605,11 @@ export function applyPendingHydration(draftKey: string): boolean {
  * Apply all pending hydrations for a given source revision ID.
  * Useful when revision data loads and you want to apply all queued patches for that revision.
  *
+ * IMPORTANT: Hydrations that create local drafts are processed BEFORE those that
+ * apply draft patches to the source revision. This ensures local copies are cloned
+ * from clean server data, before any draft patches modify the source revision's
+ * merged (server + draft) state.
+ *
  * @param sourceRevisionId - The source revision ID to apply pending hydrations for
  * @returns Number of patches successfully applied
  */
@@ -609,11 +617,28 @@ export function applyPendingHydrationsForRevision(sourceRevisionId: string): num
     let applied = 0
     const currentPending = getPendingHydrations()
 
+    // Collect entries for this source revision
+    const entries: [string, PendingHydration][] = []
     for (const [draftKey, pending] of currentPending.entries()) {
         if (pending.sourceRevisionId === sourceRevisionId) {
-            if (applyPendingHydration(draftKey)) {
-                applied++
-            }
+            entries.push([draftKey, pending])
+        }
+    }
+
+    // Process createLocalDraft entries FIRST, then applyDraftPatch entries.
+    // createLocalDraftFromRevision reads the merged entity data (server + draft).
+    // If a draft patch was already applied to the source revision, the local copy
+    // would inherit those draft changes — which is incorrect when the local copy
+    // had no changes of its own.
+    entries.sort((a, b) => {
+        if (a[1].createLocalDraft && !b[1].createLocalDraft) return -1
+        if (!a[1].createLocalDraft && b[1].createLocalDraft) return 1
+        return 0
+    })
+
+    for (const [draftKey] of entries) {
+        if (applyPendingHydration(draftKey)) {
+            applied++
         }
     }
 
