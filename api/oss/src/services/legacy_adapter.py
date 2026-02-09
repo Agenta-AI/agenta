@@ -1928,7 +1928,6 @@ class LegacyEnvironmentsAdapter:
         filtered_revisions: List[tuple] = []
         last_deployed_revision_id: Optional[UUID] = None
         has_seen_first_deployment = False
-        has_included_v0 = False
         for rev in reversed(all_revisions):
             rev_revision_id: Optional[UUID] = None
             if rev.data and rev.data.references:
@@ -1938,15 +1937,6 @@ class LegacyEnvironmentsAdapter:
                 )
                 if rev_revision_ref and rev_revision_ref.id:
                     rev_revision_id = rev_revision_ref.id
-
-            # Always keep environment v0 in legacy response as baseline.
-            if not has_included_v0 and rev.version == 0:
-                filtered_revisions.append((rev, rev_revision_id))
-                has_included_v0 = True
-                if rev_revision_id is not None:
-                    has_seen_first_deployment = True
-                    last_deployed_revision_id = rev_revision_id
-                continue
 
             if not has_seen_first_deployment:
                 if rev_revision_id is None:
