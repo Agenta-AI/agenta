@@ -25,6 +25,7 @@
  * @see README.md — "Service Schema Prefetch" section
  */
 
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -51,14 +52,18 @@ import {appsListDataAtom, appsListAtom, appRevisionEntityAtomFamily} from "./sto
  * a deployment.
  */
 const serviceSchemaQueryAtomFamily = atomFamily((serviceType: AppServiceType) =>
-    atomWithQuery<RevisionSchemaState | null>(() => ({
-        queryKey: ["serviceSchema", serviceType],
-        queryFn: () => fetchServiceSchema(serviceType),
-        staleTime: 1000 * 60 * 30, // 30 minutes — service schemas rarely change
-        gcTime: 1000 * 60 * 60, // 1 hour garbage collection
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-    })),
+    atomWithQuery<RevisionSchemaState | null>((get) => {
+        const projectId = get(projectIdAtom)
+        return {
+            queryKey: ["serviceSchema", serviceType, projectId],
+            queryFn: () => fetchServiceSchema(serviceType, projectId),
+            staleTime: 1000 * 60 * 30, // 30 minutes — service schemas rarely change
+            gcTime: 1000 * 60 * 60, // 1 hour garbage collection
+            refetchOnWindowFocus: false,
+            refetchOnMount: false,
+            enabled: !!projectId,
+        }
+    }),
 )
 
 /**

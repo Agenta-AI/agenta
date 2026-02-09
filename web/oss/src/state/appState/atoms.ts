@@ -1,5 +1,6 @@
+import {projectIdAtom} from "@agenta/shared/state"
 import {setProjectIdAtom as setSharedProjectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, getDefaultStore} from "jotai"
 
 import {createInitialParsedLocation} from "./parse"
 import type {
@@ -15,6 +16,15 @@ const initialParsedLocation = createInitialParsedLocation()
 const initialSnapshot: AppStateSnapshot = {
     ...initialParsedLocation,
     timestamp: Date.now(),
+}
+
+// Eagerly initialize projectIdAtom from the URL-parsed initial location.
+// This ensures entity package queries (which depend on projectIdAtom) are enabled
+// during the very first render pass, before React effects fire.
+// Without this, projectIdAtom stays null until the effect phase (setLocationAtom call),
+// causing a visible loading delay — especially on slower connections (staging, prod).
+if (initialParsedLocation.projectId) {
+    getDefaultStore().set(projectIdAtom, initialParsedLocation.projectId)
 }
 
 export const appStateSnapshotAtom = atom<AppStateSnapshot>(initialSnapshot)
