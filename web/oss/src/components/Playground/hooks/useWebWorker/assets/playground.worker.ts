@@ -1,7 +1,7 @@
 import {ConfigMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {constructPlaygroundTestUrl} from "@/oss/lib/shared/variant/stringUtils"
 import {OpenAPISpec} from "@/oss/lib/shared/variant/types/openapi"
-import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
+import {stripAgentaMetadataDeep, stripEnhancedWrappers} from "@/oss/lib/shared/variant/valueHelpers"
 
 import {transformToRequestBody} from "../../../../../lib/shared/variant/transformer/transformToRequestBody"
 import {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
@@ -188,6 +188,12 @@ async function runVariantInputRow(payload: {
                 appType,
             }),
         )
+
+        // Strip any remaining enhanced value wrappers (__id, __metadata, {value: X})
+        // from messages — fallback content parts may bypass extractValueByMetadata
+        if (Array.isArray(requestBody.messages)) {
+            requestBody.messages = stripEnhancedWrappers(requestBody.messages) as any[]
+        }
 
         // Ensure we don't send repetitions to the backend as we handle it here
         if ("repetitions" in requestBody) {

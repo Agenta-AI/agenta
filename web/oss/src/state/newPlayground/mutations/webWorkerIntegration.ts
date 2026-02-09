@@ -20,6 +20,7 @@ import {
 import {
     extractValueByMetadata,
     stripAgentaMetadataDeep,
+    stripEnhancedWrappers,
 } from "@/oss/lib/shared/variant/valueHelpers"
 import {getJWT} from "@/oss/services/api"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
@@ -355,7 +356,9 @@ export const triggerWebWorkerTestAtom = atom(
                 .filter(Boolean)
         }
 
-        const sanitizedChatHistory = stripAgentaMetadataDeep(chatHistory)
+        const sanitizedChatHistory = stripEnhancedWrappers(
+            stripAgentaMetadataDeep(chatHistory),
+        ) as any[]
         const sanitizedPrompts = stripAgentaMetadataDeep(prompts)
 
         inputRow = (() => {
