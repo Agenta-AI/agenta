@@ -9,8 +9,8 @@ import {v4 as uuidv4} from "uuid"
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import LLMIconMap from "@/oss/components/LLMIcons"
 import {
-    moleculeBackedVariantAtomFamily,
     moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
 import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
@@ -120,7 +120,7 @@ function matchesToolPayload(toolObj: ToolObj, payload: Record<string, any>): boo
     const toolObjAny = toolObj as any
     if (typeof payload.type === "string" && toolObjAny.type === payload.type) return true
     if (typeof payload.name === "string" && toolObjAny.name === payload.name) return true
-    const payloadKeys = Object.keys(payload)
+    const payloadKeys = Object.keys(payload).filter((key) => key !== "type" && key !== "name")
     if (payloadKeys.length === 1 && payloadKeys[0] in toolObjAny) return true
     return false
 }

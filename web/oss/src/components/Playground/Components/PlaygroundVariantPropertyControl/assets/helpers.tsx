@@ -406,6 +406,7 @@ export const renderMap: RenderFunctions = {
         //    or provider tool types like web_search_preview, code_interpreter, etc.)
         const value = props.value
         const isToolByName = metadata.name === "ToolConfiguration"
+        console.log("ToolByName", value)
         const isToolByStructure =
             value &&
             typeof value === "object" && // OpenAI function tool format
@@ -415,10 +416,15 @@ export const renderMap: RenderFunctions = {
                 value.type === "code_interpreter" ||
                 value.type === "file_search" ||
                 value.type === "computer_use_preview" ||
+                (typeof value.type === "string" &&
+                    (value.type.startsWith("bash_") || value.type.startsWith("web_search_"))) ||
                 // Anthropic tool format
                 (value.name && value.input_schema) ||
                 // Generic tool with type and name
-                (value.type && value.name && value.description))
+                (value.type && value.name && value.description) ||
+                // Google tool format
+                "code_execution" in value ||
+                "googleSearch" in value)
 
         if (isToolByName || isToolByStructure) {
             const {handleChange, editorProps, variantId, baseProperty, disabled, value} =
