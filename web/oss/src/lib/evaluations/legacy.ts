@@ -1,114 +1,13 @@
-import {EvaluationType} from "@agenta/oss/src/lib/enums"
-import {convertToCsv, downloadCsv} from "@agenta/oss/src/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency} from "@agenta/oss/src/lib/helpers/formatters"
 import {isDemo} from "@agenta/oss/src/lib/helpers/utils"
-import {
-    Evaluation,
-    GenericObject,
-    TypedValue,
-    Variant,
-    _Evaluation,
-    EvaluationScenario,
-} from "@agenta/oss/src/lib/Types"
+import {GenericObject, TypedValue, _Evaluation} from "@agenta/oss/src/lib/Types"
 import dayjs from "dayjs"
 import capitalize from "lodash/capitalize"
 import round from "lodash/round"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {runningStatuses} from "@/oss/components/pages/evaluations/cellRenderers/cellRenderers"
-import {
-    HumanEvaluationListTableDataType,
-    SingleModelEvaluationListTableDataType,
-} from "@/oss/lib/Types"
 import {fetchEvaluatonIdsByResource} from "@/oss/services/evaluations/api"
-
-export const exportABTestingEvaluationData = (
-    evaluation: Evaluation,
-    scenarios: EvaluationScenario[],
-    rows: GenericObject[],
-) => {
-    const exportRow = rows.map((data, ix) => {
-        const inputColumns = evaluation.testset.testsetChatColumn
-            ? {Input: evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn]}
-            : data.inputs.reduce(
-                  (columns: any, input: {input_name: string; input_value: string}) => {
-                      columns[`${input.input_name}`] = input.input_value
-                      return columns
-                  },
-                  {},
-              )
-        return {
-            ...inputColumns,
-            [`App Variant ${evaluation.variants[0].variantName} Output 0`]: data?.columnData0
-                ? data?.columnData0
-                : data.outputs[0]?.variant_output,
-            [`App Variant ${evaluation.variants[1].variantName} Output 1`]: data?.columnData1
-                ? data?.columnData1
-                : data.outputs[1]?.variant_output,
-            ["Vote"]:
-                evaluation.variants.find((v: Variant) => v.variantId === data.vote)?.variantName ||
-                data.vote,
-            ["Expected Output"]:
-                scenarios[ix]?.correctAnswer || evaluation.testset.csvdata[ix].correct_answer,
-            ["Additional notes"]: scenarios[ix]?.note,
-        }
-    })
-    const exportCol = Object.keys(exportRow[0])
-
-    const csvData = convertToCsv(exportRow, exportCol)
-    const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.variants[1].variantName}_${evaluation.evaluationType}.csv`
-    downloadCsv(csvData, filename)
-}
-
-export const exportSingleModelEvaluationData = (
-    evaluation: Evaluation,
-    scenarios: EvaluationScenario[],
-    rows: GenericObject[],
-) => {
-    const exportRow = rows.map((data, ix) => {
-        const inputColumns = evaluation.testset.testsetChatColumn
-            ? {Input: evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn]}
-            : data.inputs.reduce(
-                  (columns: any, input: {input_name: string; input_value: string}) => {
-                      columns[`${input.input_name}`] = input.input_value
-                      return columns
-                  },
-                  {},
-              )
-        const numericScore = parseInt(data.score)
-        return {
-            ...inputColumns,
-            [`App Variant ${evaluation.variants[0].variantName} Output 0`]: data?.columnData0
-                ? data?.columnData0
-                : data.outputs[0]?.variant_output,
-            ["Score"]: isNaN(numericScore) ? "-" : numericScore,
-            ["Expected Output"]:
-                scenarios[ix]?.correctAnswer || evaluation.testset.csvdata[ix].correct_answer,
-            ["Additional notes"]: scenarios[ix]?.note,
-        }
-    })
-    const exportCol = Object.keys(exportRow[0])
-
-    const csvData = convertToCsv(exportRow, exportCol)
-    const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
-    downloadCsv(csvData, filename)
-}
-
-export const calculateResultsDataAvg = (resultsData: Record<string, number>, multiplier = 10) => {
-    const obj = {...resultsData}
-    Object.keys(obj).forEach((key) => {
-        if (isNaN(+key)) delete obj[key]
-    })
-
-    const count = Object.values(obj).reduce((acc, value) => acc + +value, 0)
-    const sum = Object.keys(obj).reduce((acc, key) => acc + (parseFloat(key) || 0) * +obj[key], 0)
-    return (sum / count) * multiplier
-}
-
-export const getVotesPercentage = (record: HumanEvaluationListTableDataType, index: number) => {
-    const variant = record.votesData.variants[index]
-    return record.votesData.variants_votes_data[variant]?.percentage
-}
 
 export const checkIfResourceValidForDeletion = async (
     data: Omit<Parameters<typeof fetchEvaluatonIdsByResource>[0], "appId">,
@@ -243,10 +142,6 @@ const getCustomComparator = (type: CellDataType) => (valueA: string, valueB: str
     }
 }
 
-export const removeCorrectAnswerPrefix = (str: string) => {
-    return str.replace(/^correctAnswer_/, "")
-}
-
 export const mapTestcaseAndEvalValues = (
     settingsValues: Record<string, any>,
     selectedTestcase: Record<string, any>,
@@ -314,28 +209,4 @@ export const getEvaluatorTags = () => {
     }
 
     return evaluatorTags
-}
-
-export const calculateAvgScore = (evaluation: SingleModelEvaluationListTableDataType) => {
-    let score = 0
-    if (evaluation.scoresData) {
-        score =
-            ((evaluation.scoresData.correct?.length || evaluation.scoresData.true?.length || 0) /
-                evaluation.scoresData.nb_of_rows) *
-            100
-    } else if (evaluation.resultsData) {
-        const multiplier = {
-            [EvaluationType.auto_webhook_test]: 100,
-            [EvaluationType.single_model_test]: 1,
-        }
-        score = calculateResultsDataAvg(
-            evaluation.resultsData,
-            multiplier[evaluation.evaluationType as keyof typeof multiplier],
-        )
-        score = isNaN(score) ? 0 : score
-    } else if (evaluation.avgScore) {
-        score = evaluation.avgScore * 100
-    }
-
-    return score
 }

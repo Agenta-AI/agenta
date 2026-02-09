@@ -336,8 +336,6 @@ def _get_event_name_from_path(
     ):
         return "evaluation_created"
 
-    elif method == "POST" and "/human-evaluations" in path:
-        return "human_evaluation_created"
     # <----------- End of Evaluation Events ------------->
 
     # <----------- Observability Events ------------->

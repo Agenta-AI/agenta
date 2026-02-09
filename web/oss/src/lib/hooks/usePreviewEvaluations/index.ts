@@ -167,7 +167,6 @@ const usePreviewEvaluations = ({
                 case EvaluationType.single_model_test:
                 case EvaluationType.human:
                     return EvaluationType.human
-                case EvaluationType.auto_exact_match:
                 case EvaluationType.automatic:
                 case EvaluationType.online:
                     return EvaluationType.automatic

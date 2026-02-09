@@ -23,7 +23,7 @@ from oss.databases.postgres.migrations.tracing.utils import (
 from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
 
-from oss.src.routers import evaluation_router, human_evaluation_router
+from oss.src.routers import evaluation_router
 from oss.src.core.auth.supertokens.config import init_supertokens
 
 # DBEs
@@ -579,12 +579,6 @@ app.include_router(
 )
 
 app.include_router(
-    human_evaluation_router.router,
-    prefix="/human-evaluations",
-    tags=["Human-Evaluations"],
-)
-
-app.include_router(
     admin_router.router,
     prefix="/admin",
     tags=["Admin"],
@@ -667,11 +661,6 @@ app.include_router(
 )
 
 # ------------------------------------------------------------------------------
-
-
-import oss.src.core.evaluations.tasks.live
-import oss.src.core.evaluations.tasks.legacy
-import oss.src.core.evaluations.tasks.batch
 
 
 if ee and is_ee():
