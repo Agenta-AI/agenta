@@ -93,21 +93,6 @@ let urlUpdateRafId: number | null = null
 let lastWrittenUrl: string | null = null
 
 /**
- * Clear the snapshot hash from the URL.
- * Called after successful patch application.
- */
-export const clearSnapshotFromUrl = () => {
-    if (!isBrowser) return
-
-    const currentHash = window.location.hash
-    if (!currentHash || !currentHash.includes(SNAPSHOT_HASH_PARAM)) return
-
-    const cleanUrl = `${window.location.pathname}${window.location.search}`
-    lastWrittenUrl = cleanUrl
-    window.history.replaceState(window.history.state, "", cleanUrl)
-}
-
-/**
  * Extract snapshot parameter from URL hash.
  * Hash format: #pgSnapshot=<encoded>
  */

@@ -12,7 +12,7 @@ export {
     areParametersDifferent,
 } from "./parameterConversion"
 
-export {getImmediateSourceId, resolveRootSourceId} from "./sourceResolution"
+export {resolveRootSourceId} from "./sourceResolution"
 
 export {
     // Pure derivation functions

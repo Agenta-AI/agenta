@@ -40,13 +40,6 @@ import {
 } from "./serviceSchemaAtoms"
 import {legacyAppRevisionEntityWithBridgeAtomFamily} from "./store"
 
-// ============================================================================
-// METADATA STORE RE-EXPORT
-// ============================================================================
-
-// Re-export the unified metadata atom for backward compatibility
-export {metadataAtom as customPropertyMetadataAtom} from "./metadataAtoms"
-
 // Re-export types and functions from specDerivation for backward compat
 export type {EnhancedPrompt, EnhancedCustomProperty}
 

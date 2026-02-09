@@ -244,7 +244,6 @@ export {
     // Enhanced custom properties (with values)
     revisionEnhancedCustomPropertiesAtomFamily,
     revisionCustomPropertyKeysAtomFamily,
-    customPropertyMetadataAtom,
     type EnhancedCustomProperty,
     // Enhanced prompts (with values)
     revisionEnhancedPromptsAtomFamily,
