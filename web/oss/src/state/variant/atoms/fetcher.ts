@@ -159,7 +159,7 @@ export const allRevisionsAtom = atom((get) => {
     vars.forEach((v) => {
         const revs = (get(revisionsByVariantIdAtomFamily(v.variantId)) as any[]) || []
         revs.forEach((r: any) => {
-            if (r && Number(r.revision) > 0) out.push(r as EnhancedVariant)
+            if (r && r.revision != null && Number(r.revision) >= 0) out.push(r as EnhancedVariant)
         })
     })
 
@@ -184,7 +184,7 @@ export const revisionMapAtom = atom<Record<string, EnhancedVariant[]>>((get) => 
         const revs = get(revisionsByVariantIdAtomFamily(v.variantId)) as any[]
         const arr: EnhancedVariant[] = []
         ;(revs || []).forEach((r: any) => {
-            if (r && Number(r.revision) > 0) arr.push(r as EnhancedVariant)
+            if (r && r.revision != null && Number(r.revision) >= 0) arr.push(r as EnhancedVariant)
         })
         map[v.variantId] = arr.sort(
             (a: EnhancedVariant, b: EnhancedVariant) => b.updatedAtTimestamp - a.updatedAtTimestamp,

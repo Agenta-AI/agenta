@@ -101,29 +101,31 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
                 >
                     {showSettingsView ? null : <ListOfOrgs collapsed={collapsed} />}
 
-                    {showSettingsView ? null : <Divider className="-mt-[3.5px] mb-3" />}
+                    {showSettingsView ? null : <Divider className="-mt-[3.5px] mb-1" />}
                     <ErrorBoundary fallback={<div />}>
-                        <div className="flex flex-col justify-between items-center h-full">
-                            {showSettingsView ? (
-                                <SettingsSidebar lastPath={lastPath} />
-                            ) : (
-                                <SidebarMenu
-                                    menuProps={{
-                                        className:
-                                            "border-r-0 overflow-y-auto relative [&_.ant-menu-item-selected]:font-medium",
-                                        selectedKeys,
-                                        openKeys: openKey ? [openKey] : [],
-                                        onOpenChange: (openKeys) =>
-                                            setOpenKey((prev) => {
-                                                const next = openKeys.at(-1)
-                                                return prev === next ? prev : next
-                                            }),
-                                    }}
-                                    items={topItems}
-                                    collapsed={isSidebarCollapsed}
-                                />
-                            )}
-                            <div className="w-full flex flex-col">
+                        <div className="flex flex-col justify-between items-center h-full overflow-y-auto">
+                            <div className="flex-1 min-h-0 w-full overflow-y-auto">
+                                {showSettingsView ? (
+                                    <SettingsSidebar lastPath={lastPath} />
+                                ) : (
+                                    <SidebarMenu
+                                        menuProps={{
+                                            className:
+                                                "border-r-0 overflow-y-auto relative [&_.ant-menu-item-selected]:font-medium",
+                                            selectedKeys,
+                                            openKeys: openKey ? [openKey] : [],
+                                            onOpenChange: (openKeys) =>
+                                                setOpenKey((prev) => {
+                                                    const next = openKeys.at(-1)
+                                                    return prev === next ? prev : next
+                                                }),
+                                        }}
+                                        items={topItems}
+                                        collapsed={isSidebarCollapsed}
+                                    />
+                                )}
+                            </div>
+                            <div className="w-full flex flex-col shrink-0">
                                 {!collapsed && (
                                     <div className="mx-auto">
                                         <SidePanelSubscriptionInfo />

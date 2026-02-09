@@ -166,8 +166,11 @@ def merge_testset_query_requests(
             testset_refs=query_request_body.testset_refs
             or query_request_params.testset_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -345,8 +348,11 @@ def merge_testset_variant_query_requests(
             testset_variant_refs=query_request_body.testset_variant_refs
             or query_request_params.testset_variant_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -560,8 +566,11 @@ def merge_testset_revision_query_requests(
             testset_revision_refs=query_request_body.testset_revision_refs
             or query_request_params.testset_revision_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )

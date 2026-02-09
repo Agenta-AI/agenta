@@ -32,7 +32,7 @@ export const addPromptMessageMutationAtomFamily = atomFamily((compoundKey: strin
         const metadata = parentMetadata?.itemMetadata
         if (!metadata) return
 
-        const newMessage = createMessageFromSchema(metadata, {role: "", content: ""})
+        const newMessage = createMessageFromSchema(metadata, {role: "user", content: ""})
         if (!newMessage) return
 
         // Mutation recipe for molecule-backed prompts
