@@ -6,11 +6,9 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils import common
 from oss.src.services import helpers
 from oss.src.services.auth_service import sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
-from oss.src.apis.fastapi.tracing.utils import make_hash_id
 from oss.src.models.shared_models import InvokationResult, Result, Error
 
 log = get_module_logger(__name__)
@@ -376,10 +374,6 @@ async def run_with_retry(
     if "references" in kwargs and "testcase_id" in input_data:
         kwargs["references"]["testcase"] = {"id": input_data["testcase_id"]}
 
-    references = kwargs.get("references", None)
-    links = kwargs.get("links", None)
-    # hash_id = make_hash_id(references=references, links=links)
-
     retries = 0
     last_exception = None
     while retries < max_retry_count:
@@ -642,17 +636,21 @@ def _get_openapi_chat_flag(
     if not operation:
         return None
 
-    flags = operation.get("x-agenta-flags")
-    if not isinstance(flags, dict) or "is_chat" not in flags:
-        return None
+    # The SDK emits flags under the nested vendor extension:
+    #   "x-agenta": {"flags": {"is_chat": true}}
+    agenta_ext = operation.get("x-agenta")
+    if isinstance(agenta_ext, dict):
+        flags = agenta_ext.get("flags")
+        if isinstance(flags, dict) and "is_chat" in flags:
+            is_chat = bool(flags["is_chat"])
+            log.info(
+                "Chat detection from x-agenta.flags",
+                is_chat=is_chat,
+                path=operation_path,
+            )
+            return is_chat
 
-    is_chat = bool(flags.get("is_chat"))
-    log.info(
-        "Chat detection from x-agenta-flags",
-        is_chat=is_chat,
-        path=operation_path,
-    )
-    return is_chat
+    return None
 
 
 def _fallback_chat_detection(
