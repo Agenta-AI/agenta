@@ -5,7 +5,7 @@ import asyncio
 import traceback
 
 from pydantic import ValidationError
-from fastapi import Request, HTTPException, Response
+from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from supertokens_python.recipe.session.asyncio import get_session
@@ -19,13 +19,11 @@ from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
-from oss.src.utils.logging import get_module_logger
 from oss.src.services import api_key_service
 from oss.src.services.exceptions import (
     UnauthorizedException,
     InternalServerErrorException,
     GatewayTimeoutException,
-    code_to_phrase,
 )
 
 from oss.src.core.auth.service import AuthService
@@ -520,16 +518,23 @@ async def verify_bearer_token(
 
             raise UnauthorizedException()
 
-        # Verify the authenticated user is a member of the requested project.
-        # Only needed when the caller supplied an explicit project_id
-        # (default-project path already resolves the user's own workspace).
-        if is_ee() and query_project_id:
-            project_members = await db_manager_ee.get_project_members(
-                project_id=project_id
-            )
-            member_user_ids = {str(m.user_id) for m in project_members}
+        # Verify the authenticated user is a member of the requested project
+        # or workspace.  This is required whenever the caller supplied an
+        # explicit project_id or workspace_id (in the latter case we check
+        # workspace membership since the default project was resolved from it).
+        if is_ee() and (query_project_id or query_workspace_id):
+            if query_project_id:
+                is_member = await db_manager_ee.project_member_exists(
+                    project_id=project_id,
+                    user_id=user_id,
+                )
+            else:
+                is_member = await db_manager_ee.workspace_member_exists(
+                    workspace_id=workspace_id,
+                    user_id=user_id,
+                )
 
-            if user_id not in member_user_ids:
+            if not is_member:
                 await set_cache(
                     project_id=query_project_id,
                     user_id=user_id,
