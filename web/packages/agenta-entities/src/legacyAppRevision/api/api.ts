@@ -606,7 +606,10 @@ export type OpenAPISpec = Record<string, unknown>
  * @param uri - The base URI of the revision endpoint
  * @returns The dereferenced OpenAPI spec with runtime info, or null if not found
  */
-export async function fetchRevisionSchema(uri: string | undefined): Promise<{
+export async function fetchRevisionSchema(
+    uri: string | undefined,
+    projectId?: string | null,
+): Promise<{
     schema: OpenAPISpec | null
     runtimePrefix: string
     routePath?: string
@@ -623,7 +626,9 @@ export async function fetchRevisionSchema(uri: string | undefined): Promise<{
         // Fetch OpenAPI spec
         const openApiUrl = uri.endsWith("/") ? `${uri}openapi.json` : `${uri}/openapi.json`
 
-        const response = await axios.get<OpenAPISpec>(openApiUrl)
+        const response = await axios.get<OpenAPISpec>(openApiUrl, {
+            params: projectId ? {project_id: projectId} : undefined,
+        })
         const rawSchema = response.data
 
         if (!rawSchema) {
