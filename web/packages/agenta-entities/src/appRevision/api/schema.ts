@@ -391,7 +391,7 @@ export function extractAllEndpointSchemas(
         }
         // Fallback: heuristic — check if any endpoint has messages schema
         return Object.values(endpoints).some(
-            (ep) => ep?.messagesSchema !== null || ep?.requestProperties?.includes("messages"),
+            (ep) => !!ep?.messagesSchema || ep?.requestProperties?.includes("messages"),
         )
     })()
 
