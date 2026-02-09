@@ -49,6 +49,8 @@ web/oss/public/__env.js
 
 web/oss/tests/datalayer/results
 .*
+!api/.dockerignore
+!services/.dockerignore
 
 # IDE/LSP config (local tooling)
 pyrightconfig.json

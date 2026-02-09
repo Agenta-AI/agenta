@@ -3,19 +3,54 @@
 ## Scope
 
 This spec covers:
-- `application/api/oss/docker/Dockerfile.gh`
-- `application/api/ee/docker/Dockerfile.gh`
-- `application/services/oss/docker/Dockerfile.gh`
-- `application/services/ee/docker/Dockerfile.gh`
-- `application/web/oss/docker/Dockerfile.gh`
-- `application/web/ee/docker/Dockerfile.gh`
+- `api/oss/docker/Dockerfile.gh`
+- `api/ee/docker/Dockerfile.gh`
+- `services/oss/docker/Dockerfile.gh`
+- `services/ee/docker/Dockerfile.gh`
+- `web/oss/docker/Dockerfile.gh`
+- `web/ee/docker/Dockerfile.gh`
 
 ## Goals
 
+- Preserve GH compose compatibility and runtime command behavior.
 - Reduce final image size.
 - Reduce build time and CI churn.
-- Improve runtime security posture.
 - Keep behavior unchanged unless explicitly noted.
+
+## Implementation Status (Current Branch)
+
+### Cross-Cutting Improvements
+- [x] 1. Use smaller runtime stages.
+- [x] 2. Use strict dependency scope for production.
+- [x] 3. Improve build context hygiene.
+- [x] 4. Standardize metadata and reproducibility.
+
+### API Improvements
+- [x] A1. Multi-stage Python build.
+- [x] A2. Install only main dependency group.
+- [x] A3. Remove build-only tooling from runtime.
+- [x] B4. Reassess apt dependencies for shared API image (`--no-install-recommends`, keep shared image model).
+- [x] B5. Remove debug/build-verification layers in production image.
+- [x] B6. Keep local SDK override enabled for GH builds.
+- [x] C7. Add `api/.dockerignore`.
+- [x] C8. Consolidate RUN layers for cron setup.
+
+### Services Improvements
+- [x] A1. Multi-stage Python build.
+- [x] A2. Install only runtime dependency group.
+- [x] B4. Add `.dockerignore` for `services`.
+
+### Web Improvements
+- [x] A1. Do not derive `runner` from `base`.
+- [x] A2. Split stages into `pruner` -> `builder` -> `runner`.
+- [x] B3. Remove apt `jq` dependency.
+- [x] B4. Improve `.dockerignore`.
+- [x] B5. Use Corepack for pnpm.
+- [x] C6. Avoid unnecessary files in builder (`.husky` no longer copied).
+- [x] C7. Reduce telemetry/noise in all stages.
+
+### Validation Status
+- [ ] Full GH image build + compose runtime validation checklist (defined below) has not been executed in this branch yet.
 
 ## Cross-Cutting Improvements (All Targets)
 
@@ -23,19 +58,15 @@ This spec covers:
 - Keep build tools (Poetry, pnpm, turbo, compilers, jq) in build-only stages.
 - Final runtime image should contain only runtime binaries, app code, and runtime dependencies.
 
-2. Run as non-root user
-- Create and switch to an unprivileged user in runtime stages.
-- Keep ownership via `COPY --chown=...`.
-
-3. Use strict dependency scope for production
+2. Use strict dependency scope for production
 - Python: install only runtime deps (`--only main`).
 - Node: ensure runtime stage does not carry dev tooling.
 
-4. Improve build context hygiene
+3. Improve build context hygiene
 - Add or tighten `.dockerignore` in `api` and `services` (none currently).
 - Expand `web/.dockerignore` to exclude non-build files/directories.
 
-5. Standardize metadata and reproducibility
+4. Standardize metadata and reproducibility
 - Add OCI labels (`org.opencontainers.image.*`).
 - Pin package manager versions and avoid dynamic install drift.
 
@@ -60,20 +91,21 @@ This spec covers:
 ### B. Medium Impact
 
 4. Reassess apt dependencies for shared API image
-- Current image includes `cron` + `postgresql-client-16` because one image is reused for api/workers/cron/migrations.
-- Option 1: keep one image (lowest risk), but use `--no-install-recommends` and trim packages.
-- Option 2: split cron/migration into dedicated images so main API runtime drops unnecessary system packages.
+- Current image includes `cron` + `postgresql-client-17` because one image is reused for api/workers/cron/migrations.
+- Keep one image model for GH compose compatibility.
+- Use `--no-install-recommends` and trim packages without changing service/runtime responsibilities.
 
 5. Remove debug/build-verification layers in production image
 - `RUN cat -A /etc/cron.d/...` and SDK check `python -c ...` should be optional (debug build arg) or removed.
 
-6. Keep local SDK override optional
+6. Keep local SDK override enabled for GH builds
 - `COPY ./sd[k] /app/sdk/` and editable install can bloat release images.
-- Gate with `ARG INCLUDE_LOCAL_SDK=false` for GH release builds.
+- GH images should continue preferring the local SDK override when present.
+- Do not gate this behind a default-off build arg for GH release builds.
 
 ### C. Hygiene
 
-7. Add `application/api/.dockerignore`
+7. Add `api/.dockerignore`
 - Suggested excludes: `.git`, `.pytest_cache`, `.ruff_cache`, `tests`, docs, local env files, build artifacts.
 
 8. Consolidate RUN layers
@@ -91,23 +123,10 @@ This spec covers:
 - Use `poetry install --only main --no-root --no-interaction --no-ansi`.
 - Remove dev/test dependencies from runtime.
 
-3. Optional local SDK override
-- Keep local SDK workflow available for local integration but off by default for GH images.
-
 ### B. Medium Impact
 
-4. Add non-root runtime user
-- Run Gunicorn/Uvicorn as non-root in runtime stage.
-
-5. Add `.dockerignore` for `application/services`
+4. Add `.dockerignore` for `services`
 - Exclude test caches, git metadata, and local-only files.
-
-### C. Architecture Cleanup
-
-6. De-duplicate OSS/EE Dockerfiles
-- `services/oss/docker/Dockerfile.gh` and `services/ee/docker/Dockerfile.gh` are identical.
-- Replace with one shared Dockerfile + build arg if possible.
-- Benefit: fewer drift bugs and simpler maintenance.
 
 ## Web Dockerfile.gh Improvements
 
@@ -116,7 +135,7 @@ This spec covers:
 1. Do not derive `runner` from `base`
 - Current state: `base` does `COPY . .`, global tool installs, turbo prune; `runner` uses `FROM base`.
 - Result: final runtime image likely carries full source tree and build tooling.
-- Change: use a minimal runtime stage (`FROM node:20.18.0-slim` or distroless Node) and copy only Next standalone output + static assets + entrypoint.
+- Change: use a minimal runtime stage (`FROM node:20.18.0-slim`) and copy only Next standalone output + static assets + entrypoint.
 
 2. Split stages more intentionally
 - Suggested stages: `pruner` -> `builder` -> `runner`.
@@ -142,38 +161,26 @@ This spec covers:
 - Reassess `COPY ./.husky /app/.husky`; likely not needed for production build.
 - Ensure only pruned graph files are copied into install/build layers.
 
-7. Non-root runtime user
-- Run Next server with unprivileged user and owned app directory.
-
-8. Reduce telemetry/noise in all stages
+7. Reduce telemetry/noise in all stages
 - Set `NEXT_TELEMETRY_DISABLED=1` and keep telemetry-disable commands deterministic.
-
-## Prioritized Rollout Plan
-
-1. Web critical stage fix (`runner` no longer from `base`).
-2. API + Services production-only dependency install (`--only main`) and multi-stage conversion.
-3. Add `.dockerignore` for API/Services; expand Web `.dockerignore`.
-4. Non-root runtime users across all final images.
-5. Optional: split API cron/migration image responsibilities for further size/security gains.
 
 ## Validation Checklist
 
 - Build all GH images successfully (OSS + EE for api/services/web).
-- Verify runtime commands still work in compose GH stacks.
+- Verify runtime commands still work in GH compose stacks without command changes:
+  - Web entrypoint + server startup (`/app/entrypoint.sh`, `node ./oss/server.js` or EE equivalent).
+  - API gunicorn startup.
+  - API worker startups.
+  - `cron -f` startup and cron file execution paths.
+  - Alembic/migration container execution.
 - Compare image sizes before/after:
   - `docker image ls`
   - `docker history <image>`
 - Smoke checks:
   - API responds and workers start.
+  - Local SDK override remains active when `sdk/` is present in build context.
+  - Cron service stays healthy and scheduled tasks execute.
+  - Alembic service completes successfully.
   - Services responds.
   - Web serves standalone app.
 - Confirm no dev dependencies remain in production images.
-
-## Notes on Risk
-
-- Lowest-risk immediate wins:
-  - `--only main` for Poetry installs.
-  - Web runner stage isolation.
-  - `.dockerignore` improvements.
-- Higher-risk changes:
-  - Splitting API image roles (api vs cron vs migration) due to compose/service coupling.

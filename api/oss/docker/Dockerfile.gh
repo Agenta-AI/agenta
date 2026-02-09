@@ -1,70 +1,70 @@
-FROM python:3.11-slim-bookworm
+FROM python:3.11-slim-bookworm AS builder
+
+ARG POETRY_VERSION=1.8.4
 
 WORKDIR /app
 
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:${PATH}"
+
+RUN python -m venv /opt/venv \
+    && pip install --upgrade pip \
+    && pip install "poetry==${POETRY_VERSION}"
+
+COPY ./pyproject.toml ./poetry.lock* /app/
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.cache/pypoetry \
+    poetry install --only main --no-root --no-interaction --no-ansi
+
+COPY ./oss /app/oss/
+COPY ./entrypoints /app/entrypoints/
+COPY ./sd[k] /app/sdk/
+
+RUN if [ -f /app/sdk/pyproject.toml ]; then pip install --editable /app/sdk; fi
+
+
+FROM python:3.11-slim-bookworm AS runtime
+
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION=0.0.0
+
+WORKDIR /app
+
+LABEL org.opencontainers.image.title="agenta-api" \
+    org.opencontainers.image.description="Agenta API GH runtime image" \
+    org.opencontainers.image.version="${VERSION}" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.created="${BUILD_DATE}"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app:/app/sdk \
+    PATH="/opt/venv/bin:${PATH}"
+
 RUN apt-get update && \
-    apt-get install -y curl cron gnupg2 lsb-release && \
+    apt-get install -y --no-install-recommends curl cron gnupg2 lsb-release && \
     echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
     curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
     gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg && \
     apt-get update && \
-    apt-get install -y postgresql-client-16 && \
-    apt-get clean && \
+    apt-get install -y --no-install-recommends postgresql-client-17 && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade pip \
-    && pip install poetry
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /app/oss /app/oss
+COPY --from=builder /app/entrypoints /app/entrypoints
+COPY --from=builder /app/sdk /app/sdk
 
-COPY ./pyproject.toml ./poetry.lock* /app/
+COPY --chmod=755 ./oss/src/crons/queries.sh /queries.sh
+COPY --chmod=644 ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
 
-RUN poetry config virtualenvs.create false
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=cache,target=/root/.cache/pypoetry \
-    poetry install --no-interaction --no-ansi
-
-#
-COPY ./oss /app/oss/
-COPY ./entrypoints /app/entrypoints/
-
-# Copy local SDK if present (synced by build.sh before docker build)
-# Uses glob pattern sd[k] to avoid failure if sdk/ doesn't exist (for OSS users)
-COPY ./sd[k] /app/sdk/
-
-# Install local SDK in editable mode if present (overrides the PyPI version)
-RUN if [ -f /app/sdk/pyproject.toml ]; then pip install -e /app/sdk; fi
-
-# Verify which agenta package is active (output visible in build logs)
-RUN python -c '\
-import agenta; loc = getattr(agenta, "__file__", "?"); \
-print(f"[SDK CHECK] agenta={loc}"); \
-print(f"[SDK CHECK] is_local={"app/sdk" in (loc or "")}")' \
-|| echo "[SDK CHECK] verification failed"
-
-# PYTHONPATH includes /app/sdk - if local SDK exists it takes precedence over PyPI version
-ENV PYTHONPATH=/app:/app/sdk
-
-COPY ./oss/src/crons/queries.sh /queries.sh
-COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
-RUN sed -i -e '$a\' /etc/cron.d/queries-cron
-RUN cat -A /etc/cron.d/queries-cron
-
-RUN chmod +x /queries.sh \
-    && chmod 0644 /etc/cron.d/queries-cron
-
-#
-#
-#
-#
-
-#
-#
-
-#
-#
-#
-#
-
-#
-#
+RUN set -eux; \
+    sed -i -e '$a\' /etc/cron.d/queries-cron
 
 EXPOSE 8000

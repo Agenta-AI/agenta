@@ -1,0 +1,17 @@
+.git
+.github
+.gitignore
+.pytest_cache
+.ruff_cache
+.mypy_cache
+__pycache__
+*.pyc
+*.pyo
+.env
+.env.*
+.pytest_cache
+.coverage
+htmlcov
+oss/tests
+ee/tests
+*.md

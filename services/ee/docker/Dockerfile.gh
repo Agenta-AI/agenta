@@ -1,25 +1,53 @@
-FROM python:3.11-slim-bookworm
+FROM python:3.11-slim-bookworm AS builder
+
+ARG POETRY_VERSION=1.8.4
 
 WORKDIR /app
 
-RUN pip install --upgrade pip \
-    && pip install poetry
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:${PATH}"
+
+RUN python -m venv /opt/venv \
+    && pip install --upgrade pip \
+    && pip install "poetry==${POETRY_VERSION}"
 
 COPY ./pyproject.toml ./poetry.lock* /app/
 
-RUN poetry config virtualenvs.create false
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/pypoetry \
-    poetry install --no-interaction --no-ansi
+    poetry install --only main --no-root --no-interaction --no-ansi
 
 COPY ./oss /app/oss/
 COPY ./entrypoints /app/entrypoints/
-
-# Copy local SDK if present (synced by build.sh before docker build)
-# Uses glob pattern sd[k] to avoid failure if sdk/ doesn't exist (for OSS users)
 COPY ./sd[k] /app/sdk/
 
-# PYTHONPATH includes /app/sdk - if local SDK exists it takes precedence over PyPI version
-ENV PYTHONPATH=/app:/app/sdk
+
+FROM python:3.11-slim-bookworm AS runtime
+
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION=0.0.0
+
+WORKDIR /app
+
+LABEL org.opencontainers.image.title="agenta-services-ee" \
+    org.opencontainers.image.description="Agenta Services EE GH runtime image" \
+    org.opencontainers.image.version="${VERSION}" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.created="${BUILD_DATE}"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app:/app/sdk \
+    PATH="/opt/venv/bin:${PATH}"
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /app/oss /app/oss
+COPY --from=builder /app/entrypoints /app/entrypoints
+COPY --from=builder /app/sdk /app/sdk
 
 EXPOSE 80

@@ -1,47 +1,72 @@
-FROM node:20.18.0-slim AS base
+FROM node:20.18.0-slim AS pruner
 
-ENV TURBO_TELEMETRY_DISABLED=1
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-
-RUN apt-get update && apt-get install -y jq
-
-COPY . .
-RUN PNPM_VERSION=$(cat package.json | jq -r '.packageManager | split("@")[1]') && \
-    npm install -g pnpm@${PNPM_VERSION}
-
-RUN pnpm add -g turbo
-RUN turbo prune @agenta/oss --docker
-
-# BUILDER ---------------------------------------------------------------------
-
-FROM base AS builder
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION=0.0.0
 
 WORKDIR /app
 
-ENV NODE_OPTIONS="--max_old_space_size=4096"
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    TURBO_TELEMETRY_DISABLED=1 \
+    PNPM_HOME="/pnpm" \
+    PATH="$PNPM_HOME:$PATH"
 
-COPY --from=base ./out/json/ .
-COPY ./.husky /app/.husky
+COPY . .
+
+RUN corepack enable && \
+    PNPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]") && \
+    corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
+    TURBO_VERSION=$(node -p "require('./package.json').devDependencies.turbo") && \
+    pnpm dlx "turbo@${TURBO_VERSION}" prune @agenta/oss --docker
+
+
+FROM node:20.18.0-slim AS builder
+
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    TURBO_TELEMETRY_DISABLED=1 \
+    NODE_OPTIONS="--max_old_space_size=4096" \
+    PNPM_HOME="/pnpm" \
+    PATH="$PNPM_HOME:$PATH"
+
+COPY --from=pruner /app/out/json/ .
+
+RUN corepack enable && \
+    PNPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]") && \
+    corepack prepare "pnpm@${PNPM_VERSION}" --activate
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store yes | pnpm install --frozen-lockfile
-COPY --from=base /out/full/ .
-COPY --from=base /packages/tsconfig.base.json /app/packages/tsconfig.base.json
-COPY --from=base /packages/css-modules.d.ts /app/packages/css-modules.d.ts
 
-RUN npx next telemetry disable
+COPY --from=pruner /app/out/full/ .
+COPY --from=pruner /app/packages/tsconfig.base.json /app/packages/tsconfig.base.json
+COPY --from=pruner /app/packages/css-modules.d.ts /app/packages/css-modules.d.ts
 
 RUN --mount=type=cache,id=nextjs-oss,target=/app/oss/.next/cache \
     pnpm turbo run build --filter=@agenta/oss
 
-# RUNNER ----------------------------------------------------------------------
 
-FROM base AS runner
+FROM node:20.18.0-slim AS runner
+
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION=0.0.0
 
 WORKDIR /app
 
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production
+
+LABEL org.opencontainers.image.title="agenta-web" \
+    org.opencontainers.image.description="Agenta Web OSS GH runtime image" \
+    org.opencontainers.image.version="${VERSION}" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.created="${BUILD_DATE}"
+
 COPY --from=builder /app/oss/.next/standalone /app
-COPY ../entrypoint.sh /app/entrypoint.sh
+COPY --from=builder /app/oss/.next/static /app/oss/.next/static
+COPY --from=builder /app/oss/public /app/oss/public
+COPY ./entrypoint.sh /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 EXPOSE 3000
