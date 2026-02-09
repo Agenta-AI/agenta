@@ -1,6 +1,6 @@
 import {atom, getDefaultStore} from "jotai"
-import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 import {atomFamily} from "jotai/utils"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
 import {isSpansResponse} from "@/oss/services/tracing/lib/helpers"
