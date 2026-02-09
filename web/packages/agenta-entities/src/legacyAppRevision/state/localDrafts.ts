@@ -38,6 +38,7 @@ import {atomWithStorage} from "jotai/utils"
 import {isLocalDraftId, extractSourceIdFromDraft} from "../../shared/utils/revisionLabel"
 import type {LegacyAppRevisionData} from "../core"
 import {cloneAsLocalDraft as cloneAsLocalDraftFactory} from "../core/factory"
+import {resolveRootSourceId} from "../utils/sourceResolution"
 
 import {
     legacyAppRevisionServerDataAtomFamily,
@@ -45,84 +46,6 @@ import {
     legacyAppRevisionIsDirtyWithBridgeAtomFamily,
     setLocalDraftsAtoms,
 } from "./store"
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Get the immediate source revision ID from a local draft.
- * Prioritizes stored data over ID parsing.
- */
-function getImmediateSourceIdLocal(draftId: string): string | null {
-    if (!isLocalDraftId(draftId)) {
-        return null
-    }
-
-    const store = getDefaultStore()
-
-    // PRIORITY 1: Check stored data for _sourceRevisionId
-    // This is the most reliable source as createLocalDraftFromRevision stores it here
-    const serverData = store.get(legacyAppRevisionServerDataAtomFamily(draftId)) as {
-        _sourceRevisionId?: string
-    } | null
-    if (serverData?._sourceRevisionId) {
-        return serverData._sourceRevisionId
-    }
-
-    // PRIORITY 2: Try to extract from the ID format (local-{sourceId}-{timestamp})
-    // BUT only if the extracted ID looks like a UUID (contains hyphens and is not numeric-only)
-    const fromId = extractSourceIdFromDraft(draftId)
-    if (fromId && !isLocalDraftId(fromId) && fromId.includes("-")) {
-        return fromId
-    }
-
-    return null
-}
-
-/**
- * Recursively resolve a local draft ID to its root server revision ID.
- * This handles chained local drafts (draft created from another draft).
- *
- * @param id - The ID to resolve (can be a local draft or server revision)
- * @returns The root server revision ID, or the original ID if not a local draft
- */
-function resolveRootSourceId(id: string): string {
-    // If it's not a local draft, it's already a server revision ID
-    if (!isLocalDraftId(id)) {
-        return id
-    }
-
-    let currentId = id
-    let iterations = 0
-    const maxIterations = 10 // Prevent infinite loops
-
-    while (isLocalDraftId(currentId) && iterations < maxIterations) {
-        const nextSourceId = getImmediateSourceIdLocal(currentId)
-
-        if (!nextSourceId) {
-            // Can't find source, return original ID
-            console.warn("[LocalDrafts] resolveRootSourceId - couldn't find source for:", currentId)
-            return id
-        }
-
-        currentId = nextSourceId
-        iterations++
-    }
-
-    // If we ended up at a local draft, return the original ID
-    if (isLocalDraftId(currentId)) {
-        console.warn(
-            "[LocalDrafts] resolveRootSourceId - ended at local draft after",
-            iterations,
-            "iterations:",
-            currentId,
-        )
-        return id
-    }
-
-    return currentId
-}
 
 // ============================================================================
 // LOCAL DRAFT ID TRACKING (APP-SCOPED)
@@ -292,30 +215,20 @@ export function createLocalDraftFromRevision(sourceRevisionId: string): string |
     const sourceData = store.get(legacyAppRevisionEntityWithBridgeAtomFamily(sourceRevisionId))
 
     if (!sourceData) {
-        if (process.env.NODE_ENV !== "production") {
-            console.warn("[Hydration][createLocalDraftFromRevision] BAIL: no sourceData", {
-                sourceRevisionId,
-            })
-        }
+        console.warn("[createLocalDraftFromRevision] no sourceData for:", sourceRevisionId)
         return null
     }
 
     // Check if variantId is available - it's required for cloning
     // variantId is typically set by useSetRevisionVariantContext after revision data loads
     if (!sourceData.variantId) {
-        if (process.env.NODE_ENV !== "production") {
-            console.warn("[Hydration][createLocalDraftFromRevision] BAIL: no variantId", {
-                sourceRevisionId,
-                hasData: true,
-                keys: Object.keys(sourceData).slice(0, 10),
-            })
-        }
+        console.warn("[createLocalDraftFromRevision] no variantId for:", sourceRevisionId)
         return null
     }
 
     // Resolve to root server revision ID if source is a local draft
     // This ensures _sourceRevisionId always points to a server revision, not another local draft
-    const rootSourceRevisionId = resolveRootSourceId(sourceRevisionId)
+    const rootSourceRevisionId = resolveRootSourceId(sourceRevisionId) ?? sourceRevisionId
 
     // Get the root source data for the revision number (if different from immediate source)
     const rootSourceData =
@@ -380,29 +293,10 @@ export function createLocalDraftFromRevision(sourceRevisionId: string): string |
         appId = _currentAppIdAtom ? (store.get(_currentAppIdAtom) ?? "__global__") : "__global__"
     }
 
-    if (process.env.NODE_ENV !== "production") {
-        console.log("[Compare][createLocalDraftFromRevision] tracking draft", {
-            localId,
-            appId,
-            dataAppId: dataWithSource.appId,
-            sourceRevisionId,
-            variantId: sourceData.variantId,
-            hasDataWithSource: !!dataWithSource,
-        })
-    }
-
     store.set(localDraftIdsByAppAtom, (prev) => {
         const appDrafts = prev[appId] || []
         if (appDrafts.includes(localId)) return prev
-        const next = {...prev, [appId]: [...appDrafts, localId]}
-        if (process.env.NODE_ENV !== "production") {
-            console.log("[Compare][createLocalDraftFromRevision] localDraftIdsByApp updated", {
-                appId,
-                prevDrafts: appDrafts,
-                newDrafts: next[appId],
-            })
-        }
-        return next
+        return {...prev, [appId]: [...appDrafts, localId]}
     })
 
     return localId

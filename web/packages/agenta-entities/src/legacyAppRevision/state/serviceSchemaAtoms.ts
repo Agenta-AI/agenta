@@ -14,6 +14,7 @@
  * @see appRevision/state/serviceSchemaAtoms.ts — Original implementation
  */
 
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -21,12 +22,14 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {fetchServiceSchema} from "../../appRevision/api/schema"
 import type {RevisionSchemaState} from "../../appRevision/core"
 import {APP_SERVICE_TYPES, resolveServiceType, type AppServiceType} from "../../appRevision/core"
+import {preheatSchemaMetadata} from "../utils/specDerivation"
 
 import {
     appsListDataAtom,
     appsListAtom,
     appsQueryAtom,
     legacyAppRevisionEntityWithBridgeAtomFamily,
+    revisionsQueryAtomFamily,
 } from "./store"
 
 // ============================================================================
@@ -42,14 +45,24 @@ import {
  * since those are revision-specific.
  */
 const serviceSchemaQueryAtomFamily = atomFamily((serviceType: AppServiceType) =>
-    atomWithQuery<RevisionSchemaState | null>(() => ({
-        queryKey: ["ossServiceSchema", serviceType],
-        queryFn: () => fetchServiceSchema(serviceType),
-        staleTime: 1000 * 60 * 30, // 30 minutes — service schemas rarely change
-        gcTime: 1000 * 60 * 60, // 1 hour garbage collection
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-    })),
+    atomWithQuery<RevisionSchemaState | null>((get) => {
+        const projectId = get(projectIdAtom)
+        return {
+            queryKey: ["serviceSchema", serviceType, projectId],
+            queryFn: async () => {
+                const data = await fetchServiceSchema(serviceType, projectId)
+                if (data?.agConfigSchema) {
+                    preheatSchemaMetadata(data.agConfigSchema)
+                }
+                return data
+            },
+            staleTime: 1000 * 60 * 30, // 30 minutes — service schemas rarely change
+            gcTime: 1000 * 60 * 60, // 1 hour garbage collection
+            refetchOnWindowFocus: false,
+            refetchOnMount: false,
+            enabled: !!projectId,
+        }
+    }),
 )
 
 /**
@@ -65,6 +78,37 @@ export const completionServiceSchemaAtom = serviceSchemaQueryAtomFamily(
 export const chatServiceSchemaAtom = serviceSchemaQueryAtomFamily(APP_SERVICE_TYPES.CHAT)
 
 // ============================================================================
+// METADATA WARMER
+// ============================================================================
+
+/**
+ * Subscribes to both service schema queries and preheats metadata as soon as
+ * schema data is available. This runs independently of any revision — metadata
+ * becomes warm at app-selection time, so when a revision is later opened
+ * (e.g., variant drawer), UI controls can render correctly on first paint.
+ *
+ * Subscribe to this atom from AppGlobalWrappers alongside the existing
+ * service schema prefetch subscriptions.
+ */
+export const serviceSchemaMetadataWarmerAtom = atom((get) => {
+    let warmed = false
+
+    const completionQuery = get(completionServiceSchemaAtom)
+    if (completionQuery.data?.agConfigSchema) {
+        preheatSchemaMetadata(completionQuery.data.agConfigSchema)
+        warmed = true
+    }
+
+    const chatQuery = get(chatServiceSchemaAtom)
+    if (chatQuery.data?.agConfigSchema) {
+        preheatSchemaMetadata(chatQuery.data.agConfigSchema)
+        warmed = true
+    }
+
+    return warmed
+})
+
+// ============================================================================
 // APP TYPE LOOKUP
 // ============================================================================
 
@@ -76,35 +120,54 @@ type ServiceTypeLookup =
     | {status: "pending"}
 
 /**
- * Look up an app's service type from the apps list using the revision's appId.
+ * Resolve appId for a revision, trying entity data first then the revisions list query.
  *
- * This atom family resolves: revisionId → appId → app_type → ServiceTypeLookup
+ * The direct revision query (POST /variants/revisions/query/) often returns data
+ * without appId. The entity's non-reactive cache scan may also miss it on first read.
+ * When entity has variantId but no appId, we fall back to the reactive
+ * revisionsQueryAtomFamily — this query is already fetched by the playground and
+ * includes appId on each RevisionListItem (populated from the variant detail
+ * that fetchRevisionsList fetches internally). No additional network request.
  */
+const resolvedAppIdForRevisionAtomFamily = atomFamily((revisionId: string) =>
+    atom<{appId: string | undefined; isPending: boolean}>((get) => {
+        const entity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        if (entity?.appId) {
+            return {appId: entity.appId, isPending: false}
+        }
+
+        // Entity has no appId — try the revisions list query if we have variantId.
+        // This query is already running for the playground, so no extra fetch.
+        const variantId = entity?.variantId
+        if (variantId) {
+            const revisionsQuery = get(revisionsQueryAtomFamily(variantId))
+            if (revisionsQuery.isPending) {
+                return {appId: undefined, isPending: true}
+            }
+            const revisionsList = (revisionsQuery.data ?? []) as {
+                id: string
+                appId?: string
+            }[]
+            const match = revisionsList.find((r) => r.id === revisionId)
+            if (match?.appId) {
+                return {appId: match.appId, isPending: false}
+            }
+        }
+
+        // No entity at all — still pending; entity exists but no variantId — unknown
+        return {appId: undefined, isPending: !entity}
+    }),
+)
+
 export const revisionServiceTypeLookupAtomFamily = atomFamily((revisionId: string) =>
     atom<ServiceTypeLookup>((get) => {
-        const DEBUG = process.env.NODE_ENV !== "production"
-        const entity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-        const appId = entity?.appId
+        const {appId, isPending: appIdPending} = get(resolvedAppIdForRevisionAtomFamily(revisionId))
 
-        // If entity exists but has no appId, this is likely a custom app
-        // that was loaded without variant context enrichment.
-        // Treat as custom app (serviceType: null) to allow direct schema fetch.
         if (!appId) {
-            // If we have entity data (parameters loaded), treat as custom app
-            // If no entity data at all, still pending
-            if (entity) {
-                if (DEBUG) {
-                    console.log("[serviceTypeLookup] entity exists but no appId → custom app", {
-                        revisionId,
-                        entityKeys: Object.keys(entity),
-                    })
-                }
-                return {status: "resolved", serviceType: null}
+            if (appIdPending) {
+                return {status: "pending"}
             }
-            if (DEBUG) {
-                console.log("[serviceTypeLookup] no entity data → pending", {revisionId})
-            }
-            return {status: "pending"}
+            return {status: "resolved", serviceType: null}
         }
 
         // Try the overrideable apps list first, then fall back to the direct query
@@ -114,57 +177,16 @@ export const revisionServiceTypeLookupAtomFamily = atomFamily((revisionId: strin
             const directApps = get(appsListDataAtom)
             const directApp = directApps.find((a) => a.id === appId)
             if (!directApp) {
-                // Check if the apps query is still loading — if so, wait for it.
-                // If the query has finished loading and the app still isn't found,
-                // treat as custom app (serviceType: null) to allow Layer 2 fallback
-                // instead of staying stuck as "pending" forever.
                 const appsQuery = get(appsQueryAtom)
                 if (appsQuery.isPending) {
-                    if (DEBUG) {
-                        console.log(
-                            "[serviceTypeLookup] app not found, query still loading → pending",
-                            {revisionId, appId},
-                        )
-                    }
                     return {status: "pending"}
-                }
-                if (DEBUG) {
-                    console.log(
-                        "[serviceTypeLookup] app not found in loaded list → falling through to direct schema",
-                        {
-                            revisionId,
-                            appId,
-                            appsCount: apps.length,
-                            directAppsCount: directApps.length,
-                        },
-                    )
                 }
                 return {status: "resolved", serviceType: null}
             }
-            const resolved = resolveServiceType(directApp.appType)
-            if (DEBUG) {
-                console.log("[serviceTypeLookup] resolved from directApps", {
-                    revisionId,
-                    appId,
-                    appType: directApp.appType,
-                    serviceType: resolved,
-                })
-            }
-            return {status: "resolved", serviceType: resolved}
+            return {status: "resolved", serviceType: resolveServiceType(directApp.appType)}
         }
 
-        const resolvedType = resolveServiceType(app.appType)
-
-        if (DEBUG) {
-            console.log("[serviceTypeLookup] resolved from appsListAtom", {
-                revisionId,
-                appId,
-                appType: app.appType,
-                serviceType: resolvedType,
-            })
-        }
-
-        return {status: "resolved", serviceType: resolvedType}
+        return {status: "resolved", serviceType: resolveServiceType(app.appType)}
     }),
 )
 
@@ -218,6 +240,14 @@ export const composedServiceSchemaAtomFamily = atomFamily((revisionId: string) =
 
         if (!serviceResult.isAvailable || !serviceResult.data) {
             return null
+        }
+
+        // Pre-heat metadata from the service schema so downstream derivation
+        // (deriveEnhancedPrompts, deriveEnhancedCustomProperties) finds metadata
+        // already warm — eliminates microtask timing gap on first read.
+        // This is idempotent and follows the same pattern as deriveEnhancedPrompts.
+        if (serviceResult.data.agConfigSchema) {
+            preheatSchemaMetadata(serviceResult.data.agConfigSchema)
         }
 
         // Merge with revision-specific runtime context

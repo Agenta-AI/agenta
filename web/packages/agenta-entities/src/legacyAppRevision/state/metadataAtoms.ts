@@ -1,13 +1,22 @@
 /**
- * Metadata Atoms for LegacyAppRevision
+ * Metadata Store for LegacyAppRevision
  *
  * Centralized metadata storage for enhanced properties (prompts, custom properties).
  * This provides a global store for property metadata that can be looked up by hash.
  *
- * The metadata store is used by:
- * - Enhanced prompts (from schema transformation)
- * - Enhanced custom properties (from schema transformation)
- * - UI components that need to render property controls
+ * ## Design: Plain Map instead of Jotai atom
+ *
+ * Metadata is a **synchronous cache** — the same schema + key always produces the
+ * same hash and the same ConfigMetadata object. It's written during derivation
+ * (inside atom getters) and read during rendering. Using a Jotai atom for this
+ * introduced timing bugs: `store.set()` inside `get()` corrupts Jotai's dependency
+ * tracking, and microtask-based batching created a gap where hashes existed but
+ * their metadata didn't.
+ *
+ * A plain Map eliminates both problems:
+ * - Writes are immediate (no batching, no microtasks, no `store.set()`)
+ * - Reads are always consistent (no timing gap)
+ * - Safe to call from any context (atom getters, React components, callbacks)
  *
  * @packageDocumentation
  */
@@ -15,7 +24,7 @@
 import crypto from "crypto"
 
 import {atom, getDefaultStore} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai/utils"
 import stableHash from "stable-hash"
 
 import type {EntitySchemaProperty} from "../../shared"
@@ -121,24 +130,69 @@ export type ConfigMetadata =
     | BaseMetadata
 
 // ============================================================================
-// METADATA STORE
+// METADATA STORE (plain Map — synchronous, no Jotai)
 // ============================================================================
 
 /**
- * Global metadata store for enhanced properties.
- * Maps hash -> metadata object for UI lookup.
+ * Plain Map backing store. Writes are immediate; reads are always consistent.
+ * This is safe to read/write from any context including Jotai atom getters.
  */
-export const metadataAtom = atom<Record<string, ConfigMetadata>>({})
+const metadataStore = new Map<string, ConfigMetadata>()
 
 /**
- * Per-key selector family to avoid re-renders on unrelated keys
+ * Jotai atom facade for backward compatibility.
+ *
+ * Returns a snapshot of the Map as a Record. Components that subscribe to this
+ * atom will see the current state when they render — which is correct because
+ * metadata is always written before the hashes that reference it are produced.
+ *
+ * NOTE: This atom is intentionally read-only. The Map is the source of truth.
+ */
+export const metadataAtom = atom<Record<string, ConfigMetadata>>((get) => {
+    // Depend on the version counter to re-evaluate when metadata changes
+    get(metadataVersionAtom)
+    return Object.fromEntries(metadataStore)
+})
+
+/**
+ * Version counter that increments on each metadata write.
+ * Used to trigger re-evaluation of reactive consumers.
+ */
+const metadataVersionAtom = atom(0)
+
+/**
+ * Track whether a version bump has been scheduled for this microtask.
+ */
+let versionBumpScheduled = false
+
+/**
+ * Schedule a version bump via microtask. This batches multiple synchronous
+ * metadata writes into a single atom update, preventing unnecessary re-renders
+ * during bulk derivation while still notifying reactive consumers afterward.
+ */
+const scheduleVersionBump = () => {
+    if (versionBumpScheduled) return
+    versionBumpScheduled = true
+    queueMicrotask(() => {
+        versionBumpScheduled = false
+        const store = getDefaultStore()
+        store.set(metadataVersionAtom, (v: number) => v + 1)
+    })
+}
+
+/**
+ * Per-key selector family to avoid re-renders on unrelated keys.
+ *
+ * Reads directly from the Map for immediate consistency, but also
+ * depends on metadataVersionAtom so Jotai knows to re-evaluate
+ * when new metadata is written.
  */
 export const metadataSelectorFamily = atomFamily((hash: string | undefined) =>
-    selectAtom(
-        metadataAtom,
-        (m) => (hash ? (m[hash] as ConfigMetadata | undefined) : undefined),
-        Object.is,
-    ),
+    atom((get) => {
+        get(metadataVersionAtom)
+        if (!hash) return undefined
+        return metadataStore.get(hash) as ConfigMetadata | undefined
+    }),
 )
 
 // ============================================================================
@@ -146,64 +200,32 @@ export const metadataSelectorFamily = atomFamily((hash: string | undefined) =>
 // ============================================================================
 
 /**
- * Batched updates for performance
- */
-let pendingMetadataUpdates: Record<string, ConfigMetadata> = {}
-let flushScheduled = false
-
-const flushPendingUpdates = () => {
-    flushScheduled = false
-
-    if (Object.keys(pendingMetadataUpdates).length > 0) {
-        const updates = pendingMetadataUpdates
-        pendingMetadataUpdates = {}
-        const store = getDefaultStore()
-        store.set(metadataAtom, (prev) => ({...prev, ...updates}))
-    }
-}
-
-const scheduleFlush = () => {
-    if (flushScheduled) return
-    flushScheduled = true
-    queueMicrotask(flushPendingUpdates)
-}
-
-/**
- * Update the metadata store with new entries (batched)
+ * Write metadata entries to the store. Immediate and synchronous.
+ * Safe to call from any context including Jotai atom getters.
  */
 export const updateMetadataAtom = (metadata: Record<string, ConfigMetadata>) => {
-    pendingMetadataUpdates = {...pendingMetadataUpdates, ...metadata}
-    scheduleFlush()
+    for (const [key, value] of Object.entries(metadata)) {
+        metadataStore.set(key, value)
+    }
+    scheduleVersionBump()
 }
 
 /**
- * Lazy reader for metadata (synchronous, for use outside React)
+ * Lazy reader for metadata (synchronous, for use anywhere).
  */
 export const getMetadataLazy = <T extends ConfigMetadata>(hash?: string | T): T | null => {
     if (!hash) return null
     if (typeof hash !== "string") {
         return hash as T
     }
-
-    // Check pending updates first (not yet flushed to atom via microtask)
-    const pending = pendingMetadataUpdates[hash] as T | undefined
-    if (pending) return pending
-
-    const store = getDefaultStore()
-    return (store.get(metadataAtom)[hash] as T) || null
+    return (metadataStore.get(hash) as T) || null
 }
 
 /**
- * Get all metadata (synchronous, for use outside React)
+ * Get all metadata as a Record (synchronous, for use anywhere).
  */
 export const getAllMetadata = (): Record<string, ConfigMetadata> => {
-    const store = getDefaultStore()
-    const committed = store.get(metadataAtom) || {}
-    // Include pending updates not yet flushed via microtask
-    if (Object.keys(pendingMetadataUpdates).length > 0) {
-        return {...committed, ...pendingMetadataUpdates}
-    }
-    return committed
+    return Object.fromEntries(metadataStore)
 }
 
 // ============================================================================
@@ -431,7 +453,7 @@ function unwrapAnyOf(schemaRecord: Record<string, unknown>): {
 }
 
 /**
- * Hash a schema property and store it in the metadata atom.
+ * Hash a schema property and store it in the metadata store.
  * Returns the hash for use as __metadata.
  *
  * Transforms OpenAPI schema to OSS-compatible ConfigMetadata format,
@@ -443,7 +465,24 @@ function unwrapAnyOf(schemaRecord: Record<string, unknown>): {
  * - anyOf with const-discriminated type → compound
  */
 export function hashMetadata(schema: EntitySchemaProperty, key: string): string {
-    const schemaRecord = schema as unknown as Record<string, unknown>
+    let schemaRecord = schema as unknown as Record<string, unknown>
+
+    // Unwrap allOf wrapping from Pydantic v2 (e.g., { allOf: [{ $ref resolved }], default: {...} })
+    // This happens when a model field has sibling properties like `default` alongside a $ref.
+    const allOf = schemaRecord.allOf as Record<string, unknown>[] | undefined
+    if (allOf && Array.isArray(allOf) && !schemaRecord.type && !schemaRecord.anyOf) {
+        const merged: Record<string, unknown> = {...schemaRecord, allOf: undefined}
+        for (const branch of allOf) {
+            if (branch && typeof branch === "object") {
+                Object.assign(merged, branch)
+            }
+        }
+        // Preserve parent title/description as fallback
+        if (!merged.title && schemaRecord.title) merged.title = schemaRecord.title
+        if (!merged.description && schemaRecord.description)
+            merged.description = schemaRecord.description
+        schemaRecord = merged
+    }
 
     // Check for const-discriminated anyOf (e.g., response_format) → compound
     if (isConstDiscriminatedAnyOf(schemaRecord)) {
@@ -451,7 +490,8 @@ export function hashMetadata(schema: EntitySchemaProperty, key: string): string 
 
         const weakHash = stableHash(metadata)
         const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
-        updateMetadataAtom({[hash]: metadata})
+        metadataStore.set(hash, metadata)
+        scheduleVersionBump()
 
         return hash
     }
@@ -481,7 +521,8 @@ export function hashMetadata(schema: EntitySchemaProperty, key: string): string 
 
         const weakHash = stableHash(metadata)
         const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
-        updateMetadataAtom({[hash]: metadata})
+        metadataStore.set(hash, metadata)
+        scheduleVersionBump()
 
         return hash
     }
@@ -514,7 +555,8 @@ export function hashMetadata(schema: EntitySchemaProperty, key: string): string 
 
         const weakHash = stableHash(metadata)
         const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
-        updateMetadataAtom({[hash]: metadata})
+        metadataStore.set(hash, metadata)
+        scheduleVersionBump()
 
         return hash
     }
@@ -556,7 +598,8 @@ export function hashMetadata(schema: EntitySchemaProperty, key: string): string 
 
     const weakHash = stableHash(metadata)
     const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
-    updateMetadataAtom({[hash]: metadata})
+    metadataStore.set(hash, metadata)
+    scheduleVersionBump()
 
     return hash
 }
@@ -567,11 +610,7 @@ export function hashMetadata(schema: EntitySchemaProperty, key: string): string 
  */
 function hashMetadataToObject(schema: EntitySchemaProperty, key: string): ConfigMetadata {
     const hash = hashMetadata(schema, key)
-    // Read back from store (includes pending)
-    const pending = pendingMetadataUpdates[hash] as ConfigMetadata | undefined
-    if (pending) return pending
-    const store = getDefaultStore()
-    return (store.get(metadataAtom)[hash] as ConfigMetadata) || {type: "string", key}
+    return metadataStore.get(hash) || ({type: "string", key} as ConfigMetadata)
 }
 
 /**

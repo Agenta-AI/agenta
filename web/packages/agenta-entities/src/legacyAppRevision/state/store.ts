@@ -379,7 +379,7 @@ export const appsQueryAtom = atomWithQuery<AppListItem[]>((get) => {
     const enabled = !!projectId
 
     return {
-        queryKey: ["oss-apps-for-selection", projectId],
+        queryKey: ["apps-for-selection", projectId],
         queryFn: async () => fetchAppsList(projectId!),
         staleTime: 1000 * 60,
         refetchOnWindowFocus: false,
@@ -505,6 +505,13 @@ export const revisionsListQueryStateAtomFamily = atomFamily((variantId: string) 
 // REVISION LIST CACHE LOOKUP
 // ============================================================================
 
+/**
+ * Writable atom that is incremented whenever we know revision queries have
+ * settled (e.g., after a query invalidation). Reading this in a derived atom
+ * adds a reactive dependency so the atom re-evaluates when signaled.
+ */
+export const revisionCacheVersionAtom = atom(0)
+
 const findRevisionListItemInCache = (
     queryClient: import("@tanstack/react-query").QueryClient,
     revisionId: string,
@@ -522,10 +529,36 @@ const findRevisionListItemInCache = (
     return null
 }
 
+/**
+ * Revision list item lookup from React Query cache — **now reactive**.
+ *
+ * Previous implementation depended only on `queryClientAtom` (a constant),
+ * so it computed once and was never invalidated when new revision data arrived.
+ * This caused the enriched query path to never fire, forcing all entity reads
+ * through the slow `directQueryAtomFamily` (2 sequential API calls per revision).
+ *
+ * Fix: additionally read `revisionCacheVersionAtom` so that callers who bump
+ * the version (e.g., after query invalidation or initial data load) trigger
+ * a re-evaluation. We also reactively read `revisionsQueryAtomFamily` for
+ * the variant ID discovered via an initial cache scan, ensuring data flows
+ * through the faster enriched path once revision list queries resolve.
+ */
 const revisionListItemFromCacheAtomFamily = atomFamily((revisionId: string) =>
     atom<RevisionListItem | null>((get) => {
+        // Subscribe to the version counter so we re-evaluate when signaled
+        get(revisionCacheVersionAtom)
+
         const queryClient = get(queryClientAtom)
-        return findRevisionListItemInCache(queryClient, revisionId)
+        const cached = findRevisionListItemInCache(queryClient, revisionId)
+
+        if (cached?.variantId) {
+            // Also subscribe to the reactive revision query for this variant
+            // so that future data updates (e.g., after invalidation) trigger
+            // re-evaluation through Jotai's dependency tracking.
+            get(revisionsQueryAtomFamily(cached.variantId))
+        }
+
+        return cached
     }),
 )
 
@@ -1123,7 +1156,13 @@ export const updatePropertyAtom = atom(
                         typeof val === "object" &&
                         (val as {__id?: string}).__id === propertyId
                     ) {
-                        customProps[key] = value
+                        // Preserve enhanced wrapper (__id, __metadata, schema) — only update .value
+                        const typedVal = val as {value?: unknown; [k: string]: unknown}
+                        if ("value" in typedVal) {
+                            typedVal.value = value
+                        } else {
+                            customProps[key] = value
+                        }
                         propertyFound = true
                         return
                     }

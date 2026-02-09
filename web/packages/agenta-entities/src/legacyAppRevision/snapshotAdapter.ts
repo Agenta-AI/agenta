@@ -14,14 +14,15 @@ import {
     type RunnableDraftPatch,
     type BuildDraftPatchResult,
 } from "../runnable/snapshotAdapter"
-import {isLocalDraftId, extractSourceIdFromDraft} from "../shared/utils/revisionLabel"
+import {isLocalDraftId} from "../shared/utils/revisionLabel"
 
 import {buildLegacyAppRevisionDraftPatch, applyLegacyAppRevisionDraftPatch} from "./snapshot"
-import {createLocalDraftFromRevision} from "./state/localDrafts"
+import {createLocalDraftFromRevision, localDraftIdsAtom} from "./state/localDrafts"
 import {
     legacyAppRevisionDraftAtomFamily,
     legacyAppRevisionServerDataAtomFamily,
 } from "./state/store"
+import {resolveRootSourceId} from "./utils/sourceResolution"
 
 // ============================================================================
 // PATCH VALIDATION SCHEMA
@@ -33,86 +34,6 @@ import {
 const legacyAppRevisionPatchSchema = z.object({
     parameters: z.record(z.string(), z.unknown()),
 })
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Get the immediate source revision ID from a local draft.
- * This may return another local draft ID if the draft was created from another draft.
- */
-function getImmediateSourceId(draftId: string): string | null {
-    if (!isLocalDraftId(draftId)) {
-        return null
-    }
-
-    const store = getDefaultStore()
-
-    // PRIORITY 1: Check stored data for _sourceRevisionId
-    // This is the most reliable source as createLocalDraftFromRevision stores it here
-    const serverData = store.get(legacyAppRevisionServerDataAtomFamily(draftId)) as {
-        _sourceRevisionId?: string
-    } | null
-    if (serverData?._sourceRevisionId) {
-        return serverData._sourceRevisionId
-    }
-
-    // PRIORITY 2: Check draft atom
-    const draftData = store.get(legacyAppRevisionDraftAtomFamily(draftId)) as {
-        _sourceRevisionId?: string
-    } | null
-    if (draftData?._sourceRevisionId) {
-        return draftData._sourceRevisionId
-    }
-
-    // PRIORITY 3: Try to extract from the ID format (local-{sourceId}-{timestamp})
-    // BUT only if the extracted ID looks like a UUID (contains hyphens and is not numeric-only)
-    // This handles legacy format where the source ID was embedded in the draft ID
-    const fromId = extractSourceIdFromDraft(draftId)
-    if (fromId && !isLocalDraftId(fromId) && fromId.includes("-")) {
-        return fromId
-    }
-
-    return null
-}
-
-/**
- * Recursively resolve a local draft ID to its root server revision ID.
- * This handles chained local drafts (draft created from another draft).
- *
- * @param id - The ID to resolve (can be a local draft or server revision)
- * @returns The root server revision ID, or null if unable to resolve
- */
-function resolveRootSourceId(id: string): string | null {
-    // If it's not a local draft, it's already a server revision ID
-    if (!isLocalDraftId(id)) {
-        return id
-    }
-
-    let currentId = id
-    let iterations = 0
-    const maxIterations = 10 // Prevent infinite loops
-
-    while (isLocalDraftId(currentId) && iterations < maxIterations) {
-        const nextSourceId = getImmediateSourceId(currentId)
-
-        if (!nextSourceId) {
-            // Can't find source, return null
-            return null
-        }
-
-        currentId = nextSourceId
-        iterations++
-    }
-
-    // Return null if we ended up at a local draft (couldn't resolve to server)
-    if (isLocalDraftId(currentId)) {
-        return null
-    }
-
-    return currentId
-}
 
 // ============================================================================
 // ADAPTER IMPLEMENTATION
@@ -180,6 +101,23 @@ export const legacyAppRevisionSnapshotAdapter: RunnableSnapshotAdapter = {
         }
 
         try {
+            // Deduplication: check if a local draft already exists for this root source.
+            // This prevents HMR re-hydration from creating duplicate drafts when the
+            // URL snapshot hash is re-processed after module reload.
+            const store = getDefaultStore()
+            const rootSource = resolveRootSourceId(sourceRevisionId) ?? sourceRevisionId
+            const existingDraftIds = store.get(localDraftIdsAtom)
+            for (const existingId of existingDraftIds) {
+                const existingData = store.get(
+                    legacyAppRevisionServerDataAtomFamily(existingId),
+                ) as {
+                    _sourceRevisionId?: string
+                } | null
+                if (existingData?._sourceRevisionId === rootSource) {
+                    return existingId
+                }
+            }
+
             // Create a new local draft from the source revision
             // This may return null if source data is not available yet
             const localDraftId = createLocalDraftFromRevision(sourceRevisionId)

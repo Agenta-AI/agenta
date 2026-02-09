@@ -227,6 +227,8 @@ export {
     setAppsListAtom,
     setVariantsListAtomFamily,
     setRevisionsListAtomFamily,
+    // Cache reactivity
+    revisionCacheVersionAtom,
 } from "./state"
 
 // Re-export schema atoms
@@ -248,7 +250,19 @@ export {
     revisionEnhancedPromptsAtomFamily,
     revisionPromptKeysAtomFamily,
     type EnhancedPrompt,
+    // Service schema metadata warmer
+    serviceSchemaMetadataWarmerAtom,
 } from "./state"
+
+// Re-export spec derivation utilities (pure functions)
+export {
+    deriveEnhancedPrompts,
+    deriveEnhancedCustomProperties,
+    isPromptLikeStructure,
+    isPromptLikeSchema,
+    isPromptProperty,
+    enhanceToolsArray,
+} from "./utils"
 
 // Re-export metadata atoms
 export {

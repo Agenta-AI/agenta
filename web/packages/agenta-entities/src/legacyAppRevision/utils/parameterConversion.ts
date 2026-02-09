@@ -211,8 +211,8 @@ export function enhancedCustomPropertiesToParameters(
 
         const prop = val as Record<string, unknown>
         // Extract the raw value from the enhanced property
-        if ("value" in prop) {
-            result[key] = prop.value
+        if ("value" in prop && ("__id" in prop || "__metadata" in prop)) {
+            result[key] = extractRawValue(prop.value)
         } else {
             result[key] = extractRawValue(val)
         }
