@@ -24,11 +24,6 @@ import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useQueryParamState} from "@/oss/state/appState"
 import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
 import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
-import {
-    selectedVariantsCountAtom,
-    variantTableSelectionAtomFamily,
-} from "@/oss/state/variant/atoms/selection"
-import {modelNameByRevisionIdAtomFamily} from "@/oss/state/variant/selectors/variant"
 
 import DeploymentsDashboard from "../DeploymentsDashboard"
 import {envRevisionsAtom} from "../DeploymentsDashboard/atoms"
@@ -36,9 +31,11 @@ import {openDeploymentsDrawerAtom} from "../DeploymentsDashboard/modals/store/de
 import DeployVariantButton from "../Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
 
 import {
+    comparisonAllRevisionsAtom,
     comparisonSelectionScopeAtom,
     openComparisonModalAtom,
 } from "./Modals/VariantComparisonModal/store/comparisonModalStore"
+import {selectedVariantsCountAtom, variantTableSelectionAtomFamily} from "./store/selectionAtoms"
 import VariantsTable from "./Table"
 
 // Comparison modal is opened via atoms; no local deploy/delete modals here
@@ -141,12 +138,14 @@ const VariantsDashboard = () => {
     }, [variants])
 
     const baseRows = useMemo(() => {
-        const store = getDefaultStore()
         return (revisions || [])
             .map((r: any) => {
                 if (Number(r?.revision ?? 0) <= 0) return null
                 const timestamp = r.createdAt ? new Date(r.createdAt).valueOf() : Date.now()
-                const modelName = store.get(modelNameByRevisionIdAtomFamily(r.id))
+                const params = r.parameters || {}
+                const llmConfig = (params as any)?.prompt?.llm_config || params
+                const modelName =
+                    (typeof llmConfig?.model === "string" && llmConfig.model.trim()) || undefined
                 const variantName = variantNameMap[r.variantId] ?? "-"
                 return {
                     id: r.id,
@@ -203,6 +202,7 @@ const VariantsDashboard = () => {
     const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
     const openComparisonModal = useSetAtom(openComparisonModalAtom)
     const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
+    const setComparisonAllRevisions = useSetAtom(comparisonAllRevisionsAtom)
     const {goToPlayground} = usePlaygroundNavigation()
     const prefetchPlayground = useCallback(async () => {
         if (appId) {
@@ -304,6 +304,7 @@ const VariantsDashboard = () => {
                         disabled={selectedCount !== 2}
                         icon={<SwapOutlined />}
                         onClick={() => {
+                            setComparisonAllRevisions(baseRows as any)
                             setComparisonSelectionScope(selectionScope)
                             openComparisonModal()
                         }}

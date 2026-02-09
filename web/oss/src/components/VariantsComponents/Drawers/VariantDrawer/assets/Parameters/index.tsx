@@ -1,10 +1,13 @@
 import {useCallback, useMemo} from "react"
 
+import {
+    legacyAppRevisionEntityWithBridgeAtomFamily,
+    revisionOpenApiSchemaAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {getYamlOrJson} from "@/oss/lib/helpers/utils"
-import {VariantUpdateFunction} from "@/oss/lib/hooks/useStatelessVariants/types"
 import {
     deriveCustomPropertiesFromSpec,
     derivePromptsFromSpec,
@@ -13,7 +16,6 @@ import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {customPropertiesAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 const SharedEditor = dynamic(() => import("@/oss/components/Playground/Components/SharedEditor"), {
     ssr: false,
@@ -24,16 +26,13 @@ export const NewVariantParametersView = ({
     showOriginal,
 }: {
     selectedVariant: EnhancedVariant
-    parameters?: Record<string, unknown>
-    mutateVariant?:
-        | ((updates: Partial<EnhancedVariant> | VariantUpdateFunction) => Promise<void>)
-        | undefined
     showOriginal?: boolean
 }) => {
-    const appUriInfo = useAtomValue(appUriInfoAtom)
-    const spec = useAtomValue(appSchemaAtom)
-
     const revisionId = (selectedVariant as any)?._revisionId || selectedVariant?.id
+
+    const spec = useAtomValue(revisionOpenApiSchemaAtomFamily(revisionId ?? ""))
+    const entity = useAtomValue(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId ?? ""))
+    const routePath = entity?.routePath || ""
 
     // Base parameters are derived from prompts (same structure used for prompt commits)
     const derived = useAtomValue(transformedPromptsAtomFamily(revisionId)) as any
@@ -44,9 +43,9 @@ export const NewVariantParametersView = ({
         () =>
             customPropertiesAtomFamily({
                 revisionId,
-                routePath: appUriInfo?.routePath,
+                routePath,
             }),
-        [revisionId, appUriInfo?.routePath],
+        [revisionId, routePath],
     )
     const setCustomProps = useSetAtom(customPropsAtom)
 
@@ -93,13 +92,13 @@ export const NewVariantParametersView = ({
                 const nextPrompts = derivePromptsFromSpec(
                     variantForDerive as any,
                     spec as any,
-                    appUriInfo?.routePath,
+                    routePath,
                 ) as any
 
                 const nextCustomProps = deriveCustomPropertiesFromSpec(
                     variantForDerive as any,
                     spec as any,
-                    appUriInfo?.routePath,
+                    routePath,
                 ) as Record<string, any>
 
                 setPrompts(nextPrompts)
@@ -108,7 +107,7 @@ export const NewVariantParametersView = ({
                 // Ignore parse errors; editor will keep showing the current text
             }
         },
-        [showOriginal, spec, appUriInfo?.routePath, setPrompts, setCustomProps, selectedVariant],
+        [showOriginal, spec, routePath, setPrompts, setCustomProps, selectedVariant],
     )
 
     if (!revisionId) return null
