@@ -11,7 +11,7 @@ export const deploymentStatusColors: Record<
     development: {bgColor: "#F9F0FF", textColor: "#722ED1", label: "Development"},
 }
 
-const defaultColors = {bgColor: "bg-gray-200", textColor: "text-gray-600"}
+// const defaultColors = {bgColor: "bg-gray-200", textColor: "text-gray-600"}
 
 const EnvironmentTagLabel: FC<{environment: string}> = ({environment}) => {
     const known = deploymentStatusColors[environment]
