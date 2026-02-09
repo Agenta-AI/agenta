@@ -36,28 +36,13 @@ export const filteredWorkspaceMembersAtom = atom<WorkspaceMember[]>((get) => {
 
 /**
  * Atom family to access a workspace member by user ID
- * Returns the WorkspaceMember for the given user id, or a fallback with null username if not found
+ * Returns the WorkspaceMember for the given user id, or null if not found
  */
 export const workspaceMemberByIdFamily = atomFamily((userId: string | null | undefined) =>
     atom<WorkspaceMember | null>((get) => {
         const members = get(workspaceMembersAtom)
         if (!userId) return null
         const idStr = String(userId)
-        const found = members.find((m) => String(m.user?.id ?? "") === idStr)
-        if (found) return found
-
-        // Return a fallback member when not found (e.g., demo org with no members loaded).
-        // Username is null so that downstream ?? chains can fall through to better alternatives
-        // (e.g., creator name from run data) before reaching a final "User" display fallback.
-        return {
-            user: {
-                id: idStr,
-                email: "",
-                username: "",
-                status: "member",
-                created_at: "",
-            },
-            roles: [],
-        }
+        return members.find((m) => String(m.user?.id ?? "") === idStr) || null
     }),
 )

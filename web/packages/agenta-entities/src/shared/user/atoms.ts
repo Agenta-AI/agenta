@@ -99,7 +99,7 @@ export const currentUserAtom = atom<UserInfo | null>((get) => {
 
 /**
  * Atom family to resolve a user ID to user information.
- * Returns UserInfo if found, or a fallback with null username if not found.
+ * Returns UserInfo if found, null otherwise.
  */
 export const userByIdFamily = atomFamily((userId: string | null | undefined) =>
     atom<UserInfo | null>((get) => {
@@ -113,23 +113,13 @@ export const userByIdFamily = atomFamily((userId: string | null | undefined) =>
         const idStr = String(userId)
         const member = members.find((m) => String(m.user?.id ?? "") === idStr)
 
-        if (member?.user) {
-            return {
-                id: String(member.user.id ?? userId),
-                username: member.user.username ?? null,
-                name: member.user.name ?? null,
-                email: member.user.email ?? null,
-            }
-        }
+        if (!member?.user) return null
 
-        // Return a fallback when user is not found (e.g., demo org with no members loaded).
-        // Username is null so that downstream ?? chains can fall through to better alternatives
-        // (e.g., creator name from run data) before reaching a final "User" display fallback.
         return {
-            id: idStr,
-            username: null,
-            name: null,
-            email: null,
+            id: String(member.user.id ?? userId),
+            username: member.user.username ?? null,
+            name: member.user.name ?? null,
+            email: member.user.email ?? null,
         }
     }),
 )
