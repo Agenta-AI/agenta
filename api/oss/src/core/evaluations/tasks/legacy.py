@@ -834,12 +834,13 @@ async def evaluate_batch_testset(
 
         while max_recursive_depth > 0 and not openapi_parameters:
             try:
-                openapi_parameters, openapi_is_chat = (
-                    await llm_apps_service.get_parameters_from_openapi(
-                        runtime_prefix + "/openapi.json",
-                        route_path,
-                        headers,
-                    )
+                (
+                    openapi_parameters,
+                    openapi_is_chat,
+                ) = await llm_apps_service.get_parameters_from_openapi(
+                    runtime_prefix + "/openapi.json",
+                    route_path,
+                    headers,
                 )
             except Exception:  # pylint: disable=broad-exception-caught
                 openapi_parameters = None
@@ -854,12 +855,13 @@ async def evaluate_batch_testset(
                     route_path = ""
                     runtime_prefix = runtime_prefix[:-1]
 
-        openapi_parameters, openapi_is_chat = (
-            await llm_apps_service.get_parameters_from_openapi(
-                runtime_prefix + "/openapi.json",
-                route_path,
-                headers,
-            )
+        (
+            openapi_parameters,
+            openapi_is_chat,
+        ) = await llm_apps_service.get_parameters_from_openapi(
+            runtime_prefix + "/openapi.json",
+            route_path,
+            headers,
         )
         # ----------------------------------------------------------------------
 
