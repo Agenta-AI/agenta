@@ -1,4 +1,6 @@
-import {generateId, toCamelCase} from "@/oss/lib/shared/variant/stringUtils"
+import {generateId} from "@agenta/shared/utils"
+
+import {toCamelCase} from "@/oss/lib/shared/variant/stringUtils"
 
 import {hashMetadata} from "../../../../components/Playground/assets/hash"
 import {constructPlaygroundTestUrl} from "../stringUtils"
