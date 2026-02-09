@@ -571,6 +571,43 @@ class AlembicConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class AIServicesConfig(BaseModel):
+    """AI services configuration.
+
+    Feature is enabled only when all required env vars are present.
+    """
+
+    api_key: str | None = os.getenv("AGENTA_AI_SERVICES_API_KEY")
+    api_url: str | None = os.getenv("AGENTA_AI_SERVICES_API_URL")
+    environment: str | None = os.getenv("AGENTA_AI_SERVICES_ENVIRONMENT")
+    refine_prompt_app: str | None = os.getenv("AGENTA_AI_SERVICES_REFINE_PROMPT_APP")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        required = [
+            self.api_key,
+            self.api_url,
+            self.environment,
+            self.refine_prompt_app,
+        ]
+        return all(isinstance(v, str) and v.strip() for v in required)
+
+    @property
+    def normalized_api_url(self) -> str | None:
+        if not self.api_url or not self.api_url.strip():
+            return None
+        url = self.api_url.rstrip("/")
+        # Some environments use a base API url like https://host/api, while
+        # AI services endpoints live at https://host/services/...
+        if url.endswith("/api"):
+            url = url[: -len("/api")]
+        if url.endswith("/services"):
+            url = url[: -len("/services")]
+        return url
+
+
 class EnvironSettings(BaseModel):
     """
     Main environment settings container with nested Pydantic models.
@@ -611,6 +648,7 @@ class EnvironSettings(BaseModel):
     otlp: OTLPConfig = OTLPConfig()
     redis: RedisConfig = RedisConfig()
     agenta: AgentaConfig = AgentaConfig()
+    ai_services: AIServicesConfig = AIServicesConfig()
     postgres: PostgresConfig = PostgresConfig()
     alembic: AlembicConfig = AlembicConfig()
 
