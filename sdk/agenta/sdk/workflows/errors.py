@@ -147,11 +147,6 @@ class InvalidSecretsV0Error(ErrorStatus):
                 f"No API key found for model '{model}'. "
                 f"Please add your provider's API key in Settings > Providers & Models."
             )
-        elif got is None:
-            message = (
-                "No API key found for the requested model. "
-                "Please add your provider's API key in Settings > Providers & Models."
-            )
         else:
             message = (
                 f"Invalid secrets:\n"
