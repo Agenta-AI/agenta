@@ -5,6 +5,7 @@ import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
 import {openDeploymentConfirmationModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import {useQueryParam} from "@/oss/hooks/useQuery"
@@ -21,7 +22,9 @@ const DeploymentDrawerTitle = ({
     isExpanded,
 }: DeploymentDrawerTitleProps) => {
     const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId))
-    const [envName] = useQueryParam("selectedEnvName")
+    const [envNameParam] = useQueryParam("selectedEnvName")
+    const envRevisions = useAtomValue(envRevisionsAtom)
+    const envName = envNameParam || envRevisions?.name || ""
     const {isPending: isPublishing, mutateAsync: publish} = useAtomValue(publishMutationAtom)
     const deployedRevision = useAtomValue(deployedRevisionByEnvironmentAtomFamily(envName))
     const canRevert = variantId !== deployedRevision?.id

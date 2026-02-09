@@ -1,6 +1,6 @@
 from typing import Optional, Any
 
-ERRORS_BASE_URL = "https://agenta.ai/docs/errors"
+ERRORS_BASE_URL = "https://agenta.ai/docs/misc/errors"
 
 
 class ErrorStatus(Exception):
@@ -23,9 +23,7 @@ class ErrorStatus(Exception):
         self.stacktrace = stacktrace
 
     def __str__(self):
-        return f"[EVAL]       {self.code} - {self.message} ({self.type})" + (
-            f"\nStacktrace: {self.stacktrace}" if self.stacktrace else ""
-        )
+        return f"{self.message}\n\nError {self.code} | {self.type}"
 
     def __repr__(self):
         return f"ErrorStatus(code={self.code}, type='{self.type}', message='{self.message}')"
@@ -143,11 +141,22 @@ class InvalidSecretsV0Error(ErrorStatus):
     code: int = 400
     type: str = f"{ERRORS_BASE_URL}#v0:schemas:invalid-secrets"
 
-    def __init__(self, expected: Any, got: Any):
+    def __init__(self, expected: Any, got: Any, model: Optional[str] = None):
+        if got is None and model:
+            message = (
+                f"No API key found for model '{model}'. "
+                f"Please add your provider's API key in Settings > Providers & Models."
+            )
+        else:
+            message = (
+                f"Invalid secrets:\n"
+                f"Expected '{expected}'\n"
+                f"Got ('{type(got).__name__}') '{got}'."
+            )
         super().__init__(
             code=self.code,
             type=self.type,
-            message=f"Invalid secrets:\nExpected '{expected}'\nGot ('{type(got).__name__}') '{got}'.",
+            message=message,
         )
 
 

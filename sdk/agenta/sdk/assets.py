@@ -161,7 +161,9 @@ supported_llm_models = {
         "openrouter/google/gemini-2.0-flash-001",
         "openrouter/perplexity/sonar-reasoning",
     ],
-    "perplexity": [
+    # NOTE: provider kind must match Secrets API enums ("perplexityai").
+    # Models remain "perplexity/..." but the provider key is used to match secrets.
+    "perplexityai": [
         "perplexity/sonar",
         "perplexity/sonar-pro",
         "perplexity/sonar-reasoning",

@@ -1,7 +1,7 @@
 from agenta.sdk.models.workflows import WorkflowServiceInterface
 
 echo_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:echo:v0",
+    uri="agenta:builtin:echo:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -32,7 +32,7 @@ echo_v0_interface = WorkflowServiceInterface(
 )
 
 auto_exact_match_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_exact_match:v0",
+    uri="agenta:builtin:auto_exact_match:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -72,7 +72,7 @@ auto_exact_match_v0_interface = WorkflowServiceInterface(
 )
 
 auto_regex_test_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_regex_test:v0",
+    uri="agenta:builtin:auto_regex_test:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -124,7 +124,7 @@ auto_regex_test_v0_interface = WorkflowServiceInterface(
 )
 
 field_match_test_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:field_match_test:v0",
+    uri="agenta:builtin:field_match_test:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -170,7 +170,7 @@ field_match_test_v0_interface = WorkflowServiceInterface(
 )
 
 json_multi_field_match_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:json_multi_field_match:v0",
+    uri="agenta:builtin:json_multi_field_match:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -217,7 +217,7 @@ json_multi_field_match_v0_interface = WorkflowServiceInterface(
 )
 
 auto_webhook_test_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_webhook_test:v0",
+    uri="agenta:builtin:auto_webhook_test:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -276,7 +276,7 @@ auto_webhook_test_v0_interface = WorkflowServiceInterface(
 )
 
 auto_custom_code_run_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_custom_code_run:v0",
+    uri="agenta:builtin:auto_custom_code_run:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -346,7 +346,7 @@ auto_custom_code_run_v0_interface = WorkflowServiceInterface(
 )
 
 auto_ai_critique_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_ai_critique:v0",
+    uri="agenta:builtin:auto_ai_critique:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -417,7 +417,7 @@ auto_ai_critique_v0_interface = WorkflowServiceInterface(
 )
 
 auto_starts_with_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_starts_with:v0",
+    uri="agenta:builtin:auto_starts_with:v0",
     schemas=dict(  # type: ignore  # type: ignore
         parameters={
             "type": "object",
@@ -462,7 +462,7 @@ auto_starts_with_v0_interface = WorkflowServiceInterface(
 )
 
 auto_ends_with_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_ends_with:v0",
+    uri="agenta:builtin:auto_ends_with:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -507,7 +507,7 @@ auto_ends_with_v0_interface = WorkflowServiceInterface(
 )
 
 auto_contains_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_contains:v0",
+    uri="agenta:builtin:auto_contains:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -552,7 +552,7 @@ auto_contains_v0_interface = WorkflowServiceInterface(
 )
 
 auto_contains_any_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_contains_any:v0",
+    uri="agenta:builtin:auto_contains_any:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -598,7 +598,7 @@ auto_contains_any_v0_interface = WorkflowServiceInterface(
 )
 
 auto_contains_all_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_contains_all:v0",
+    uri="agenta:builtin:auto_contains_all:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -644,7 +644,7 @@ auto_contains_all_v0_interface = WorkflowServiceInterface(
 )
 
 auto_contains_json_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_contains_json:v0",
+    uri="agenta:builtin:auto_contains_json:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -675,7 +675,7 @@ auto_contains_json_v0_interface = WorkflowServiceInterface(
 )
 
 auto_json_diff_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_json_diff:v0",
+    uri="agenta:builtin:auto_json_diff:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -745,7 +745,7 @@ auto_json_diff_v0_interface = WorkflowServiceInterface(
 )
 
 auto_levenshtein_distance_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_levenshtein_distance:v0",
+    uri="agenta:builtin:auto_levenshtein_distance:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -803,7 +803,7 @@ auto_levenshtein_distance_v0_interface = WorkflowServiceInterface(
 )
 
 auto_similarity_match_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_similarity_match:v0",
+    uri="agenta:builtin:auto_similarity_match:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -868,7 +868,7 @@ auto_similarity_match_v0_interface = WorkflowServiceInterface(
 )
 
 auto_semantic_similarity_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:auto_semantic_similarity:v0",
+    uri="agenta:builtin:auto_semantic_similarity:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -925,8 +925,30 @@ auto_semantic_similarity_v0_interface = WorkflowServiceInterface(
     ),
 )
 
+hook_v0_interface = WorkflowServiceInterface(
+    uri="agenta:builtin:hook:v0",
+    schemas=dict(  # type: ignore
+        parameters={
+            "type": "object",
+            "title": "Hook Parameters",
+            "description": "Extra configuration forwarded to the webhook alongside inputs.",
+            "additionalProperties": True,
+        },
+        inputs={
+            "type": "object",
+            "title": "Hook Inputs",
+            "description": "Inputs forwarded to the webhook.",
+        },
+        outputs={
+            "type": ["string", "object", "array"],
+            "title": "Hook Outputs",
+            "description": "Response returned by the webhook.",
+        },
+    ),
+)
+
 completion_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:completion:v0",
+    uri="agenta:builtin:completion:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",
@@ -956,7 +978,7 @@ completion_v0_interface = WorkflowServiceInterface(
 )
 
 chat_v0_interface = WorkflowServiceInterface(
-    uri="agenta:built-in:chat:v0",
+    uri="agenta:builtin:chat:v0",
     schemas=dict(  # type: ignore
         parameters={
             "type": "object",

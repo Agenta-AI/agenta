@@ -78,18 +78,10 @@ from oss.src.core.testsets.dtos import TestsetRevision
 from oss.src.core.evaluators.dtos import EvaluatorRevision
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testsets.service import TestsetsService
-from oss.src.core.testsets.service import SimpleTestsetsService
-from oss.src.core.evaluators.service import SimpleEvaluatorsService
+from oss.src.core.applications.services import ApplicationsService
 
 from oss.src.core.evaluations.utils import filter_scenario_ids
 
-from oss.src.models.db_models import AppVariantRevisionsDB
-
-from oss.src.services.db_manager import (
-    fetch_app_by_id,
-    fetch_app_variant_by_id,
-    fetch_app_variant_revision_by_id,
-)
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 
@@ -962,7 +954,7 @@ class EvaluationsService:
 
                 if evaluator_revision.data:
                     if evaluator_revision.data.schemas:
-                        outputs_schema = evaluator_revision.data.schemas.get("outputs")
+                        outputs_schema = evaluator_revision.data.schemas.outputs
                     if evaluator_revision.data.service:
                         service_format = evaluator_revision.data.service.get("format")
 
@@ -1492,20 +1484,18 @@ class EvaluationsService:
 class SimpleEvaluationsService:
     def __init__(
         self,
-        queries_service: QueriesService,
         testsets_service: TestsetsService,
+        queries_service: QueriesService,
+        applications_service: ApplicationsService,
         evaluators_service: EvaluatorsService,
         evaluations_service: EvaluationsService,
-        simple_testsets_service: SimpleTestsetsService,
-        simple_evaluators_service: SimpleEvaluatorsService,
         evaluations_worker: Optional["EvaluationsWorker"] = None,
     ):
-        self.queries_service = queries_service
         self.testsets_service = testsets_service
+        self.queries_service = queries_service
+        self.applications_service = applications_service
         self.evaluators_service = evaluators_service
         self.evaluations_service = evaluations_service
-        self.simple_testsets_service = simple_testsets_service
-        self.simple_evaluators_service = simple_evaluators_service
         self.evaluations_worker = evaluations_worker
 
     async def create(
@@ -1549,9 +1539,6 @@ class SimpleEvaluationsService:
                 log.info("[EVAL] [failure] invalid simple evaluation flags")
                 return None
 
-            # Default: expect callers to provide testset revision ids; keep evaluator JIT as-is
-            evaluation_jit = evaluation.jit or {"testsets": False, "evaluators": True}
-
             run_data = await self._make_evaluation_run_data(
                 project_id=project_id,
                 user_id=user_id,
@@ -1562,8 +1549,6 @@ class SimpleEvaluationsService:
                 evaluator_steps=evaluation.data.evaluator_steps,
                 #
                 repeats=evaluation.data.repeats,
-                #
-                jit=evaluation_jit,
             )
 
             if not run_data:
@@ -1613,7 +1598,7 @@ class SimpleEvaluationsService:
             log.info("[EVAL] [success]     ", id=run.id)
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [failure]     ", exc_info=True)
             return None
 
@@ -1792,7 +1777,7 @@ class SimpleEvaluationsService:
 
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [failure]     ", exc_info=True)
             return None
 
@@ -1911,6 +1896,12 @@ class SimpleEvaluationsService:
                     )
                     return None
 
+                # SDK evaluations set status="running" — the loop runs locally,
+                # so do NOT dispatch the legacy worker.
+                if _evaluation.data.status == "running":
+                    _evaluation = await self._parse_evaluation_run(run=run)
+                    return _evaluation
+
                 if self.evaluations_worker is None:
                     log.warning(
                         "[EVAL] Taskiq client missing; cannot dispatch evaluation run",
@@ -1939,7 +1930,7 @@ class SimpleEvaluationsService:
 
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [start] [failure]", exc_info=True)
             return None
 
@@ -2024,8 +2015,6 @@ class SimpleEvaluationsService:
         evaluator_steps: Optional[Target] = None,
         #
         repeats: Optional[int] = None,
-        #
-        jit: Optional[Dict[str, bool]] = None,
     ) -> Optional[EvaluationRunData]:
         # IMPLICIT FLAG: is_multivariate=False
         # IMPLICIT FLAG: all_inputs=True
@@ -2129,54 +2118,6 @@ class SimpleEvaluationsService:
                     for testset_revision_id in testset_steps
                 }
 
-            # JIT MIGRATION ================================================== #
-            if jit and jit.get("testsets"):
-                _testset_steps = deepcopy(testset_steps or {})
-                testset_steps = dict()
-
-                for testset_id, origin in _testset_steps.items():
-                    testset_ref = Reference(id=testset_id)
-
-                    simple_testset = await self.simple_testsets_service.transfer(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        testset_id=testset_id,
-                    )
-
-                    if (
-                        not simple_testset
-                        or not simple_testset.id
-                        or not simple_testset.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not transfer simple testset",
-                            id=testset_ref.id,
-                        )
-                        return None
-
-                    testset_revision = (
-                        await self.testsets_service.fetch_testset_revision(
-                            project_id=project_id,
-                            #
-                            testset_ref=testset_ref,
-                        )
-                    )
-
-                    if (
-                        not testset_revision
-                        or not testset_revision.id
-                        or not testset_revision.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not find testset revision",
-                            id=testset_ref.id,
-                        )
-                        return None
-
-                    testset_steps[testset_revision.id] = origin
-            # ================================================================ #
-
             for testset_revision_id, origin in (testset_steps or {}).items():
                 testset_revision_ref = Reference(id=testset_revision_id)
 
@@ -2267,7 +2208,6 @@ class SimpleEvaluationsService:
             # fetch applications -----------------------------------------------
             application_invocation_steps_keys: List[str] = list()
             application_references: Dict[str, Dict[str, Reference]] = dict()
-            application_revisions: Dict[str, AppVariantRevisionsDB] = dict()
             application_origins: Dict[str, Origin] = dict()
 
             if isinstance(application_steps, list):
@@ -2279,8 +2219,11 @@ class SimpleEvaluationsService:
             for application_revision_id, origin in (application_steps or {}).items():
                 application_revision_ref = Reference(id=application_revision_id)
 
-                application_revision = await fetch_app_variant_revision_by_id(
-                    variant_revision_id=str(application_revision_ref.id),
+                application_revision = (
+                    await self.applications_service.fetch_application_revision(
+                        project_id=project_id,
+                        application_revision_ref=application_revision_ref,
+                    )
                 )
 
                 if not application_revision:
@@ -2291,11 +2234,14 @@ class SimpleEvaluationsService:
                     return None
 
                 application_variant_ref = Reference(
-                    id=UUID(str(application_revision.variant_id))
+                    id=application_revision.application_variant_id
                 )
 
-                application_variant = await fetch_app_variant_by_id(
-                    app_variant_id=str(application_variant_ref.id),
+                application_variant = (
+                    await self.applications_service.fetch_application_variant(
+                        project_id=project_id,
+                        application_variant_ref=application_variant_ref,
+                    )
                 )
 
                 if not application_variant:
@@ -2305,10 +2251,11 @@ class SimpleEvaluationsService:
                     )
                     return None
 
-                application_ref = Reference(id=UUID(str(application_variant.app_id)))
+                application_ref = Reference(id=application_variant.application_id)
 
-                application = await fetch_app_by_id(
-                    app_id=str(application_ref.id),
+                application = await self.applications_service.fetch_application(
+                    project_id=project_id,
+                    application_ref=application_ref,
                 )
 
                 if not application:
@@ -2319,8 +2266,8 @@ class SimpleEvaluationsService:
                     return None
 
                 application_revision_slug = get_slug_from_name_and_id(
-                    str(application_revision.config_name),
-                    UUID(str(application_revision.id)),
+                    str(application_revision.slug),
+                    application_revision.id,
                 )
 
                 step_key = "application-" + application_revision_slug
@@ -2330,20 +2277,18 @@ class SimpleEvaluationsService:
                 application_references[step_key] = dict(
                     application=Reference(
                         id=application_ref.id,
-                        slug=str(application.app_name),
+                        slug=application.slug,
                     ),
                     application_variant=Reference(
                         id=application_variant_ref.id,
-                        slug=str(application_variant.variant_name),
+                        slug=application_variant.slug,
                     ),
                     application_revision=Reference(
                         id=application_revision_ref.id,
-                        slug=str(application_revision.config_name),
-                        version=str(application_revision.revision),
+                        slug=application_revision.slug,
+                        version=application_revision.version,
                     ),
                 )
-
-                application_revisions[step_key] = application_revision
 
                 application_origins[step_key] = origin
 
@@ -2361,54 +2306,6 @@ class SimpleEvaluationsService:
                     evaluator_revision_id: DEFAULT_ORIGIN_EVALUATORS
                     for evaluator_revision_id in evaluator_steps
                 }
-
-            # JIT MIGRATION ================================================== #
-            if jit and jit.get("evaluators"):
-                _evaluator_steps = deepcopy(evaluator_steps or {})
-                evaluator_steps = dict()
-
-                for evaluator_id, origin in _evaluator_steps.items():
-                    evaluator_ref = Reference(id=evaluator_id)
-
-                    simple_evaluator = await self.simple_evaluators_service.transfer(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        evaluator_id=evaluator_id,
-                    )
-
-                    if (
-                        not simple_evaluator
-                        or not simple_evaluator.id
-                        or not simple_evaluator.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not transfer simple evaluator",
-                            id=evaluator_ref.id,
-                        )
-                        return None
-
-                    evaluator_revision = (
-                        await self.evaluators_service.fetch_evaluator_revision(
-                            project_id=project_id,
-                            #
-                            evaluator_ref=evaluator_ref,
-                        )
-                    )
-
-                    if (
-                        not evaluator_revision
-                        or not evaluator_revision.id
-                        or not evaluator_revision.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not find evaluator revision",
-                            id=evaluator_ref.id,
-                        )
-                        return None
-
-                    evaluator_steps[evaluator_revision.id] = origin
-            # ================================================================ #
 
             for evaluator_revision_id, origin in (evaluator_steps or {}).items():
                 evaluator_revision_ref = Reference(id=evaluator_revision_id)
@@ -2493,7 +2390,7 @@ class SimpleEvaluationsService:
 
                 if evaluator_revision.data.schemas:
                     metrics_keys = get_metrics_keys_from_schema(
-                        schema=(evaluator_revision.data.schemas.get("outputs")),
+                        schema=evaluator_revision.data.schemas.outputs,
                     )
 
                     evaluator_metrics_keys[step_key] = [
@@ -2653,7 +2550,7 @@ class SimpleEvaluationsService:
                 repeats=repeats or 1,
             )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-exception-caught
             log.error("[EVAL] [run] [make] [failure]", exc_info=True)
 
             return None
@@ -2880,6 +2777,6 @@ class SimpleEvaluationsService:
                 data=evaluation_data,
             )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-exception-caught
             log.error("[EVAL] [run] [parse] [failure]", exc_info=True)
             return None
