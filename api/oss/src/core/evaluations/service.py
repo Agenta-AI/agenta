@@ -78,12 +78,10 @@ from oss.src.core.testsets.dtos import TestsetRevision
 from oss.src.core.evaluators.dtos import EvaluatorRevision
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testsets.service import TestsetsService
-from oss.src.core.testsets.service import SimpleTestsetsService
-from oss.src.core.evaluators.service import SimpleEvaluatorsService
+from oss.src.core.applications.services import ApplicationsService
 
 from oss.src.core.evaluations.utils import filter_scenario_ids
 
-from oss.src.services.legacy_adapter import get_legacy_adapter
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 
@@ -1486,20 +1484,18 @@ class EvaluationsService:
 class SimpleEvaluationsService:
     def __init__(
         self,
-        queries_service: QueriesService,
         testsets_service: TestsetsService,
+        queries_service: QueriesService,
+        applications_service: ApplicationsService,
         evaluators_service: EvaluatorsService,
         evaluations_service: EvaluationsService,
-        simple_testsets_service: SimpleTestsetsService,
-        simple_evaluators_service: SimpleEvaluatorsService,
         evaluations_worker: Optional["EvaluationsWorker"] = None,
     ):
-        self.queries_service = queries_service
         self.testsets_service = testsets_service
+        self.queries_service = queries_service
+        self.applications_service = applications_service
         self.evaluators_service = evaluators_service
         self.evaluations_service = evaluations_service
-        self.simple_testsets_service = simple_testsets_service
-        self.simple_evaluators_service = simple_evaluators_service
         self.evaluations_worker = evaluations_worker
 
     async def create(
@@ -2220,15 +2216,14 @@ class SimpleEvaluationsService:
                     for application_revision_id in application_steps
                 }
 
-            # Use adapter to fetch from workflow tables (v0.84.0+ migration)
-            adapter = get_legacy_adapter()
-
             for application_revision_id, origin in (application_steps or {}).items():
                 application_revision_ref = Reference(id=application_revision_id)
 
-                application_revision = await adapter.fetch_revision_by_id(
-                    project_id=project_id,
-                    revision_id=application_revision_ref.id,
+                application_revision = (
+                    await self.applications_service.fetch_application_revision(
+                        project_id=project_id,
+                        application_revision_ref=application_revision_ref,
+                    )
                 )
 
                 if not application_revision:
@@ -2242,9 +2237,11 @@ class SimpleEvaluationsService:
                     id=application_revision.application_variant_id
                 )
 
-                application_variant = await adapter.fetch_variant_by_id(
-                    project_id=project_id,
-                    variant_id=application_variant_ref.id,
+                application_variant = (
+                    await self.applications_service.fetch_application_variant(
+                        project_id=project_id,
+                        application_variant_ref=application_variant_ref,
+                    )
                 )
 
                 if not application_variant:
@@ -2256,9 +2253,9 @@ class SimpleEvaluationsService:
 
                 application_ref = Reference(id=application_variant.application_id)
 
-                application = await adapter.fetch_app_by_id(
+                application = await self.applications_service.fetch_application(
                     project_id=project_id,
-                    app_id=application_ref.id,
+                    application_ref=application_ref,
                 )
 
                 if not application:
@@ -2553,7 +2550,7 @@ class SimpleEvaluationsService:
                 repeats=repeats or 1,
             )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-exception-caught
             log.error("[EVAL] [run] [make] [failure]", exc_info=True)
 
             return None
@@ -2780,6 +2777,6 @@ class SimpleEvaluationsService:
                 data=evaluation_data,
             )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-exception-caught
             log.error("[EVAL] [run] [parse] [failure]", exc_info=True)
             return None
