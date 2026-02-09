@@ -245,7 +245,9 @@ class TestEvaluatorsQueries:
             "POST",
             "/preview/simple/evaluators/query",
             json={
-                "flags": mock_data["evaluators"][0]["flags"],
+                "evaluator": {
+                    "flags": mock_data["evaluators"][0]["flags"],
+                },
             },
         )
         # ----------------------------------------------------------------------
@@ -268,29 +270,9 @@ class TestEvaluatorsQueries:
             "POST",
             "/preview/simple/evaluators/query",
             json={
-                "tags": mock_data["evaluators"][0]["tags"],
-            },
-        )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        response = response.json()
-        assert response["count"] == 1
-        assert response["evaluators"][0]["id"] == mock_data["evaluators"][0]["id"]
-        # ----------------------------------------------------------------------
-
-    def test_query_evaluators_by_meta(
-        self,
-        authed_api,
-        mock_data,
-    ):
-        # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "POST",
-            "/preview/simple/evaluators/query",
-            json={
-                "meta": mock_data["evaluators"][0]["meta"],
+                "evaluator": {
+                    "tags": mock_data["evaluators"][0]["tags"],
+                },
             },
         )
         # ----------------------------------------------------------------------

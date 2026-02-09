@@ -1,24 +1,47 @@
+import time
 from uuid import uuid4
 
 
 import pytest
 
 
+TRACE_ID = uuid4().hex
+
+
+def _wait_for_spans(authed_api, trace_id, *, expected=1, max_retries=15, delay=0.5):
+    """Poll until spans with the given trace_id appear in the DB."""
+    resp = None
+    for _ in range(max_retries):
+        resp = authed_api(
+            "POST",
+            "/preview/tracing/spans/query",
+            json={
+                "focus": "span",
+                "filter": {
+                    "conditions": [
+                        {
+                            "field": "trace_id",
+                            "operator": "is",
+                            "value": trace_id,
+                        }
+                    ]
+                },
+            },
+        )
+        if resp.status_code == 200 and resp.json().get("count", 0) >= expected:
+            return resp
+        time.sleep(delay)
+    return resp
+
+
 @pytest.fixture(scope="class")
 def mock_data(authed_api):
-    trace_ids = [
-        "1234567890abcdef1234567890abc000",
-        "1234567890abcdef1234567890abc001",
-        "1234567890abcdef1234567890abc002",
-        "1234567890abcdef1234567890abc003",
-        "1234567890abcdef1234567890abc004",
-        "1234567890abcdef1234567890abc005",
-    ]
+    trace_id = TRACE_ID
 
     # ARRANGE ------------------------------------------------------------------
     spans = [
         {
-            "trace_id": trace_ids[0],
+            "trace_id": trace_id,
             "span_id": "abcdef1234567890",
             "span_name": "parent_span",
             "span_kind": "SPAN_KIND_SERVER",
@@ -29,8 +52,8 @@ def mock_data(authed_api):
             "attributes": {
                 "ag": {
                     "type": {
-                        "trace": "undefined",
-                        "span": "undefined",
+                        "trace": "unknown",
+                        "span": "unknown",
                         "extra_type": "x",  # unsupported
                     },
                     "flags": {"env": True},
@@ -85,7 +108,7 @@ def mock_data(authed_api):
             ],
         },
         {
-            "trace_id": trace_ids[0],
+            "trace_id": trace_id,
             "span_id": "1234567890abcdef",
             "parent_id": "abcdef1234567890",
             "span_name": "child_span",
@@ -112,19 +135,35 @@ def mock_data(authed_api):
     assert response.status_code == 202
     response = response.json()
     assert response["count"] == 2
+
+    _wait_for_spans(authed_api, trace_id, expected=2)
     # --------------------------------------------------------------------------
 
-    _mock_data = {"spans": spans}
+    _mock_data = {"spans": spans, "trace_id": trace_id}
 
     return _mock_data
 
 
-class TestSpansBasics:
+class TestSpansQueries:
     def test_query_all(self, authed_api, mock_data):
+        trace_id = mock_data["trace_id"]
+
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
             "/preview/tracing/spans/query",
+            json={
+                "focus": "span",
+                "filter": {
+                    "conditions": [
+                        {
+                            "field": "trace_id",
+                            "operator": "is",
+                            "value": trace_id,
+                        }
+                    ]
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -136,20 +175,28 @@ class TestSpansBasics:
         # ----------------------------------------------------------------------
 
     def test_query_fts(self, authed_api, mock_data):
+        trace_id = mock_data["trace_id"]
+
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
             "/preview/tracing/spans/query",
             json={
+                "focus": "span",
                 "filter": {
                     "conditions": [
+                        {
+                            "field": "trace_id",
+                            "operator": "is",
+                            "value": trace_id,
+                        },
                         {
                             "field": "content",
                             "operator": "contains",
                             "value": "hello world",
-                        }
+                        },
                     ]
-                }
+                },
             },
         )
         # ----------------------------------------------------------------------

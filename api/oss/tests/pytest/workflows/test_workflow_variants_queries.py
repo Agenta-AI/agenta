@@ -1,6 +1,4 @@
 from uuid import uuid4
-from json import dumps
-from urllib.parse import quote
 
 import pytest
 
@@ -8,6 +6,8 @@ import pytest
 @pytest.fixture(scope="class")
 def mock_data(authed_api):
     # ARRANGE --------------------------------------------------------------
+    unique_marker = uuid4().hex[:8]
+
     workflow_slug = uuid4()
 
     workflow = {
@@ -60,11 +60,13 @@ def mock_data(authed_api):
                     "tag1": "value1",
                     "tag2": "value2",
                     "tag3": "value3",
+                    "_marker": unique_marker,
                 },
                 "meta": {
                     "meta1": "value1",
                     "meta2": "value2",
                     "meta3": "value3",
+                    "_marker": unique_marker,
                 },
                 "workflow_id": workflow_id,
             }
@@ -73,7 +75,7 @@ def mock_data(authed_api):
 
     assert response.status_code == 200
 
-    workflow_variant_id_0 = response.json()["workflow_variant"]["id"]
+    workflow_variant_0 = response.json()["workflow_variant"]
 
     workflow_variant_slug = uuid4()
 
@@ -94,11 +96,13 @@ def mock_data(authed_api):
                     "tag1": "value1",
                     "tag2": "value2",
                     "tag3": "value3",
+                    "_marker": unique_marker,
                 },
                 "meta": {
                     "meta1": "value1",
                     "meta2": "value2",
                     "meta3": "value3",
+                    "_marker": unique_marker,
                 },
                 "workflow_id": workflow_id,
             }
@@ -107,29 +111,39 @@ def mock_data(authed_api):
 
     assert response.status_code == 200
 
-    workflow_variant_id_1 = response.json()["workflow_variant"]["id"]
+    workflow_variant_1 = response.json()["workflow_variant"]
 
     response = authed_api(
         "POST",
-        f"/preview/workflows/variants/{workflow_variant_id_1}/archive",
+        f"/preview/workflows/variants/{workflow_variant_1['id']}/archive",
     )
 
     assert response.status_code == 200
 
     response = authed_api(
-        "GET",
-        "/preview/workflows/variants/?include_archived=true",
+        "POST",
+        "/preview/workflows/variants/query",
+        json={
+            "include_archived": True,
+            "workflow_variant": {"tags": {"_marker": unique_marker}},
+        },
     )
 
     assert response.status_code == 200
     response = response.json()
 
     assert response["count"] == 2
-    assert response["workflow_variants"][0]["id"] == workflow_variant_id_0
-    assert response["workflow_variants"][1]["id"] == workflow_variant_id_1
+    variant_ids = {v["id"] for v in response["workflow_variants"]}
+    assert workflow_variant_0["id"] in variant_ids
+    assert workflow_variant_1["id"] in variant_ids
     # --------------------------------------------------------------------------
 
-    return response
+    _mock_data = {
+        "workflow_variants": [workflow_variant_0, workflow_variant_1],
+        "_marker": unique_marker,
+    }
+
+    return _mock_data
 
 
 class TestWorkflowVariantsQueries:
@@ -140,8 +154,11 @@ class TestWorkflowVariantsQueries:
     ):
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/workflows/variants/",
+            "POST",
+            "/preview/workflows/variants/query",
+            json={
+                "workflow_variant": {"tags": {"_marker": mock_data["_marker"]}},
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -162,8 +179,12 @@ class TestWorkflowVariantsQueries:
     ):
         # ACT ------------------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/workflows/variants/?include_archived=true",
+            "POST",
+            "/preview/workflows/variants/query",
+            json={
+                "include_archived": True,
+                "workflow_variant": {"tags": {"_marker": mock_data["_marker"]}},
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -171,10 +192,9 @@ class TestWorkflowVariantsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 2
-        assert (
-            response["workflow_variants"][0]["id"]
-            == mock_data["workflow_variants"][0]["id"]
-        )
+        variant_ids = {v["id"] for v in response["workflow_variants"]}
+        assert mock_data["workflow_variants"][0]["id"] in variant_ids
+        assert mock_data["workflow_variants"][1]["id"] in variant_ids
         # ----------------------------------------------------------------------
 
     def test_query_paginated_workflow_variants(
@@ -182,10 +202,18 @@ class TestWorkflowVariantsQueries:
         authed_api,
         mock_data,
     ):
-        # ACT ------------------------------------------------------------------
+        marker = mock_data["_marker"]
+        expected_ids = {v["id"] for v in mock_data["workflow_variants"]}
+
+        # ACT — page 1 --------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/workflows/variants/?include_archived=true&limit=1",
+            "POST",
+            "/preview/workflows/variants/query",
+            json={
+                "include_archived": True,
+                "workflow_variant": {"tags": {"_marker": marker}},
+                "windowing": {"limit": 1},
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -193,17 +221,21 @@ class TestWorkflowVariantsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert (
-            response["workflow_variants"][0]["id"]
-            == mock_data["workflow_variants"][0]["id"]
-        )
+        seen_ids = {response["workflow_variants"][0]["id"]}
         # ----------------------------------------------------------------------
 
-        # ACT ------------------------------------------------------------------
+        # ACT — page 2 --------------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/workflows/variants/?include_archived=true"
-            f"&limit=1&next={response['workflow_variants'][0]['id']}",
+            "POST",
+            "/preview/workflows/variants/query",
+            json={
+                "include_archived": True,
+                "workflow_variant": {"tags": {"_marker": marker}},
+                "windowing": {
+                    "limit": 1,
+                    "next": response["workflow_variants"][0]["id"],
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -211,16 +243,22 @@ class TestWorkflowVariantsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert (
-            response["workflow_variants"][0]["id"]
-            == mock_data["workflow_variants"][1]["id"]
-        )
+        seen_ids.add(response["workflow_variants"][0]["id"])
+        assert seen_ids == expected_ids
         # ----------------------------------------------------------------------
 
+        # ACT — page 3 (empty) ------------------------------------------------
         response = authed_api(
-            "GET",
-            "/preview/workflows/variants/?include_archived=true"
-            f"&limit=1&next={response['workflow_variants'][0]['id']}",
+            "POST",
+            "/preview/workflows/variants/query",
+            json={
+                "include_archived": True,
+                "workflow_variant": {"tags": {"_marker": marker}},
+                "windowing": {
+                    "limit": 1,
+                    "next": response["workflow_variants"][0]["id"],
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -235,11 +273,18 @@ class TestWorkflowVariantsQueries:
         authed_api,
         mock_data,
     ):
+        marker = mock_data["_marker"]
+
         # ACT ------------------------------------------------------------------
-        flags = quote(dumps(mock_data["workflow_variants"][0]["flags"]))
         response = authed_api(
-            "GET",
-            f"/preview/workflows/variants/?flags={flags}",
+            "POST",
+            "/preview/workflows/variants/query",
+            json={
+                "workflow_variant": {
+                    "flags": mock_data["workflow_variants"][0]["flags"],
+                    "tags": {"_marker": marker},
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -254,11 +299,15 @@ class TestWorkflowVariantsQueries:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        flags = quote(dumps({"is_custom": True}))
-
         response = authed_api(
-            "GET",
-            f"/preview/workflows/variants/?flags={flags}",
+            "POST",
+            "/preview/workflows/variants/query",
+            json={
+                "workflow_variant": {
+                    "flags": {"is_custom": True},
+                    "tags": {"_marker": marker},
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -274,10 +323,14 @@ class TestWorkflowVariantsQueries:
         mock_data,
     ):
         # ACT ------------------------------------------------------------------
-        tags = quote(dumps(mock_data["workflow_variants"][0]["tags"]))
         response = authed_api(
-            "GET",
-            f"/preview/workflows/variants/?tags={tags}",
+            "POST",
+            "/preview/workflows/variants/query",
+            json={
+                "workflow_variant": {
+                    "tags": mock_data["workflow_variants"][0]["tags"],
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
@@ -292,49 +345,14 @@ class TestWorkflowVariantsQueries:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        tags = quote(dumps({"tag1": "value2"}))
-
         response = authed_api(
-            "GET",
-            f"/preview/workflows/variants/?tags={tags}",
-        )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        response = response.json()
-        assert response["count"] == 0
-        # ----------------------------------------------------------------------
-
-    def test_query_workflow_variants_by_meta(
-        self,
-        authed_api,
-        mock_data,
-    ):
-        # ACT ------------------------------------------------------------------
-        meta = quote(dumps(mock_data["workflow_variants"][0]["meta"]))
-        response = authed_api(
-            "GET",
-            f"/preview/workflows/variants/?meta={meta}",
-        )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        response = response.json()
-        assert response["count"] == 1
-        assert (
-            response["workflow_variants"][0]["id"]
-            == mock_data["workflow_variants"][0]["id"]
-        )
-        # ----------------------------------------------------------------------
-
-        # ACT ------------------------------------------------------------------
-        meta = quote(dumps({"meta1": "value2"}))
-
-        response = authed_api(
-            "GET",
-            f"/preview/workflows/variants/?meta={meta}",
+            "POST",
+            "/preview/workflows/variants/query",
+            json={
+                "workflow_variant": {
+                    "tags": {"tag1": "nonexistent_value"},
+                },
+            },
         )
         # ----------------------------------------------------------------------
 

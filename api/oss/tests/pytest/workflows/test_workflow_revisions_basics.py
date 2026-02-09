@@ -450,7 +450,7 @@ class TestWorkflowRevisionsBasics:
             "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "id": workflow_revision_id,
+                    "revision_id": workflow_revision_id,
                     "slug": f"workflow-revision-new-{workflow_revision_slug}",
                     "name": f"Workflow revision new {workflow_revision_slug}",
                     "description": "Workflow revision new Description",

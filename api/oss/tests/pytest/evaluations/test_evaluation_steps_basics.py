@@ -1,5 +1,3 @@
-from uuid import uuid4
-
 import pytest
 
 
@@ -154,16 +152,19 @@ class TestEvaluationResultsBasics:
         results = [
             {
                 "step_key": step_key_1,
+                "repeat_idx": 1,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
             {
                 "step_key": step_key_2,
+                "repeat_idx": 1,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
             {
                 "step_key": step_key_3,
+                "repeat_idx": 1,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
@@ -208,16 +209,19 @@ class TestEvaluationResultsBasics:
     def test_delete_evaluation_results(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
+        authed_api("POST", f"/preview/evaluations/runs/{run_id}/open")
         scenario_id = mock_data["scenarios"][0]["id"]
 
         results = [
             {
                 "step_key": "input",
+                "repeat_idx": 2,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
             {
                 "step_key": "invocation",
+                "repeat_idx": 2,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
@@ -268,6 +272,7 @@ class TestEvaluationResultsBasics:
     def test_fetch_evaluation_result(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
+        authed_api("POST", f"/preview/evaluations/runs/{run_id}/open")
         scenario_id = mock_data["scenarios"][2]["id"]
 
         results = [
@@ -308,11 +313,13 @@ class TestEvaluationResultsBasics:
     def test_edit_evaluation_result(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
+        authed_api("POST", f"/preview/evaluations/runs/{run_id}/open")
         scenario_id = mock_data["scenarios"][0]["id"]
 
         results = [
             {
                 "step_key": "input",
+                "repeat_idx": 3,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },
@@ -355,11 +362,13 @@ class TestEvaluationResultsBasics:
     def test_delete_evaluation_result(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
+        authed_api("POST", f"/preview/evaluations/runs/{run_id}/open")
         scenario_id = mock_data["scenarios"][0]["id"]
 
         results = [
             {
                 "step_key": "input",
+                "repeat_idx": 4,
                 "scenario_id": scenario_id,
                 "run_id": run_id,
             },

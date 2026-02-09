@@ -6,14 +6,18 @@ import pytest
 @pytest.fixture(scope="class")
 def mock_data(authed_api):
     # ARRANGE ------------------------------------------------------------------
+    unique_marker = uuid4().hex[:8]
+
     tags = {
         "tags1": "value1",
         "tags2": "value2",
+        "_marker": unique_marker,
     }
 
     meta = {
         "meta1": "value1",
         "meta2": "value2",
+        "_marker": unique_marker,
     }
 
     run = {
@@ -37,11 +41,13 @@ def mock_data(authed_api):
     tags = {
         "tags1": "value2",
         "tags2": "value3",
+        "_marker": unique_marker,
     }
 
     meta = {
         "meta1": "value2",
         "meta2": "value3",
+        "_marker": unique_marker,
     }
 
     run = {
@@ -65,11 +71,13 @@ def mock_data(authed_api):
     tags = {
         "tags1": "value3",
         "tags2": "value1",
+        "_marker": unique_marker,
     }
 
     meta = {
         "meta1": "value3",
         "meta2": "value1",
+        "_marker": unique_marker,
     }
 
     run = {
@@ -91,7 +99,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/evaluations/runs/{run_3['id']}/archive",
+        f"/preview/evaluations/runs/{run_3['id']}/close",
     )
 
     assert response.status_code == 200
@@ -99,34 +107,49 @@ def mock_data(authed_api):
     # --------------------------------------------------------------------------
     _mock_data = {
         "runs": [run_1, run_2, run_3],
+        "_marker": unique_marker,
     }
 
     return _mock_data
 
 
 class TestEvaluationRunsQueries:
-    def test_query_evaluations_runs_non_archived(self, authed_api, mock_data):
+    def test_query_evaluations_runs_by_marker(self, authed_api, mock_data):
+        marker = mock_data["_marker"]
+
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
             "/preview/evaluations/runs/query",
-            json={},
+            json={
+                "run": {
+                    "tags": {"_marker": marker},
+                },
+            },
         )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] == 2
+        assert response["count"] == 3
+        run_ids = [r["id"] for r in response["runs"]]
+        assert mock_data["runs"][0]["id"] in run_ids
+        assert mock_data["runs"][1]["id"] in run_ids
+        assert mock_data["runs"][2]["id"] in run_ids
         # ----------------------------------------------------------------------
 
-    def test_query_evaluations_runs_include_archived(self, authed_api, mock_data):
+    def test_query_evaluations_runs_by_ids(self, authed_api, mock_data):
+        run_ids = [r["id"] for r in mock_data["runs"]]
+
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
             "/preview/evaluations/runs/query",
             json={
-                "include_archived": True,
+                "run": {
+                    "ids": run_ids,
+                },
             },
         )
         # ----------------------------------------------------------------------
@@ -138,14 +161,16 @@ class TestEvaluationRunsQueries:
         # ----------------------------------------------------------------------
 
     def test_query_evaluations_runs_by_flags(self, authed_api, mock_data):
+        marker = mock_data["_marker"]
+
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
             "/preview/evaluations/runs/query",
             json={
-                "include_archived": True,
                 "run": {
                     "flags": {"is_closed": True},
+                    "tags": {"_marker": marker},
                 },
             },
         )
@@ -155,13 +180,12 @@ class TestEvaluationRunsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["runs"][0]["tags"] == {
-            "tags1": "value3",
-            "tags2": "value1",
-        }
+        assert response["runs"][0]["id"] == mock_data["runs"][2]["id"]
         # ----------------------------------------------------------------------
 
     def test_query_evaluations_runs_by_tags(self, authed_api, mock_data):
+        marker = mock_data["_marker"]
+
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
@@ -171,6 +195,7 @@ class TestEvaluationRunsQueries:
                     "tags": {
                         "tags1": "value1",
                         "tags2": "value2",
+                        "_marker": marker,
                     },
                 },
             },
@@ -181,10 +206,7 @@ class TestEvaluationRunsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["runs"][0]["tags"] == {
-            "tags1": "value1",
-            "tags2": "value2",
-        }
+        assert response["runs"][0]["id"] == mock_data["runs"][0]["id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -196,6 +218,7 @@ class TestEvaluationRunsQueries:
                     "tags": {
                         "tags1": "value2",
                         "tags2": "value3",
+                        "_marker": marker,
                     },
                 },
             },
@@ -206,64 +229,12 @@ class TestEvaluationRunsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["runs"][0]["tags"] == {
-            "tags1": "value2",
-            "tags2": "value3",
-        }
-        # ----------------------------------------------------------------------
-
-    def test_query_evaluations_runs_by_meta(self, authed_api, mock_data):
-        # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "POST",
-            "/preview/evaluations/runs/query",
-            json={
-                "run": {
-                    "meta": {
-                        "meta1": "value1",
-                        "meta2": "value2",
-                    },
-                },
-            },
-        )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        response = response.json()
-        assert response["count"] == 1
-        assert response["runs"][0]["meta"] == {
-            "meta1": "value1",
-            "meta2": "value2",
-        }
-        # ----------------------------------------------------------------------
-
-        # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "POST",
-            "/preview/evaluations/runs/query",
-            json={
-                "run": {
-                    "meta": {
-                        "meta1": "value2",
-                        "meta2": "value3",
-                    },
-                },
-            },
-        )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        response = response.json()
-        assert response["count"] == 1
-        assert response["runs"][0]["meta"] == {
-            "meta1": "value2",
-            "meta2": "value3",
-        }
+        assert response["runs"][0]["id"] == mock_data["runs"][1]["id"]
         # ----------------------------------------------------------------------
 
     def test_query_evaluations_runs_by_status(self, authed_api, mock_data):
+        marker = mock_data["_marker"]
+
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
@@ -271,6 +242,7 @@ class TestEvaluationRunsQueries:
             json={
                 "run": {
                     "status": "success",
+                    "tags": {"_marker": marker},
                 },
             },
         )
@@ -290,6 +262,7 @@ class TestEvaluationRunsQueries:
             json={
                 "run": {
                     "status": "pending",
+                    "tags": {"_marker": marker},
                 },
             },
         )
@@ -307,9 +280,9 @@ class TestEvaluationRunsQueries:
             "POST",
             "/preview/evaluations/runs/query",
             json={
-                "include_archived": True,
                 "run": {
                     "status": "failure",
+                    "tags": {"_marker": marker},
                 },
             },
         )

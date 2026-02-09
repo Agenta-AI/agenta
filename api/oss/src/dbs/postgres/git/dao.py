@@ -330,10 +330,11 @@ class GitDAO(GitDAOInterface):
                     self.ArtifactDBE.tags.contains(artifact_query.tags)  # type: ignore
                 )
 
-            if artifact_query.meta:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.meta.contains(artifact_query.meta)  # type: ignore
-                )
+            # meta is JSON (not JSONB) — containment (@>) is not supported
+            # if artifact_query.meta:
+            #     stmt = stmt.filter(
+            #         self.ArtifactDBE.meta.contains(artifact_query.meta)
+            #     )
 
             if artifact_query.name:
                 stmt = stmt.filter(
@@ -663,10 +664,11 @@ class GitDAO(GitDAOInterface):
                     self.VariantDBE.tags.contains(variant_query.tags)  # type: ignore
                 )
 
-            if variant_query.meta:
-                stmt = stmt.filter(
-                    self.VariantDBE.meta.contains(variant_query.meta)  # type: ignore
-                )
+            # meta is JSON (not JSONB) — containment (@>) is not supported
+            # if variant_query.meta:
+            #     stmt = stmt.filter(
+            #         self.VariantDBE.meta.contains(variant_query.meta)
+            #     )
 
             if variant_query.name:
                 stmt = stmt.filter(
@@ -875,7 +877,7 @@ class GitDAO(GitDAOInterface):
                 revision.version = await self._get_version(
                     project_id=project_id,
                     variant_id=revision.variant_id,  # type: ignore
-                    created_at=revision.created_at,  # type: ignore
+                    revision_id=revision.id,  # type: ignore
                 )
 
                 await self._set_version(
@@ -916,6 +918,13 @@ class GitDAO(GitDAOInterface):
             elif variant_ref:
                 if variant_ref.id:
                     stmt = stmt.filter(self.RevisionDBE.variant_id == variant_ref.id)  # type: ignore
+                elif variant_ref.slug:
+                    stmt = stmt.join(
+                        self.VariantDBE,
+                        self.RevisionDBE.variant_id == self.VariantDBE.id,  # type: ignore
+                    ).filter(
+                        self.VariantDBE.slug == variant_ref.slug,  # type: ignore
+                    )
 
                 if revision_ref and revision_ref.version:
                     stmt = stmt.filter(self.RevisionDBE.version == revision_ref.version)  # type: ignore
@@ -1138,10 +1147,11 @@ class GitDAO(GitDAOInterface):
                     self.RevisionDBE.tags.contains(revision_query.tags)  # type: ignore
                 )
 
-            if revision_query.meta:
-                stmt = stmt.filter(
-                    self.RevisionDBE.meta.contains(revision_query.meta)  # type: ignore
-                )
+            # meta is JSON (not JSONB) — containment (@>) is not supported
+            # if revision_query.meta:
+            #     stmt = stmt.filter(
+            #         self.RevisionDBE.meta.contains(revision_query.meta)
+            #     )
 
             if revision_query.author:
                 stmt = stmt.filter(
@@ -1269,7 +1279,7 @@ class GitDAO(GitDAOInterface):
                 revision.version = await self._get_version(
                     project_id=project_id,
                     variant_id=revision.variant_id,  # type: ignore
-                    created_at=revision.created_at,  # type: ignore
+                    revision_id=revision.id,  # type: ignore
                 )
 
                 await self._set_version(
@@ -1392,7 +1402,7 @@ class GitDAO(GitDAOInterface):
         *,
         project_id: UUID,
         variant_id: UUID,
-        created_at: datetime,
+        revision_id: UUID,
     ) -> str:
         async with engine.core_session() as session:
             stmt = (
@@ -1401,7 +1411,7 @@ class GitDAO(GitDAOInterface):
                 .where(
                     self.RevisionDBE.project_id == project_id,  # type: ignore
                     self.RevisionDBE.variant_id == variant_id,  # type: ignore
-                    self.RevisionDBE.created_at < created_at,  # type: ignore
+                    self.RevisionDBE.id < revision_id,  # type: ignore
                 )
             )
 

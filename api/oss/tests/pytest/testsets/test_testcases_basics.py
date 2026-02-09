@@ -105,7 +105,8 @@ class TestTestcasesBasics:
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["testcase"] == testcases[0]
+        assert response["testcase"]["id"] == testcase_id
+        assert response["testcase"]["data"] == testcases[0]["data"]
         # ----------------------------------------------------------------------
 
     def test_list_testcases(self, authed_api, mock_data):

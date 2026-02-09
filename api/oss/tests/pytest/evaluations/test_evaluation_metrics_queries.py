@@ -1,6 +1,3 @@
-from uuid import uuid4
-from json import dumps
-from urllib.parse import quote
 from datetime import datetime, timezone
 
 import pytest
@@ -30,42 +27,57 @@ def mock_data(authed_api):
         "meta2": "value2",
     }
 
-    metrics = [
-        {
-            "run_id": runs[0]["id"],
-            "status": "success",
-            "data": {
-                "integer_metric": 42,
-                "float_metric": 3.14,
-                "string_metric": "test",
-                "boolean_metric": True,
-            },
-            "tags": tags,
-            "meta": meta,
+    response = authed_api(
+        "POST",
+        "/preview/evaluations/metrics/",
+        json={
+            "metrics": [
+                {
+                    "run_id": runs[0]["id"],
+                    "status": "success",
+                    "data": {
+                        "integer_metric": 42,
+                        "float_metric": 3.14,
+                        "string_metric": "test",
+                        "boolean_metric": True,
+                    },
+                    "tags": tags,
+                    "meta": meta,
+                },
+            ]
         },
-        {
-            "run_id": runs[1]["id"],
-            "status": "failure",
-            "data": {
-                "integer_metric": 42,
-                "float_metric": 3.14,
-                "string_metric": "test",
-                "boolean_metric": True,
-            },
-        },
-    ]
+    )
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+
+    metric_1 = response.json()["metrics"][0]
 
     response = authed_api(
         "POST",
         "/preview/evaluations/metrics/",
-        json={"metrics": metrics},
+        json={
+            "metrics": [
+                {
+                    "run_id": runs[1]["id"],
+                    "status": "failure",
+                    "data": {
+                        "integer_metric": 42,
+                        "float_metric": 3.14,
+                        "string_metric": "test",
+                        "boolean_metric": True,
+                    },
+                },
+            ]
+        },
     )
 
     assert response.status_code == 200
-    response = response.json()
-    assert response["count"] == 2
+    assert response.json()["count"] == 1
 
-    metrics = response["metrics"]
+    metric_2 = response.json()["metrics"][0]
+
+    metrics = [metric_1, metric_2]
     # --------------------------------------------------------------------------
 
     _mock_data = {
@@ -88,7 +100,7 @@ class TestEvaluationMetricsQueries:
             "POST",
             "/preview/evaluations/metrics/query",
             json={
-                "metric": {
+                "metrics": {
                     "ids": metrics_ids,
                 }
             },
@@ -106,6 +118,7 @@ class TestEvaluationMetricsQueries:
         # ARRANGE --------------------------------------------------------------
         metrics = mock_data["metrics"]
         metrics_ids = [metric["id"] for metric in metrics]
+        run_ids = [r["id"] for r in mock_data["runs"]]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -113,7 +126,8 @@ class TestEvaluationMetricsQueries:
             "POST",
             "/preview/evaluations/metrics/query",
             json={
-                "metric": {
+                "metrics": {
+                    "run_ids": run_ids,
                     "tags": {
                         "tags1": "value1",
                         "tags2": "value2",
@@ -130,37 +144,10 @@ class TestEvaluationMetricsQueries:
         assert all(metric["id"] in metrics_ids for metric in response["metrics"])
         # ----------------------------------------------------------------------
 
-    def test_query_metrics_by_meta(self, authed_api, mock_data):
-        # ARRANGE --------------------------------------------------------------
-        metrics = mock_data["metrics"]
-        metrics_ids = [metric["id"] for metric in metrics]
-        # ----------------------------------------------------------------------
-
-        # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "POST",
-            "/preview/evaluations/metrics/query",
-            json={
-                "metric": {
-                    "meta": {
-                        "meta1": "value1",
-                        "meta2": "value2",
-                    },
-                }
-            },
-        )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        response = response.json()
-        assert response["count"] == 1
-        assert all(metric["id"] in metrics_ids for metric in response["metrics"])
-        # ----------------------------------------------------------------------
-
     def test_query_metrics_by_status(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         metrics = mock_data["metrics"]
+        run_ids = [r["id"] for r in mock_data["runs"]]
         metrics_ids = [
             metric["id"] for metric in metrics if metric["status"] == "success"
         ]
@@ -171,7 +158,8 @@ class TestEvaluationMetricsQueries:
             "POST",
             "/preview/evaluations/metrics/query",
             json={
-                "metric": {
+                "metrics": {
+                    "run_ids": run_ids,
                     "status": "success",
                 }
             },
@@ -188,6 +176,7 @@ class TestEvaluationMetricsQueries:
     def test_query_metrics_by_statuses(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         metrics = mock_data["metrics"]
+        run_ids = [r["id"] for r in mock_data["runs"]]
         metrics_ids = [
             metric["id"]
             for metric in metrics
@@ -200,7 +189,8 @@ class TestEvaluationMetricsQueries:
             "POST",
             "/preview/evaluations/metrics/query",
             json={
-                "metric": {
+                "metrics": {
+                    "run_ids": run_ids,
                     "statuses": ["success", "failure"],
                 }
             },
@@ -226,7 +216,7 @@ class TestEvaluationMetricsQueries:
             "POST",
             "/preview/evaluations/metrics/query",
             json={
-                "metric": {
+                "metrics": {
                     "run_id": run_id,
                 }
             },
@@ -254,7 +244,7 @@ class TestEvaluationMetricsQueries:
             "POST",
             "/preview/evaluations/metrics/query",
             json={
-                "metric": {
+                "metrics": {
                     "run_ids": run_ids,
                 }
             },
@@ -290,24 +280,25 @@ class TestEvaluationMetricsQueries:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
+        # timestamps: False => metrics WHERE timestamp IS NULL (run-level)
         run_level_response = authed_api(
             "POST",
             "/preview/evaluations/metrics/query",
             json={
-                "metric": {
+                "metrics": {
                     "run_id": run_id,
-                    "scenario_ids": True,
+                    "timestamps": False,
                 }
             },
         )
+        # timestamps: True => metrics WHERE timestamp IS NOT NULL (temporal)
         temporal_response = authed_api(
             "POST",
             "/preview/evaluations/metrics/query",
             json={
-                "metric": {
+                "metrics": {
                     "run_id": run_id,
-                    "scenario_ids": True,
-                    "timestamps": False,
+                    "timestamps": True,
                 }
             },
         )

@@ -97,7 +97,7 @@ class TestEvaluationRunsBasics:
         response = authed_api(
             "POST",
             "/preview/evaluations/runs/",
-            json={"runs": runs},
+            json={"jit": False, "runs": runs},
         )
         # ----------------------------------------------------------------------
 

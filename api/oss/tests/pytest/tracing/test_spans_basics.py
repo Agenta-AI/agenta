@@ -1,4 +1,16 @@
+import time
 from uuid import uuid4
+
+
+def _wait_for_spans(authed_api, *, max_retries=15, delay=0.5):
+    """Poll until spans appear in the DB."""
+    resp = None
+    for _ in range(max_retries):
+        resp = authed_api("POST", "/preview/tracing/spans/query")
+        if resp.status_code == 200 and resp.json()["count"] != 0:
+            return resp
+        time.sleep(delay)
+    return resp
 
 
 class TestSpansBasics:
@@ -30,8 +42,8 @@ class TestSpansBasics:
                         "attributes": {
                             "ag": {
                                 "type": {
-                                    "trace": "undefined",
-                                    "span": "undefined",
+                                    "trace": "unknown",
+                                    "span": "unknown",
                                     "extra_type": "x",  # unsupported
                                 },
                                 "flags": {"env": True},
@@ -135,8 +147,8 @@ class TestSpansBasics:
                         "attributes": {
                             "ag": {
                                 "type": {
-                                    "trace": "undefined",
-                                    "span": "undefined",
+                                    "trace": "unknown",
+                                    "span": "unknown",
                                     "extra_type": "x",  # unsupported
                                 },
                                 "flags": {"env": True},
@@ -210,10 +222,7 @@ class TestSpansBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "POST",
-            "/preview/tracing/spans/query",
-        )
+        response = _wait_for_spans(authed_api)
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------

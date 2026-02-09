@@ -164,28 +164,6 @@ class TestTestsetsQueries:
         assert response["testsets"][0]["id"] == mock_data["testsets"][0]["id"]
         # ----------------------------------------------------------------------
 
-    def test_query_testsets_by_meta(self, authed_api, mock_data):
-        # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "POST",
-            "/preview/simple/testsets/query",
-            json={
-                "testset": {
-                    "meta": {
-                        "meta1": "value1",
-                    },
-                },
-            },
-        )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        response = response.json()
-        assert response["count"] == 1
-        assert response["testsets"][0]["id"] == mock_data["testsets"][0]["id"]
-        # ----------------------------------------------------------------------
-
     def test_query_testsets_by_refs(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(

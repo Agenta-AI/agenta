@@ -177,8 +177,13 @@ def mock_data(authed_api):
     assert response.status_code == 200
 
     response = authed_api(
-        "GET",
-        "/preview/workflows/revisions/",
+        "POST",
+        "/preview/workflows/revisions/query",
+        json={
+            "workflow_revision": {
+                "workflow_variant_id": workflow_variant_id,
+            },
+        },
     )
 
     assert response.status_code == 200

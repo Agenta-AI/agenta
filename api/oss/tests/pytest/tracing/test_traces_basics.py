@@ -1,4 +1,16 @@
+import time
 from uuid import uuid4
+
+
+def _wait_for_trace(authed_api, trace_id, *, expect_count=1, max_retries=15, delay=0.5):
+    """Poll until the trace appears (or disappears) in the DB."""
+    resp = None
+    for _ in range(max_retries):
+        resp = authed_api("GET", f"/preview/tracing/traces/{trace_id}")
+        if resp.status_code == 200 and resp.json()["count"] == expect_count:
+            return resp
+        time.sleep(delay)
+    return resp
 
 
 class TestTraceBasics:
@@ -29,7 +41,10 @@ class TestTraceBasics:
                                     "some.number": 123,
                                     "some.boolean": True,
                                     "some.array": [1, 2, 3],
-                                    "some.object": {"key1": "value1", "key2": "value2"},
+                                    "some.object": {
+                                        "key1": "value1",
+                                        "key2": "value2",
+                                    },
                                     "some.more.array.0": "array-value-0",
                                     "some.more.array.1": "array-value-1",
                                     "some.more.array.2": "array-value-2",
@@ -101,7 +116,10 @@ class TestTraceBasics:
                             "some.number": 123,
                             "some.boolean": True,
                             "some.array": [1, 2, 3],
-                            "some.object": {"key1": "value1", "key2": "value2"},
+                            "some.object": {
+                                "key1": "value1",
+                                "key2": "value2",
+                            },
                             "some.more.array.0": "array-value-0",
                             "some.more.array.1": "array-value-1",
                             "some.more.array.2": "array-value-2",
@@ -124,10 +142,7 @@ class TestTraceBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "GET",
-            f"/preview/tracing/traces/{trace_id}",
-        )
+        response = _wait_for_trace(authed_api, trace_id, expect_count=1)
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
@@ -176,6 +191,8 @@ class TestTraceBasics:
         assert response.status_code == 202
         response = response.json()
         assert response["count"] == 2
+
+        _wait_for_trace(authed_api, trace_id, expect_count=1)
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -200,7 +217,10 @@ class TestTraceBasics:
                                     "some.number": 123,
                                     "some.boolean": True,
                                     "some.array": [1, 2, 3],
-                                    "some.object": {"key1": "value1", "key2": "value2"},
+                                    "some.object": {
+                                        "key1": "value1",
+                                        "key2": "value2",
+                                    },
                                     "some.more.array.0": "array-value-0",
                                     "some.more.array.1": "array-value-1",
                                     "some.more.array.2": "array-value-2",
@@ -275,6 +295,8 @@ class TestTraceBasics:
         assert response.status_code == 202
         response = response.json()
         assert response["count"] == 1
+
+        _wait_for_trace(authed_api, trace_id, expect_count=1)
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -289,10 +311,7 @@ class TestTraceBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "GET",
-            f"/preview/tracing/traces/{trace_id}",
-        )
+        response = _wait_for_trace(authed_api, trace_id, expect_count=0)
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
