@@ -1,10 +1,10 @@
+import {variantsListAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithImmer} from "jotai-immer"
 
 import {CustomWorkflowModalProps} from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/types"
-import {appsAtom, currentAppAtom} from "@/oss/state/app"
-import {variantsAtom} from "@/oss/state/variant/atoms/fetcher"
+import {appsAtom, currentAppAtom, selectedAppIdAtom} from "@/oss/state/app"
 
 // Centralized state for the Custom Workflow Modal
 export const customWorkflowModalPropsAtom = atom<CustomWorkflowModalProps>({
@@ -38,8 +38,9 @@ export const customWorkflowValuesAtomFamily = atomFamily((appId: string | null) 
 // Seed values from current app and first variant
 export const customWorkflowSeedAtom = atom((get) => {
     const app: any = get(currentAppAtom)
-    const vars: any[] = (get(variantsAtom) as any[]) || []
-    const first = Array.isArray(vars) && vars.length > 0 ? (vars[0] as any) : null
+    const appId = get(selectedAppIdAtom)
+    const vars = appId ? get(variantsListAtomFamily(appId)) : []
+    const first = Array.isArray(vars) && vars.length > 0 ? vars[0] : null
     return {
         appName: (app?.app_name as string) || "",
         appUrl: (first?.uri as string) || "",
@@ -90,7 +91,8 @@ export const openCustomWorkflowModalAtom = atom(
             const apps = get(appsAtom) as any[]
             const app = Array.isArray(apps) ? apps.find((a) => a.app_id === appKey) : null
             const providedVars: any[] = (props?.variants as any[]) || []
-            const globalVars: any[] = (get(variantsAtom) as any[]) || []
+            const entityVars = get(variantsListAtomFamily(appKey))
+            const globalVars: any[] = Array.isArray(entityVars) ? entityVars : []
             const vars = providedVars.length ? providedVars : globalVars
             const first = Array.isArray(vars) && vars.length > 0 ? (vars[0] as any) : null
             set(valuesAtom, {

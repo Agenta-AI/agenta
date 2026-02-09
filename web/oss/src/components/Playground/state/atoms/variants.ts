@@ -6,36 +6,76 @@ import {
     localDraftIdsAtom,
     variantsListWithDraftsAtomFamily,
     revisionsListWithDraftsAtomFamily,
+    variantsQueryAtomFamily,
+    revisionsQueryAtomFamily,
     type AppListItem,
     type VariantListItem,
     type RevisionListItem,
 } from "@agenta/entities/legacyAppRevision"
+import {isPlaceholderId} from "@agenta/playground"
 import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 import {selectAtom} from "jotai/utils"
 
+import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {
     extractVariables,
     extractVariablesFromJson,
     extractInputKeysFromSchema,
 } from "@/oss/lib/shared/variant/inputHelpers"
-import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
 import {currentAppAtom} from "@/oss/state/app"
 import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {
     moleculeBackedPromptsAtomFamily,
     moleculeBackedCustomPropertiesAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {appChatModeAtom} from "./app"
 import {selectedVariantsAtom} from "./core"
+import {
+    playgroundAppSchemaAtom,
+    playgroundAppRoutePathAtom,
+    playgroundHasAgConfigAtom,
+} from "./playgroundAppAtoms"
 
 const isPromiseLike = (value: unknown): value is Promise<unknown> =>
     Boolean(value && typeof (value as {then?: unknown}).then === "function")
 
 // ============================================================================
-// WP-6.1: MOLECULE-BACKED LIST WRAPPER ATOMS
+// READINESS SIGNAL
+// ============================================================================
+
+/**
+ * Indicates whether the playground revision list has completed its initial load.
+ *
+ * Checks the RAW query atoms (not the "with drafts" wrappers) because
+ * variantsListWithDraftsAtomFamily.isPending becomes false when local drafts
+ * exist, even if server data is still loading.
+ *
+ * Must be true before we filter selectedVariantsAtom against the revision list
+ * or attempt to apply default selections. Without this guard, revisions from
+ * variants whose query hasn't resolved yet get silently dropped.
+ */
+export const playgroundRevisionsReadyAtom = atom((get) => {
+    const appId = get(selectedAppIdAtom)
+    if (!appId || isPromiseLike(appId)) return false
+
+    const variantsQuery = get(variantsQueryAtomFamily(appId))
+    if (variantsQuery.isPending) return false
+
+    const variantsData = (variantsQuery.data ?? []) as {id: string}[]
+    if (variantsData.length === 0) return true
+
+    for (const variant of variantsData) {
+        if (!variant?.id) continue
+        const revisionsQuery = get(revisionsQueryAtomFamily(variant.id))
+        if (revisionsQuery.isPending) return false
+    }
+    return true
+})
+
+// ============================================================================
+// MOLECULE-BACKED LIST WRAPPER ATOMS
 // ============================================================================
 
 /**
@@ -56,7 +96,7 @@ export const revisionsListAtomFamily = (variantId: string) =>
     ossVariantToRevisionRelation.listAtomFamily?.(variantId)
 
 // ============================================================================
-// WP-6.2: PLAYGROUND REVISION LIST ATOM
+// PLAYGROUND REVISION LIST ATOM
 // ============================================================================
 
 /**
@@ -83,15 +123,22 @@ export const playgroundRevisionListAtom = atom((get) => {
 
         return list.map((revision: any) => {
             const createdAt = revision.createdAt
-            const timestamp = createdAt ? new Date(createdAt).valueOf() : Date.now()
-            const safeTimestamp = Number.isNaN(timestamp) ? Date.now() : timestamp
+            const updatedAt = revision.updatedAt ?? revision.updated_at ?? createdAt
+            const createdTimestamp = createdAt ? new Date(createdAt).valueOf() : Date.now()
+            const updatedTimestamp = updatedAt ? new Date(updatedAt).valueOf() : createdTimestamp
+            const safeCreatedTimestamp = Number.isNaN(createdTimestamp)
+                ? Date.now()
+                : createdTimestamp
+            const safeUpdatedTimestamp = Number.isNaN(updatedTimestamp)
+                ? safeCreatedTimestamp
+                : updatedTimestamp
 
             return {
                 ...revision,
                 variantId: revision.variantId ?? variant.id,
                 variantName: revision.variantName ?? variantName,
-                createdAtTimestamp: safeTimestamp,
-                updatedAtTimestamp: safeTimestamp,
+                createdAtTimestamp: safeCreatedTimestamp,
+                updatedAtTimestamp: safeUpdatedTimestamp,
                 commit_message: revision.commitMessage ?? revision.commit_message,
                 modifiedBy: revision.author ?? revision.modifiedBy ?? revision.modified_by ?? null,
             }
@@ -109,6 +156,20 @@ export const playgroundRevisionListAtom = atom((get) => {
 
     return [...localDrafts, ...serverRevisions]
 })
+
+/**
+ * Latest server revision ID derived from the playground revision list.
+ * Used by ensurePlaygroundDefaults() to select a default revision when
+ * no selection exists.
+ */
+export const playgroundLatestRevisionIdAtom = selectAtom(
+    playgroundRevisionListAtom,
+    (revisions) => {
+        const serverRevision = revisions.find((r: any) => !r.isLocalDraft)
+        return serverRevision?.id ?? null
+    },
+    (a, b) => a === b,
+)
 
 // Re-export types for consumers
 export type {AppListItem, VariantListItem, RevisionListItem}
@@ -150,15 +211,19 @@ export const isComparisonViewAtom = selectAtom(
         const selected = get(selectedVariantsAtom) || []
         const revisions = get(playgroundRevisionListAtom) || []
         const trackedLocalDraftIds = get(localDraftIdsAtom) || []
+        const isReady = get(playgroundRevisionsReadyAtom)
 
         // Filter to only valid IDs (same logic as displayedVariantsAtom)
         const validIds = selected.filter((id) => {
+            if (isPlaceholderId(id)) return true
             if (isLocalDraftId(id)) {
                 return (
                     trackedLocalDraftIds.includes(id) ||
                     revisions.some((revision: any) => revision.id === id)
                 )
             }
+            // Keep server revision IDs while data is still loading
+            if (!isReady) return true
             return revisions.some((revision: any) => revision.id === id)
         })
 
@@ -168,38 +233,33 @@ export const isComparisonViewAtom = selectAtom(
     (a, b) => a === b,
 )
 
-// Displayed variants (filtered selected variants that exist)
-// WP-6.3: Updated to use playgroundRevisionListAtom
+// Displayed variants (filtered selected variants that exist in the revision list)
 export const displayedVariantsAtom = selectAtom(
     atom((get) => ({
         selected: get(selectedVariantsAtom),
         revisions: get(playgroundRevisionListAtom),
         trackedLocalDraftIds: get(localDraftIdsAtom),
+        isReady: get(playgroundRevisionsReadyAtom),
     })),
     (state) => {
-        // Guard against undefined/null selected array
         const selected = state.selected || []
+        const revisions = state.revisions || []
 
-        // Filter selectedVariants (revision IDs) against actual revision data
-        // For local drafts, keep them if:
-        // 1. They're tracked in localDraftIdsAtom, OR
-        // 2. They're in the revision list (handles timing during state transitions)
-        // This prevents accidental loss of drafts during commit operations
         const displayedIds = selected.filter((id) => {
+            if (isPlaceholderId(id)) return true
             if (isLocalDraftId(id)) {
-                // Keep local drafts that are tracked OR found in revision list
-                return (
-                    state.trackedLocalDraftIds.includes(id) ||
-                    state.revisions?.some((revision: any) => revision.id === id)
-                )
+                const inTracked = state.trackedLocalDraftIds.includes(id)
+                const inRevisions = revisions.some((revision: any) => revision.id === id)
+                return inTracked || inRevisions
             }
-            // For server revisions, check if they exist in the revision list
-            return state.revisions?.some((revision: any) => revision.id === id)
+            // Keep server revision IDs while data is still loading
+            if (!state.isReady) return true
+            return revisions.some((revision: any) => revision.id === id)
         })
 
         return displayedIds
     },
-    isEqual, // PERFORMANCE OPTIMIZATION: Only re-render if the actual IDs array changes
+    isEqual,
 )
 
 // Variants by ID lookup map for O(1) access
@@ -223,7 +283,6 @@ export const variantsByIdAtom = selectAtom(
 )
 
 // OPTIMIZATION: Early revision IDs atom for faster loading
-// WP-6.3: Updated to derive from playgroundRevisionListAtom (molecule-backed)
 // This provides revision IDs as soon as revisions are available,
 // including local drafts
 export const earlyRevisionIdsAtom = atom((get) => {
@@ -244,24 +303,20 @@ export const earlyDisplayedVariantsAtom = selectAtom(
         selected: get(selectedVariantsAtom),
         earlyRevisionIds: get(earlyRevisionIdsAtom),
         trackedLocalDraftIds: get(localDraftIdsAtom),
+        isReady: get(playgroundRevisionsReadyAtom),
     })),
     (state) => {
-        // Guard against undefined/null selected array
         const selected = state.selected || []
 
-        // Filter selectedVariants (revision IDs) against early revision IDs
-        // For local drafts, keep them if:
-        // 1. They're tracked in localDraftIdsAtom, OR
-        // 2. They're in the early revision IDs list (handles timing during state transitions)
-        // This prevents accidental loss of drafts during commit operations
         const displayedIds = selected.filter((id) => {
+            if (isPlaceholderId(id)) return true
             if (isLocalDraftId(id)) {
-                // Keep local drafts that are tracked OR found in early revision IDs
                 return (
                     state.trackedLocalDraftIds.includes(id) || state.earlyRevisionIds.includes(id)
                 )
             }
-            // For server revisions, check if they exist in early revision IDs
+            // Keep server revision IDs while data is still loading
+            if (!state.isReady) return true
             return state.earlyRevisionIds.includes(id)
         })
         return displayedIds
@@ -275,7 +330,6 @@ export const earlyDisplayedVariantsAtom = selectAtom(
  * This ensures input fields include all variables from displayed variants
  * in both single variant mode and comparison mode for consistent UX.
  */
-// WP-6.3: Updated to use playgroundRevisionListAtom
 export const displayedVariantsVariablesAtom = selectAtom(
     atom((get) => ({
         displayedVariantIds: get(playgroundLayoutAtom).displayedVariants,
@@ -286,8 +340,8 @@ export const displayedVariantsVariablesAtom = selectAtom(
             return get(moleculeBackedPromptsAtomFamily(id))
         }),
         // Include schema + route for spec-derived input keys (custom workflows)
-        spec: get(appSchemaAtom),
-        routePath: get(appUriInfoAtom)?.routePath || "",
+        spec: get(playgroundAppSchemaAtom),
+        routePath: get(playgroundAppRoutePathAtom),
         appType: (() => {
             const ctx = get(currentAppContextAtom)
             return ctx && !isPromiseLike(ctx) ? ctx.appType || undefined : undefined
@@ -296,6 +350,8 @@ export const displayedVariantsVariablesAtom = selectAtom(
         customPropsByRevision: get(playgroundLayoutAtom).displayedVariants.map((id) => {
             return get(moleculeBackedCustomPropertiesAtomFamily(id))
         }),
+        // Pre-parsed ag_config detection (avoids fragile routePath lookup)
+        hasAgConfig: get(playgroundHasAgConfigAtom),
     })),
     (state) => {
         const allVariables = new Set<string>()
@@ -303,15 +359,14 @@ export const displayedVariantsVariablesAtom = selectAtom(
             const app = getDefaultStore().get(currentAppAtom)
             return app && !isPromiseLike(app) ? app.app_type : undefined
         })()
-        // Determine if this app is custom (no inputs/messages container in schema)
-        const req = state.spec
-            ? (getRequestSchema as any)(state.spec, {routePath: state.routePath})
-            : undefined
+        // Determine if this app is custom (no ag_config in schema).
+        // Uses pre-parsed agConfigSchema instead of fragile
+        // getRequestSchema path lookups (which fail when routePath is empty).
+        // When hasAgConfig is undefined (still loading), treat as non-custom
+        // to allow prompt-based variable extraction to proceed immediately.
+        const hasAgConfig = state.hasAgConfig
         const isCustom =
-            (appType || "") === "custom" ||
-            (Boolean(state.spec) && !req?.properties?.inputs && !req?.properties?.messages)
-
-        // Collect variables from all displayed revisions' local prompts (non-custom apps only)
+            (appType || "") === "custom" || (hasAgConfig === false && Boolean(state.spec))
         if (!isCustom) {
             state.promptsByRevision.forEach((prompts) => {
                 if (!prompts || !Array.isArray(prompts)) return
@@ -338,14 +393,17 @@ export const displayedVariantsVariablesAtom = selectAtom(
                     })
 
                     // Extract from response format if present
-                    const responseFormat = (prompt as any)?.llmConfig?.responseFormat?.value
+                    // Handle both camelCase (llmConfig) and snake_case (llm_config) keys
+                    const llmConfigKey = (prompt as any)?.llm_config ? "llm_config" : "llmConfig"
+                    const llm = (prompt as any)?.[llmConfigKey]
+                    const responseFormat = llm?.responseFormat?.value ?? llm?.response_format?.value
                     if (responseFormat) {
                         const responseVars = extractVariablesFromJson(responseFormat)
                         responseVars.forEach((variable) => allVariables.add(variable))
                     }
 
                     // Extract from tools schemas and string fields if present
-                    const tools = (prompt as any)?.llmConfig?.tools?.value || []
+                    const tools = llm?.tools?.value || []
                     if (Array.isArray(tools)) {
                         tools.forEach((tool: any) => {
                             // Some tools are stored under value.function.parameters (OpenAI-style function tools)
@@ -399,8 +457,8 @@ export const displayedVariantsVariablesAtom = selectAtom(
  */
 export const schemaInputKeysAtom = selectAtom(
     atom((get) => {
-        const spec = get(appSchemaAtom)
-        const routePath = get(appUriInfoAtom)?.routePath || ""
+        const spec = get(playgroundAppSchemaAtom)
+        const routePath = get(playgroundAppRoutePathAtom)
         if (!spec) return [] as string[]
         try {
             const keys = extractInputKeysFromSchema(spec as any, routePath)
@@ -413,6 +471,40 @@ export const schemaInputKeysAtom = selectAtom(
     isEqual,
 )
 
-// Re-export revisionListAtom for backward compatibility
-// WP-6.6: Export playgroundRevisionListAtom as the primary list
+// ============================================================================
+// RECENT REVISIONS FOR OVERVIEW PAGE
+// ============================================================================
+
+/**
+ * Recent revisions formatted for the overview table.
+ * Pipeline B replacement for the old `recentRevisionsTableRowsAtom`.
+ * Returns the 5 most recently updated server revisions with pre-formatted fields.
+ *
+ * Lives here (not in playgroundAppAtoms) to avoid a circular import:
+ * playgroundAppAtoms ↔ variants would deadlock on `selectAtom(playgroundRevisionListAtom)`.
+ */
+export const recentRevisionsOverviewAtom = selectAtom(
+    playgroundRevisionListAtom,
+    (revisions) =>
+        revisions
+            .filter((r: any) => !r.isLocalDraft)
+            .slice(0, 5)
+            .map((r: any) => {
+                const ts = r.updatedAtTimestamp ?? r.createdAtTimestamp
+                const params = r.parameters || {}
+                const llmConfig = params?.prompt?.llm_config || params
+                const modelName =
+                    typeof llmConfig?.model === "string" && llmConfig.model.trim()
+                        ? llmConfig.model
+                        : undefined
+                return {
+                    ...r,
+                    createdAt: formatDate24(ts),
+                    modelName,
+                }
+            }),
+    isEqual,
+)
+
+// Re-export as revisionListAtom for backward compatibility
 export {playgroundRevisionListAtom as revisionListAtom}

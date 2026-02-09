@@ -61,6 +61,8 @@ export const switchVariantAtom = atom(
                 targetRevisionId: newVariantId,
                 displayedVariantsAfterSwap: updatedVariants,
             })
+            // Update the selection atom first, then sync to URL
+            set(selectedVariantsAtom, updatedVariants)
             void writePlaygroundSelectionToQuery(updatedVariants)
         } else {
             // Single mode: Just switch to the new variant
@@ -73,6 +75,8 @@ export const switchVariantAtom = atom(
                 targetRevisionId: newVariantId,
                 displayedVariantsAfterSwap: updatedVariants,
             })
+            // Update the selection atom first, then sync to URL
+            set(selectedVariantsAtom, updatedVariants)
             void writePlaygroundSelectionToQuery(updatedVariants)
         }
     },

@@ -256,6 +256,7 @@ export interface RevisionListItem {
     commitMessage?: string
     createdAt?: string
     author?: string
+    parameters?: Record<string, unknown>
 }
 
 // ============================================================================
@@ -286,6 +287,10 @@ export interface ApiRevisionListItem {
     commit_message?: string
     created_at?: string
     modified_by?: string
+    config?: {
+        config_name?: string
+        parameters?: Record<string, unknown>
+    }
 }
 
 /**
@@ -354,6 +359,7 @@ export function transformRevisionToListItem(
         commitMessage: revision.commit_message,
         createdAt: revision.created_at,
         author: revision.modified_by,
+        parameters: revision.config?.parameters,
     }
 }
 
