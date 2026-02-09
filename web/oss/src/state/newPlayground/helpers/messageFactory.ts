@@ -1,7 +1,8 @@
+import {getAllMetadata, getMetadataLazy} from "@agenta/entities/legacyAppRevision"
+import {generateId} from "@agenta/shared/utils"
+
 import {hashResponse} from "@/oss/components/Playground/assets/hash"
 import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
-import {getAllMetadata, getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 
 export function buildAssistantMessage(messageSchema: any | undefined, testResult: any) {
     // If we have a schema (from user message or generic), build via schema helper

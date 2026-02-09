@@ -25,8 +25,8 @@ export const currentAppAtom = eagerAtom<ListAppsItem | null>((get) => {
 export {routerAppIdAtom, recentAppIdAtom}
 
 // Note: shouldRenderPlaygroundAtom has been moved to the Playground module
-// to break the transitive dependency on Pipeline A atoms.
-// Import from: @/oss/components/Playground/state/atoms/pipelineBBridge
+// to break the transitive dependency on legacy variant atoms.
+// Import from: @/oss/components/Playground/state/atoms/playgroundAppAtoms
 
 /**
  * Current app context - provides full context for current app

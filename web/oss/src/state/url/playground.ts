@@ -6,6 +6,7 @@ import {
     isLocalDraftId,
     legacyAppRevisionMolecule,
     localDraftIdsAtom,
+    revisionCacheVersionAtom,
 } from "@agenta/entities/legacyAppRevision"
 import {
     urlSnapshotController,
@@ -14,7 +15,7 @@ import {
     isPlaceholderId,
     pendingHydrations,
     pendingHydrationsAtom,
-    applyPendingHydration,
+    applyPendingHydrationsForRevision,
 } from "@agenta/playground"
 import {atom, getDefaultStore} from "jotai"
 import type {Store} from "jotai/vanilla/store"
@@ -446,13 +447,11 @@ playgroundSyncAtom.onMount = (set) => {
             const unsub = store.sub(serverDataAtom, () => {
                 const serverData = store.get(serverDataAtom)
                 if (serverData && serverData.variantId) {
-                    // Try to apply all pending hydrations for this source
-                    const currentPending = store.get(pendingHydrationsAtom)
-                    for (const [draftKey, hydration] of currentPending.entries()) {
-                        if (hydration.sourceRevisionId === sourceId) {
-                            applyPendingHydration(draftKey)
-                        }
-                    }
+                    // Apply all pending hydrations for this source via the
+                    // ordered helper — it processes createLocalDraft entries
+                    // before applyDraftPatch entries so local copies are
+                    // cloned from clean server data.
+                    applyPendingHydrationsForRevision(sourceId)
                 }
             })
             sourceIdSubs.set(sourceId, unsub)
@@ -472,13 +471,18 @@ playgroundSyncAtom.onMount = (set) => {
     // Also do an immediate check for any pending hydrations whose source data is already loaded
     {
         const pending = store.get(pendingHydrationsAtom)
-        for (const [draftKey, hydration] of pending.entries()) {
+        // Collect unique source IDs that are ready, then apply via the ordered helper
+        const readySourceIds = new Set<string>()
+        for (const [, hydration] of pending.entries()) {
             const serverData = store.get(
                 legacyAppRevisionMolecule.atoms.serverData(hydration.sourceRevisionId),
             )
             if (serverData && serverData.variantId) {
-                applyPendingHydration(draftKey)
+                readySourceIds.add(hydration.sourceRevisionId)
             }
+        }
+        for (const sourceId of readySourceIds) {
+            applyPendingHydrationsForRevision(sourceId)
         }
     }
 
@@ -495,6 +499,12 @@ playgroundSyncAtom.onMount = (set) => {
         if (hasAppliedDefaults) return
         const isReady = store.get(playgroundRevisionsReadyAtom)
         if (!isReady) return
+
+        // Bump the revision cache version so that revisionListItemFromCacheAtomFamily
+        // re-evaluates now that revision list queries have completed and populated the
+        // React Query cache. This unlocks the fast enriched query path for entity data.
+        store.set(revisionCacheVersionAtom, (prev: number) => prev + 1)
+
         const selected = store.get(selectedVariantsAtom)
         if (selected.length > 0) {
             hasAppliedDefaults = true

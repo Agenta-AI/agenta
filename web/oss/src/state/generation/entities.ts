@@ -1,6 +1,7 @@
 // Normalized generation state entities
 // Core types and top-level entity maps
 
+import {generateId} from "@agenta/shared/utils"
 import {produce} from "immer"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
@@ -13,7 +14,6 @@ import {
 } from "@/oss/components/Playground/state/atoms/variants"
 import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms/variants"
 import {mergedMetadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {buildUserMessage} from "@/oss/state/newPlayground/helpers/messageFactory"
 
 import {selectedAppIdAtom} from "../app"
@@ -211,13 +211,6 @@ export const chatTurnsByIdFamilyAtom = atomFamily((rowId: string) =>
             const meta = get(messageSchemaMetadataAtom) as any
             const cache = get(chatTurnsByIdCacheAtom) || {}
             if (rowId in cache) {
-                console.log(
-                    "[DEBUG chatTurnsByIdFamilyAtom READ] rowId=",
-                    rowId,
-                    "source=cache",
-                    "userMsg=",
-                    !!cache[rowId]?.userMessage,
-                )
                 return cache[rowId]
             }
             const base = get(chatTurnsByIdStorageAtom) || {}
@@ -251,10 +244,6 @@ export const chatTurnsByIdFamilyAtom = atomFamily((rowId: string) =>
             // Try existing or synthesized; buildUserMessage handles missing metadata via fallback
             let prevVal = prevExisting ?? synthesizeTurn(rowId, meta, get)
             if (!prevVal) {
-                return
-            }
-            // If still no base turn and the updater is a function expecting a draft, skip safely
-            if (!prevVal && typeof update === "function") {
                 return
             }
 

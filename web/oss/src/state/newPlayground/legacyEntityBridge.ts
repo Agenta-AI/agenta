@@ -37,8 +37,8 @@ import {
     revisionEnhancedCustomPropertiesAtomFamily,
     revisionEnhancedPromptsAtomFamily,
     variantsListWithDraftsAtomFamily,
+    revisionsListWithDraftsAtomFamily,
     setCurrentAppIdAtom,
-    type LegacyAppRevisionData,
 } from "@agenta/entities/legacyAppRevision"
 import {
     isLocalDraftId,
@@ -46,17 +46,13 @@ import {
     formatLocalDraftLabel,
     type RevisionLabelInfo,
 } from "@agenta/entities/shared"
-import {produce} from "immer"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily as atomFamilyJotaiUtils} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
-import {playgroundRevisionDeploymentAtomFamily} from "@/oss/components/Playground/state/atoms/pipelineBBridge"
+import {playgroundRevisionDeploymentAtomFamily} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import {playgroundRevisionListAtom} from "@/oss/components/Playground/state/atoms/variants"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
-
-// Bridge initialization flag for debug utilities
-let bridgeInitialized = false
 
 // ============================================================================
 // APP ID REGISTRATION FOR LOCAL DRAFTS
@@ -66,35 +62,6 @@ let bridgeInitialized = false
 // Register the app ID atom with the entities package to enable app-scoped local drafts
 // This must be called before any local draft operations
 setCurrentAppIdAtom(selectedAppIdAtom as ReturnType<typeof atom<string | null>>)
-
-// ============================================================================
-// REVISION DATA ADAPTER
-// Transforms enhanced variant revision to legacyAppRevision data format
-// ============================================================================
-
-/**
- * Transform an enhanced revision from OSS format to legacyAppRevision format.
- */
-function adaptRevisionToLegacyFormat(revision: any, variant?: any): LegacyAppRevisionData | null {
-    if (!revision) return null
-
-    return {
-        id: revision.id,
-        variantId: revision.variantId,
-        appId: revision.appId || variant?.appId || revision.app_id,
-        revision: revision.revision,
-        isLatestRevision: revision.isLatestRevision ?? false,
-        variantName: revision.variantName || variant?.variantName,
-        appName: revision.appName || variant?.appName,
-        configName: revision.configName,
-        parameters: revision.parameters || revision.config?.parameters,
-        uri: revision.uri || variant?.uri,
-        createdAt: revision.createdAt,
-        updatedAt: revision.updatedAt,
-        modifiedById: revision.modifiedById || revision.modified_by_id,
-        commitMessage: revision.commitMessage,
-    }
-}
 
 // ============================================================================
 // MOLECULE ACCESS HELPERS
@@ -146,11 +113,6 @@ export const ossRevision = {
  * Access via: window.__legacyEntityBridge
  */
 export const debugBridge = {
-    /**
-     * Check if bridge is initialized
-     */
-    isInitialized: () => bridgeInitialized,
-
     /**
      * Get molecule data for a revision
      */
@@ -380,7 +342,10 @@ export const moleculeBackedPromptsAtomFamily = atomFamilyJotaiUtils((revisionId:
                 return
             }
 
-            // Base lacks enhancedPrompts — derive from entity, apply recipe, set result
+            // Base lacks enhancedPrompts — derive from entity, seed original, then mutate.
+            // We must seed the ORIGINAL prompts first so that serverData gets the
+            // unmodified baseline. Then mutateEnhancedPrompts creates a proper draft
+            // with the user's change, allowing isDirty to detect the difference.
             const entityPrompts = get(revisionEnhancedPromptsAtomFamily(revisionId))
             const sourcePrompts =
                 entityPrompts && Array.isArray(entityPrompts) && entityPrompts.length > 0
@@ -392,12 +357,11 @@ export const moleculeBackedPromptsAtomFamily = atomFamilyJotaiUtils((revisionId:
                 return
             }
 
-            // Apply the Immer recipe to entity-derived prompts
-            const mutated = produce(sourcePrompts, update)
+            // Step 1: Seed the original (unmodified) prompts to serverData
+            set(legacyAppRevisionMolecule.reducers.setEnhancedPrompts, revisionId, sourcePrompts)
 
-            // Write the result directly — setEnhancedPrompts handles
-            // initial seeding (writes to serverData) vs draft updates
-            set(legacyAppRevisionMolecule.reducers.setEnhancedPrompts, revisionId, mutated)
+            // Step 2: Now base has prompts — mutate to create a proper draft
+            set(legacyAppRevisionMolecule.reducers.mutateEnhancedPrompts, revisionId, update)
         },
     ),
 )
@@ -465,7 +429,7 @@ export const moleculeBackedCustomPropertiesAtomFamily = atomFamily((revisionId: 
                 return
             }
 
-            // Base lacks custom properties — derive, apply recipe, set result
+            // Base lacks custom properties — seed original, then mutate
             const entityCustomProps = get(revisionEnhancedCustomPropertiesAtomFamily(revisionId))
             const sourceProps =
                 entityCustomProps && Object.keys(entityCustomProps).length > 0
@@ -474,8 +438,19 @@ export const moleculeBackedCustomPropertiesAtomFamily = atomFamily((revisionId: 
 
             if (Object.keys(sourceProps).length === 0) return
 
-            const mutated = produce(sourceProps, update)
-            set(legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties, revisionId, mutated)
+            // Step 1: Seed original (unmodified) custom properties to serverData
+            set(
+                legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties,
+                revisionId,
+                sourceProps,
+            )
+
+            // Step 2: Now base has custom properties — mutate to create a proper draft
+            set(
+                legacyAppRevisionMolecule.reducers.mutateEnhancedCustomProperties,
+                revisionId,
+                update,
+            )
         },
     ),
 )
@@ -608,36 +583,68 @@ export function cloneAsLocalDraft(sourceRevisionId: string): string | null {
         }
     }
 
-    // If sourceData exists but is missing variantId or baseId, enrich from playgroundRevisionListAtom
-    // This can happen when data comes from direct query which doesn't include variantId
-    // or when cloning from a local draft
+    // If sourceData is missing or lacks variantId/baseId, enrich from entity atoms.
+    // This can happen when:
+    // - Data comes from a direct query which doesn't include variantId
+    // - Cloning from a local draft
+    // - Molecule hasn't been populated yet for this revision
     if (!sourceData || !sourceData.variantId || !(sourceData as any).baseId) {
-        const revisions = store.get(playgroundRevisionListAtom) || []
+        // Shallow-clone so we can safely add/modify properties
+        // (molecule data may be frozen by Jotai)
+        if (sourceData) {
+            sourceData = {...sourceData}
+        }
 
-        // Look up variantId from the original source (not the local draft)
-        const revisionFromList = revisions.find((r: any) => r.id === variantIdSource)
+        const appId = store.get(selectedAppIdAtom)
+        if (appId) {
+            const variantsList = store.get(variantsListWithDraftsAtomFamily(appId))?.data ?? []
 
-        if (revisionFromList) {
-            const adapted = adaptRevisionToLegacyFormat(revisionFromList)
-            if (adapted) {
-                // Merge with existing data if present, otherwise use adapted data
-                sourceData = sourceData ? {...sourceData, ...adapted} : adapted
-
-                // Also ensure baseId is available from the variants list
-                if (!(sourceData as any).baseId) {
-                    const appId = store.get(selectedAppIdAtom)
-                    if (appId) {
-                        const variantsList =
-                            store.get(variantsListWithDraftsAtomFamily(appId))?.data ?? []
-                        const parentVariant = variantsList.find(
-                            (v: any) => v.id === sourceData?.variantId,
-                        )
-                        if (parentVariant?.baseId) {
-                            ;(sourceData as any).baseId = parentVariant.baseId
-                        }
+            // If sourceData is entirely missing, try to build it from the revision list
+            if (!sourceData) {
+                for (const variant of variantsList) {
+                    if (!variant?.id) continue
+                    const revQuery = store.get(revisionsListWithDraftsAtomFamily(variant.id))
+                    const revisions = revQuery?.data ?? []
+                    const match = revisions.find((r: any) => r.id === variantIdSource)
+                    if (match) {
+                        sourceData = {
+                            id: sourceRevisionId,
+                            variantId: variant.id,
+                            appId,
+                            revision: (match as any).revision,
+                            variantName: (variant as any).name || (variant as any).baseName,
+                            parameters: (match as any).parameters ?? {},
+                            uri: (match as any).uri,
+                            isLatestRevision: (match as any).isLatestRevision ?? false,
+                        } as any
+                        break
                     }
                 }
+            }
 
+            // If variantId is missing, find it by looking up which variant owns this revision
+            if (sourceData && !sourceData.variantId) {
+                for (const variant of variantsList) {
+                    if (!variant?.id) continue
+                    const revQuery = store.get(revisionsListWithDraftsAtomFamily(variant.id))
+                    const revisions = revQuery?.data ?? []
+                    const match = revisions.find((r: any) => r.id === variantIdSource)
+                    if (match) {
+                        sourceData = {...sourceData, variantId: variant.id}
+                        break
+                    }
+                }
+            }
+
+            // Ensure baseId is available from the variants list
+            if (sourceData?.variantId && !(sourceData as any).baseId) {
+                const parentVariant = variantsList.find((v: any) => v.id === sourceData?.variantId)
+                if (parentVariant?.baseId) {
+                    ;(sourceData as any).baseId = parentVariant.baseId
+                }
+            }
+
+            if (sourceData?.variantId) {
                 legacyAppRevisionMolecule.set.serverData(sourceRevisionId, sourceData)
             }
         }
@@ -652,11 +659,6 @@ export function cloneAsLocalDraft(sourceRevisionId: string): string | null {
     }
 
     const localDraftId = createLocalDraftFromRevision(sourceRevisionId)
-
-    if (!localDraftId) {
-        return null
-    }
-
     return localDraftId
 }
 

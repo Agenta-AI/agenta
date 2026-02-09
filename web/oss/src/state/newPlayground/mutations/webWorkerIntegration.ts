@@ -1,4 +1,6 @@
+import {getAllMetadata} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
+import {generateId} from "@agenta/shared/utils"
 import {produce} from "immer"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
@@ -10,13 +12,11 @@ import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms
 import {
     playgroundAppUriInfoAtom,
     playgroundAppSchemaAtom,
-} from "@/oss/components/Playground/state/atoms/pipelineBBridge"
+} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import {
     displayedVariantsAtom,
     revisionListAtom,
 } from "@/oss/components/Playground/state/atoms/variants"
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {
     extractValueByMetadata,
     stripAgentaMetadataDeep,
@@ -115,7 +115,7 @@ function resolveEffectiveRevisionId(
 }
 
 function detectIsChatVariant(get: any, _rowId: string): boolean {
-    // Use the same chat mode detection as the rendering layer (Pipeline B / runnableBridge)
+    // Use the same chat mode detection as the rendering layer
     // instead of manually parsing raw OpenAPI paths which can miss the messages schema.
     return Boolean(get(appChatModeAtom))
 }
