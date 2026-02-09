@@ -30,7 +30,6 @@ import {
     playgroundLatestRevisionIdAtom,
 } from "@/oss/components/Playground/state/atoms"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
-import {isLocalDraft} from "@/oss/state/newPlayground"
 
 // ============================================================================
 // OSS RUNNABLE TYPE RESOLVER
@@ -559,8 +558,7 @@ playgroundSyncAtom.onMount = (set) => {
             ensurePlaygroundDefaults(store)
         } else if (!arraysEqual(valid, selected)) {
             store.set(selectedVariantsAtom, valid)
-            const urlSelection = valid.filter((id) => !isLocalDraft(id))
-            writePlaygroundSelectionToQuery(urlSelection)
+            writePlaygroundSelectionToQuery(valid)
         }
     })
     unsubs.push(unsubValidation)
