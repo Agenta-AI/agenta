@@ -150,7 +150,7 @@ async def check_user_access_to_workspace(
         user_org_workspace_data, workspace_organization_id
     )
     if not has_organization_access:
-        log.error("User does not belong and have access to the organization")
+        # log.debug("User does not belong and have access to the organization")
         return False
 
     # Check that the user belongs to the workspace
@@ -161,7 +161,7 @@ async def check_user_access_to_workspace(
 
     workspace_members = await _get_workspace_member_ids(workspace)
     if user_id not in workspace_members:
-        log.error("User does not belong to the workspace")
+        # log.debug("User does not belong to the workspace")
         return False
 
     # Check that the workspace is in the user's workspaces
@@ -307,7 +307,7 @@ async def check_rbac_permission(
     if project_id is not None:
         project = await db_manager.get_project_by_id(project_id)
         if project is None:
-            log.warning(f"Project {project_id} not found during permission check")
+            log.error(f"Project {project_id} not found during permission check")
             return False
 
         workspace = await db_manager.get_workspace(str(project.workspace_id))
@@ -321,7 +321,7 @@ async def check_rbac_permission(
         organization=organization,
     )
     if not workspace_has_access:
-        log.error("User does not have access to the workspace")
+        # log.debug("User does not have access to the workspace")
         return False
 
     user_id = user_org_workspace_data["id"]

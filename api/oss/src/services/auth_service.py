@@ -120,7 +120,14 @@ async def authentication_middleware(request: Request, call_next):
         return JSONResponse(status_code=400, content={"detail": exc.errors()})
 
     except HTTPException as exc:
-        log.error("%s: %s", exc.status_code, exc.detail)
+        # Only log server errors (5xx), not client errors like 401/403
+        if exc.status_code >= 500:
+            log.error("%s: %s", exc.status_code, exc.detail)
+        elif 400 <= exc.status_code < 500:
+            if exc.status_code in [401]:
+                log.debug("%s: %s", exc.status_code, exc.detail)
+            else:
+                log.warn("%s: %s", exc.status_code, exc.detail)
 
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 

@@ -1,5 +1,9 @@
 import {memo, useEffect, useMemo} from "react"
 
+import {
+    legacyAppRevisionMolecule,
+    legacyAppRevisionSchemaQueryAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Spin, Switch, Tabs, TabsProps, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -12,11 +16,7 @@ import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
 import {PromptsSourceProvider} from "@/oss/components/Playground/context/PromptsSource"
-import {
-    parametersOverrideAtomFamily,
-    variantByRevisionIdAtomFamily,
-} from "@/oss/components/Playground/state/atoms"
-import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms/dirtyState"
+import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
@@ -24,13 +24,17 @@ import {
     deriveCustomPropertiesFromSpec,
     derivePromptsFromSpec,
 } from "@/oss/lib/shared/variant/transformer/transformer"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
+    revisionIsDirtyAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {
     appSchemaAtom,
-    appStatusLoadingAtom,
     appUriInfoAtom,
     revisionDeploymentAtomFamily,
     variantRevisionsQueryFamily,
+    revisionsByVariantIdAtomFamily,
 } from "@/oss/state/variant/atoms/fetcher"
 
 import {variantDrawerAtom} from "../../store/variantDrawerStore"
@@ -49,31 +53,93 @@ const resolveParentVariantId = (variant: any): string | null => {
     return variant?.variantId ?? null
 }
 
+/**
+ * Loading state atom for drawer variant.
+ *
+ * The drawer can render prompts and custom properties in two modes:
+ * 1. Schema-based (preferred): Uses OpenAPI schema with x-parameters metadata
+ * 2. Parameter-based (fallback): Derives from saved parameters structure
+ *
+ * We should NOT wait for the schema to load if we already have parameters,
+ * because prompts can be derived from parameters as a fallback.
+ */
 export const drawerVariantIsLoadingAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const schemaLoading = !!get(appStatusLoadingAtom)
         if (!revisionId || revisionId === EMPTY_REVISION_ID) {
-            return schemaLoading
+            return true
         }
 
-        const selectedVariant = get(variantByRevisionIdAtomFamily(revisionId)) as any
+        const selectedVariant = get(moleculeBackedVariantAtomFamily(revisionId)) as any
         if (!selectedVariant) {
             return true
         }
 
-        const parentVariantId = resolveParentVariantId(selectedVariant)
-        if (!parentVariantId) {
-            return schemaLoading
+        // If we have parameters, we can render immediately (prompts will be derived)
+        const hasParameters =
+            selectedVariant?.parameters && Object.keys(selectedVariant.parameters).length > 0
+        if (hasParameters) {
+            return false
         }
 
-        const revisionsQuery = get(variantRevisionsQueryFamily(parentVariantId)) as any
-        const data = revisionsQuery?.data
-        const hasRevisionData = Array.isArray(data) && data.length > 0
+        // Otherwise, check if URI is available for schema fetch
+        const hasUri = !!selectedVariant?.uri
 
-        const revisionLoading =
-            !!revisionsQuery?.isLoading || (!hasRevisionData && !!revisionsQuery?.isFetching)
+        // If no URI yet, check if revisions are still loading
+        if (!hasUri) {
+            const parentVariantId = resolveParentVariantId(selectedVariant)
+            if (parentVariantId) {
+                const revisionsQuery = get(variantRevisionsQueryFamily(parentVariantId)) as any
+                const data = revisionsQuery?.data
+                const hasRevisionData = Array.isArray(data) && data.length > 0
+                const revisionLoading =
+                    !!revisionsQuery?.isLoading ||
+                    (!hasRevisionData && !!revisionsQuery?.isFetching)
+                if (revisionLoading) {
+                    return true
+                }
+            }
+        }
 
-        return schemaLoading || revisionLoading
+        // Check entity-level schema loading only if no parameters yet
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        return schemaQuery.isPending
+    }),
+)
+
+/**
+ * Atom to seed molecule with revision data from OSS atoms.
+ * This ensures the revision has URI for entity-level schema fetching.
+ */
+const seedRevisionDataAtomFamily = atomFamily((revisionId: string) =>
+    atom((get) => {
+        if (!revisionId || revisionId === EMPTY_REVISION_ID) return null
+
+        // Get current molecule data
+        const moleculeData = get(moleculeBackedVariantAtomFamily(revisionId)) as any
+        if (moleculeData?.uri) {
+            // Already has URI, no need to seed
+            return moleculeData
+        }
+
+        // Try to find revision in OSS atoms (which have URI from variant)
+        const parentVariantId = resolveParentVariantId(moleculeData)
+        if (!parentVariantId) return moleculeData
+
+        const revisions = get(revisionsByVariantIdAtomFamily(parentVariantId)) as any[]
+        const ossRevision = revisions?.find((r: any) => r.id === revisionId)
+
+        if (ossRevision?.uri) {
+            // Return merged data with URI from OSS
+            return {
+                ...moleculeData,
+                uri: ossRevision.uri,
+                variantId: ossRevision.variantId ?? moleculeData?.variantId,
+                variantName: ossRevision.variantName ?? moleculeData?.variantName,
+                appId: ossRevision.appId ?? moleculeData?.appId,
+            }
+        }
+
+        return moleculeData
     }),
 )
 
@@ -90,23 +156,65 @@ const VariantDrawerContent = ({
 
     const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
 
-    // Focused selected variant by revision ID
-    const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
+    // Use seeded revision data that includes URI from OSS atoms
+    const selectedVariant = useAtomValue(seedRevisionDataAtomFamily(variantId)) as any
 
     // App-level: app status is true when OpenAPI schema is available
     const appSchema = useAtomValue(appSchemaAtom)
-    const appStatus = !!appSchema
     const uriInfo = useAtomValue(appUriInfoAtom)
 
-    const prompts = useAtomValue(promptsAtomFamily(variantId))
+    const prompts = useAtomValue(moleculeBackedPromptsAtomFamily(variantId))
     const promptIds = prompts?.map((p: any) => p?.__id as string)
+
+    // Show Overview tab if we have app schema OR if we have prompts/variant data
+    // This allows the drawer to work even when app context isn't fully set up
+    const appStatus = !!appSchema || (promptIds && promptIds.length > 0) || !!selectedVariant
 
     // Focused deployed environments by revision ID
     const deployedIn = useAtomValue(revisionDeploymentAtomFamily(variantId)) || []
     const commitMsg = selectedVariant?.commitMessage
     const isDirty = useAtomValue(
-        variantIsDirtyAtomFamily((selectedVariant as any)?.id || variantId),
+        revisionIsDirtyAtomFamily((selectedVariant as any)?.id || variantId),
     )
+
+    // Seed molecule with revision data from OSS atoms (includes URI for schema fetch)
+    // This ensures the entity-level schema query can access the URI
+    const parentVariantId = resolveParentVariantId(selectedVariant)
+    const ossRevisions = useAtomValue(
+        useMemo(
+            () => (parentVariantId ? revisionsByVariantIdAtomFamily(parentVariantId) : atom([])),
+            [parentVariantId],
+        ),
+    ) as any[]
+
+    useEffect(() => {
+        if (!variantId || variantId === EMPTY_REVISION_ID) return
+        if (!ossRevisions || ossRevisions.length === 0) return
+
+        const ossRevision = ossRevisions.find((r: any) => r.id === variantId)
+        if (!ossRevision?.uri) return
+
+        // Check if molecule already has URI
+        const currentData = legacyAppRevisionMolecule.get.serverData(variantId)
+        if (currentData?.uri) return
+
+        // Seed molecule with revision data including URI
+        const dataToSeed = {
+            id: variantId,
+            variantId: ossRevision.variantId,
+            variantName: ossRevision.variantName,
+            appId: ossRevision.appId,
+            uri: ossRevision.uri,
+            revision: ossRevision.revision,
+            parameters: ossRevision.parameters ?? ossRevision.config?.parameters,
+            commitMessage: ossRevision.commitMessage ?? ossRevision.commit_message,
+            createdAt: ossRevision.createdAt,
+            updatedAt: ossRevision.updatedAt,
+            modifiedById: ossRevision.modifiedById ?? ossRevision.modified_by_id,
+        }
+
+        legacyAppRevisionMolecule.set.serverData(variantId, dataToSeed)
+    }, [variantId, ossRevisions])
 
     // Ensure clean revisions don't get stuck in Original mode
     useEffect(() => {

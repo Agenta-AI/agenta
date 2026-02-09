@@ -399,7 +399,28 @@ export const renderMap: RenderFunctions = {
         const objectProperties = metadata.properties
         const withTooltip = props.withTooltip
         const baseProperty = props.baseProperty
-        if (metadata.name === "ToolConfiguration") {
+
+        // Check if this is a tool configuration by:
+        // 1. Explicit metadata.name === "ToolConfiguration", OR
+        // 2. Value structure matches tool patterns (function type with name/description/parameters,
+        //    or provider tool types like web_search_preview, code_interpreter, etc.)
+        const value = props.value
+        const isToolByName = metadata.name === "ToolConfiguration"
+        const isToolByStructure =
+            value &&
+            typeof value === "object" && // OpenAI function tool format
+            ((value.type === "function" && value.function && typeof value.function === "object") ||
+                // Provider tool types (OpenAI built-in tools)
+                value.type === "web_search_preview" ||
+                value.type === "code_interpreter" ||
+                value.type === "file_search" ||
+                value.type === "computer_use_preview" ||
+                // Anthropic tool format
+                (value.name && value.input_schema) ||
+                // Generic tool with type and name
+                (value.type && value.name && value.description))
+
+        if (isToolByName || isToolByStructure) {
             const {handleChange, editorProps, variantId, baseProperty, disabled, value} =
                 props as any
             return (

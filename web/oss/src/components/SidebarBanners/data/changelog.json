@@ -1,5 +1,17 @@
 [
     {
+        "id": "changelog-2026-02-04-prompt-folders",
+        "title": "Folders for Prompt Organization",
+        "description": "Organize prompts with folders and subfolders. Drag, move, and search.",
+        "link": "https://agenta.ai/docs/changelog/prompt-folders"
+    },
+    {
+        "id": "changelog-2026-01-29-onboarding",
+        "title": "Onboarding Widget & Walkthroughs",
+        "description": "Guided tours to help you explore the playground, evaluations, and observability.",
+        "link": "https://agenta.ai/docs/changelog/onboarding-widget-walkthroughs"
+    },
+    {
         "id": "changelog-2026-01-28-trace-navigation",
         "title": "Navigate from Traces to Configs",
         "description": "Click from any trace to the app, variant, or environment that generated it.",
@@ -10,17 +22,5 @@
         "title": "Test Set Versioning",
         "description": "Track test set changes and link evaluations to specific versions.",
         "link": "https://agenta.ai/docs/changelog/testset-versioning"
-    },
-    {
-        "id": "changelog-2026-01-13-playground-ux",
-        "title": "Playground UX Improvements",
-        "description": "See provider costs, run evaluations directly, and collapse test cases.",
-        "link": "https://agenta.ai/docs/changelog/playground-ux-improvements-jan-2026"
-    },
-    {
-        "id": "changelog-2026-01-09-chat-sessions",
-        "title": "Chat Sessions in Observability",
-        "description": "Track multi-turn conversations with session grouping and cost analytics.",
-        "link": "https://agenta.ai/docs/changelog/chat-sessions-observability"
     }
 ]

@@ -118,7 +118,7 @@ class DaytonaRunner(CodeRunner):
 
         # Get secrets from context (set by vault middleware)
         ctx = RunningContext.get()
-        secrets = getattr(ctx, "vault_secrets", [])
+        secrets = getattr(ctx, "vault_secrets", None) or []
 
         # Standard provider keys mapping
         provider_env_mapping = {
@@ -131,7 +131,8 @@ class DaytonaRunner(CodeRunner):
             "mistralai": "MISTRALAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
             "perplexityai": "PERPLEXITYAI_API_KEY",
-            "togetherai": "TOGETHERAI_API_KEY",
+            # Secret kind is "together_ai" (underscore) even though the env var is TOGETHERAI_API_KEY
+            "together_ai": "TOGETHERAI_API_KEY",
             "openrouter": "OPENROUTER_API_KEY",
             "gemini": "GEMINI_API_KEY",
         }

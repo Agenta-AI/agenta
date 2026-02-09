@@ -165,8 +165,11 @@ def merge_workflow_query_requests(
             workflow_refs=query_request_body.workflow_refs
             or query_request_params.workflow_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -344,8 +347,11 @@ def merge_workflow_variant_query_requests(
             workflow_variant_refs=query_request_body.workflow_variant_refs
             or query_request_params.workflow_variant_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -561,8 +567,11 @@ def merge_workflow_revision_query_requests(
             workflow_revision_refs=query_request_body.workflow_revision_refs
             or query_request_params.workflow_revision_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )

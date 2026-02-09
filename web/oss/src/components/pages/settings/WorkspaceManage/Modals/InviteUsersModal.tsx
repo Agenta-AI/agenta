@@ -1,10 +1,10 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {MinusCircleOutlined} from "@ant-design/icons"
 import {Alert, Form, Input, Modal, Select, Space, Typography, theme} from "antd"
 import Link from "next/link"
 
-import {message} from "@/oss/components/AppMessageContext"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"

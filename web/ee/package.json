@@ -1,6 +1,6 @@
 {
     "name": "@agenta/ee",
-    "version": "0.81.1",
+    "version": "0.84.1",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -19,7 +19,13 @@
         "types:watch": "tsc -w"
     },
     "dependencies": {
+        "@agenta/entities": "workspace:../packages/agenta-entities",
+        "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
         "@agenta/oss": "workspace:../oss",
+        "@agenta/playground": "workspace:../packages/agenta-playground",
+        "@agenta/playground-ui": "workspace:../packages/agenta-playground-ui",
+        "@agenta/shared": "workspace:../packages/agenta-shared",
+        "@agenta/ui": "workspace:../packages/agenta-ui",
         "@ant-design/colors": "^7.2.1",
         "@ant-design/cssinjs": "^2.0.1",
         "@ant-design/icons": "^6.1.0",
@@ -49,6 +55,7 @@
         "immer": "^10.1.1",
         "jotai": "^2.16.1",
         "jotai-eager": "^0.2.3",
+        "jotai-family": "^1.0.1",
         "jotai-immer": "^0.4.1",
         "jotai-scheduler": "^0.0.5",
         "jotai-tanstack-query": "^0.11.0",
@@ -56,7 +63,6 @@
         "jsonrepair": "^3.13.0",
         "lodash": "^4.17.21",
         "postcss": "^8.5.6",
-        "postcss-antd-fixes": "^0.2.0",
         "posthog-js": "^1.223.3",
         "rc-virtual-list": "^3.19.2",
         "react": "^19.0.0",

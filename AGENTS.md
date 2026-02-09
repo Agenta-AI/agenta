@@ -2,7 +2,7 @@
 
 ## Dev Environment Tips
 - If you make changes to the frontend, make sure to run `pnpm lint-fix` within the web folder
-- If you make changes to the backend or sdk, make sure to run `ruff format` and `ruff check --fix` within the sdk or api folder
+- If you make changes to the API or SDK, make sure to run `ruff format` and `ruff check --fix` within the SDK or API folder
 - If you update Ant Design tokens, run `pnpm generate:tailwind-tokens` in the web folder and commit the generated file
 
 
@@ -10,7 +10,200 @@
 - Tests are currently still not working and should not be run 
 
 ## PR instructions
-- If the user provides you with the issue id, title the PR: [issue-id] fix(frontend): <Title> where fix is the type (fix, feat, chore, ci, doc, test.. [we're using better-branch) and frontend is where and it could be api, sdk, frontend, docs, ..
+- If the user provides you with the issue id, title the PR: [issue-id] fix(frontend): <Title> where fix is the type (fix, feat, chore, ci, doc, test.. [we're using better-branch) and frontend is where and it could be API, SDK, frontend, docs, ..
+
+## API Architecture Patterns (OSS + EE)
+
+Use this section for all new work.
+
+### API repo map
+
+- `api/oss/src/*` is the OSS baseline API (new + legacy coexist here).
+- `api/ee/src/*` is the EE extension API (billing, organizations, workspace, meters, subscriptions, throttling).
+- `api/entrypoints/*` is the composition root (dependency wiring and route mounting).
+
+OSS and EE relationship:
+- OSS app is assembled first in `api/entrypoints/routers.py`.
+- When `is_ee()` is true, EE extends that app via:
+  - `ee.extend_main(app)` for extra routers/features.
+  - `ee.extend_app_schema(app)` for OpenAPI/security metadata.
+- EE is additive over OSS, not a separate API architecture.
+
+Primary references:
+- `api/entrypoints/routers.py`
+- `api/ee/src/main.py`
+
+### Where to add new API code
+
+- Add new domain features in:
+  - `api/oss/src/apis/fastapi/<domain>/`
+  - `api/oss/src/core/<domain>/`
+  - `api/oss/src/dbs/postgres/<domain>/`
+- Avoid adding net-new features to legacy paths:
+  - `api/oss/src/routers/*`
+  - `api/oss/src/services/*`
+
+### Standard domain folder structure
+
+For a new domain, follow this shape:
+
+- API layer: `api/oss/src/apis/fastapi/<domain>/`
+  - `router.py`: route registration + handlers
+  - `models.py`: request/response schemas
+  - `utils.py`: parsing/merge/normalization helpers
+- Core layer: `api/oss/src/core/<domain>/`
+  - `dtos.py` or `types.py`: domain data contracts
+  - `interfaces.py`: DAO/service contracts when needed
+  - `service.py`: business orchestration
+- DB layer: `api/oss/src/dbs/postgres/<domain>/`
+  - `dbes.py`: SQLAlchemy entities
+  - `dbas.py`: shared mixins (when needed)
+  - `dao.py`: Postgres implementation
+  - `mappings.py`: DTO <-> DBE mapping
+
+Example to copy:
+- `api/oss/src/apis/fastapi/workflows/`
+- `api/oss/src/core/workflows/`
+- `api/oss/src/dbs/postgres/workflows/`
+
+### Layering and dependency direction
+
+Required direction:
+- Router -> Service -> DAO Interface -> DAO Implementation -> DB
+
+Rules:
+- Core services depend on interfaces (`*DAOInterface`), not concrete DB implementations.
+- Wire concrete dependencies in `api/entrypoints/*` only.
+- Keep DTO/DBE mapping in `dbs/postgres/*/mappings.py`.
+- Do not return DBE objects from router/service contracts.
+- As much as possible, define appropriate service exceptions (avoid leaking database exceptions).
+
+### Endpoint design conventions
+
+Use consistent endpoint shapes across domains:
+
+- `POST /query` for filtering/search with payload support.
+- `POST /{id}/archive` and `POST /{id}/unarchive` for lifecycle state transitions.
+- For revisioned resources, expose:
+  - `/revisions/retrieve`
+  - `/revisions/commit`
+  - `/revisions/log`
+
+Request/response conventions:
+- Define explicit request/response models in `models.py`.
+- Response envelopes should include `count` plus payload (`item`/`items` style).
+- Set explicit `operation_id` on routes.
+
+Query conventions:
+- Parse params via `Depends(...)` and optionally parse request body JSON.
+- Merge params + body into one query object in `utils.py`.
+- Use cursor pagination via `Windowing`, not page-number pagination.
+
+References:
+- `api/oss/src/apis/fastapi/workflows/router.py`
+- `api/oss/src/apis/fastapi/workflows/utils.py`
+- `api/oss/src/apis/fastapi/shared/utils.py`
+- `api/oss/src/dbs/postgres/shared/utils.py`
+
+### Git-style Artifact/Variant/Revision pattern
+
+When a resource needs commit/history semantics, use the shared Git pattern instead of inventing a custom one.
+
+Use this pattern when you need:
+- revision history and auditability
+- latest vs specific revision retrieval
+- revision logs
+- variant forks/lineage
+
+Core contracts:
+- `api/oss/src/core/git/interfaces.py`
+- `api/oss/src/core/git/dtos.py`
+
+Postgres implementation:
+- `api/oss/src/dbs/postgres/git/dao.py`
+- `api/oss/src/dbs/postgres/git/dbas.py`
+
+Domain DBE examples:
+- `api/oss/src/dbs/postgres/workflows/dbes.py`
+- `api/oss/src/dbs/postgres/queries/dbes.py`
+- `api/oss/src/dbs/postgres/testsets/dbes.py`
+
+Service examples:
+- `api/oss/src/core/workflows/service.py`
+- `api/oss/src/core/queries/service.py`
+- `api/oss/src/core/testsets/service.py`
+
+Reuse pattern example:
+- Evaluators reuse workflow persistence and can preserve IDs through `workflow_id=evaluator_id`.
+- Reference: `api/oss/src/core/evaluators/service.py`
+
+### Scope, lifecycle, and archival rules
+
+- Always enforce tenant scope (`project_id` minimum) in DAO reads and writes.
+- For revisioned entities, prefer archive/unarchive (`deleted_at`, `deleted_by_id`) over hard deletes.
+- Respect `include_archived` in query paths.
+
+References:
+- `api/oss/src/dbs/postgres/shared/dbas.py`
+- `api/oss/src/dbs/postgres/git/dao.py`
+
+### Migration and compatibility rules
+
+Migration should preserve compatibility while moving to new APIs.
+
+- Keep old and new routes running in parallel until migration is complete.
+- New stack commonly ships under `/preview/*` while old endpoints remain mounted.
+- Prefer data compatibility adapters over breaking payload changes.
+- Preserve old IDs/shape when continuity is required.
+- If old storage temporarily carries new payload shape, mark it explicitly.
+
+Concrete examples:
+- Dual mounting and deprecations: `api/entrypoints/routers.py`
+- Legacy app storage marker (`WORKFLOW_MARKER_KEY`): `api/oss/src/core/applications/service.py`
+- Legacy dedup key normalization (`__dedup_id__` <-> `testcase_dedup_id`): `api/oss/src/apis/fastapi/testsets/router.py`
+
+### Router and function style conventions
+
+Router style:
+- Register routes inside router class `__init__` using `self.router.add_api_route(...)`.
+- Use `@intercept_exceptions()` at the route boundary.
+- Use `@suppress_exceptions(...)` only for controlled defaults.
+
+Function signature style:
+- Prefer keyword-only parameters using `*`.
+- Use grouped sections in signatures/calls with `#` separators for readability.
+
+Example:
+
+```python
+async def create_workflow(
+    self,
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    #
+    workflow_create: WorkflowCreate,
+    #
+    workflow_id: Optional[UUID] = None,
+) -> Optional[Workflow]:
+    ...
+```
+
+### Migration seams (do not copy for net-new code)
+
+These exist during transition but should not be copied into new implementations:
+
+- Core importing API routers/models directly
+  - `api/oss/src/core/invocations/service.py`
+  - `api/oss/src/core/annotations/service.py`
+- Core importing legacy `db_manager` in new modules
+  - `api/oss/src/core/workflows/service.py`
+  - `api/oss/src/core/testsets/service.py`
+  - `api/oss/src/core/evaluations/service.py`
+
+Preferred fix for new work:
+- introduce/extend core interfaces and adapters
+- keep strict layer boundaries
 
 ## Import Aliases Best Practices
 
@@ -377,31 +570,213 @@ export const createItemAtom = atom(
 
 ---
 
-### Entity Controller Pattern
+### Loadable Bridge Pattern
 
-For entities requiring CRUD operations with draft state, loading indicators, and cache management, use the **Entity Controller Pattern**. This provides a unified API that abstracts multiple atoms into a single cohesive interface.
+For managing data sources that provide inputs to runnables (testsets, traces), use the **Loadable Bridge** from `@agenta/entities/loadable`.
 
-**Full documentation:** `web/oss/src/state/entities/shared/README.md`
+**Full documentation:** `web/packages/agenta-entities/src/loadable/README.md`
 
-**Quick Decision - Which API to Use:**
+**What is a Loadable?**
 
-| Need | API | Returns |
-|------|-----|---------|
-| Full state + actions | `entity.controller(id)` | `[state, dispatch]` |
-| Data only | `entity.selectors.data(id)` | `T \| null` |
-| Loading/error | `entity.selectors.query(id)` | `QueryState<T>` |
-| Dirty indicator | `entity.selectors.isDirty(id)` | `boolean` |
-| Single cell (tables) | `entity.selectors.cell({id, col})` | `unknown` |
-| Dispatch in atoms | `entity.actions.update/discard` | Write atom |
+A loadable represents a data source that provides input rows for execution. Loadables can operate in:
+- **Local mode**: Manual data entry
+- **Connected mode**: Synced with an entity (testset revision, trace)
 
 **Basic Usage:**
 
 ```typescript
-import {testcase} from "@/oss/state/entities/testcase"
+import { loadableBridge } from '@agenta/entities/loadable'
+import { useAtomValue, useSetAtom } from 'jotai'
 
-// Full controller - state + dispatch
-function TestcaseEditor({testcaseId}: {testcaseId: string}) {
-  const [state, dispatch] = useAtom(testcase.controller(testcaseId))
+// Read rows
+const rows = useAtomValue(loadableBridge.selectors.rows(loadableId))
+
+// Add a row
+const addRow = useSetAtom(loadableBridge.actions.addRow)
+addRow(loadableId, { prompt: 'Hello, world!' })
+
+// Connect to a testset
+const connect = useSetAtom(loadableBridge.actions.connectToSource)
+connect(loadableId, testsetRevisionId, 'MyTestset v1', 'testcase')
+```
+
+**Available Selectors:**
+
+| Selector | Returns | Description |
+|----------|---------|-------------|
+| `rows(loadableId)` | `LoadableRow[]` | All rows in the loadable |
+| `columns(loadableId)` | `LoadableColumn[]` | Column definitions |
+| `activeRow(loadableId)` | `LoadableRow \| null` | Currently selected row |
+| `mode(loadableId)` | `'local' \| 'connected'` | Current mode |
+| `isDirty(loadableId)` | `boolean` | Has unsaved changes |
+| `connectedSource(loadableId)` | `{id, name}` | Connected source info |
+
+**Available Actions:**
+
+| Action | Parameters | Description |
+|--------|------------|-------------|
+| `addRow` | `(loadableId, data?)` | Add a new row |
+| `updateRow` | `(loadableId, rowId, data)` | Update row data |
+| `removeRow` | `(loadableId, rowId)` | Remove a row |
+| `setActiveRow` | `(loadableId, rowId)` | Select a row |
+| `connectToSource` | `(loadableId, sourceId, sourceName, sourceType)` | Connect to entity |
+| `disconnect` | `(loadableId)` | Switch to local mode |
+
+---
+
+### Runnable Bridge Pattern
+
+For managing executable entities (app revisions, evaluators), use the **Runnable Bridge** from `@agenta/entities/runnable`.
+
+**Full documentation:** `web/packages/agenta-entities/src/runnable/README.md`
+
+**Basic Usage:**
+
+```typescript
+import { runnableBridge } from '@agenta/entities/runnable'
+import { useAtomValue } from 'jotai'
+
+// Get runnable data
+const data = useAtomValue(runnableBridge.selectors.data(revisionId))
+
+// Get input/output ports
+const inputPorts = useAtomValue(runnableBridge.selectors.inputPorts(revisionId))
+const outputPorts = useAtomValue(runnableBridge.selectors.outputPorts(revisionId))
+
+// Access evaluator-specific features
+const evalController = runnableBridge.runnable('evaluatorRevision')
+const presets = useAtomValue(evalController.selectors.presets(evaluatorId))
+```
+
+**Available Selectors:**
+
+| Selector | Returns | Description |
+| -------- | ------- | ----------- |
+| `data(runnableId)` | `RunnableData \| null` | Runnable data |
+| `query(runnableId)` | `BridgeQueryState` | Query state with loading/error |
+| `isDirty(runnableId)` | `boolean` | Has unsaved changes |
+| `inputPorts(runnableId)` | `RunnablePort[]` | Input port definitions |
+| `outputPorts(runnableId)` | `RunnablePort[]` | Output port definitions |
+| `configuration(runnableId)` | `Record<string, unknown> \| null` | Configuration object |
+
+---
+
+### Entity Selection System
+
+For hierarchical entity selection (App → Variant → Revision), use the unified `EntityPicker` component from `@agenta/entity-ui`.
+
+**Full documentation:** `web/packages/agenta-entity-ui/src/selection/README.md`
+
+**EntityPicker with Variants:**
+
+```typescript
+import { EntityPicker, type AppRevisionSelectionResult, type TestsetSelectionResult } from '@agenta/entity-ui'
+
+// Cascading dropdowns (inline forms, compact space)
+<EntityPicker<AppRevisionSelectionResult>
+  variant="cascading"
+  adapter="appRevision"
+  onSelect={handleSelect}
+/>
+
+// Breadcrumb navigation (modals, full selection UI)
+<EntityPicker<AppRevisionSelectionResult>
+  variant="breadcrumb"
+  adapter="appRevision"
+  onSelect={handleSelect}
+  showSearch
+  showBreadcrumb
+  rootLabel="All Apps"
+/>
+
+// List with hover popovers (sidebars, 2-level hierarchies)
+<EntityPicker<TestsetSelectionResult>
+  variant="list-popover"
+  adapter="testset"
+  onSelect={handleSelect}
+  autoSelectLatest
+  selectLatestOnParentClick
+/>
+```
+
+**Mode-Specific Hooks:**
+
+```typescript
+import { useCascadingMode, useBreadcrumbMode, useListPopoverMode } from '@agenta/entity-ui'
+
+// For cascading dropdowns
+const { levels, isComplete, selection } = useCascadingMode({
+  adapter: 'appRevision',
+  instanceId: 'my-picker',
+  onSelect: handleSelect,
+})
+
+// For breadcrumb navigation
+const { breadcrumb, items, navigateDown, select } = useBreadcrumbMode({
+  adapter: 'appRevision',
+  instanceId: 'my-picker',
+  onSelect: handleSelect,
+})
+
+// For list with popovers
+const { parents, handleChildSelect } = useListPopoverMode({
+  adapter: 'testset',
+  instanceId: 'my-picker',
+  onSelect: handleSelect,
+})
+```
+
+**Pre-built Adapters:**
+
+| Adapter | Hierarchy | Selection Result |
+|---------|-----------|------------------|
+| `"appRevision"` | App → Variant → Revision | `AppRevisionSelectionResult` |
+| `"evaluatorRevision"` | Evaluator → Variant → Revision | `EvaluatorRevisionSelectionResult` |
+| `"testset"` | Testset → Revision | `TestsetSelectionResult` |
+
+---
+
+### Molecule Pattern (Entity State Management)
+
+For entities requiring CRUD operations with draft state, loading indicators, and cache management, use the **Molecule Pattern** from `@agenta/entities`.
+
+**Full documentation:** `web/packages/agenta-entities/src/shared/README.md`
+
+**What is a Molecule?**
+
+A molecule provides a unified API for entity state management:
+
+```typescript
+molecule.atoms.*        // Atom families for reactive subscriptions
+molecule.reducers.*     // Write operations
+molecule.get.*          // Imperative reads (snapshot from store)
+molecule.set.*          // Imperative writes
+molecule.useController  // React hook combining atoms + dispatch
+molecule.cleanup.*      // Memory management
+```
+
+**Quick Decision - Where to use which API:**
+
+```
+Where are you using it?
+         │
+    ┌────┼────┐
+    │    │    │
+ React  Atom  Callback
+    │    │    │
+    ▼    ▼    ▼
+useAtom  get(mol.   mol.get.*
+         atoms.*)   mol.set.*
+```
+
+**Basic Usage:**
+
+```typescript
+import { testcaseMolecule } from '@agenta/entities/testcase'
+
+// React hook - returns [state, dispatch]
+function TestcaseEditor({ id }: { id: string }) {
+  const [state, dispatch] = testcaseMolecule.useController(id)
 
   if (state.isPending) return <Skeleton />
   if (!state.data) return <NotFound />
@@ -409,84 +784,86 @@ function TestcaseEditor({testcaseId}: {testcaseId: string}) {
   return (
     <Input
       value={state.data.input}
-      onChange={(e) => dispatch({
-        type: "update",
-        changes: {input: e.target.value}
-      })}
+      onChange={(e) => dispatch.update({ input: e.target.value })}
     />
   )
 }
 
-// Fine-grained selector - only re-renders on data change
-function TestcaseDisplay({testcaseId}: {testcaseId: string}) {
-  const data = useAtomValue(testcase.selectors.data(testcaseId))
-  if (!data) return null
-  return <div>{data.input}</div>
+// Fine-grained subscriptions - only re-renders when isDirty changes
+function DirtyIndicator({ id }: { id: string }) {
+  const isDirty = useAtomValue(testcaseMolecule.atoms.isDirty(id))
+  return isDirty ? <Badge>Modified</Badge> : null
 }
 ```
 
-**Reading Multiple Entities:**
+**Imperative API (for callbacks):**
 
 ```typescript
-// Create a derived atom that subscribes to all selected entities
-const useMultipleTestcases = (ids: string[]) => {
-  const dataAtom = useMemo(
-    () => atom((get) => ids.map(id => get(testcase.selectors.data(id))).filter(Boolean)),
-    [ids.join(",")]
-  )
-  return useAtomValue(dataAtom)
+async function handleSave(id: string) {
+  const data = testcaseMolecule.get.data(id)
+  if (!data || !testcaseMolecule.get.isDirty(id)) return
+
+  await api.save(data)
+  testcaseMolecule.set.discard(id)
 }
+```
+
+**Available Atoms:**
+
+| Atom | Type | Description |
+|------|------|-------------|
+| `data` | `T \| null` | Entity with draft merged |
+| `serverData` | `T \| null` | Raw server data |
+| `draft` | `TDraft \| null` | Local changes only |
+| `query` | `QueryState<T>` | Query state (isPending, isError) |
+| `isDirty` | `boolean` | Has unsaved local changes |
+| `isNew` | `boolean` | Entity not yet on server |
+
+**Available Molecules:**
+
+| Entity | Import | Description |
+|--------|--------|-------------|
+| Testcase | `testcaseMolecule` from `@agenta/entities/testcase` | Testcase with cell subscriptions |
+| Trace Span | `traceSpanMolecule` from `@agenta/entities/trace` | Trace span with attribute drill-in |
+| Testset | `testsetMolecule` from `@agenta/entities/testset` | Testset with list/detail queries |
+| Revision | `revisionMolecule` from `@agenta/entities/testset` | Revision with column management |
+
+**Data Flow Architecture:**
+
+```
+Server → TanStack Query → atoms.serverData
+                              ↓
+                         atoms.draft (local changes)
+                              ↓
+                         atoms.data (merged)
+                              ↓
+                         useController → Component
 ```
 
 **Anti-Patterns to Avoid:**
 
 ```typescript
-// BAD - No reactivity, snapshot read
-const globalStore = getDefaultStore()
-const data = globalStore.get(testcase.selectors.data(id))
+// BAD - atoms require React context
+async function handleSave(id: string) {
+  const data = useAtomValue(molecule.atoms.data(id)) // Won't work!
+}
 
-// GOOD - Proper subscription
-const data = useAtomValue(testcase.selectors.data(id))
+// GOOD - use imperative API
+async function handleSave(id: string) {
+  const data = molecule.get.data(id)
+}
 ```
 
 ```typescript
-// BAD - Variable shadowing
-import {testcase} from "@/oss/state/entities/testcase"
-const {testcase, ...rest} = entity  // Shadows import!
+// BAD - new atom every render
+const derived = atom((get) => get(molecule.atoms.data(id)))
 
-// GOOD - Rename destructured variable
-const {testcase: testcaseField, ...rest} = entity
+// GOOD - memoize the atom
+const derived = useMemo(
+  () => atom((get) => get(molecule.atoms.data(id))),
+  [id]
+)
 ```
-
-**Available Controllers:**
-
-| Entity | Import | Description |
-|--------|--------|-------------|
-| Testcase | `testcase` from `@/oss/state/entities/testcase` | Testcase with cell subscriptions + drill-in |
-| Trace Span | `traceSpan` from `@/oss/state/entities/trace` | Trace span with attribute drill-in |
-| Revision | `revision` from `@/oss/state/entities/testset` | Revision with column management |
-| Testset | `testset` from `@/oss/state/entities/testset` | Testset with list/detail queries |
-
-**Architecture:**
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                       Controller                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
-│  │   Query     │  │   Draft     │  │   isDirty   │              │
-│  │ (server)    │→ │  (local)    │→ │  (derived)  │              │
-│  └─────────────┘  └─────────────┘  └─────────────┘              │
-│         ↓               ↓                                        │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                 Entity Atom (merged)                        ││
-│  └─────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────┘
-```
-
-- **Query atoms** are the single source of truth for server data
-- **Draft atoms** store local changes only
-- **Entity atoms** merge: `query.data + draft → merged entity`
-- **Dirty detection** compares draft to server data
 
 ---
 
@@ -755,4 +1132,197 @@ const items = useMemo(
 )
 
 <AccordionTreePanel items={items} />
+```
+
+---
+
+### Shared Components and Package Architecture
+
+The monorepo uses workspace packages to share components, utilities, and logic across OSS and EE. Understanding which package to use and how to properly compose components is important for maintainability.
+
+**Key Documentation:**
+
+| Package | README Location |
+|---------|-----------------|
+| `@agenta/ui` | `web/packages/agenta-ui/README.md` |
+| `@agenta/entities` | `web/packages/agenta-entities/README.md` |
+| `@agenta/shared` | `web/packages/agenta-shared/README.md` |
+| `@agenta/playground` | `web/packages/agenta-playground/` |
+
+#### Package Overview
+
+| Package | Purpose | Key Exports |
+|---------|---------|-------------|
+| `@agenta/shared` | Pure utilities (no React) | Path utilities, common types |
+| `@agenta/ui` | Reusable React components | `EnhancedModal`, `InfiniteVirtualTable`, `cn`, `textColors`, presentational components |
+| `@agenta/entities` | Entity state/hooks/controllers | Molecules, bridges, UI components (modals, pickers) |
+| `@agenta/playground` | Playground-specific components | `PlaygroundContent`, `EntitySelector`, `InputMappingModal` |
+
+#### Subpath Imports for Tree-Shaking
+
+**Always use subpath imports for better tree-shaking.** Importing from root barrel exports (e.g., `@agenta/shared`) pulls the entire dependency graph, which significantly increases bundle size.
+
+#### @agenta/shared Subpath Exports
+
+```typescript
+// API utilities
+import {axios, getAgentaApiUrl, getEnv, configureAxios} from "@agenta/shared/api"
+
+// State atoms
+import {projectIdAtom, setProjectIdAtom} from "@agenta/shared/state"
+
+// Utilities (most common)
+import {
+  dayjs,
+  createBatchFetcher,
+  isValidUUID,
+  dereferenceSchema,
+  getValueAtPath,
+  setValueAtPath,
+  extractTypedPaths,
+  determineMappingStatus,
+  formatNumber,
+  formatLatency,
+} from "@agenta/shared/utils"
+
+// React hooks
+import {useDebounceInput} from "@agenta/shared/hooks"
+
+// Schemas (for validation)
+import {MESSAGE_CONTENT_SCHEMA, CHAT_MESSAGE_SCHEMA} from "@agenta/shared/schemas"
+
+// Types (use `import type` for type-only imports)
+import type {SimpleChatMessage, MessageContent, ToolCall} from "@agenta/shared/types"
+```
+
+#### @agenta/ui Subpath Exports
+
+```typescript
+import {...} from "@agenta/ui"                   // Main exports (presentational components)
+import {...} from "@agenta/ui/table"             // InfiniteVirtualTable, paginated stores
+import {...} from "@agenta/ui/editor"            // Editor, JSON parsing utilities
+import {...} from "@agenta/ui/shared-editor"     // SharedEditor, useDebounceInput
+import {...} from "@agenta/ui/chat-message"      // ChatMessageEditor, message types/schemas
+import {...} from "@agenta/ui/llm-icons"         // LLM provider icons
+import {...} from "@agenta/ui/select-llm-provider" // LLM provider selector
+import {...} from "@agenta/ui/app-message"       // AppMessageContext, useAppMessage
+import {...} from "@agenta/ui/cell-renderers"    // Table cell renderers, CellRendererRegistry
+```
+
+#### @agenta/entities Subpath Exports
+
+```typescript
+import {...} from "@agenta/entities"             // Clean named exports (preferred)
+import {...} from "@agenta/entities/shared"      // Molecule factories, transforms
+import {...} from "@agenta/entities/trace"       // Trace/span molecule, schemas
+import {...} from "@agenta/entities/testset"     // Testset/revision molecules
+import {...} from "@agenta/entities/testcase"    // Testcase molecule
+import {...} from "@agenta/entities/loadable"    // Loadable bridge
+import {...} from "@agenta/entities/runnable"    // Runnable bridge
+import {...} from "@agenta/entity-ui"            // UI components (modals, pickers)
+```
+
+#### EnhancedModal (Required for All New Modals)
+
+**All new modals MUST use `EnhancedModal` from `@agenta/ui`** instead of raw `antd Modal`:
+
+```typescript
+import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
+
+function MyModal({open, onClose}: {open: boolean; onClose: () => void}) {
+    return (
+        <EnhancedModal
+            open={open}
+            onCancel={onClose}
+            title="Modal Title"
+            footer={null}
+        >
+            <ModalContent>
+                {/* Main content */}
+            </ModalContent>
+            <ModalFooter>
+                <Button onClick={onClose}>Cancel</Button>
+                <Button type="primary">Confirm</Button>
+            </ModalFooter>
+        </EnhancedModal>
+    )
+}
+```
+
+**Why EnhancedModal:**
+
+- Consistent styling across the application
+- Proper scroll handling with `ModalContent`
+- Standardized footer layout with `ModalFooter`
+- Theme integration
+
+#### Style Utilities
+
+Use utilities from `@agenta/ui` for consistent styling:
+
+```typescript
+import {cn, textColors, bgColors} from "@agenta/ui"
+
+// cn - Combines class names with conditional support
+<div className={cn("base-class", isActive && "active-class")} />
+
+// textColors - Theme-aware text colors
+<span className={textColors.secondary}>Secondary text</span>
+
+// bgColors - Theme-aware background colors
+<div className={bgColors.hover}>Hoverable area</div>
+```
+
+#### Presentational Components
+
+Use section layout primitives from `@agenta/ui`:
+
+```typescript
+import {
+  SectionCard,
+  SectionLabel,
+  SectionHeaderRow,
+  ConfigBlock,
+  VersionBadge,
+  RevisionLabel,
+  StatusTag,
+  PanelHeader,
+  SourceIndicator,
+} from "@agenta/ui"
+
+// Section card with header
+<SectionCard>
+  <SectionHeaderRow
+    left={<SectionLabel>Configuration</SectionLabel>}
+    right={<Button>Edit</Button>}
+  />
+  <ConfigBlock title="Settings">
+    <Input />
+  </ConfigBlock>
+</SectionCard>
+```
+
+#### Package Selection Guide
+
+```text
+Need a modal?
+└─ Use: EnhancedModal from @agenta/ui
+
+Need class name utilities or theme colors?
+└─ Use: cn, textColors, bgColors from @agenta/ui
+
+Need section layout primitives?
+└─ Use: SectionCard, SectionLabel, ConfigBlock from @agenta/ui
+
+Need entity state management (molecules)?
+└─ Use: *Molecule from @agenta/entities/{entity}
+
+Need entity selection UI?
+└─ Use: EntityPicker, EntityCascader from @agenta/entity-ui
+
+Need loadable/runnable bridges?
+└─ Use: loadableBridge, runnableBridge from @agenta/entities/{type}
+
+Building playground features?
+└─ Use: Components from @agenta/playground
 ```
