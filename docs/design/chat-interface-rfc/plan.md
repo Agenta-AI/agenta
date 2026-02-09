@@ -215,13 +215,13 @@ Phase 3 (Evaluation):
 ## Definition of Done
 
 ### Phase 1
-- [ ] Legacy `@ag.route(..., flags={"is_chat": True})` is supported
-- [ ] Legacy OpenAPI includes `x-agenta.flags.is_chat` on the relevant operation(s)
-- [ ] `services/oss/src/chat.py` sets `flags={"is_chat": True}`
-- [ ] Documentation updated
+- [x] Legacy `@ag.route(..., flags={"is_chat": True})` is supported
+- [x] Legacy OpenAPI includes `x-agenta.flags.is_chat` on the relevant operation(s)
+- [x] `services/oss/src/chat.py` sets `flags={"is_chat": True}`
+- [x] Documentation updated
 
 ### Phase 1b
-- [ ] New `@ag.route(..., flags={...})` is supported and propagated to `auto_workflow()`
+- [x] New `@ag.route(..., flags={...})` is supported and propagated to `auto_workflow()`
 
 ### Phase 2
 - [ ] Frontend reads `x-agenta.flags.is_chat` from OpenAPI

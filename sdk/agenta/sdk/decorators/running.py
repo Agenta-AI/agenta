@@ -585,9 +585,8 @@ class application(workflow):
         if "references" not in kwargs or not isinstance(kwargs["references"], dict):
             kwargs["references"] = dict()
 
-        for key in kwargs["references"]:
-            if key.startswith("evaluator_"):
-                del kwargs["references"][key]
+        for key in [k for k in kwargs["references"] if k.startswith("evaluator_")]:
+            del kwargs["references"][key]
 
         if slug is not None:
             kwargs["references"]["application"] = {"slug": slug}
@@ -688,9 +687,8 @@ class evaluator(workflow):
         if "references" not in kwargs or not isinstance(kwargs["references"], dict):
             kwargs["references"] = dict()
 
-        for key in kwargs["references"]:
-            if key.startswith("application_"):
-                del kwargs["references"][key]
+        for key in [k for k in kwargs["references"] if k.startswith("application_")]:
+            del kwargs["references"][key]
 
         if slug is not None:
             kwargs["references"]["evaluator"] = {"slug": slug}
