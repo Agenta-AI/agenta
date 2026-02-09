@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.shared.engine import engine
-from oss.src.services import db_manager, evaluator_manager
+from oss.src.services import db_manager
 from ee.src.models.api.workspace_models import (
     UserRole,
     UpdateWorkspace,
@@ -554,8 +554,9 @@ async def create_workspace_db_object(
         project_id=str(project_db.id),
         user_id=str(user.id),
     )
-    await evaluator_manager.create_ready_to_use_evaluators(
-        project_id=str(project_db.id)
+    await db_manager.add_default_simple_evaluators(
+        project_id=str(project_db.id),
+        user_id=str(user.id),
     )
 
     # add default human evaluator for annotation
@@ -563,6 +564,14 @@ async def create_workspace_db_object(
     from oss.src.core.evaluators.defaults import create_default_human_evaluator
 
     await create_default_human_evaluator(
+        project_id=project_db.id,
+        user_id=user.id,
+    )
+
+    # Create default project-scoped environments for the default project.
+    from oss.src.core.environments.defaults import create_default_environments
+
+    await create_default_environments(
         project_id=project_db.id,
         user_id=user.id,
     )
@@ -1367,21 +1376,25 @@ async def mark_invitation_as_used(
         return True
 
 
-async def get_org_details(organization: Organization) -> dict:
+async def get_org_details(
+    organization: Organization,
+) -> dict:
     """
     Retrieve details of an organization.
 
     Args:
         organization (Organization): The organization to retrieve details for.
-        project_id (str): The project_id to retrieve details for.
 
     Returns:
         dict: A dictionary containing the organization's details.
     """
 
+    # Skip members for demo organizations to avoid returning thousands of users
+    is_demo = organization.flags.get("is_demo", False) if organization.flags else False
+
     default_workspace_db = await get_org_default_workspace(organization)
     default_workspace = (
-        await get_workspace_details(default_workspace_db)
+        await get_workspace_details(default_workspace_db, include_members=not is_demo)
         if default_workspace_db is not None
         else None
     )
@@ -1400,13 +1413,15 @@ async def get_org_details(organization: Organization) -> dict:
     return sample_organization
 
 
-async def get_workspace_details(workspace: WorkspaceDB) -> WorkspaceResponse:
+async def get_workspace_details(
+    workspace: WorkspaceDB, include_members: bool = True
+) -> WorkspaceResponse:
     """
     Retrieve details of a workspace.
 
     Args:
         workspace (Workspace): The workspace to retrieve details for.
-        project_id (str): The project_id to retrieve details for.
+        include_members (bool): Whether to include workspace members. Defaults to True.
 
     Returns:
         dict: A dictionary containing the workspace's details.
@@ -1416,7 +1431,9 @@ async def get_workspace_details(workspace: WorkspaceDB) -> WorkspaceResponse:
     """
 
     try:
-        workspace_response = await get_workspace_in_format(workspace)
+        workspace_response = await get_workspace_in_format(
+            workspace, include_members=include_members
+        )
         return workspace_response
     except Exception as e:
         import traceback

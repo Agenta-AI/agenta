@@ -530,6 +530,16 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "karimkohel",
+      "name": "karim kohel",
+      "avatar_url": "https://avatars.githubusercontent.com/u/46066647?v=4",
+      "profile": "http://karimkohel.com",
+      "contributions": [
+        "example",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

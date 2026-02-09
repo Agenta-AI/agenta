@@ -17,6 +17,7 @@ import {fetchSingleProfile} from "@/oss/services/api"
 import {fetchVariants as fetchAppVariants} from "@/oss/services/api"
 import {routerAppIdAtom, recentAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
+import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {environmentsAtom} from "@/oss/state/environment/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {projectScopedVariantsAtom} from "@/oss/state/projectVariantConfig"
@@ -155,7 +156,7 @@ export const allRevisionsAtom = atom((get) => {
     vars.forEach((v) => {
         const revs = (get(revisionsByVariantIdAtomFamily(v.variantId)) as any[]) || []
         revs.forEach((r: any) => {
-            if (r && Number(r.revision) > 0) out.push(r as EnhancedVariant)
+            if (r && r.revision != null && Number(r.revision) >= 0) out.push(r as EnhancedVariant)
         })
     })
 
@@ -170,7 +171,7 @@ export const enhancedRevisionsFlatAtom = atom<EnhancedVariant[]>((get) => {
     vars.forEach((v: any) => {
         const revs = get(revisionsByVariantIdAtomFamily(v.variantId)) as any[]
         ;(revs || []).forEach((r: any) => {
-            if (r && Number(r.revision) > 0) out.push(r as EnhancedVariant)
+            if (r && r.revision != null && Number(r.revision) >= 0) out.push(r as EnhancedVariant)
         })
     })
     return out
@@ -196,7 +197,7 @@ export const revisionMapAtom = atom<Record<string, EnhancedVariant[]>>((get) => 
         const revs = get(revisionsByVariantIdAtomFamily(v.variantId)) as any[]
         const arr: EnhancedVariant[] = []
         ;(revs || []).forEach((r: any) => {
-            if (r && Number(r.revision) > 0) arr.push(r as EnhancedVariant)
+            if (r && r.revision != null && Number(r.revision) >= 0) arr.push(r as EnhancedVariant)
         })
         map[v.variantId] = arr.sort(
             (a: EnhancedVariant, b: EnhancedVariant) => b.updatedAtTimestamp - a.updatedAtTimestamp,
@@ -219,6 +220,11 @@ export const appUriStateQueryAtom = atomWithQuery<UriState | undefined>((get) =>
     const firstUri = (variants[0] as any)?.uri as string | undefined
     const appType = get(currentAppContextAtom)?.appType || null
     const isCustomApp = appType === "custom"
+
+    // Disable legacy schema fetch on /playground-test — the new playground uses
+    // package-layer schema atoms (service prefetch + per-revision fallback).
+    const appState = get(appStateSnapshotAtom)
+    const isNewPlayground = appState.pathname?.includes("/playground-test")
 
     const fetchRecursive = async (current: string, removed = ""): Promise<UriState> => {
         const result = await fetchOpenApiSchemaJson(current)
@@ -243,7 +249,7 @@ export const appUriStateQueryAtom = atomWithQuery<UriState | undefined>((get) =>
         queryFn: () => (firstUri ? fetchRecursive(firstUri) : Promise.resolve(undefined)),
         staleTime: isCustomApp ? undefined : 1000 * 60 * 5,
         placeholderData: (previousData) => previousData,
-        enabled: !!firstUri,
+        enabled: !!firstUri && !isNewPlayground,
         refetchInterval: isCustomApp ? 1000 * 60 * 1 : false,
     }
 })

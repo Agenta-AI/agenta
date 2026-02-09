@@ -35,7 +35,7 @@ To enable `is_chat` for user-facing custom workflows, we must support the **lega
 
 Decision captured in `docs/design/chat-interface-rfc/plan.md`:
 - Add `flags` support to the legacy decorators
-- Emit `x-agenta-flags` in legacy OpenAPI
+- Emit `x-agenta.flags` in legacy OpenAPI
 - Align the new system to also accept `flags` on `@ag.route` for interface consistency
 
 ---
@@ -203,7 +203,7 @@ class evaluator(workflow):
    - Returns `WorkflowServiceRequest` to frontend
 
 5. **Frontend reads flags for UI decisions:**
-   - Playground chat detection is OpenAPI-driven; preferred signal is `x-agenta-flags.is_chat` on the `/run` (and/or `/test`) operation.
+   - Playground chat detection is OpenAPI-driven; preferred signal is `x-agenta.flags.is_chat` on the `/run` (and/or `/test`) operation.
    - Fallbacks: legacy heuristics (`properties.messages` / `x-parameter: messages`).
 
 ## Files That Need Changes
@@ -213,7 +213,7 @@ class evaluator(workflow):
 | File | Change |
 |------|--------|
 | `sdk/agenta/sdk/decorators/serving.py` | Add `flags: Optional[dict]` to legacy `route` and `entrypoint` |
-| `sdk/agenta/sdk/decorators/serving.py` | Emit `x-agenta-flags` on relevant OpenAPI operations |
+| `sdk/agenta/sdk/decorators/serving.py` | Emit `x-agenta.flags` on relevant OpenAPI operations |
 | `services/oss/src/chat.py` | Set `flags={"is_chat": True}` on `@chat_route` |
 
 ### SDK (Phase 1b - New Workflow System, Consistency)
@@ -229,28 +229,29 @@ class evaluator(workflow):
 
 | File | Change |
 |------|--------|
-| `web/oss/src/lib/shared/variant/genericTransformer/index.ts` | Prefer `x-agenta-flags.is_chat`; fallback to `properties.messages` |
+| `web/oss/src/lib/shared/variant/genericTransformer/index.ts` | Prefer `x-agenta.flags.is_chat`; fallback to `properties.messages` |
 | `web/oss/src/lib/helpers/openapi_parser.ts` | Keep legacy parser fallback as needed |
 | `web/oss/src/components/Playground/state/atoms/app.ts` | Ensure state uses the same detection output |
 
 ## Backward Compatibility
 
-- **Existing apps:** no `x-agenta-flags` -> frontend falls back to heuristics.
-- **Apps opting-in:** set `flags={"is_chat": True}` -> OpenAPI includes `x-agenta-flags.is_chat: true`.
+- **Existing apps:** no `x-agenta.flags` -> frontend falls back to heuristics.
+- **Apps opting-in:** set `flags={"is_chat": True}` -> OpenAPI includes `x-agenta.flags.is_chat: true`.
 - **No breaking changes:** missing `flags` behaves like `{}`.
 
 ## OpenAPI Extension (Primary Discovery Signal)
 
-We use `x-agenta-flags` as an OpenAPI vendor extension on the operation to explicitly declare chat capability.
+We use `x-agenta.flags` as an OpenAPI vendor extension on the operation to explicitly declare chat capability.
 
 ```yaml
 paths:
   /run:
     post:
-      x-agenta-flags:
-        is_chat: true
+      x-agenta:
+        flags:
+          is_chat: true
 ```
 
 Notes:
-- `x-agenta-flags` is extensible (future flags can be added without changing detection shape).
+- `x-agenta.flags` is extensible (future flags can be added without changing detection shape).
 - For legacy custom workflows, OpenAPI is the current discovery surface the frontend already consumes.

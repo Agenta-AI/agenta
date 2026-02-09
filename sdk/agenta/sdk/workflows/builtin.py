@@ -542,6 +542,34 @@ def auto_semantic_similarity(
     )()
 
 
+def hook(
+    *,
+    slug: Optional[str] = None,
+    #
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    #
+    variant_slug: Optional[str] = None,
+    #
+    url: str,
+    #
+    parameters: Optional[Dict] = None,
+) -> Workflow:
+    return application(
+        slug=slug,
+        #
+        name=name,
+        description=description,
+        #
+        variant_slug=variant_slug,
+        #
+        uri="hook",
+        url=url,
+        #
+        parameters=parameters,
+    )()
+
+
 def completion(
     *,
     slug: Optional[str] = None,

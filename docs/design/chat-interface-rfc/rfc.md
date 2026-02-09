@@ -93,7 +93,7 @@ A chat application has two properties:
 
 **Decision:** Vendor extension in OpenAPI via `/inspect` endpoint.
 
-Add `x-agenta-flags` to the operation (or use the existing `flags` field in `WorkflowServiceRequest`):
+Add `x-agenta.flags` to the operation (or use the existing `flags` field in `WorkflowServiceRequest`):
 
 ```yaml
 # For new workflow system, exposed via /inspect response:

@@ -14,6 +14,6 @@ This workspace contains the planning and implementation documentation for enabli
 
 **Goal:** Enable custom workflows to declare `is_chat: true` so Agenta can treat them as chat applications.
 
-**Approach:** Add `flags` support to legacy `@ag.route`/`@ag.entrypoint`, emit `x-agenta-flags.is_chat` in the legacy OpenAPI operation(s), and have the frontend prefer that signal for chat detection (with heuristics as fallback). Also align the new `@ag.route` to accept `flags` for consistency.
+**Approach:** Add `flags` support to legacy `@ag.route`/`@ag.entrypoint`, emit `x-agenta.flags.is_chat` in the legacy OpenAPI operation(s), and have the frontend prefer that signal for chat detection (with heuristics as fallback). Also align the new `@ag.route` to accept `flags` for consistency.
 
 **Current Phase:** Phase 1 - SDK Changes

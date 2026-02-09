@@ -1,5 +1,6 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {ArrowRight} from "@phosphor-icons/react"
 import type {TabsProps} from "antd"
 import {Empty, Skeleton, Tabs, Tag, Typography} from "antd"
@@ -7,7 +8,6 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {
     buildEvaluatorTabItems,
     DEFAULT_TAB_KEY,

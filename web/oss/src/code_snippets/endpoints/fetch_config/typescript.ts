@@ -12,13 +12,9 @@ const getConfig = async (appName: string, environmentSlug: string) => {
         const response = await axios.post(baseUrl, {
             environment_ref: {
                 slug: environmentSlug,
-                version: null,
-                id: null,
             },
             application_ref: {
                 slug: appName,
-                version: null,
-                id: null,
             },
         }, {
             headers: {

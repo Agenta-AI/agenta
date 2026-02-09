@@ -6,15 +6,16 @@ import {hashMetadata} from "@/oss/components/Playground/assets/hash"
 import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
 import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {ArrayMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 // Add a new message for a prompt identified by `${revisionId}:${promptId}`
 export const addPromptMessageMutationAtomFamily = atomFamily((compoundKey: string) =>
     atom(null, (get, set) => {
         const [revisionId, promptId] = compoundKey.split(":", 2)
-        // const revisions = get(revisionListAtom) || []
-        // const variant = revisions.find((r: any) => r.id === revisionId)
-        const prompts = get(promptsAtomFamily(revisionId)) as any[]
+
+        // Get prompts from molecule (single source of truth)
+        const prompts = (get(moleculeBackedPromptsAtomFamily(revisionId)) as any[]) || []
+
         const prompt = (prompts || []).find(
             (p: any) => p?.__id === promptId || p?.__name === promptId,
         )
@@ -25,10 +26,11 @@ export const addPromptMessageMutationAtomFamily = atomFamily((compoundKey: strin
         const metadata = parentMetadata?.itemMetadata
         if (!metadata) return
 
-        const newMessage = createMessageFromSchema(metadata, {role: "", content: ""})
+        const newMessage = createMessageFromSchema(metadata, {role: "user", content: ""})
         if (!newMessage) return
 
-        set(promptsAtomFamily(revisionId), (prev: any[]) => {
+        // Mutation recipe for molecule-backed prompts
+        const mutatePrompts = (prev: any[]) => {
             const next = (prev || []).map((p: any) => {
                 if (!(p?.__id === promptId || p?.__name === promptId)) return p
                 const currentMessages = p?.messages?.value || []
@@ -41,7 +43,10 @@ export const addPromptMessageMutationAtomFamily = atomFamily((compoundKey: strin
                 }
             })
             return next
-        })
+        }
+
+        // Update via molecule-backed prompts atom (single source of truth)
+        set(moleculeBackedPromptsAtomFamily(revisionId), mutatePrompts)
     }),
 )
 
@@ -52,14 +57,16 @@ export const deletePromptMessageMutationAtomFamily = atomFamily((compoundKey: st
         const {messageId} = params || ({} as any)
         if (!messageId) return
 
-        // const revisions = get(revisionListAtom) || []
-        // const variant = revisions.find((r: any) => r.id === revisionId)
-        const prompts = get(promptsAtomFamily(revisionId)) as any[]
+        // Get prompts from molecule (single source of truth)
+        const prompts = (get(moleculeBackedPromptsAtomFamily(revisionId)) as any[]) || []
+
         const prompt = (prompts || []).find(
             (p: any) => p?.__id === promptId || p?.__name === promptId,
         )
         if (!prompt?.messages) return
-        set(promptsAtomFamily(revisionId), (prev: any[]) => {
+
+        // Mutation recipe for molecule-backed prompts
+        const mutatePrompts = (prev: any[]) => {
             const next = (prev || []).map((p: any) => {
                 if (!(p?.__id === promptId || p?.__name === promptId)) return p
                 const currentMessages = p?.messages?.value || []
@@ -73,7 +80,10 @@ export const deletePromptMessageMutationAtomFamily = atomFamily((compoundKey: st
                 }
             })
             return next
-        })
+        }
+
+        // Update via molecule-backed prompts atom (single source of truth)
+        set(moleculeBackedPromptsAtomFamily(revisionId), mutatePrompts)
     }),
 )
 
@@ -82,7 +92,7 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
     atom(
         null,
         (
-            get,
+            _get,
             set,
             params?: {
                 payload?: Record<string, any>
@@ -156,9 +166,8 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
                 },
             }
 
-            // const revisions = get(revisionListAtom) || []
-            // const variant = revisions.find((r: any) => r.id === revisionId)
-            set(promptsAtomFamily(revisionId), (prev: any[]) => {
+            // Mutation recipe for molecule-backed prompts
+            const mutatePrompts = (prev: any[]) => {
                 const list = Array.isArray(prev) ? prev : []
                 const next = list.map((p: any) => {
                     if (!(p?.__id === promptId || p?.__name === promptId)) return p
@@ -175,7 +184,10 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
                     }
                 })
                 return next
-            })
+            }
+
+            // Update via molecule-backed prompts atom (single source of truth)
+            set(moleculeBackedPromptsAtomFamily(revisionId), mutatePrompts)
         },
     ),
 )

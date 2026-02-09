@@ -1,9 +1,10 @@
 from typing import Union, Optional, Callable
 from uuid import UUID
-from datetime import datetime, timezone
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+
+from ee.src.utils.billing import compute_billing_period
 
 log = get_module_logger(__name__)
 
@@ -179,15 +180,7 @@ async def check_entitlements(
         raise EntitlementsException(f"No quota found for key [{key}] in plan [{plan}]")
 
     # Compute current year/month based on anchor
-    now = datetime.now(timezone.utc)
-
-    if not anchor or now.day < anchor:
-        year, month = now.year, now.month
-    else:
-        if now.month == 12:
-            year, month = now.year + 1, 1
-        else:
-            year, month = now.year, now.month + 1
+    year, month = compute_billing_period(anchor=anchor)
 
     # -------------------------------------------------------------- #
     # 5. Soft-check mode (Layer 1)
@@ -253,25 +246,30 @@ async def check_entitlements(
         anchor=anchor,
     )
 
-    # ✅ If allowed, sync both cache layers so they're always fresh
-    if check:
-        cache_key = {
-            "organization_id": str(organization_id),
-            "key": key.value,
-            "year": str(year) if quota.monthly else "-",
-            "month": str(month) if quota.monthly else "-",
-        }
+    cache_key = {
+        "organization_id": str(organization_id),
+        "key": key.value,
+        "year": str(year) if quota.monthly else "-",
+        "month": str(month) if quota.monthly else "-",
+    }
 
+    if check:
+        # ✅ Allowed — sync both cache layers so they're always fresh
         current_value = (meter.value if meter else 0) or 0
 
-        # Sync both cache tiers:
-        # - Local (60s): Ensures this instance has hot value
-        # - Redis (24h): Ensures all instances have consistent distributed cache
         await set_cache(
             namespace="entitlements:meters",
             key=cache_key,
             value=current_value,
             ttl=24 * 60 * 60,  # 24 hours (Redis TTL)
+        )
+    else:
+        # ❌ Rejected — invalidate Layer 1 cache so subsequent soft-checks
+        # go to DB instead of using a stale cached value that would keep
+        # allowing requests through.
+        await invalidate_cache(
+            namespace="entitlements:meters",
+            key=cache_key,
         )
 
     # TODO: remove this line
