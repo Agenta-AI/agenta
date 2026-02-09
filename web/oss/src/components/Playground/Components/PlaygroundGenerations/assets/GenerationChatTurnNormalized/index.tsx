@@ -123,7 +123,9 @@ const GenerationChatTurnNormalized = ({
                     rowId={turnId}
                     kind="user"
                     className="w-full"
+                    hideExpandResults
                     messageOptionProps={{
+                        hideAddToTestset: true,
                         allowFileUpload: true,
                     }}
                     messageProps={messageProps}
@@ -161,6 +163,10 @@ const GenerationChatTurnNormalized = ({
                         messageProps={messageProps}
                         messageOverride={messageOverride}
                         repetitionProps={repetitionProps}
+                        hideRerun
+                        messageOptionProps={{
+                            allowFileUpload: false,
+                        }}
                     />
                     {variantId
                         ? toolMessages.map((_, index) => (

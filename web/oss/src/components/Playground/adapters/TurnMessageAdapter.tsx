@@ -42,6 +42,8 @@ interface Props {
     handleRerun?: (args: any) => void
     resultHashes?: string[]
     repetitionProps?: any
+    hideRerun?: boolean
+    hideExpandResults?: boolean
 }
 
 const TurnMessageAdapter: React.FC<Props> = ({
@@ -66,6 +68,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
     toolIndex = 0,
     messageOverride,
     repetitionProps,
+    hideRerun,
+    hideExpandResults,
 }) => {
     const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
     const isComparisonView = useAtomValue(isComparisonViewAtom)
@@ -436,7 +440,11 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             minimized={minimized}
                             allowFileUpload={baseRoleProperty?.value === "user" && !isToolKind}
                             repetitionProps={!isComparisonView ? repetitionProps : undefined}
-                            onViewAllRepeats={() => openFocusDrawer({rowId: rowId, variantId})}
+                            onViewAllRepeats={
+                                hideExpandResults
+                                    ? undefined
+                                    : () => openFocusDrawer({rowId: rowId, variantId})
+                            }
                             uploadCount={
                                 Array.isArray(baseImageProperties) ? baseImageProperties.length : 0
                             }
@@ -444,9 +452,18 @@ const TurnMessageAdapter: React.FC<Props> = ({
                                 Array.isArray(baseFileProperties) ? baseFileProperties.length : 0
                             }
                             actions={{
-                                onAddUploadSlot: isToolKind ? undefined : onAddUploadSlot,
-                                onAddDocumentSlot: isToolKind ? undefined : onAddDocumentSlot,
-                                onRerun: isToolKind ? undefined : (propsHandleRerun ?? handleRerun),
+                                onAddUploadSlot:
+                                    isToolKind || messageOptionProps?.allowFileUpload === false
+                                        ? undefined
+                                        : onAddUploadSlot,
+                                onAddDocumentSlot:
+                                    isToolKind || messageOptionProps?.allowFileUpload === false
+                                        ? undefined
+                                        : onAddDocumentSlot,
+                                onRerun:
+                                    isToolKind || hideRerun
+                                        ? undefined
+                                        : (propsHandleRerun ?? handleRerun),
                                 onMinimize: () => setMinimized((c) => !c),
                                 onDelete: isToolKind ? undefined : deleteMessage,
                             }}
@@ -500,7 +517,11 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         minimized={minimized}
                         allowFileUpload={baseRoleProperty?.value === "user" && !isToolKind}
                         repetitionProps={!isComparisonView ? repetitionProps : undefined}
-                        onViewAllRepeats={() => openFocusDrawer({rowId: rowId, variantId})}
+                        onViewAllRepeats={
+                            hideExpandResults
+                                ? undefined
+                                : () => openFocusDrawer({rowId: rowId, variantId})
+                        }
                         uploadCount={
                             Array.isArray(baseImageProperties) ? baseImageProperties.length : 0
                         }
@@ -508,9 +529,18 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             Array.isArray(baseFileProperties) ? baseFileProperties.length : 0
                         }
                         actions={{
-                            onAddUploadSlot: isToolKind ? undefined : onAddUploadSlot,
-                            onAddDocumentSlot: isToolKind ? undefined : onAddDocumentSlot,
-                            onRerun: isToolKind ? undefined : (propsHandleRerun ?? handleRerun),
+                            onAddUploadSlot:
+                                isToolKind || messageOptionProps?.allowFileUpload === false
+                                    ? undefined
+                                    : onAddUploadSlot,
+                            onAddDocumentSlot:
+                                isToolKind || messageOptionProps?.allowFileUpload === false
+                                    ? undefined
+                                    : onAddDocumentSlot,
+                            onRerun:
+                                isToolKind || hideRerun
+                                    ? undefined
+                                    : (propsHandleRerun ?? handleRerun),
                             onMinimize: () => setMinimized((c) => !c),
                             onDelete: isToolKind ? undefined : deleteMessage,
                         }}
