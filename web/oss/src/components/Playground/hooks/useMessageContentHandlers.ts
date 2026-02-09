@@ -147,17 +147,17 @@ export function useMessageContentHandlers() {
                 file: {
                     __id: generateId(),
                     __metadata: {},
-                    file_data: {
+                    file_id: {
                         __id: generateId(),
                         __metadata: {},
                         value: "",
                     },
-                    filename: {
+                    name: {
                         __id: generateId(),
                         __metadata: {},
                         value: "",
                     },
-                    format: {
+                    mime_type: {
                         __id: generateId(),
                         __metadata: {},
                         value: "",

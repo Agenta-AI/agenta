@@ -43,6 +43,53 @@ const isFileReference = (value: string) => {
     return value.startsWith("file_") || value.startsWith("file-")
 }
 
+/**
+ * Normalize file content parts in messages to match the provider-expected format.
+ *
+ * Mirrors the reverseTransformer logic (reverseTransformer.ts:84-92):
+ * - If file_id contains a data URL (base64), move it to file_data and remove file_id
+ * - Remove empty string values
+ * - Deduplicate aliased fields (name/filename → filename, mime_type/format → format)
+ */
+const normalizeFileContentParts = (messages: any[]) => {
+    for (const msg of messages) {
+        if (!msg || !Array.isArray(msg.content)) continue
+        for (const part of msg.content) {
+            if (!part || part.type !== "file" || !part.file) continue
+            const file = part.file
+
+            // Move data URL from file_id to file_data (matches reverseTransformer)
+            if (typeof file.file_id === "string" && file.file_id.startsWith("data:")) {
+                file.file_data = file.file_id
+                delete file.file_id
+            }
+
+            // Deduplicate name → filename (prefer filename if both exist)
+            if ("name" in file && "filename" in file) {
+                file.filename = file.filename || file.name
+                delete file.name
+            } else if ("name" in file) {
+                file.filename = file.name
+                delete file.name
+            }
+
+            // Deduplicate mime_type → format (prefer format if both exist)
+            if ("mime_type" in file && "format" in file) {
+                file.format = file.format || file.mime_type
+                delete file.mime_type
+            } else if ("mime_type" in file) {
+                file.format = file.mime_type
+                delete file.mime_type
+            }
+
+            // Remove empty string values
+            for (const key of Object.keys(file)) {
+                if (file[key] === "") delete file[key]
+            }
+        }
+    }
+}
+
 const stripFileMetadataForUrlAttachments = (messages: any[]) => {
     messages.forEach((message) => {
         if (!message || !Array.isArray(message.content)) return
@@ -193,6 +240,9 @@ async function runVariantInputRow(payload: {
         // from messages — fallback content parts may bypass extractValueByMetadata
         if (Array.isArray(requestBody.messages)) {
             requestBody.messages = stripEnhancedWrappers(requestBody.messages) as any[]
+            // Normalize file content parts: mirrors reverseTransformer logic for
+            // file_id→file_data conversion, field deduplication, and empty value removal.
+            normalizeFileContentParts(requestBody.messages)
         }
 
         // Ensure we don't send repetitions to the backend as we handle it here
