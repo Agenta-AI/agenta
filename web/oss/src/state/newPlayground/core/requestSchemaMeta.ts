@@ -2,7 +2,9 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
+import {constructPlaygroundTestUrl} from "@/oss/lib/shared/variant/stringUtils"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import type {OpenAPISpec} from "@/oss/lib/shared/variant/types/openapi"
 import {getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
 
 export interface RequestSchemaMetaParams {
@@ -14,6 +16,24 @@ export interface RequestSchemaMeta {
     required: string[]
     inputKeys: string[]
     hasMessages: boolean
+}
+
+/**
+ * Check x-agenta.flags.is_chat on the first available operation.
+ * Returns true/false if the flag is present, or undefined if not found.
+ */
+function getIsChatFlag(spec: OpenAPISpec, routePath?: string): boolean | undefined {
+    const endpoints = ["/run", "/test", "/generate", "/generate_deployed"] as const
+    for (const endpoint of endpoints) {
+        const path = constructPlaygroundTestUrl({routePath}, endpoint, false)
+        const operation = spec?.paths?.[path]?.post as Record<string, unknown> | undefined
+        const agentaExt = operation?.["x-agenta"] as Record<string, unknown> | undefined
+        const flags = agentaExt?.flags as Record<string, unknown> | undefined
+        if (flags && typeof flags.is_chat === "boolean") {
+            return flags.is_chat
+        }
+    }
+    return undefined
 }
 
 export const requestSchemaMetaAtomFamily = atomFamily((params: RequestSchemaMetaParams) =>
@@ -35,7 +55,9 @@ export const requestSchemaMetaAtomFamily = atomFamily((params: RequestSchemaMeta
             (k) => !["ag_config", "messages"].includes(k),
         )
 
-        const hasMessages = Boolean(properties?.messages)
+        // Prefer explicit x-agenta.flags.is_chat, fall back to messages property heuristic
+        const flagValue = getIsChatFlag(spec as OpenAPISpec, routePath)
+        const hasMessages = flagValue ?? Boolean(properties?.messages)
 
         return {required, inputKeys, hasMessages}
     }),
