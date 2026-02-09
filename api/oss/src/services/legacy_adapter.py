@@ -197,10 +197,22 @@ class LegacyApplicationsAdapter:
         folder_id: Optional[UUID] = None,
     ) -> Optional[UpdateAppOutput]:
         """Update an app and return in legacy format."""
+        current = await self.applications_service.fetch_application(
+            project_id=project_id,
+            application_ref=Reference(id=app_id),
+        )
+
+        if not current:
+            return None
+
         application_edit = ApplicationEdit(
             id=app_id,
-            name=app_name,
-            # folder_id is handled at artifact level
+            name=app_name if app_name is not None else current.name,
+            flags=current.flags,
+            tags=current.tags,
+            meta=current.meta,
+            description=current.description,
+            folder_id=folder_id if folder_id is not None else current.folder_id,
         )
 
         application = await self.applications_service.edit_application(
@@ -1208,6 +1220,8 @@ class LegacyApplicationsAdapter:
             app_type=self._flags_to_app_type(application, uri=uri),
             created_at=str(application.created_at) if application.created_at else None,
             updated_at=str(updated_at) if updated_at else None,
+            # TEMPORARY: Disablig name editing
+            folder_id=str(application.folder_id) if application.folder_id else None,
         )
 
     def _application_to_create_output(
