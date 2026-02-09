@@ -4,64 +4,19 @@ import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
-import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
+// import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 
 import {
     chatSessionsByIdAtom,
-    chatTurnsByIdCacheAtom,
-    chatTurnsByIdFamilyAtom,
-    chatTurnsByIdStorageAtom,
-    // inputRowsByIdComputedAtom, // Moved here
-    // chatTurnsByIdAtom, // Moved here
-    inputRowsByIdAtom,
-    inputRowsByIdCacheAtom,
-    inputRowsByIdFamilyAtom,
+    chatTurnsByIdAtom,
+    inputRowsByIdComputedAtom,
     rowIdIndexAtom,
     type ChatTurn,
     type InputRow,
 } from "./entities"
 
 // Computed map merging base rows and synthesized cache for visible ids
-export const inputRowsByIdComputedAtom = atom((get) => {
-    const logicalIds = (get(generationRowIdsAtom) as string[]) || []
-    const base = get(inputRowsByIdAtom) || {}
-    const cache = get(inputRowsByIdCacheAtom) || {}
-    const merged: Record<string, InputRow> = {...base, ...cache}
-    for (const id of logicalIds) {
-        try {
-            const val = get(inputRowsByIdFamilyAtom(id)) as any
-            if (val) merged[id] = val as InputRow
-        } catch {}
-    }
-    return merged
-})
-
-export const chatTurnsByIdAtom = atom(
-    (get) => {
-        // React to visible row structure
-        const logicalIds = (get(generationRowIdsAtom) as string[]) || []
-        const base = get(chatTurnsByIdStorageAtom) || {}
-        const cache = get(chatTurnsByIdCacheAtom) || {}
-        const merged: Record<string, ChatTurn> = {...base, ...cache}
-
-        // Pull any family-cached entries for the visible ids
-        for (const id of logicalIds) {
-            try {
-                const val = get(chatTurnsByIdFamilyAtom(id)) as any
-                if (val) merged[id] = val as ChatTurn
-            } catch {}
-        }
-        return merged
-    },
-    (get, set, update: Record<string, ChatTurn> | ((prev: Record<string, ChatTurn>) => any)) => {
-        // Forward writes to backing storage to preserve existing mutation behavior
-        if (typeof update === "function") {
-            set(chatTurnsByIdStorageAtom, update as any)
-        } else {
-            set(chatTurnsByIdStorageAtom, update)
-        }
-    },
-)
+// Computed map merging base rows and synthesized cache for visible ids
 
 // Collections
 // Keep this a pure read to avoid write-on-read render loops
@@ -146,7 +101,8 @@ export const rowVariablesForDisplayAtomFamily = atomFamily(
                 const bKeys = Object.keys(b || {})
                 if (aKeys.length !== bKeys.length) return false
                 for (const k of aKeys) {
-                    if (a[k] !== (b as Record<string, any>)[k]) return false
+                    if ((a as Record<string, any>)[k] !== (b as Record<string, any>)[k])
+                        return false
                 }
                 return true
             },

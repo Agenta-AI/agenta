@@ -2,10 +2,11 @@
 // Core types and top-level entity maps
 
 import {produce} from "immer"
-import {atom, getDefaultStore} from "jotai"
+import {atom, getDefaultStore, Getter} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
+import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {
     displayedVariantsAtom,
     displayedVariantsVariablesAtom,
@@ -375,10 +376,7 @@ export const chatTurnsByIdFamilyAtom = atomFamily((rowId: string) =>
 )
 
 // Helper: synthesize an InputRow with variables seeded from prompt variables
-function synthesizeInputRow(
-    rowId: string,
-    get: <T>(anAtom: {read: (get: any) => T}) => T,
-): InputRow {
+function synthesizeInputRow(rowId: string, get: Getter): InputRow {
     // Determine target revision ids to seed
     // const idx = get(rowIdIndexAtom)
     // const latest = idx?.[rowId]?.latestRevisionId as string | undefined
@@ -543,6 +541,46 @@ export const inputRowsByIdFamilyAtom = atomFamily((rowId: string) =>
 )
 
 // Computed map merging base rows and synthesized cache for visible ids
+export const inputRowsByIdComputedAtom = atom((get) => {
+    const logicalIds = (get(generationRowIdsAtom) as string[]) || []
+    const base = get(inputRowsByIdAtom) || {}
+    const cache = get(inputRowsByIdCacheAtom) || {}
+    const merged: Record<string, InputRow> = {...base, ...cache}
+    for (const id of logicalIds) {
+        try {
+            const val = get(inputRowsByIdFamilyAtom(id)) as any
+            if (val) merged[id] = val as InputRow
+        } catch {}
+    }
+    return merged
+})
+
+export const chatTurnsByIdAtom = atom(
+    (get) => {
+        // React to visible row structure
+        const logicalIds = (get(generationRowIdsAtom) as string[]) || []
+        const base = get(chatTurnsByIdStorageAtom) || {}
+        const cache = get(chatTurnsByIdCacheAtom) || {}
+        const merged: Record<string, ChatTurn> = {...base, ...cache}
+
+        // Pull any family-cached entries for the visible ids
+        for (const id of logicalIds) {
+            try {
+                const val = get(chatTurnsByIdFamilyAtom(id)) as any
+                if (val) merged[id] = val as ChatTurn
+            } catch {}
+        }
+        return merged
+    },
+    (get, set, update: Record<string, ChatTurn> | ((prev: Record<string, ChatTurn>) => any)) => {
+        // Forward writes to backing storage to preserve existing mutation behavior
+        if (typeof update === "function") {
+            set(chatTurnsByIdStorageAtom, update as any)
+        } else {
+            set(chatTurnsByIdStorageAtom, update)
+        }
+    },
+)
 
 // Indexes for bridging legacy rowIds to normalized context during migration
 export interface RowIdIndexEntry {

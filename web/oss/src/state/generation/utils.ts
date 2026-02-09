@@ -6,11 +6,11 @@ import {
     allChatTurnIdsMapAtom,
     chatTurnIdsAtom,
     chatTurnIdsByBaselineAtom,
+    chatTurnsByIdAtom,
     // chatTurnsByIdAtom, // Moved
     chatTurnsByIdCacheAtom,
     runStatusByRowRevisionAtom,
 } from "@/oss/state/generation/entities"
-import {chatTurnsByIdAtom} from "@/oss/state/generation/selectors"
 import {responseByRowRevisionAtomFamily} from "@/oss/state/newPlayground/generation/runtime"
 
 // PropertyNode is the shared structure used by variables and messages throughout UI
@@ -32,7 +32,7 @@ export interface PropertyNode {
  * - Deduplicates across revisions preserving first-seen order
  */
 export function mergeRowVariables(
-    get: <T>(anAtom: {read: (get: any) => T}) => T,
+    get: Getter,
     existing: any[] | undefined,
     _revisionIds: string[],
     valueByName?: Record<string, string>,

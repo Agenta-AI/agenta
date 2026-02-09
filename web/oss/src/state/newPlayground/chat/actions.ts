@@ -9,11 +9,9 @@ import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {
     chatSessionsByIdAtom,
     // chatSessionIdsAtom,
-    // chatTurnsByIdAtom, // Moved
-    // chatTurnsByIdFamilyAtom,
     chatTurnIdsAtom,
+    chatTurnsByIdAtom,
 } from "@/oss/state/generation/entities"
-import {chatTurnsByIdAtom} from "@/oss/state/generation/selectors"
 import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {cancelTestAtom} from "@/oss/state/newPlayground/mutations/execution"
 import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"

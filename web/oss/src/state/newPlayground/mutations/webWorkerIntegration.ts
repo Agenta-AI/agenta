@@ -1,8 +1,8 @@
 import {runnableBridge} from "@agenta/entities/runnable"
 import {produce} from "immer"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
 import {queryClientAtom} from "jotai-tanstack-query"
+import {atomFamily} from "jotai/utils"
 
 import {hashResponse} from "@/oss/components/Playground/assets/hash"
 import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms"
@@ -21,6 +21,7 @@ import {getJWT} from "@/oss/services/api"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
     chatTurnIdsAtom,
+    chatTurnsByIdAtom,
     // chatTurnsByIdAtom, // Moved
     chatTurnsByIdFamilyAtom,
     inputRowsByIdAtom,
@@ -29,7 +30,7 @@ import {
     rowIdIndexAtom,
     runStatusByRowRevisionAtom,
 } from "@/oss/state/generation/entities"
-import {chatTurnsByIdAtom, rowVariablesAtomFamily} from "@/oss/state/generation/selectors"
+import {rowVariablesAtomFamily} from "@/oss/state/generation/selectors"
 import {promptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {repetitionCountAtom} from "@/oss/state/newPlayground/generation/options"
 import {

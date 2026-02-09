@@ -11,8 +11,7 @@ import {
     generationInputRowIdsAtom,
     generationRowIdsAtom,
 } from "@/oss/components/Playground/state/atoms/generationProperties"
-import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
-import {chatTurnsByIdAtom} from "@/oss/state/generation/selectors"
+import {chatTurnsByIdAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 import {
     addChatTurnAtom,
     cancelChatTurnAtom,

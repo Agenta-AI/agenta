@@ -3,8 +3,7 @@ import {atomFamily} from "jotai/utils"
 
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {extractValueByMetadata} from "@/oss/lib/shared/variant/valueHelpers"
-import {chatSessionsByIdAtom} from "@/oss/state/generation/entities"
-import {chatTurnsByIdAtom} from "@/oss/state/generation/selectors"
+import {chatSessionsByIdAtom, chatTurnsByIdAtom} from "@/oss/state/generation/entities"
 
 /**
  * Build full chat history for a revision by folding session turns in order.
