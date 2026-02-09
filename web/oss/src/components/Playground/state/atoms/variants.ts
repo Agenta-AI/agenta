@@ -17,6 +17,7 @@ import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 import {selectAtom} from "jotai/utils"
 
+import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {
     extractVariables,
     extractVariablesFromJson,
@@ -35,7 +36,7 @@ import {
     playgroundAppSchemaAtom,
     playgroundAppRoutePathAtom,
     playgroundHasAgConfigAtom,
-} from "./pipelineBBridge"
+} from "./playgroundAppAtoms"
 
 const isPromiseLike = (value: unknown): value is Promise<unknown> =>
     Boolean(value && typeof (value as {then?: unknown}).then === "function")
@@ -349,7 +350,7 @@ export const displayedVariantsVariablesAtom = selectAtom(
         customPropsByRevision: get(playgroundLayoutAtom).displayedVariants.map((id) => {
             return get(moleculeBackedCustomPropertiesAtomFamily(id))
         }),
-        // Pre-parsed ag_config detection from Pipeline B (avoids fragile routePath lookup)
+        // Pre-parsed ag_config detection (avoids fragile routePath lookup)
         hasAgConfig: get(playgroundHasAgConfigAtom),
     })),
     (state) => {
@@ -359,7 +360,7 @@ export const displayedVariantsVariablesAtom = selectAtom(
             return app && !isPromiseLike(app) ? app.app_type : undefined
         })()
         // Determine if this app is custom (no ag_config in schema).
-        // Uses Pipeline B's pre-parsed agConfigSchema instead of fragile
+        // Uses pre-parsed agConfigSchema instead of fragile
         // getRequestSchema path lookups (which fail when routePath is empty).
         // When hasAgConfig is undefined (still loading), treat as non-custom
         // to allow prompt-based variable extraction to proceed immediately.
@@ -467,6 +468,41 @@ export const schemaInputKeysAtom = selectAtom(
         }
     }),
     (keys) => keys,
+    isEqual,
+)
+
+// ============================================================================
+// RECENT REVISIONS FOR OVERVIEW PAGE
+// ============================================================================
+
+/**
+ * Recent revisions formatted for the overview table.
+ * Pipeline B replacement for the old `recentRevisionsTableRowsAtom`.
+ * Returns the 5 most recently updated server revisions with pre-formatted fields.
+ *
+ * Lives here (not in playgroundAppAtoms) to avoid a circular import:
+ * playgroundAppAtoms ↔ variants would deadlock on `selectAtom(playgroundRevisionListAtom)`.
+ */
+export const recentRevisionsOverviewAtom = selectAtom(
+    playgroundRevisionListAtom,
+    (revisions) =>
+        revisions
+            .filter((r: any) => !r.isLocalDraft)
+            .slice(0, 5)
+            .map((r: any) => {
+                const ts = r.updatedAtTimestamp ?? r.createdAtTimestamp
+                const params = r.parameters || {}
+                const llmConfig = params?.prompt?.llm_config || params
+                const modelName =
+                    typeof llmConfig?.model === "string" && llmConfig.model.trim()
+                        ? llmConfig.model
+                        : undefined
+                return {
+                    ...r,
+                    createdAt: formatDate24(ts),
+                    modelName,
+                }
+            }),
     isEqual,
 )
 

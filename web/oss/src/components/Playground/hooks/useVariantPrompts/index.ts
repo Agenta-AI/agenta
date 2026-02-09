@@ -1,13 +1,6 @@
 import {useEffect, useMemo} from "react"
 
-import {
-    legacyAppRevisionMolecule,
-    revisionOpenApiSchemaAtomFamily,
-    legacyAppRevisionEntityWithBridgeAtomFamily,
-} from "@agenta/entities/legacyAppRevision"
-import {atom, useAtomValue, useSetAtom} from "jotai"
-
-import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
+import {atom, useAtomValue} from "jotai"
 
 import {
     revisionListAtom,
@@ -19,6 +12,11 @@ import {
  * Lightweight hook that only subscribes to a specific variant's prompt IDs.
  * Uses a derived atom to prevent re-renders when prompt content changes.
  * Only re-renders when prompt IDs actually change (add/remove prompts).
+ *
+ * Prompts come from the entity-level derivation via moleculeBackedPromptsAtomFamily,
+ * which falls back to revisionEnhancedPromptsAtomFamily (schema + parameters → Strategy 1).
+ * No local seeding is needed — the entity layer is the single source of truth,
+ * and the write path auto-seeds from entity data when the first mutation occurs.
  */
 export function useVariantPrompts(variantId: string | undefined): {
     promptIds: string[]
@@ -32,20 +30,6 @@ export function useVariantPrompts(variantId: string | undefined): {
 } {
     const revisions = useAtomValue(revisionListAtom)
     const revisionCount = revisions?.length ?? 0
-    const specAtom = useMemo(
-        () => (variantId ? revisionOpenApiSchemaAtomFamily(variantId) : atom(null)),
-        [variantId],
-    )
-    const spec = useAtomValue(specAtom)
-    const routePathAtom = useMemo(
-        () =>
-            atom((get) => {
-                if (!variantId) return undefined
-                return get(legacyAppRevisionEntityWithBridgeAtomFamily(variantId))?.routePath
-            }),
-        [variantId],
-    )
-    const routePath = useAtomValue(routePathAtom)
 
     // No playground clone needed: prompts are stored per-revision locally
     useEffect(() => {
@@ -88,24 +72,7 @@ export function useVariantPrompts(variantId: string | undefined): {
     }, [variantId])
 
     const variant = useAtomValue(variantAtom)
-    const moleculeData = useAtomValue(
-        variantId ? legacyAppRevisionMolecule.atoms.data(variantId) : atom(null),
-    ) as any
-    // Check merged data for prompts (includes enriched data from variant context)
-    const hasMoleculePrompts =
-        Array.isArray(moleculeData?.enhancedPrompts) && moleculeData.enhancedPrompts.length > 0
     const promptIds = useAtomValue(variantPromptIdsAtom)
-    const setPrompts = useSetAtom(variantId ? moleculeBackedPromptsAtomFamily(variantId) : atom([]))
-
-    useEffect(() => {
-        if (!variantId || !variant || !spec) return
-        // Skip seeding if molecule already has prompts (from draft or enriched data)
-        if (hasMoleculePrompts) return
-        const derived = derivePromptsFromSpec(variant as any, spec as any, routePath)
-        if (Array.isArray(derived) && derived.length > 0) {
-            setPrompts(derived as any)
-        }
-    }, [variantId, hasMoleculePrompts, variant, spec, routePath, setPrompts])
 
     const variantExists = Boolean(variant)
     const debug = useMemo(

@@ -1,7 +1,7 @@
 /**
- * Pipeline B Bridge Atoms for Playground
+ * App-Scoped Playground Atoms
  *
- * Wraps per-revision Pipeline B atoms into app-scoped selectors
+ * Wraps per-revision entity atoms into app-scoped selectors
  * for consumers that need "the app's schema/route/status".
  *
  * Anchor: playgroundLatestRevisionIdAtom (first server revision).
@@ -21,7 +21,6 @@ import {atomFamily} from "jotai/utils"
 import {snakeToCamel} from "@/oss/lib/helpers/utils"
 import {findRevisionDeployment} from "@/oss/lib/shared/variant/utils"
 import {appsQueryAtom, routerAppIdAtom, recentAppIdAtom} from "@/oss/state/app/atoms/fetcher"
-import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {environmentsAtom} from "@/oss/state/environment/atoms/fetcher"
 
 import {playgroundLatestRevisionIdAtom, playgroundRevisionListAtom} from "./variants"
@@ -31,7 +30,7 @@ import {playgroundLatestRevisionIdAtom, playgroundRevisionListAtom} from "./vari
 // ============================================================================
 
 /**
- * App-level OpenAPI schema derived from Pipeline B.
+ * App-level OpenAPI schema derived from per-revision entity data.
  * Reads the first server revision's schema.
  */
 export const playgroundAppSchemaAtom = atom((get) => {
@@ -42,7 +41,7 @@ export const playgroundAppSchemaAtom = atom((get) => {
 
 /**
  * Whether the app uses ag_config (completion/chat apps).
- * Derived from Pipeline B's pre-parsed schema, avoiding fragile
+ * Derived from the entity layer's pre-parsed schema, avoiding fragile
  * getRequestSchema path lookups with potentially empty routePath.
  *
  * Returns:
@@ -60,7 +59,7 @@ export const playgroundHasAgConfigAtom = atom<boolean | undefined>((get) => {
 })
 
 /**
- * App-level route path derived from Pipeline B entity data.
+ * App-level route path derived from per-revision entity data.
  */
 export const playgroundAppRoutePathAtom = atom((get) => {
     const revId = get(playgroundLatestRevisionIdAtom)
@@ -70,7 +69,7 @@ export const playgroundAppRoutePathAtom = atom((get) => {
 })
 
 /**
- * App-level URI info (runtimePrefix + routePath) derived from Pipeline B.
+ * App-level URI info (runtimePrefix + routePath) derived from per-revision entity data.
  */
 export const playgroundAppUriInfoAtom = atom((get) => {
     const revId = get(playgroundLatestRevisionIdAtom)
@@ -115,7 +114,7 @@ export const playgroundAppStatusAtom = atom((get) => {
 // ============================================================================
 
 /**
- * App-level chat mode detection from Pipeline B.
+ * App-level chat mode detection from entity-layer schema.
  * Uses isChatVariantAtomFamily which checks schema endpoints for messagesSchema.
  */
 export const playgroundIsChatModeAtom = atom<boolean | undefined>((get) => {
@@ -125,12 +124,12 @@ export const playgroundIsChatModeAtom = atom<boolean | undefined>((get) => {
 })
 
 // ============================================================================
-// DEPLOYMENT (independent utility, relocated from Pipeline A)
+// DEPLOYMENT (independent utility)
 // ============================================================================
 
 /**
  * Per-revision deployment info.
- * Reads environmentsAtom + findRevisionDeployment (no Pipeline A dependency).
+ * Reads environmentsAtom + findRevisionDeployment.
  */
 export const playgroundRevisionDeploymentAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
@@ -142,14 +141,25 @@ export const playgroundRevisionDeploymentAtomFamily = atomFamily((revisionId: st
     }),
 )
 
+/**
+ * Deployed revision ID for a given environment name.
+ * Reverse lookup: environment name → revision ID currently deployed there.
+ */
+export const deployedRevisionIdByEnvironmentAtomFamily = atomFamily((envName: string) =>
+    atom<string | null>((get) => {
+        const envs = get(environmentsAtom) as any[]
+        const env = envs.find((e: any) => e.name === envName || e.environment_name === envName)
+        return env?.deployed_app_variant_revision_id ?? env?.deployedAppVariantRevisionId ?? null
+    }),
+)
+
 // ============================================================================
-// LATEST APP REVISION (Pipeline B equivalent of latestAppRevisionIdAtom)
+// LATEST APP REVISION
 // ============================================================================
 
 /**
- * Latest revision ID across the entire app, derived from Pipeline B.
- * Equivalent to Pipeline A's `latestAppRevisionIdAtom` but without
- * triggering `allRevisionsAtom` / `variantRevisionsQueryFamily`.
+ * Latest revision ID across the entire app, derived from the playground revision list.
+ * Does not trigger `allRevisionsAtom` / `variantRevisionsQueryFamily`.
  *
  * Used to determine if a revision is the most recently modified in the app
  * (for "Last modified" tag in VariantDetailsWithStatus).
@@ -168,8 +178,8 @@ export const playgroundLatestAppRevisionIdAtom = atom((get) => {
 /**
  * Determines if Playground should render for the current app.
  *
- * Relocated from state/app/selectors/app.ts to break Pipeline A dependency.
- * Now uses Pipeline B bridge atoms for status checking.
+ * Relocated from state/app/selectors/app.ts.
+ * Uses entity-layer bridge atoms for status checking.
  */
 export const shouldRenderPlaygroundAtom = atom<boolean>((get) => {
     const appId = get(routerAppIdAtom) || get(recentAppIdAtom)
@@ -191,21 +201,11 @@ export const shouldRenderPlaygroundAtom = atom<boolean>((get) => {
     // For non-custom apps, render regardless of status checks
     if (app.app_type !== "custom") return true
 
-    // Only subscribe to app-status fetch on the old playground route.
-    // This avoids triggering schema fetch when on /playground-test
-    // (which uses package-layer schema atoms instead).
-    const appState = get(appStateSnapshotAtom)
-    const isOldPlayground =
-        appState.pathname?.includes("/playground") &&
-        !appState.pathname?.includes("/playground-test")
-
-    if (!isOldPlayground) return true
-
-    // Use Pipeline B bridge atoms for status checking
+    // For custom apps, check entity-layer schema status to determine reachability
     const isLoading = get(playgroundAppStatusLoadingAtom)
     const isUp = get(playgroundAppStatusAtom)
 
-    // For custom apps: render while loading or if up; block only when definitively down
+    // Render while loading or if up; block only when definitively down
     if (isLoading) return true
     return Boolean(isUp)
 })

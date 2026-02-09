@@ -1,15 +1,15 @@
 import {memo, useMemo} from "react"
 
 import {legacyAppRevisionEntityWithBridgeAtomFamily} from "@agenta/entities/legacyAppRevision"
-import {Typography} from "antd"
-import deepEqual from "fast-deep-equal"
-import {atom, useAtomValue, useSetAtom} from "jotai"
-
 import {
     getMetadataLazy,
     metadataSelectorFamily,
     getAllMetadata,
-} from "@/oss/lib/hooks/useStatelessVariants/state"
+} from "@agenta/entities/legacyAppRevision"
+import {Typography} from "antd"
+import deepEqual from "fast-deep-equal"
+import {atom, useAtomValue, useSetAtom} from "jotai"
+
 import {
     moleculeBackedPromptsAtomFamily,
     moleculeBackedCustomPropertiesAtomFamily,
@@ -106,6 +106,7 @@ const PlaygroundVariantPropertyControl = ({
             }
 
             const revIdForPrompts = actualVariantId
+            let foundProperty: any = null
             if (revIdForPrompts) {
                 // Use molecule-backed prompts for single source of truth
                 const prompts = get(moleculeBackedPromptsAtomFamily(revIdForPrompts))
@@ -114,6 +115,7 @@ const PlaygroundVariantPropertyControl = ({
                 const property =
                     findPropertyInObject(list, propertyId) ||
                     findPropertyById(list as any, propertyId)
+                foundProperty = property
                 const propertyMetadata = resolveMetadata(property?.__metadata)
 
                 if (propertyMetadata) return propertyMetadata
@@ -130,6 +132,7 @@ const PlaygroundVariantPropertyControl = ({
                     )
                     const values = Object.values(customProps || {}) as any[]
                     const node = values.find((n) => n?.__id === propertyId)
+                    if (node) foundProperty = node
                     const customMetadata = resolveMetadata(node?.__metadata)
                     if (customMetadata) return customMetadata
                     if (node?.__metadata) {
@@ -138,8 +141,11 @@ const PlaygroundVariantPropertyControl = ({
                     }
                 }
             }
-            // Synthesize minimal metadata for string inputs when nothing found
-            return {type: "string", title: propertyId} as any
+            // Synthesize minimal metadata for string inputs when nothing found.
+            // Use __name from the property (human-readable) when available,
+            // falling back to propertyId only as last resort.
+            const fallbackTitle = foundProperty?.__name || foundProperty?.key || propertyId
+            return {type: "string", title: fallbackTitle} as any
         })
     }, [actualVariantId, propertyId])
 

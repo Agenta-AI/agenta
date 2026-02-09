@@ -98,7 +98,7 @@ export {
 // URL synchronization and derived state
 export {urlRevisionsAtom} from "./urlSync"
 
-// Pipeline B bridge atoms (app-scoped wrappers over per-revision data)
+// App-scoped atoms (wrappers over per-revision entity data)
 export {
     playgroundAppSchemaAtom,
     playgroundAppRoutePathAtom,
@@ -108,7 +108,7 @@ export {
     playgroundIsChatModeAtom,
     playgroundRevisionDeploymentAtomFamily,
     playgroundLatestAppRevisionIdAtom,
-} from "./pipelineBBridge"
+} from "./playgroundAppAtoms"
 
 // App-level configuration
 export {appChatModeAtom} from "./app"

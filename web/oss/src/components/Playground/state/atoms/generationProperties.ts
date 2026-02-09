@@ -2,12 +2,12 @@
  * Generation-related atoms and selectors
  * Scope: chat/completion rows, history, results, and generation-derived data.
  */
+import {generateId} from "@agenta/shared/utils"
 import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {generationLogicalTurnIdsAtom as chatLogicalIdsAtom} from "@/oss/state/generation/compat"
 import {runStatusByRowRevisionAtom, inputRowIdsAtom} from "@/oss/state/generation/entities"
 import {rowResponsesForDisplayAtomFamily} from "@/oss/state/generation/selectors"

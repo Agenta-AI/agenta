@@ -1,8 +1,9 @@
 import {useCallback} from "react"
 
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getMetadataLazy} from "@agenta/entities/legacyAppRevision"
+import {generateId} from "@agenta/shared/utils"
+
 import {createObjectFromMetadata} from "@/oss/lib/shared/variant/genericTransformer/helpers/arrays"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 
 type AnyObj = Record<string, any>
 

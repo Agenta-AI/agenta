@@ -1,10 +1,10 @@
 import {selectAtom} from "jotai/utils"
 
-import {playgroundIsChatModeAtom} from "./pipelineBBridge"
+import {playgroundIsChatModeAtom} from "./playgroundAppAtoms"
 
 /**
  * App-level chat mode detection (pure selector)
- * Derived from Pipeline B's isChatVariantAtomFamily on the first server revision.
+ * Derived from isChatVariantAtomFamily on the first server revision.
  */
 export const appChatModeAtom = selectAtom(
     playgroundIsChatModeAtom,

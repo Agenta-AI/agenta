@@ -52,7 +52,7 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
                 "toolChoice",
                 "responseFormat",
                 "stream",
-                // Pipeline B uses snake_case keys from the OpenAPI schema
+                // Entity layer uses snake_case keys from the OpenAPI schema
                 "tool_choice",
                 "response_format",
             ]) || []

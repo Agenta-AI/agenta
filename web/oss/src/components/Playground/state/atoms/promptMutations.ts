@@ -1,17 +1,23 @@
+import {getMetadataLazy, type ArrayMetadata} from "@agenta/entities/legacyAppRevision"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {v4 as uuidv4} from "uuid"
 
 import {hashMetadata} from "@/oss/components/Playground/assets/hash"
 import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {ArrayMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
+
+/** Split compoundKey into [revisionId, promptId] safely.
+ *  promptId may contain colons (e.g. "prompt:prompt1"), so we only split on the first ":". */
+function splitCompoundKey(compoundKey: string): [string, string] {
+    const idx = compoundKey.indexOf(":")
+    return [compoundKey.substring(0, idx), compoundKey.substring(idx + 1)]
+}
 
 // Add a new message for a prompt identified by `${revisionId}:${promptId}`
 export const addPromptMessageMutationAtomFamily = atomFamily((compoundKey: string) =>
     atom(null, (get, set) => {
-        const [revisionId, promptId] = compoundKey.split(":", 2)
+        const [revisionId, promptId] = splitCompoundKey(compoundKey)
 
         // Get prompts from molecule (single source of truth)
         const prompts = (get(moleculeBackedPromptsAtomFamily(revisionId)) as any[]) || []
@@ -53,7 +59,7 @@ export const addPromptMessageMutationAtomFamily = atomFamily((compoundKey: strin
 // Delete a message by id for a prompt identified by `${revisionId}:${promptId}`
 export const deletePromptMessageMutationAtomFamily = atomFamily((compoundKey: string) =>
     atom(null, (get, set, params: {messageId: string}) => {
-        const [revisionId, promptId] = compoundKey.split(":", 2)
+        const [revisionId, promptId] = splitCompoundKey(compoundKey)
         const {messageId} = params || ({} as any)
         if (!messageId) return
 
@@ -92,7 +98,7 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
     atom(
         null,
         (
-            get,
+            _get,
             set,
             params?: {
                 payload?: Record<string, any>
@@ -103,7 +109,7 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
                 toolLabel?: string
             },
         ) => {
-            const [revisionId, promptId] = compoundKey.split(":", 2)
+            const [revisionId, promptId] = splitCompoundKey(compoundKey)
 
             const payload = params?.payload
             const source = params?.source ?? (payload ? "builtin" : "inline")

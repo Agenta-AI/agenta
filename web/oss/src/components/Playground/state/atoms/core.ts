@@ -18,7 +18,16 @@ export const selectedVariantsAtom = atom(
         const all = get(selectedVariantsByAppAtom)
         const current = all[appId] || []
         // Support both direct value and updater function patterns
-        const newValue = typeof next === "function" ? next(current) : next
+        const rawValue = typeof next === "function" ? next(current) : next
+        // Deduplicate while preserving order — prevents duplicate key warnings
+        // and incorrect bulk-removal when async operations (commit, URL sync)
+        // race to update the selection.
+        const seen = new Set<string>()
+        const newValue = rawValue.filter((id) => {
+            if (seen.has(id)) return false
+            seen.add(id)
+            return true
+        })
         set(selectedVariantsByAppAtom, {...all, [appId]: newValue})
     },
 )

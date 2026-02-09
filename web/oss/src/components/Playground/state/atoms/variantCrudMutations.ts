@@ -17,10 +17,6 @@ export const createVariantMutationAtom = addVariantMutationAtom
 
 // Remove variant from selection mutation
 export const removeVariantFromSelectionMutationAtom = atom(null, (get, set, variantId: string) => {
-    if (process.env.NODE_ENV === "development") {
-        console.log("🗑️ removeVariantFromSelectionMutationAtom:", {variantId})
-    }
-
     const currentSelected = get(selectedVariantsAtom)
     const updatedSelected = currentSelected.filter((id) => id !== variantId)
 
@@ -43,15 +39,5 @@ export const removeVariantFromSelectionMutationAtom = atom(null, (get, set, vari
     // If removing a local draft, discard its data from the molecule
     if (isLocalDraft(variantId)) {
         discardLocalDraft(variantId)
-        if (process.env.NODE_ENV === "development") {
-            console.log("🗑️ Local draft discarded:", variantId)
-        }
-    }
-
-    if (process.env.NODE_ENV === "development") {
-        console.log("✅ Variant removed from selection:", {
-            removed: variantId,
-            remaining: updatedSelected,
-        })
     }
 })

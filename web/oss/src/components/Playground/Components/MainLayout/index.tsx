@@ -13,7 +13,7 @@ import {appChatModeAtom, displayedVariantsAtom, isComparisonViewAtom} from "../.
 import {
     playgroundAppStatusAtom,
     playgroundAppStatusLoadingAtom,
-} from "../../state/atoms/pipelineBBridge"
+} from "../../state/atoms/playgroundAppAtoms"
 import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
 import PlaygroundComparisonGenerationInputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonInputHeader/index."
 import GenerationComparisonOutputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonOutputHeader"
