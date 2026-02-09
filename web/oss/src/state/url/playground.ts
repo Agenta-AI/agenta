@@ -94,14 +94,24 @@ let lastWrittenUrl: string | null = null
 /**
  * Extract snapshot parameter from URL hash.
  * Hash format: #pgSnapshot=<encoded>
+ *
+ * NOTE: We manually parse instead of using URLSearchParams because
+ * URLSearchParams decodes '+' as space (per x-www-form-urlencoded spec),
+ * which corrupts LZ-String's compressToEncodedURIComponent output that
+ * legitimately contains '+' characters.
  */
 const extractSnapshotFromHash = (url: URL): string | null => {
     const hash = url.hash
     if (!hash || !hash.startsWith("#")) return null
 
-    // Parse hash as query params (after removing #)
-    const hashParams = new URLSearchParams(hash.slice(1))
-    return hashParams.get(SNAPSHOT_HASH_PARAM)
+    const raw = hash.slice(1) // remove leading '#'
+    const prefix = `${SNAPSHOT_HASH_PARAM}=`
+    const startIdx = raw.indexOf(prefix)
+    if (startIdx === -1) return null
+
+    const valueStart = startIdx + prefix.length
+    const ampIdx = raw.indexOf("&", valueStart)
+    return ampIdx === -1 ? raw.slice(valueStart) : raw.slice(valueStart, ampIdx)
 }
 
 /**
