@@ -186,6 +186,8 @@ class GitDAO(GitDAOInterface):
             #
             artifact_dbe.name = artifact_edit.name  # type: ignore
             artifact_dbe.description = artifact_edit.description  # type: ignore
+            #
+            artifact_dbe.folder_id = artifact_edit.folder_id  # type: ignore
 
             await session.commit()
 
