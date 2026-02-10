@@ -114,7 +114,7 @@ class Tracing(metaclass=Singleton):
             )
 
             self.tracer_provider.add_span_processor(_otlp)
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             log.warning("Agenta - OTLP unreachable, skipping exports.")
 
         # --- INLINE

@@ -1,6 +1,6 @@
 import pytest
 
-from .conftest import *
+from .conftest import *  # noqa: F403
 
 
 @pytest.mark.parametrize(
@@ -36,7 +36,7 @@ class TestApplicationRoutes:
         response_data = response.json()
         assert response.status_code == 200
         assert response_data["data"] == f"Hello, {name}! (version={get_agenta_version})"
-        assert type(response_data["tree"]) == dict and isinstance(
+        assert type(response_data["tree"]) == dict and isinstance(  # noqa: E721
             response_data.get("tree", {}).get("nodes"), list
         )
 

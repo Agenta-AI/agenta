@@ -1412,8 +1412,8 @@ class LegacyEnvironmentsAdapter:
     def __init__(
         self,
         *,
-        environments_service: "EnvironmentsService",
-        simple_environments_service: "SimpleEnvironmentsService",
+        environments_service: "EnvironmentsService",  # noqa: F821
+        simple_environments_service: "SimpleEnvironmentsService",  # noqa: F821
         applications_service: "ApplicationsService",
     ):
         self.environments_service = environments_service
@@ -1466,7 +1466,7 @@ class LegacyEnvironmentsAdapter:
         project_id: UUID,
         user_id: UUID,
         environment_name: str,
-    ) -> Optional["SimpleEnvironment"]:
+    ) -> Optional["SimpleEnvironment"]:  # noqa: F821
         """Fetch an environment by slug, creating it if it doesn't exist."""
         from oss.src.core.environments.dtos import (
             SimpleEnvironmentCreate,
@@ -1635,7 +1635,6 @@ class LegacyEnvironmentsAdapter:
 
         Returns (variant_id_str, variant_name) or (None, None).
         """
-        from oss.src.core.applications.dtos import ApplicationRevision
 
         revisions = await self.applications_service.query_application_revisions(
             project_id=project_id,

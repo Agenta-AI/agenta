@@ -298,7 +298,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 headers=deny.headers,
             )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             display_exception("Auth Middleware Exception")
 
             return DenyResponse(

@@ -144,7 +144,7 @@ def parse_application_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         application_query_request = ApplicationQueryRequest()
 
     return application_query_request
@@ -327,7 +327,7 @@ def parse_application_variant_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         application_variant_query_request = ApplicationVariantQueryRequest()
 
     return application_variant_query_request

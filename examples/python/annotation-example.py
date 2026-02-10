@@ -82,7 +82,7 @@ def generate(topic="witches", genre="comedy"):
     Returns:
         The OpenAI response
     """
-    client = OpenAI()
+    client = OpenAI()  # noqa: F841
 
     # Instrument OpenAI library to capture traces
     OpenAIInstrumentor().instrument()

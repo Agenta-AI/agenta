@@ -1,10 +1,8 @@
 import agenta as ag
-from agenta import FloatParam, TextParam
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
 client = OpenAI()
-import os
 
 default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"

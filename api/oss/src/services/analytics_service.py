@@ -242,7 +242,7 @@ async def analytics_middleware(request: Request, call_next: Callable):
 
             try:
                 distinct_id = request.state.user_email
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass
 
             if distinct_id and env.posthog.api_key:

@@ -7,7 +7,6 @@ Create Date: 2025-01-25 16:51:06.233811
 """
 
 from typing import Sequence, Union
-from os import environ
 from datetime import datetime, timezone
 from time import time
 
@@ -24,7 +23,6 @@ from oss.src.models.db_models import UserDB
 from oss.src.models.db_models import AppDB
 from ee.src.models.db_models import OrganizationMemberDB
 from oss.src.models.db_models import ProjectDB
-from ee.src.models.db_models import ProjectMemberDB
 from ee.src.models.extended.deprecated_models import DeprecatedOrganizationDB
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
 from ee.src.dbs.postgres.meters.dbes import MeterDBE

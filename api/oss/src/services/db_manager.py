@@ -2037,7 +2037,7 @@ async def get_default_project_id_from_workspace(
             select(ProjectDB)
             .where(
                 ProjectDB.workspace_id == uuid.UUID(workspace_id),
-                ProjectDB.is_default == True,
+                ProjectDB.is_default == True,  # noqa: E712
             )
             .options(load_only(ProjectDB.id))
         )
@@ -2090,7 +2090,7 @@ async def create_workspace_project(
             result = await db_session.execute(
                 select(ProjectDB.id).filter(
                     ProjectDB.workspace_id == workspace_uuid,
-                    ProjectDB.is_default == True,
+                    ProjectDB.is_default == True,  # noqa: E712
                 )
             )
             has_default = result.scalars().first() is not None
@@ -2101,7 +2101,7 @@ async def create_workspace_project(
                 update(ProjectDB)
                 .where(
                     ProjectDB.workspace_id == workspace_uuid,
-                    ProjectDB.is_default == True,
+                    ProjectDB.is_default == True,  # noqa: E712
                 )
                 .values(is_default=False)
             )
@@ -2185,7 +2185,7 @@ async def set_default_project(project_id: str) -> ProjectDB:
             update(ProjectDB)
             .where(
                 ProjectDB.workspace_id == project.workspace_id,
-                ProjectDB.is_default == True,
+                ProjectDB.is_default == True,  # noqa: E712
             )
             .values(is_default=False)
         )
@@ -3107,11 +3107,8 @@ async def create_environment_revision(
         assert "deployed_app_variant_revision" in kwargs, (
             "Deployed app variant revision is required"
         )
-        assert (
-            isinstance(
-                kwargs.get("deployed_app_variant_revision"), AppVariantRevisionsDB
-            )
-            == True
+        assert isinstance(
+            kwargs.get("deployed_app_variant_revision"), AppVariantRevisionsDB
         ), "Type of deployed_app_variant_revision in kwargs is not correct"
         deployed_app_variant_revision = kwargs.get("deployed_app_variant_revision")
 
@@ -3121,7 +3118,7 @@ async def create_environment_revision(
             )
 
         deployment = kwargs.get("deployment")
-        assert isinstance(deployment, DeploymentDB) == True, (
+        assert isinstance(deployment, DeploymentDB), (
             "Type of deployment in kwargs is not correct"
         )
         if deployment is not None:
@@ -3873,7 +3870,7 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
             object_uuid_as_str = await fetch_corresponding_object_uuid(
                 table_name=table_name, object_id=object_id
             )
-    except:
+    except Exception:
         # Use the object_id directly if it is not a valid MongoDB ObjectId
         object_uuid_as_str = object_id
 

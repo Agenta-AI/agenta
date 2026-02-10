@@ -1,6 +1,6 @@
 import pytest
 
-from tests.legacy.conftest import *
+from tests.legacy.conftest import *  # noqa: F403
 
 
 class TestObservabilityCoverage:
@@ -15,7 +15,7 @@ class TestObservabilityCoverage:
         # Set valid LLM keys (only when authentication is required)
         mock_response = get_mock_response
         if not mock_response:
-            await set_valid_llm_keys(client=http_client, headers=headers)
+            await set_valid_llm_keys(client=http_client, headers=headers)  # noqa: F405
 
         return {
             "app_variant_response": app_variant_response,
@@ -51,7 +51,7 @@ class TestObservabilityCoverage:
         assert "data" in response_data and "tree" in response_data
 
         # Get observability tree
-        trace_responses = await fetch_trace_by_trace_id(
+        trace_responses = await fetch_trace_by_trace_id(  # noqa: F405
             http_client, headers, project_id=project_id
         )
 
@@ -60,8 +60,8 @@ class TestObservabilityCoverage:
         observability_response = trace_responses
 
         # Step 1: Exclude lifecycle attribute from response(s)
-        workflow_response_final = exclude_lifecycle(workflow_response)
-        observability_response_final = exclude_lifecycle(observability_response)
+        workflow_response_final = exclude_lifecycle(workflow_response)  # noqa: F405
+        observability_response_final = exclude_lifecycle(observability_response)  # noqa: F405
 
         # Step 2: Compare structures with Jest-like matcher
         workflow_nodes = workflow_response_final.get("tree", {}).get("nodes", [])
@@ -69,7 +69,7 @@ class TestObservabilityCoverage:
             "nodes", []
         )
 
-        is_match = exact_match(workflow_nodes, observability_nodes)
+        is_match = exact_match(workflow_nodes, observability_nodes)  # noqa: F405
         assert is_match is True, (
             "Workflow nodes does not match nodes from observability"
         )

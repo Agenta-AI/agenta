@@ -46,7 +46,7 @@ Coverage:
 
 import pytest
 import asyncio
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 
 from agenta.sdk.decorators.tracing import instrument
 
