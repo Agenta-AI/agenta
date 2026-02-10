@@ -223,7 +223,6 @@ const PromptsBreadcrumb = ({
 
     const items: BreadcrumbProps["items"] = useMemo(() => {
         const isAtRoot = !currentFolderId
-        const rootSiblings = getSiblingFolders(foldersById, null)
 
         const base: BreadcrumbProps["items"] = [
             {
