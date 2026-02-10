@@ -1,5 +1,5 @@
-from typing import Optional
-from uuid import UUID
+from typing import Optional, Dict, Any, Union  # noqa: F401
+from uuid import UUID, uuid4  # noqa: F401
 from urllib.parse import urlparse
 
 from pydantic import (
@@ -41,8 +41,30 @@ from oss.src.core.git.dtos import (
 )
 
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
+from oss.src.core.shared.dtos import (  # noqa: F401
+    Identifier,
+    Slug,
+    Version,
+    Header,
+    Data,
+    Metadata,
+    Reference,
+    Link,
+    Schema,
+    # Credentials,
+    # Secret,
+)
 
+from oss.src.core.tracing.dtos import Trace  # noqa: F401
 from agenta.sdk.models.workflows import (
+    WorkflowServiceRequestData,  # noqa: F401
+    WorkflowServiceResponseData,  # noqa: F401
+    WorkflowServiceRequest,  # noqa: F401
+    WorkflowServiceResponse,  # noqa: F401
+    WorkflowServiceBatchResponse,  # noqa: F401
+    WorkflowServiceStreamResponse,  # noqa: F401
+    #
+    JsonSchemas,  # noqa: F401
     WorkflowServiceInterface as SDKWorkflowServiceInterface,
     WorkflowServiceConfiguration as SDKWorkflowServiceConfiguration,
     WorkflowRevisionData as SDKWorkflowRevisionData,

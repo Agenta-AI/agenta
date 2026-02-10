@@ -12,6 +12,7 @@ from oss.src.core.shared.dtos import (
     Metadata,
 )
 from oss.src.core.workflows.dtos import (
+    ArtifactFork,  # noqa: F401
     VariantFork,
     RevisionFork,
     #

@@ -15,6 +15,7 @@ from oss.src.core.shared.dtos import (
     Meta,
     Data,
     Reference,
+    Hashes,  # noqa: F401
     Windowing,
     FullJson,
     Link,
