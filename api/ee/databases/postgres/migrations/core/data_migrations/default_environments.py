@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 
 import click
 from pydantic import field_validator
-from sqlalchemy import func
+from sqlalchemy import and_, distinct, func
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.future import select
 
@@ -45,19 +45,55 @@ class LegacyEnvironmentVariantCreate(EnvironmentVariantCreate):
         return v
 
 
-async def _fetch_target_project_ids(
+# Correlated subquery: count of fully-complete default environments per project.
+# An environment is "complete" when it has an artifact, at least one variant,
+# and at least one revision linked to that variant.
+_complete_env_count = (
+    select(func.count(distinct(EnvironmentArtifactDBE.id)))
+    .select_from(EnvironmentArtifactDBE)
+    .join(
+        EnvironmentVariantDBE,
+        and_(
+            EnvironmentVariantDBE.project_id == EnvironmentArtifactDBE.project_id,
+            EnvironmentVariantDBE.artifact_id == EnvironmentArtifactDBE.id,
+        ),
+    )
+    .join(
+        EnvironmentRevisionDBE,
+        and_(
+            EnvironmentRevisionDBE.project_id == EnvironmentVariantDBE.project_id,
+            EnvironmentRevisionDBE.variant_id == EnvironmentVariantDBE.id,
+        ),
+    )
+    .where(
+        EnvironmentArtifactDBE.project_id == ProjectDBE.id,
+        EnvironmentArtifactDBE.slug.in_(DEFAULT_ENVIRONMENTS),
+    )
+    .correlate(ProjectDBE)
+    .scalar_subquery()
+)
+
+
+async def _fetch_target_project_ids_batch(
     *,
     connection: AsyncConnection,
+    last_project_id: Optional[uuid.UUID] = None,
+    limit: int = DEFAULT_BATCH_SIZE,
 ) -> List[uuid.UUID]:
-    result = await connection.execute(
+    """Fetch a batch of projects that are missing at least one complete default
+    environment, using keyset pagination for stable per-batch cost."""
+
+    query = (
         select(ProjectDBE.id)
-        .where(
-            ~select(EnvironmentArtifactDBE.id)
-            .where(EnvironmentArtifactDBE.project_id == ProjectDBE.id)
-            .exists()
-        )
+        .where(_complete_env_count < len(DEFAULT_ENVIRONMENTS))
         .order_by(ProjectDBE.id)
+        .limit(limit)
     )
+
+    if last_project_id is not None:
+        query = query.where(ProjectDBE.id > last_project_id)
+
+    result = await connection.execute(query)
     return [row.id for row in result.fetchall()]
 
 
@@ -91,130 +127,133 @@ async def _fetch_project_owners_batch(
     return {row.project_id: row.owner_id for row in rows}
 
 
-async def _project_has_any_environment(
-    *,
-    connection: AsyncConnection,
-    project_id: uuid.UUID,
-) -> bool:
-    result = await connection.execute(
-        select(func.count())
-        .select_from(EnvironmentArtifactDBE)
-        .where(EnvironmentArtifactDBE.project_id == project_id)
-    )
-    return (result.scalar() or 0) > 0
-
-
 async def _create_default_environment(
     *,
     project_id: uuid.UUID,
     owner_id: uuid.UUID,
     environment_slug: str,
 ) -> bool:
-    existing = await environments_service.fetch_environment(
+    """Idempotently ensure a default environment has its artifact, variant, and
+    initial revision.  Returns True when at least one object was created."""
+
+    created = False
+
+    # Step 1: get-or-create environment artifact
+    environment = await environments_service.fetch_environment(
         project_id=project_id,
         environment_ref=Reference(slug=environment_slug),
     )
 
-    if existing is not None:
-        return False
-
-    environment = await environments_service.create_environment(
-        project_id=project_id,
-        user_id=owner_id,
-        environment_create=EnvironmentCreate(
-            slug=environment_slug,
-            name=environment_slug,
-        ),
-    )
-
     if environment is None:
-        return False
+        environment = await environments_service.create_environment(
+            project_id=project_id,
+            user_id=owner_id,
+            environment_create=EnvironmentCreate(
+                slug=environment_slug,
+                name=environment_slug,
+            ),
+        )
+        if environment is None:
+            return False
+        created = True
 
-    environment_variant = await environments_service.create_environment_variant(
+    # Step 2: get-or-create variant
+    environment_variant = await environments_service.fetch_environment_variant(
         project_id=project_id,
-        user_id=owner_id,
-        environment_variant_create=LegacyEnvironmentVariantCreate(
-            slug=f"{environment_slug}.default",
-            name=environment_slug,
-            environment_id=environment.id,
-        ),
+        environment_ref=Reference(id=environment.id),
     )
 
     if environment_variant is None:
-        return False
+        environment_variant = await environments_service.create_environment_variant(
+            project_id=project_id,
+            user_id=owner_id,
+            environment_variant_create=LegacyEnvironmentVariantCreate(
+                slug=f"{environment_slug}.default",
+                name=environment_slug,
+                environment_id=environment.id,
+            ),
+        )
+        if environment_variant is None:
+            return False
+        created = True
 
-    environment_revision = await environments_service.commit_environment_revision(
+    # Step 3: get-or-create initial revision
+    environment_revision = await environments_service.fetch_environment_revision(
         project_id=project_id,
-        user_id=owner_id,
-        environment_revision_commit=EnvironmentRevisionCommit(
-            slug=uuid.uuid4().hex[-12:],
-            name=environment_slug,
-            data=None,
-            message="Initial commit",
-            environment_id=environment.id,
-            environment_variant_id=environment_variant.id,
-        ),
+        environment_variant_ref=Reference(id=environment_variant.id),
     )
 
-    return environment_revision is not None
+    if environment_revision is None:
+        environment_revision = await environments_service.commit_environment_revision(
+            project_id=project_id,
+            user_id=owner_id,
+            environment_revision_commit=EnvironmentRevisionCommit(
+                slug=uuid.uuid4().hex[-12:],
+                name=environment_slug,
+                data=None,
+                message="Initial commit",
+                environment_id=environment.id,
+                environment_variant_id=environment_variant.id,
+            ),
+        )
+        if environment_revision is None:
+            return False
+        created = True
+
+    return created
 
 
 async def migration_create_default_environments(
     connection: AsyncConnection,
 ):
-    target_project_ids = await _fetch_target_project_ids(connection=connection)
-    total_projects = len(target_project_ids)
-
-    click.echo(
-        click.style(
-            (f"Target projects without environments: {total_projects}"),
-            fg="yellow",
-        )
-    )
-
-    project_owners = await _fetch_project_owners_batch(
-        project_ids=target_project_ids,
-        connection=connection,
-    )
-
     created_environments = 0
     skipped_projects = 0
+    processed_projects = 0
+    last_project_id: Optional[uuid.UUID] = None
 
-    for idx, project_id in enumerate(target_project_ids, start=1):
-        owner_id: Optional[uuid.UUID] = project_owners.get(project_id)
-
-        if owner_id is None:
-            skipped_projects += 1
-            continue
-
-        if await _project_has_any_environment(
+    while True:
+        batch = await _fetch_target_project_ids_batch(
             connection=connection,
-            project_id=project_id,
-        ):
-            skipped_projects += 1
-            continue
+            last_project_id=last_project_id,
+            limit=DEFAULT_BATCH_SIZE,
+        )
 
-        for environment_slug in DEFAULT_ENVIRONMENTS:
-            created = await _create_default_environment(
-                project_id=project_id,
-                owner_id=owner_id,
-                environment_slug=environment_slug,
-            )
-            if created:
-                created_environments += 1
+        if not batch:
+            break
 
-        if idx % DEFAULT_BATCH_SIZE == 0 or idx == total_projects:
-            click.echo(
-                click.style(
-                    (
-                        "Processed projects "
-                        f"{idx}/{total_projects}; "
-                        f"created_environments={created_environments}; "
-                        f"skipped_projects={skipped_projects}"
-                    ),
-                    fg="yellow",
-                )
+        project_owners = await _fetch_project_owners_batch(
+            project_ids=batch,
+            connection=connection,
+        )
+
+        for project_id in batch:
+            processed_projects += 1
+            owner_id: Optional[uuid.UUID] = project_owners.get(project_id)
+
+            if owner_id is None:
+                skipped_projects += 1
+                continue
+
+            for environment_slug in DEFAULT_ENVIRONMENTS:
+                if await _create_default_environment(
+                    project_id=project_id,
+                    owner_id=owner_id,
+                    environment_slug=environment_slug,
+                ):
+                    created_environments += 1
+
+        last_project_id = batch[-1]
+
+        click.echo(
+            click.style(
+                (
+                    f"Processed {processed_projects} projects; "
+                    f"created_environments={created_environments}; "
+                    f"skipped_projects={skipped_projects}"
+                ),
+                fg="yellow",
             )
+        )
 
     click.echo(
         click.style(
