@@ -154,7 +154,7 @@ async def test_get_evaluator_configs():
             timeout=timeout,
         )
         assert response.status_code == 200
-        assert type(response.json()) == list
+        assert type(response.json()) == list  # noqa: E721
 
 
 async def fetch_evaluation_results(evaluation_id):
@@ -395,7 +395,7 @@ async def test_rag_experiment_tree_maps_correctly(
         "question" in response_data["outputs"]
         and "contexts" in response_data["outputs"]
         and "answer" in response_data["outputs"]
-    ) == True
+    )
 
 
 @pytest.mark.asyncio
@@ -416,7 +416,7 @@ async def test_simple_experiment_tree_maps_correctly(
     assert (
         "prediction" in response_data["outputs"]
         and isinstance(response_data["outputs"]["prediction"], str)
-    ) == True
+    )
 
 
 @pytest.mark.asyncio

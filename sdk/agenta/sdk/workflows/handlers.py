@@ -368,7 +368,7 @@ def _compare_jsons(
 
         if compare_schema_only:
             return (
-                1.0 if (gt_key == ao_key and type(gt_value) == type(ao_value)) else 0.0
+                1.0 if (gt_key == ao_key and type(gt_value) == type(ao_value)) else 0.0  # noqa: E721
             )
         return 1.0 if (gt_key == ao_key and gt_value == ao_value) else 0.0
 

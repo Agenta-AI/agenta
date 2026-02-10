@@ -36,8 +36,8 @@ class EntitlementsException(Exception):
     pass
 
 
-NOT_ENTITLED_RESPONSE: Callable[[Tracker], JSONResponse] = (
-    lambda tracker=None: JSONResponse(
+def NOT_ENTITLED_RESPONSE(tracker=None) -> JSONResponse:
+    return JSONResponse(
         status_code=403,
         content={
             "detail": (
@@ -55,7 +55,6 @@ NOT_ENTITLED_RESPONSE: Callable[[Tracker], JSONResponse] = (
             ),
         },
     )
-)
 
 
 async def check_entitlements(
