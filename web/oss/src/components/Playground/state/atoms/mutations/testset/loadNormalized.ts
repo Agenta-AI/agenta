@@ -1,7 +1,7 @@
+import {generateId} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
 import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {
     inputRowsByIdFamilyAtom,
     inputRowIdsAtom,
@@ -94,7 +94,6 @@ const buildFilePart = (raw: any): NormalizedContentPart | null => {
     if (name) filePart.file.name = name
     if (mimeType) filePart.file.format = mimeType
 
-    console.log("filePart", filePart)
     return filePart
 }
 

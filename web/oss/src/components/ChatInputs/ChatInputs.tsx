@@ -324,15 +324,18 @@ const ChatInputs: React.FC<Props> = ({
                                         updateImagePart(
                                             ix,
                                             imgIdx,
-                                            file?.thumbUrl || file?.url || "",
+                                            (file as any)?.base64 ||
+                                                file?.url ||
+                                                file?.thumbUrl ||
+                                                "",
                                         )
                                     }
                                     handleRemoveUploadFile={() => handleRemoveImage(ix, imgIdx)}
                                     imageFile={{
                                         status: "done",
                                         thumbUrl: img.image_url.url,
-                                        uid: img.image_url.url,
-                                        name: img.image_url.url,
+                                        uid: `image-${ix}-${imgIdx}`,
+                                        name: `image-${ix}-${imgIdx}`,
                                     }}
                                 />
                             ))}

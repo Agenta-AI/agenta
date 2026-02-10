@@ -958,10 +958,19 @@ importers:
       jotai:
         specifier: '>=2.0.0'
         version: 2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0)
+      lz-string:
+        specifier: ^1.5.0
+        version: 1.5.0
       react:
         specifier: '>=18.0.0'
         version: 19.0.0
+      uuid:
+        specifier: ^11.1.0
+        version: 11.1.0
     devDependencies:
+      '@types/lz-string':
+        specifier: ^1.5.0
+        version: 1.5.0
       '@types/node':
         specifier: ^20.8.10
         version: 20.19.26
@@ -1059,6 +1068,9 @@ importers:
       react:
         specifier: '>=18.0.0'
         version: 19.0.0
+      uuid:
+        specifier: ^11.1.0
+        version: 11.1.0
     devDependencies:
       '@types/node':
         specifier: ^20.8.10
@@ -1066,6 +1078,9 @@ importers:
       '@types/react':
         specifier: ^19.0.10
         version: 19.0.10
+      '@types/uuid':
+        specifier: ^9.0.8
+        version: 9.0.8
       typescript:
         specifier: 5.8.3
         version: 5.8.3
@@ -2711,6 +2726,10 @@ packages:
 
   '@types/lodash@4.17.18':
     resolution: {integrity: sha512-KJ65INaxqxmU6EoCiJmRPZC9H9RVWCRd349tXM2M3O5NA7cY6YL7c0bHAHQ93NOfTObEQ004kd2QVHs/r0+m4g==}
+
+  '@types/lz-string@1.5.0':
+    resolution: {integrity: sha512-s84fKOrzqqNCAPljhVyC5TjAo6BH4jKHw9NRNFNiRUY5QSgZCmVm5XILlWbisiKl+0OcS7eWihmKGS5akc2iQw==}
+    deprecated: This is a stub types definition. lz-string provides its own type definitions, so you do not need this installed.
 
   '@types/mdast@4.0.4':
     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
@@ -4508,6 +4527,10 @@ packages:
     resolution: {integrity: sha512-aBhNnveRhorBOK7uA4gDjgaf+YlHMdMhQ/3cupk6exM10hWlEU+2QtWYOfhXhjAsmdb6LeKR+NZnow4UxRRiTQ==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  lz-string@1.5.0:
+    resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
+    hasBin: true
 
   make-error@1.3.6:
     resolution: {integrity: sha512-s8UhlNe7vPKomQhC1qFelMokr/Sc3AgNbso3n74mVPA5LTZwkB9NlXf4XPamLxJE8h0gh73rM94xvwRT2CVInw==}
@@ -7437,6 +7460,10 @@ snapshots:
 
   '@types/lodash@4.17.18': {}
 
+  '@types/lz-string@1.5.0':
+    dependencies:
+      lz-string: 1.5.0
+
   '@types/mdast@4.0.4':
     dependencies:
       '@types/unist': 3.0.3
@@ -9501,6 +9528,8 @@ snapshots:
   lucide-react@0.479.0(react@19.0.0):
     dependencies:
       react: 19.0.0
+
+  lz-string@1.5.0: {}
 
   make-error@1.3.6: {}
 

@@ -4,7 +4,7 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import CustomWorkflowBanner from "@/oss/components/CustomWorkflow/CustomWorkflowBanner"
-import {shouldRenderPlaygroundAtom} from "@/oss/state/app/selectors/app"
+import {shouldRenderPlaygroundAtom} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 
 const Playground = dynamic(() => import("../Playground/Playground"), {ssr: false})
 
