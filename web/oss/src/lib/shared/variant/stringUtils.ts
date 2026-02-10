@@ -1,5 +1,4 @@
 // @ts-nocheck
-import {v4 as uuidv4} from "uuid"
 
 /** String manipulation utilities */
 export const toCamelCase = (str: string): string =>
@@ -7,8 +6,6 @@ export const toCamelCase = (str: string): string =>
 
 export const toSnakeCase = (str: string): string =>
     str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
-
-export const generateId = () => uuidv4()
 
 export const constructPlaygroundTestUrl = (
     uri: {routePath?: string; runtimePrefix?: string},

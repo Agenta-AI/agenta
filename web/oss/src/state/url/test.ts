@@ -142,15 +142,12 @@ export const clearVariantQueryParam = () => {
     try {
         const url = new URL(window.location.href)
         const hadRevisionParam = url.searchParams.has("revisionId")
-        const hadLegacyParam = url.searchParams.has("revisions")
         const hadDrawerTypeParam = url.searchParams.has("drawerType")
-        if (!hadRevisionParam && !hadLegacyParam && !hadDrawerTypeParam) return
+        // Note: "revisions" param is owned by the playground URL sync, not the variant drawer
+        if (!hadRevisionParam && !hadDrawerTypeParam) return
 
         if (hadRevisionParam) {
             url.searchParams.delete("revisionId")
-        }
-        if (hadLegacyParam) {
-            url.searchParams.delete("revisions")
         }
         if (hadDrawerTypeParam) {
             url.searchParams.delete("drawerType")
