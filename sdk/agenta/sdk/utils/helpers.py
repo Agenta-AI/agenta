@@ -4,7 +4,6 @@ import re
 from typing import Dict, Tuple
 
 
-
 def get_current_version():
     """Returns the current version of Agenta's SDK."""
 
@@ -57,7 +56,7 @@ def apply_replacements_with_tracking(
     """
     Replace {{ expr }} and track which placeholders were successfully replaced.
     Returns (result, successfully_replaced_set).
-    
+
     """
     successfully_replaced: set = set()
 
