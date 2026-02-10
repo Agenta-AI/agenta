@@ -217,7 +217,7 @@ class OTelSpanDTO(BaseModel):
 ### services.observability.utils ###
 ### ---------------------------- ###
 
-from typing import List, Dict, OrderedDict  # noqa: E402
+from typing import List, Dict  # noqa: E402
 
 
 def parse_span_dtos_to_span_idx(

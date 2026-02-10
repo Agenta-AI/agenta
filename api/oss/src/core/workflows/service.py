@@ -53,9 +53,9 @@ from agenta.sdk.decorators.running import (
     inspect_workflow as _inspect_workflow,
 )
 from agenta.sdk.models.workflows import (
-    WorkflowServiceRequest,
-    WorkflowServiceBatchResponse,
-    WorkflowServiceStreamResponse,
+    WorkflowServiceRequest,  # noqa: F811
+    WorkflowServiceBatchResponse,  # noqa: F811
+    WorkflowServiceStreamResponse,  # noqa: F811
 )
 
 log = get_module_logger(__name__)

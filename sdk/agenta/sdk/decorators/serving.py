@@ -79,7 +79,7 @@ class PathValidator(BaseModel):
     url: HttpUrl
 
 
-def _add_middleware_to_app(target_app: "FastAPI") -> None:
+def _add_middleware_to_app(target_app: "FastAPI") -> None:  # noqa: F821
     """
     Add all required middleware to a FastAPI app.
 

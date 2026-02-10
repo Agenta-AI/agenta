@@ -7,7 +7,6 @@ from .sdk import assets as assets
 
 # evaluations
 from .sdk import testsets as testsets
-from .sdk import tracer
 from .sdk.agenta_init import AgentaSingleton
 from .sdk.agenta_init import init as _init
 from .sdk.context.running import workflow_mode_enabled  # noqa: F401

@@ -323,9 +323,6 @@ class WorkflowVariantQuery(VariantQuery):
 
 # workflow revisions -----------------------------------------------------------
 
-from agenta.sdk.models.workflows import WorkflowRevisionData  # noqa: E402
-
-
 class WorkflowRevision(
     Revision,
     WorkflowIdAlias,
