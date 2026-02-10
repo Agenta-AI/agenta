@@ -71,7 +71,7 @@ const getSiblingFolders = (
 ): FolderTreeNode[] => {
     return Object.values(foldersById)
         .filter((f) => {
-            const fParentId = (f as any).parent_id ?? null
+            const fParentId = f.parent_id ?? null
             return fParentId === parentId
         })
         .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
