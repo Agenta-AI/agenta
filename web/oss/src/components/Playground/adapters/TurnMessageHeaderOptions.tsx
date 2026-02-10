@@ -168,14 +168,16 @@ const TurnMessageHeaderOptions = ({
             )}
         >
             {repetitionProps && <RepetitionNavigation {...repetitionProps} />}
-            <EnhancedButton
-                icon={<ArrowsOutLineHorizontal size={12} />}
-                size="small"
-                type="text"
-                className="!w-5 !h-5"
-                onClick={onViewAllRepeats}
-                tooltipProps={{title: "Expand results"}}
-            />
+            {onViewAllRepeats && (
+                <EnhancedButton
+                    icon={<ArrowsOutLineHorizontal size={12} />}
+                    size="small"
+                    type="text"
+                    onClick={onViewAllRepeats}
+                    tooltipProps={{title: "Expand results"}}
+                    disabled={!resultHashes || resultHashes.length === 0}
+                />
+            )}
             {onRerun ? (
                 <EnhancedButton
                     icon={<ArrowClockwise size={14} />}

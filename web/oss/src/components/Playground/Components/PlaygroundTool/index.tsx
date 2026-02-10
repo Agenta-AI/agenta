@@ -10,8 +10,8 @@ import {v4 as uuidv4} from "uuid"
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import LLMIconMap from "@/oss/components/LLMIcons"
 import {
-    moleculeBackedVariantAtomFamily,
     moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
 import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 
