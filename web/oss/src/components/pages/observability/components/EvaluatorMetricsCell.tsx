@@ -4,9 +4,9 @@ import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import LabelValuePill from "@/oss/components/CustomUIs/LabelValuePill"
+import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
 import {traceAnnotationInfoAtomFamily} from "@/oss/state/newObservability"
 import {useProjectData} from "@/oss/state/project"
-import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
 
 interface Props {
     invocationKey: string
