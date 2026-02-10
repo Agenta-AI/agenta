@@ -1220,7 +1220,7 @@ class LegacyApplicationsAdapter:
             app_type=self._flags_to_app_type(application, uri=uri),
             created_at=str(application.created_at) if application.created_at else None,
             updated_at=str(updated_at) if updated_at else None,
-            # TEMPORARY: Disablig name editing
+            # TEMPORARY: Disabling name editing
             folder_id=str(application.folder_id) if application.folder_id else None,
         )
 
