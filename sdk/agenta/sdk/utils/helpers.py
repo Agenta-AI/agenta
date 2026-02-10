@@ -58,11 +58,6 @@ def apply_replacements_with_tracking(
     Replace {{ expr }} and track which placeholders were successfully replaced.
     Returns (result, successfully_replaced_set).
     
-    This allows us to distinguish between:
-    - Placeholders that failed to be replaced (actual errors)
-    - Placeholders in the substituted values (not errors)
-    
-    Used by both types.py and workflows/handlers.py for curly template formatting.
     """
     successfully_replaced: set = set()
 
