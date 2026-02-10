@@ -90,27 +90,26 @@ poetry run pytest tests/pytest/e2e/ -v -m "coverage_smoke and cost_free"
 ### Web Tests
 
 ```bash
-# Run smoke tests (OSS)
 cd web/tests
-AGENTA_LICENSE=oss \
+
+# Run smoke tests (OSS) - AGENTA_LICENSE not needed when path is explicit
 AGENTA_WEB_URL=http://localhost:10180 \
 TESTMAIL_NAMESPACE=<your-namespace> \
 TESTMAIL_API_KEY=<your-key> \
   npx playwright test ../oss/tests/playwright/e2e/smoke.spec.ts
 
 # Run smoke tests (EE)
-AGENTA_LICENSE=ee \
 AGENTA_WEB_URL=http://localhost:10180 \
 TESTMAIL_NAMESPACE=<your-namespace> \
 TESTMAIL_API_KEY=<your-key> \
   npx playwright test ../ee/tests/playwright/e2e/smoke.spec.ts
 
-# Run all E2E tests for a specific feature
+# Run all E2E tests for a specific feature (OSS)
 npx playwright test ../oss/tests/playwright/e2e/settings/
 
-# Run with tag filters
-npx playwright test --grep "@coverage:smoke"
-npx playwright test --grep "@coverage:smoke.*@cost:free"
+# Run with tag filters (requires AGENTA_LICENSE when using default testDir)
+AGENTA_LICENSE=oss npx playwright test --grep "@coverage:smoke"
+AGENTA_LICENSE=oss npx playwright test --grep "@coverage:smoke.*@cost:free"
 ```
 
 **Note:** Web tests require valid TESTMAIL credentials. See [web/tests/playwright.config.ts](../../web/tests/playwright.config.ts) for configuration details.

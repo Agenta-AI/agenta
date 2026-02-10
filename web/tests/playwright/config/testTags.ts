@@ -33,14 +33,6 @@ export const TestPath = {
 } as const
 
 /**
- * License scope for different deployment types
- */
-export const TestLicenseType = {
-    OSS: "oss", // OSS license
-    EE: "ee", // EE license
-} as const
-
-/**
  * Role types for different test scenarios
  */
 export const TestRoleType = {
@@ -63,6 +55,11 @@ export const TestPlanType = {
 export const TestCostType = {
     Free: "free", // No monetary cost
     Paid: "paid", // Uses paid third-party services
+} as const
+
+export const TestLicenseType = {
+    OSS: "oss",
+    EE: "ee",
 } as const
 
 export const TestLensType = {
@@ -89,12 +86,12 @@ export const TAG_ARGUMENTS: Record<PlaywrightConfig.TestTagType, PlaywrightConfi
     scope: {flag: "-scope", prefix: "@scope:"},
     coverage: {flag: "-coverage", prefix: "@coverage:"},
     path: {flag: "-path", prefix: "@path:"},
-    license: {flag: "-license", prefix: "@license:"},
     plan: {flag: "-plan", prefix: "@plan:"},
     role: {flag: "-role", prefix: "@role:"},
     lens: {flag: "-lens", prefix: "@lens:"},
     case: {flag: "-case", prefix: "@case:"},
     speed: {flag: "-speed", prefix: "@speed:"},
+    license: {flag: "-license", prefix: "@license:"},
     cost: {flag: "-cost", prefix: "@cost:"},
 } as const
 
@@ -112,7 +109,5 @@ export type {
     TestTagType,
     TestTag,
     TagArgument,
-    TestEnvironmentType,
     ProjectFeatureConfig,
-    EnvironmentProjectConfig,
 } from "./types"

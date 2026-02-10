@@ -9,8 +9,6 @@ declare namespace PlaywrightConfig {
         (typeof import("./testTags").TestCoverage)[keyof typeof import("./testTags").TestCoverage]
     type TestPathType =
         (typeof import("./testTags").TestPath)[keyof typeof import("./testTags").TestPath]
-    type TestLicenseType =
-        (typeof import("./testTags").TestLicenseType)[keyof typeof import("./testTags").TestLicenseType]
     type TestPlanType =
         (typeof import("./testTags").TestPlanType)[keyof typeof import("./testTags").TestPlanType]
     type TestRoleType =
@@ -23,20 +21,22 @@ declare namespace PlaywrightConfig {
         (typeof import("./testTags").TestSpeedType)[keyof typeof import("./testTags").TestSpeedType]
     type TestCostType =
         (typeof import("./testTags").TestCostType)[keyof typeof import("./testTags").TestCostType]
+    type TestLicenseType =
+        (typeof import("./testTags").TestLicenseType)[keyof typeof import("./testTags").TestLicenseType]
 
     /** Test tag system configuration */
     type TestTagType =
         | "scope"
         | "coverage"
         | "path"
-        | "license"
         | "plan"
         | "role"
         | "lens"
         | "case"
         | "speed"
+        | "license"
         | "cost"
-    type TestTag = TestScopeType | TestCoverageType | TestPathType | TestLicenseType
+    type TestTag = TestScopeType | TestCoverageType | TestPathType
 
     /** Tag argument structure for CLI and test decoration */
     interface TagArgument {

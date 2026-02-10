@@ -7,7 +7,22 @@
 
 
 ## Testing Instructions
-- Tests are currently still not working and should not be run 
+
+For comprehensive testing documentation, see [docs/designs/testing/README.md](docs/designs/testing/README.md).
+
+Quick overview:
+- **API Tests**: `cd api && AGENTA_API_URL=<api_url> AGENTA_AUTH_KEY=<auth_key> python -m pytest oss/tests/pytest/ -v`
+- **SDK Tests**: `cd sdk && AGENTA_API_URL=<api_url> AGENTA_AUTH_KEY=<auth_key> poetry run pytest tests/pytest/ -v`
+- **Web Tests**: `cd web/tests && AGENTA_WEB_URL=<web_url> TESTMAIL_NAMESPACE=<email_ns> TESTMAIL_API_KEY=<email_key> npx playwright test ../oss/tests/playwright/e2e/smoke.spec.ts`
+
+Test documentation covers:
+- Testing principles and philosophy
+- Test boundaries (utils, unit, E2E)
+- Test dimensions (coverage, path, case, lens, speed, license, cost, role, plan)
+- Interface-specific guides (API, SDK, Web, Services)
+- Test structure and organization
+- Fixtures and utilities
+- Running tests locally and in CI 
 
 ## PR instructions
 - If the user provides you with the issue id, title the PR: [issue-id] fix(frontend): <Title> where fix is the type (fix, feat, chore, ci, doc, test.. [we're using better-branch) and frontend is where and it could be API, SDK, frontend, docs, ..
