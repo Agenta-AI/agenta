@@ -6,11 +6,8 @@ Contains helper functions for Rich text formatting and table generation.
 import json
 from typing import Dict, List, Any, Optional
 import asyncio
-from uuid import UUID
 from dataclasses import dataclass, field
 
-import unicodedata
-import re
 
 
 @dataclass
@@ -644,7 +641,7 @@ async def display_evaluation_results(
                     else:
                         if show_detailed_logs:
                             print(
-                                f"                                                                 ⚠️  no_trace_data"
+                                "                                                                 ⚠️  no_trace_data"
                             )
                 except Exception as e:
                     if show_detailed_logs:
@@ -688,11 +685,9 @@ async def display_evaluation_results(
         print("⚠️  No evaluation data found")
 
 
-from typing import Callable, Dict, Optional, Any
+from typing import Dict, Optional, Any
 
 from agenta.sdk.utils.client import authed_api
-import asyncio
-import json
 from typing import Dict, Any, Optional
 
 

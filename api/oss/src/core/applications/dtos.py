@@ -12,7 +12,6 @@ from oss.src.core.shared.dtos import (
     Metadata,
 )
 from oss.src.core.workflows.dtos import (
-    ArtifactFork,
     VariantFork,
     RevisionFork,
     #

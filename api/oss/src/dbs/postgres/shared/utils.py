@@ -1,4 +1,3 @@
-from typing import Optional
 
 from sqlalchemy import Select, and_, or_
 

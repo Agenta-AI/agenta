@@ -1,7 +1,4 @@
 from typing import Awaitable, Tuple, Callable, List, Optional
-from datetime import datetime
-from os import environ
-from json import loads
 
 import stripe
 
@@ -113,10 +110,10 @@ class MetersService:
                 )
 
                 if not meters:
-                    log.info(f"[report] No more meters to process")
+                    log.info("[report] No more meters to process")
                     break
 
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception:  # pylint: disable=broad-exception-caught
                 log.error(
                     f"[report] Error dumping meters for batch #{batch_number}:",
                     exc_info=True,
@@ -214,7 +211,7 @@ class MetersService:
                                 f"[stripe] updating:  {meter.organization_id} |         | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value}"
                             )
 
-                        except Exception as e:  # pylint: disable=broad-exception-caught
+                        except Exception:  # pylint: disable=broad-exception-caught
                             # Actual Stripe API failure — do NOT bump so it
                             # gets retried on the next run.
                             log.error(
@@ -248,7 +245,7 @@ class MetersService:
                                 f"[stripe] reporting: {meter.organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value - meter.synced}"
                             )
 
-                        except Exception as e:  # pylint: disable=broad-exception-caught
+                        except Exception:  # pylint: disable=broad-exception-caught
                             # Actual Stripe API failure — do NOT bump so it
                             # gets retried on the next run.
                             log.error(
@@ -258,7 +255,7 @@ class MetersService:
                             error_count += 1
                             continue
 
-                except Exception as e:  # pylint: disable=broad-exception-caught
+                except Exception:  # pylint: disable=broad-exception-caught
                     log.error(
                         f"[report] Error reporting meter {meter.organization_id}/{meter.key}:",
                         exc_info=True,
@@ -287,7 +284,7 @@ class MetersService:
                 )
                 await self.bump(meters=meters_to_bump)
                 log.info(f"[report] ✅ Batch #{batch_number} completed successfully")
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception:  # pylint: disable=broad-exception-caught
                 log.error(
                     f"[report] ❌ Error bumping batch #{batch_number}:", exc_info=True
                 )
@@ -306,10 +303,10 @@ class MetersService:
             total_skipped += skipped_count
             total_errors += error_count
 
-        log.info(f"[report] ============================================")
-        log.info(f"[report] ✅ REPORT JOB COMPLETED")
+        log.info("[report] ============================================")
+        log.info("[report] ✅ REPORT JOB COMPLETED")
         log.info(f"[report] Total batches: {batch_number}")
         log.info(f"[report] Total reported: {total_reported}")
         log.info(f"[report] Total skipped: {total_skipped}")
         log.info(f"[report] Total errors: {total_errors}")
-        log.info(f"[report] ============================================")
+        log.info("[report] ============================================")

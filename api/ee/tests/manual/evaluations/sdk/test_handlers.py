@@ -16,7 +16,6 @@ ag.init()
 from agenta.sdk.models.workflows import (
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
-    WorkflowServiceRequestData,
     WorkflowServiceResponseData,
 )
 from agenta.sdk.decorators.routing import (

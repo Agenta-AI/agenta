@@ -17,7 +17,7 @@ load_dotenv()
 import asyncio
 import random
 
-from agenta.sdk.evaluations import aevaluate, display
+from agenta.sdk.evaluations import aevaluate
 
 import agenta as ag
 from agenta.sdk.workflows import builtin

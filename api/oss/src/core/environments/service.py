@@ -37,8 +37,6 @@ from oss.src.core.environments.dtos import (
     EnvironmentRevisionEdit,
     EnvironmentRevisionQuery,
     EnvironmentRevisionCommit,
-    EnvironmentRevisionDelta,
-    #
     SimpleEnvironment,
     SimpleEnvironmentCreate,
     SimpleEnvironmentEdit,

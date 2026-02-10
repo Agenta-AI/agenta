@@ -11,7 +11,7 @@ ag.init()
 
 from agenta.sdk.decorators import application, evaluator
 from agenta.sdk.workflows import builtin
-from agenta.sdk.evaluations import aevaluate, display
+from agenta.sdk.evaluations import aevaluate
 
 
 my_testcases_data = [

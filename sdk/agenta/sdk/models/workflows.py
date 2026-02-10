@@ -33,7 +33,6 @@ from agenta.sdk.models.shared import (
     Data,
     Schema,
     Status,
-    Commit,
     AliasConfig,
     sync_alias,
 )
@@ -42,7 +41,6 @@ from agenta.sdk.models.git import (
     Artifact,
     ArtifactCreate,
     ArtifactEdit,
-    ArtifactQuery,
     ArtifactFork,
     Variant,
     VariantCreate,

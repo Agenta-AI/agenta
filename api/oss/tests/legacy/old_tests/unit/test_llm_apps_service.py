@@ -1,13 +1,11 @@
 import pytest
 from unittest.mock import patch, AsyncMock
-import asyncio
 import aiohttp
 
 from oss.src.services.llm_apps_service import (
     batch_invoke,
     InvokationResult,
     Result,
-    Error,
 )
 
 

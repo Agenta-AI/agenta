@@ -19,12 +19,10 @@ import agenta as ag
 
 ag.init()
 
-from agenta.sdk.evaluations import aevaluate, display
+from agenta.sdk.evaluations import aevaluate
 
 from agenta.sdk.models.workflows import (
-    ApplicationRevision,
     ApplicationServiceRequest,
-    EvaluatorRevision,
     EvaluatorServiceRequest,
 )
 
@@ -213,7 +211,7 @@ async def agenta_agent(
     try:
         outputs = await Runner.run(triage_agent, inputs.get("question"))
         return outputs.final_output
-    except InputGuardrailTripwireTriggered as e:
+    except InputGuardrailTripwireTriggered:
         return "I'm sorry, I can't answer that question."
 
 

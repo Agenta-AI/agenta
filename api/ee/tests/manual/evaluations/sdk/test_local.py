@@ -10,7 +10,6 @@ ag.init()
 
 from agenta.sdk.models.workflows import (
     WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
     WorkflowServiceRequest,
 )
 from agenta.sdk.decorators.running import workflow

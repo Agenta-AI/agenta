@@ -10,7 +10,6 @@ from oss.src.core.shared.dtos import (
     Flags,
     Tags,
     Meta,
-    Windowing,
 )
 
 

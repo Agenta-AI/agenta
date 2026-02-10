@@ -12,7 +12,6 @@ from oss.src.models.db_models import (
     TestsetDB,
     AppVariantDB,
     EvaluationDB,
-    DeploymentDB,
     EvaluationScenarioDB,
 )
 

@@ -63,7 +63,7 @@ async def create_human_evaluation(
                 permission=Permission.CREATE_EVALUATION,
             )
             if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+                error_msg = "You do not have permission to perform this action. Please contact your Organization Admin."
                 raise HTTPException(
                     detail=error_msg,
                     status_code=403,
@@ -104,7 +104,7 @@ async def fetch_list_human_evaluations(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            error_msg = "You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
                 detail=error_msg,
                 status_code=403,
@@ -140,7 +140,7 @@ async def fetch_human_evaluation(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            error_msg = "You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
                 detail=error_msg,
                 status_code=403,
@@ -184,7 +184,7 @@ async def fetch_human_evaluation_scenarios(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            error_msg = "You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
                 detail=error_msg,
                 status_code=403,
@@ -226,7 +226,7 @@ async def update_human_evaluation(
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+                error_msg = "You do not have permission to perform this action. Please contact your Organization Admin."
                 raise HTTPException(
                     detail=error_msg,
                     status_code=403,
@@ -277,7 +277,7 @@ async def update_evaluation_scenario_router(
             permission=Permission.EDIT_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            error_msg = "You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
                 detail=error_msg,
                 status_code=403,
@@ -322,7 +322,7 @@ async def get_evaluation_scenario_score_router(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            error_msg = "You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
                 detail=error_msg,
                 status_code=403,
@@ -365,7 +365,7 @@ async def update_evaluation_scenario_score_router(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            error_msg = "You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
                 detail=error_msg,
                 status_code=403,
@@ -405,7 +405,7 @@ async def fetch_results(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            error_msg = "You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
                 detail=error_msg,
                 status_code=403,
@@ -447,7 +447,7 @@ async def delete_evaluations(
             permission=Permission.DELETE_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            error_msg = "You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
                 detail=error_msg,
                 status_code=403,

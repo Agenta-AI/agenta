@@ -83,11 +83,9 @@ from agenta.sdk.models.workflows import (
     WorkflowRevision,
     WorkflowRevisionData,
     WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
     WorkflowServiceRequest,
     WorkflowServiceResponse,
     Status,
-    Data,
 )
 
 

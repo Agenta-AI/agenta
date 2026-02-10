@@ -1,4 +1,3 @@
-import os
 
 from oss.src.utils.env import env
 

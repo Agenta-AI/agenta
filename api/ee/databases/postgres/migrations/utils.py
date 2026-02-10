@@ -2,7 +2,7 @@ import os
 import subprocess
 import tempfile
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from sqlalchemy.exc import ProgrammingError

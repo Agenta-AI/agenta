@@ -1,7 +1,6 @@
 from typing import Sequence, Dict, List, Optional
 from threading import Thread
 from os import environ
-from uuid import UUID
 
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter,

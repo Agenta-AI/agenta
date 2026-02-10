@@ -6,18 +6,15 @@ from fastapi import APIRouter, Request, status, Depends, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import set_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.evaluators.dtos import (
-    EvaluatorFlags,
     EvaluatorQueryFlags,
     #
     EvaluatorQuery,
-    #
-    EvaluatorRevision,
     #
     SimpleEvaluatorData,
     SimpleEvaluatorQuery,
@@ -61,17 +58,9 @@ from oss.src.apis.fastapi.evaluators.models import (
     SimpleEvaluatorsResponse,
 )
 from oss.src.apis.fastapi.evaluators.utils import (
-    parse_evaluator_query_request_from_params,
-    parse_evaluator_query_request_from_body,
-    merge_evaluator_query_requests,
     parse_evaluator_variant_query_request_from_params,
     parse_evaluator_variant_query_request_from_body,
     merge_evaluator_variant_query_requests,
-    parse_evaluator_revision_query_request_from_params,
-    parse_evaluator_revision_query_request_from_body,
-    merge_evaluator_revision_query_requests,
-    parse_evaluator_revision_retrieve_request_from_params,
-    parse_evaluator_revision_retrieve_request_from_body,
 )
 
 if is_ee():

@@ -2,16 +2,13 @@
 
 from typing import Any, Callable, Optional, Protocol, Union, Dict
 from functools import update_wrapper, wraps
-from typing import Callable, Any
 from inspect import signature
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.workflows import (
-    WorkflowRevisionData,
     WorkflowRevision,
     WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
     WorkflowServiceRequest,
     WorkflowServiceInterface,
     WorkflowServiceConfiguration,
@@ -32,7 +29,6 @@ from agenta.sdk.middlewares.running.resolver import (
 )
 from agenta.sdk.middlewares.running.vault import (
     VaultMiddleware,
-    get_secrets,
 )
 from agenta.sdk.decorators.tracing import auto_instrument
 from agenta.sdk.workflows.utils import (
@@ -548,7 +544,7 @@ class application(workflow):
             # is_human=False,  # None / False / missing is the same
         )
 
-        if not "references" in kwargs or not isinstance(kwargs["references"], dict):
+        if "references" not in kwargs or not isinstance(kwargs["references"], dict):
             kwargs["references"] = dict()
 
         for key in kwargs["references"]:
@@ -651,7 +647,7 @@ class evaluator(workflow):
             # is_human=False,  # None / False / missing is the same
         )
 
-        if not "references" in kwargs or not isinstance(kwargs["references"], dict):
+        if "references" not in kwargs or not isinstance(kwargs["references"], dict):
             kwargs["references"] = dict()
 
         for key in kwargs["references"]:

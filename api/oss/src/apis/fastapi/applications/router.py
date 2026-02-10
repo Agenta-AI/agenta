@@ -6,13 +6,10 @@ from fastapi import APIRouter, status, Request, Depends, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import set_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
-)
-from oss.src.core.applications.dtos import (
-    ApplicationRevision,
 )
 from oss.src.core.applications.services import (
     ApplicationsService,
@@ -52,8 +49,6 @@ from oss.src.apis.fastapi.applications.utils import (
     parse_application_variant_query_request_from_params,
     parse_application_variant_query_request_from_body,
     merge_application_variant_query_requests,
-    parse_application_revision_retrieve_request_from_params,
-    parse_application_revision_retrieve_request_from_body,
 )
 
 if is_ee():

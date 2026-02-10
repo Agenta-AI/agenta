@@ -12,7 +12,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import AppVariantDB, AppDB
 
 if is_ee():
-    from ee.src.services import db_manager_ee
+    pass
 
 log = get_module_logger(__name__)
 
@@ -204,7 +204,7 @@ async def remove_app(app: AppDB):
         if len(app_variants) == 0:
             await remove_app_related_resources(str(app.id), str(app.project_id))
 
-    except Exception as e:
+    except Exception:
         # Failsafe: in case something went wrong,
         # delete app and its related resources
         try:

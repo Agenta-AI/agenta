@@ -99,7 +99,7 @@ def add_completion_testset_to_project(session: Session, project_id: str):
         if os.path.exists(json_path):
             csvdata = db_manager.get_json(json_path)
             testset = {
-                "name": f"completion_testset",
+                "name": "completion_testset",
                 "csvdata": csvdata,
             }
             testset_db = TestsetDB(

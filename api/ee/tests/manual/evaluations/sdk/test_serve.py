@@ -18,7 +18,6 @@ ag.init(
 
 
 from agenta.sdk.models.workflows import (
-    WorkflowServiceRequestData,
     WorkflowServiceResponseData,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
@@ -32,13 +31,9 @@ from agenta.sdk.decorators.running import (
     WorkflowServiceRequest,
     workflow,
 )
-from agenta.sdk.decorators.tracing import (
-    instrument,
-)
 
 from agenta.sdk.workflows import builtin
 
-from agenta.sdk.workflows.utils import HANDLER_REGISTRY
 
 custom_app = create_app()
 

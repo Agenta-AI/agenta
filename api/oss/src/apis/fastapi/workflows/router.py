@@ -2,19 +2,14 @@ from typing import Optional, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status, HTTPException, Depends
-from fastapi.responses import Response, JSONResponse, StreamingResponse
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import set_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
-)
-from oss.src.core.workflows.dtos import (
-    WorkflowRevisionData,
-    WorkflowRevision,
 )
 from oss.src.core.workflows.service import (
     WorkflowsService,
@@ -53,8 +48,6 @@ from oss.src.apis.fastapi.workflows.utils import (
     parse_workflow_revision_query_request_from_params,
     parse_workflow_revision_query_request_from_body,
     merge_workflow_revision_query_requests,
-    parse_workflow_revision_retrieve_request_from_params,
-    parse_workflow_revision_retrieve_request_from_body,
 )
 
 from agenta.sdk.models.workflows import (

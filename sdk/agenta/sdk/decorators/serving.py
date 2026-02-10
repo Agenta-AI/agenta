@@ -16,7 +16,6 @@ from os import environ
 
 if TYPE_CHECKING:
     from fastapi import Request, HTTPException, Body
-    from starlette.responses import Response as StarletteResponse, StreamingResponse
 else:
     # Lazy imports - only loaded when @entrypoint or @route is used
     Request = None
@@ -31,7 +30,6 @@ from agenta.sdk.contexts.tracing import (
     tracing_context_manager,
     TracingContext,
 )
-from agenta.sdk.router import router
 from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.helpers import get_current_version
@@ -40,7 +38,6 @@ from agenta.sdk.types import (
     MultipleChoice,
     BaseResponse,
     StreamResponse,
-    MCField,
 )
 
 import agenta as ag

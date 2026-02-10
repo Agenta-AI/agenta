@@ -20,8 +20,7 @@ from agenta.sdk.middlewares.routing.cors import CORSMiddleware
 from agenta.sdk.middlewares.routing.auth import AuthMiddleware
 from agenta.sdk.middlewares.routing.otel import OTelMiddleware
 from agenta.sdk.middleware.vault import VaultMiddleware
-from agenta.sdk.contexts.running import running_context_manager, RunningContext
-from agenta.sdk.contexts.tracing import tracing_context_manager, TracingContext
+from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.decorators.running import auto_workflow, Workflow
 from agenta.sdk.workflows.errors import ErrorStatus
 

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List, Union, Optional, Dict, Literal, Any
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
-from pydantic import BaseModel, Field, model_validator, AliasChoices
+from pydantic import Field, model_validator, AliasChoices
 
 from starlette.responses import StreamingResponse
 

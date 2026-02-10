@@ -26,7 +26,9 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from oss.src.dbs.postgres.shared.base import Base
 
-import oss.src.dbs.postgres.tracing.dbes
+# Side-effect import: register SQLAlchemy model with Base.metadata
+# so Alembic autogenerate can discover it.
+import oss.src.dbs.postgres.tracing.dbes  # noqa: F401
 
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata

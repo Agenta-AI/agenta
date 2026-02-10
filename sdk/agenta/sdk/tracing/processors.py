@@ -1,6 +1,5 @@
 from threading import Lock
 from typing import Dict, List, Optional
-from uuid import UUID
 
 
 from agenta.sdk.contexts.tracing import TracingContext
@@ -15,9 +14,7 @@ from opentelemetry.sdk.trace.export import (
 )
 from opentelemetry.trace import SpanContext
 
-from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.tracing import BaseModel
-from agenta.sdk.contexts.tracing import TracingContext
 
 log = get_module_logger(__name__)
 

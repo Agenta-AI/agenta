@@ -5,7 +5,7 @@ import asyncio
 import traceback
 
 from pydantic import ValidationError
-from fastapi import Request, HTTPException, Response
+from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from supertokens_python.recipe.session.asyncio import get_session
@@ -19,13 +19,11 @@ from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
-from oss.src.utils.logging import get_module_logger
 from oss.src.services import api_key_service
 from oss.src.services.exceptions import (
     UnauthorizedException,
     InternalServerErrorException,
     GatewayTimeoutException,
-    code_to_phrase,
 )
 
 from oss.src.core.auth.service import AuthService

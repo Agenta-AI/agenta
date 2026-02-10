@@ -1621,7 +1621,6 @@ class LegacyEnvironmentsAdapter:
 
         Returns (variant_id_str, variant_name) or (None, None).
         """
-        from oss.src.core.applications.dtos import ApplicationRevision
 
         revisions = await self.applications_service.query_application_revisions(
             project_id=project_id,

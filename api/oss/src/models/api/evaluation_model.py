@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field, model_validator, ConfigDict
 from oss.src.utils import traces
 from oss.src.models.api.api_models import Result
 
-from oss.src.core.shared.dtos import Tags, Meta
 
 
 class LegacyEvaluator(BaseModel):

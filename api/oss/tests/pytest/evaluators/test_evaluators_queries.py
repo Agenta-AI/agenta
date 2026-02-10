@@ -1,6 +1,4 @@
 from uuid import uuid4
-from json import dumps
-from urllib.parse import quote
 
 import pytest
 

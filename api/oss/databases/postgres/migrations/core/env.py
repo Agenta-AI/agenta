@@ -16,8 +16,6 @@ config = context.config
 config.set_main_option("sqlalchemy.url", POSTGRES_URI_CORE)  # type: ignore
 
 
-import oss.src.dbs.postgres.secrets.dbes
-
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
@@ -27,7 +25,17 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from oss.src.dbs.postgres.shared.base import Base
 
-import oss.src.dbs.postgres.secrets.dbes
+# Side-effect imports: register SQLAlchemy models with Base.metadata
+# so Alembic autogenerate can discover them.
+import oss.src.dbs.postgres.environments.dbes  # noqa: F401
+import oss.src.dbs.postgres.evaluations.dbes  # noqa: F401
+import oss.src.dbs.postgres.folders.dbes  # noqa: F401
+import oss.src.dbs.postgres.queries.dbes  # noqa: F401
+import oss.src.dbs.postgres.secrets.dbes  # noqa: F401
+import oss.src.dbs.postgres.testcases.dbes  # noqa: F401
+import oss.src.dbs.postgres.testsets.dbes  # noqa: F401
+import oss.src.dbs.postgres.users.dbes  # noqa: F401
+import oss.src.dbs.postgres.workflows.dbes  # noqa: F401
 
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata

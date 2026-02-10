@@ -404,7 +404,7 @@ class TracingWorker:
                 if processed_message_ids:
                     await self.ack_and_delete(processed_message_ids)
 
-            except Exception as e:
+            except Exception:
                 log.error(
                     "[INGEST] Error in worker loop: {e}",
                     exc_info=True,
