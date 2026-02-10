@@ -8,10 +8,9 @@ from pydantic import BaseModel
 from agenta.sdk.models.evaluations import (
     Origin,
     Target,
-    Link,
-    Reference,
     SimpleEvaluationData,
 )
+from agenta.sdk.models.shared import Link, Reference
 from agenta.sdk.models.workflows import (
     ApplicationRevision,
     EvaluatorRevision,
