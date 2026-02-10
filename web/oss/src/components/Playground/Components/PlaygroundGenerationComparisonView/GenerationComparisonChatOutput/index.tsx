@@ -84,6 +84,7 @@ const GenerationComparisonChatOutputCell = ({
 
                         <div className="flex flex-col gap-2">
                             <TurnMessageAdapter
+                                variantId={variantId}
                                 rowId={turnId as string}
                                 kind="user"
                                 className="w-full"

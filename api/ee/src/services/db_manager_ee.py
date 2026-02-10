@@ -568,6 +568,14 @@ async def create_workspace_db_object(
         user_id=user.id,
     )
 
+    # Create default project-scoped environments for the default project.
+    from oss.src.core.environments.defaults import create_default_environments
+
+    await create_default_environments(
+        project_id=project_db.id,
+        user_id=user.id,
+    )
+
     if return_wrk_prj:
         return workspace, project_db
 

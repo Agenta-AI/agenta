@@ -113,6 +113,28 @@ export {
     outputConnectionController,
     entitySelectorController,
     executionController,
+    playgroundSnapshotController,
+    applyPendingHydration,
+    applyPendingHydrationsForRevision,
+    clearPendingHydrations,
+    pendingHydrations,
+    pendingHydrationsAtom,
+    setSelectionUpdateCallback,
+    isPlaceholderId,
+    urlSnapshotController,
+    setRunnableTypeResolver,
+    getRunnableTypeResolver,
+    resetRunnableTypeResolver,
+} from "./controllers"
+
+export type {
+    CreateSnapshotResult,
+    HydrateSnapshotResult,
+    SnapshotSelectionInput,
+    RunnableTypeResolver,
+    BuildEncodedSnapshotResult,
+    UrlComponents,
+    HydrateFromUrlResult,
 } from "./controllers"
 
 // ============================================================================

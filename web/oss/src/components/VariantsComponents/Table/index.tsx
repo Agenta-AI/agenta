@@ -6,9 +6,9 @@ import {atom, useAtom} from "jotai"
 
 import useURL from "@/oss/hooks/useURL"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {variantTableSelectionAtomFamily} from "@/oss/state/variant/atoms/selection"
 
 import ResizableTitle from "../../ResizableTitle"
+import {variantTableSelectionAtomFamily} from "../store/selectionAtoms"
 
 import {getColumns} from "./assets/getVariantColumns"
 

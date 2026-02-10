@@ -1,11 +1,11 @@
+import {getMetadataLazy} from "@agenta/entities/legacyAppRevision"
+import {generateId} from "@agenta/shared/utils"
 import {produce} from "immer"
 import {atom} from "jotai"
 
 import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
 import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 // import {updateGenerationDataPropertyMutationAtom} from "@/oss/components/Playground/state/atoms/propertyMutations"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {
     chatSessionsByIdAtom,
     // chatSessionIdsAtom,

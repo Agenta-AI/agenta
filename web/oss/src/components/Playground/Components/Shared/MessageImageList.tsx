@@ -35,11 +35,15 @@ const MessageImageList: React.FC<MessageImageListProps> = ({
                         imageFile={{
                             status: "done",
                             thumbUrl: currentUrl,
-                            uid: currentUrl || property.__id,
-                            name: currentUrl || property.__id,
+                            uid: property.__id,
+                            name: property.__id,
                         }}
                         handleUploadFileChange={(newFile) => {
-                            const url = (newFile as any)?.url || (newFile as any)?.thumbUrl || ""
+                            const url =
+                                (newFile as any)?.base64 ||
+                                (newFile as any)?.url ||
+                                (newFile as any)?.thumbUrl ||
+                                ""
                             if (!url) return
                             onChange?.(property.__id, url)
                         }}

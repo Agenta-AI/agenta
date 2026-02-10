@@ -499,13 +499,36 @@ export async function executeRunnable(
 
         if (!response.ok) {
             const errorText = await response.text()
+            let errorMessage = `Request failed with status ${response.status}`
+
+            try {
+                const errorData = JSON.parse(errorText)
+                // New invoke endpoint format: { status: { message, code, type } }
+                if (errorData?.status?.message) {
+                    errorMessage = errorData.status.message
+                }
+                // Legacy endpoint format: { detail: { message } }
+                else if (errorData?.detail?.message) {
+                    errorMessage = errorData.detail.message
+                }
+                // Legacy endpoint format: { detail: "string" }
+                else if (typeof errorData?.detail === "string") {
+                    errorMessage = errorData.detail
+                }
+            } catch {
+                // Response is not JSON, use raw text if available
+                if (errorText) {
+                    errorMessage = errorText
+                }
+            }
+
             return {
                 executionId,
                 status: "error",
                 startedAt,
                 completedAt: new Date().toISOString(),
                 error: {
-                    message: `Request failed: ${response.status} ${errorText}`,
+                    message: errorMessage,
                 },
             }
         }

@@ -1192,6 +1192,17 @@ async def setup_oss_organization_for_first_user(
         }
     )
 
+    # Ensure project-scoped default environments exist for the default project.
+    from oss.src.core.environments.defaults import create_default_environments
+
+    default_project_id = await get_default_project_id_from_workspace(
+        str(workspace_db.id)
+    )
+    await create_default_environments(
+        project_id=uuid.UUID(default_project_id),
+        user_id=user_id,
+    )
+
     analytics_service.capture_oss_deployment_created(
         user_email=user_email,
         organization_id=str(organization_db.id),

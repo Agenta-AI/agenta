@@ -7,7 +7,7 @@ import ipaddress
 import traceback
 from difflib import SequenceMatcher
 from json import dumps, loads
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
 import httpx
@@ -1974,7 +1974,10 @@ async def completion_v0(
     )
 
     if not provider_settings:
-        raise InvalidSecretsV0Error(expected="dict", got=provider_settings)
+        model = getattr(
+            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
+        )
+        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
 
     formatted_prompt = config.prompt.format(**inputs)
 
@@ -2039,7 +2042,10 @@ async def chat_v0(
     )
 
     if not provider_settings:
-        raise InvalidSecretsV0Error(expected="dict", got=provider_settings)
+        model = getattr(
+            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
+        )
+        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
 
     provider_settings = _apply_responses_bridge_if_needed(
         formatted_prompt, provider_settings

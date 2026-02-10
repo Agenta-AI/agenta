@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import {getMetadataLazy} from "@agenta/entities/legacyAppRevision"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
@@ -8,7 +9,6 @@ import {
     promptTemplateFormatAtomFamily,
     type PromptTemplateFormat,
 } from "@/oss/components/Playground/state/atoms"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import type {
     BaseOption,
     OptionGroup,
