@@ -1,5 +1,8 @@
 import os
 import importlib.metadata
+import re
+from typing import Dict, Tuple
+
 
 
 def get_current_version():
@@ -43,3 +46,32 @@ def parse_url(url: str) -> str:
         return url
 
     return url
+
+
+_PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
+
+
+def apply_replacements_with_tracking(
+    template: str, replacements: Dict[str, str]
+) -> Tuple[str, set]:
+    """
+    Replace {{ expr }} and track which placeholders were successfully replaced.
+    Returns (result, successfully_replaced_set).
+    
+    This allows us to distinguish between:
+    - Placeholders that failed to be replaced (actual errors)
+    - Placeholders in the substituted values (not errors)
+    
+    Used by both types.py and workflows/handlers.py for curly template formatting.
+    """
+    successfully_replaced: set = set()
+
+    def _repl(m: re.Match) -> str:
+        expr = m.group(1).strip()
+        if expr in replacements:
+            successfully_replaced.add(expr)
+            return replacements[expr]
+        return m.group(0)
+
+    result = _PLACEHOLDER_RE.sub(_repl, template)
+    return result, successfully_replaced
