@@ -43,9 +43,9 @@ else:
     from pydantic.typing import is_literal_type as is_literal_type  # type: ignore[no-redef]
     from pydantic.typing import is_union as is_union  # type: ignore[no-redef]
 
-from .datetime_utils import serialize_datetime
-from .serialization import convert_and_respect_annotation_metadata
-from typing_extensions import TypeAlias
+from .datetime_utils import serialize_datetime  # noqa: E402
+from .serialization import convert_and_respect_annotation_metadata  # noqa: E402
+from typing_extensions import TypeAlias  # noqa: E402
 
 T = TypeVar("T")
 Model = TypeVar("Model", bound=pydantic.BaseModel)

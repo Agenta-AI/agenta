@@ -5,20 +5,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import agenta as ag
+import agenta as ag  # noqa: E402
 
 ag.init()
 
-from agenta.sdk.decorators import application, evaluator
-from agenta.sdk.workflows import builtin
-from agenta.sdk.evaluations import aevaluate
+from agenta.sdk.decorators import application, evaluator  # noqa: E402
+from agenta.sdk.workflows import builtin  # noqa: E402
+from agenta.sdk.evaluations import aevaluate  # noqa: E402
 
-from agents import Runner
-from agents.exceptions import InputGuardrailTripwireTriggered
+from agents import Runner  # noqa: E402
+from agents.exceptions import InputGuardrailTripwireTriggered  # noqa: E402
 
-from openai_agent import triage_agent
+from openai_agent import triage_agent  # noqa: E402
 
-from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
+from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor  # noqa: E402
 
 OpenAIAgentsInstrumentor().instrument()
 

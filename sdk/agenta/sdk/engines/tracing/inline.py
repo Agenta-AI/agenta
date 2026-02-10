@@ -31,10 +31,10 @@ class LifecycleDTO(BaseModel):
 ### services.observability.dtos ###
 ### --------------------------- ###
 
-from typing import List, Dict, Any, Union, Optional
+from typing import List, Dict, Any, Union, Optional  # noqa: E402
 
-from datetime import datetime
-from uuid import UUID
+from datetime import datetime  # noqa: E402
+from uuid import UUID  # noqa: E402
 
 
 class TimeDTO(BaseModel):
@@ -217,7 +217,7 @@ class OTelSpanDTO(BaseModel):
 ### services.observability.utils ###
 ### ---------------------------- ###
 
-from typing import List, Dict, OrderedDict
+from typing import List, Dict, OrderedDict  # noqa: E402
 
 
 def parse_span_dtos_to_span_idx(
@@ -414,7 +414,7 @@ def _connect_tree_dfs(
 ### apis.fastapi.observability.opentelemetry.semconv ###
 ### ------------------------------------------------ ###
 
-from json import loads
+from json import loads  # noqa: E402
 
 VERSION = "0.4.1"
 
@@ -524,10 +524,10 @@ CODEX = {"maps": MAPS[VERSION], "keys": KEYS[VERSION]}
 ### apis.fastapi.observability.utils ###
 ### -------------------------------- ###
 
-from typing import Optional, Union, Tuple, Any, List, Dict
-from uuid import UUID
-from collections import OrderedDict
-from copy import copy
+from typing import Optional, Union, Tuple, Any, List, Dict  # noqa: E402
+from uuid import UUID  # noqa: E402
+from collections import OrderedDict  # noqa: E402
+from copy import copy  # noqa: E402
 
 
 def _unmarshal_attributes(
@@ -955,11 +955,11 @@ def parse_to_agenta_span_dto(
 ########################################
 
 
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace import ReadableSpan  # noqa: E402
 
-from agenta.sdk.utils.lazy import _load_litellm
+from agenta.sdk.utils.lazy import _load_litellm  # noqa: E402
 
-from agenta.sdk.types import AgentaNodeDto, AgentaNodesResponse
+from agenta.sdk.types import AgentaNodeDto, AgentaNodesResponse  # noqa: E402
 
 
 def parse_inline_trace(

@@ -558,12 +558,12 @@ async def remove_variant_revision(
 
 ### --- CONFIGS --- ###
 
-from oss.src.services.variants_manager import (
+from oss.src.services.variants_manager import (  # noqa: E402
     BaseModel,
     ReferenceDTO,
     ConfigDTO,
 )
-from oss.src.services.variants_manager import (
+from oss.src.services.variants_manager import (  # noqa: E402
     add_config,
     fetch_config_by_variant_ref,
     fetch_config_by_environment_ref,

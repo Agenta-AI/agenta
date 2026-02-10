@@ -5,11 +5,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI  # noqa: E402
 
 os.environ["AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED"] = "false"
 
-import agenta as ag
+import agenta as ag  # noqa: E402
 
 ag.init(
     api_url="http://localhost",
@@ -17,22 +17,22 @@ ag.init(
 )
 
 
-from agenta.sdk.models.workflows import (
+from agenta.sdk.models.workflows import (  # noqa: E402
     WorkflowServiceResponseData,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
 )
-from agenta.sdk.decorators.routing import (
+from agenta.sdk.decorators.routing import (  # noqa: E402
     route,
     default_app,
     create_app,
 )
-from agenta.sdk.decorators.running import (
+from agenta.sdk.decorators.running import (  # noqa: E402
     WorkflowServiceRequest,
     workflow,
 )
 
-from agenta.sdk.workflows import builtin
+from agenta.sdk.workflows import builtin  # noqa: E402
 
 
 custom_app = create_app()

@@ -685,10 +685,10 @@ async def display_evaluation_results(
         print("⚠️  No evaluation data found")
 
 
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any  # noqa: E402
 
-from agenta.sdk.utils.client import authed_api
-from typing import Dict, Any, Optional
+from agenta.sdk.utils.client import authed_api  # noqa: E402
+from typing import Dict, Any, Optional  # noqa: E402
 
 
 async def fetch_trace_data(

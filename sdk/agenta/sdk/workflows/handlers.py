@@ -7,7 +7,7 @@ import ipaddress
 import traceback
 from difflib import SequenceMatcher
 from json import dumps, loads
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Iterable, Tuple
 from urllib.parse import urlparse
 
 import httpx
@@ -129,9 +129,6 @@ def _compute_similarity(embedding_1: List[float], embedding_2: List[float]) -> f
     if norm1 == 0 or norm2 == 0:
         return 0.0
     return dot / (norm1 * norm2)
-
-
-from typing import Any, Iterable, Tuple
 
 
 # ========= Scheme detection =========
