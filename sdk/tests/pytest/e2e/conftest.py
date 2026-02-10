@@ -33,9 +33,7 @@ def _env_available() -> bool:
 @pytest.fixture(autouse=True)
 def _skip_e2e_if_missing_env(request):
     if request.node.get_closest_marker("e2e") and not _env_available():
-        pytest.skip(
-            "E2E env not available (set AGENTA_API_URL and AGENTA_AUTH_KEY)"
-        )
+        pytest.skip("E2E env not available (set AGENTA_API_URL and AGENTA_AUTH_KEY)")
 
 
 @pytest.fixture(scope="session")
