@@ -1522,6 +1522,68 @@ async def get_project_members(project_id: str):
         return project_members
 
 
+async def project_member_exists(
+    *,
+    project_id: str,
+    user_id: str,
+) -> bool:
+    """Check whether a user is a member of a project.
+
+    Uses an EXISTS sub-query so the database can stop at the first
+    matching row instead of materialising the full member list.
+
+    Args:
+        project_id: The project to check.
+        user_id: The user to look for.
+
+    Returns:
+        True if the user belongs to the project, False otherwise.
+    """
+
+    async with engine.core_session() as session:
+        stmt = select(
+            select(ProjectMemberDB.id)
+            .filter(
+                ProjectMemberDB.project_id == uuid.UUID(project_id),
+                ProjectMemberDB.user_id == uuid.UUID(user_id),
+            )
+            .exists()
+        )
+        result = await session.execute(stmt)
+        return result.scalar() or False
+
+
+async def workspace_member_exists(
+    *,
+    workspace_id: str,
+    user_id: str,
+) -> bool:
+    """Check whether a user is a member of a workspace.
+
+    Uses an EXISTS sub-query so the database can stop at the first
+    matching row instead of materialising the full member list.
+
+    Args:
+        workspace_id: The workspace to check.
+        user_id: The user to look for.
+
+    Returns:
+        True if the user belongs to the workspace, False otherwise.
+    """
+
+    async with engine.core_session() as session:
+        stmt = select(
+            select(WorkspaceMemberDB.id)
+            .filter(
+                WorkspaceMemberDB.workspace_id == uuid.UUID(workspace_id),
+                WorkspaceMemberDB.user_id == uuid.UUID(user_id),
+            )
+            .exists()
+        )
+        result = await session.execute(stmt)
+        return result.scalar() or False
+
+
 async def create_org_workspace_invitation(
     workspace_role: str,
     token: str,
