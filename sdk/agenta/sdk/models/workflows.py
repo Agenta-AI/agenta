@@ -72,7 +72,7 @@ class WorkflowFlags(BaseModel):
 
 
 class WorkflowServiceInterface(BaseModel):
-    version: str = "2025.07.14"
+    version: Optional[str] = "2025.07.14"
 
     uri: Optional[str] = None
     url: Optional[str] = None
@@ -180,7 +180,7 @@ class WorkflowServiceResponseData(BaseModel):
 
 
 class WorkflowServiceBaseRequest(Metadata):
-    version: str = "2025.07.14"
+    version: Optional[str] = "2025.07.14"
 
     interface: Optional[Union[WorkflowServiceInterface, Dict[str, Any]]] = None
     configuration: Optional[Union[WorkflowServiceConfiguration, Dict[str, Any]]] = None
@@ -222,7 +222,7 @@ class WorkflowServiceRequest(WorkflowServiceBaseRequest):
 
 
 class WorkflowServiceBaseResponse(TraceID, SpanID):
-    version: str = "2025.07.14"
+    version: Optional[str] = "2025.07.14"
 
     status: Optional[WorkflowServiceStatus] = WorkflowServiceStatus()
 

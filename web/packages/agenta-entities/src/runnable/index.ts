@@ -135,6 +135,17 @@ export {
 export type {PathSource, ExecuteRunnableOptions} from "./utils"
 
 // ============================================================================
+// SNAPSHOT ADAPTER
+// ============================================================================
+
+export {snapshotAdapterRegistry} from "./snapshotAdapter"
+export type {
+    RunnableSnapshotAdapter,
+    RunnableDraftPatch,
+    BuildDraftPatchResult,
+} from "./snapshotAdapter"
+
+// ============================================================================
 // PROVIDER TYPES (for playground entity injection)
 // ============================================================================
 

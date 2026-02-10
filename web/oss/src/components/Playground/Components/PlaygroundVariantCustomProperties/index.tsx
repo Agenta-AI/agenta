@@ -1,7 +1,6 @@
 import {memo, useCallback, useMemo} from "react"
 
 import {
-    revisionEnhancedCustomPropertiesAtomFamily,
     metadataAtom,
     legacyAppRevisionSchemaQueryAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
@@ -12,6 +11,7 @@ import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 
 import {customPropertyIdsByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
+import {moleculeBackedCustomPropertiesAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {parameterUpdateMutationAtom} from "../../state/atoms/propertyMutations"
 import {useStyles} from "../PlaygroundVariantConfigPrompt/styles"
@@ -38,13 +38,13 @@ const {Text} = Typography
 
 const PlaygroundVariantCustomProperty = memo(
     ({variantId, viewOnly, id, customPropsRecord}: PlaygroundVariantCustomPropertyProps) => {
-        // Use entity-level enhanced custom properties directly for proper reactivity
+        // Use molecule-backed custom properties for proper reactivity with draft/discard
         const propertyAtom = useMemo(() => {
             return customPropsRecord
                 ? atom(() => customPropsRecord[id])
                 : selectAtom(
-                      revisionEnhancedCustomPropertiesAtomFamily(variantId),
-                      (state) => state[id],
+                      moleculeBackedCustomPropertiesAtomFamily(variantId),
+                      (state) => (state as Record<string, any>)?.[id],
                       deepEqual,
                   )
         }, [variantId, id, customPropsRecord])
@@ -85,13 +85,7 @@ const PlaygroundVariantCustomProperty = memo(
         const handleChange = useCallback(
             (newValue: any, _arg?: any, subPropertyId?: string) => {
                 const pid = subPropertyId || (customProperty as any)?.__id
-                if (process.env.NODE_ENV === "development") {
-                    console.debug("[CustomProps][Mut][UI]", {
-                        variantId,
-                        propertyId: pid,
-                        newValue,
-                    })
-                }
+
                 updateParam({
                     event: newValue,
                     propertyId: pid,
@@ -100,30 +94,6 @@ const PlaygroundVariantCustomProperty = memo(
             },
             [variantId, updateParam],
         )
-
-        // Debug logging
-        if (process.env.NODE_ENV === "development") {
-            console.info("[PlaygroundVariantCustomProperty] METADATA LOOKUP", {
-                id,
-                variantId,
-                metadataHash: (customProperty as any)?.__metadata,
-                globalMeta,
-                meta,
-                type,
-                hasRenderer: !!renderer,
-                customPropertyKeys: customProperty ? Object.keys(customProperty as object) : [],
-            })
-            console.info("[PlaygroundVariantCustomProperty]", {
-                id,
-                variantId,
-                hasCustomProperty: !!customProperty,
-                customPropertyValue: (customProperty as any)?.value,
-                customPropertySchema: (customProperty as any)?.schema,
-                meta,
-                type,
-                hasRenderer: !!renderer,
-            })
-        }
 
         if (!customProperty) {
             return null
@@ -163,18 +133,10 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
 
     // Subscribe directly to schema query to ensure re-render when async data arrives
     // This is the root subscription that triggers downstream atom updates
-    const schemaQuery = useAtomValue(legacyAppRevisionSchemaQueryAtomFamily(variantId))
+    useAtomValue(legacyAppRevisionSchemaQueryAtomFamily(variantId))
 
     // Derive custom properties from spec + saved params using new selector
     const atomCustomPropertyIds = useAtomValue(customPropertyIdsByRevisionAtomFamily(variantId))
-
-    console.log("[UI] PlaygroundVariantCustomProperties render", {
-        variantId,
-        atomCustomPropertyIds,
-        atomCustomPropertyIdsLength: atomCustomPropertyIds?.length,
-        schemaQueryPending: schemaQuery.isPending,
-        schemaQueryHasData: !!schemaQuery.data?.agConfigSchema,
-    })
 
     const customPropertyIds = useMemo(() => {
         return providedCustomProps ? Object.keys(providedCustomProps) : atomCustomPropertyIds

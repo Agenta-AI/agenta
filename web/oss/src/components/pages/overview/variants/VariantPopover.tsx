@@ -8,7 +8,7 @@ import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {Environment} from "@/oss/lib/Types"
-import {variantUserDisplayNameAtomFamily} from "@/oss/state/variant/selectors/variant"
+import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 type VariantPopoverProps = {
     env: Environment
@@ -16,8 +16,14 @@ type VariantPopoverProps = {
 } & React.ComponentProps<typeof Popover>
 
 const ModifiedByText = ({variant}: {variant: EnhancedVariant}) => {
-    const name = useAtomValue(variantUserDisplayNameAtomFamily(variant.id))
-    if (!name) return null
+    const revisionData = useAtomValue(moleculeBackedVariantAtomFamily(variant.id)) as any
+    const name: string | null =
+        revisionData?.modifiedByDisplayName ??
+        revisionData?.modifiedBy ??
+        revisionData?.modified_by ??
+        (variant as any)?.modifiedBy ??
+        null
+    if (!name || name === "-") return null
     return <Typography.Text className="font-normal">{name}</Typography.Text>
 }
 
