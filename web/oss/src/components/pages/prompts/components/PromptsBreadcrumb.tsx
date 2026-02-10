@@ -306,7 +306,7 @@ const PromptsBreadcrumb = ({
         })
 
         return base
-    }, [actionItems, currentFolderId, folderChain, foldersById, onFolderChange])
+    }, [actionItems, currentFolderId, folderChain, foldersById, onFolderChange, token])
 
     return <Breadcrumb items={items} className={classes.container} />
 }
