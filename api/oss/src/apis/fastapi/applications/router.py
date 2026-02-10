@@ -62,6 +62,8 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+# TEMPORARY: Disabling name editing
+RENAME_APPS_DISABLED_MESSAGE = "Renaming applications is temporarily disabled."
 
 
 class ApplicationsRouter:
@@ -381,6 +383,25 @@ class ApplicationsRouter:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Application ID in path does not match application ID in request body.",
+            )
+
+        # TEMPORARY: Disabling name editing
+        existing_application = await self.applications_service.fetch_application(
+            project_id=UUID(request.state.project_id),
+            application_ref=Reference(id=application_id),
+        )
+        if existing_application is None:
+            return ApplicationResponse()
+
+        edit_model = application_edit_request.application
+        if (
+            "name" in edit_model.model_fields_set
+            and edit_model.name is not None
+            and edit_model.name != existing_application.name
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RENAME_APPS_DISABLED_MESSAGE,
             )
 
         application = await self.applications_service.edit_application(
@@ -1204,6 +1225,27 @@ class SimpleApplicationsRouter:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Application ID in path does not match application ID in request body.",
+            )
+
+        # TEMPORARY: Disabling name editing
+        existing_application = (
+            await self.simple_applications_service.applications_service.fetch_application(
+                project_id=UUID(request.state.project_id),
+                application_ref=Reference(id=application_id),
+            )
+        )
+        if existing_application is None:
+            return SimpleApplicationResponse()
+
+        edit_model = simple_application_edit_request.application
+        if (
+            "name" in edit_model.model_fields_set
+            and edit_model.name is not None
+            and edit_model.name != existing_application.name
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RENAME_APPS_DISABLED_MESSAGE,
             )
 
         simple_application = await self.simple_applications_service.edit(

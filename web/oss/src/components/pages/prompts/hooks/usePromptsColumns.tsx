@@ -23,7 +23,8 @@ interface UsePromptsColumnsProps {
     onDeleteFolder: (folderId: string) => void
     onMoveItem: (item: PromptsTableRow) => void
     onOpenAppOverview: (appId: string) => void
-    onOpenEditAppModal: (app: ListAppsItem) => void
+    // TEMPORARY: Disabling name editing
+    // onOpenEditAppModal: (app: ListAppsItem) => void
     onOpenDeleteAppModal: (app: ListAppsItem) => void
     getAppTypeIcon: (appType?: string | undefined) => JSX.Element
 }
@@ -34,7 +35,8 @@ export const usePromptsColumns = ({
     onDeleteFolder,
     onMoveItem,
     onOpenAppOverview,
-    onOpenEditAppModal,
+    // TEMPORARY: Disabling name editing
+    // onOpenEditAppModal,
     onOpenDeleteAppModal,
     getAppTypeIcon,
 }: UsePromptsColumnsProps) =>
@@ -141,15 +143,16 @@ export const usePromptsColumns = ({
                                 onOpenAppOverview(record.app_id)
                             },
                         },
-                        {
-                            key: "rename_app",
-                            label: "Rename",
-                            icon: <PencilSimpleIcon size={16} />,
-                            onClick: (e) => {
-                                e.domEvent.stopPropagation()
-                                onOpenEditAppModal(record as ListAppsItem)
-                            },
-                        },
+                        // TEMPORARY: Disabling name editing
+                        // {
+                        //     key: "rename_app",
+                        //     label: "Rename",
+                        //     icon: <PencilSimpleIcon size={16} />,
+                        //     onClick: (e) => {
+                        //         e.domEvent.stopPropagation()
+                        //         onOpenEditAppModal(record as ListAppsItem)
+                        //     },
+                        // },
                         {
                             key: "move_app",
                             label: "Move",
@@ -201,7 +204,8 @@ export const usePromptsColumns = ({
             onMoveItem,
             onOpenAppOverview,
             onOpenDeleteAppModal,
-            onOpenEditAppModal,
+            // TEMPORARY: Disabling name editing
+            // onOpenEditAppModal,
             onRenameFolder,
         ],
     )
