@@ -669,7 +669,7 @@ class EvaluatorsRouter:
                     **body_json
                 )
 
-        except:
+        except Exception:
             pass
 
         workflow_variant_query_request = merge_evaluator_variant_query_requests(

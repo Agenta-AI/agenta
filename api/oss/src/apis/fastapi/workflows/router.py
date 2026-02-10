@@ -500,7 +500,7 @@ class WorkflowsRouter:
             if body_json:
                 query_request_body = parse_workflow_query_request_from_body(**body_json)
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         workflow_query_request = merge_workflow_query_requests(
@@ -710,7 +710,7 @@ class WorkflowsRouter:
                     **body_json
                 )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         workflow_variant_query_request = merge_workflow_variant_query_requests(
@@ -949,7 +949,7 @@ class WorkflowsRouter:
                     **body_json
                 )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         workflow_revision_query_request = merge_workflow_revision_query_requests(

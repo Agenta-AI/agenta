@@ -308,7 +308,7 @@ async def create_accounts(
 
         return scopes
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         print_exc()
 
         return JSONResponse(
@@ -517,7 +517,7 @@ async def create_account(
 
         return account
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         print_exc()
 
         return JSONResponse(

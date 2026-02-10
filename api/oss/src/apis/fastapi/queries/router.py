@@ -395,7 +395,7 @@ class QueriesRouter:
             if body_json:
                 query_request_body = parse_query_query_request_from_body(**body_json)
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         query_query_request = query_request_params or query_request_body

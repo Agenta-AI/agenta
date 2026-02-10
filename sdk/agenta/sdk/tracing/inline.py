@@ -688,7 +688,7 @@ def _parse_from_semconv(
 
                         attributes[new_key] = new_value
 
-                    except:  # pylint: disable=bare-except
+                    except Exception:  # pylint: disable=bare-except
                         pass
 
 
@@ -811,7 +811,7 @@ def parse_from_otel_span_dto(
     node_type = NodeType.TASK
     try:
         node_type = NodeType(types.get("node", "").lower())
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     node = NodeDTO(
@@ -1147,5 +1147,5 @@ def calculate_costs(span_idx: Dict[str, SpanDTO]):
                 span.metrics["unit.costs.completion"] = completion_cost
                 span.metrics["unit.costs.total"] = total_cost
 
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass

@@ -82,7 +82,7 @@ def fetch_secret() -> Optional[Any]:
         secret = os.getenv("AWS_SECRET_KEY")
         return secret
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         logger.error("Failed to fetch secrets with: %s", format_exc())
         return None
 

@@ -537,7 +537,7 @@ class entrypoint:
                     result.headers.setdefault("x-ag-span-id", span_id)
 
                 return result
-        except:
+        except Exception:
             return result
 
         try:
@@ -549,7 +549,7 @@ class entrypoint:
                     trace_id=trace_id,
                     span_id=span_id,
                 )
-        except:
+        except Exception:
             return StreamingResponse(
                 result,
                 media_type="text/event-stream",
@@ -564,7 +564,7 @@ class entrypoint:
                 trace_id=trace_id,
                 span_id=span_id,
             )
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             try:
                 return BaseResponse(
                     data=data,
@@ -573,7 +573,7 @@ class entrypoint:
                     trace_id=trace_id,
                     span_id=span_id,
                 )
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 return BaseResponse(
                     data=data,
                     content_type=content_type,

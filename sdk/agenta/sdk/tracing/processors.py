@@ -210,7 +210,7 @@ class TraceProcessor(SpanProcessor):
         if self.inline:
             try:
                 ret = self._exporter.force_flush(timeout_millis)
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 ret = True
         # --- INLINE
 
@@ -245,7 +245,7 @@ class TraceProcessor(SpanProcessor):
         if self.inline:
             try:
                 is_ready = self._exporter.is_ready(trace_id)
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass
         # --- INLINE
 
@@ -261,7 +261,7 @@ class TraceProcessor(SpanProcessor):
         if self.inline:
             try:
                 trace = self._exporter.fetch(trace_id)  # type: ignore
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass
         # --- INLINE
 

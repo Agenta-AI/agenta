@@ -3877,7 +3877,7 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
             object_uuid_as_str = await fetch_corresponding_object_uuid(
                 table_name=table_name, object_id=object_id
             )
-    except:
+    except Exception:
         # Use the object_id directly if it is not a valid MongoDB ObjectId
         object_uuid_as_str = object_id
 

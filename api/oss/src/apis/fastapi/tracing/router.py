@@ -239,7 +239,7 @@ class TracingRouter:
             if body_json:
                 query_from_body = parse_query_from_body_request(**body_json)
 
-        except:
+        except Exception:
             pass
 
         merged_query = merge_queries(query, query_from_body)
@@ -365,7 +365,7 @@ class TracingRouter:
                     **body_json,
                 )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         (
@@ -443,7 +443,7 @@ class TracingRouter:
                     **body_json,
                 )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         merged_query = merge_queries(

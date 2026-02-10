@@ -78,10 +78,10 @@ async def list_all_demos() -> List[Demo]:
                     )
                 )
 
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 log.error(format_exc())
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         log.error(format_exc())
 
     return demos

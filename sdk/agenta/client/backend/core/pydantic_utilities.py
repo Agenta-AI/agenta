@@ -406,7 +406,7 @@ def _get_model_fields(model: Type["Model"]) -> Mapping[str, PydanticField]:
 def _get_field_default(field: PydanticField) -> Any:
     try:
         value = field.get_default()  # type: ignore[union-attr]
-    except:
+    except:  # noqa: E722
         value = field.default
     if IS_PYDANTIC_V2:
         from pydantic_core import PydanticUndefined
