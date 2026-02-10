@@ -115,6 +115,7 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
             trigger={["click"]}
             placement={collapsed ? "bottomLeft" : "bottomRight"}
             destroyOnHidden
+            getPopupContainer={(trigger) => trigger.parentElement!}
             styles={{
                 root: {
                     zIndex: 2000,

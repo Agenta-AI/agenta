@@ -236,27 +236,7 @@ const PromptsBreadcrumb = ({
 
         const base: BreadcrumbProps["items"] = [
             {
-                title: hasRootFolders ? (
-                    <Dropdown
-                        trigger={["click"]}
-                        styles={{root: {minWidth: 200}}}
-                        menu={{
-                            items: buildSiblingMenu(
-                                null,
-                                folderChain[0]?.id ?? null,
-                                true,
-                            ),
-                        }}
-                        placement="bottomLeft"
-                    >
-                        <Button
-                            type="link"
-                            className="w-5 h-5 m-0"
-                            size="small"
-                            icon={<PromptsHouseIcon active={isAtRoot} />}
-                        />
-                    </Dropdown>
-                ) : (
+                title: (
                     <Button
                         type="link"
                         className="w-5 h-5 m-0"
@@ -264,7 +244,7 @@ const PromptsBreadcrumb = ({
                         icon={<PromptsHouseIcon active={isAtRoot} />}
                     />
                 ),
-                onClick: hasRootFolders ? undefined : () => onFolderChange?.(null),
+                onClick: () => onFolderChange?.(null),
             },
         ]
 
