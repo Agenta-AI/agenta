@@ -1,9 +1,9 @@
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
+import {playgroundAppSchemaAtom} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
 
 export interface RequestSchemaMetaParams {
     variant: EnhancedVariant
@@ -17,9 +17,9 @@ export interface RequestSchemaMeta {
 }
 
 export const requestSchemaMetaAtomFamily = atomFamily((params: RequestSchemaMetaParams) =>
-    atom<RequestSchemaMeta>(() => {
+    atom<RequestSchemaMeta>((get) => {
         const {variant, routePath} = params
-        const spec = getSpecLazy()
+        const spec = get(playgroundAppSchemaAtom)
 
         const meta: RequestSchemaMeta = {required: [], inputKeys: [], hasMessages: false}
         if (!spec) return meta
