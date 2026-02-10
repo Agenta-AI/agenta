@@ -6,7 +6,64 @@ This document is interface-agnostic. For how boundaries apply to a specific inte
 
 ---
 
+## Folder structure and boundaries
+
+The standardized test folder structure maps to architectural boundaries:
+
+```
+tests/
+  manual/                    # Can test any boundary, not automated
+  legacy/                    # Archived, not run
+  pytest/ or playwright/
+    e2e/                     # Boundary 5: E2E/system (black box)
+    unit/                    # Boundaries 1-4: Architectural layers (white box)
+      utils/                 # Boundary 1: Pure functions
+      core/                  # Boundary 2: Business logic with mocked ports
+      adapters/
+        db/                  # Boundary 3: DAO with mocked session
+        http/                # Boundary 4: HTTP with in-process client
+    utils/                   # Shared fixtures + library/tool tests
+```
+
+### Folder semantics and boundaries
+
+| Folder | Boundary coverage | Testing mode | Purpose |
+|--------|------------------|--------------|---------|
+| `e2e/` | Boundary 5 only | Black box, system running | Full integration across all layers |
+| `unit/` | Boundaries 1-4 | White box, system NOT running | Layer isolation with dependency injection |
+| `utils/` | Mixed | White box | Shared test fixtures + library/tool tests (boundary unclear) |
+| `manual/` | Any boundary | Freestyle | Developer reference, not automated, can test any layer |
+
+### manual/ folder organization by domain
+
+The `manual/` folder has no fixed substructure but commonly organizes by domain or feature. Examples across interfaces:
+
+**API manual tests** (`api/oss/tests/manual/`):
+- `annotations/crud.http` -- Annotation CRUD operations
+- `auth/admin.http` -- Admin account creation
+- `evaluations/*.http` -- Evaluation flows
+- `testsets/*.http` -- Testset operations, testcase inclusion
+- `tracing/*.http` -- Trace ingestion, filtering, windowing
+- `workflows/*.http` -- Workflow artifacts, revisions, variants
+
+**SDK manual tests** (`sdk/tests/manual/`):
+- `imports/*.py` -- Import and initialization tests
+- `workflows/*.py` -- SDK workflow testing
+- `tools/*.py` -- Tool invocation and schema validation
+
+**Web manual tests** (`web/oss/tests/manual/`):
+- `datalayer/*.ts` -- Data layer integration tests (Jotai atoms against live API)
+
+**Services manual tests** (`services/oss/tests/manual/`):
+- `smoke.http` -- Basic service health check
+
+Manual tests may exercise any boundary (pure utils, business logic, full E2E) but are not automated. They serve as developer reference for reproducing scenarios, testing flows, or validating behavior during development.
+
+---
+
 ## 1. Utils/helpers (pure unit)
+
+**Folder location:** `pytest/unit/utils/` or colocated with source (Web component tests)
 
 **What belongs here:**
 - Parsing and formatting utilities (IDs, dates, pagination tokens).
@@ -33,6 +90,8 @@ This document is interface-agnostic. For how boundaries apply to a specific inte
 ---
 
 ## 2. Core services (unit, mock ports)
+
+**Folder location:** `pytest/unit/core/`
 
 **What to test:**
 - Invariants and state transitions.
@@ -61,6 +120,8 @@ This document is interface-agnostic. For how boundaries apply to a specific inte
 ---
 
 ## 3. Adapters -- outbound/DB (unit, mock session)
+
+**Folder location:** `pytest/unit/adapters/db/`
 
 **The seam to mock:**
 Even though DAOs receive an engine at construction time, the clean unit-test boundary is `AsyncSession` (or `async_sessionmaker`), not the engine.
@@ -96,6 +157,8 @@ This is the explicit tradeoff accepted by skipping adapter integration tests.
 
 ## 4. Adapters -- inbound/HTTP (unit, in-process)
 
+**Folder location:** `pytest/unit/adapters/http/`
+
 **How to test:**
 - Build a FastAPI app with routes mounted.
 - Override dependencies to inject mocked Core services.
@@ -121,6 +184,10 @@ This is the explicit tradeoff accepted by skipping adapter integration tests.
 
 ## 5. E2E/system (real dependencies)
 
+**Folder location:** `pytest/e2e/` or `playwright/e2e/`
+
+**Testing mode:** Black box. System is running. Tests only interact with public surfaces (API URLs, Web URLs) using credentials.
+
 Since adapter integration tests are skipped, E2E is the only "real dependency" validation.
 
 **What E2E must validate (because nothing else will):**
@@ -143,9 +210,50 @@ A minimal E2E suite that pays for itself:
 - Run migrations.
 - Run the FastAPI app (either in-process ASGI client with real DI wiring, or as a process called over HTTP).
 
+**Examples across interfaces:**
+- **API E2E** (`api/oss/tests/pytest/e2e/`): HTTP requests to API endpoints, organized by domain (workflows, evaluations, testsets, etc.)
+- **SDK E2E** (`sdk/tests/pytest/e2e/`): SDK client calls against live API (workflows, evaluations, observability)
+- **Web E2E** (`web/oss/tests/playwright/e2e/`): Playwright browser tests against running web app (settings, app, playground, etc.)
+
 ---
 
-## 6. What NOT to test at unit level
+## 6. The utils/ folder: dual purpose
+
+**Folder location:** `pytest/utils/` or `playwright/utils/`
+
+The `utils/` folder serves two distinct purposes:
+
+### 6.1. Shared test fixtures (primary use)
+
+Test infrastructure shared by `e2e/` and `unit/` tests:
+- **Fixture modules** -- pytest fixtures, Playwright helpers
+- **Account management** -- Test account creation and cleanup
+- **API clients** -- Authenticated/unauthenticated HTTP clients
+- **Test constants** -- Timeouts, base URLs, environment variables
+
+**Examples:**
+- `api/oss/tests/pytest/utils/api.py` -- `authed_api`, `unauthed_api` fixtures
+- `api/oss/tests/pytest/utils/accounts.py` -- `cls_account`, `mod_account`, `foo_account` fixtures
+- `sdk/tests/pytest/utils/sdk.py` -- SDK client fixtures
+- `web/tests/playwright/utils/` -- Playwright utility helpers (currently `.gitkeep` placeholder)
+
+### 6.2. Library and tool tests (secondary use)
+
+Tests for **libraries, tools, and helper functions** that the system uses but that aren't part of the system's core business logic:
+- Shared validation libraries
+- Internal benchmark utilities
+- Helper functions with edge cases
+- Infrastructure tooling
+
+**Boundary ambiguity:** There's a gray line between `unit/utils/` (pure business utilities, Boundary 1) and `utils/` (tooling utilities). When in doubt:
+- If it's business domain logic → `unit/utils/`
+- If it's infrastructure/tooling → `utils/`
+
+**Current state:** Most `utils/` folders currently contain only shared fixtures. Library/tool tests may be added as needed.
+
+---
+
+## 7. What NOT to test at unit level
 
 The following are explicitly excluded from unit-level test infrastructure:
 

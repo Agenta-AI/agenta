@@ -36,13 +36,15 @@ This directory specifies the testing strategy for the Agenta monorepo, covering 
 
 ## Status Matrix
 
-| Component | Unit Tests | Integration Tests | E2E Tests | CI |
-|-----------|-----------|-------------------|-----------|-----|
-| **API** | Planned | N/A (by design) | 155 tests across 7 domains | Linting only |
-| **SDK** | Tracing decorators | SDK managers against live API | N/A | Linting only |
-| **Web** | Jotai atom tests | Data layer tests | Playwright (feature-numbered suites) | Linting only |
-| **Services** | Planned | N/A | Planned | N/A |
-| **Docs** | N/A | N/A | Planned (scripts) | N/A |
+Test folder structure is now **standardized** across all components with `manual/`, `legacy/`, and `pytest/`|`playwright/` containing `e2e/`, `unit/`, and `utils/` subdirectories.
+
+| Component | Unit Tests | E2E Tests | Manual Tests | CI |
+|-----------|-----------|-----------|--------------|-----|
+| **API** | Structure ready (.gitkeep) | ✅ 155 tests across 7 domains | ✅ HTTP files, scripts | Linting only |
+| **SDK** | ✅ 22 tests (tracing decorators) | ✅ 66 tests (SDK against live API) | ✅ Workflow tests, imports | Linting only |
+| **Web** | ✅ Jotai atom tests (colocated) | ✅ Playwright feature suites | ✅ Data layer tests (manual) | Linting only |
+| **Services** | Structure ready (.gitkeep) | Structure ready (.gitkeep) | ✅ smoke.http | N/A |
+| **Docs** | N/A | Planned (link checking, build) | N/A | N/A |
 
 ---
 

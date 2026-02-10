@@ -123,7 +123,7 @@ const DeploymentDrawer = ({
                                     title={
                                         isDemo()
                                             ? ""
-                                            : "History available in Cloud/Enterprise editions only"
+                                            : "History available in Cloud/EE only"
                                     }
                                 >
                                     <Button
