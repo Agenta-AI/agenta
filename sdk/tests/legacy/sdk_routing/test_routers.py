@@ -1,6 +1,6 @@
 import pytest
 
-from .conftest import *
+from .conftest import *  # noqa: F403
 
 
 @pytest.mark.parametrize(
