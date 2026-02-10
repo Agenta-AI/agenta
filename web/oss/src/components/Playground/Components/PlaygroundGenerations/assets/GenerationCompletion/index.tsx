@@ -1,12 +1,12 @@
 import React, {useCallback} from "react"
 
+import {generateId} from "@agenta/shared/utils"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import AddButton from "@/oss/components/Playground/assets/AddButton"
 import {usePlaygroundLayout} from "@/oss/components/Playground/hooks/usePlaygroundLayout"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {inputRowIdsAtom} from "@/oss/state/generation/entities"
 
 import GenerationCompletionRow from "../GenerationCompletionRow"

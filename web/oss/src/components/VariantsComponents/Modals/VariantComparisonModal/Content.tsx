@@ -6,12 +6,11 @@ import {useAtomValue} from "jotai"
 import DiffView from "@/oss/components/Editor/DiffView"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import VariantNameCell from "@/oss/components/VariantNameCell"
-import {Variant} from "@/oss/lib/Types"
-import {variantUserProfileAtomFamily} from "@/oss/state/variant/selectors/variant"
 
 import {
     comparisonModalAllVariantsAtom,
     comparisonModalCompareListAtom,
+    type ComparisonRevision,
 } from "./store/comparisonModalStore"
 
 const {Title, Text} = Typography
@@ -20,12 +19,9 @@ const {Title, Text} = Typography
 
 const formatTimestamp = (timestamp: number) => new Date(timestamp * 1000).toLocaleString()
 
-const ModifiedByText = ({variant}: {variant: Variant}) => {
-    const {userProfile, modifiedById} = useAtomValue(variantUserProfileAtomFamily(variant.id))
+const ModifiedByText = ({variant}: {variant: ComparisonRevision}) => {
     const displayName =
-        (userProfile as any)?.displayName ??
-        (userProfile as any)?.name ??
-        modifiedById ??
+        (variant as any).modifiedByDisplayName ??
         (variant as any).modifiedBy ??
         (variant as any).createdBy ??
         "-"
@@ -38,8 +34,11 @@ const VariantComparisonContent = () => {
     const allVariants = useAtomValue(comparisonModalAllVariantsAtom) || []
 
     // Prefer explicit allVariants when provided, else fall back to compare list
-    const availableVariants: Variant[] = useMemo(
-        () => (allVariants.length ? (allVariants as Variant[]) : (compareList as Variant[])),
+    const availableVariants: ComparisonRevision[] = useMemo(
+        () =>
+            allVariants.length
+                ? (allVariants as ComparisonRevision[])
+                : (compareList as ComparisonRevision[]),
         [allVariants, compareList],
     )
 
@@ -51,9 +50,9 @@ const VariantComparisonContent = () => {
         (compareList[1]?.id as string | undefined) ?? availableVariants[1]?.id,
     )
     const originalVariant =
-        availableVariants.find((v: Variant) => v.id === originalVariantId) || availableVariants[0]
+        availableVariants.find((v) => v.id === originalVariantId) || availableVariants[0]
     const modifiedVariant =
-        availableVariants.find((v: Variant) => v.id === modifiedVariantId) ||
+        availableVariants.find((v) => v.id === modifiedVariantId) ||
         availableVariants[1] ||
         availableVariants[0]
 
@@ -72,14 +71,14 @@ const VariantComparisonContent = () => {
     if (!originalVariant) return null
 
     const createDropdownItems = (currentVariantId: string, onSelect: (id: string) => void) => {
-        return availableVariants.map((variant: Variant) => ({
+        return availableVariants.map((variant) => ({
             key: variant.id,
             label: (
                 <div className="flex items-center justify-between w-full py-2">
                     <VariantDetailsWithStatus
-                        variantName={variant.name}
+                        variantName={variant.variantName ?? variant.name}
                         revision={variant.revision}
-                        variant={variant}
+                        variant={{id: variant.id}}
                         showBadges={false}
                         className="flex-1"
                     />
@@ -144,7 +143,7 @@ const VariantComparisonContent = () => {
                                 <div className="space-y-2 text-sm">
                                     <div>
                                         <Text strong>Modified by:</Text>{" "}
-                                        <ModifiedByText variant={originalVariant as any} />
+                                        <ModifiedByText variant={originalVariant} />
                                     </div>
                                     <div>
                                         <Text strong>Created:</Text>{" "}
@@ -190,7 +189,7 @@ const VariantComparisonContent = () => {
                                 <div className="space-y-2 text-sm">
                                     <div>
                                         <Text strong>Modified by:</Text>{" "}
-                                        <ModifiedByText variant={modifiedVariant as any} />
+                                        <ModifiedByText variant={modifiedVariant} />
                                     </div>
                                     <div>
                                         <Text strong>Created:</Text>{" "}

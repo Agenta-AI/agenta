@@ -1,7 +1,7 @@
+import {getAllMetadata} from "@agenta/entities/legacyAppRevision"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {extractValueByMetadata} from "@/oss/lib/shared/variant/valueHelpers"
 import {chatSessionsByIdAtom, chatTurnsByIdAtom} from "@/oss/state/generation/entities"
 
