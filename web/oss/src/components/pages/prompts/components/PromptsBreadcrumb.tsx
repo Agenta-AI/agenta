@@ -250,7 +250,7 @@ const PromptsBreadcrumb = ({
 
         folderChain.forEach((folder, index) => {
             const isLast = index === folderChain.length - 1
-            const parentId = (folder as any).parent_id ?? null
+            const parentId = folder.parent_id ?? null
 
             if (isLast) {
                 const menuItems = buildSiblingMenu(
