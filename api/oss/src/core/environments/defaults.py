@@ -78,8 +78,7 @@ async def create_default_environments(
                     ),
                 )
                 log.info(
-                    f"Created default environment '{env_name}' "
-                    f"for project {project_id}"
+                    f"Created default environment '{env_name}' for project {project_id}"
                 )
                 continue
 
@@ -130,8 +129,7 @@ async def create_default_environments(
                 )
             else:
                 log.debug(
-                    f"Environment '{env_name}' already exists "
-                    f"for project {project_id}"
+                    f"Environment '{env_name}' already exists for project {project_id}"
                 )
 
         except Exception as e:
