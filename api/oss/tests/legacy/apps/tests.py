@@ -80,7 +80,9 @@ class TestAppCreationManagement:
         description = "Create app with conflicts"
         api_credentials = self.owner_scope_response.get("credentials", "")
         headers = {"Authorization": api_credentials}
-        await create_application(http_client, app_name, headers)  # Create the app first  # noqa: F405
+        await create_application(
+            http_client, app_name, headers
+        )  # Create the app first  # noqa: F405
 
         # Act: Send a POST request to /apps
         response = await http_client.post("/apps", json=app_data, headers=headers)

@@ -9,7 +9,6 @@ import asyncio
 from dataclasses import dataclass, field
 
 
-
 @dataclass
 class EvaluationTestcaseData:
     """

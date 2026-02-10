@@ -1,4 +1,3 @@
-
 from sqlalchemy import Select, and_, or_
 
 from oss.src.core.shared.dtos import Windowing

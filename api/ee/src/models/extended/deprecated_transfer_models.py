@@ -1,4 +1,3 @@
-
 import uuid_utils.compat as uuid
 
 from sqlalchemy.dialects.postgresql import UUID

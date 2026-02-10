@@ -15,9 +15,6 @@ from agenta.sdk.models.shared import (
 )
 
 
-
-
-
 # artifacts --------------------------------------------------------------------
 
 

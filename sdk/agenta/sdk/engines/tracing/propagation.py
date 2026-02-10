@@ -8,7 +8,6 @@ from opentelemetry.context import get_current
 from agenta.sdk.contexts.tracing import TracingContext
 
 
-
 def extract(
     headers: Dict[str, str],
 ) -> Tuple[Optional[str], Optional[Any], Dict[str, str]]:

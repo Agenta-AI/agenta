@@ -413,9 +413,8 @@ async def test_simple_experiment_tree_maps_correctly(
     )
     response_data = response.json()
     assert response.status_code == 200
-    assert (
-        "prediction" in response_data["outputs"]
-        and isinstance(response_data["outputs"]["prediction"], str)
+    assert "prediction" in response_data["outputs"] and isinstance(
+        response_data["outputs"]["prediction"], str
     )
 
 

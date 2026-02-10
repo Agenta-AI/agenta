@@ -323,6 +323,7 @@ class WorkflowVariantQuery(VariantQuery):
 
 # workflow revisions -----------------------------------------------------------
 
+
 class WorkflowRevision(
     Revision,
     WorkflowIdAlias,

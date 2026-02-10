@@ -4,8 +4,6 @@ from uuid import UUID
 from pydantic import BaseModel
 
 
-
-
 class FolderScope(BaseModel):
     folder_id: Optional[UUID] = None
 
