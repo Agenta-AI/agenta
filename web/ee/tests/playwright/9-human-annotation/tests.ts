@@ -11,7 +11,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
         await use(async (appId: string) => {
             await page.goto(`/apps/${appId}/evaluations?selectedEvaluation=human_annotation`)
             await expect(page).toHaveURL(
-                `/apps/${appId}/evaluations?selectedEvaluation=human_annotation`,
+                new RegExp(`/apps/${appId}/evaluations\\?selectedEvaluation=human_annotation`),
             )
 
             const evaluationRunsResponse = await waitForApiResponse<{
@@ -52,7 +52,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
         await use(async (appId: string) => {
             await page.goto(`/apps/${appId}/evaluations?selectedEvaluation=human_annotation`)
             await expect(page).toHaveURL(
-                `/apps/${appId}/evaluations?selectedEvaluation=human_annotation`,
+                new RegExp(`/apps/${appId}/evaluations\\?selectedEvaluation=human_annotation`),
             )
 
             const runs = await apiHelpers.getEvaluationRuns()

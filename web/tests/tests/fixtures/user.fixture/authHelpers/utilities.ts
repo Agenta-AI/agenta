@@ -5,24 +5,19 @@ import {getTestmailClient} from "../../../../utils/testmail"
 import {UserState} from "../types"
 
 /**
- * Determines the test environment based on the Playwright worker's project name
- *
- * @param workerInfo - Playwright worker information containing project details
- * @returns The determined environment type (local, staging, beta, oss)
- * @throws Error if project name doesn't match a known environment
+ * Determines the test environment from the project name.
+ * The project name is set to AGENTA_LICENSE (ee/oss) in the config.
+ * Falls back to "oss" if it doesn't match a known environment key.
  */
 export function determineEnvironment(project: Partial<WorkerInfo["project"]>): TestEnvironmentType {
     const projectName = project.name as TestEnvironmentType
 
-    if (!Object.keys(TestEnvironment).includes(projectName)) {
-        throw new Error(
-            `Invalid project name "${projectName}". Must be one of: ${Object.keys(
-                TestEnvironment,
-            ).join(", ")}`,
-        )
+    if (Object.keys(TestEnvironment).includes(projectName)) {
+        return projectName
     }
 
-    return projectName
+    // Project name is a license (ee/oss), not an environment key — default to "local"
+    return "local" as TestEnvironmentType
 }
 
 /**
@@ -57,20 +52,17 @@ export function createInitialUserState(project: Partial<WorkerInfo["project"]>):
     const testmail = getTestmailClient()
 
     // Create email with structured tag
-    const email =
-        process.env.LICENSE === "oss" && process.env.AGENTA_OSS_OWNER_EMAIL
-            ? process.env.AGENTA_OSS_OWNER_EMAIL
-            : testmail.generateTestEmail({
-                  scope: project.name,
-                  branch: process.env.BRANCH_NAME,
-              })
+    const email = testmail.generateTestEmail({
+        scope: project.name,
+        branch: process.env.BRANCH_NAME,
+    })
 
     return {
         email,
         isAuthenticated: false,
         environment,
         requiresAuth: true,
-        password: process.env.LICENSE === "oss" ? process.env.AGENTA_OSS_OWNER_PASSWORD : "",
+        password: "",
     }
 }
 

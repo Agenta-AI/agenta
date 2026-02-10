@@ -15,7 +15,7 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
     navigateToApps: async ({page, uiHelpers}, use) => {
         await use(async () => {
             await page.goto("/apps")
-            await page.waitForURL("/apps", {waitUntil: "domcontentloaded"})
+            await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
             await uiHelpers.expectText("App Management", {
                 role: "heading",
             })
