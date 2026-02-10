@@ -1,7 +1,7 @@
 from uvicorn import run
 
 try:
-    import ingest
+    import ingest  # noqa: F401
 except ImportError:
     pass
 
