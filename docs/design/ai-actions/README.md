@@ -15,3 +15,4 @@ The backend calls a deployed prompt in an internal Agenta org (Bedrock credentia
 - `docs/design/ai-actions/plan.md` - Implementation plan (Chapter 1)
 - `docs/design/ai-actions/research.md` - Codebase findings and relevant reference points
 - `docs/design/ai-actions/status.md` - Living decisions, open questions, and progress log
+- `docs/design/ai-actions/frontend-spec.md` - Frontend implementation specification (UI, components, state, flows)

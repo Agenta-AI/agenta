@@ -58,10 +58,22 @@ Response (200):
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "refined_prompt": {"type": "string", "description": "The refined prompt template as a stringified JSON object."},
-          "messages": {"type": "array", "description": "The refined messages array for verification."}
+          "messages": {
+            "type": "array",
+            "description": "The refined messages array (same count and roles as input).",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "role": {"type": "string", "enum": ["system", "developer", "user", "assistant"]},
+                "content": {"type": "string"}
+              },
+              "required": ["role", "content"]
+            }
+          },
+          "summary": {"type": "string", "description": "A short summary describing what was changed in this refinement."}
         },
-        "required": ["refined_prompt", "messages"]
+        "required": ["messages", "summary"]
       }
     }
   ]
@@ -99,15 +111,15 @@ Success response (200):
   "content": [
     {
       "type": "text",
-      "text": "{\"messages\":[...],\"template_format\":\"curly\",\"input_keys\":[\"input_text\"]}"
+      "text": "Added explicit extraction format and improved role clarity."
     }
   ],
   "structuredContent": {
-    "refined_prompt": "{\"messages\":[...],\"template_format\":\"curly\",\"input_keys\":[\"input_text\"]}",
     "messages": [
       {"role": "system", "content": "Refined system content."},
       {"role": "user", "content": "Refined user content with {{input_text}}."}
-    ]
+    ],
+    "summary": "Added explicit extraction format and improved role clarity."
   },
   "isError": false,
   "meta": {
@@ -117,10 +129,10 @@ Success response (200):
 ```
 
 Notes:
-- `content[0].text` contains the stringified refined JSON prompt template (same as `structuredContent.refined_prompt`).
-- `structuredContent.refined_prompt` is a stringified JSON object containing the full refined prompt template (messages, template_format, input_keys, etc.).
-- `structuredContent.messages` is a verification copy of the messages array (same count, same roles, same order as input).
-- The backend validates that `refined_prompt` is valid JSON and contains a well-formed `messages` array before returning success.
+- `content[0].text` contains the summary of what was changed (same as `structuredContent.summary`).
+- `structuredContent.messages` is the refined messages array (same count, same roles, same order as input).
+- `structuredContent.summary` is a short human-readable description of the refinement changes, displayed in the chat UI.
+- The backend validates that `messages` is a well-formed array of `{role, content}` objects before returning success.
 
 Tool execution error response (200):
 
@@ -191,7 +203,7 @@ Expected response:
 ```json
 {
   "version": "3.0",
-  "data": "{\"refined_prompt\":\"<stringified JSON template>\",\"messages\":[...]}",
+  "data": "{\"messages\":[{\"role\":\"system\",\"content\":\"...\"},{\"role\":\"user\",\"content\":\"...\"}],\"summary\":\"Added explicit extraction format.\"}",
   "content_type": "text/plain",
   "trace_id": "...",
   "tree_id": "...",
@@ -199,7 +211,7 @@ Expected response:
 }
 ```
 
-The `data` field is a JSON string (structured output from the model). The backend parses it, validates `refined_prompt` is a valid JSON prompt template, and maps it into the `ToolCallResponse`.
+The `data` field is a JSON string (structured output from the model). The backend parses it, validates `messages` is a well-formed array, and maps it into the `ToolCallResponse`.
 
 ## Permission + Rate Limits
 
