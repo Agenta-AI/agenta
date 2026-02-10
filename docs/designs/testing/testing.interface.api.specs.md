@@ -15,13 +15,13 @@ For fixtures and utilities, see [testing.fixtures.specs.md](testing.fixtures.spe
 
 The existing test suite is E2E/system-level: tests make HTTP requests to a running API backed by a real database.
 
-**Test domains covered (38+ tests):**
+**Test domains covered (155 tests):**
 
 | Domain | Test files | Scope |
 |--------|-----------|-------|
-| Workflows | `test_workflows_basics.py`, `test_workflows_queries.py`, `test_workflow_variants_basics.py`, `test_workflow_variants_queries.py`, `test_workflow_revisions_basics.py`, `test_workflow_revisions_queries.py`, `test_workflow_lineage.py`, `test_workflow_revisions_lineage.py` | CRUD, variants, revisions, lineage |
+| Workflows | `test_workflows_basics.py`, `test_workflows_queries.py`, `test_workflows_retrieve.py`, `test_workflow_variants_basics.py`, `test_workflow_variants_queries.py`, `test_workflow_revisions_basics.py`, `test_workflow_revisions_queries.py`, `test_workflow_lineage.py` | CRUD, variants, revisions, lineage, retrieve |
 | Evaluations | `test_evaluation_runs_basics.py`, `test_evaluation_runs_queries.py`, `test_evaluation_scenarios_basics.py`, `test_evaluation_scenarios_queries.py`, `test_evaluation_steps_basics.py`, `test_evaluation_steps_queries.py`, `test_evaluation_metrics_basics.py`, `test_evaluation_metrics_queries.py` | Runs, scenarios, steps, metrics |
-| Testsets | `test_testsets_basics.py`, `test_testsets_queries.py`, `test_testcases_basics.py`, `test_testcases_queries.py` | Testsets, testcases |
+| Testsets | `test_testsets_basics.py`, `test_testsets_queries.py`, `test_testsets_files.py`, `test_testcases_basics.py` | Testsets, testcases, file uploads |
 | Evaluators | `test_evaluators_basics.py`, `test_evaluators_queries.py` | CRUD, queries |
 | Annotations | `test_annotations_basics.py`, `test_annotations_queries.py` | CRUD, queries |
 | Tracing | `test_traces_basics.py`, `test_spans_basics.py`, `test_spans_queries.py` | Traces, spans |
@@ -67,7 +67,7 @@ Apply the full [test pyramid](testing.principles.specs.md) to the API:
 
 ### Layer 1: Utils/helpers unit tests
 
-**Location:** `api/oss/tests/unit/utils/`
+**Location:** `api/oss/tests/pytest/unit/utils/`
 
 **Targets:**
 - Parsing/formatting utilities in `api/oss/src/apis/fastapi/shared/utils.py`
@@ -79,18 +79,18 @@ Apply the full [test pyramid](testing.principles.specs.md) to the API:
 
 ### Layer 2: Core service unit tests
 
-**Location:** `api/oss/tests/unit/core/`
+**Location:** `api/oss/tests/pytest/unit/core/`
 
 **Targets:**
 - Services in `api/oss/src/core/<domain>/service.py`
 - Test with fake DAO port implementations (in-memory dicts)
 - Verify invariants, orchestration, domain error mapping
 
-**Pattern:** Inject fakes for all ports. Use `tests/_support/fakes.py` for shared fake implementations.
+**Pattern:** Inject fakes for all ports. Use `pytest/_support/fakes.py` for shared fake implementations.
 
 ### Layer 3: DAO unit tests
 
-**Location:** `api/oss/tests/unit/adapters/db/`
+**Location:** `api/oss/tests/pytest/unit/adapters/db/`
 
 **Targets:**
 - DAOs in `api/oss/src/dbs/postgres/<domain>/dao.py`
@@ -101,7 +101,7 @@ Apply the full [test pyramid](testing.principles.specs.md) to the API:
 
 ### Layer 4: Router unit tests
 
-**Location:** `api/oss/tests/unit/adapters/http/`
+**Location:** `api/oss/tests/pytest/unit/adapters/http/`
 
 **Targets:**
 - Routers in `api/oss/src/apis/fastapi/<domain>/router.py`
@@ -112,7 +112,7 @@ Apply the full [test pyramid](testing.principles.specs.md) to the API:
 
 ### Layer 5: E2E tests (existing)
 
-The current E2E suite in `api/oss/tests/pytest/` continues as-is.
+The current E2E suite in `api/oss/tests/pytest/` moves to `api/oss/tests/pytest/e2e/` for consistency with the runner → type → domain hierarchy. See [testing.structure.specs.md](testing.structure.specs.md) for the full target layout.
 
 ---
 

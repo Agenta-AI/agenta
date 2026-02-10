@@ -104,14 +104,36 @@ The Web has a different architecture than the API. The relevant boundaries are:
 
 ---
 
+## E2E test types
+
+Playwright E2E tests fall into two categories:
+
+1. **UI tests** — Full browser interaction: clicking, typing, navigating, asserting on rendered pages. These validate user-facing flows end-to-end.
+2. **Internal API tests** — Playwright-driven tests that exercise the frontend's data fetching and API integration without necessarily asserting on UI rendering. Useful for validating data layer behavior in a real browser context.
+
+Both types use the same Playwright runner, fixtures, and tag system.
+
+---
+
 ## Target state
 
-Expand component unit test coverage:
+### E2E (Playwright)
 
-1. **Atom/store tests per feature module** — Each major feature (playground, evaluations, observability, testsets) should have `__tests__/` directories with atom tests.
-2. **Utility function tests** — Pure helpers in `lib/helpers/`, formatters in `lib/helpers/formatters/`, validators.
+The existing feature-numbered suites continue. Both UI and internal API test types are organized in the same numbered structure.
+
+### Unit tests
+
+**Current limitation:** React components in this codebase do not use dependency injection. Without DI, it is not practical to unit-test components in isolation (mocking props/context becomes fragile and couples tests to implementation).
+
+**Phase 1 (now):** Focus on what can be tested without DI:
+1. **Utils** — Pure utility functions in `lib/helpers/`, formatters, validators. No DI needed.
+2. **Atom/store tests** — Jotai atoms with `createStore()`. Each major feature (playground, evaluations, observability, testsets) should have `__tests__/` directories.
 3. **Molecule/bridge pattern tests** — Test the molecule and bridge patterns from `@agenta/entities` using their imperative APIs (`molecule.get.*`, `molecule.set.*`).
 4. **Package utility tests** — Test utilities exported from `@agenta/shared/utils`, `@agenta/ui`, and other workspace packages.
+
+**Phase 2 (when DI is available):** Once components adopt dependency injection (via providers, context, or atom-based injection):
+- Component-level unit tests with mocked dependencies
+- Test boundary layers analogous to API (state management, data fetching, rendering)
 
 ---
 

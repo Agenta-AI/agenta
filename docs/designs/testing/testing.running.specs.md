@@ -76,26 +76,44 @@ cd api && pytest oss/tests/pytest/ -v -m "coverage_smoke and path_happy"
 cd api && pytest ee/tests/pytest/ -v
 
 # Future: unit tests
-cd api && pytest oss/tests/unit/ -v
+cd api && pytest oss/tests/pytest/unit/ -v
 ```
 
 ### SDK
 
+**Current paths** (before migration):
+
 ```bash
 # Unit tests
-cd sdk && poetry run pytest tests/unit/ -v
-
-# Unit tests with coverage
-cd sdk && poetry run pytest tests/unit/ --cov=agenta.sdk --cov-report=html
+cd sdk && pytest tests/unit/ -v
 
 # Integration tests (requires credentials)
-AGENTA_API_KEY=<key> AGENTA_HOST=<url> pytest sdk/tests/integration/ -v
+AGENTA_API_KEY=<key> AGENTA_HOST=<url> cd sdk && pytest tests/integration/ -v
 
 # Healthcheck tests
 cd sdk && pytest tests/pytest/ -v
+```
+
+**Target paths** (after migration to `tests/pytest/`):
+
+```bash
+# All SDK tests (unit + E2E, E2E skips if no credentials)
+cd sdk && pytest tests/pytest/ -v
+
+# Unit tests only
+cd sdk && pytest tests/pytest/unit/ -v
+
+# Unit tests with coverage
+cd sdk && pytest tests/pytest/unit/ --cov=agenta.sdk --cov-report=html
+
+# E2E tests only (requires credentials)
+AGENTA_API_KEY=<key> AGENTA_HOST=<url> cd sdk && pytest tests/pytest/e2e/ -v
+
+# Specific E2E domain
+AGENTA_API_KEY=<key> cd sdk && pytest tests/pytest/e2e/observability/ -v
 
 # Specific test class
-cd sdk && poetry run pytest tests/unit/test_tracing_decorators.py::TestGeneratorTracing -v
+cd sdk && pytest tests/pytest/unit/test_tracing_decorators.py::TestGeneratorTracing -v
 ```
 
 ### Web

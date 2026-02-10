@@ -1,6 +1,6 @@
 # Testing
 
-This directory specifies the testing strategy for the Agenta monorepo, covering the API, SDK, and Web frontend. The strategy uses orthogonal documents: principles describe the philosophy, boundaries describe architectural layers, dimensions describe filtering, and interface documents describe per-component specifics.
+This directory specifies the testing strategy for the Agenta monorepo, covering all system interfaces: API, SDK, Web, Services, and Docs. The strategy uses orthogonal documents: principles describe the philosophy, boundaries describe architectural layers, dimensions describe filtering, structure describes folder layout, and interface documents describe per-component specifics.
 
 ---
 
@@ -38,9 +38,11 @@ This directory specifies the testing strategy for the Agenta monorepo, covering 
 
 | Component | Unit Tests | Integration Tests | E2E Tests | CI |
 |-----------|-----------|-------------------|-----------|-----|
-| **API** | Planned | N/A (by design) | 38+ tests across 7 domains | Linting only |
+| **API** | Planned | N/A (by design) | 155 tests across 7 domains | Linting only |
 | **SDK** | Tracing decorators | SDK managers against live API | N/A | Linting only |
 | **Web** | Jotai atom tests | Data layer tests | Playwright (feature-numbered suites) | Linting only |
+| **Services** | Planned | N/A | Planned | N/A |
+| **Docs** | N/A | N/A | Planned (scripts) | N/A |
 
 ---
 
