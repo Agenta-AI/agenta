@@ -48,6 +48,75 @@ Test folder structure is now **standardized** across all components with `manual
 
 ---
 
+## Quick Start: Running Tests
+
+### API Tests
+
+```bash
+# Run all E2E tests
+cd api
+AGENTA_API_URL=http://localhost:10180/api AGENTA_AUTH_KEY=change-me-auth \
+  python -m pytest oss/tests/pytest/ -v
+
+# Run smoke tests only (fast subset)
+python -m pytest oss/tests/pytest/ -v -m coverage_smoke
+
+# Run specific domain
+python -m pytest oss/tests/pytest/e2e/workflows/ -v
+
+# Run with dimension filters
+python -m pytest oss/tests/pytest/ -v -m "coverage_smoke and path_happy"
+python -m pytest oss/tests/pytest/ -v -m "cost_free"  # Exclude paid tests
+```
+
+### SDK Tests
+
+```bash
+# Run all tests (unit + E2E)
+cd sdk
+AGENTA_API_URL=http://localhost:10180/api AGENTA_AUTH_KEY=change-me-auth \
+  poetry run pytest tests/pytest/ -v
+
+# Run unit tests only (no external deps)
+poetry run pytest tests/pytest/unit/ -v
+
+# Run E2E tests only (requires running API)
+poetry run pytest tests/pytest/e2e/ -v -m e2e
+
+# Run with dimension filters
+poetry run pytest tests/pytest/e2e/ -v -m "coverage_smoke and cost_free"
+```
+
+### Web Tests
+
+```bash
+# Run smoke tests (OSS)
+cd web/tests
+AGENTA_LICENSE=oss \
+AGENTA_WEB_URL=http://localhost:10180 \
+TESTMAIL_NAMESPACE=<your-namespace> \
+TESTMAIL_API_KEY=<your-key> \
+  npx playwright test ../oss/tests/playwright/e2e/smoke.spec.ts
+
+# Run smoke tests (EE)
+AGENTA_LICENSE=ee \
+AGENTA_WEB_URL=http://localhost:10180 \
+TESTMAIL_NAMESPACE=<your-namespace> \
+TESTMAIL_API_KEY=<your-key> \
+  npx playwright test ../ee/tests/playwright/e2e/smoke.spec.ts
+
+# Run all E2E tests for a specific feature
+npx playwright test ../oss/tests/playwright/e2e/settings/
+
+# Run with tag filters
+npx playwright test --grep "@coverage:smoke"
+npx playwright test --grep "@coverage:smoke.*@cost:free"
+```
+
+**Note:** Web tests require valid TESTMAIL credentials. See [web/tests/playwright.config.ts](../../web/tests/playwright.config.ts) for configuration details.
+
+---
+
 ## Related In-Tree Documentation
 
 | Location | Description |
