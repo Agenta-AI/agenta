@@ -108,7 +108,9 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
         }
     }
 
-    const appLabel = currentApp?.app_name || "Select app"
+    const appLabel =
+        (selectedAppId && apps?.find((app) => app.app_id === selectedAppId)?.app_name) ||
+        "Select app"
 
     return (
         <Dropdown
