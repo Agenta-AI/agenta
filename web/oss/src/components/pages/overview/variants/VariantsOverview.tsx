@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {useCallback} from "react"
 
 import {SwapOutlined} from "@ant-design/icons"
@@ -8,16 +7,20 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 
-import {openComparisonModalAtom} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
-import {comparisonSelectionScopeAtom} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
+import {
+    recentRevisionsOverviewAtom,
+    playgroundRevisionsReadyAtom,
+} from "@/oss/components/Playground/state/atoms/variants"
+import {
+    openComparisonModalAtom,
+    comparisonSelectionScopeAtom,
+} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
+import {selectedVariantsCountAtom} from "@/oss/components/VariantsComponents/store/selectionAtoms"
 import VariantsTable from "@/oss/components/VariantsComponents/Table"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
-import {selectedVariantsCountAtom} from "@/oss/state/variant/atoms/selection"
-import {recentRevisionsTableRowsAtom} from "@/oss/state/variant/selectors/variant"
 
 const {Title} = Typography
 
@@ -28,8 +31,8 @@ const VariantsOverview = () => {
     // Drawer open/close is handled in VariantDrawerWrapper based on URL param
     const openComparisonModal = useSetAtom(openComparisonModalAtom)
     const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
-    const isVariantLoading = useAtomValue(variantsPendingAtom)
-    const slicedVariantList = useAtomValue(recentRevisionsTableRowsAtom)
+    const isRevisionsReady = useAtomValue(playgroundRevisionsReadyAtom)
+    const slicedVariantList = useAtomValue(recentRevisionsOverviewAtom)
     const selectionScope = "overview/recent"
     const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
     const {goToPlayground} = usePlaygroundNavigation()
@@ -80,25 +83,23 @@ const VariantsOverview = () => {
                 showEnvBadges
                 showStableName
                 variants={slicedVariantList}
-                onRowClick={(variant) => {
+                onRowClick={(variant: EnhancedVariant) => {
                     // Cosmetic URL update for deep linking
                     updateQuery({
-                        revisionId: variant._revisionId ?? variant.id,
+                        revisionId: (variant as any)._revisionId ?? variant.id,
                         drawerType: "variant",
                     })
-                    // Open the drawer via atoms with an explicit selectedVariantId
                 }}
                 selectionScope={selectionScope}
-                isLoading={isVariantLoading}
-                handleOpenDetails={(record) => {
+                isLoading={!isRevisionsReady}
+                handleOpenDetails={(record: EnhancedVariant) => {
                     // Cosmetic URL update for deep linking
                     updateQuery({
-                        revisionId: record._revisionId ?? record.id,
+                        revisionId: (record as any)._revisionId ?? record.id,
                         drawerType: "variant",
                     })
-                    // Open the drawer via atoms with an explicit selectedVariantId
                 }}
-                handleOpenInPlayground={(record) => {
+                handleOpenInPlayground={(record: EnhancedVariant) => {
                     handleNavigation(record)
                 }}
             />

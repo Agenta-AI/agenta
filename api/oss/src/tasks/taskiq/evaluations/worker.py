@@ -7,6 +7,7 @@ from taskiq import AsyncBroker
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import TestsetsService
 
+from oss.src.core.applications.services import ApplicationsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.workflows.service import WorkflowsService
@@ -42,6 +43,7 @@ class EvaluationsWorker:
         testsets_service: TestsetsService,
         queries_service: QueriesService,
         workflows_service: WorkflowsService,
+        applications_service: ApplicationsService,
         evaluations_service: EvaluationsService,
     ):
         """
@@ -54,11 +56,12 @@ class EvaluationsWorker:
         #
         self.tracing_router = tracing_router
         self.testsets_service = testsets_service
-        self.simple_evaluators_service = simple_evaluators_service
-        #
         self.queries_service = queries_service
         self.workflows_service = workflows_service
+        self.applications_service = applications_service
         self.evaluations_service = evaluations_service
+        #
+        self.simple_evaluators_service = simple_evaluators_service
 
         self._register_tasks()
 
@@ -93,11 +96,12 @@ class EvaluationsWorker:
                 #
                 tracing_router=self.tracing_router,
                 testsets_service=self.testsets_service,
-                simple_evaluators_service=self.simple_evaluators_service,
-                #
                 queries_service=self.queries_service,
                 workflows_service=self.workflows_service,
+                applications_service=self.applications_service,
                 evaluations_service=self.evaluations_service,
+                #
+                simple_evaluators_service=self.simple_evaluators_service,
             )
             log.info("[TASK] Completed evaluate_batch_testset")
             return result

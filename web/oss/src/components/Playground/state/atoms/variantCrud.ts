@@ -1,4 +1,5 @@
 import {variantsListWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {getAllMetadata} from "@agenta/entities/legacyAppRevision"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {message} from "@agenta/ui/app-message"
 import {produce} from "immer"
@@ -6,7 +7,6 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
 
 import {drawerVariantIdAtom} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
 import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"

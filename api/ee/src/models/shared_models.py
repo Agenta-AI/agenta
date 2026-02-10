@@ -163,12 +163,19 @@ class Permission(str, Enum):
             #
             cls.VIEW_WORKFLOWS,
             cls.VIEW_EVALUATORS,
+            cls.VIEW_QUERIES,
             cls.VIEW_TESTSETS,
             cls.VIEW_ANNOTATIONS,
+            cls.VIEW_INVOCATIONS,
             cls.VIEW_SPANS,
             cls.VIEW_FOLDERS,
             cls.VIEW_API_KEYS,
             cls.VIEW_ENVIRONMENTS,
+            cls.VIEW_EVALUATION_RUNS,
+            cls.VIEW_EVALUATION_SCENARIOS,
+            cls.VIEW_EVALUATION_RESULTS,
+            cls.VIEW_EVALUATION_METRICS,
+            cls.VIEW_EVALUATION_QUEUES,
         ]
         defaults = {
             WorkspaceRole.OWNER: [p for p in cls],

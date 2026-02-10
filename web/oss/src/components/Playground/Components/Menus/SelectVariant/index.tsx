@@ -12,6 +12,7 @@ import {DraftTag} from "@agenta/ui/components"
 import {DownOutlined} from "@ant-design/icons"
 import {CopySimple, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Popover, Space, Tooltip, Typography} from "antd"
+import {getDefaultStore} from "jotai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
@@ -20,16 +21,16 @@ import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {currentAppAtom} from "@/oss/state/app"
 import {
     cloneAsLocalDraft,
-    discardLocalDraft,
+    discardRevisionDraftAtom,
     playgroundVariantMetaMapAtom,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
 
-import {selectedVariantsAtom} from "../../../state/atoms/core"
+import {selectedVariantsAtom, parametersOverrideAtomFamily} from "../../../state/atoms"
+import {playgroundLatestAppRevisionIdAtom} from "../../../state/atoms/playgroundAppAtoms"
 import {
     createPlaygroundSelectionAdapter,
     type PlaygroundRevisionSelectionResult,
 } from "../../../state/atoms/playgroundSelectionAdapter"
-import NewVariantButton from "../../Modals/CreateVariantModal/assets/NewVariantButton"
 
 import {SelectVariantProps} from "./types"
 
@@ -47,6 +48,7 @@ const SelectVariant = ({
 
     // Get metadata map for custom rendering (replaces variantOptionsAtomFamily)
     const metaMap = useAtomValue(playgroundVariantMetaMapAtom)
+    const latestAppRevisionId = useAtomValue(playgroundLatestAppRevisionIdAtom)
 
     // Create adapter scoped to current app (memoized)
     const adapter = useMemo(() => createPlaygroundSelectionAdapter(appId), [appId])
@@ -59,24 +61,27 @@ const SelectVariant = ({
         (revisionId: string, e: React.MouseEvent) => {
             e.stopPropagation()
             e.preventDefault()
-            try {
-                const localDraftId = cloneAsLocalDraft(revisionId)
-                setSelectedVariants((prev) => [...prev, localDraftId])
-            } catch (error) {
-                console.error("Failed to create local copy:", error)
+            const localDraftId = cloneAsLocalDraft(revisionId)
+            if (localDraftId) {
+                setSelectedVariants((prev) =>
+                    prev.includes(localDraftId) ? prev : [...prev, localDraftId],
+                )
             }
         },
         [setSelectedVariants],
     )
+
+    const discardDraft = useSetAtom(discardRevisionDraftAtom)
 
     const handleDiscardLocalDraft = useCallback(
         (localDraftId: string, e: React.MouseEvent) => {
             e.stopPropagation()
             e.preventDefault()
             setSelectedVariants((prev) => prev.filter((id) => id !== localDraftId))
-            discardLocalDraft(localDraftId)
+            discardDraft(localDraftId)
+            getDefaultStore().set(parametersOverrideAtomFamily(localDraftId), null)
         },
-        [setSelectedVariants],
+        [setSelectedVariants, discardDraft],
     )
 
     // Handle selection from EntityPicker
@@ -195,6 +200,7 @@ const SelectVariant = ({
                         hideName
                         showBadges
                         showLatestTag={showLatestTag}
+                        isLatest={c.id === latestAppRevisionId}
                     />
                     {showAsCompare && (
                         <Tooltip title="Create local copy for comparison">
@@ -218,6 +224,7 @@ const SelectVariant = ({
             handleCreateLocalCopy,
             handleDiscardLocalDraft,
             disabledIds,
+            latestAppRevisionId,
         ],
     )
 
@@ -239,25 +246,21 @@ const SelectVariant = ({
         [metaMap],
     )
 
-    // Header action with "Create new" button (inline with search)
-    const popupHeaderAction = useMemo(() => {
-        if (showAsCompare || !showCreateNew) return null
-        return <NewVariantButton label="Create new" variant="solid" type="primary" icon={null} />
-    }, [showAsCompare, showCreateNew])
-
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
 
     // Handle compare button click - create local copy of last (rightmost) visible revision
     const handleCompareButtonClick = useCallback(() => {
         // Get the last visible revision ID from value prop (rightmost in compare mode)
         const lastRevisionId = Array.isArray(value) ? value[value.length - 1] : value
+
         if (lastRevisionId) {
-            try {
-                const localDraftId = cloneAsLocalDraft(lastRevisionId)
-                setSelectedVariants((prev) => [...prev, localDraftId])
+            const localDraftId = cloneAsLocalDraft(lastRevisionId)
+
+            if (localDraftId) {
+                setSelectedVariants((prev) =>
+                    prev.includes(localDraftId) ? prev : [...prev, localDraftId],
+                )
                 recordWidgetEvent("playground_compared_side_by_side")
-            } catch (error) {
-                console.error("Failed to create local copy for comparison:", error)
             }
         }
     }, [value, setSelectedVariants, recordWidgetEvent])
@@ -311,7 +314,7 @@ const SelectVariant = ({
                 renderParentTitle={renderParentTitle}
                 renderChildTitle={renderChildTitle}
                 renderSelectedLabel={renderSelectedLabel}
-                popupHeaderAction={popupHeaderAction}
+                popupHeaderAction={null}
                 size="small"
                 placeholder="Select variant"
                 popupMinWidth={280}

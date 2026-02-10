@@ -159,6 +159,20 @@ export {
 } from "./utils"
 
 // ============================================================================
+// SNAPSHOT - Draft Patch Helpers for URL Sharing
+// ============================================================================
+
+// Auto-register snapshot adapter when this module is imported
+// This ensures the adapter is available in the registry for snapshot operations
+import "./snapshotAdapter"
+export {
+    appRevisionSnapshotAdapter,
+    buildAppRevisionDraftPatch,
+    applyAppRevisionDraftPatch,
+    type AppRevisionDraftPatch,
+} from "./snapshotAdapter"
+
+// ============================================================================
 // ENTITY RELATIONS
 // ============================================================================
 

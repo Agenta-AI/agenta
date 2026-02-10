@@ -128,6 +128,7 @@ class AppVariantResponse(BaseModel):
 
 class AppVariantRevision(BaseModel):
     id: Optional[str] = None
+    variant_id: Optional[str] = None
     revision: int
     modified_by: Optional[str] = None
     config: ConfigDB
