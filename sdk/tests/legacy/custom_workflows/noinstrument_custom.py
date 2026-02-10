@@ -65,7 +65,7 @@ def search_docs(
         List of dictionaries containing matched documents and their metadata
     """
     # Get embeddings for the query
-    config = ag.ConfigManager.get_from_route(Config)
+    config = ag.ConfigManager.get_from_route(Config)  # noqa: F841
 
     # Return dummy JSON output for testing
     formatted_results = [

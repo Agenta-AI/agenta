@@ -282,7 +282,7 @@ async def create_accounts(
                 # GET WORKSPACE AND ORGANIZATION
                 project = entities.projects[request.project_ref.slug]
                 workspace = entities.workspaces[project.workspace_ref.slug]
-                organization = entities.organizations[workspace.organization_ref.slug]
+                _organization = entities.organizations[workspace.organization_ref.slug]
                 # CREATE PROJECT SCOPE
                 scope = ProjectScope(
                     credentials=credentials,

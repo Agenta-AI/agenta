@@ -103,7 +103,7 @@ def colored_console_renderer() -> Processor:
     }
 
     def render(_, __, event_dict: EventDict) -> str:
-        pid = event_dict.pop("pid", None)
+        event_dict.pop("pid", None)
         ts = event_dict.pop("Timestamp", "")[:23] + "Z"
         level = event_dict.pop("level", "INFO")
         msg = event_dict.pop("event", "")

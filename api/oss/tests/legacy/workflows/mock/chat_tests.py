@@ -122,7 +122,7 @@ class TestMockChat:
             json={"input": {"messages": "What is the capital of France?"}},
             headers=headers,
         )
-        response_data = response.json()
+        response_data = response.json()  # noqa: F841
 
         # ASSERT
         assert response.status_code == 422

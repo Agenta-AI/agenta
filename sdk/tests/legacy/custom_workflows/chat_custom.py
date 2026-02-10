@@ -66,7 +66,7 @@ def search_docs(
         List of dictionaries containing matched documents and their metadata
     """
     # Get embeddings for the query
-    config = ag.ConfigManager.get_from_route(Config)
+    config = ag.ConfigManager.get_from_route(Config)  # noqa: F841
 
     # Return dummy JSON output for testing
     formatted_results = [
@@ -109,7 +109,7 @@ async def llm(query: str, results: List[Dict]):
         context.append(item)
 
     ag.tracing.store_internals({"context": context})
-    response = await mockllm.acompletion(
+    response = await mockllm.acompletion(  # noqa: F841
         **config.my_prompt_1.to_openai_kwargs(),
     )
     return Message(content="world", role="assistant")

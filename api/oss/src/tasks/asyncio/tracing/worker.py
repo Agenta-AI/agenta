@@ -208,9 +208,6 @@ class TracingWorker:
                     # If no messages, loop will check time and either read again or break
 
             # Calculate batch size in bytes
-            batch_bytes = sum(len(data.get(b"data", b"")) for _, data in batch)
-            batch_mb = batch_bytes / (1024 * 1024)
-
             return batch
 
         except Exception as e:

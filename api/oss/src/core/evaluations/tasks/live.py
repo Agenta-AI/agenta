@@ -257,11 +257,9 @@ async def evaluate_live_query(
         }
 
         input_steps_keys = list(input_steps.keys())
-        invocation_steps_keys = list(invocation_steps.keys())
+        invocation_steps_keys = list(invocation_steps.keys())  # noqa: F841
         annotation_steps_keys = list(annotation_steps.keys())
 
-        nof_inputs = len(input_steps_keys)
-        nof_invocations = len(invocation_steps_keys)
         nof_annotations = len(annotation_steps_keys)
         # ----------------------------------------------------------------------
 

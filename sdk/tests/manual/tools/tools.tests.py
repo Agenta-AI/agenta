@@ -319,7 +319,7 @@ def test_code_execution(provider: str, model: str) -> Tuple[bool, str]:
             )
             if skipped:
                 return skipped
-            response = litellm.completion(
+            response = litellm.completion(  # noqa: F841
                 model=model,
                 messages=messages,
                 tools=tools,
@@ -366,7 +366,7 @@ def test_web_search(provider: str, model: str) -> Tuple[bool, str]:
 
         elif provider == "google":
             # Gemini Google Search grounding
-            response = litellm.completion(
+            response = litellm.completion(  # noqa: F841
                 model=model,
                 messages=messages,
                 tools=tools,
@@ -409,7 +409,7 @@ def test_url_context(provider: str, model: str) -> Tuple[bool, str]:
                 timeout=90,
             )
         else:
-            response = litellm.completion(
+            response = litellm.completion(  # noqa: F841
                 model=model,
                 messages=messages,
                 tools=tools if tools else None,
@@ -432,7 +432,7 @@ def test_text_editor(provider: str, model: str) -> Tuple[bool, str]:
             )
             if skipped:
                 return skipped
-            response = litellm.completion(
+            response = litellm.completion(  # noqa: F841
                 model=model,
                 messages=messages,
                 tools=tools,
@@ -465,7 +465,7 @@ def test_bash_scripting(provider: str, model: str) -> Tuple[bool, str]:
             )
             if skipped:
                 return skipped
-            response = litellm.completion(
+            response = litellm.completion(  # noqa: F841
                 model=model,
                 messages=messages,
                 tools=tools,

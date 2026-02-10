@@ -118,8 +118,7 @@ class OTLPExporter(OTLPSpanExporter):
                 )
             ):
                 for _span in _spans:
-                    trace_id = _span.get_span_context().trace_id
-                    span_id = _span.get_span_context().span_id
+                    trace_id = _span.get_span_context().trace_id  # noqa: F841
 
                     # log.debug(
                     #     "[SPAN]  [EXPORT]",
@@ -144,14 +143,14 @@ class OTLPExporter(OTLPSpanExporter):
 
             def __export():
                 with suppress():
-                    resp = None
+                    _resp = None
                     if timeout_sec is not None:
-                        resp = super(OTLPExporter, self)._export(
+                        _resp = super(OTLPExporter, self)._export(
                             serialized_data,
                             timeout_sec,
                         )
                     else:
-                        resp = super(OTLPExporter, self)._export(
+                        _resp = super(OTLPExporter, self)._export(
                             serialized_data,
                         )
 

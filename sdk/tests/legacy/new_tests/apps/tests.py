@@ -131,8 +131,8 @@ class TestAppCreationManagement:
     async def test_entitlements_limited_access(self, http_client):
         # Arrange: Prepare data
         app_data = {"app_name": f"app_{uuid.uuid4().hex[:8]}"}
-        expected_status = 403
-        description = "Limited access for free-tier user"
+        expected_status = 403  # noqa: F841
+        description = "Limited access for free-tier user"  # noqa: F841
         api_credentials = self.non_paying_scope_response.get("credentials", "")
         headers = {"Authorization": api_credentials}
 
@@ -164,8 +164,8 @@ class TestAppCreationManagement:
     async def test_permissions_allowed_post(self, http_client):
         # Arrange: Prepare data
         app_data = {"app_name": f"app_{uuid.uuid4().hex[:8]}"}
-        expected_status = 200
-        description = "Principal in scope and action allowed for POST"
+        expected_status = 200  # noqa: F841
+        description = "Principal in scope and action allowed for POST"  # noqa: F841
         members_credentials = list(self.all_members_scope_response.values())
         owner_project_id = members_credentials[0].get("project", {}).get("id")
         credential_headers = [

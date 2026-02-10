@@ -26,7 +26,7 @@ async def test_batch_invoke_success():
         patch(
             "src.services.llm_apps_service.invoke_app", new_callable=AsyncMock
         ) as mock_invoke_app,
-        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,  # noqa: F841
     ):
         mock_get_parameters_from_openapi.return_value = [
             {"name": "param1", "type": "input"},
@@ -98,7 +98,7 @@ async def test_batch_invoke_retries_and_failure():
         patch(
             "src.services.llm_apps_service.invoke_app", new_callable=AsyncMock
         ) as mock_invoke_app,
-        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,  # noqa: F841
     ):
         mock_get_parameters_from_openapi.return_value = [
             {"name": "param1", "type": "input"},
@@ -165,7 +165,7 @@ async def test_batch_invoke_generic_exception():
         patch(
             "src.services.llm_apps_service.invoke_app", new_callable=AsyncMock
         ) as mock_invoke_app,
-        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,  # noqa: F841
     ):
         mock_get_parameters_from_openapi.return_value = [
             {"name": "param1", "type": "input"},

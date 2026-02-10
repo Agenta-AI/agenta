@@ -143,7 +143,6 @@ async def terminate_and_remove_app_variant(
     if app_variant_id:
         app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id)
 
-    app_id = str(app_variant_db.app_id)  # type: ignore
     if app_variant_db is None:
         error_msg = f"Failed to delete app variant {app_variant_id}: Not found in DB."
         log.error(error_msg)

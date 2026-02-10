@@ -77,7 +77,7 @@ def convert_and_respect_annotation_metadata(
         or typing_extensions.get_origin(clean_type) == dict
         or clean_type == typing.Dict
     ) and isinstance(object_, typing.Dict):
-        key_type = typing_extensions.get_args(clean_type)[0]
+        key_type = typing_extensions.get_args(clean_type)[0]  # noqa: F841
         value_type = typing_extensions.get_args(clean_type)[1]
 
         return {

@@ -70,7 +70,7 @@ def search_docs(
         List of dictionaries containing matched documents and their metadata
     """
     # Get embeddings for the query
-    config = ag.ConfigManager.get_from_route(Config)
+    config = ag.ConfigManager.get_from_route(Config)  # noqa: F841
 
     # Return dummy JSON output for testing
     formatted_results = [
@@ -139,7 +139,7 @@ if __name__ == "__main__":
     import asyncio
 
     async def main():
-        res = await generate(query="What is the capital of France?")
+        res = await generate(query="What is the capital of France?")  # noqa: F841
 
         invocation_link = ag.tracing.build_invocation_link()
 

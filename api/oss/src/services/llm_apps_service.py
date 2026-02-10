@@ -362,8 +362,8 @@ async def run_with_retry(
     if "references" in kwargs and "testcase_id" in input_data:
         kwargs["references"]["testcase"] = {"id": input_data["testcase_id"]}
 
-    references = kwargs.get("references", None)
-    links = kwargs.get("links", None)
+    # references = kwargs.get("references", None)
+    # links = kwargs.get("links", None)
     # hash_id = make_hash_id(references=references, links=links)
 
     retries = 0

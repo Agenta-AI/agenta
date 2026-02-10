@@ -570,7 +570,7 @@ async def display_evaluation_results(
                             if step_data:
                                 inputs = step_data["inputs"]
                                 outputs = step_data["outputs"]
-                                trace_type = step_data["trace_type"]
+                                _trace_type = step_data["trace_type"]
                                 trace_evaluator_name = step_data.get("evaluator_name")
 
                                 # Store inputs for report

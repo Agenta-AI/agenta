@@ -146,7 +146,7 @@ class TestMockCompletion:
             },
             headers=headers,
         )
-        response_data = response.json()
+        response_data = response.json()  # noqa: F841
 
         # ASSERT
         assert response.status_code == 422

@@ -64,7 +64,7 @@ class TestMockCompletion:
             },
             headers=non_member_headers,
         )
-        response_data = response.json()
+        response_data = response.json()  # noqa: F841
 
         # Assert: Verify the response
         assert response.status_code == expected_status, (
