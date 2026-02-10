@@ -1,54 +1,26 @@
 import {WorkerInfo} from "@playwright/test"
 
-import {TestEnvironment, type TestEnvironmentType} from "../../../../playwright/config/testTags"
 import {getTestmailClient} from "../../../../utils/testmail"
 import {UserState} from "../types"
 
 /**
- * Determines the test environment from the project name.
- * The project name is set to AGENTA_LICENSE (ee/oss) in the config.
- * Falls back to "oss" if it doesn't match a known environment key.
- */
-export function determineEnvironment(project: Partial<WorkerInfo["project"]>): TestEnvironmentType {
-    const projectName = project.name as TestEnvironmentType
-
-    if (Object.keys(TestEnvironment).includes(projectName)) {
-        return projectName
-    }
-
-    // Project name is a license (ee/oss), not an environment key — default to "local"
-    return "local" as TestEnvironmentType
-}
-
-/**
- * @deprecated will be removed in a future release since both ee and oss now require authentication
- * Determines if authentication is required based on environment and test tags
- */
-export function requiresAuthentication(environment: TestEnvironmentType, tags?: string[]): boolean {
-    return true
-}
-
-/**
  * Creates initial user state for a worker
  *
- * Generates a unique email address and sets up initial state based on:
- * - Environment determined from worker info
- * - Default authentication requirement based on environment
+ * Generates a unique email address and sets up initial state.
+ * All tests now require authentication.
  *
- * @param workerInfo - Playwright worker information
+ * @param project - Playwright project information
  * @returns Initial UserState object
  *
  * @example
- * const userState = createInitialUserState(workerInfo);
+ * const userState = createInitialUserState(project);
  * // Returns {
  * //   email: "abc123@namespace.testmail.app",
  * //   isAuthenticated: false,
- * //   environment: "staging",
  * //   requiresAuth: true
  * // }
  */
 export function createInitialUserState(project: Partial<WorkerInfo["project"]>): UserState {
-    const environment = determineEnvironment(project)
     const testmail = getTestmailClient()
 
     // Create email with structured tag
@@ -60,7 +32,6 @@ export function createInitialUserState(project: Partial<WorkerInfo["project"]>):
     return {
         email,
         isAuthenticated: false,
-        environment,
         requiresAuth: true,
         password: "",
     }
