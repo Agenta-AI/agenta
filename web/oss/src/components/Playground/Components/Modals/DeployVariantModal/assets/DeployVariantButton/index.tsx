@@ -5,7 +5,7 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {moleculeBackedVariantAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 
 import {DeployVariantButtonProps} from "./types"
@@ -27,8 +27,8 @@ const DeployVariantButton = ({
         isEnvironmentsLoading,
     } = useEnvironments()
 
-    // Focused read for the specific revision's metadata
-    const variant = useAtomValue(variantByRevisionIdAtomFamily(revisionId)) as any
+    // Use molecule-backed variant for single source of truth
+    const variant = useAtomValue(moleculeBackedVariantAtomFamily(revisionId)) as any
 
     const {environments, variantName, revision} = useMemo(() => {
         return {

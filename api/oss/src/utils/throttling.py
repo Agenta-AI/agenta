@@ -517,7 +517,7 @@ async def check_throttle(
             return _failure_result(key_str, failure_mode)
 
     except Exception:
-        log.warning("[throttle] Unexpected error", key=key_str, exc_info=True)
+        log.error("[throttle] Unexpected error", key=key_str, exc_info=True)
 
         return _failure_result(key_str, failure_mode)
 
@@ -639,7 +639,7 @@ async def check_throttles(
         return await _with_script_retry(_do_batch, "batch")
 
     except Exception:
-        log.warning("[throttle] [batch] Unexpected error", exc_info=True)
+        log.error("[throttle] [batch] Unexpected error", exc_info=True)
 
         return [_failure_result(ks, failure_mode) for _, ks, _, _ in processed]
 

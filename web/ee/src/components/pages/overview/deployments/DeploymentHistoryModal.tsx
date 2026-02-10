@@ -1,6 +1,7 @@
 // @ts-nocheck
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {CloseOutlined, MoreOutlined, SwapOutlined} from "@ant-design/icons"
 import {ClockCounterClockwise, GearSix} from "@phosphor-icons/react"
 import {Button, Dropdown, Modal, Space, Spin, Table, Typography} from "antd"
@@ -8,7 +9,6 @@ import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
 import VariantPopover from "@/oss/components/pages/overview/variants/VariantPopover"
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"

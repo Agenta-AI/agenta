@@ -52,6 +52,9 @@ async def evaluation_db_to_pydantic(
         evaluation_db.aggregated_results
     )
 
+    # Fall back to created_at if no update has occurred
+    updated_at = evaluation_db.updated_at or evaluation_db.created_at
+
     return Evaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app_id),
@@ -64,8 +67,8 @@ async def evaluation_db_to_pydantic(
         testset_id=str(evaluation_db.testset_id),
         testset_name=evaluation_db.testset.name,
         aggregated_results=aggregated_results,
-        created_at=str(evaluation_db.created_at),
-        updated_at=str(evaluation_db.updated_at),
+        created_at=str(evaluation_db.created_at) if evaluation_db.created_at else None,
+        updated_at=str(updated_at) if updated_at else None,
         average_cost=evaluation_db.average_cost,
         total_cost=evaluation_db.total_cost,
         average_latency=evaluation_db.average_latency,
@@ -99,6 +102,9 @@ async def human_evaluation_db_to_pydantic(
         revisions.append(variant_revision)
         variants_revision_ids.append(str(evaluation_variant.variant_revision_id))
 
+    # Fall back to created_at if no update has occurred
+    updated_at = evaluation_db.updated_at or evaluation_db.created_at
+
     return HumanEvaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app_id),
@@ -111,8 +117,8 @@ async def human_evaluation_db_to_pydantic(
         testset_name=evaluation_db.testset.name,
         variants_revision_ids=variants_revision_ids,
         revisions=revisions,
-        created_at=str(evaluation_db.created_at),  # type: ignore
-        updated_at=str(evaluation_db.updated_at),  # type: ignore
+        created_at=str(evaluation_db.created_at) if evaluation_db.created_at else None,  # type: ignore
+        updated_at=str(updated_at) if updated_at else None,  # type: ignore
     )
 
 
@@ -137,18 +143,19 @@ def aggregated_result_of_evaluation_to_pydantic(
 ) -> List[dict]:
     transformed_results = []
     for aggregated_result in evaluation_aggregated_results:
-        evaluator_config_dict = (
-            {
-                "id": str(aggregated_result.evaluator_config.id),
-                "name": aggregated_result.evaluator_config.name,
-                "evaluator_key": aggregated_result.evaluator_config.evaluator_key,
-                "settings_values": aggregated_result.evaluator_config.settings_values,
-                "created_at": str(aggregated_result.evaluator_config.created_at),
-                "updated_at": str(aggregated_result.evaluator_config.updated_at),
+        evaluator_config_dict = None
+        if isinstance(aggregated_result.evaluator_config_id, uuid.UUID):
+            config = aggregated_result.evaluator_config
+            # Fall back to created_at if no update has occurred
+            config_updated_at = config.updated_at or config.created_at
+            evaluator_config_dict = {
+                "id": str(config.id),
+                "name": config.name,
+                "evaluator_key": config.evaluator_key,
+                "settings_values": config.settings_values,
+                "created_at": str(config.created_at) if config.created_at else None,
+                "updated_at": str(config_updated_at) if config_updated_at else None,
             }
-            if isinstance(aggregated_result.evaluator_config_id, uuid.UUID)
-            else None
-        )
         transformed_results.append(
             {
                 "evaluator_config": (

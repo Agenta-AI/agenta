@@ -1,5 +1,6 @@
 import {useCallback, useRef, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -16,7 +17,6 @@ import {
 } from "@/oss/state/entities/testset"
 
 import AlertPopup from "../../AlertPopup/AlertPopup"
-import {message} from "../../AppMessageContext"
 import type {TestcaseTableRow} from "../atoms/tableStore"
 
 import type {RevisionListItem, UseTestcasesTableResult} from "./types"

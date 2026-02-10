@@ -1,6 +1,6 @@
 import {Atom, atom} from "jotai"
 
-import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
+import {playgroundRevisionListAtom} from "@/oss/components/Playground/state/atoms/variants"
 
 // The shape of the drawer state
 export interface VariantDrawerState {
@@ -13,17 +13,17 @@ export interface VariantDrawerState {
 export const variantDrawerAtom = atom<VariantDrawerState>({
     open: false,
     id: undefined,
-    variantsSource: revisionListAtom,
+    variantsSource: playgroundRevisionListAtom,
 })
 
 // Optional: selectors and reset atom (if you want)
 export const isVariantDrawerOpenAtom = atom((get) => get(variantDrawerAtom).open)
 export const resetVariantDrawerAtom = atom(null, (get, set) =>
-    set(variantDrawerAtom, {open: false, variantsSource: revisionListAtom}),
+    set(variantDrawerAtom, {open: false, variantsSource: playgroundRevisionListAtom}),
 )
 export const openVariantDrawerAtom = atom(null, (get, set) =>
-    set(variantDrawerAtom, {open: true, variantsSource: revisionListAtom}),
+    set(variantDrawerAtom, {open: true, variantsSource: playgroundRevisionListAtom}),
 )
 export const openVariantDrawerWithIdAtom = atom(null, (get, set) =>
-    set(variantDrawerAtom, {open: true, variantsSource: revisionListAtom, id: ""}),
+    set(variantDrawerAtom, {open: true, variantsSource: playgroundRevisionListAtom, id: ""}),
 )

@@ -50,7 +50,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
         else {
             // Run for all completion rows: iterate input row ids and trigger tests
             for (const rid of completionRowIds || []) {
-                triggerTest({rowId: rid, variantId})
+                triggerTest({rowId: rid, revisionId: variantId})
             }
         }
     }, [appType, runAllChat, completionRowIds, triggerTest, variantId])

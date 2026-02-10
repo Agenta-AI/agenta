@@ -331,6 +331,14 @@ async def create_project(
             user_id=UUID(request.state.user_id),
         )
 
+        # Create default environments for the new project
+        from oss.src.core.environments.defaults import create_default_environments
+
+        await create_default_environments(
+            project_id=project.id,
+            user_id=UUID(request.state.user_id),
+        )
+
         membership = await _get_ee_membership_for_project(
             user_id=request.state.user_id,
             project_id=project.id,
@@ -357,6 +365,14 @@ async def create_project(
     from oss.src.core.evaluators.defaults import create_default_human_evaluator
 
     await create_default_human_evaluator(
+        project_id=project.id,
+        user_id=UUID(request.state.user_id),
+    )
+
+    # Create default environments for the new project
+    from oss.src.core.environments.defaults import create_default_environments
+
+    await create_default_environments(
         project_id=project.id,
         user_id=UUID(request.state.user_id),
     )

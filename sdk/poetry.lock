@@ -266,18 +266,18 @@ files = [
 
 [[package]]
 name = "boto3"
-version = "1.42.38"
+version = "1.42.39"
 description = "The AWS SDK for Python"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "boto3-1.42.38-py3-none-any.whl", hash = "sha256:b5a748b3fdddba8aa2988af0e462996ef72dc2760b0eab30329b9d201d4b38f2"},
-    {file = "boto3-1.42.38.tar.gz", hash = "sha256:af2e5c08972d35fa4b4bc457031794343a6ddb1df5692db43302d5b5feaac23e"},
+    {file = "boto3-1.42.39-py3-none-any.whl", hash = "sha256:d9d6ce11df309707b490d2f5f785b761cfddfd6d1f665385b78c9d8ed097184b"},
+    {file = "boto3-1.42.39.tar.gz", hash = "sha256:d03f82363314759eff7f84a27b9e6428125f89d8119e4588e8c2c1d79892c956"},
 ]
 
 [package.dependencies]
-botocore = ">=1.42.38,<1.43.0"
+botocore = ">=1.42.39,<1.43.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.16.0,<0.17.0"
 
@@ -286,14 +286,14 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.42.38"
+version = "1.42.39"
 description = "Low-level, data-driven core of boto 3."
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "botocore-1.42.38-py3-none-any.whl", hash = "sha256:b67e0c4989a6bdd459cb49274df05003179165567b7789d8d920cdbdc6c2661f"},
-    {file = "botocore-1.42.38.tar.gz", hash = "sha256:eb36d09b5c61b3ede6129f7b54630049f3eeeccf1327a32cf8944563027a4002"},
+    {file = "botocore-1.42.39-py3-none-any.whl", hash = "sha256:9e0d0fed9226449cc26fcf2bbffc0392ac698dd8378e8395ce54f3ec13f81d58"},
+    {file = "botocore-1.42.39.tar.gz", hash = "sha256:0f00355050821e91a5fe6d932f7bf220f337249b752899e3e4cf6ed54326249e"},
 ]
 
 [package.dependencies]
@@ -469,22 +469,22 @@ markers = {main = "platform_system == \"Windows\"", dev = "platform_system == \"
 
 [[package]]
 name = "daytona"
-version = "0.136.0"
+version = "0.138.0"
 description = "Python SDK for Daytona"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "daytona-0.136.0-py3-none-any.whl", hash = "sha256:b3bc1fbe7faac375c265e0cc1f8e2ecd371e303a9750b3ff13aac2b8d3634007"},
-    {file = "daytona-0.136.0.tar.gz", hash = "sha256:289dd604a85930f79d7f08374f3ae4fa4405a4b8ae2d21bccb136e6b61177261"},
+    {file = "daytona-0.138.0-py3-none-any.whl", hash = "sha256:9cdb7960bb9fe356118e61050bdfbbba2446549bca5c56cc5da0be0b031bef2a"},
+    {file = "daytona-0.138.0.tar.gz", hash = "sha256:ca7a0b2817a911ec523604e4ecda6d26336d8d08b0a5418ebc6d06e6e11238b5"},
 ]
 
 [package.dependencies]
 aiofiles = ">=24.1.0,<24.2.0"
-daytona-api-client = "0.136.0"
-daytona-api-client-async = "0.136.0"
-daytona-toolbox-api-client = "0.136.0"
-daytona-toolbox-api-client-async = "0.136.0"
+daytona-api-client = "0.138.0"
+daytona-api-client-async = "0.138.0"
+daytona-toolbox-api-client = "0.138.0"
+daytona-toolbox-api-client-async = "0.138.0"
 Deprecated = ">=1.2.18,<2.0.0"
 environs = ">=10.0.0,<15.0.0"
 httpx = ">=0.28.0,<0.29.0"
@@ -496,14 +496,14 @@ websockets = ">=15.0.0,<16.0.0"
 
 [[package]]
 name = "daytona-api-client"
-version = "0.136.0"
+version = "0.138.0"
 description = "Daytona"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_api_client-0.136.0-py3-none-any.whl", hash = "sha256:2ed06372c592dc5d7942b2a1a7a7bae02add269cddd13abaa8136e8e35c6ff10"},
-    {file = "daytona_api_client-0.136.0.tar.gz", hash = "sha256:653d6b5ac5ebad5fd1e94c758c650e4affa340f6608074e603d8bc504ace1b49"},
+    {file = "daytona_api_client-0.138.0-py3-none-any.whl", hash = "sha256:7b90f9649488cc833254aef7d99423705d19730655934f87074b5d0d0bf553aa"},
+    {file = "daytona_api_client-0.138.0.tar.gz", hash = "sha256:cb13f6d4d1b8e47c872a98b3730a7a14b3e45597b54b30a22dbdb7f2539debd0"},
 ]
 
 [package.dependencies]
@@ -514,14 +514,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-api-client-async"
-version = "0.136.0"
+version = "0.138.0"
 description = "Daytona"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_api_client_async-0.136.0-py3-none-any.whl", hash = "sha256:610dd71809d568ee0924fb19abb0fb0c01123fd5f580a1fc9dd4b11e8ba882f1"},
-    {file = "daytona_api_client_async-0.136.0.tar.gz", hash = "sha256:1ec9dbf3e3a811f7df6191cd19fd4ca6721e6bdbe399d3ac62cf53d2c7872a33"},
+    {file = "daytona_api_client_async-0.138.0-py3-none-any.whl", hash = "sha256:fee31ee02e59c44f5f64a2a23610ecb4a5f195542555dac30c0142385ffeb273"},
+    {file = "daytona_api_client_async-0.138.0.tar.gz", hash = "sha256:6afbcfe6d39b85084e9d0e6bb46cad04b63eea350784bbce1423f1ab21641eb1"},
 ]
 
 [package.dependencies]
@@ -534,14 +534,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-toolbox-api-client"
-version = "0.136.0"
+version = "0.138.0"
 description = "Daytona Toolbox API"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_toolbox_api_client-0.136.0-py3-none-any.whl", hash = "sha256:78faddb9bcf9f0f54e19ae5c64a4c83bd38fc358985dd6259b3b6506bdd83277"},
-    {file = "daytona_toolbox_api_client-0.136.0.tar.gz", hash = "sha256:cd5eedbbcad06fff008d4e2ab3942ec91a013b9fc933edcf7b66b1caa6840b4e"},
+    {file = "daytona_toolbox_api_client-0.138.0-py3-none-any.whl", hash = "sha256:b83b126f3f475549e62e9bfe06cd45fee13dea13fb92fba1c4cc4162e1fb299f"},
+    {file = "daytona_toolbox_api_client-0.138.0.tar.gz", hash = "sha256:e0f1659b9aabdfc17085695ee5bafb9c84d9552ad56d4527261854e95974b4d0"},
 ]
 
 [package.dependencies]
@@ -552,14 +552,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-toolbox-api-client-async"
-version = "0.136.0"
+version = "0.138.0"
 description = "Daytona Toolbox API"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_toolbox_api_client_async-0.136.0-py3-none-any.whl", hash = "sha256:7a450ca3d141e44d95e18aab27885ab829cd5ab35f3a69f25f2212dd957eb2cb"},
-    {file = "daytona_toolbox_api_client_async-0.136.0.tar.gz", hash = "sha256:8e563966e411f78489a4451b49d013487ca93478cd3c5d34f11165a3760e3db1"},
+    {file = "daytona_toolbox_api_client_async-0.138.0-py3-none-any.whl", hash = "sha256:bec5bfe1cd7a75ce38edd7740c5b743b203883d06957fc75119ac081b35e86a9"},
+    {file = "daytona_toolbox_api_client_async-0.138.0.tar.gz", hash = "sha256:f6ad6c26aa17ae2b7a1d8a382cd0d97d0017b5f1e9b35590628f3b0fb3fdb916"},
 ]
 
 [package.dependencies]
@@ -1407,14 +1407,14 @@ files = [
 
 [[package]]
 name = "litellm"
-version = "1.81.5"
+version = "1.81.6"
 description = "Library to easily interface with LLM API providers"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "litellm-1.81.5-py3-none-any.whl", hash = "sha256:206505c5a0c6503e465154b9c979772be3ede3f5bf746d15b37dca5ae54d239f"},
-    {file = "litellm-1.81.5.tar.gz", hash = "sha256:599994651cbb64b8ee7cd3b4979275139afc6e426bdd4aa840a61121bb3b04c9"},
+    {file = "litellm-1.81.6-py3-none-any.whl", hash = "sha256:573206ba194d49a1691370ba33f781671609ac77c35347f8a0411d852cf6341a"},
+    {file = "litellm-1.81.6.tar.gz", hash = "sha256:f02b503dfb7d66d1c939f82e4db21aeec1d6e2ed1fe3f5cd02aaec3f792bc4ae"},
 ]
 
 [package.dependencies]
@@ -1437,7 +1437,7 @@ extra-proxy = ["a2a-sdk (>=0.3.22,<0.4.0) ; python_version >= \"3.10\"", "azure-
 google = ["google-cloud-aiplatform (>=1.38.0)"]
 grpc = ["grpcio (>=1.62.3,<1.68.dev0 || >1.71.0,!=1.71.1,!=1.72.0,!=1.72.1,!=1.73.0) ; python_version < \"3.14\"", "grpcio (>=1.75.0) ; python_version >= \"3.14\""]
 mlflow = ["mlflow (>3.1.4) ; python_version >= \"3.10\""]
-proxy = ["PyJWT (>=2.10.1,<3.0.0) ; python_version >= \"3.9\"", "apscheduler (>=3.10.4,<4.0.0)", "azure-identity (>=1.15.0,<2.0.0) ; python_version >= \"3.9\"", "azure-storage-blob (>=12.25.1,<13.0.0)", "backoff", "boto3 (==1.40.76)", "cryptography", "fastapi (>=0.120.1)", "fastapi-sso (>=0.16.0,<0.17.0)", "gunicorn (>=23.0.0,<24.0.0)", "litellm-enterprise (==0.1.27)", "litellm-proxy-extras (==0.4.27)", "mcp (>=1.25.0,<2.0.0) ; python_version >= \"3.10\"", "orjson (>=3.9.7,<4.0.0)", "polars (>=1.31.0,<2.0.0) ; python_version >= \"3.10\"", "pynacl (>=1.5.0,<2.0.0)", "python-multipart (>=0.0.22,<0.0.23)", "pyyaml (>=6.0.1,<7.0.0)", "rich (==13.7.1)", "rq", "soundfile (>=0.12.1,<0.13.0)", "uvicorn (>=0.31.1,<0.32.0)", "uvloop (>=0.21.0,<0.22.0) ; sys_platform != \"win32\"", "websockets (>=15.0.1,<16.0.0)"]
+proxy = ["PyJWT (>=2.10.1,<3.0.0) ; python_version >= \"3.9\"", "apscheduler (>=3.10.4,<4.0.0)", "azure-identity (>=1.15.0,<2.0.0) ; python_version >= \"3.9\"", "azure-storage-blob (>=12.25.1,<13.0.0)", "backoff", "boto3 (==1.40.76)", "cryptography", "fastapi (>=0.120.1)", "fastapi-sso (>=0.16.0,<0.17.0)", "gunicorn (>=23.0.0,<24.0.0)", "litellm-enterprise (==0.1.27)", "litellm-proxy-extras (==0.4.29)", "mcp (>=1.25.0,<2.0.0) ; python_version >= \"3.10\"", "orjson (>=3.9.7,<4.0.0)", "polars (>=1.31.0,<2.0.0) ; python_version >= \"3.10\"", "pynacl (>=1.5.0,<2.0.0)", "python-multipart (>=0.0.22,<0.0.23) ; python_version >= \"3.10\"", "pyyaml (>=6.0.1,<7.0.0)", "rich (==13.7.1)", "rq", "soundfile (>=0.12.1,<0.13.0)", "uvicorn (>=0.31.1,<0.32.0)", "uvloop (>=0.21.0,<0.22.0) ; sys_platform != \"win32\"", "websockets (>=15.0.1,<16.0.0)"]
 semantic-router = ["semantic-router (>=0.1.12) ; python_version >= \"3.9\" and python_version < \"3.14\""]
 utils = ["numpydoc"]
 
@@ -2201,14 +2201,14 @@ testing = ["coverage", "pytest", "pytest-benchmark"]
 
 [[package]]
 name = "posthog"
-version = "7.7.0"
+version = "7.8.0"
 description = "Integrate PostHog into any python application."
 optional = false
 python-versions = ">=3.10"
 groups = ["dev"]
 files = [
-    {file = "posthog-7.7.0-py3-none-any.whl", hash = "sha256:955f42097bf147459653b9102e5f7f9a22e4b6fc9f15003447bd1137fafbc505"},
-    {file = "posthog-7.7.0.tar.gz", hash = "sha256:b4f2b1a616e099961f6ab61a5a2f88de62082c26801699e556927d21c00737ef"},
+    {file = "posthog-7.8.0-py3-none-any.whl", hash = "sha256:fefa48c560c51ca0acc6261c92a8f61a067a8aa977c8820d0f149eaa4500e4da"},
+    {file = "posthog-7.8.0.tar.gz", hash = "sha256:5f46730090be503a9d4357905d3260178ed6be4c1f6c666e8d7b44189e11fbb8"},
 ]
 
 [package.dependencies]
@@ -3321,14 +3321,14 @@ files = [
 
 [[package]]
 name = "tqdm"
-version = "4.67.1"
+version = "4.67.2"
 description = "Fast, Extensible Progress Meter"
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
 files = [
-    {file = "tqdm-4.67.1-py3-none-any.whl", hash = "sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2"},
-    {file = "tqdm-4.67.1.tar.gz", hash = "sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2"},
+    {file = "tqdm-4.67.2-py3-none-any.whl", hash = "sha256:9a12abcbbff58b6036b2167d9d3853042b9d436fe7330f06ae047867f2f8e0a7"},
+    {file = "tqdm-4.67.2.tar.gz", hash = "sha256:649aac53964b2cb8dec76a14b405a4c0d13612cb8933aae547dd144eacc99653"},
 ]
 
 [package.dependencies]
@@ -3426,14 +3426,14 @@ standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.6.3)
 
 [[package]]
 name = "wcwidth"
-version = "0.5.2"
+version = "0.5.3"
 description = "Measures the displayed width of unicode strings in a terminal"
 optional = false
 python-versions = ">=3.8"
 groups = ["dev"]
 files = [
-    {file = "wcwidth-0.5.2-py3-none-any.whl", hash = "sha256:46912178a64217749bf3426b21e36e849fbc46e05c949407b3e364d9f7ffcadf"},
-    {file = "wcwidth-0.5.2.tar.gz", hash = "sha256:c022c39a02a0134d1e10810da36d1f984c79648181efcc70a389f4569695f5ae"},
+    {file = "wcwidth-0.5.3-py3-none-any.whl", hash = "sha256:d584eff31cd4753e1e5ff6c12e1edfdb324c995713f75d26c29807bb84bf649e"},
+    {file = "wcwidth-0.5.3.tar.gz", hash = "sha256:53123b7af053c74e9fe2e92ac810301f6139e64379031f7124574212fb3b4091"},
 ]
 
 [[package]]
@@ -3774,4 +3774,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "998b198019facd8b9b65987a2d8fbe2a124f1d771878b92615b34a777a72418f"
+content-hash = "f41efea8de4b156c3893e2fba70bc44ef4c5e4c58366c44e7de722c8d93d958c"

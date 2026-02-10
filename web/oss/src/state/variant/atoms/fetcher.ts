@@ -17,6 +17,7 @@ import {fetchSingleProfile} from "@/oss/services/api"
 import {fetchVariants as fetchAppVariants} from "@/oss/services/api"
 import {routerAppIdAtom, recentAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
+import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {environmentsAtom} from "@/oss/state/environment/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {projectScopedVariantsAtom} from "@/oss/state/projectVariantConfig"
@@ -155,37 +156,20 @@ export const allRevisionsAtom = atom((get) => {
     vars.forEach((v) => {
         const revs = (get(revisionsByVariantIdAtomFamily(v.variantId)) as any[]) || []
         revs.forEach((r: any) => {
-            if (r && Number(r.revision) > 0) out.push(r as EnhancedVariant)
+            if (r && r.revision != null && Number(r.revision) >= 0) out.push(r as EnhancedVariant)
         })
     })
 
-    return out
-})
-
-// -------- Centralized enhanced revisions (flat + map) ------------------------
-// Build flattened enhanced revisions list using normalized atoms
-export const enhancedRevisionsFlatAtom = atom<EnhancedVariant[]>((get) => {
-    const vars = get(variantsAtom)
-    const out: EnhancedVariant[] = []
-    vars.forEach((v: any) => {
-        const revs = get(revisionsByVariantIdAtomFamily(v.variantId)) as any[]
-        ;(revs || []).forEach((r: any) => {
-            if (r && Number(r.revision) > 0) out.push(r as EnhancedVariant)
-        })
-    })
     return out
 })
 
 // Sorted enhanced revisions newest-first
-export const sortedEnhancedRevisionsAtom = selectAtom(
-    enhancedRevisionsFlatAtom,
-    (list: EnhancedVariant[]) =>
-        list
-            .slice()
-            .sort(
-                (a: EnhancedVariant, b: EnhancedVariant) =>
-                    b.updatedAtTimestamp - a.updatedAtTimestamp,
-            ),
+export const sortedEnhancedRevisionsAtom = selectAtom(allRevisionsAtom, (list: EnhancedVariant[]) =>
+    list
+        .slice()
+        .sort(
+            (a: EnhancedVariant, b: EnhancedVariant) => b.updatedAtTimestamp - a.updatedAtTimestamp,
+        ),
 )
 
 // Revision map variantId -> enhanced revisions[] (newest-first)
@@ -196,7 +180,7 @@ export const revisionMapAtom = atom<Record<string, EnhancedVariant[]>>((get) => 
         const revs = get(revisionsByVariantIdAtomFamily(v.variantId)) as any[]
         const arr: EnhancedVariant[] = []
         ;(revs || []).forEach((r: any) => {
-            if (r && Number(r.revision) > 0) arr.push(r as EnhancedVariant)
+            if (r && r.revision != null && Number(r.revision) >= 0) arr.push(r as EnhancedVariant)
         })
         map[v.variantId] = arr.sort(
             (a: EnhancedVariant, b: EnhancedVariant) => b.updatedAtTimestamp - a.updatedAtTimestamp,
@@ -219,6 +203,15 @@ export const appUriStateQueryAtom = atomWithQuery<UriState | undefined>((get) =>
     const firstUri = (variants[0] as any)?.uri as string | undefined
     const appType = get(currentAppContextAtom)?.appType || null
     const isCustomApp = appType === "custom"
+
+    // Disable legacy schema fetch on routes that use the entity-layer schema atoms
+    // (service prefetch + per-revision fallback) instead of Pipeline A.
+    // The playground has fully migrated to Pipeline B (playgroundAppAtoms.ts uses
+    // legacyAppRevisionSchemaQueryAtomFamily), so skip on all playground routes.
+    const appState = get(appStateSnapshotAtom)
+    const isPlayground = appState.pathname?.includes("/playground")
+    const isVariantDrawer = appState.pathname?.includes("/variants")
+    const shouldSkipLegacyFetch = isPlayground || isVariantDrawer
 
     const fetchRecursive = async (current: string, removed = ""): Promise<UriState> => {
         const result = await fetchOpenApiSchemaJson(current)
@@ -243,7 +236,7 @@ export const appUriStateQueryAtom = atomWithQuery<UriState | undefined>((get) =>
         queryFn: () => (firstUri ? fetchRecursive(firstUri) : Promise.resolve(undefined)),
         staleTime: isCustomApp ? undefined : 1000 * 60 * 5,
         placeholderData: (previousData) => previousData,
-        enabled: !!firstUri,
+        enabled: !!firstUri && !shouldSkipLegacyFetch,
         refetchInterval: isCustomApp ? 1000 * 60 * 1 : false,
     }
 })
@@ -321,7 +314,6 @@ export const getSpecLazy = () => {
 const userIdsAtom = atom<string[]>((get) => {
     const variants = get(variantsAtom) as any[]
     const ids = new Set<string>()
-
     variants.forEach((v) => {
         const modBy =
             (v as any).modifiedById ??

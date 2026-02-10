@@ -1,7 +1,7 @@
+import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
 
 import {displayedVariantsVariablesAtom} from "@/oss/components/Playground/state/atoms"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {
     chatTurnIdsAtom,
     chatTurnIdsByBaselineAtom,

@@ -249,11 +249,14 @@ async def evaluate_live_query(
             run_id=run_id,
         )
 
-        assert run, f"Evaluation run with id {run_id} not found!"
+        if not run:
+            raise ValueError(f"Evaluation run with id {run_id} not found!")
 
-        assert run.data, f"Evaluation run with id {run_id} has no data!"
+        if not run.data:
+            raise ValueError(f"Evaluation run with id {run_id} has no data!")
 
-        assert run.data.steps, f"Evaluation run with id {run_id} has no steps!"
+        if not run.data.steps:
+            raise ValueError(f"Evaluation run with id {run_id} has no steps!")
 
         steps = run.data.steps
 
@@ -425,7 +428,12 @@ async def evaluate_live_query(
             query_traces[query_step_key] = tracing_response.traces or dict()
         # ----------------------------------------------------------------------
 
+        total_traces = sum(len(traces) for traces in query_traces.values())
+        if total_traces == 0:
+            return
+
         # run online evaluation ------------------------------------------------
+        any_results_created = False
         for query_step_key in query_traces.keys():
             if not query_traces[query_step_key].keys():
                 continue
@@ -487,9 +495,10 @@ async def evaluate_live_query(
                 results=results_create,
             )
 
-            assert len(results) == nof_traces, (
-                f"Failed to create evaluation results for run {run_id}!"
-            )
+            if len(results) != nof_traces:
+                raise ValueError(
+                    f"Failed to create evaluation results for run {run_id}!"
+                )
             # ------------------------------------------------------------------
 
             scenario_has_errors: Dict[int, int] = dict()
@@ -497,6 +506,7 @@ async def evaluate_live_query(
 
             # iterate over query traces ----------------------------------------
             for idx, trace in enumerate(query_traces[query_step_key].values()):
+                scenario_results_created = False
                 scenario_has_errors[idx] = 0
                 scenario_status[idx] = EvaluationStatus.SUCCESS
 
@@ -765,9 +775,12 @@ async def evaluate_live_query(
                         results=results_create,
                     )
 
-                    assert len(results) == 1, (
-                        f"Failed to create evaluation result for scenario with id {scenario.id}!"
-                    )
+                    if len(results) != 1:
+                        raise ValueError(
+                            f"Failed to create evaluation result for scenario with id {scenario.id}!"
+                        )
+                    scenario_results_created = True
+                    any_results_created = True
                 # --------------------------------------------------------------
 
                 scenario_edit = EvaluationScenarioEdit(
@@ -790,27 +803,29 @@ async def evaluate_live_query(
                         run_id=run_id,
                     )
 
-                await evaluations_service.refresh_metrics(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    metrics=EvaluationMetricsRefresh(
-                        run_id=run_id,
-                        scenario_id=scenario_id,
-                    ),
-                )
+                if scenario_results_created:
+                    await evaluations_service.refresh_metrics(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        metrics=EvaluationMetricsRefresh(
+                            run_id=run_id,
+                            scenario_id=scenario_id,
+                        ),
+                    )
             # ------------------------------------------------------------------
 
-        await evaluations_service.refresh_metrics(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            metrics=EvaluationMetricsRefresh(
-                run_id=run_id,
-                timestamp=timestamp,
-                interval=interval,
-            ),
-        )
+        if any_results_created:
+            await evaluations_service.refresh_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                metrics=EvaluationMetricsRefresh(
+                    run_id=run_id,
+                    timestamp=timestamp,
+                    interval=interval,
+                ),
+            )
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.error(e, exc_info=True)
 

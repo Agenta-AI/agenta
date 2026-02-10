@@ -60,7 +60,7 @@ const config = [
             "no-useless-escape": "off",
             "no-prototype-builtins": "off",
             "no-useless-catch": "off",
-            "@typescript-eslint/no-explicit-any": "off",
+            "@typescript-eslint/no-explicit-any": "error",
             "@typescript-eslint/no-empty-object-type": "off",
             "@typescript-eslint/ban-ts-comment": "off",
             "@typescript-eslint/no-empty-function": "off",

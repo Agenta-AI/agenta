@@ -12,13 +12,13 @@
  */
 import {useCallback, useEffect, useMemo} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {ArrowLeftOutlined} from "@ant-design/icons"
 import {Button, Result} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {
     initPlaygroundAtom,
     playgroundEditValuesAtom,

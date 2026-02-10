@@ -16,12 +16,9 @@ export const buildTypescriptSnippet = (
         variant_ref: {
             slug: '${variantSlug}',
             version: ${variantVersion},
-            id: null,
         },
         application_ref: {
             slug: '${appSlug}',
-            version: null,
-            id: null,
         },
     }),
 });

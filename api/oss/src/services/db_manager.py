@@ -32,6 +32,11 @@ from oss.src.dbs.postgres.testsets.dbes import (
     TestsetVariantDBE,
     TestsetRevisionDBE,
 )
+from oss.src.dbs.postgres.workflows.dbes import (
+    WorkflowArtifactDBE,
+    WorkflowVariantDBE,
+    WorkflowRevisionDBE,
+)
 
 from oss.src.models.db_models import (
     WorkspaceDB,
@@ -246,6 +251,81 @@ async def add_default_simple_testsets(
             log.error(
                 "An error occurred in adding a default simple testset",
                 template_file=filename,
+                exc_info=True,
+            )
+
+
+async def add_default_simple_evaluators(
+    *,
+    project_id: str,
+    user_id: str,
+) -> None:
+    """Create default simple evaluators for direct-use evaluator types."""
+    from oss.src.core.workflows.service import WorkflowsService
+    from oss.src.core.evaluators.service import (
+        EvaluatorsService,
+        SimpleEvaluatorsService,
+    )
+    from oss.src.core.evaluators.dtos import (
+        SimpleEvaluatorCreate,
+        SimpleEvaluatorFlags,
+    )
+    from oss.src.core.evaluators.utils import build_evaluator_data
+    from oss.src.routers.evaluators_router import BUILTIN_EVALUATORS
+
+    workflows_dao = GitDAO(
+        ArtifactDBE=WorkflowArtifactDBE,
+        VariantDBE=WorkflowVariantDBE,
+        RevisionDBE=WorkflowRevisionDBE,
+    )
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+    )
+    evaluators_service = EvaluatorsService(
+        workflows_service=workflows_service,
+    )
+    simple_evaluators_service = SimpleEvaluatorsService(
+        evaluators_service=evaluators_service,
+    )
+
+    project_uuid = uuid.UUID(project_id)
+    user_uuid = uuid.UUID(user_id)
+
+    # Get builtin evaluators that are marked for direct use
+    direct_use_evaluators = [e for e in BUILTIN_EVALUATORS if e.direct_use]
+
+    for evaluator in direct_use_evaluators:
+        try:
+            # Extract default settings for ground truth keys
+            settings_values = {
+                setting_name: setting.get("default")
+                for setting_name, setting in evaluator.settings_template.items()
+                if setting.get("ground_truth_key") is True
+                and setting.get("default", "")
+            }
+
+            # Generate slug from name
+            evaluator_slug = get_slug_from_name_and_id(evaluator.name, uuid.uuid4())
+
+            simple_evaluator_create = SimpleEvaluatorCreate(
+                slug=evaluator_slug,
+                name=evaluator.name,
+                flags=SimpleEvaluatorFlags(is_evaluator=True),
+                data=build_evaluator_data(
+                    evaluator_key=evaluator.key,
+                    settings_values=settings_values if settings_values else None,
+                ),
+            )
+
+            await simple_evaluators_service.create(
+                project_id=project_uuid,
+                user_id=user_uuid,
+                simple_evaluator_create=simple_evaluator_create,
+            )
+        except Exception:
+            log.error(
+                "An error occurred in adding a default simple evaluator",
+                evaluator_name=evaluator.name,
                 exc_info=True,
             )
 
@@ -1110,6 +1190,17 @@ async def setup_oss_organization_for_first_user(
             "workspace_id": workspace_db.id,
             "project_name": "Default",
         }
+    )
+
+    # Ensure project-scoped default environments exist for the default project.
+    from oss.src.core.environments.defaults import create_default_environments
+
+    default_project_id = await get_default_project_id_from_workspace(
+        str(workspace_db.id)
+    )
+    await create_default_environments(
+        project_id=uuid.UUID(default_project_id),
+        user_id=user_id,
     )
 
     analytics_service.capture_oss_deployment_created(
@@ -2793,6 +2884,7 @@ async def fetch_app_variant_revision_by_id(
         result = await session.execute(
             select(AppVariantRevisionsDB)
             .options(
+                joinedload(AppVariantRevisionsDB.modified_by),
                 joinedload(AppVariantRevisionsDB.base.of_type(VariantBaseDB))
                 .joinedload(VariantBaseDB.deployment.of_type(DeploymentDB))
                 .load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
@@ -2905,21 +2997,25 @@ async def update_app_environment_deployed_variant_revision(
         await session.refresh(app_environment)
 
 
-async def list_environments(app_id: str):
+async def list_environments(app_id: str, project_id: Optional[str] = None):
     """
     List all environments for a given app ID.
 
     Args:
         app_id (str): The ID of the app to list environments for.
+        project_id (str, optional): The project ID. If not provided, will be looked up from the app.
 
     Returns:
         List[AppEnvironmentDB]: A list of AppEnvironmentDB objects representing the environments for the given app ID.
     """
 
-    app_instance = await fetch_app_by_id(app_id=app_id)
-    if app_instance is None:
-        log.error(f"App with id {app_id} not found")
-        raise ValueError("App not found")
+    if project_id is None:
+        # Fallback to old behavior for backwards compatibility
+        app_instance = await fetch_app_by_id(app_id=app_id)
+        if app_instance is None:
+            log.error(f"App with id {app_id} not found")
+            raise ValueError("App not found")
+        project_id = str(app_instance.project_id)
 
     async with engine.core_session() as session:
         result = await session.execute(
@@ -2932,7 +3028,7 @@ async def list_environments(app_id: str):
                     AppVariantRevisionsDB.config_parameters,  # type: ignore
                 )
             )
-            .filter_by(app_id=uuid.UUID(app_id), project_id=app_instance.project_id)
+            .filter_by(app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id))
         )
         environments_db = result.scalars().all()
         return environments_db

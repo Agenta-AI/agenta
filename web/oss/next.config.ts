@@ -1,6 +1,7 @@
 import {createRequire} from "module"
 import path from "path"
 
+import bundleAnalyzer from "@next/bundle-analyzer"
 import type {NextConfig} from "next"
 
 const require = createRequire(import.meta.url)
@@ -67,6 +68,43 @@ const COMMON_CONFIG: NextConfig = {
             },
         ]
     },
+    // Enable package import optimization for workspace packages and icon libraries
+    experimental: {
+        optimizePackageImports: [
+            "@agenta/oss",
+            "@agenta/shared",
+            "@agenta/ui",
+            "@agenta/entities",
+            "@agenta/entity-ui",
+            "@agenta/playground",
+            "@agenta/playground-ui",
+            // Icon libraries - ensure tree-shaking works for individual icon imports
+            "@phosphor-icons/react",
+            "lucide-react",
+        ],
+    },
+    // Always transpile workspace packages to ensure proper module resolution
+    transpilePackages: [
+        "@agenta/shared",
+        "@agenta/ui",
+        "@agenta/entities",
+        "@agenta/entity-ui",
+        "@agenta/playground",
+        "@agenta/playground-ui",
+        ...(!isDevelopment
+            ? [
+                  "rc-util",
+                  "antd",
+                  "rc-pagination",
+                  "rc-picker",
+                  "rc-tree",
+                  "rc-input",
+                  "rc-table",
+                  "@ant-design/icons",
+                  "@ant-design/icons-svg",
+              ]
+            : []),
+    ],
     ...(!isDevelopment
         ? {
               webpack: (config, {webpack, isServer}) => {
@@ -108,4 +146,8 @@ const COMMON_CONFIG: NextConfig = {
           }),
 }
 
-export default COMMON_CONFIG
+const withBundleAnalyzer = bundleAnalyzer({
+    enabled: process.env.ANALYZE === "true",
+})
+
+export default withBundleAnalyzer(COMMON_CONFIG)

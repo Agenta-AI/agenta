@@ -1,9 +1,5 @@
 import {memo, useMemo} from "react"
 
-import clsx from "clsx"
-import {useAtomValue} from "jotai"
-import {AlertCircle} from "lucide-react"
-
 import {
     CellContentPopover,
     ChatMessagesCellContent,
@@ -12,7 +8,10 @@ import {
     extractChatMessages,
     safeJsonStringify,
     tryParseJson,
-} from "@/oss/components/CellRenderers"
+} from "@agenta/ui/cell-renderers"
+import clsx from "clsx"
+import {useAtomValue} from "jotai"
+import {AlertCircle} from "lucide-react"
 
 import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"

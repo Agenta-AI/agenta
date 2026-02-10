@@ -16,6 +16,7 @@ import {
     SerializedLexicalNode,
     Spread,
 } from "lexical"
+import Image from "next/image"
 
 const {Text} = Typography
 
@@ -180,10 +181,14 @@ function Base64Component({
             {/* File Preview */}
             <div className="flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden">
                 {isImage && dataUrl ? (
-                    <img
+                    <Image
                         src={dataUrl}
                         alt="Preview"
+                        width={400}
+                        height={250}
+                        sizes="(max-width: 640px) 100vw, 400px"
                         className="max-w-full max-h-[250px] rounded object-contain"
+                        unoptimized
                     />
                 ) : isPdf && dataUrl ? (
                     <iframe

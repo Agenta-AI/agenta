@@ -61,7 +61,7 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
         }
         ;(inputRowIds as string[]).forEach((rid) => {
             ;(displayedVariantIds as string[]).forEach((vid) => {
-                triggerTest({rowId: rid, variantId: vid} as any)
+                triggerTest({rowId: rid, revisionId: vid})
             })
         })
     }, [triggerTest, isChatVariant, inputRowIds, displayedVariantIds, runAllChat, canRunAllChat])

@@ -137,6 +137,17 @@ const config: Config = {
           },
         },
         {
+          type: "docSidebar",
+          sidebarId: "administrationSidebar",
+          position: "left",
+          label: "Enterprise",
+          customProps: {
+            icon: {
+              name: "shield",
+            },
+          },
+        },
+        {
           type: "search",
           position: "right",
         },
@@ -522,4 +533,3 @@ const config: Config = {
 export default async function createConfig() {
   return config;
 }
-
