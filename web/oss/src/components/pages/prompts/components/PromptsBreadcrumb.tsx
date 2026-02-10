@@ -195,21 +195,13 @@ const PromptsBreadcrumb = ({
             items.push({
                 key: folder.id as string,
                 icon: isActive ? (
-                    <FolderOpenIcon
-                        size={14}
-                        weight="fill"
-                        style={{color: token.colorPrimary}}
-                    />
+                    <FolderOpenIcon size={14} weight="fill" style={{color: token.colorPrimary}} />
                 ) : (
                     <FolderIcon size={14} style={{color: token.colorTextSecondary}} />
                 ),
                 label: (
                     <span
-                        style={
-                            isActive
-                                ? {fontWeight: 600, color: token.colorPrimary}
-                                : undefined
-                        }
+                        style={isActive ? {fontWeight: 600, color: token.colorPrimary} : undefined}
                     >
                         {folder.name}
                     </span>
@@ -232,7 +224,6 @@ const PromptsBreadcrumb = ({
     const items: BreadcrumbProps["items"] = useMemo(() => {
         const isAtRoot = !currentFolderId
         const rootSiblings = getSiblingFolders(foldersById, null)
-        const hasRootFolders = rootSiblings.length > 0
 
         const base: BreadcrumbProps["items"] = [
             {
@@ -253,12 +244,7 @@ const PromptsBreadcrumb = ({
             const parentId = folder.parent_id ?? null
 
             if (isLast) {
-                const menuItems = buildSiblingMenu(
-                    parentId,
-                    folder.id ?? null,
-                    false,
-                    actionItems,
-                )
+                const menuItems = buildSiblingMenu(parentId, folder.id ?? null, false, actionItems)
 
                 base.push({
                     title: (
