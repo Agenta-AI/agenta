@@ -715,7 +715,7 @@ async def fetch_configs_by_application_ref(
             variant_ref=ReferenceDTO(
                 slug=variant.slug,
                 version=latest_revision.version,
-                id=latest_revision.id,
+                id=variant.id,
                 commit_message=latest_revision.message,
             ),
             environment_ref=None,
@@ -807,7 +807,11 @@ async def fetch_configs_by_variant_ref(
             variant_ref=ReferenceDTO(
                 slug=variant.slug if variant else revision.slug,
                 version=revision.version,
-                id=revision.id,
+                id=(
+                    variant.id
+                    if variant and variant.id
+                    else revision.application_variant_id
+                ),
                 commit_message=revision.message,
             ),
             environment_ref=None,
@@ -882,7 +886,7 @@ async def fetch_config_by_variant_ref(
         variant_ref=ReferenceDTO(
             slug=app_variant.slug,
             version=app_variant_revision.version,
-            id=app_variant_revision.id,
+            id=app_variant.id,
             commit_message=app_variant_revision.message,
         ),
         environment_ref=None,

@@ -139,6 +139,8 @@ export {
     // Local draft detection
     isLocalDraftId,
     extractSourceIdFromDraft,
+    // Placeholder ID detection
+    isPlaceholderId,
     // Version formatting
     getVersionLabel,
     formatLocalDraftLabel,

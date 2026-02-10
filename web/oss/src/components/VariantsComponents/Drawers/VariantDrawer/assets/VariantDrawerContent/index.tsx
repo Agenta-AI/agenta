@@ -1,8 +1,9 @@
 import {memo, useEffect, useMemo} from "react"
 
 import {
-    legacyAppRevisionMolecule,
     legacyAppRevisionSchemaQueryAtomFamily,
+    revisionEnhancedCustomPropertiesAtomFamily,
+    revisionEnhancedPromptsAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Spin, Switch, Tabs, TabsProps, Tag, Tooltip, Typography} from "antd"
@@ -17,25 +18,15 @@ import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Component
 import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
 import {PromptsSourceProvider} from "@/oss/components/Playground/context/PromptsSource"
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {playgroundRevisionDeploymentAtomFamily} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
-import {
-    deriveCustomPropertiesFromSpec,
-    derivePromptsFromSpec,
-} from "@/oss/lib/shared/variant/transformer/transformer"
 import {
     moleculeBackedPromptsAtomFamily,
     moleculeBackedVariantAtomFamily,
     revisionIsDirtyAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
-import {
-    appSchemaAtom,
-    appUriInfoAtom,
-    revisionDeploymentAtomFamily,
-    variantRevisionsQueryFamily,
-    revisionsByVariantIdAtomFamily,
-} from "@/oss/state/variant/atoms/fetcher"
 
 import {variantDrawerAtom} from "../../store/variantDrawerStore"
 import {NewVariantParametersView} from "../Parameters"
@@ -45,23 +36,12 @@ const {Text} = Typography
 
 const EMPTY_REVISION_ID = "__variant-drawer-empty__"
 
-const resolveParentVariantId = (variant: any): string | null => {
-    if (!variant) return null
-    const parent = variant?._parentVariant
-    if (typeof parent === "string" && parent.trim()) return parent
-    if (parent && typeof parent === "object") return parent.id || parent.variantId || null
-    return variant?.variantId ?? null
-}
-
 /**
  * Loading state atom for drawer variant.
  *
- * The drawer can render prompts and custom properties in two modes:
- * 1. Schema-based (preferred): Uses OpenAPI schema with x-parameters metadata
- * 2. Parameter-based (fallback): Derives from saved parameters structure
- *
- * We should NOT wait for the schema to load if we already have parameters,
- * because prompts can be derived from parameters as a fallback.
+ * Waits for both variant data AND schema before rendering, so prompts and
+ * custom properties are derived with full metadata on first paint.
+ * For completion/chat apps the schema is prefetched, so this adds no latency.
  */
 export const drawerVariantIsLoadingAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
@@ -74,72 +54,8 @@ export const drawerVariantIsLoadingAtomFamily = atomFamily((revisionId: string) 
             return true
         }
 
-        // If we have parameters, we can render immediately (prompts will be derived)
-        const hasParameters =
-            selectedVariant?.parameters && Object.keys(selectedVariant.parameters).length > 0
-        if (hasParameters) {
-            return false
-        }
-
-        // Otherwise, check if URI is available for schema fetch
-        const hasUri = !!selectedVariant?.uri
-
-        // If no URI yet, check if revisions are still loading
-        if (!hasUri) {
-            const parentVariantId = resolveParentVariantId(selectedVariant)
-            if (parentVariantId) {
-                const revisionsQuery = get(variantRevisionsQueryFamily(parentVariantId)) as any
-                const data = revisionsQuery?.data
-                const hasRevisionData = Array.isArray(data) && data.length > 0
-                const revisionLoading =
-                    !!revisionsQuery?.isLoading ||
-                    (!hasRevisionData && !!revisionsQuery?.isFetching)
-                if (revisionLoading) {
-                    return true
-                }
-            }
-        }
-
-        // Check entity-level schema loading only if no parameters yet
         const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         return schemaQuery.isPending
-    }),
-)
-
-/**
- * Atom to seed molecule with revision data from OSS atoms.
- * This ensures the revision has URI for entity-level schema fetching.
- */
-const seedRevisionDataAtomFamily = atomFamily((revisionId: string) =>
-    atom((get) => {
-        if (!revisionId || revisionId === EMPTY_REVISION_ID) return null
-
-        // Get current molecule data
-        const moleculeData = get(moleculeBackedVariantAtomFamily(revisionId)) as any
-        if (moleculeData?.uri) {
-            // Already has URI, no need to seed
-            return moleculeData
-        }
-
-        // Try to find revision in OSS atoms (which have URI from variant)
-        const parentVariantId = resolveParentVariantId(moleculeData)
-        if (!parentVariantId) return moleculeData
-
-        const revisions = get(revisionsByVariantIdAtomFamily(parentVariantId)) as any[]
-        const ossRevision = revisions?.find((r: any) => r.id === revisionId)
-
-        if (ossRevision?.uri) {
-            // Return merged data with URI from OSS
-            return {
-                ...moleculeData,
-                uri: ossRevision.uri,
-                variantId: ossRevision.variantId ?? moleculeData?.variantId,
-                variantName: ossRevision.variantName ?? moleculeData?.variantName,
-                appId: ossRevision.appId ?? moleculeData?.appId,
-            }
-        }
-
-        return moleculeData
     }),
 )
 
@@ -156,65 +72,31 @@ const VariantDrawerContent = ({
 
     const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
 
-    // Use seeded revision data that includes URI from OSS atoms
-    const selectedVariant = useAtomValue(seedRevisionDataAtomFamily(variantId)) as any
-
-    // App-level: app status is true when OpenAPI schema is available
-    const appSchema = useAtomValue(appSchemaAtom)
-    const uriInfo = useAtomValue(appUriInfoAtom)
+    const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
 
     const prompts = useAtomValue(moleculeBackedPromptsAtomFamily(variantId))
     const promptIds = prompts?.map((p: any) => p?.__id as string)
 
-    // Show Overview tab if we have app schema OR if we have prompts/variant data
-    // This allows the drawer to work even when app context isn't fully set up
-    const appStatus = !!appSchema || (promptIds && promptIds.length > 0) || !!selectedVariant
+    // Original (server-committed) prompts and custom properties from entity layer
+    const originalPrompts = useAtomValue(revisionEnhancedPromptsAtomFamily(variantId)) as any[]
+    const originalCustomPropsRecord = useAtomValue(
+        revisionEnhancedCustomPropertiesAtomFamily(variantId),
+    ) as Record<string, any>
+
+    const originalPromptIds = useMemo(
+        () => (originalPrompts || []).map((p: any) => p.__id || p.__name).filter(Boolean),
+        [originalPrompts],
+    )
+
+    // Show Overview tab if we have prompts or variant data
+    const appStatus = (promptIds && promptIds.length > 0) || !!selectedVariant
 
     // Focused deployed environments by revision ID
-    const deployedIn = useAtomValue(revisionDeploymentAtomFamily(variantId)) || []
+    const deployedIn = useAtomValue(playgroundRevisionDeploymentAtomFamily(variantId)) || []
     const commitMsg = selectedVariant?.commitMessage
     const isDirty = useAtomValue(
         revisionIsDirtyAtomFamily((selectedVariant as any)?.id || variantId),
     )
-
-    // Seed molecule with revision data from OSS atoms (includes URI for schema fetch)
-    // This ensures the entity-level schema query can access the URI
-    const parentVariantId = resolveParentVariantId(selectedVariant)
-    const ossRevisions = useAtomValue(
-        useMemo(
-            () => (parentVariantId ? revisionsByVariantIdAtomFamily(parentVariantId) : atom([])),
-            [parentVariantId],
-        ),
-    ) as any[]
-
-    useEffect(() => {
-        if (!variantId || variantId === EMPTY_REVISION_ID) return
-        if (!ossRevisions || ossRevisions.length === 0) return
-
-        const ossRevision = ossRevisions.find((r: any) => r.id === variantId)
-        if (!ossRevision?.uri) return
-
-        // Check if molecule already has URI
-        const currentData = legacyAppRevisionMolecule.get.serverData(variantId)
-        if (currentData?.uri) return
-
-        // Seed molecule with revision data including URI
-        const dataToSeed = {
-            id: variantId,
-            variantId: ossRevision.variantId,
-            variantName: ossRevision.variantName,
-            appId: ossRevision.appId,
-            uri: ossRevision.uri,
-            revision: ossRevision.revision,
-            parameters: ossRevision.parameters ?? ossRevision.config?.parameters,
-            commitMessage: ossRevision.commitMessage ?? ossRevision.commit_message,
-            createdAt: ossRevision.createdAt,
-            updatedAt: ossRevision.updatedAt,
-            modifiedById: ossRevision.modifiedById ?? ossRevision.modified_by_id,
-        }
-
-        legacyAppRevisionMolecule.set.serverData(variantId, dataToSeed)
-    }, [variantId, ossRevisions])
 
     // Ensure clean revisions don't get stuck in Original mode
     useEffect(() => {
@@ -222,45 +104,6 @@ const VariantDrawerContent = ({
             onToggleOriginal?.(false)
         }
     }, [isDirty, showOriginal, onToggleOriginal])
-
-    // Derive original (saved) prompts from spec and saved parameters for read-only view
-    const originalPrompts = useMemo(() => {
-        try {
-            if (!showOriginal) return [] as any[]
-            if (!appSchema || !selectedVariant) return [] as any[]
-            const routePath = uriInfo?.routePath
-            const derived = derivePromptsFromSpec(
-                selectedVariant as any,
-                appSchema as any,
-                routePath,
-            )
-            return Array.isArray(derived) ? (derived as any[]) : []
-        } catch {
-            return [] as any[]
-        }
-    }, [showOriginal, appSchema, selectedVariant, uriInfo?.routePath])
-
-    const originalPromptIds = useMemo(
-        () => originalPrompts.map((p: any) => p.__id || p.__name).filter(Boolean),
-        [originalPrompts],
-    )
-
-    // Derive original (saved) custom properties for read-only view
-    const originalCustomPropsRecord = useMemo(() => {
-        try {
-            if (!showOriginal) return {}
-            if (!appSchema || !selectedVariant) return {}
-            const routePath = uriInfo?.routePath
-            const record = deriveCustomPropertiesFromSpec(
-                selectedVariant as any,
-                appSchema as any,
-                routePath,
-            ) as Record<string, any>
-            return record || {}
-        } catch {
-            return {}
-        }
-    }, [showOriginal, appSchema, selectedVariant, uriInfo?.routePath])
 
     const disableOriginalPromptCollapse = originalPromptIds.length === 1
     const disablePromptCollapse = (promptIds?.length || 0) === 1
@@ -338,6 +181,7 @@ const VariantDrawerContent = ({
         showOriginal,
         originalPrompts,
         originalPromptIds,
+        originalCustomPropsRecord,
         isLoading,
         disableOriginalPromptCollapse,
         disablePromptCollapse,

@@ -42,14 +42,6 @@ export const promptPropertyAtomFamily = atomFamily(
             (_get, set, nextValue: unknown) => {
                 const {revisionId, propertyId} = params
 
-                console.log("🔵 [promptPropertyAtomFamily] WRITE called", {
-                    revisionId,
-                    propertyId,
-                    nextValue,
-                })
-
-                console.log("🔵 [promptPropertyAtomFamily] Updating via moleculePropertyUpdateAtom")
-
                 // Route through the centralized molecule update path
                 set(moleculePropertyUpdateAtom, {
                     revisionId,

@@ -63,6 +63,8 @@ from oss.src.models.shared_models import AppType
 router = APIRouter()
 
 log = get_module_logger(__name__)
+# TEMPORARY: Disabling name editing
+RENAME_APPS_DISABLED_MESSAGE = "Renaming applications is temporarily disabled."
 
 
 @router.get(
@@ -84,6 +86,19 @@ async def list_app_variants(
         List[AppVariantResponse]: A list of app variants for the given app ID.
     """
 
+    if is_ee():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,
+        )
+        if not has_permission:
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
     cache_key = {
         "app_id": app_id,
     }
@@ -98,19 +113,6 @@ async def list_app_variants(
 
     if app_variants is not None:
         return app_variants
-
-    if is_ee():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATIONS,
-        )
-        if not has_permission:
-            error_msg = "You do not have access to perform this action. Please contact your organization admin."
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
-            )
 
     adapter = get_legacy_adapter()
     app_variants = await adapter.list_app_variants(
@@ -365,6 +367,17 @@ async def update_app(
                 {"detail": error_msg},
                 status_code=403,
             )
+
+    # TEMPORARY: Disabling name editing
+    if (
+        "app_name" in payload.model_fields_set
+        and payload.app_name is not None
+        and payload.app_name != app.app_name
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=RENAME_APPS_DISABLED_MESSAGE,
+        )
 
     updated_app = await adapter.update_app(
         project_id=UUID(request.state.project_id),
