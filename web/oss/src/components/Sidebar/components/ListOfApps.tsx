@@ -45,7 +45,7 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
                         disabled: true,
                         label: (
                             <div
-                                className="flex items-center gap-1.5"
+                                className="flex items-center gap-1.5 w-full max-w-[300px]"
                                 style={{paddingLeft: depth > 0 ? depth * 12 : 0}}
                             >
                                 <FolderIcon
@@ -56,6 +56,7 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
                                 <span
                                     className="truncate text-xs"
                                     style={{color: token.colorTextTertiary}}
+                                    title={node.name}
                                 >
                                     {node.name}
                                 </span>
@@ -77,12 +78,14 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
                     items.push({
                         key,
                         label: (
-                            <span
-                                className="truncate block"
+                            <div
+                                className="w-full max-w-[300px]"
                                 style={{paddingLeft: depth > 0 ? depth * 12 : 0}}
                             >
-                                {node.app_name}
-                            </span>
+                                <span className="truncate block" title={node.app_name}>
+                                    {node.app_name}
+                                </span>
+                            </div>
                         ),
                     })
                 }
