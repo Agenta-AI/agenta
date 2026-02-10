@@ -2,7 +2,7 @@ import {memo} from "react"
 
 import {useAtomValue} from "jotai"
 
-import {variantUserDisplayNameAtomFamily} from "@/oss/state/variant/selectors/variant"
+import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import Avatar from "../Avatar/Avatar"
 
@@ -14,7 +14,12 @@ interface VariantUserAvatarTagProps {
 
 const VariantUserAvatarTag = memo(
     ({variantId, fallback, nameOverride}: VariantUserAvatarTagProps) => {
-        const derivedName = useAtomValue(variantUserDisplayNameAtomFamily(variantId))
+        const revisionData = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
+        const derivedName: string | null =
+            revisionData?.modifiedByDisplayName ??
+            revisionData?.modifiedBy ??
+            revisionData?.modified_by ??
+            null
         const name =
             nameOverride ||
             (derivedName && derivedName !== "-" ? derivedName : undefined) ||

@@ -12,7 +12,8 @@ interface Props {
 }
 
 const ToolsRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnly}) => {
-    const [, promptId] = compoundKey.split(":", 2)
+    // promptId may contain colons (e.g. "prompt:prompt1"), so split only on the first ":"
+    const promptId = compoundKey.substring(compoundKey.indexOf(":") + 1)
 
     const prompts = usePromptsSource(variantId)
     const toolIds = useMemo(() => {

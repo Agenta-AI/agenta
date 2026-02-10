@@ -192,6 +192,50 @@ function MyComponent() {
 import { usePlaygroundState, useChainExecution } from '@agenta/playground'
 ```
 
+### URL Snapshot Sharing
+
+Share playground state (including draft changes) via URL:
+
+```typescript
+import { playgroundSnapshotController } from '@agenta/playground'
+import { parseSnapshot, encodeSnapshot } from '@agenta/playground/snapshot'
+import { useSetAtom } from 'jotai'
+
+// Create a snapshot from current selection
+const createSnapshot = useSetAtom(playgroundSnapshotController.actions.createSnapshot)
+const result = createSnapshot(['rev-123', 'local-draft-456'])
+
+if (result.ok) {
+    // Build share URL
+    const url = new URL(window.location.href)
+    url.hash = `pgSnapshot=${result.encoded}`
+    await navigator.clipboard.writeText(url.toString())
+}
+
+// Hydrate a snapshot (restore state from URL)
+const hydrateSnapshot = useSetAtom(playgroundSnapshotController.actions.hydrateSnapshot)
+const encoded = extractSnapshotFromHash(url) // Your URL parsing logic
+const parseResult = parseSnapshot(encoded)
+
+if (parseResult.ok) {
+    const hydrateResult = hydrateSnapshot(parseResult.value)
+    // hydrateResult.selection contains the new revision IDs to select
+}
+```
+
+**Snapshot subpath exports:**
+
+```typescript
+import {
+    encodeSnapshot,
+    parseSnapshot,
+    validateSnapshot,
+    type PlaygroundSnapshotV1,
+    SNAPSHOT_VERSION,
+    MAX_ENCODED_LENGTH,
+} from '@agenta/playground/snapshot'
+```
+
 ### Entity Context (Dependency Injection)
 
 ```typescript
@@ -216,6 +260,7 @@ const { appRevisionSelectors, evaluatorRevisionSelectors } = usePlaygroundEntiti
 | `outputConnectionController` | Inter-node connections, mappings |
 | `entitySelectorController` | Entity selection modal state |
 | `executionController` | Execution orchestration (single & multi-session) |
+| `playgroundSnapshotController` | URL snapshot sharing (create/hydrate) |
 
 ### React Hooks (`@agenta/playground/react`)
 

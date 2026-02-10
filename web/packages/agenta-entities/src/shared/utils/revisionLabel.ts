@@ -111,6 +111,9 @@ const LOCAL_DRAFT_PREFIXES = ["local-", "new-", "draft-"]
  * been committed to the server. They typically use prefixed IDs like
  * "local-abc123-timestamp" or "new-xyz".
  *
+ * Also recognizes numeric-only IDs (timestamps) as local drafts since
+ * server IDs are always UUIDs which contain hyphens.
+ *
  * @param id - Entity ID to check
  * @returns true if the ID represents a local draft
  *
@@ -118,12 +121,48 @@ const LOCAL_DRAFT_PREFIXES = ["local-", "new-", "draft-"]
  * ```typescript
  * isLocalDraftId("local-abc-123456")  // true
  * isLocalDraftId("new-testset")       // true
+ * isLocalDraftId("1706300000000")     // true (timestamp-only ID)
  * isLocalDraftId("abc-def-ghi")       // false (server ID)
  * ```
  */
 export function isLocalDraftId(id: string | null | undefined): boolean {
     if (!id) return false
-    return LOCAL_DRAFT_PREFIXES.some((prefix) => id.startsWith(prefix))
+
+    // Check for known prefixes
+    if (LOCAL_DRAFT_PREFIXES.some((prefix) => id.startsWith(prefix))) {
+        return true
+    }
+
+    // Also recognize numeric-only IDs as local drafts
+    // Server IDs are UUIDs which always contain hyphens
+    // Numeric-only IDs are typically timestamps from legacy local draft creation
+    if (/^\d+$/.test(id)) {
+        return true
+    }
+
+    return false
+}
+
+/**
+ * Check if an ID is a placeholder ID used during pending hydrations.
+ *
+ * Placeholder IDs are temporary IDs used when restoring comparison mode state
+ * from a URL before the actual local drafts can be created. They have the format
+ * `__pending_hydration__dk-{uuid}`.
+ *
+ * @param id - Entity ID to check
+ * @returns true if the ID is a placeholder
+ *
+ * @example
+ * ```typescript
+ * isPlaceholderId("__pending_hydration__dk-abc123")  // true
+ * isPlaceholderId("local-abc-123")                    // false
+ * isPlaceholderId("abc-def-ghi")                      // false
+ * ```
+ */
+export function isPlaceholderId(id: string | null | undefined): boolean {
+    if (!id) return false
+    return id.startsWith("__pending_hydration__")
 }
 
 /**
