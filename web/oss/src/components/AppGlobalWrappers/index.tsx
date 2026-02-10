@@ -4,6 +4,7 @@ import {
     completionServiceSchemaAtom,
     chatServiceSchemaAtom,
 } from "@agenta/entities/appRevision/state"
+import {serviceSchemaMetadataWarmerAtom} from "@agenta/entities/legacyAppRevision"
 import {setUserAtoms} from "@agenta/entities/shared/user"
 // import {} from "@agenta/entity-ui/modals"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -191,6 +192,11 @@ const AppGlobalWrappers = () => {
     // at app startup rather than waiting until a revision is selected.
     useAtomValue(completionServiceSchemaAtom)
     useAtomValue(chatServiceSchemaAtom)
+
+    // Pre-heat metadata for service schemas as soon as they resolve.
+    // This ensures UI controls have metadata available on first paint
+    // when a variant drawer opens, without waiting for per-revision derivation.
+    useAtomValue(serviceSchemaMetadataWarmerAtom)
 
     return (
         <EntityModalsProvider>

@@ -1,9 +1,8 @@
 /**
  * Query helpers and revision-tracking selectors
  * Scope: query invalidation and waiting for new revisions.
- *
- * WP-6.4: Updated to use playgroundRevisionListAtom (molecule-backed)
  */
+import {revisionCacheVersionAtom} from "@agenta/entities/legacyAppRevision"
 import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
@@ -12,7 +11,6 @@ import {queryClient} from "@/oss/lib/api/queryClient"
 
 import {playgroundRevisionListAtom} from "./variants"
 
-// WP-6.4: Updated to use playgroundRevisionListAtom
 export const variantRevisionsForVariantIdAtomFamily = atomFamily((variantId: string) =>
     selectAtom(
         atom((get) => get(playgroundRevisionListAtom) || []),
@@ -165,7 +163,7 @@ export const waitForRevisionRemovalAtom = atom(
  * Note: Query keys are prefixes - invalidating ["variants"] will match
  * ["variants", appId, projectId] etc.
  */
-export const invalidatePlaygroundQueriesAtom = atom(null, async () => {
+export const invalidatePlaygroundQueriesAtom = atom(null, async (_get, set) => {
     // First invalidate to mark as stale
     // Use exact: false (default) to match all queries starting with these prefixes
     await Promise.all([
@@ -214,4 +212,8 @@ export const invalidatePlaygroundQueriesAtom = atom(null, async () => {
             exact: false,
         }),
     ])
+
+    // Bump the revision cache version so that revisionListItemFromCacheAtomFamily
+    // re-evaluates with the freshly-refetched data in React Query cache.
+    set(revisionCacheVersionAtom, (prev) => prev + 1)
 })

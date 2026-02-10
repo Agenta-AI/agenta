@@ -38,7 +38,8 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
     const addNewTool = useSetAtom(addPromptToolMutationAtomFamily(compoundKey))
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
-    const [, promptId] = compoundKey.split(":", 2)
+    // promptId may contain colons (e.g. "prompt:prompt1"), so split only on the first ":"
+    const promptId = compoundKey.substring(compoundKey.indexOf(":") + 1)
     const prompts = usePromptsSource(variantId)
 
     const responseFormatInfo = useMemo(() => {
@@ -46,6 +47,7 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
         const llm = getLLMConfig(item)
         const enhancedId = llm?.responseFormat?.__id || llm?.response_format?.__id
         const raw = llm?.response_format || llm?.responseFormat
+
         return {enhancedId, raw}
     }, [prompts, promptId])
     const responseFormatId = responseFormatInfo.enhancedId as string | undefined

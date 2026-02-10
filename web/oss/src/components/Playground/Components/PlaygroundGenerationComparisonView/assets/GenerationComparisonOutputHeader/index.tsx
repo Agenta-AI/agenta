@@ -24,7 +24,7 @@ const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeade
     return (
         <div className={clsx(classes.title, className)}>
             <Typography>{labelInfo.variantName}</Typography>
-            <Tag color="default" bordered={false} className="bg-[rgba(5,23,41,0.06)]">
+            <Tag color="default" variant="filled" className="bg-[rgba(5,23,41,0.06)]">
                 {labelInfo.label}
             </Tag>
         </div>

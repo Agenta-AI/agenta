@@ -706,9 +706,4 @@ async def list_app_environment_revisions(
     if result is None:
         return JSONResponse({"detail": "App environment not found"}, status_code=404)
 
-    if not result.get("revisions"):
-        return JSONResponse(
-            {"detail": "No revisions found for app environment"}, status_code=404
-        )
-
     return EnvironmentOutputExtended(**result)

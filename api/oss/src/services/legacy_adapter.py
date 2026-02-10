@@ -1935,8 +1935,40 @@ class LegacyEnvironmentsAdapter:
             windowing=Windowing(),
         )
 
-        # Get latest for the top-level environment output
-        latest = all_revisions[0] if all_revisions else None
+        # Filter revisions to legacy app-deployment semantics:
+        # 1) skip leading revisions where this app was never deployed
+        # 2) once first deployed, keep only revisions where this app's deployed
+        #    application revision actually changes
+        filtered_revisions: List[tuple] = []
+        last_deployed_revision_id: Optional[UUID] = None
+        has_seen_first_deployment = False
+        for rev in reversed(all_revisions):
+            rev_revision_id: Optional[UUID] = None
+            if rev.data and rev.data.references:
+                _, rev_revision_ref = self._extract_app_refs(
+                    rev.data.references,
+                    app_slug,
+                )
+                if rev_revision_ref and rev_revision_ref.id:
+                    rev_revision_id = rev_revision_ref.id
+
+            if not has_seen_first_deployment:
+                if rev_revision_id is None:
+                    continue
+                has_seen_first_deployment = True
+                last_deployed_revision_id = rev_revision_id
+                filtered_revisions.append((rev, rev_revision_id))
+                continue
+
+            if (
+                rev_revision_id is not None
+                and rev_revision_id != last_deployed_revision_id
+            ):
+                filtered_revisions.append((rev, rev_revision_id))
+                last_deployed_revision_id = rev_revision_id
+
+        # Latest deployment for this app (not latest global environment revision)
+        latest = filtered_revisions[-1][0] if filtered_revisions else None
 
         deployed_app_variant_revision_id = None
         deployed_app_variant_id = None
@@ -1961,31 +1993,27 @@ class LegacyEnvironmentsAdapter:
         if latest:
             revision_number = latest.version or 0
 
-        # Batch-resolve usernames for all revisions
-        rev_user_ids = [rev.updated_by_id or rev.created_by_id for rev in all_revisions]
+        # Batch-resolve usernames for filtered revisions only
+        rev_user_ids = [
+            rev.updated_by_id or rev.created_by_id for rev, _ in filtered_revisions
+        ]
         username_map = await _resolve_usernames(
             [uid for uid in rev_user_ids if uid is not None]
         )
 
         # Build revision list
         revision_list = []
-        for rev in all_revisions:
+        for rev, rev_revision_id in filtered_revisions:
             rev_deployed_variant_name = None
-            rev_deployed_revision_id = None
-            if rev.data and rev.data.references:
-                _, rev_revision_ref = self._extract_app_refs(
-                    rev.data.references,
-                    app_slug,
+            rev_deployed_revision_id = str(rev_revision_id) if rev_revision_id else None
+            if rev_revision_id:
+                (
+                    _,
+                    rev_deployed_variant_name,
+                ) = await self._resolve_variant_from_revision_id(
+                    project_id=project_id,
+                    variant_revision_id=rev_revision_id,
                 )
-                if rev_revision_ref and rev_revision_ref.id:
-                    rev_deployed_revision_id = str(rev_revision_ref.id)
-                    (
-                        _,
-                        rev_deployed_variant_name,
-                    ) = await self._resolve_variant_from_revision_id(
-                        project_id=project_id,
-                        variant_revision_id=rev_revision_ref.id,
-                    )
 
             rev_modified_by_id = rev.updated_by_id or rev.created_by_id
             rev_modified_by = (
