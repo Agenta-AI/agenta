@@ -1,8 +1,8 @@
 import {memo, useMemo, useState} from "react"
 
-import {FolderOpenOutlined} from "@ant-design/icons"
+import {FolderIcon} from "@phosphor-icons/react"
 import {CaretDown} from "@phosphor-icons/react"
-import {Button, Dropdown, MenuProps} from "antd"
+import {Button, Dropdown, MenuProps, theme} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import useSWR from "swr"
@@ -22,6 +22,7 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
     const {currentApp, apps, recentlyVisitedAppId} = useAppsData()
     const {project} = useProjectData()
     const navigateToApp = useSetAtom(routerAppNavigationAtom)
+    const {token} = theme.useToken()
 
     const [dropdownOpen, setDropdownOpen] = useState(false)
 
@@ -34,37 +35,67 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
         const folders = foldersData?.folders ?? []
         const {roots} = buildFolderTree(folders, apps)
         const keyMap: Record<string, string> = {}
+        const items: MenuProps["items"] = []
 
-        const buildMenuItems = (nodes: FolderTreeItem[]): MenuProps["items"] => {
-            return nodes.map((node) => {
+        const flatten = (nodes: FolderTreeItem[], depth: number) => {
+            nodes.forEach((node) => {
                 if (node.type === "folder") {
-                    const children = buildMenuItems(node.children)
-                    return {
+                    items.push({
                         key: `folder:${node.id}`,
+                        disabled: true,
                         label: (
-                            <div className="flex items-center gap-2">
-                                <FolderOpenOutlined style={{fontSize: 14}} />
-                                <span className="truncate">{node.name}</span>
+                            <div
+                                className="flex items-center gap-1.5"
+                                style={{paddingLeft: depth > 0 ? depth * 12 : 0}}
+                            >
+                                <FolderIcon
+                                    size={13}
+                                    weight="fill"
+                                    style={{color: token.colorTextTertiary, flexShrink: 0}}
+                                />
+                                <span
+                                    className="truncate text-xs"
+                                    style={{color: token.colorTextTertiary}}
+                                >
+                                    {node.name}
+                                </span>
                             </div>
                         ),
-                        children,
-                    }
+                        style: {
+                            cursor: "default",
+                            minHeight: 28,
+                            lineHeight: "28px",
+                            margin: 0,
+                            padding: "0 12px",
+                            opacity: 1,
+                        },
+                    })
+                    flatten(node.children ?? [], depth + 1)
                 } else {
                     const key = `app:${node.app_id}`
                     keyMap[key] = node.app_id
-                    return {
+                    items.push({
                         key,
-                        label: <span className="truncate">{node.app_name}</span>,
-                    }
+                        label: (
+                            <span
+                                className="truncate block"
+                                style={{paddingLeft: depth > 0 ? depth * 12 : 0}}
+                            >
+                                {node.app_name}
+                            </span>
+                        ),
+                    })
                 }
             })
         }
 
+        flatten(roots, 0)
+
         return {
-            appMenuItems: buildMenuItems(roots),
+            appMenuItems: items,
             appKeyMap: keyMap,
         }
-    }, [apps, foldersData])
+    }, [apps, foldersData, token])
 
     const selectedAppId = currentApp?.app_id || recentlyVisitedAppId
     const selectedKey = selectedAppId ? [`app:${selectedAppId}`] : undefined
@@ -77,16 +108,20 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
         }
     }
 
-    const appLabel = currentApp?.app_name || "Select app"
+    const appLabel =
+        (selectedAppId && apps?.find((app) => app.app_id === selectedAppId)?.app_name) ||
+        "Select app"
 
     return (
         <Dropdown
             trigger={["click"]}
             placement={collapsed ? "bottomLeft" : "bottomRight"}
             destroyOnHidden
+            getPopupContainer={(trigger) => trigger.parentElement!}
             styles={{
                 root: {
                     zIndex: 2000,
+                    minWidth: 220,
                 },
             }}
             open={dropdownOpen}
