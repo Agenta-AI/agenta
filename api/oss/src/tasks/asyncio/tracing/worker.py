@@ -403,7 +403,7 @@ class TracingWorker:
 
             except Exception:
                 log.error(
-                    "[INGEST] Error in worker loop: {e}",
+                    "[INGEST] Error in worker loop",
                     exc_info=True,
                 )
                 # Sleep before retry to avoid tight error loop
