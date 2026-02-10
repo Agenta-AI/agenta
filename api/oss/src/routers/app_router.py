@@ -84,6 +84,19 @@ async def list_app_variants(
         List[AppVariantResponse]: A list of app variants for the given app ID.
     """
 
+    if is_ee():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,
+        )
+        if not has_permission:
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
     cache_key = {
         "app_id": app_id,
     }
@@ -98,19 +111,6 @@ async def list_app_variants(
 
     if app_variants is not None:
         return app_variants
-
-    if is_ee():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATIONS,
-        )
-        if not has_permission:
-            error_msg = "You do not have access to perform this action. Please contact your organization admin."
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
-            )
 
     adapter = get_legacy_adapter()
     app_variants = await adapter.list_app_variants(
