@@ -35,20 +35,6 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         onTitleClick: item.onClick,
                         title: item.title,
                     }
-                } else if (item.header) {
-                    return {
-                        type: "group",
-                        label: (
-                            <div
-                                key={item.key}
-                                className={clsx("w-full text-gray-500 !truncate", {
-                                    "!w-[62px] pl-2": collapsed,
-                                })}
-                            >
-                                {item.title}
-                            </div>
-                        ),
-                    }
                 } else {
                     const node = item.link ? (
                         <Link

@@ -1,6 +1,6 @@
 # /agenta/sdk/decorators/running.py
 
-from typing import Any, Callable, Optional, Protocol, Union, Dict
+from typing import Any, Callable, Optional, Protocol, Union, Dict, cast
 from functools import update_wrapper, wraps
 from inspect import signature
 from uuid import UUID
@@ -454,14 +454,52 @@ def is_workflow(obj: Any) -> bool:
 
 
 def auto_workflow(obj: Any, **kwargs) -> Workflow:
-    if is_workflow(obj):
-        return obj
-    if isinstance(obj, workflow):
-        return obj()
-    if isinstance(getattr(obj, "workflow", None), workflow):
-        return obj
+    flags = kwargs.get("flags")
 
-    return workflow(**kwargs)(obj)
+    def _merge_flags(
+        existing: Optional[dict], incoming: Optional[dict]
+    ) -> Optional[dict]:
+        if incoming is None:
+            return existing
+        merged = dict(existing or {})
+        merged.update(incoming)
+        return merged
+
+    def _apply_flags_to_existing_workflow(
+        target: Any, incoming_flags: Optional[dict]
+    ) -> None:
+        if not incoming_flags:
+            return
+
+        # Common case: object exposes the underlying workflow decorator instance.
+        try:
+            wf = getattr(target, "workflow", None)
+            if isinstance(wf, workflow):
+                wf.flags = _merge_flags(wf.flags, incoming_flags)
+                return
+        except Exception:
+            pass
+
+        # If this is an extended Workflow wrapper, its `.invoke` is typically a bound
+        # method whose `__self__` is the originating `workflow` instance.
+        try:
+            invoke = getattr(target, "invoke", None)
+            wf_self = getattr(invoke, "__self__", None)
+            if isinstance(wf_self, workflow):
+                wf_self.flags = _merge_flags(wf_self.flags, incoming_flags)
+        except Exception:
+            pass
+
+    if is_workflow(obj):
+        _apply_flags_to_existing_workflow(obj, flags)
+        return cast(Workflow, obj)
+
+    if isinstance(obj, workflow):
+        if flags is not None:
+            obj.flags = _merge_flags(obj.flags, flags)
+        return cast(Workflow, obj())
+
+    return cast(Workflow, workflow(**kwargs)(obj))
 
 
 async def invoke_workflow(
@@ -547,9 +585,8 @@ class application(workflow):
         if "references" not in kwargs or not isinstance(kwargs["references"], dict):
             kwargs["references"] = dict()
 
-        for key in kwargs["references"]:
-            if key.startswith("evaluator_"):
-                del kwargs["references"][key]
+        for key in [k for k in kwargs["references"] if k.startswith("evaluator_")]:
+            del kwargs["references"][key]
 
         if slug is not None:
             kwargs["references"]["application"] = {"slug": slug}
@@ -650,9 +687,8 @@ class evaluator(workflow):
         if "references" not in kwargs or not isinstance(kwargs["references"], dict):
             kwargs["references"] = dict()
 
-        for key in kwargs["references"]:
-            if key.startswith("application_"):
-                del kwargs["references"][key]
+        for key in [k for k in kwargs["references"] if k.startswith("application_")]:
+            del kwargs["references"][key]
 
         if slug is not None:
             kwargs["references"]["evaluator"] = {"slug": slug}
