@@ -304,7 +304,8 @@ class TracingWorker:
                     f"[INGEST] Failed to deserialize span: {e}",
                     msg_id=msg_id,
                 )
-                # Continue processing other messages
+                # ACK unprocessable messages to prevent PEL buildup
+                processed_message_ids.append(msg_id)
 
         if not spans_by_org:
             return (processed_count, processed_message_ids)

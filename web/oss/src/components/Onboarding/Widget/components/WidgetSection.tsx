@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
 import {CaretDown, CaretUp, Desktop, Flask, NotePencil, TreeView} from "@phosphor-icons/react"
-import {Progress, Typography} from "antd"
+import {Collapse, Progress, Typography} from "antd"
 
 import type {OnboardingWidgetItem, OnboardingWidgetSection} from "@/oss/lib/onboarding"
 
@@ -12,17 +12,17 @@ const {Text} = Typography
 type SectionIconId = "prompts" | "evaluations" | "registry" | "tracing"
 
 const SECTION_ICONS: Record<SectionIconId, React.ReactNode> = {
-    prompts: <NotePencil size={28} weight="regular" />,
-    evaluations: <Flask size={28} weight="regular" />,
-    registry: <TreeView size={28} weight="regular" />,
-    tracing: <Desktop size={28} weight="regular" />,
+    prompts: <NotePencil size={20} weight="regular" />,
+    evaluations: <Flask size={20} weight="regular" />,
+    registry: <TreeView size={20} weight="regular" />,
+    tracing: <Desktop size={20} weight="regular" />,
 }
 
 const getSectionIcon = (iconId?: SectionIconId) => {
     if (iconId && SECTION_ICONS[iconId]) {
         return SECTION_ICONS[iconId]
     }
-    return <NotePencil size={28} weight="regular" />
+    return <NotePencil size={20} weight="regular" />
 }
 
 interface WidgetSectionProps {
@@ -47,63 +47,81 @@ const WidgetSection = memo(function WidgetSection({
         return {completed, total, percent}
     }, [section.items, completionMap])
 
-    return (
-        <div className="flex flex-col gap-4 rounded-lg bg-colorInfoBg p-4">
-            {/* Section Header */}
-            <button
-                type="button"
-                className="flex w-full cursor-pointer items-center justify-between bg-transparent border-none p-0"
-                onClick={() => onToggle(section.id)}
-            >
-                <div className="flex items-center gap-2">
-                    <span className="text-colorText">{getSectionIcon(section.iconId)}</span>
-                    <div className="flex flex-col items-start gap-1">
-                        <Text className="text-base font-semibold leading-[22px] text-colorText">
-                            {section.title}
-                        </Text>
-                        <Text className="text-[10px] leading-[18px] text-colorTextSecondary">
-                            {sectionStats.completed} of {sectionStats.total} tasks completed
-                        </Text>
-                    </div>
-                </div>
-                {isExpanded ? (
-                    <CaretUp size={18} className="text-colorText" />
-                ) : (
-                    <CaretDown size={18} className="text-colorText" />
-                )}
-            </button>
+    const collapseItems = useMemo(
+        () => [
+            {
+                key: section.id,
+                label: (
+                    <div className="flex w-full flex-col gap-2 pb-4">
+                        {/* Header with icon and title */}
+                        <div className="flex gap-2">
+                            <span className="text-colorText mt-0.5">
+                                {getSectionIcon(section.iconId)}
+                            </span>
+                            <div className="flex flex-col items-start gap-0.5 select-none">
+                                <Text className="font-semibold text-colorText">
+                                    {section.title}
+                                </Text>
+                                <Text className="text-colorTextSecondary">
+                                    {sectionStats.completed} of {sectionStats.total} tasks completed
+                                </Text>
+                            </div>
+                        </div>
 
-            {/* Section Progress */}
-            <div className="flex items-center gap-3">
-                <div className="flex-1">
-                    <Progress
-                        percent={sectionStats.percent}
-                        showInfo={false}
-                        strokeColor="#1c2c3d"
-                        trailColor="rgba(5, 23, 41, 0.15)"
-                        size="small"
-                        className="[&_.ant-progress-bg]:!h-[3px] [&_.ant-progress-inner]:!h-[3px]"
-                    />
-                </div>
-                <Text className="shrink-0 text-xs leading-5 text-colorText">
-                    {sectionStats.percent}%
-                </Text>
-            </div>
+                        {/* Section Progress */}
 
-            {/* Section Items */}
-            {isExpanded && (
-                <div className="flex flex-col gap-2">
-                    {section.items.map((item) => (
-                        <WidgetSectionItem
-                            key={item.id}
-                            item={item}
-                            isCompleted={Boolean(completionMap[item.id])}
-                            onItemClick={onItemClick}
+                        <Progress
+                            percent={sectionStats.percent}
+                            showInfo={true}
+                            strokeColor="#1c2c3d"
+                            trailColor="rgba(5, 23, 41, 0.15)"
+                            size="small"
+                            className="w-[90%] absolute bottom-3 left-[50%] right-[50%] translate-x-[-50%]"
                         />
-                    ))}
-                </div>
-            )}
-        </div>
+                    </div>
+                ),
+                children: (
+                    <div className="flex flex-col gap-2">
+                        {section.items.map((item) => (
+                            <WidgetSectionItem
+                                key={item.id}
+                                item={item}
+                                isCompleted={Boolean(completionMap[item.id])}
+                                onItemClick={onItemClick}
+                            />
+                        ))}
+                    </div>
+                ),
+            },
+        ],
+        [
+            section.id,
+            section.iconId,
+            section.title,
+            section.items,
+            sectionStats,
+            completionMap,
+            onItemClick,
+        ],
+    )
+
+    return (
+        <Collapse
+            activeKey={isExpanded ? [section.id] : []}
+            onChange={() => onToggle(section.id)}
+            expandIconPlacement="end"
+            expandIconPosition="end"
+            expandIcon={({isActive}) =>
+                isActive ? (
+                    <CaretUp size={16} className="text-colorText" />
+                ) : (
+                    <CaretDown size={16} className="text-colorText" />
+                )
+            }
+            className="rounded-lg [&_.ant-collapse-header]:!p-3 [&_.ant-collapse-header]:!bg-colorInfoBg [&_.ant-collapse-body]:!bg-colorInfoBg [&_.ant-collapse-content-box]:!px-4 [&_.ant-collapse-content-box]:!pb-4 [&_.ant-collapse-content-box]:!pt-2"
+            items={collapseItems}
+            bordered={false}
+        />
     )
 })
 

@@ -80,8 +80,13 @@ class TestsetRevisionsLog(
 
 
 class TestsetFlags(BaseModel):
-    has_testcases: Optional[bool] = None
-    has_traces: Optional[bool] = None
+    """Placeholder for testset-level flags.
+
+    This model is intentionally empty but kept as a dedicated type so that:
+    - existing references to `flags: Optional[TestsetFlags]` remain valid, and
+    - structured flags can be added here in the future without breaking the
+      surrounding DTOs.
+    """
 
 
 class Testset(Artifact):
@@ -226,6 +231,7 @@ class SimpleTestset(Identifier, Slug, Lifecycle, Header, Metadata):
 
     # Revision ID for navigation after creation
     revision_id: Optional[UUID] = None
+    variant_id: Optional[UUID] = None
 
 
 class SimpleTestsetCreate(Slug, Header, Metadata):

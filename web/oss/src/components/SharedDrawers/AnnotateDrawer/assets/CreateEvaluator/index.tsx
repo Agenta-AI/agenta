@@ -299,7 +299,8 @@ const CreateEvaluator = ({
                     rules={[{required: true, message: "Evaluator name is required!"}]}
                     className="mb-0"
                 >
-                    <Input placeholder="Enter a name" />
+                    {/* TEMPORARY: Disabling name editing */}
+                    <Input placeholder="Enter a name" disabled={isEditMode} />
                 </Form.Item>
             </div>
 
@@ -330,6 +331,7 @@ const CreateEvaluator = ({
                 >
                     <Input
                         placeholder="Enter a unique slug"
+                        disabled={isEditMode}
                         onChange={() => !slugTouched && setSlugTouched(true)}
                     />
                 </Form.Item>

@@ -10,6 +10,7 @@ import {
     useStyles as useTracingStyles,
 } from "@/oss/components/pages/app-management/modals/SetupTracingModal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {useProjectData} from "@/oss/state/project/hooks"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
@@ -22,11 +23,13 @@ const GetStarted = () => {
     const tracingClasses = useTracingStyles()
     const router = useRouter()
     const posthog = usePostHogAg()
+    const {orgs, changeSelectedOrg} = useOrgData()
     const {projects} = useProjectData()
 
     const demoProject = useMemo(() => projects.find((project) => project.is_demo), [projects])
     const demoWorkspaceId = demoProject?.workspace_id || demoProject?.organization_id || undefined
     const demoOrganizationId = demoProject?.organization_id || undefined
+    const demoOrgId = useMemo(() => orgs.find((org) => org.flags?.is_demo)?.id, [orgs])
 
     const view = useMemo<ViewState>(() => {
         const path = router.query.path
@@ -66,20 +69,33 @@ const GetStarted = () => {
             selection: "demo",
         })
 
-        if (!demoProject || !demoWorkspaceId) {
-            message.error("Demo project is not available.")
+        if (demoProject && demoWorkspaceId) {
+            if (demoOrganizationId) {
+                cacheWorkspaceOrgPair(demoWorkspaceId, demoOrganizationId)
+            }
+            router.push(
+                `/w/${encodeURIComponent(demoWorkspaceId)}/p/${encodeURIComponent(
+                    demoProject.project_id,
+                )}/apps`,
+            )
             return
         }
 
-        if (demoOrganizationId) {
-            cacheWorkspaceOrgPair(demoWorkspaceId, demoOrganizationId)
+        if (demoOrgId) {
+            await changeSelectedOrg(demoOrgId)
+            return
         }
-        router.push(
-            `/w/${encodeURIComponent(demoWorkspaceId)}/p/${encodeURIComponent(
-                demoProject.project_id,
-            )}/apps`,
-        )
-    }, [demoOrganizationId, demoProject, demoWorkspaceId, posthog, router])
+
+        message.error("Demo project is not available.")
+    }, [
+        changeSelectedOrg,
+        demoOrganizationId,
+        demoOrgId,
+        demoProject,
+        demoWorkspaceId,
+        posthog,
+        router,
+    ])
 
     const handleSelection = useCallback(
         async (selection: "trace" | "eval" | "test_prompt") => {
@@ -192,7 +208,7 @@ const GetStarted = () => {
                     </div>
                     <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
                         <div className="text-lg font-semibold mb-2">Trace your application</div>
-                        <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
+                        <div className="text-[var(--ant-color-text-secondary)] text-sm text-center leading-relaxed">
                             Monitor and debug your application.
                         </div>
                     </div>
@@ -207,7 +223,7 @@ const GetStarted = () => {
                     </div>
                     <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
                         <div className="text-lg font-semibold mb-2">Create and test prompts</div>
-                        <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
+                        <div className="text-[var(--ant-color-text-secondary)] text-sm text-center leading-relaxed">
                             Manage and test prompts across models
                         </div>
                     </div>
@@ -222,7 +238,7 @@ const GetStarted = () => {
                     </div>
                     <div className="h-1/2 w-full px-6 py-3 flex flex-col items-center">
                         <div className="text-lg font-semibold mb-2">Run an evaluation from SDK</div>
-                        <div className="text-[var(--ant-color-text-secondary)] text-sm leading-relaxed">
+                        <div className="text-[var(--ant-color-text-secondary)] text-sm text-center leading-relaxed">
                             Evaluate complex AI apps to compare changes and ensure they are
                             reliable.
                         </div>

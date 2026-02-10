@@ -1,5 +1,9 @@
 import {type FC} from "react"
 
+import {useAtomValue} from "jotai"
+
+import {playgroundSyncAtom} from "@/oss/state/url/playground"
+
 import PlaygroundMainView from "./Components/MainLayout"
 import PlaygroundHeader from "./Components/PlaygroundHeader"
 import {useLocalDraftWarning} from "./hooks/useLocalDraftWarning"
@@ -10,6 +14,10 @@ const Playground: FC = () => {
 
     // Show warning when user tries to leave with unsaved local drafts
     useLocalDraftWarning()
+
+    // Mount imperative playground state sync (store.sub subscriptions)
+    // This replaces the old usePlaygroundUrlSync hook with React-free subscriptions
+    useAtomValue(playgroundSyncAtom)
 
     return (
         <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">

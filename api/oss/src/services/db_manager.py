@@ -1192,6 +1192,17 @@ async def setup_oss_organization_for_first_user(
         }
     )
 
+    # Ensure project-scoped default environments exist for the default project.
+    from oss.src.core.environments.defaults import create_default_environments
+
+    default_project_id = await get_default_project_id_from_workspace(
+        str(workspace_db.id)
+    )
+    await create_default_environments(
+        project_id=uuid.UUID(default_project_id),
+        user_id=user_id,
+    )
+
     analytics_service.capture_oss_deployment_created(
         user_email=user_email,
         organization_id=str(organization_db.id),
@@ -2986,21 +2997,25 @@ async def update_app_environment_deployed_variant_revision(
         await session.refresh(app_environment)
 
 
-async def list_environments(app_id: str):
+async def list_environments(app_id: str, project_id: Optional[str] = None):
     """
     List all environments for a given app ID.
 
     Args:
         app_id (str): The ID of the app to list environments for.
+        project_id (str, optional): The project ID. If not provided, will be looked up from the app.
 
     Returns:
         List[AppEnvironmentDB]: A list of AppEnvironmentDB objects representing the environments for the given app ID.
     """
 
-    app_instance = await fetch_app_by_id(app_id=app_id)
-    if app_instance is None:
-        log.error(f"App with id {app_id} not found")
-        raise ValueError("App not found")
+    if project_id is None:
+        # Fallback to old behavior for backwards compatibility
+        app_instance = await fetch_app_by_id(app_id=app_id)
+        if app_instance is None:
+            log.error(f"App with id {app_id} not found")
+            raise ValueError("App not found")
+        project_id = str(app_instance.project_id)
 
     async with engine.core_session() as session:
         result = await session.execute(
@@ -3013,7 +3028,7 @@ async def list_environments(app_id: str):
                     AppVariantRevisionsDB.config_parameters,  # type: ignore
                 )
             )
-            .filter_by(app_id=uuid.UUID(app_id), project_id=app_instance.project_id)
+            .filter_by(app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id))
         )
         environments_db = result.scalars().all()
         return environments_db

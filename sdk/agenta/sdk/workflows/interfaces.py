@@ -925,6 +925,28 @@ auto_semantic_similarity_v0_interface = WorkflowServiceInterface(
     ),
 )
 
+hook_v0_interface = WorkflowServiceInterface(
+    uri="agenta:builtin:hook:v0",
+    schemas=dict(  # type: ignore
+        parameters={
+            "type": "object",
+            "title": "Hook Parameters",
+            "description": "Extra configuration forwarded to the webhook alongside inputs.",
+            "additionalProperties": True,
+        },
+        inputs={
+            "type": "object",
+            "title": "Hook Inputs",
+            "description": "Inputs forwarded to the webhook.",
+        },
+        outputs={
+            "type": ["string", "object", "array"],
+            "title": "Hook Outputs",
+            "description": "Response returned by the webhook.",
+        },
+    ),
+)
+
 completion_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:completion:v0",
     schemas=dict(  # type: ignore

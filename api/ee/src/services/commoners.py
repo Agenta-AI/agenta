@@ -65,6 +65,10 @@ async def list_all_demos() -> List[Demo]:
         for project_id in demo_project_ids:
             project = await db_manager.get_project_by_id(project_id)
 
+            if project is None:
+                # log.debug(f"Demo project not found: {project_id}")
+                continue
+
             try:
                 demos.append(
                     Demo(

@@ -9,6 +9,7 @@ import {useLocalStorage} from "usehooks-ts"
 
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
 import {normalizeInviteError} from "@/oss/lib/helpers/authMessages"
+import {isEE} from "@/oss/lib/helpers/isEE"
 import {acceptWorkspaceInvite} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
@@ -97,7 +98,10 @@ const Accept: FC = () => {
                     removeInvite()
                     if (isSurvey) {
                         const redirect = encodeURIComponent(`/w/${targetWorkspace}`)
-                        await router.replace(`/post-signup?redirect=${redirect}`)
+                        const targetPath = isEE()
+                            ? `/post-signup?redirect=${redirect}`
+                            : `/get-started?redirect=${redirect}`
+                        await router.replace(targetPath)
                     } else if (targetWorkspace && projectId) {
                         const nextPath = buildPostLoginPath({
                             workspaceId: targetWorkspace,
@@ -174,7 +178,10 @@ const Accept: FC = () => {
                 removeInvite()
                 if (isSurvey) {
                     const redirect = encodeURIComponent(`/w/${workspaceId || organizationId || ""}`)
-                    await router.replace(`/post-signup?redirect=${redirect}`)
+                    const targetPath = isEE()
+                        ? `/post-signup?redirect=${redirect}`
+                        : `/get-started?redirect=${redirect}`
+                    await router.replace(targetPath)
                 } else if (workspaceId || organizationId) {
                     const nextPath = buildPostLoginPath({
                         workspaceId: workspaceId || organizationId || null,

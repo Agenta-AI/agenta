@@ -15,10 +15,12 @@ RUN apt-get update && \
 RUN pip install --upgrade pip \
     && pip install poetry
 
-COPY ./pyproject.toml /app/
+COPY ./pyproject.toml ./poetry.lock* /app/
 
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi
+RUN poetry config virtualenvs.create false
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.cache/pypoetry \
+    poetry install --no-interaction --no-ansi
 
 #
 COPY ./oss /app/oss/
@@ -27,6 +29,16 @@ COPY ./entrypoints /app/entrypoints/
 # Copy local SDK if present (synced by build.sh before docker build)
 # Uses glob pattern sd[k] to avoid failure if sdk/ doesn't exist (for OSS users)
 COPY ./sd[k] /app/sdk/
+
+# Install local SDK in editable mode if present (overrides the PyPI version)
+RUN if [ -f /app/sdk/pyproject.toml ]; then pip install -e /app/sdk; fi
+
+# Verify which agenta package is active (output visible in build logs)
+RUN python -c '\
+import agenta; loc = getattr(agenta, "__file__", "?"); \
+print(f"[SDK CHECK] agenta={loc}"); \
+print(f"[SDK CHECK] is_local={"app/sdk" in (loc or "")}")' \
+|| echo "[SDK CHECK] verification failed"
 
 # PYTHONPATH includes /app/sdk - if local SDK exists it takes precedence over PyPI version
 ENV PYTHONPATH=/app:/app/sdk

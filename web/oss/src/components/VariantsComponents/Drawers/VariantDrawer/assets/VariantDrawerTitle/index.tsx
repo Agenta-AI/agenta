@@ -8,6 +8,7 @@ import {useRouter} from "next/router"
 
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
+import {playgroundAppStatusAtom} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
@@ -16,7 +17,6 @@ import {
     moleculeBackedVariantAtomFamily,
     revisionIsDirtyAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
-import {currentVariantAppStatusAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {VariantDrawerTitleProps} from "../types"
 import {drawerVariantIsLoadingAtomFamily} from "../VariantDrawerContent"
@@ -146,7 +146,7 @@ const TitleActions = memo(
         isLoading,
     }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "variants" | "isLoading">) => {
         const [, updateQuery] = useQuery("replace")
-        const appStatus = useAtomValue(currentVariantAppStatusAtom)
+        const appStatus = useAtomValue(playgroundAppStatusAtom)
         const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
         const isDirty = useAtomValue(revisionIsDirtyAtomFamily(variantId))
         const {goToPlayground} = usePlaygroundNavigation()

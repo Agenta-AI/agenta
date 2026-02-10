@@ -41,6 +41,8 @@ from oss.src.utils.traces import (
 router = APIRouter()
 
 log = get_module_logger(__name__)
+# TEMPORARY: Disabling name editing
+RENAME_EVALUATORS_DISABLED_MESSAGE = "Renaming evaluators is temporarily disabled."
 
 # Load builtin evaluators once at module load
 BUILTIN_EVALUATORS: List[LegacyEvaluator] = [
@@ -93,6 +95,9 @@ def _simple_evaluator_to_evaluator_config(
         # Get settings from parameters
         settings_values = simple_evaluator.data.parameters
 
+    # Fall back to created_at if no update has occurred
+    updated_at = simple_evaluator.updated_at or simple_evaluator.created_at
+
     return EvaluatorConfig(
         id=str(simple_evaluator.id),
         name=simple_evaluator.name or "",
@@ -102,9 +107,7 @@ def _simple_evaluator_to_evaluator_config(
         created_at=simple_evaluator.created_at.isoformat()
         if simple_evaluator.created_at
         else "",
-        updated_at=simple_evaluator.updated_at.isoformat()
-        if simple_evaluator.updated_at
-        else "",
+        updated_at=updated_at.isoformat() if updated_at else "",
     )
 
 
@@ -373,6 +376,13 @@ async def update_evaluator_config(
         )
 
     updates = payload.model_dump(exclude_unset=True)
+
+    # TEMPORARY: Disabling name editing
+    if "name" in updates and updates["name"] and updates["name"] != old_evaluator.name:
+        raise HTTPException(
+            status_code=400,
+            detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+        )
 
     # Build new name
     new_name = old_evaluator.name

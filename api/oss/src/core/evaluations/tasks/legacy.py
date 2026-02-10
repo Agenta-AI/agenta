@@ -10,66 +10,23 @@ from oss.src.utils.common import is_ee
 from oss.src.services.auth_service import sign_secret_token
 from oss.src.services import llm_apps_service
 from oss.src.models.shared_models import InvokationResult
-from oss.src.services.db_manager import (
-    fetch_app_by_id,
-    fetch_app_variant_by_id,
-    fetch_app_variant_revision_by_id,
-    get_deployment_by_id,
-    get_project_by_id,
-)
+from oss.src.services.db_manager import get_project_by_id
 from oss.src.core.secrets.utils import get_llm_providers_secrets
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
 
-from oss.src.dbs.postgres.queries.dbes import (
-    QueryArtifactDBE,
-    QueryVariantDBE,
-    QueryRevisionDBE,
-)
-from oss.src.dbs.postgres.testcases.dbes import (
-    TestcaseBlobDBE,
-)
-from oss.src.dbs.postgres.testsets.dbes import (
-    TestsetArtifactDBE,
-    TestsetVariantDBE,
-    TestsetRevisionDBE,
-)
-from oss.src.dbs.postgres.workflows.dbes import (
-    WorkflowArtifactDBE,
-    WorkflowVariantDBE,
-    WorkflowRevisionDBE,
-)
 
-from oss.src.dbs.postgres.tracing.dao import TracingDAO
-from oss.src.dbs.postgres.blobs.dao import BlobsDAO
-from oss.src.dbs.postgres.git.dao import GitDAO
-from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
-
-from oss.src.core.tracing.service import TracingService
 from oss.src.core.queries.service import QueriesService
-from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService
+from oss.src.core.applications.services import ApplicationsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
-from oss.src.core.annotations.service import AnnotationsService
 
-from oss.src.apis.fastapi.tracing.utils import make_hash_id
 from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.testsets.router import TestsetsRouter
-from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 
-from oss.src.core.annotations.types import (
-    AnnotationOrigin,
-    AnnotationKind,
-    AnnotationChannel,
-)
-from oss.src.apis.fastapi.annotations.models import (
-    AnnotationCreate,
-    AnnotationCreateRequest,
-)
 
 from oss.src.core.evaluations.types import (
     EvaluationStatus,
@@ -80,35 +37,21 @@ from oss.src.core.evaluations.types import (
     EvaluationRunDataStep,
     EvaluationRunData,
     EvaluationRunFlags,
-    EvaluationRunQueryFlags,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
     EvaluationScenarioCreate,
     EvaluationScenarioEdit,
     EvaluationResultCreate,
-    EvaluationMetricsCreate,
     EvaluationMetricsRefresh,
 )
 
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
     WorkflowServiceRequest,
-    WorkflowServiceResponse,
-    WorkflowServiceInterface,
-    WorkflowRevisionData,
-    WorkflowRevision,
-    WorkflowVariant,
-    Workflow,
 )
 
-from oss.src.core.queries.dtos import (
-    QueryRevision,
-    QueryVariant,
-    Query,
-)
 
 from oss.src.core.evaluations.utils import (
     get_metrics_keys_from_schema,
@@ -142,6 +85,7 @@ async def setup_evaluation(
     testsets_service: TestsetsService,
     queries_service: QueriesService,
     workflows_service: WorkflowsService,
+    applications_service: ApplicationsService,
     evaluators_service: EvaluatorsService,
     evaluations_service: EvaluationsService,
 ) -> Optional[EvaluationRun]:
@@ -295,56 +239,55 @@ async def setup_evaluation(
         application_references = dict()
 
         if revision_id:
-            revision = await fetch_app_variant_revision_by_id(revision_id)
+            application_revision = (
+                await applications_service.fetch_application_revision(
+                    project_id=project_id,
+                    application_revision_ref=Reference(id=UUID(revision_id)),
+                )
+            )
 
-            if revision is None:
+            if application_revision is None:
                 raise ValueError(f"App revision with id {revision_id} not found!")
 
-            application_references["revision"] = Reference(
-                id=UUID(str(revision.id)),
+            application_variant = await applications_service.fetch_application_variant(
+                project_id=project_id,
+                application_variant_ref=Reference(
+                    id=application_revision.application_variant_id
+                ),
             )
 
-            variant = await fetch_app_variant_by_id(str(revision.variant_id))
-
-            if variant is None:
+            if application_variant is None:
                 raise ValueError(
-                    f"App variant with id {revision.variant_id} not found!"
+                    f"Application variant with id {application_revision.application_variant_id} not found!"
                 )
+
+            application = await applications_service.fetch_application(
+                project_id=project_id,
+                application_ref=Reference(id=application_variant.application_id),
+            )
+
+            if application is None:
+                raise ValueError(
+                    f"Application with id {application_variant.application_id} not found!"
+                )
+
+            application_references["revision"] = Reference(
+                id=application_revision.id,
+            )
 
             application_references["variant"] = Reference(
-                id=UUID(str(variant.id)),
+                id=application_variant.id,
             )
-
-            app = await fetch_app_by_id(str(variant.app_id))
-
-            if app is None:
-                raise ValueError(f"App with id {variant.app_id} not found!")
 
             application_references["artifact"] = Reference(
-                id=UUID(str(app.id)),
+                id=application.id,
             )
 
-            deployment = await get_deployment_by_id(str(revision.base.deployment_id))
-
-            if deployment is None:
-                raise ValueError(
-                    f"Deployment with id {revision.base.deployment_id} not found!"
-                )
-
-            uri = parse_url(url=deployment.uri)
-
-            if uri is None:
-                raise ValueError(f"Invalid URI for deployment {deployment.id}!")
-
-            revision_parameters = revision.config_parameters
-
-            if revision_parameters is None:
-                raise ValueError(
-                    f"Revision parameters for variant {variant.id} not found!"
-                )
-
             invocation_steps_keys.append(
-                get_slug_from_name_and_id(app.app_name, revision.id)
+                get_slug_from_name_and_id(
+                    application.name or application.slug,
+                    application_revision.id,
+                )
             )
         # ----------------------------------------------------------------------
 
@@ -420,7 +363,7 @@ async def setup_evaluation(
                 # collect metrics
                 metrics_keys = get_metrics_keys_from_schema(
                     schema=(
-                        evaluator_revision.data.schemas.get("outputs")
+                        evaluator_revision.data.schemas.outputs
                         if evaluator_revision.data and evaluator_revision.data.schemas
                         else None
                     ),
@@ -659,11 +602,12 @@ async def evaluate_batch_testset(
     #
     tracing_router: TracingRouter,
     testsets_service: TestsetsService,
-    simple_evaluators_service: SimpleEvaluatorsService,
-    #
     queries_service: QueriesService,
     workflows_service: WorkflowsService,
+    applications_service: ApplicationsService,
     evaluations_service: EvaluationsService,
+    #
+    simple_evaluators_service: SimpleEvaluatorsService,
 ):
     """
     Annotates an application revision applied to a testset using auto evaluator(s).
@@ -705,7 +649,7 @@ async def evaluate_batch_testset(
         # ----------------------------------------------------------------------
 
         # fetch secrets --------------------------------------------------------
-        secrets = await get_llm_providers_secrets(
+        _ = await get_llm_providers_secrets(
             project_id=str(project_id),
         )
         # ----------------------------------------------------------------------
@@ -809,37 +753,59 @@ async def evaluate_batch_testset(
         # ----------------------------------------------------------------------
 
         # fetch application ----------------------------------------------------
-        revision = await fetch_app_variant_revision_by_id(revision_id)
-
-        if revision is None:
+        if revision_id is None:
             raise ValueError(f"App revision with id {revision_id} not found!")
 
-        variant = await fetch_app_variant_by_id(str(revision.variant_id))
+        application_revision = await applications_service.fetch_application_revision(
+            project_id=project_id,
+            application_revision_ref=Reference(id=UUID(revision_id)),
+        )
 
-        if variant is None:
-            raise ValueError(f"App variant with id {revision.variant_id} not found!")
+        if application_revision is None:
+            raise ValueError(f"App revision with id {revision_id} not found!")
 
-        app = await fetch_app_by_id(str(variant.app_id))
+        application_variant = await applications_service.fetch_application_variant(
+            project_id=project_id,
+            application_variant_ref=Reference(
+                id=application_revision.application_variant_id
+            ),
+        )
 
-        if app is None:
-            raise ValueError(f"App with id {variant.app_id} not found!")
-
-        deployment = await get_deployment_by_id(str(revision.base.deployment_id))
-
-        if deployment is None:
+        if application_variant is None:
             raise ValueError(
-                f"Deployment with id {revision.base.deployment_id} not found!"
+                f"Application variant with id {application_revision.application_variant_id} not found!"
             )
 
-        uri = parse_url(url=deployment.uri)
+        application = await applications_service.fetch_application(
+            project_id=project_id,
+            application_ref=Reference(id=application_variant.application_id),
+        )
 
+        if application is None:
+            raise ValueError(
+                f"Application with id {application_variant.application_id} not found!"
+            )
+
+        deployment_uri = None
+        if application_revision.data:
+            deployment_uri = application_revision.data.url or getattr(
+                application_revision.data, "uri", None
+            )
+
+        if not deployment_uri:
+            raise ValueError(f"No deployment URI found for revision {revision_id}!")
+
+        uri = parse_url(url=deployment_uri)
         if uri is None:
-            raise ValueError(f"Invalid URI for deployment {deployment.id}!")
+            raise ValueError(f"Invalid URI for revision {revision_id}!")
 
-        revision_parameters = revision.config_parameters
-
+        revision_parameters = (
+            application_revision.data.parameters if application_revision.data else None
+        )
         if revision_parameters is None:
-            raise ValueError(f"Revision parameters for variant {variant.id} not found!")
+            raise ValueError(
+                f"Revision parameters for revision {revision_id} not found!"
+            )
         # ----------------------------------------------------------------------
 
         # fetch evaluators -----------------------------------------------------
@@ -957,13 +923,13 @@ async def evaluate_batch_testset(
             parameters=revision_parameters,  # type: ignore
             uri=uri,
             rate_limit_config=run_config,
-            application_id=str(app.id),  # DO NOT REMOVE
+            application_id=str(application.id),  # DO NOT REMOVE
             references={
                 "testset": {"id": str(testset_id)},
                 "testset_revision": {"id": str(testset_revision_id)},
-                "application": {"id": str(app.id)},
-                "application_variant": {"id": str(variant.id)},
-                "application_revision": {"id": str(revision.id)},
+                "application": {"id": str(application.id)},
+                "application_variant": {"id": str(application_variant.id)},
+                "application_revision": {"id": str(application_revision.id)},
             },
             scenarios=[
                 s.model_dump(
@@ -1039,7 +1005,7 @@ async def evaluate_batch_testset(
             # proceed with the evaluation otherwise ----------------------------
             else:
                 if not invocation.trace_id:
-                    log.warn(f"invocation trace_id is missing.")
+                    log.warn("invocation trace_id is missing.")
                     scenario_has_errors += 1
                     scenario_status = EvaluationStatus.ERRORS
                     continue
@@ -1054,14 +1020,14 @@ async def evaluate_batch_testset(
 
                 if trace:
                     log.info(
-                        f"Trace found  ",
+                        "Trace found  ",
                         scenario_id=scenario.id,
                         step_key=invocation_step_key,
                         trace_id=invocation.trace_id,
                     )
                 else:
                     log.warn(
-                        f"Trace missing",
+                        "Trace missing",
                         scenario_id=scenario.id,
                         step_key=invocation_step_key,
                         trace_id=invocation.trace_id,
@@ -1293,7 +1259,7 @@ async def evaluate_batch_testset(
                         trace_id = annotation.trace_id
 
                         if not annotation.trace_id:
-                            log.warn(f"annotation trace_id is missing.")
+                            log.warn("annotation trace_id is missing.")
                             scenario_has_errors += 1
                             scenario_status = EvaluationStatus.ERRORS
                             continue
@@ -1308,14 +1274,14 @@ async def evaluate_batch_testset(
 
                         if trace:
                             log.info(
-                                f"Trace found  ",
+                                "Trace found  ",
                                 scenario_id=scenario.id,
                                 step_key=annotation_step_key,
                                 trace_id=annotation.trace_id,
                             )
                         else:
                             log.warn(
-                                f"Trace missing",
+                                "Trace missing",
                                 scenario_id=scenario.id,
                                 step_key=annotation_step_key,
                                 trace_id=annotation.trace_id,
@@ -1387,7 +1353,7 @@ async def evaluate_batch_testset(
                             f"Refreshing metrics failed for {run_id} | {scenario.id}"
                         )
 
-                except Exception as e:
+                except Exception:
                     log.warning(
                         f"Refreshing metrics failed for {run_id} | {scenario.id}",
                         exc_info=True,
@@ -1422,7 +1388,7 @@ async def evaluate_batch_testset(
 
                 run_status = EvaluationStatus.FAILURE
 
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception:  # pylint: disable=broad-exception-caught
             log.warning(f"Refreshing metrics failed for {run_id}", exc_info=True)
 
             run_status = EvaluationStatus.FAILURE

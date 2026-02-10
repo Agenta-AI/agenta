@@ -78,18 +78,10 @@ from oss.src.core.testsets.dtos import TestsetRevision
 from oss.src.core.evaluators.dtos import EvaluatorRevision
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testsets.service import TestsetsService
-from oss.src.core.testsets.service import SimpleTestsetsService
-from oss.src.core.evaluators.service import SimpleEvaluatorsService
+from oss.src.core.applications.services import ApplicationsService
 
 from oss.src.core.evaluations.utils import filter_scenario_ids
 
-from oss.src.models.db_models import AppVariantRevisionsDB
-
-from oss.src.services.db_manager import (
-    fetch_app_by_id,
-    fetch_app_variant_by_id,
-    fetch_app_variant_revision_by_id,
-)
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 
@@ -962,7 +954,7 @@ class EvaluationsService:
 
                 if evaluator_revision.data:
                     if evaluator_revision.data.schemas:
-                        outputs_schema = evaluator_revision.data.schemas.get("outputs")
+                        outputs_schema = evaluator_revision.data.schemas.outputs
                     if evaluator_revision.data.service:
                         service_format = evaluator_revision.data.service.get("format")
 
@@ -1492,20 +1484,18 @@ class EvaluationsService:
 class SimpleEvaluationsService:
     def __init__(
         self,
-        queries_service: QueriesService,
         testsets_service: TestsetsService,
+        queries_service: QueriesService,
+        applications_service: ApplicationsService,
         evaluators_service: EvaluatorsService,
         evaluations_service: EvaluationsService,
-        simple_testsets_service: SimpleTestsetsService,
-        simple_evaluators_service: SimpleEvaluatorsService,
         evaluations_worker: Optional["EvaluationsWorker"] = None,
     ):
-        self.queries_service = queries_service
         self.testsets_service = testsets_service
+        self.queries_service = queries_service
+        self.applications_service = applications_service
         self.evaluators_service = evaluators_service
         self.evaluations_service = evaluations_service
-        self.simple_testsets_service = simple_testsets_service
-        self.simple_evaluators_service = simple_evaluators_service
         self.evaluations_worker = evaluations_worker
 
     async def create(
@@ -2218,7 +2208,6 @@ class SimpleEvaluationsService:
             # fetch applications -----------------------------------------------
             application_invocation_steps_keys: List[str] = list()
             application_references: Dict[str, Dict[str, Reference]] = dict()
-            application_revisions: Dict[str, AppVariantRevisionsDB] = dict()
             application_origins: Dict[str, Origin] = dict()
 
             if isinstance(application_steps, list):
@@ -2230,8 +2219,11 @@ class SimpleEvaluationsService:
             for application_revision_id, origin in (application_steps or {}).items():
                 application_revision_ref = Reference(id=application_revision_id)
 
-                application_revision = await fetch_app_variant_revision_by_id(
-                    variant_revision_id=str(application_revision_ref.id),
+                application_revision = (
+                    await self.applications_service.fetch_application_revision(
+                        project_id=project_id,
+                        application_revision_ref=application_revision_ref,
+                    )
                 )
 
                 if not application_revision:
@@ -2242,11 +2234,14 @@ class SimpleEvaluationsService:
                     return None
 
                 application_variant_ref = Reference(
-                    id=UUID(str(application_revision.variant_id))
+                    id=application_revision.application_variant_id
                 )
 
-                application_variant = await fetch_app_variant_by_id(
-                    app_variant_id=str(application_variant_ref.id),
+                application_variant = (
+                    await self.applications_service.fetch_application_variant(
+                        project_id=project_id,
+                        application_variant_ref=application_variant_ref,
+                    )
                 )
 
                 if not application_variant:
@@ -2256,10 +2251,11 @@ class SimpleEvaluationsService:
                     )
                     return None
 
-                application_ref = Reference(id=UUID(str(application_variant.app_id)))
+                application_ref = Reference(id=application_variant.application_id)
 
-                application = await fetch_app_by_id(
-                    app_id=str(application_ref.id),
+                application = await self.applications_service.fetch_application(
+                    project_id=project_id,
+                    application_ref=application_ref,
                 )
 
                 if not application:
@@ -2270,8 +2266,8 @@ class SimpleEvaluationsService:
                     return None
 
                 application_revision_slug = get_slug_from_name_and_id(
-                    str(application_revision.config_name),
-                    UUID(str(application_revision.id)),
+                    str(application_revision.slug),
+                    application_revision.id,
                 )
 
                 step_key = "application-" + application_revision_slug
@@ -2281,20 +2277,18 @@ class SimpleEvaluationsService:
                 application_references[step_key] = dict(
                     application=Reference(
                         id=application_ref.id,
-                        slug=str(application.app_name),
+                        slug=application.slug,
                     ),
                     application_variant=Reference(
                         id=application_variant_ref.id,
-                        slug=str(application_variant.variant_name),
+                        slug=application_variant.slug,
                     ),
                     application_revision=Reference(
                         id=application_revision_ref.id,
-                        slug=str(application_revision.config_name),
-                        version=str(application_revision.revision),
+                        slug=application_revision.slug,
+                        version=application_revision.version,
                     ),
                 )
-
-                application_revisions[step_key] = application_revision
 
                 application_origins[step_key] = origin
 
@@ -2396,7 +2390,7 @@ class SimpleEvaluationsService:
 
                 if evaluator_revision.data.schemas:
                     metrics_keys = get_metrics_keys_from_schema(
-                        schema=(evaluator_revision.data.schemas.get("outputs")),
+                        schema=evaluator_revision.data.schemas.outputs,
                     )
 
                     evaluator_metrics_keys[step_key] = [
@@ -2556,7 +2550,7 @@ class SimpleEvaluationsService:
                 repeats=repeats or 1,
             )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-exception-caught
             log.error("[EVAL] [run] [make] [failure]", exc_info=True)
 
             return None
@@ -2783,6 +2777,6 @@ class SimpleEvaluationsService:
                 data=evaluation_data,
             )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-exception-caught
             log.error("[EVAL] [run] [parse] [failure]", exc_info=True)
             return None

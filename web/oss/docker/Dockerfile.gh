@@ -31,7 +31,8 @@ COPY --from=base /packages/css-modules.d.ts /app/packages/css-modules.d.ts
 
 RUN npx next telemetry disable
 
-RUN pnpm turbo run build --filter=@agenta/oss
+RUN --mount=type=cache,id=nextjs-oss,target=/app/oss/.next/cache \
+    pnpm turbo run build --filter=@agenta/oss
 
 # RUNNER ----------------------------------------------------------------------
 

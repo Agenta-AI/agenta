@@ -291,7 +291,7 @@ async def add_variant_from_url(
 
     already_exists = any(av for av in variants if av.variant_name == variant_name)  # type: ignore
     if already_exists:
-        log.error("App variant with the same name already exists")
+        # log.debug("App variant with the same name already exists")
         raise ValueError("App variant with the same name already exists")
 
     user_instance = await db_manager.get_user_with_id(user_id=user_uid)

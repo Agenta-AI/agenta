@@ -1,5 +1,6 @@
 import {useCallback, useMemo} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
@@ -10,15 +11,18 @@ import dynamic from "next/dynamic"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {
     isLocalDraft,
-    discardLocalDraft,
     getSourceRevisionId,
     legacyAppRevisionMolecule,
     moleculeBackedVariantAtomFamily,
+    discardRevisionDraftAtom,
+    revisionIsDirtyAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
-import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
-import {selectedVariantsAtom} from "../../../state/atoms/core"
-// import {baselineVariantAtomFamily} from "../../../state/atoms/dirtyState"
+import {selectedVariantsAtom, parametersOverrideAtomFamily} from "../../../state/atoms"
+import {
+    playgroundRevisionDeploymentAtomFamily,
+    playgroundLatestAppRevisionIdAtom,
+} from "../../../state/atoms/playgroundAppAtoms"
 import {switchVariantAtom} from "../../../state/atoms/urlSync"
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
@@ -51,8 +55,9 @@ const PlaygroundVariantConfigHeader = ({
     const baseline = useAtomValue(moleculeBackedVariantAtomFamily(variantId || ""))
     const moleculeData = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId || ""))
     const deployment = useAtomValue(
-        revisionDeploymentAtomFamily((baseline?.id as string) || ""),
+        playgroundRevisionDeploymentAtomFamily((baseline?.id as string) || ""),
     ) as any
+    const latestAppRevisionId = useAtomValue(playgroundLatestAppRevisionIdAtom)
 
     // For local drafts, get data from molecule
     const effectiveData = isLocalDraftVariant ? moleculeData : baseline
@@ -70,7 +75,11 @@ const PlaygroundVariantConfigHeader = ({
     const displayName = isLocalDraftVariant
         ? String(rawVariantName).replace(/\s*\(Draft\)$/, "")
         : rawVariantName
-    const isLatestRevision = (effectiveData as any)?.isLatestRevision
+    const isLatestRevision =
+        typeof (effectiveData as any)?.isLatestRevision === "boolean"
+            ? (effectiveData as any).isLatestRevision
+            : _variantId === latestAppRevisionId
+    const isDirty = useAtomValue(revisionIsDirtyAtomFamily((_variantId as string) || ""))
     // Keep the full deployment objects so downstream components (e.g., EnvironmentStatus)
     // can access env.name and other fields.
     // Local drafts have no deployments
@@ -103,13 +112,30 @@ const PlaygroundVariantConfigHeader = ({
         [switchVariant, variantId],
     )
 
+    const discardDraft = useSetAtom(discardRevisionDraftAtom)
+    const setParamsOverride = useSetAtom(parametersOverrideAtomFamily(variantId || "") as any)
+
     const handleDiscardDraft = useCallback(() => {
         if (!variantId || !isLocalDraftVariant) return
         // Remove from selection first
         setSelectedVariants((prev) => prev.filter((id) => id !== variantId))
-        // Then discard the draft
-        discardLocalDraft(variantId)
-    }, [variantId, isLocalDraftVariant, setSelectedVariants])
+        // Discard draft + clear parameters override
+        discardDraft(variantId)
+        setParamsOverride(null)
+    }, [variantId, isLocalDraftVariant, setSelectedVariants, discardDraft, setParamsOverride])
+
+    // Discard handler for regular revisions (shown in DraftTag dropdown)
+    const handleRevisionDiscardDraft = useCallback(() => {
+        if (!_variantId) return
+        try {
+            discardDraft(_variantId as string)
+            setParamsOverride(null)
+            message.success("Draft changes discarded")
+        } catch (e) {
+            message.error("Failed to discard draft changes")
+            console.error(e)
+        }
+    }, [_variantId, discardDraft, setParamsOverride])
 
     return (
         <section
@@ -164,6 +190,9 @@ const PlaygroundVariantConfigHeader = ({
                                 hideName={!embedded}
                                 variantName={displayName as any}
                                 showRevisionAsTag={true}
+                                hasChanges={isDirty}
+                                isLatest={isLatestRevision}
+                                onDiscardDraft={handleRevisionDiscardDraft}
                             />
                         )}
                     </>

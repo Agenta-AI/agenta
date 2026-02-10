@@ -61,6 +61,8 @@ const firstEvaluationTour: OnboardingTour = {
             side: "bottom",
             showControls: true,
             showSkip: true,
+            pointerPadding: 10,
+            pointerRadius: 8,
             nextAction: {
                 selector: '[data-tour="run-evaluation-button"]',
                 type: "click",
@@ -75,23 +77,23 @@ const firstEvaluationTour: OnboardingTour = {
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
         },
-        {
-            icon: "📝",
-            title: "Name Your Evaluation",
-            content: "Give this evaluation a clear, descriptive name.",
-            selector: '[data-tour="evaluation-name-input"]',
-            side: "bottom",
-            showControls: true,
-            showSkip: true,
-            prevAction: {
-                selector: '[data-tour="new-eval-modal-close"]',
-                type: "click",
-                waitForHiddenSelector: '[data-tour="evaluation-name-input"]',
-                waitTimeoutMs: 4000,
-            },
-            selectorRetryAttempts: 10,
-            selectorRetryDelay: 200,
-        },
+        // {
+        //     icon: "📝",
+        //     title: "Name Your Evaluation",
+        //     content: "Give this evaluation a clear, descriptive name.",
+        //     selector: '[data-tour="evaluation-name-input"]',
+        //     side: "bottom",
+        //     showControls: true,
+        //     showSkip: true,
+        //     prevAction: {
+        //         selector: '[data-tour="new-eval-modal-close"]',
+        //         type: "click",
+        //         waitForHiddenSelector: '[data-tour="evaluation-name-input"]',
+        //         waitTimeoutMs: 4000,
+        //     },
+        //     selectorRetryAttempts: 10,
+        //     selectorRetryDelay: 200,
+        // },
         {
             icon: "📂",
             title: "Select a Test Set",
@@ -101,6 +103,8 @@ const firstEvaluationTour: OnboardingTour = {
             showControls: true,
             showSkip: true,
             panelKey: "testsetPanel",
+            pointerPadding: 10,
+            pointerRadius: 8,
             onNext: async () => {
                 const store = getDefaultStore()
                 const hasSelection = Boolean(store.get(selectedTestsetIdAtom))
@@ -116,6 +120,14 @@ const firstEvaluationTour: OnboardingTour = {
             },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            nextAction: {
+                selector: '[data-tour="testset-select"]',
+                type: "click",
+                // waitForSelector: '[data-tour="evaluation-name-input"]',
+                waitForSelectorVisible: true,
+                waitTimeoutMs: 6000,
+                advanceOnActionClick: true,
+            },
         },
         {
             icon: "✏️",
@@ -145,6 +157,8 @@ const firstEvaluationTour: OnboardingTour = {
             },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            pointerPadding: 10,
+            pointerRadius: 8,
         },
         {
             icon: "🚀",
@@ -163,6 +177,8 @@ const firstEvaluationTour: OnboardingTour = {
             },
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            pointerPadding: 10,
+            pointerRadius: 8,
         },
         {
             icon: "📊",
@@ -175,6 +191,8 @@ const firstEvaluationTour: OnboardingTour = {
             showSkip: true,
             selectorRetryAttempts: 10,
             selectorRetryDelay: 200,
+            pointerPadding: 10,
+            pointerRadius: 8,
             prevAction: {
                 selector: '[data-tour="run-evaluation-button"]',
                 type: "click",

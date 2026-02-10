@@ -89,6 +89,7 @@ const LatestEvaluationRunsTable = ({
                     enableInfiniteScroll={false}
                     autoHeight={false}
                     headerTitle={headerTitle}
+                    hideOnboardingVideos={true}
                     className={clsx(
                         withContainerStyles &&
                             "border border-gray-100 rounded-lg px-2 py-4 bg-white shadow-sm",
