@@ -376,9 +376,9 @@ class DaytonaRunner(CodeRunner):
         """Clean up Daytona client resources."""
         try:
             self.daytona = None
-        except Exception as e:
+        except Exception:
             # Log but don't raise on cleanup failures
-            log.error(f"Warning: Failed to cleanup Daytona resources", exc_info=True)
+            log.error("Warning: Failed to cleanup Daytona resources", exc_info=True)
 
     def __del__(self):
         """Ensure cleanup on deletion."""

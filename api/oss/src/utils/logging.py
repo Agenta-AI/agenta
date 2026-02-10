@@ -103,7 +103,7 @@ def colored_console_renderer() -> Processor:
     }
 
     def render(_, __, event_dict: EventDict) -> str:
-        pid = event_dict.pop("pid", None)
+        event_dict.pop("pid", None)
         ts = event_dict.pop("Timestamp", "")[:23] + "Z"
         level = event_dict.pop("level", "INFO")
         msg = event_dict.pop("event", "")
@@ -190,8 +190,8 @@ class MultiLogger:
         self._loggers = loggers
 
     def _log(self, level: str, *args: Any, **kwargs: Any):
-        for l in self._loggers:
-            getattr(l, level)(*args, **kwargs)
+        for lgr in self._loggers:
+            getattr(lgr, level)(*args, **kwargs)
 
     def debug(self, *a, **k):
         self._log("debug", *a, **k)
@@ -218,7 +218,7 @@ class MultiLogger:
         self._log("trace", *a, **k)
 
     def bind(self, **kwargs):
-        return MultiLogger(*(l.bind(**kwargs) for l in self._loggers))
+        return MultiLogger(*(lgr.bind(**kwargs) for lgr in self._loggers))
 
 
 def get_logger(name: Optional[str] = None) -> MultiLogger:

@@ -9,9 +9,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
-from oss.src.models import converters
 from oss.src.utils.common import APIRouter
-from oss.src.services import app_manager, db_manager
 from oss.src.services.legacy_adapter import get_legacy_adapter
 
 if is_ee():
@@ -560,12 +558,12 @@ async def remove_variant_revision(
 
 ### --- CONFIGS --- ###
 
-from oss.src.services.variants_manager import (
+from oss.src.services.variants_manager import (  # noqa: E402
     BaseModel,
     ReferenceDTO,
     ConfigDTO,
 )
-from oss.src.services.variants_manager import (
+from oss.src.services.variants_manager import (  # noqa: E402
     add_config,
     fetch_config_by_variant_ref,
     fetch_config_by_environment_ref,

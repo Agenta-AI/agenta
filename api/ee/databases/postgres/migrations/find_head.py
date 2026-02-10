@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Union, Dict, Set, Optional
+from typing import Union, Dict, Set
 import sys
 
 database = sys.argv[1]

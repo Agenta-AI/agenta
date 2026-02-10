@@ -1,12 +1,6 @@
-from enum import Enum
-from typing import List, Union, Dict
-from dataclasses import dataclass
-import pdb
 import agenta as ag
-from agenta import FloatParam, TextParam
 from pydantic import BaseModel, Field
 from typing import Annotated
-from typing import Literal
 
 default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"

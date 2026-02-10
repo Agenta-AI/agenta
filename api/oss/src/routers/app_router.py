@@ -1,4 +1,3 @@
-import os
 from uuid import UUID
 from typing import List, Optional
 
@@ -8,7 +7,6 @@ from fastapi import HTTPException, Request
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
-from oss.src.models import converters
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import db_manager, app_manager
 from oss.src.services.legacy_adapter import (

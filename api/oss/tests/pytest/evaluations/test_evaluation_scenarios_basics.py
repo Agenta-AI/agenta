@@ -170,7 +170,7 @@ class TestEvaluationScenariosBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/scenarios/",
+            "/preview/evaluations/scenarios/",
             json={"scenario_ids": scenario_ids},
         )
         # ----------------------------------------------------------------------
@@ -185,7 +185,7 @@ class TestEvaluationScenariosBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/scenarios/",
+            "/preview/evaluations/scenarios/",
             json={"scenario_ids": scenario_ids},
         )
         # ----------------------------------------------------------------------

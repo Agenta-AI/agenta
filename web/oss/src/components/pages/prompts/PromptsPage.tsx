@@ -113,7 +113,9 @@ const PromptsPage = () => {
         data: foldersData,
         isLoading: isLoadingFolders,
         mutate,
-    } = useSWR(projectId ? ["folders", projectId] : null, () => queryFolders({folder: {}}))
+    } = useSWR(projectId ? ["folders", projectId] : null, () =>
+        queryFolders({folder: {}}, projectId),
+    )
 
     const {
         currentFolderId,

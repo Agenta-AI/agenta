@@ -2,7 +2,7 @@
 
 from typing import Optional, Callable, List
 from uuid import UUID
-from fastapi import Request, Response, HTTPException
+from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 

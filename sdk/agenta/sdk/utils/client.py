@@ -1,10 +1,9 @@
 import httpx
 
-BASE_TIMEOUT = 10
-
+import agenta as ag
 from agenta.sdk.utils.logging import get_module_logger
 
-import agenta as ag
+BASE_TIMEOUT = 10
 
 log = get_module_logger(__name__)
 

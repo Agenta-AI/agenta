@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional, Literal, List
-from uuid import UUID, uuid4
+from uuid import UUID
 from datetime import datetime
-from json import loads, dumps
+from json import dumps
 from io import BytesIO
 from hashlib import blake2b as digest
 
@@ -143,7 +143,7 @@ def parse_testset_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         testset_query_request = TestsetQueryRequest()
 
     return testset_query_request
@@ -322,7 +322,7 @@ def parse_testset_variant_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         testset_variant_query_request = TestsetVariantQueryRequest()
 
     return testset_variant_query_request
