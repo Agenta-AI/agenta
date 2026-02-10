@@ -23,7 +23,7 @@ interface UsePromptsColumnsProps {
     onDeleteFolder: (folderId: string) => void
     onMoveItem: (item: PromptsTableRow) => void
     onOpenAppOverview: (appId: string) => void
-    // TEMPORARY: Disablig name editing
+    // TEMPORARY: Disabling name editing
     // onOpenEditAppModal: (app: ListAppsItem) => void
     onOpenDeleteAppModal: (app: ListAppsItem) => void
     getAppTypeIcon: (appType?: string | undefined) => JSX.Element
@@ -35,7 +35,7 @@ export const usePromptsColumns = ({
     onDeleteFolder,
     onMoveItem,
     onOpenAppOverview,
-    // TEMPORARY: Disablig name editing
+    // TEMPORARY: Disabling name editing
     // onOpenEditAppModal,
     onOpenDeleteAppModal,
     getAppTypeIcon,
@@ -143,7 +143,7 @@ export const usePromptsColumns = ({
                                 onOpenAppOverview(record.app_id)
                             },
                         },
-                        // TEMPORARY: Disablig name editing
+                        // TEMPORARY: Disabling name editing
                         // {
                         //     key: "rename_app",
                         //     label: "Rename",
@@ -204,7 +204,7 @@ export const usePromptsColumns = ({
             onMoveItem,
             onOpenAppOverview,
             onOpenDeleteAppModal,
-            // TEMPORARY: Disablig name editing
+            // TEMPORARY: Disabling name editing
             // onOpenEditAppModal,
             onRenameFolder,
         ],

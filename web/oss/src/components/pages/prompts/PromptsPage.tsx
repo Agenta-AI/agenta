@@ -11,9 +11,9 @@ import {getTemplateKey, timeout} from "@/oss/components/pages/app-management/ass
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import DeleteAppModal from "@/oss/components/pages/app-management/modals/DeleteAppModal"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
-// TEMPORARY: Disablig name editing
+// TEMPORARY: Disabling name editing
 // import EditAppModal from "@/oss/components/pages/app-management/modals/EditAppModal"
-// TEMPORARY: Disablig name editing
+// TEMPORARY: Disabling name editing
 // import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
@@ -103,7 +103,7 @@ const PromptsPage = () => {
     const [isMovingItem, setIsMovingItem] = useState(false)
     const [isDeletingFolder, setIsDeletingFolder] = useState(false)
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
-    // TEMPORARY: Disablig name editing
+    // TEMPORARY: Disabling name editing
     // const openEditAppModal = useSetAtom(openEditAppModalAtom)
     const setPromptsTableMeta = useSetAtom(promptsTableMetaAtom)
 
@@ -771,7 +771,7 @@ const PromptsPage = () => {
         onDeleteFolder: handleOpenDeleteModal,
         onMoveItem: handleOpenMoveModal,
         onOpenAppOverview: handleOpenAppOverview,
-        // TEMPORARY: Disablig name editing
+        // TEMPORARY: Disabling name editing
         // onOpenEditAppModal: openEditAppModal,
         onOpenDeleteAppModal: openDeleteAppModal,
         getAppTypeIcon: renderAppTypeIcon,
@@ -881,7 +881,7 @@ const PromptsPage = () => {
             />
 
             <DeleteAppModal />
-            {/* TEMPORARY: Disablig name editing */}
+            {/* TEMPORARY: Disabling name editing */}
             {/* <EditAppModal /> */}
         </PageLayout>
     )
