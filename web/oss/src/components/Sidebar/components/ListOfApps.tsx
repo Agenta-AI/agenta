@@ -45,7 +45,7 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
                         disabled: true,
                         label: (
                             <div
-                                className="flex items-center gap-1.5 w-full max-w-[300px]"
+                                className="flex items-center gap-1.5 w-full max-w-[400px]"
                                 style={{paddingLeft: depth > 0 ? depth * 12 : 0}}
                             >
                                 <FolderIcon
@@ -79,7 +79,7 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
                         key,
                         label: (
                             <div
-                                className="w-full max-w-[300px]"
+                                className="w-full max-w-[400px]"
                                 style={{paddingLeft: depth > 0 ? depth * 12 : 0}}
                             >
                                 <span className="truncate block" title={node.app_name}>
@@ -118,9 +118,8 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
     return (
         <Dropdown
             trigger={["click"]}
-            placement={collapsed ? "bottomLeft" : "bottomRight"}
+            placement="bottomLeft"
             destroyOnHidden
-            getPopupContainer={(trigger) => trigger.parentElement!}
             styles={{
                 root: {
                     zIndex: 2000,
