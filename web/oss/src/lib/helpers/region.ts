@@ -1,5 +1,3 @@
-import {getEnv} from "./dynamicEnv"
-
 export const REGIONS = {
     eu: {
         id: "eu",
@@ -24,14 +22,11 @@ const getRegionFromHostname = (hostname: string): RegionId | null => {
 }
 
 export const getCloudRegion = (): RegionId | null => {
-    const region = getEnv("NEXT_PUBLIC_AGENTA_CLOUD_REGION")?.toLowerCase()
-    if (region === "eu" || region === "us") return region
     if (typeof window === "undefined") return null
     return getRegionFromHostname(window.location.hostname)
 }
 
 export const shouldShowRegionSelector = () => {
-    if (getCloudRegion()) return true
     if (typeof window === "undefined") return false
     const hostname = window.location.hostname
     return hostname === "cloud.agenta.ai" || hostname.endsWith(".cloud.agenta.ai")
