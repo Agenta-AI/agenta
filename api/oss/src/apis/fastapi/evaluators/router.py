@@ -80,6 +80,8 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+# TEMPORARY: Disabling name editing
+RENAME_EVALUATORS_DISABLED_MESSAGE = "Renaming evaluators is temporarily disabled."
 
 
 class EvaluatorsRouter:
@@ -397,6 +399,25 @@ class EvaluatorsRouter:
 
         if str(evaluator_id) != str(evaluator_edit_request.evaluator.id):
             return EvaluatorResponse()
+
+        # TEMPORARY: Disabling name editing
+        existing_evaluator = await self.evaluators_service.fetch_evaluator(
+            project_id=UUID(request.state.project_id),
+            evaluator_ref=Reference(id=evaluator_id),
+        )
+        if existing_evaluator is None:
+            return EvaluatorResponse()
+
+        edit_model = evaluator_edit_request.evaluator
+        if (
+            "name" in edit_model.model_fields_set
+            and edit_model.name is not None
+            and edit_model.name != existing_evaluator.name
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+            )
 
         evaluator = await self.evaluators_service.edit_evaluator(
             project_id=UUID(request.state.project_id),
@@ -1196,6 +1217,25 @@ class SimpleEvaluatorsRouter:
 
         if str(evaluator_id) != str(simple_evaluator_edit_request.evaluator.id):
             return SimpleEvaluatorResponse()
+
+        # TEMPORARY: Disabling name editing
+        existing_simple_evaluator = await self.simple_evaluators_service.fetch(
+            project_id=UUID(request.state.project_id),
+            evaluator_id=evaluator_id,
+        )
+        if existing_simple_evaluator is None:
+            return SimpleEvaluatorResponse()
+
+        edit_model = simple_evaluator_edit_request.evaluator
+        if (
+            "name" in edit_model.model_fields_set
+            and edit_model.name is not None
+            and edit_model.name != existing_simple_evaluator.name
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+            )
 
         simple_evaluator = await self.simple_evaluators_service.edit(
             project_id=UUID(request.state.project_id),
