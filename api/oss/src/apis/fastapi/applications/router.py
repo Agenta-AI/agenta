@@ -1228,11 +1228,9 @@ class SimpleApplicationsRouter:
             )
 
         # TEMPORARY: Disabling name editing
-        existing_application = (
-            await self.simple_applications_service.applications_service.fetch_application(
-                project_id=UUID(request.state.project_id),
-                application_ref=Reference(id=application_id),
-            )
+        existing_application = await self.simple_applications_service.applications_service.fetch_application(
+            project_id=UUID(request.state.project_id),
+            application_ref=Reference(id=application_id),
         )
         if existing_application is None:
             return SimpleApplicationResponse()
