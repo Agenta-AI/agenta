@@ -97,12 +97,12 @@ FETCH_SELECTED_OLD_ENVS_SQL = sa.text(
         env.name AS environment_slug,
         COALESCE(app.app_name, env.app_id::text) AS app_key,
         env.id::text AS environment_id,
-        MIN(env.id) OVER (
+        MIN(env.id::text) OVER (
             PARTITION BY
                 env.project_id,
                 env.name,
                 COALESCE(app.app_name, env.app_id::text)
-        )::text AS app_order_key
+        ) AS app_order_key
     FROM environments AS env
     LEFT JOIN app_db AS app
         ON app.id = env.app_id
