@@ -28,7 +28,7 @@ if (missingEnvVars.length > 0) {
  */
 const require = createRequire(import.meta.url)
 export default defineConfig({
-    testDir: `../${process.env.PROJECT_DIRECTORY}/tests`,
+    testDir: `../${process.env.PROJECT_DIRECTORY}/tests/playwright`,
     fullyParallel: false, // Temporarily disabled parallel worker
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : process.env.RETRIES ? parseInt(process.env.RETRIES) : 0,

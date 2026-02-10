@@ -1,5 +1,5 @@
 import {COMPLETION_MESSAGES, NEW_VARIABLES, PROMPT_MESSAGES} from "./assets/constants"
-import {test as basePlaygroundTest} from "./tests.spec"
+import {test as basePlaygroundTest} from "./tests"
 
 import {
     createTagString,

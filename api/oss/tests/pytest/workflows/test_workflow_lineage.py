@@ -246,7 +246,9 @@ class TestWorkflowRevisionsLineage:
 
     def test_log_all_workflow_revisions(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
-        workflow_revision = mock_data["workflow_revisions"][-1]
+        # Find the revision with the highest version (the latest explicit commit)
+        revisions = mock_data["workflow_revisions"]
+        workflow_revision = max(revisions, key=lambda r: r.get("version", 0))
 
         response = authed_api(
             "POST",
@@ -267,7 +269,8 @@ class TestWorkflowRevisionsLineage:
 
     def test_log_last_workflow_revisions(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
-        workflow_revision = mock_data["workflow_revisions"][-1]
+        revisions = mock_data["workflow_revisions"]
+        workflow_revision = max(revisions, key=lambda r: r.get("version", 0))
 
         response = authed_api(
             "POST",
