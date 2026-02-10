@@ -568,6 +568,14 @@ async def create_workspace_db_object(
         user_id=user.id,
     )
 
+    # Create default project-scoped environments for the default project.
+    from oss.src.core.environments.defaults import create_default_environments
+
+    await create_default_environments(
+        project_id=project_db.id,
+        user_id=user.id,
+    )
+
     if return_wrk_prj:
         return workspace, project_db
 
@@ -1368,21 +1376,25 @@ async def mark_invitation_as_used(
         return True
 
 
-async def get_org_details(organization: Organization) -> dict:
+async def get_org_details(
+    organization: Organization,
+) -> dict:
     """
     Retrieve details of an organization.
 
     Args:
         organization (Organization): The organization to retrieve details for.
-        project_id (str): The project_id to retrieve details for.
 
     Returns:
         dict: A dictionary containing the organization's details.
     """
 
+    # Skip members for demo organizations to avoid returning thousands of users
+    is_demo = organization.flags.get("is_demo", False) if organization.flags else False
+
     default_workspace_db = await get_org_default_workspace(organization)
     default_workspace = (
-        await get_workspace_details(default_workspace_db)
+        await get_workspace_details(default_workspace_db, include_members=not is_demo)
         if default_workspace_db is not None
         else None
     )
@@ -1401,13 +1413,15 @@ async def get_org_details(organization: Organization) -> dict:
     return sample_organization
 
 
-async def get_workspace_details(workspace: WorkspaceDB) -> WorkspaceResponse:
+async def get_workspace_details(
+    workspace: WorkspaceDB, include_members: bool = True
+) -> WorkspaceResponse:
     """
     Retrieve details of a workspace.
 
     Args:
         workspace (Workspace): The workspace to retrieve details for.
-        project_id (str): The project_id to retrieve details for.
+        include_members (bool): Whether to include workspace members. Defaults to True.
 
     Returns:
         dict: A dictionary containing the workspace's details.
@@ -1417,7 +1431,9 @@ async def get_workspace_details(workspace: WorkspaceDB) -> WorkspaceResponse:
     """
 
     try:
-        workspace_response = await get_workspace_in_format(workspace)
+        workspace_response = await get_workspace_in_format(
+            workspace, include_members=include_members
+        )
         return workspace_response
     except Exception as e:
         import traceback

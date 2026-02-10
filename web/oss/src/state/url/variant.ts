@@ -61,10 +61,8 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
 
         const ensureUrlClean = () => {
             let mutated = false
-            if (url.searchParams.has("revisions")) {
-                url.searchParams.delete("revisions")
-                mutated = true
-            }
+            // Note: "revisions" param is owned by the playground URL sync
+            // (syncPlaygroundStateFromUrl), not the variant drawer. Don't touch it here.
             if (url.searchParams.has("drawerType")) {
                 const sanitized = sanitizeDrawerType(url.searchParams.get("drawerType"))
                 if (!sanitized) {
@@ -84,13 +82,10 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
         }
 
         if (!routeSupportsVariant) {
-            if (
-                (revisionParam && revisionParam.trim()) ||
-                url.searchParams.has("revisions") ||
-                url.searchParams.has("drawerType")
-            ) {
+            // Note: "revisions" param is owned by the playground URL sync
+            // (syncPlaygroundStateFromUrl), not the variant drawer. Don't touch it here.
+            if ((revisionParam && revisionParam.trim()) || url.searchParams.has("drawerType")) {
                 url.searchParams.delete("revisionId")
-                url.searchParams.delete("revisions")
                 url.searchParams.delete("drawerType")
                 const newPath = `${url.pathname}${url.search}${url.hash}`
                 void Router.replace(newPath, undefined, {shallow: true}).catch((error) => {
