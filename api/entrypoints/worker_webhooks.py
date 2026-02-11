@@ -10,6 +10,7 @@ from oss.src.utils.env import env
 
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
+from oss.src.core.webhooks.trigger import initialize_trigger
 
 import agenta as ag
 
@@ -35,6 +36,12 @@ webhooks_dao = WebhooksDAO()
 webhooks_worker = WebhooksWorker(
     broker=broker,
     webhooks_dao=webhooks_dao,
+)
+
+# Initialize webhook trigger utility with DI
+initialize_trigger(
+    dao=webhooks_dao,
+    worker=webhooks_worker,
 )
 
 

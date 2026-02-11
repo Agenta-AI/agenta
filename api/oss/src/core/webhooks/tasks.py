@@ -3,11 +3,10 @@ import hashlib
 import json
 import httpx
 from datetime import datetime, timezone
-from typing import Optional
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
+from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
 from oss.src.core.webhooks.config import WEBHOOK_MAX_RETRIES, WEBHOOK_TIMEOUT
 from oss.src.core.webhooks.utils import calculate_next_retry_at
 from oss.src.core.webhooks.circuit_breaker import circuit_breaker
@@ -17,7 +16,7 @@ log = get_module_logger(__name__)
 
 async def deliver_webhook(
     delivery_id: UUID,
-    dao: WebhooksDAO,
+    dao: WebhooksDAOInterface,
 ) -> None:
     """
     Delivers a webhook payload to the subscribed URL.

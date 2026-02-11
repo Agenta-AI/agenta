@@ -1,125 +1,146 @@
+"""Data access object for webhooks."""
+
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, update, delete
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select
 
 from oss.src.dbs.postgres.shared.engine import engine
-from oss.src.models.db_models import (
-    WebhookSubscriptionDB,
-    WebhookDeliveryDB,
-    WebhookEventDB,
+from oss.src.dbs.postgres.webhooks.dbes import (
+    WebhookSubscriptionDBE,
+    WebhookDeliveryDBE,
+    WebhookEventDBE,
 )
-from oss.src.apis.fastapi.webhooks.schemas import (
-    CreateWebhookSubscription,
-    UpdateWebhookSubscription,
+from oss.src.dbs.postgres.webhooks.mappings import (
+    map_subscription_dto_to_dbe,
+    map_subscription_dbe_to_dto,
+    map_subscription_dto_to_dbe_update,
+    map_event_dbe_to_dto,
+    map_delivery_dbe_to_dto,
 )
+from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
+from oss.src.core.webhooks.dtos import (
+    CreateWebhookSubscriptionDTO,
+    UpdateWebhookSubscriptionDTO,
+    WebhookSubscriptionResponseDTO,
+    WebhookEventResponseDTO,
+    WebhookDeliveryResponseDTO,
+)
+from oss.src.core.webhooks.config import WEBHOOK_MAX_RETRIES
 
 
-class WebhooksDAO:
+class WebhooksDAO(WebhooksDAOInterface):
+    """Webhooks data access object implementing the interface."""
+
+    def __init__(self):
+        pass
+
     async def create_subscription(
         self,
         workspace_id: UUID,
-        payload: CreateWebhookSubscription,
+        payload: CreateWebhookSubscriptionDTO,
         user_id: Optional[UUID] = None,
         secret: str = "",
-    ) -> WebhookSubscriptionDB:
+    ) -> WebhookSubscriptionResponseDTO:
+        subscription_dbe = map_subscription_dto_to_dbe(
+            workspace_id=workspace_id,
+            payload=payload,
+            user_id=user_id,
+            secret=secret,
+        )
+
         async with engine.core_session() as session:
-            db_subscription = WebhookSubscriptionDB(
-                workspace_id=workspace_id,
-                name=payload.name,
-                url=str(payload.url),
-                events=payload.events,
-                secret=secret,
-                is_active=payload.is_active,
-                meta=payload.meta,
-                created_by_id=user_id,
-            )
-            session.add(db_subscription)
+            session.add(subscription_dbe)
             await session.commit()
-            await session.refresh(db_subscription)
-            return db_subscription
+            await session.refresh(subscription_dbe)
+
+        return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
     async def get_subscription(
         self, workspace_id: UUID, subscription_id: UUID
-    ) -> Optional[WebhookSubscriptionDB]:
+    ) -> Optional[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
-            stmt = select(WebhookSubscriptionDB).filter_by(
+            stmt = select(WebhookSubscriptionDBE).filter_by(
                 id=subscription_id, workspace_id=workspace_id, archived_at=None
             )
             result = await session.execute(stmt)
-            return result.scalar_one_or_none()
+            subscription_dbe = result.scalar_one_or_none()
+
+            if not subscription_dbe:
+                return None
+
+            return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
     async def fetch_subscription_by_id(
         self, subscription_id: UUID
-    ) -> Optional[WebhookSubscriptionDB]:
+    ) -> Optional[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
-            stmt = select(WebhookSubscriptionDB).filter_by(
+            stmt = select(WebhookSubscriptionDBE).filter_by(
                 id=subscription_id, archived_at=None
             )
             result = await session.execute(stmt)
-            return result.scalar_one_or_none()
+            subscription_dbe = result.scalar_one_or_none()
+
+            if not subscription_dbe:
+                return None
+
+            return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
     async def list_subscriptions(
         self, workspace_id: UUID
-    ) -> List[WebhookSubscriptionDB]:
+    ) -> List[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
-            stmt = select(WebhookSubscriptionDB).filter_by(
+            stmt = select(WebhookSubscriptionDBE).filter_by(
                 workspace_id=workspace_id, archived_at=None
             )
             result = await session.execute(stmt)
-            return list(result.scalars().all())
+            subscription_dbes = result.scalars().all()
+
+            return [
+                map_subscription_dbe_to_dto(subscription_dbe=dbe)
+                for dbe in subscription_dbes
+            ]
 
     async def update_subscription(
         self,
         workspace_id: UUID,
         subscription_id: UUID,
-        payload: UpdateWebhookSubscription,
-    ) -> Optional[WebhookSubscriptionDB]:
+        payload: UpdateWebhookSubscriptionDTO,
+    ) -> Optional[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
-            # First check existence and ownership
-            stmt = select(WebhookSubscriptionDB).filter_by(
+            stmt = select(WebhookSubscriptionDBE).filter_by(
                 id=subscription_id, workspace_id=workspace_id, archived_at=None
             )
             result = await session.execute(stmt)
-            subscription = result.scalar_one_or_none()
+            subscription_dbe = result.scalar_one_or_none()
 
-            if not subscription:
+            if not subscription_dbe:
                 return None
 
-            update_data = payload.model_dump(exclude_unset=True)
-            if "url" in update_data:
-                update_data["url"] = str(update_data["url"])
-
-            if not update_data:
-                return subscription
-
-            stmt = (
-                update(WebhookSubscriptionDB)
-                .where(WebhookSubscriptionDB.id == subscription_id)
-                .values(**update_data)
-                .execution_options(synchronize_session="fetch")
+            map_subscription_dto_to_dbe_update(
+                subscription_dbe=subscription_dbe, update_dto=payload
             )
-            await session.execute(stmt)
+
             await session.commit()
-            await session.refresh(subscription)
-            return subscription
+            await session.refresh(subscription_dbe)
+
+            return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
     async def delete_subscription(
         self, workspace_id: UUID, subscription_id: UUID
     ) -> bool:
         async with engine.core_session() as session:
-            stmt = select(WebhookSubscriptionDB).filter_by(
+            stmt = select(WebhookSubscriptionDBE).filter_by(
                 id=subscription_id, workspace_id=workspace_id, archived_at=None
             )
             result = await session.execute(stmt)
-            subscription = result.scalar_one_or_none()
+            subscription_dbe = result.scalar_one_or_none()
 
-            if not subscription:
+            if not subscription_dbe:
                 return False
 
-            subscription.archived_at = datetime.now(timezone.utc)
+            subscription_dbe.archived_at = datetime.now(timezone.utc)
             await session.commit()
             return True
 
@@ -128,29 +149,35 @@ class WebhooksDAO:
         workspace_id: UUID,
         event_type: str,
         payload: dict,
-    ) -> WebhookEventDB:
+    ) -> WebhookEventResponseDTO:
+        event_dbe = WebhookEventDBE(
+            workspace_id=workspace_id,
+            event_type=event_type,
+            payload=payload,
+        )
+
         async with engine.core_session() as session:
-            db_event = WebhookEventDB(
-                workspace_id=workspace_id,
-                event_type=event_type,
-                payload=payload,
-            )
-            session.add(db_event)
+            session.add(event_dbe)
             await session.commit()
-            await session.refresh(db_event)
-            return db_event
+            await session.refresh(event_dbe)
+
+        return map_event_dbe_to_dto(event_dbe=event_dbe)
 
     async def get_active_subscriptions_for_event(
         self, workspace_id: UUID, event_type: str
-    ) -> List[WebhookSubscriptionDB]:
+    ) -> List[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
-            stmt = select(WebhookSubscriptionDB).filter_by(
+            stmt = select(WebhookSubscriptionDBE).filter_by(
                 workspace_id=workspace_id, is_active=True, archived_at=None
             )
-            # Filter by event_type in array using SQLAlchemy's contains operator
-            stmt = stmt.filter(WebhookSubscriptionDB.events.contains([event_type]))
+            stmt = stmt.filter(WebhookSubscriptionDBE.events.contains([event_type]))
             result = await session.execute(stmt)
-            return list(result.scalars().all())
+            subscription_dbes = result.scalars().all()
+
+            return [
+                map_subscription_dbe_to_dto(subscription_dbe=dbe)
+                for dbe in subscription_dbes
+            ]
 
     async def create_delivery(
         self,
@@ -158,26 +185,36 @@ class WebhooksDAO:
         event_type: str,
         payload: dict,
         event_id: Optional[UUID] = None,
-    ) -> WebhookDeliveryDB:
-        async with engine.core_session() as session:
-            db_delivery = WebhookDeliveryDB(
-                subscription_id=subscription_id,
-                event_id=event_id,
-                event_type=event_type,
-                payload=payload,
-                status="pending",
-                attempts=0,
-            )
-            session.add(db_delivery)
-            await session.commit()
-            await session.refresh(db_delivery)
-            return db_delivery
+    ) -> WebhookDeliveryResponseDTO:
+        delivery_dbe = WebhookDeliveryDBE(
+            subscription_id=subscription_id,
+            event_id=event_id,
+            event_type=event_type,
+            payload=payload,
+            status="pending",
+            attempts=0,
+            max_attempts=WEBHOOK_MAX_RETRIES,
+        )
 
-    async def get_delivery(self, delivery_id: UUID) -> Optional[WebhookDeliveryDB]:
         async with engine.core_session() as session:
-            stmt = select(WebhookDeliveryDB).filter_by(id=delivery_id)
+            session.add(delivery_dbe)
+            await session.commit()
+            await session.refresh(delivery_dbe)
+
+        return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
+
+    async def get_delivery(
+        self, delivery_id: UUID
+    ) -> Optional[WebhookDeliveryResponseDTO]:
+        async with engine.core_session() as session:
+            stmt = select(WebhookDeliveryDBE).filter_by(id=delivery_id)
             result = await session.execute(stmt)
-            return result.scalar_one_or_none()
+            delivery_dbe = result.scalar_one_or_none()
+
+            if not delivery_dbe:
+                return None
+
+            return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
 
     async def update_delivery_status(
         self,
@@ -188,35 +225,36 @@ class WebhooksDAO:
         duration_ms: Optional[int] = None,
         error_message: Optional[str] = None,
         next_retry_at: Optional[datetime] = None,
-    ) -> Optional[WebhookDeliveryDB]:
+    ) -> Optional[WebhookDeliveryResponseDTO]:
         async with engine.core_session() as session:
-            stmt = select(WebhookDeliveryDB).filter_by(id=delivery_id)
+            stmt = select(WebhookDeliveryDBE).filter_by(id=delivery_id)
             result = await session.execute(stmt)
-            delivery = result.scalar_one_or_none()
+            delivery_dbe = result.scalar_one_or_none()
 
-            if not delivery:
+            if not delivery_dbe:
                 return None
 
-            delivery.status = status
+            delivery_dbe.status = status
             if response_status_code is not None:
-                delivery.response_status_code = response_status_code
+                delivery_dbe.response_status_code = response_status_code
             if response_body is not None:
-                delivery.response_body = response_body
+                delivery_dbe.response_body = response_body
             if duration_ms is not None:
-                delivery.duration_ms = duration_ms
+                delivery_dbe.duration_ms = duration_ms
             if error_message is not None:
-                delivery.error_message = error_message
+                delivery_dbe.error_message = error_message
             if next_retry_at is not None:
-                delivery.next_retry_at = next_retry_at
+                delivery_dbe.next_retry_at = next_retry_at
 
             if status == "success":
-                delivery.delivered_at = datetime.now(timezone.utc)
+                delivery_dbe.delivered_at = datetime.now(timezone.utc)
             elif status == "failed":
-                delivery.failed_at = datetime.now(timezone.utc)
+                delivery_dbe.failed_at = datetime.now(timezone.utc)
 
             if status in ["success", "failed", "retrying"]:
-                delivery.attempts += 1
+                delivery_dbe.attempts += 1
 
             await session.commit()
-            await session.refresh(delivery)
-            return delivery
+            await session.refresh(delivery_dbe)
+
+            return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)

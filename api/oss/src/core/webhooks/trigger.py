@@ -17,7 +17,7 @@ from typing import Optional
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
+from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
 
 # Type checking imports to avoid circular dependencies
 from typing import TYPE_CHECKING
@@ -28,30 +28,49 @@ if TYPE_CHECKING:
 log = get_module_logger(__name__)
 
 # Global instances (lazy initialization)
-_dao: Optional[WebhooksDAO] = None
+_dao: Optional[WebhooksDAOInterface] = None
 _worker: Optional["WebhooksWorker"] = None
+_initialized = False
 
 
-def _get_dao() -> WebhooksDAO:
-    """Get or create the WebhooksDAO instance."""
-    global _dao
-    if _dao is None:
+def initialize_trigger(
+    dao: WebhooksDAOInterface,
+    worker: Optional["WebhooksWorker"] = None,
+) -> None:
+    """
+    Initialize the trigger utility with DAO and worker instances.
+
+    This should be called once at application startup (in entrypoint/composition root).
+
+    Args:
+        dao: WebhooksDAO instance
+        worker: WebhooksWorker instance (optional - for testing or if worker not available)
+    """
+    global _dao, _worker, _initialized
+    _dao = dao
+    _worker = worker
+    _initialized = True
+    log.info("Webhook trigger utility initialized")
+
+
+def _get_dao() -> WebhooksDAOInterface:
+    """Get the WebhooksDAO instance."""
+    global _dao, _initialized
+
+    if not _initialized or _dao is None:
+        # Fallback: Create DAO on-demand (for backwards compatibility)
+        log.warning("Webhook trigger not initialized, creating DAO on-demand")
+        from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
+
         _dao = WebhooksDAO()
+        _initialized = True
+
     return _dao
 
 
 def _get_worker() -> Optional["WebhooksWorker"]:
-    """Get the WebhooksWorker instance (lazily imported to avoid circular deps)."""
+    """Get the WebhooksWorker instance."""
     global _worker
-    if _worker is None:
-        try:
-            # Import here to avoid circular dependency
-            from entrypoints.worker_webhooks import webhooks_worker
-
-            _worker = webhooks_worker
-        except ImportError as e:
-            log.warning(f"Could not import webhooks_worker: {e}")
-            return None
     return _worker
 
 

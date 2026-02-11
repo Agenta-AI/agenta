@@ -1055,3 +1055,12 @@ class WebhookDeliveryDB(Base):
     event = relationship(
         "oss.src.models.db_models.WebhookEventDB",
     )
+
+
+# Backwards compatibility - Import new DBEs with old names
+# These classes are now defined in oss.src.dbs.postgres.webhooks.dbes
+from oss.src.dbs.postgres.webhooks.dbes import (  # noqa: E402, F401
+    WebhookSubscriptionDBE as WebhookSubscriptionDB_NEW,
+    WebhookEventDBE as WebhookEventDB_NEW,
+    WebhookDeliveryDBE as WebhookDeliveryDB_NEW,
+)

@@ -1,14 +1,16 @@
+"""Webhooks service layer."""
+
 import secrets
 import string
 from typing import List, Optional, TYPE_CHECKING
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
-from oss.src.models.db_models import WebhookSubscriptionDB
-from oss.src.apis.fastapi.webhooks.schemas import (
-    CreateWebhookSubscription,
-    UpdateWebhookSubscription,
+from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
+from oss.src.core.webhooks.dtos import (
+    CreateWebhookSubscriptionDTO,
+    UpdateWebhookSubscriptionDTO,
+    WebhookSubscriptionResponseDTO,
 )
 
 if TYPE_CHECKING:
@@ -19,7 +21,9 @@ log = get_module_logger(__name__)
 
 class WebhooksService:
     def __init__(
-        self, dao: WebhooksDAO, webhooks_worker: Optional["WebhooksWorker"] = None
+        self,
+        dao: WebhooksDAOInterface,
+        webhooks_worker: Optional["WebhooksWorker"] = None,
     ):
         self.dao = dao
         self.webhooks_worker = webhooks_worker
@@ -32,9 +36,9 @@ class WebhooksService:
     async def create_subscription(
         self,
         workspace_id: UUID,
-        payload: CreateWebhookSubscription,
+        payload: CreateWebhookSubscriptionDTO,
         user_id: Optional[UUID] = None,
-    ) -> WebhookSubscriptionDB:
+    ) -> WebhookSubscriptionResponseDTO:
         secret = self._generate_secret()
         return await self.dao.create_subscription(
             workspace_id=workspace_id, payload=payload, user_id=user_id, secret=secret
@@ -42,12 +46,12 @@ class WebhooksService:
 
     async def list_subscriptions(
         self, workspace_id: UUID
-    ) -> List[WebhookSubscriptionDB]:
+    ) -> List[WebhookSubscriptionResponseDTO]:
         return await self.dao.list_subscriptions(workspace_id=workspace_id)
 
     async def get_subscription(
         self, workspace_id: UUID, subscription_id: UUID
-    ) -> Optional[WebhookSubscriptionDB]:
+    ) -> Optional[WebhookSubscriptionResponseDTO]:
         return await self.dao.get_subscription(
             workspace_id=workspace_id, subscription_id=subscription_id
         )
@@ -56,8 +60,8 @@ class WebhooksService:
         self,
         workspace_id: UUID,
         subscription_id: UUID,
-        payload: UpdateWebhookSubscription,
-    ) -> Optional[WebhookSubscriptionDB]:
+        payload: UpdateWebhookSubscriptionDTO,
+    ) -> Optional[WebhookSubscriptionResponseDTO]:
         return await self.dao.update_subscription(
             workspace_id=workspace_id,
             subscription_id=subscription_id,
