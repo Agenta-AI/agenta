@@ -1,11 +1,13 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button, Spin} from "antd"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
+import {isNewUserAtom} from "@/oss/lib/onboarding"
+import {hasReceivedSessionsAtom} from "@/oss/state/newObservability/atoms/controls"
 import {useSessions} from "@/oss/state/newObservability/hooks/useSessions"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 
@@ -29,6 +31,7 @@ const SessionsTable: React.FC = () => {
     const {
         isLoading,
         sessionIds,
+        sessionCount,
         fetchMoreSessions,
         hasMoreSessions,
         isFetchingMore,
@@ -40,8 +43,18 @@ const SessionsTable: React.FC = () => {
         setAutoRefresh,
     } = useSessions()
 
+    const isNewUser = useAtomValue(isNewUserAtom)
     const openDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
+    const hasReceivedSessions = useAtomValue(hasReceivedSessionsAtom)
+    const setHasReceivedSessions = useSetAtom(hasReceivedSessionsAtom)
     const [refreshTrigger, setRefreshTrigger] = useState(0)
+    const showOnboarding = isNewUser && !hasReceivedSessions
+
+    useEffect(() => {
+        if (sessionCount > 0 && !hasReceivedSessions) {
+            setHasReceivedSessions(true)
+        }
+    }, [sessionCount, hasReceivedSessions, setHasReceivedSessions])
 
     const handleLoadMore = useCallback(() => {
         if (isFetchingMore || !hasMoreSessions) return
@@ -92,7 +105,7 @@ const SessionsTable: React.FC = () => {
             />
 
             {sessionIds.length === 0 && !isLoading ? (
-                <EmptySessions />
+                <EmptySessions showOnboarding={showOnboarding} />
             ) : (
                 <div className="flex flex-col gap-2">
                     <EnhancedTable<SessionRow>
