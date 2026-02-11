@@ -152,7 +152,7 @@ class OpenInferenceAdapter(BaseAdapter):
                 has_data = True
             else:
                 # 2. Check prefix matches
-                matched_prefix = False
+                matched_prefix = False  # noqa: F841
                 for otel_prefix, ag_prefix in self._prefix_map.items():
                     if key.startswith(otel_prefix):
                         suffix = key[
@@ -181,7 +181,6 @@ class OpenInferenceAdapter(BaseAdapter):
                         new_key = ag_prefix + suffix
                         transformed_attributes[new_key] = value
                         has_data = True
-                        matched_prefix = True
                         break
 
         if not has_data:

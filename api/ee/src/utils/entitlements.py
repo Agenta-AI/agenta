@@ -5,11 +5,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from ee.src.utils.billing import compute_billing_period
-
-log = get_module_logger(__name__)
-
 from fastapi.responses import JSONResponse
-
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.entitlements.types import (
     Tracker,
@@ -23,6 +19,8 @@ from ee.src.core.meters.service import MetersService
 from ee.src.core.meters.types import MeterDTO
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
+
+log = get_module_logger(__name__)
 
 meters_service = MetersService(
     meters_dao=MetersDAO(),
@@ -38,8 +36,8 @@ class EntitlementsException(Exception):
     pass
 
 
-NOT_ENTITLED_RESPONSE: Callable[[Tracker], JSONResponse] = (
-    lambda tracker=None: JSONResponse(
+def NOT_ENTITLED_RESPONSE(tracker=None) -> JSONResponse:
+    return JSONResponse(
         status_code=403,
         content={
             "detail": (
@@ -57,7 +55,6 @@ NOT_ENTITLED_RESPONSE: Callable[[Tracker], JSONResponse] = (
             ),
         },
     )
-)
 
 
 async def check_entitlements(

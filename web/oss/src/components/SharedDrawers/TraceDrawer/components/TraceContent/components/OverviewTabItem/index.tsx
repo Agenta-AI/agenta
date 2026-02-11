@@ -46,7 +46,8 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
 
             {inputs ? (
                 <Space orientation="vertical" className="w-full" size={24}>
-                    {inputs?.prompt &&
+                    {activeTrace?.span_type !== "embedding" &&
+                    inputs?.prompt &&
                     Array.isArray(inputs?.prompt) &&
                     inputs?.prompt.length > 0 &&
                     inputs?.prompt.every((item: any) => "role" in item) ? (
@@ -123,7 +124,8 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
 
             {outputs ? (
                 <Space orientation="vertical" className="w-full" size={24}>
-                    {outputs?.completion &&
+                    {activeTrace?.span_type !== "embedding" &&
+                    outputs?.completion &&
                     Array.isArray(outputs?.completion) &&
                     outputs?.completion.length > 0 &&
                     outputs?.completion.every((item: any) => "role" in item) ? (

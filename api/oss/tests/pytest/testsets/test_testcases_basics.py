@@ -1,7 +1,4 @@
 from uuid import uuid4
-from tempfile import TemporaryFile
-from csv import DictWriter
-from json import dumps
 
 import pytest
 

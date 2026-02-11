@@ -1474,7 +1474,7 @@ async def get_all_pending_invitations(email: str):
         result = await session.execute(
             select(InvitationDB).filter(
                 InvitationDB.email == email,
-                InvitationDB.used == False,
+                InvitationDB.used == False,  # noqa: E712
             )
         )
         invitations = result.scalars().all()

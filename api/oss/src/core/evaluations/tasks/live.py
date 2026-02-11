@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
 
@@ -7,9 +7,6 @@ from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
-from oss.src.services.auth_service import sign_secret_token
-from oss.src.services.db_manager import get_project_by_id
-from oss.src.core.secrets.utils import get_llm_providers_secrets
 
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
@@ -51,15 +48,6 @@ from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
-from oss.src.core.annotations.types import (
-    AnnotationOrigin,
-    AnnotationKind,
-    AnnotationChannel,
-)
-from oss.src.apis.fastapi.annotations.models import (
-    AnnotationCreate,
-    AnnotationCreateRequest,
-)
 
 from oss.src.core.evaluations.types import (
     EvaluationMetricsRefresh,
@@ -70,7 +58,6 @@ from oss.src.core.evaluations.types import (
 )
 from oss.src.core.shared.dtos import (
     Reference,
-    Link,
 )
 from oss.src.core.tracing.dtos import (
     Filtering,
@@ -81,13 +68,10 @@ from oss.src.core.tracing.dtos import (
     TracingQuery,
     OTelSpansTree as Trace,
     LogicalOperator,
-    SimpleTraceReferences,
 )
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
     WorkflowServiceRequest,
-    WorkflowServiceResponse,
 )
 from oss.src.core.queries.dtos import (
     QueryRevisionData,
@@ -273,11 +257,9 @@ async def evaluate_live_query(
         }
 
         input_steps_keys = list(input_steps.keys())
-        invocation_steps_keys = list(invocation_steps.keys())
+        invocation_steps_keys = list(invocation_steps.keys())  # noqa: F841
         annotation_steps_keys = list(annotation_steps.keys())
 
-        nof_inputs = len(input_steps_keys)
-        nof_invocations = len(invocation_steps_keys)
         nof_annotations = len(annotation_steps_keys)
         # ----------------------------------------------------------------------
 
@@ -720,7 +702,7 @@ async def evaluate_live_query(
                         trace_id = annotation.trace_id
 
                         if not annotation.trace_id:
-                            log.warn(f"annotation trace_id is missing.")
+                            log.warn("annotation trace_id is missing.")
                             scenario_has_errors[idx] += 1
                             scenario_status[idx] = EvaluationStatus.ERRORS
                             continue
@@ -735,14 +717,14 @@ async def evaluate_live_query(
 
                         if trace:
                             log.info(
-                                f"Trace found  ",
+                                "Trace found  ",
                                 scenario_id=scenario.id,
                                 step_key=annotation_step_key,
                                 trace_id=annotation.trace_id,
                             )
                         else:
                             log.warn(
-                                f"Trace missing",
+                                "Trace missing",
                                 scenario_id=scenario.id,
                                 step_key=annotation_step_key,
                                 trace_id=annotation.trace_id,

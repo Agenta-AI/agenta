@@ -4,18 +4,13 @@ import {produce} from "immer"
 import {atom} from "jotai"
 
 import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
-import {
-    displayedVariantsAtom,
-    // displayedVariantsVariablesAtom,
-} from "@/oss/components/Playground/state/atoms"
+import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 // import {updateGenerationDataPropertyMutationAtom} from "@/oss/components/Playground/state/atoms/propertyMutations"
 import {
     chatSessionsByIdAtom,
     // chatSessionIdsAtom,
-    chatTurnsByIdAtom,
-    // chatTurnsByIdFamilyAtom,
     chatTurnIdsAtom,
-    // logicalTurnIndexAtom,
+    chatTurnsByIdAtom,
 } from "@/oss/state/generation/entities"
 import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {cancelTestAtom} from "@/oss/state/newPlayground/mutations/execution"
@@ -153,7 +148,6 @@ export const runChatTurnAtom = atom(
 
         set(chatTurnIdsAtom, (prev) => {
             const newIds = [...prev]
-            newIds.slice(0, currentIndex + 1)
             return newIds.slice(0, currentIndex + 1)
         })
 

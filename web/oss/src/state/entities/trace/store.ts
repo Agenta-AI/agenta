@@ -88,13 +88,15 @@ const spanBatchFetcher = createBatchFetcher<
         await Promise.all(
             Array.from(byProject.entries()).map(async ([projectId, {spanIds, keys}]) => {
                 try {
-                    // Build filter for span_ids
+                    // Build filter for span_ids using IN operator to fetch all in single query
                     const filter = {
-                        conditions: spanIds.map((spanId) => ({
-                            field: "span_id",
-                            operator: "is",
-                            value: spanId,
-                        })),
+                        conditions: [
+                            {
+                                field: "span_id",
+                                operator: "in",
+                                value: spanIds,
+                            },
+                        ],
                     }
 
                     const data = await fetchAllPreviewTraces(
@@ -412,7 +414,9 @@ const findSpanInCache = (
             // tree.nodes is an array of ExecutionNode
             const nodes = Array.isArray(tree.nodes) ? tree.nodes : Object.values(tree.nodes)
             for (const node of nodes) {
-                if (node?.node?.id === spanId) {
+                // Check both node.node.id (UUID format) and node.span_id (OTel hex format)
+                // The drawer passes spanId in hex format from response.tree.nodes[0].span_id
+                if (node?.node?.id === spanId || node?.span_id === spanId) {
                     const converted = executionNodeToTraceSpan(node, spanId)
                     if (converted) return converted
                 }
