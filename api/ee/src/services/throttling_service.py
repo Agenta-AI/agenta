@@ -1,5 +1,4 @@
 from typing import Optional
-from uuid import UUID
 from fnmatch import fnmatchcase
 
 from fastapi import Request

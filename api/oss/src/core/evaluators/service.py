@@ -42,7 +42,6 @@ from oss.src.core.evaluators.dtos import (
     #
     EvaluatorRevision,
     EvaluatorRevisionCreate,
-    EvaluatorRevisionData,
     EvaluatorRevisionEdit,
     EvaluatorRevisionCommit,
     EvaluatorRevisionQuery,

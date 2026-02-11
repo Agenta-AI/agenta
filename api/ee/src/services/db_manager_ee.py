@@ -568,6 +568,14 @@ async def create_workspace_db_object(
         user_id=user.id,
     )
 
+    # Create default project-scoped environments for the default project.
+    from oss.src.core.environments.defaults import create_default_environments
+
+    await create_default_environments(
+        project_id=project_db.id,
+        user_id=user.id,
+    )
+
     if return_wrk_prj:
         return workspace, project_db
 
@@ -1368,21 +1376,25 @@ async def mark_invitation_as_used(
         return True
 
 
-async def get_org_details(organization: Organization) -> dict:
+async def get_org_details(
+    organization: Organization,
+) -> dict:
     """
     Retrieve details of an organization.
 
     Args:
         organization (Organization): The organization to retrieve details for.
-        project_id (str): The project_id to retrieve details for.
 
     Returns:
         dict: A dictionary containing the organization's details.
     """
 
+    # Skip members for demo organizations to avoid returning thousands of users
+    is_demo = organization.flags.get("is_demo", False) if organization.flags else False
+
     default_workspace_db = await get_org_default_workspace(organization)
     default_workspace = (
-        await get_workspace_details(default_workspace_db)
+        await get_workspace_details(default_workspace_db, include_members=not is_demo)
         if default_workspace_db is not None
         else None
     )
@@ -1401,13 +1413,15 @@ async def get_org_details(organization: Organization) -> dict:
     return sample_organization
 
 
-async def get_workspace_details(workspace: WorkspaceDB) -> WorkspaceResponse:
+async def get_workspace_details(
+    workspace: WorkspaceDB, include_members: bool = True
+) -> WorkspaceResponse:
     """
     Retrieve details of a workspace.
 
     Args:
         workspace (Workspace): The workspace to retrieve details for.
-        project_id (str): The project_id to retrieve details for.
+        include_members (bool): Whether to include workspace members. Defaults to True.
 
     Returns:
         dict: A dictionary containing the workspace's details.
@@ -1417,7 +1431,9 @@ async def get_workspace_details(workspace: WorkspaceDB) -> WorkspaceResponse:
     """
 
     try:
-        workspace_response = await get_workspace_in_format(workspace)
+        workspace_response = await get_workspace_in_format(
+            workspace, include_members=include_members
+        )
         return workspace_response
     except Exception as e:
         import traceback
@@ -1458,7 +1474,7 @@ async def get_all_pending_invitations(email: str):
         result = await session.execute(
             select(InvitationDB).filter(
                 InvitationDB.email == email,
-                InvitationDB.used == False,
+                InvitationDB.used == False,  # noqa: E712
             )
         )
         invitations = result.scalars().all()
@@ -1504,6 +1520,68 @@ async def get_project_members(project_id: str):
         )
         project_members = members_query.scalars().all()
         return project_members
+
+
+async def project_member_exists(
+    *,
+    project_id: str,
+    user_id: str,
+) -> bool:
+    """Check whether a user is a member of a project.
+
+    Uses an EXISTS sub-query so the database can stop at the first
+    matching row instead of materialising the full member list.
+
+    Args:
+        project_id: The project to check.
+        user_id: The user to look for.
+
+    Returns:
+        True if the user belongs to the project, False otherwise.
+    """
+
+    async with engine.core_session() as session:
+        stmt = select(
+            select(ProjectMemberDB.id)
+            .filter(
+                ProjectMemberDB.project_id == uuid.UUID(project_id),
+                ProjectMemberDB.user_id == uuid.UUID(user_id),
+            )
+            .exists()
+        )
+        result = await session.execute(stmt)
+        return result.scalar() or False
+
+
+async def workspace_member_exists(
+    *,
+    workspace_id: str,
+    user_id: str,
+) -> bool:
+    """Check whether a user is a member of a workspace.
+
+    Uses an EXISTS sub-query so the database can stop at the first
+    matching row instead of materialising the full member list.
+
+    Args:
+        workspace_id: The workspace to check.
+        user_id: The user to look for.
+
+    Returns:
+        True if the user belongs to the workspace, False otherwise.
+    """
+
+    async with engine.core_session() as session:
+        stmt = select(
+            select(WorkspaceMemberDB.id)
+            .filter(
+                WorkspaceMemberDB.workspace_id == uuid.UUID(workspace_id),
+                WorkspaceMemberDB.user_id == uuid.UUID(user_id),
+            )
+            .exists()
+        )
+        result = await session.execute(stmt)
+        return result.scalar() or False
 
 
 async def create_org_workspace_invitation(

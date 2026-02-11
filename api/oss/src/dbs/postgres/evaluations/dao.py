@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -19,7 +19,6 @@ from oss.src.core.evaluations.types import EvaluationClosedConflict
 from oss.src.core.evaluations.types import (
     EvaluationStatus,
     EvaluationRunFlags,
-    EvaluationRunQueryFlags,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
@@ -472,9 +471,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id == run_id,
             )
 
@@ -523,9 +519,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
@@ -574,9 +567,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id == run_id,
             )
 
@@ -621,9 +611,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 

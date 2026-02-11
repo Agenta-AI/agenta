@@ -1,4 +1,4 @@
-from sqlalchemy import PrimaryKeyConstraint, ForeignKeyConstraint, Index, func
+from sqlalchemy import PrimaryKeyConstraint, ForeignKeyConstraint, Index
 from sqlalchemy.orm import relationship
 
 from oss.src.dbs.postgres.shared.base import Base

@@ -1,6 +1,5 @@
 from threading import Lock
 from typing import Dict, List, Optional
-from uuid import UUID
 
 
 from agenta.sdk.contexts.tracing import TracingContext
@@ -15,9 +14,7 @@ from opentelemetry.sdk.trace.export import (
 )
 from opentelemetry.trace import SpanContext
 
-from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.tracing import BaseModel
-from agenta.sdk.contexts.tracing import TracingContext
 
 log = get_module_logger(__name__)
 
@@ -213,7 +210,7 @@ class TraceProcessor(SpanProcessor):
         if self.inline:
             try:
                 ret = self._exporter.force_flush(timeout_millis)
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 ret = True
         # --- INLINE
 
@@ -248,7 +245,7 @@ class TraceProcessor(SpanProcessor):
         if self.inline:
             try:
                 is_ready = self._exporter.is_ready(trace_id)
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass
         # --- INLINE
 
@@ -264,7 +261,7 @@ class TraceProcessor(SpanProcessor):
         if self.inline:
             try:
                 trace = self._exporter.fetch(trace_id)  # type: ignore
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass
         # --- INLINE
 

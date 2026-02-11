@@ -1,14 +1,11 @@
 from typing import Tuple, Optional, Dict, Any
 
-from opentelemetry.trace import Span, set_span_in_context, get_current_span
 from opentelemetry.baggage.propagation import W3CBaggagePropagator
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from opentelemetry.baggage import set_baggage
 from opentelemetry.context import get_current
 
 from agenta.sdk.contexts.tracing import TracingContext
-
-import agenta as ag
 
 
 def extract(
@@ -24,7 +21,7 @@ def extract(
             or None
         )
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     # --- Extract traceparent --- #
@@ -40,7 +37,7 @@ def extract(
         _context = TraceContextTextMapPropagator().extract(_carrier)
 
         traceparent = _context
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     # --- Extract baggage --- #
@@ -60,7 +57,7 @@ def extract(
                 for key, value in partial.items():
                     baggage[key] = value
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     # --- #
@@ -80,7 +77,7 @@ def inject(
     try:
         TraceContextTextMapPropagator().inject(headers, context=_context)
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     # --- Inject baggage --- #
@@ -91,7 +88,7 @@ def inject(
 
         W3CBaggagePropagator().inject(headers, context=_context)
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     # --- Inject credentials --- #

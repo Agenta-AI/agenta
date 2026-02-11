@@ -15,8 +15,7 @@ from pydantic import BaseModel, HttpUrl, ValidationError
 from os import environ
 
 if TYPE_CHECKING:
-    from fastapi import Request, HTTPException, Body
-    from starlette.responses import Response as StarletteResponse, StreamingResponse
+    from fastapi import FastAPI, Request, HTTPException, Body
 else:
     # Lazy imports - only loaded when @entrypoint or @route is used
     Request = None
@@ -31,7 +30,6 @@ from agenta.sdk.contexts.tracing import (
     tracing_context_manager,
     TracingContext,
 )
-from agenta.sdk.router import router
 from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.helpers import get_current_version
@@ -40,7 +38,6 @@ from agenta.sdk.types import (
     MultipleChoice,
     BaseResponse,
     StreamResponse,
-    MCField,
 )
 
 import agenta as ag
@@ -82,7 +79,7 @@ class PathValidator(BaseModel):
     url: HttpUrl
 
 
-def _add_middleware_to_app(target_app: "FastAPI") -> None:
+def _add_middleware_to_app(target_app: "FastAPI") -> None:  # noqa: F821
     """
     Add all required middleware to a FastAPI app.
 
@@ -165,8 +162,10 @@ def create_app():
             self,
             path: Optional[str] = "/",
             config_schema: Optional[BaseModel] = None,
+            flags: Optional[Dict[str, Any]] = None,
         ):
             self.config_schema = config_schema
+            self.flags = dict(flags or {})
             path = "/" + path.strip("/").strip()
             path = "" if path == "/" else path
             PathValidator(url=f"http://example.com{path}")
@@ -178,6 +177,7 @@ def create_app():
                 f,
                 route_path=self.route_path,
                 config_schema=self.config_schema,
+                flags=self.flags,
                 target_app=new_app,
                 app_routes=isolated_routes,
             )
@@ -196,8 +196,10 @@ class route:  # pylint: disable=invalid-name
         self,
         path: Optional[str] = "/",
         config_schema: Optional[BaseModel] = None,
+        flags: Optional[Dict[str, Any]] = None,
     ):
         self.config_schema: BaseModel = config_schema
+        self.flags = dict(flags or {})
         path = "/" + path.strip("/").strip()
         path = "" if path == "/" else path
         PathValidator(url=f"http://example.com{path}")
@@ -211,6 +213,7 @@ class route:  # pylint: disable=invalid-name
             f,
             route_path=self.route_path,
             config_schema=self.config_schema,
+            flags=self.flags,
         )
 
         return f
@@ -262,6 +265,7 @@ class entrypoint:
         func: Callable[..., Any],
         route_path: str = "",
         config_schema: Optional[BaseModel] = None,
+        flags: Optional[Dict[str, Any]] = None,
         target_app: Optional[Any] = None,
         app_routes: Optional[List[Dict[str, Any]]] = None,
     ):
@@ -271,6 +275,7 @@ class entrypoint:
         self.func = func
         self.route_path = route_path
         self.config_schema = config_schema
+        self.flags = dict(flags or {})
 
         # Use provided app/routes or fall back to global defaults
         target_app = target_app if target_app is not None else app
@@ -324,6 +329,16 @@ class entrypoint:
             response_model=BaseResponse,
             response_model_exclude_none=True,
         )(run_wrapper)
+
+        app_routes.append(
+            {
+                "func": func.__name__,
+                "endpoint": run_route,
+                "params": signature_parameters,
+                "config": None,
+                "flags": self.flags,
+            }
+        )
 
         # LEGACY
         # TODO: Removing this implies breaking changes in :
@@ -381,6 +396,7 @@ class entrypoint:
                 "endpoint": test_route,
                 "params": signature_parameters,
                 "config": config,
+                "flags": self.flags,
             }
         )
 
@@ -397,11 +413,14 @@ class entrypoint:
                         else signature_parameters
                     ),
                     "config": config,
+                    "flags": self.flags,
                 }
             )
         # LEGACY
 
         openapi_schema = _generate_openapi(target_app)
+
+        self.add_flags_to_schema(openapi_schema=openapi_schema, app_routes=app_routes)
 
         for _route in app_routes:
             if _route["config"] is not None:
@@ -540,7 +559,7 @@ class entrypoint:
                     result.headers.setdefault("x-ag-span-id", span_id)
 
                 return result
-        except:
+        except Exception:
             return result
 
         try:
@@ -552,7 +571,7 @@ class entrypoint:
                     trace_id=trace_id,
                     span_id=span_id,
                 )
-        except:
+        except Exception:
             return StreamingResponse(
                 result,
                 media_type="text/event-stream",
@@ -567,7 +586,7 @@ class entrypoint:
                 trace_id=trace_id,
                 span_id=span_id,
             )
-        except:  # pylint: disable=bare-except
+        except Exception:
             try:
                 return BaseResponse(
                     data=data,
@@ -576,7 +595,7 @@ class entrypoint:
                     trace_id=trace_id,
                     span_id=span_id,
                 )
-            except:  # pylint: disable=bare-except
+            except Exception:
                 return BaseResponse(
                     data=data,
                     content_type=content_type,
@@ -881,6 +900,39 @@ class entrypoint:
             openapi_schema["agenta_sdk"] = {"version": get_current_version()}
 
         return openapi_schema
+
+    def add_flags_to_schema(
+        self,
+        openapi_schema: Dict[str, Any],
+        app_routes: List[Dict[str, Any]],
+    ) -> None:
+        paths = openapi_schema.get("paths")
+        if not paths:
+            return
+
+        for route in app_routes:
+            endpoint = route.get("endpoint")
+            if not endpoint or ("/run" not in endpoint and "/test" not in endpoint):
+                continue
+
+            methods = paths.get(endpoint)
+            if not methods:
+                continue
+
+            flags = dict(route.get("flags") or {})
+            for method_data in methods.values():
+                # Prefer a single vendor-extension namespace we can evolve over time.
+                existing = method_data.get("x-agenta")
+                if not isinstance(existing, dict):
+                    existing = {}
+
+                existing_flags = existing.get("flags")
+                if not isinstance(existing_flags, dict):
+                    existing_flags = {}
+
+                # Route-level flags override any previously set flags.
+                existing["flags"] = {**existing_flags, **flags}
+                method_data["x-agenta"] = existing
 
     def override_config_in_schema(
         self,

@@ -9,13 +9,8 @@ from sqlalchemy.future import select
 from oss.src.utils.logging import get_module_logger
 from oss.src.routers import app_router
 from oss.src.services import db_manager
-from oss.src.models.shared_models import ConfigDB
 from oss.src.models.db_models import (
-    ProjectDB,
     AppDB,
-    DeploymentDB,
-    VariantBaseDB,
-    AppVariantDB,
 )
 
 from oss.src.dbs.postgres.shared.engine import engine

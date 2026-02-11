@@ -33,7 +33,6 @@ from agenta.sdk.models.shared import (
     Data,
     Schema,
     Status,
-    Commit,
     AliasConfig,
     sync_alias,
 )
@@ -42,7 +41,6 @@ from agenta.sdk.models.git import (
     Artifact,
     ArtifactCreate,
     ArtifactEdit,
-    ArtifactQuery,
     ArtifactFork,
     Variant,
     VariantCreate,
@@ -69,10 +67,11 @@ class WorkflowFlags(BaseModel):
     is_custom: bool = False
     is_evaluator: bool = False
     is_human: bool = False
+    is_chat: bool = False
 
 
 class WorkflowServiceInterface(BaseModel):
-    version: str = "2025.07.14"
+    version: Optional[str] = "2025.07.14"
 
     uri: Optional[str] = None
     url: Optional[str] = None
@@ -180,7 +179,7 @@ class WorkflowServiceResponseData(BaseModel):
 
 
 class WorkflowServiceBaseRequest(Metadata):
-    version: str = "2025.07.14"
+    version: Optional[str] = "2025.07.14"
 
     interface: Optional[Union[WorkflowServiceInterface, Dict[str, Any]]] = None
     configuration: Optional[Union[WorkflowServiceConfiguration, Dict[str, Any]]] = None
@@ -222,7 +221,7 @@ class WorkflowServiceRequest(WorkflowServiceBaseRequest):
 
 
 class WorkflowServiceBaseResponse(TraceID, SpanID):
-    version: str = "2025.07.14"
+    version: Optional[str] = "2025.07.14"
 
     status: Optional[WorkflowServiceStatus] = WorkflowServiceStatus()
 
@@ -324,8 +323,6 @@ class WorkflowVariantQuery(VariantQuery):
 
 
 # workflow revisions -----------------------------------------------------------
-
-from agenta.sdk.models.workflows import WorkflowRevisionData
 
 
 class WorkflowRevision(

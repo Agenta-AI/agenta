@@ -1,19 +1,19 @@
 // Normalized generation state entities
 // Core types and top-level entity maps
 
+import {generateId} from "@agenta/shared/utils"
 import {produce} from "immer"
-import {atom, getDefaultStore} from "jotai"
+import {atom, getDefaultStore, Getter} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
 import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {
+    displayedVariantsAtom,
     displayedVariantsVariablesAtom,
     isComparisonViewAtom,
 } from "@/oss/components/Playground/state/atoms/variants"
-import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms/variants"
-import {metadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
+import {mergedMetadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {buildUserMessage} from "@/oss/state/newPlayground/helpers/messageFactory"
 
 import {selectedAppIdAtom} from "../app"
@@ -80,23 +80,41 @@ export const chatTurnIdsAtom = atom(
         const baseline = (displayed[0] || "") as string
         const byBaseline = get(chatTurnIdsByBaselineAtom) || {}
         const existing = map[key]
-        if (Array.isArray(existing) && existing.length > 0) return existing
+        if (Array.isArray(existing) && existing.length > 0) {
+            return existing
+        }
 
         // Fallback to baseline-scoped list when switching displayed sets (e.g., unloading/replacing revisions)
         const baselineList = (baseline && byBaseline[baseline]) || []
         if (Array.isArray(baselineList) && baselineList.length > 0) {
             // Seed per-set entry from baseline-scoped history
-            getDefaultStore().set(allChatTurnIdsMapAtom, {...map, [key]: baselineList})
+            queueMicrotask(() => {
+                getDefaultStore().set(allChatTurnIdsMapAtom, (prev) => {
+                    const current = prev[key]
+                    if (current) return prev // Already updated
+                    return {...prev, [key]: baselineList}
+                })
+            })
             return baselineList
         }
 
         // Nothing yet: initialize a first logical id and seed both map and master
         const generated = `lt-${generateId()}`
         const nextList = [generated]
-        if (baseline) {
-            getDefaultStore().set(chatTurnIdsByBaselineAtom, {...byBaseline, [baseline]: nextList})
-        }
-        getDefaultStore().set(allChatTurnIdsMapAtom, {...map, [key]: nextList})
+        queueMicrotask(() => {
+            const store = getDefaultStore()
+            if (baseline) {
+                store.set(chatTurnIdsByBaselineAtom, (prev) => ({
+                    ...prev,
+                    [baseline]: nextList,
+                }))
+            }
+            store.set(allChatTurnIdsMapAtom, (prev) => {
+                const current = prev[key]
+                if (current) return prev
+                return {...prev, [key]: nextList}
+            })
+        })
         return [generated]
     },
     (get, set, update: string[] | ((prev: string[]) => string[] | void)) => {
@@ -115,11 +133,10 @@ export const chatTurnIdsAtom = atom(
 )
 
 export const messageSchemaMetadataAtom = selectAtom(
-    metadataAtom,
+    mergedMetadataAtom,
     (all) => {
-        const entry = Object.entries((all || {}) as Record<string, any>).find(
-            ([, v]) => v && v.title === "Message" && v.type === "object",
-        )
+        const entries = Object.entries((all || {}) as Record<string, any>)
+        const entry = entries.find(([, v]) => v && v.title === "Message" && v.type === "object")
         return (entry?.[1] as any) || null
     },
     Object.is,
@@ -135,11 +152,8 @@ function synthesizeTurn(
     const revisionId = match?.[1] || ""
     const sessionId = revisionId ? `session-${revisionId}` : "session-"
 
-    let userMsg: any = null
-
-    if (metadata) {
-        userMsg = buildUserMessage(metadata)
-    }
+    // buildUserMessage handles null metadata via getAllMetadata() fallback
+    const userMsg = buildUserMessage(metadata)
 
     return {
         id: rowId,
@@ -212,12 +226,16 @@ export const chatTurnsByIdFamilyAtom = atomFamily((rowId: string) =>
             // React to visible row structure
             const meta = get(messageSchemaMetadataAtom) as any
             const cache = get(chatTurnsByIdCacheAtom) || {}
-            if (rowId in cache) return cache[rowId]
+            if (rowId in cache) {
+                return cache[rowId]
+            }
             const base = get(chatTurnsByIdStorageAtom) || {}
             const existing = base[rowId]
-            if (existing) return existing
-            // Try immediate synthesis via existing metadata
-            let newTurn = meta ? synthesizeTurn(rowId, meta, get) : null
+            if (existing) {
+                return existing
+            }
+            // Synthesize turn — buildUserMessage handles missing metadata via fallback
+            const newTurn = synthesizeTurn(rowId, meta, get)
 
             if (newTurn) {
                 getDefaultStore().set(chatTurnsByIdCacheAtom, {...cache, [rowId]: newTurn})
@@ -239,13 +257,9 @@ export const chatTurnsByIdFamilyAtom = atomFamily((rowId: string) =>
             ) as ChatTurn | null
 
             const meta = get(messageSchemaMetadataAtom) as any
-            // Try existing or synthesized; if metadata wasn't ready earlier, attempt an on-demand synthesis now
-            let prevVal = prevExisting ?? (meta ? synthesizeTurn(rowId, meta, get) : null)
+            // Try existing or synthesized; buildUserMessage handles missing metadata via fallback
+            let prevVal = prevExisting ?? synthesizeTurn(rowId, meta, get)
             if (!prevVal) {
-                return
-            }
-            // If still no base turn and the updater is a function expecting a draft, skip safely
-            if (!prevVal && typeof update === "function") {
                 return
             }
 
@@ -357,38 +371,8 @@ export const chatTurnsByIdFamilyAtom = atomFamily((rowId: string) =>
     ),
 )
 
-export const chatTurnsByIdAtom = atom(
-    (get) => {
-        // React to visible row structure
-        const logicalIds = (get(generationRowIdsAtom) as string[]) || []
-        const base = get(chatTurnsByIdStorageAtom) || {}
-        const cache = get(chatTurnsByIdCacheAtom) || {}
-        const merged: Record<string, ChatTurn> = {...base, ...cache}
-
-        // Pull any family-cached entries for the visible ids
-        for (const id of logicalIds) {
-            try {
-                const val = get(chatTurnsByIdFamilyAtom(id)) as any
-                if (val) merged[id] = val as ChatTurn
-            } catch {}
-        }
-        return merged
-    },
-    (get, set, update: Record<string, ChatTurn> | ((prev: Record<string, ChatTurn>) => any)) => {
-        // Forward writes to backing storage to preserve existing mutation behavior
-        if (typeof update === "function") {
-            set(chatTurnsByIdStorageAtom, update as any)
-        } else {
-            set(chatTurnsByIdStorageAtom, update)
-        }
-    },
-)
-
 // Helper: synthesize an InputRow with variables seeded from prompt variables
-function synthesizeInputRow(
-    rowId: string,
-    get: <T>(anAtom: {read: (get: any) => T}) => T,
-): InputRow {
+function synthesizeInputRow(rowId: string, get: Getter): InputRow {
     // Determine target revision ids to seed
     // const idx = get(rowIdIndexAtom)
     // const latest = idx?.[rowId]?.latestRevisionId as string | undefined
@@ -566,6 +550,33 @@ export const inputRowsByIdComputedAtom = atom((get) => {
     }
     return merged
 })
+
+export const chatTurnsByIdAtom = atom(
+    (get) => {
+        // React to visible row structure
+        const logicalIds = (get(generationRowIdsAtom) as string[]) || []
+        const base = get(chatTurnsByIdStorageAtom) || {}
+        const cache = get(chatTurnsByIdCacheAtom) || {}
+        const merged: Record<string, ChatTurn> = {...base, ...cache}
+
+        // Pull any family-cached entries for the visible ids
+        for (const id of logicalIds) {
+            try {
+                const val = get(chatTurnsByIdFamilyAtom(id)) as any
+                if (val) merged[id] = val as ChatTurn
+            } catch {}
+        }
+        return merged
+    },
+    (get, set, update: Record<string, ChatTurn> | ((prev: Record<string, ChatTurn>) => any)) => {
+        // Forward writes to backing storage to preserve existing mutation behavior
+        if (typeof update === "function") {
+            set(chatTurnsByIdStorageAtom, update as any)
+        } else {
+            set(chatTurnsByIdStorageAtom, update)
+        }
+    },
+)
 
 // Indexes for bridging legacy rowIds to normalized context during migration
 export interface RowIdIndexEntry {

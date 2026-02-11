@@ -3,7 +3,6 @@ import uuid
 import logging
 
 import httpx
-import boto3
 from dotenv import load_dotenv
 
 

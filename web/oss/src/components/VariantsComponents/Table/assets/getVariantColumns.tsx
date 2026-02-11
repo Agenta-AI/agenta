@@ -2,7 +2,7 @@ import {memo, useCallback} from "react"
 
 import {GearSix} from "@phosphor-icons/react"
 import {ColumnsType} from "antd/es/table"
-import {getDefaultStore, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
@@ -12,11 +12,8 @@ import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {modelNameByRevisionIdAtomFamily} from "@/oss/state/variant/selectors/variant"
 
 const VariantDropdown = dynamic(() => import("../../Dropdown/VariantDropdown"), {ssr: false})
-
-const store = getDefaultStore()
 
 const CreatedByCell = memo(({record}: {record: EnhancedVariant}) => {
     const fallbackName =
@@ -43,19 +40,14 @@ const CreatedOnCell = memo(({record}: {record: EnhancedVariant}) => {
 })
 
 const ModelCell = memo(({record}: {record: EnhancedVariant}) => {
-    const modelFromStore = store.get(modelNameByRevisionIdAtomFamily(record.id))
     const inlineConfig = (record.parameters as any)?.prompt?.llm_config || record.parameters || {}
-    const inlineModel =
+    const name =
         (record.modelName as string | undefined) ||
         (inlineConfig && typeof inlineConfig === "object"
             ? (inlineConfig as any)?.model
             : undefined)
 
-    const name = [modelFromStore, inlineModel].find(
-        (value) => typeof value === "string" && value.trim().length > 0 && value !== "-",
-    )
-
-    return <div>{name || "-"}</div>
+    return <div>{(typeof name === "string" && name.trim()) || "-"}</div>
 })
 
 const CommitNotesCell = memo(({record}: {record: EnhancedVariant}) => {

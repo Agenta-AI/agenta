@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Union
+from typing import Optional, List, Union
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
@@ -40,14 +40,9 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
     #
-    WorkflowServiceInterface,
     WorkflowServiceRequest,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
-    #
-    WorkflowRevisionData,
-    WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
 )
 
 from oss.src.services.auth_service import sign_secret_token
@@ -58,9 +53,9 @@ from agenta.sdk.decorators.running import (
     inspect_workflow as _inspect_workflow,
 )
 from agenta.sdk.models.workflows import (
-    WorkflowServiceRequest,
-    WorkflowServiceBatchResponse,
-    WorkflowServiceStreamResponse,
+    WorkflowServiceRequest,  # noqa: F811
+    WorkflowServiceBatchResponse,  # noqa: F811
+    WorkflowServiceStreamResponse,  # noqa: F811
 )
 
 log = get_module_logger(__name__)

@@ -6,10 +6,10 @@ import {atom} from "jotai"
 import {appTypeAtom} from "@/oss/components/Playground/state/atoms/app"
 
 import {
-    inputRowIdsAtom,
     chatSessionIdsAtom,
     chatSessionsByIdAtom,
     chatTurnIdsAtom,
+    inputRowIdsAtom,
 } from "./entities"
 
 // Unifies row ids used for generation rendering across modes
@@ -33,11 +33,8 @@ export const generationRowIdsCompatAtom = atom((get) => {
 // Logical turn ids (one per shared turn across revisions) for comparison view
 export const generationLogicalTurnIdsAtom = atom((get) => {
     const appType = get(appTypeAtom)
-    if (appType !== "chat") {
-        return get(inputRowIdsAtom)
-    }
-    const ids = (get(chatTurnIdsAtom) || []) as string[]
-    return ids
+    if (appType !== "chat") return get(inputRowIdsAtom)
+    return (get(chatTurnIdsAtom) || []) as string[]
 })
 
 // Input row ids compat: return all input rows for now (normalized InputRow is not a PropertyNode)

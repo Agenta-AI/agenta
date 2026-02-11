@@ -86,7 +86,7 @@ async def parse_run_query_request(
     __flags = None
     try:
         __flags = EvaluationRunQueryFlags(**_flags) if _flags else None  # type: ignore
-    except:
+    except Exception:
         pass
 
     run_query_request = EvaluationRunQueryRequest(
@@ -317,7 +317,7 @@ async def parse_queue_query_request(
     __flags = None
     try:
         __flags = EvaluationQueueFlags(**_flags) if _flags else None  # type: ignore
-    except:
+    except Exception:
         pass
 
     queue_query_request = EvaluationQueueQueryRequest(

@@ -4,7 +4,6 @@ from typing import Callable, Any, Optional
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.workflows import (
     WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
     WorkflowServiceRequest,
     WorkflowServiceInterface,
     WorkflowServiceConfiguration,
@@ -12,8 +11,6 @@ from agenta.sdk.models.workflows import (
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.workflows.utils import (
     retrieve_handler,
-    retrieve_interface,
-    retrieve_configuration,
 )
 from agenta.sdk.workflows.errors import InvalidInterfaceURIV0Error
 

@@ -23,7 +23,7 @@ from oss.databases.postgres.migrations.tracing.utils import (
 from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
 
-from oss.src.routers import evaluation_router, human_evaluation_router
+from oss.src.routers import evaluation_router
 from oss.src.core.auth.supertokens.config import init_supertokens
 
 # DBEs
@@ -123,6 +123,9 @@ from oss.src.routers import (
 
 from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
+import oss.src.core.evaluations.tasks.live  # noqa: F401
+import oss.src.core.evaluations.tasks.legacy  # noqa: F401
+import oss.src.core.evaluations.tasks.batch  # noqa: F401
 
 from redis.asyncio import Redis
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
@@ -323,12 +326,11 @@ evaluations_service = EvaluationsService(
 )
 
 simple_evaluations_service = SimpleEvaluationsService(
-    queries_service=queries_service,
     testsets_service=testsets_service,
+    queries_service=queries_service,
+    applications_service=applications_service,
     evaluators_service=evaluators_service,
     evaluations_service=evaluations_service,
-    simple_testsets_service=simple_testsets_service,
-    simple_evaluators_service=simple_evaluators_service,
     evaluations_worker=evaluations_worker,
 )
 
@@ -579,12 +581,6 @@ app.include_router(
 )
 
 app.include_router(
-    human_evaluation_router.router,
-    prefix="/human-evaluations",
-    tags=["Human-Evaluations"],
-)
-
-app.include_router(
     admin_router.router,
     prefix="/admin",
     tags=["Admin"],
@@ -667,12 +663,5 @@ app.include_router(
 )
 
 # ------------------------------------------------------------------------------
-
-
-import oss.src.core.evaluations.tasks.live
-import oss.src.core.evaluations.tasks.legacy
-import oss.src.core.evaluations.tasks.batch
-
-
 if ee and is_ee():
     app = ee.extend_app_schema(app)

@@ -1,26 +1,19 @@
-import {memo, useCallback, useEffect, useRef} from "react"
+import {memo, useCallback, useRef} from "react"
 
 import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {chatTurnIdsAtom} from "@/oss/state/generation/entities"
-import {isLocalDraft} from "@/oss/state/newPlayground"
-import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-import {appStatusAtom} from "@/oss/state/variant/atoms/appStatus"
-import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
+import {appChatModeAtom, displayedVariantsAtom, isComparisonViewAtom} from "../../state/atoms"
 import {
-    appChatModeAtom,
-    displayedVariantsAtom,
-    isComparisonViewAtom,
-    selectedVariantsAtom,
-    // WP-8.1: Use playgroundRevisionListAtom (molecule-backed) instead of legacy selector
-    playgroundRevisionListAtom,
-} from "../../state/atoms"
+    playgroundAppStatusAtom,
+    playgroundAppStatusLoadingAtom,
+} from "../../state/atoms/playgroundAppAtoms"
 import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
 import PlaygroundComparisonGenerationInputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonInputHeader/index."
 import GenerationComparisonOutputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonOutputHeader"
@@ -42,14 +35,6 @@ interface MainLayoutProps extends BaseContainerProps {
 }
 
 const SplitterPanel = Splitter.Panel
-
-const arraysEqual = (a: string[], b: string[]) => {
-    if (a.length !== b.length) return false
-    for (let i = 0; i < a.length; i += 1) {
-        if (a[i] !== b[i]) return false
-    }
-    return true
-}
 
 const GenerationComparisonRenderer = memo(() => {
     // Variables rows (inputs) and logical chat turn ids
@@ -78,13 +63,9 @@ const GenerationComparisonRenderer = memo(() => {
 const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLayoutProps) => {
     const isComparisonView = useAtomValue(isComparisonViewAtom)
     const displayedVariants = useAtomValue(displayedVariantsAtom)
-    const selectedVariants = useAtomValue(selectedVariantsAtom)
-    // WP-8.1: Use playgroundRevisionListAtom (molecule-backed)
-    const revisionList = useAtomValue(playgroundRevisionListAtom)
-    const setSelectedVariants = useSetAtom(selectedVariantsAtom)
 
-    const appStatus = useAtomValue(appStatusAtom)
-    const appStatusLoading = useAtomValue(appStatusLoadingAtom)
+    const appStatus = useAtomValue(playgroundAppStatusAtom)
+    const appStatusLoading = useAtomValue(playgroundAppStatusLoadingAtom)
 
     const hasDisplayedVariantIds = displayedVariants && displayedVariants.length > 0
 
@@ -99,25 +80,8 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
         enabled: isComparisonView,
     })
 
-    useEffect(() => {
-        if (appStatusLoading) return
-        if (!Array.isArray(revisionList) || revisionList.length === 0) return
-
-        // revisionList already includes tracked local drafts merged with server revisions
-        // So we only need to check if IDs exist in the list (handles both local drafts and server revisions)
-        const revisionIds = new Set(revisionList.map((revision) => revision?.id).filter(Boolean))
-        const validSelection = selectedVariants.filter((id) => revisionIds.has(id))
-        const nextSelection =
-            validSelection.length > 0 ? validSelection : [revisionList[0]?.id].filter(Boolean)
-
-        if (nextSelection.length === 0 || arraysEqual(nextSelection, selectedVariants)) return
-
-        setSelectedVariants(nextSelection)
-        // Don't include local draft IDs in URL (they won't work on reload)
-        // If all selections are local drafts, write empty array to clear URL param
-        const urlSelection = nextSelection.filter((id) => !isLocalDraft(id))
-        void writePlaygroundSelectionToQuery(urlSelection)
-    }, [appStatusLoading, revisionList, selectedVariants, setSelectedVariants])
+    // Selection validation and default selection are now handled imperatively
+    // by playgroundSyncAtom (store.sub subscriptions in playground.ts)
 
     const handleScroll = useCallback(
         (index: number) => {

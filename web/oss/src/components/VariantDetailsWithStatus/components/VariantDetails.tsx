@@ -1,64 +1,37 @@
-// no react hooks needed here beyond Jotai
-
-import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
 import {Dropdown, Space, Tag, Typography} from "antd"
 import type {MenuProps} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
-
-import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {Variant} from "@/oss/lib/Types"
-import {discardRevisionDraftAtom} from "@/oss/state/newPlayground/legacyEntityBridge"
-import {latestAppRevisionIdAtom} from "@/oss/state/variant/selectors/variant"
 
 interface VariantDetailsProps {
     variantName?: string
     revision?: number | string | null
-    variant?: Pick<Variant, "isLatestRevision" | "deployedIn">
     showRevisionAsTag?: boolean
     hasChanges?: boolean
     showLatestTag?: boolean
+    isLatest?: boolean
+    onDiscardDraft?: () => void
 }
 
 const VariantDetails = ({
     variantName,
     revision,
-    variant,
     showRevisionAsTag = true,
     hasChanges = false,
     showLatestTag = true,
+    isLatest = false,
+    onDiscardDraft,
 }: VariantDetailsProps) => {
-    const latestAppRevisionId = useAtomValue(latestAppRevisionIdAtom)
-    const currentRevisionId = (variant as any)?.id as string | undefined
-    const isAppLatest = !!currentRevisionId && currentRevisionId === latestAppRevisionId
-    const discardDraft = useSetAtom(discardRevisionDraftAtom)
-    const setParamsOverride = useSetAtom(
-        parametersOverrideAtomFamily(currentRevisionId || "") as any,
-    )
-
-    const handleDiscardDraft = () => {
-        if (!currentRevisionId) return
-        try {
-            discardDraft(currentRevisionId)
-            setParamsOverride(null)
-            message.success("Draft changes discarded")
-        } catch (e) {
-            message.error("Failed to discard draft changes")
-            console.error(e)
-        }
-    }
-
     const draftMenuItems: MenuProps["items"] = [
         {
             key: "discard",
             label: "Discard draft changes",
             danger: true,
-            disabled: !currentRevisionId,
+            disabled: !onDiscardDraft,
         },
     ]
     const onDraftMenuClick: MenuProps["onClick"] = ({key}) => {
         if (key === "discard") {
-            handleDiscardDraft()
+            onDiscardDraft?.()
         }
     }
     return (
@@ -82,7 +55,7 @@ const VariantDetails = ({
                     <DraftTag className="cursor-pointer" />
                 </Dropdown>
             ) : (
-                isAppLatest &&
+                isLatest &&
                 showLatestTag && (
                     <Tag className={`bg-[#E6F4FF] text-[#1677FF]`} variant="filled">
                         Last modified

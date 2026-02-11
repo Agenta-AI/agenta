@@ -390,9 +390,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       },
     ],
   },
-];
-
-export const plannedFeatures: PlannedFeature[] = [
   {
     id: "ai-prompt-refinement",
     title: "AI-Powered Prompt Refinement in the Playground",
@@ -423,6 +420,78 @@ export const plannedFeatures: PlannedFeature[] = [
       },
     ],
   },
+  {
+    id: "evaluators-in-playground",
+    title: "Running Evaluators in the Playground",
+    description:
+      "Run evaluators directly in the playground to get immediate quality feedback on prompt changes. Evaluate outputs inline as you iterate on prompts. Scores, pass/fail results, and evaluator reasoning appear right next to the LLM response.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3702",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+    ],
+  },
+  {
+    id: "enterprise-sso",
+    title: "Enterprise SSO",
+    description:
+      "Single sign-on (SSO) support for enterprise customers. Integrate your identity provider using SAML or OIDC for secure, centralized authentication. Log in with existing corporate credentials and control user provisioning and access.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3703",
+    labels: [
+      {
+        name: "Security",
+        color: "000000",
+      },
+    ],
+  },
+  {
+    id: "us-region",
+    title: "US Region for Agenta Cloud",
+    description:
+      "Agenta Cloud is adding a US-based region. Run your projects with all data stored within the United States. This helps meet data residency requirements that need data to stay in a specific geography.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3704",
+    labels: [
+      {
+        name: "Misc",
+        color: "000000",
+      },
+    ],
+  },
+  {
+    id: "agents-from-ui",
+    title: "Creating Agents from the UI",
+    description:
+      "Build and configure AI agents directly from the Agenta UI. Define agent workflows, select tools, and set up orchestration logic without writing code. Test and iterate on agent behavior in the playground, then deploy to production with versioning and observability built in.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3705",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "deployment-webhooks",
+    title: "Webhooks for Deployment Linked to CI",
+    description:
+      "Trigger CI/CD pipelines automatically when you deploy a prompt version. Connect Agenta deployments to your existing CI workflows so that deploying a new version kicks off automated tests, approval gates, or release processes.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3706",
+    labels: [
+      {
+        name: "Integration",
+        color: "FFA500",
+      },
+    ],
+  },
+];
+
+export const plannedFeatures: PlannedFeature[] = [
   {
     id: "prompt-caching-sdk",
     title: "Prompt Caching in the SDK",
