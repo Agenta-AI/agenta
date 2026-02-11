@@ -8,6 +8,8 @@ sidebar_position: 3
 ```mdx-code-block
 import Image from "@theme/IdealImage";
 import GitHubExampleButton from "@site/src/components/GitHubExampleButton";
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 ```
 
 Agenta captures all inputs, outputs, and metadata from your LLM applications using OpenTelemetry. This guide shows you how to instrument a Node.js application with OpenTelemetry and send traces to Agenta.
@@ -19,6 +21,11 @@ Agenta captures all inputs, outputs, and metadata from your LLM applications usi
 ## Step-by-Step Guide
 
 ### 1. Install Required Packages
+
+Install OpenTelemetry packages and the necessary instrumentation libraries.
+
+<Tabs groupId="llm-provider">
+  <TabItem value="openai" label="OpenAI" default>
 
 Install OpenTelemetry packages, OpenAI, and the OpenInference instrumentation for OpenAI:
 
@@ -34,10 +41,33 @@ npm install @opentelemetry/api \
   openai
 ```
 
+  </TabItem>
+  <TabItem value="anthropic" label="Anthropic">
+
+Install OpenTelemetry packages, Anthropic SDK, and the OpenInference instrumentation for Anthropic:
+
+```bash
+npm install @opentelemetry/api \
+  @opentelemetry/sdk-trace-node \
+  @opentelemetry/exporter-trace-otlp-proto \
+  @opentelemetry/instrumentation \
+  @opentelemetry/resources \
+  @opentelemetry/semantic-conventions \
+  @arizeai/openinference-instrumentation-anthropic \
+  @arizeai/openinference-semantic-conventions \
+  @anthropic-ai/sdk
+```
+
+  </TabItem>
+</Tabs>
+
 
 ### 2. Configure Environment Variables
 
 You need an API key to start tracing your application. Visit the Agenta API Keys page under settings and create a new API key.
+
+<Tabs groupId="llm-provider">
+  <TabItem value="openai" label="OpenAI" default>
 
 ```bash
 export AGENTA_API_KEY="YOUR_AGENTA_API_KEY"
@@ -45,9 +75,24 @@ export AGENTA_HOST="https://cloud.agenta.ai"  # Change for self-hosted
 export OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
 ```
 
+  </TabItem>
+  <TabItem value="anthropic" label="Anthropic">
+
+```bash
+export AGENTA_API_KEY="YOUR_AGENTA_API_KEY"
+export AGENTA_HOST="https://cloud.agenta.ai"  # Change for self-hosted
+export ANTHROPIC_API_KEY="YOUR_ANTHROPIC_API_KEY"
+```
+
+  </TabItem>
+</Tabs>
+
 ### 3. Set Up Instrumentation
 
 Create an `instrumentation.js` file to configure OpenTelemetry:
+
+<Tabs groupId="llm-provider">
+  <TabItem value="openai" label="OpenAI" default>
 
 ```javascript
 // instrumentation.js
@@ -99,9 +144,68 @@ registerInstrumentations({
 console.log("👀 OpenTelemetry instrumentation initialized");
 ```
 
+  </TabItem>
+  <TabItem value="anthropic" label="Anthropic">
+
+```javascript
+// instrumentation.js
+// highlight-start
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { AnthropicInstrumentation } from "@arizeai/openinference-instrumentation-anthropic";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { Resource } from "@opentelemetry/resources";
+import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import Anthropic from "@anthropic-ai/sdk";
+// highlight-end
+
+// highlight-start
+// Configure the OTLP exporter to send traces to Agenta
+const otlpExporter = new OTLPTraceExporter({
+  url: `${process.env.AGENTA_HOST}/api/otlp/v1/traces`,
+  headers: {
+    Authorization: `ApiKey ${process.env.AGENTA_API_KEY}`,
+  },
+});
+// highlight-end
+
+// highlight-start
+// Create and configure the tracer provider
+const tracerProvider = new NodeTracerProvider({
+  resource: new Resource({
+    [ATTR_SERVICE_NAME]: "anthropic-quickstart",
+  }),
+});
+
+// Use SimpleSpanProcessor for immediate export (better for short scripts)
+// For long-running services, use BatchSpanProcessor for better performance
+tracerProvider.addSpanProcessor(new SimpleSpanProcessor(otlpExporter));
+tracerProvider.register();
+// highlight-end
+
+// highlight-start
+// Register Anthropic instrumentation
+const instrumentation = new AnthropicInstrumentation();
+instrumentation.manuallyInstrument(Anthropic);
+
+registerInstrumentations({
+  instrumentations: [instrumentation],
+});
+// highlight-end
+
+console.log("👀 OpenTelemetry instrumentation initialized");
+```
+
+  </TabItem>
+</Tabs>
+
 ### 4. Instrument Your Application
 
 Create your application file `app.js`:
+
+<Tabs groupId="llm-provider">
+  <TabItem value="openai" label="OpenAI" default>
 
 ```javascript
 // app.js
@@ -170,6 +274,79 @@ async function main() {
 main();
 ```
 
+  </TabItem>
+  <TabItem value="anthropic" label="Anthropic">
+
+```javascript
+// app.js
+// highlight-start
+import Anthropic from "@anthropic-ai/sdk";
+import { trace } from "@opentelemetry/api";
+// highlight-end
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+// highlight-start
+const tracer = trace.getTracer("my-app", "1.0.0");
+// highlight-end
+
+async function generate() {
+  // highlight-start
+  // Create a span using Agenta's semantic conventions
+  return tracer.startActiveSpan("generate", async (span) => {
+    try {
+      // Set span type
+      span.setAttribute("ag.type.node", "workflow");
+      
+      const messages = [
+        { role: "user", content: "Write a short story about AI Engineering." },
+      ];
+      
+      // Set inputs
+      span.setAttribute("ag.data.inputs", JSON.stringify({
+        messages: messages,
+        model: "claude-3-5-sonnet-20240620"
+      }));
+      // highlight-end
+      
+      const response = await anthropic.messages.create({
+        model: "claude-3-5-sonnet-20240620",
+        messages: messages,
+        max_tokens: 1024,
+      });
+
+      const content = response.content[0].text;
+      
+      // highlight-start
+      // Set outputs
+      span.setAttribute("ag.data.outputs", JSON.stringify({
+        content: content
+      }));
+      
+      return content;
+    } finally {
+      span.end();
+    }
+  });
+  // highlight-end
+}
+
+async function main() {
+  const result = await generate();
+  console.log(result);
+  
+  // Flush traces before exit
+  await trace.getTracerProvider().forceFlush();
+}
+
+main();
+```
+
+  </TabItem>
+</Tabs>
+
 ### 5. Run Your Application
 
 Run your application with the instrumentation loaded first:
@@ -199,7 +376,7 @@ npm start
 
 The instrumentation uses two mechanisms to trace your application:
 
-1. **Auto-instrumentation**: `OpenAIInstrumentation` automatically captures all OpenAI API calls, including prompts, completions, tokens, and costs.
+1. **Auto-instrumentation**: The instrumentation libraries (`OpenAIInstrumentation` or `AnthropicInstrumentation`) automatically capture all API calls, including prompts, completions, tokens, and costs.
 
 2. **Manual spans**: You can create custom spans using `tracer.startActiveSpan()` to track your own functions and add metadata using [Agenta's semantic conventions](/observability/trace-with-opentelemetry/semantic-conventions).
 
