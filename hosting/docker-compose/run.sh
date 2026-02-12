@@ -56,7 +56,6 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         --local)
             STAGE="gh.local"
-            BUILD=true
             ;;
         --ssl)
             STAGE="gh.ssl"
@@ -155,11 +154,9 @@ else
     COMPOSE_CMD+=" --profile with-traefik"
 fi
 
-# For gh.local builds, make the local SDK available in build contexts.
-# The .gh Dockerfiles use `COPY ./sd[k] /app/sdk/` to optionally include the SDK.
-# Since the build contexts (api/, services/) don't contain sdk/, we copy the
-# SDK source into each context so Docker can include it in the image.
-if [[ "$STAGE" == "gh.local" ]]; then
+# For gh.local builds, copy the local SDK into api/ and services/ build contexts
+# so that Dockerfile.gh can COPY it (Docker BuildKit doesn't follow symlinks outside context)
+if [[ "$STAGE" == "gh.local" ]] && ($BUILD || $NO_CACHE); then
     echo "Copying local SDK into build contexts..."
     rm -rf api/sdk services/sdk
     cp -r sdk api/sdk
