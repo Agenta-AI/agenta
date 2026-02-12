@@ -52,5 +52,9 @@ web/oss/tests/datalayer/results
 !api/.dockerignore
 !services/.dockerignore
 
+# Temporary SDK symlinks created by run.sh --local
+api/sdk
+services/sdk
+
 # IDE/LSP config (local tooling)
 pyrightconfig.json
