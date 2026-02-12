@@ -29,6 +29,8 @@ import {
     type LegacyAppRevisionData,
     type CommitRevisionParams,
     stripVolatileKeys,
+    enhancedPromptsToParameters,
+    enhancedCustomPropertiesToParameters,
 } from "@agenta/entities/legacyAppRevision"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {atom} from "jotai"
@@ -160,10 +162,41 @@ function stripLegacyPromptFields(value: unknown): unknown {
  * Uses raw parameters as source-of-truth and normalizes JSON-string fields
  * into nested objects for granular diffs.
  */
-function extractDiffableData(data: LegacyAppRevisionData | null): Record<string, unknown> {
+function buildComparableParameters(
+    data: LegacyAppRevisionData | null,
+    baseParameters?: Record<string, unknown>,
+): Record<string, unknown> {
     if (!data) return {}
 
-    const rawParameters = data.parameters ?? {}
+    const hasEnhancedPrompts = data.enhancedPrompts && Array.isArray(data.enhancedPrompts)
+    const hasEnhancedCustomProps =
+        data.enhancedCustomProperties && typeof data.enhancedCustomProperties === "object"
+
+    let params: Record<string, unknown>
+    if (hasEnhancedPrompts || hasEnhancedCustomProps) {
+        params = {...(baseParameters ?? data.parameters ?? {})}
+    } else {
+        params = {...(data.parameters ?? {})}
+    }
+
+    if (hasEnhancedPrompts) {
+        params = enhancedPromptsToParameters(data.enhancedPrompts!, params)
+    }
+
+    if (hasEnhancedCustomProps) {
+        params = enhancedCustomPropertiesToParameters(data.enhancedCustomProperties!, params)
+    }
+
+    return params
+}
+
+function extractDiffableData(
+    data: LegacyAppRevisionData | null,
+    baseParameters?: Record<string, unknown>,
+): Record<string, unknown> {
+    if (!data) return {}
+
+    const rawParameters = buildComparableParameters(data, baseParameters)
     const unwrappedParameters =
         rawParameters.ag_config &&
         typeof rawParameters.ag_config === "object" &&
@@ -186,6 +219,36 @@ function stableStringify(value: unknown): string {
 
 function deepEqual(a: unknown, b: unknown): boolean {
     return stableStringify(a) === stableStringify(b)
+}
+
+function isPromptRelatedKey(key: string): boolean {
+    return (
+        key === "messages" ||
+        key === "prompt" ||
+        key === "llm_config" ||
+        key === "llmConfig" ||
+        key === "system_prompt" ||
+        key === "user_prompt" ||
+        key === "prompt_template" ||
+        key === "template_format" ||
+        key.toLowerCase().includes("prompt")
+    )
+}
+
+function hasComparableContent(value: unknown): boolean {
+    if (value === undefined) {
+        return false
+    }
+
+    if (Array.isArray(value)) {
+        return value.length > 0
+    }
+
+    if (value && typeof value === "object") {
+        return Object.keys(value as Record<string, unknown>).length > 0
+    }
+
+    return true
 }
 
 function hasPromptContent(value: unknown): boolean {
@@ -218,30 +281,45 @@ function getPromptOnlyValue(value: unknown): unknown {
     const filtered: Record<string, unknown> = {}
 
     for (const [key, nested] of Object.entries(source)) {
-        const isPromptKey =
-            key === "messages" ||
-            key === "prompt" ||
-            key === "llm_config" ||
-            key === "llmConfig" ||
-            key === "system_prompt" ||
-            key === "user_prompt" ||
-            key === "prompt_template" ||
-            key === "template_format" ||
-            key.toLowerCase().includes("prompt")
-
-        if (isPromptKey) {
+        if (isPromptRelatedKey(key)) {
             filtered[key] = nested
             continue
         }
 
         const child = getPromptOnlyValue(nested)
-        const hasChildContent = Array.isArray(child)
-            ? child.length > 0
-            : Boolean(
-                  child &&
-                  typeof child === "object" &&
-                  Object.keys(child as Record<string, unknown>).length > 0,
-              )
+        const hasChildContent = hasComparableContent(child)
+
+        if (hasChildContent) {
+            filtered[key] = child
+        }
+    }
+
+    return Object.keys(filtered).length > 0 ? filtered : undefined
+}
+
+function getNonPromptOnlyValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(getNonPromptOnlyValue).filter((entry) => entry !== undefined)
+    }
+
+    if (value === null || value === undefined) {
+        return value
+    }
+
+    if (typeof value !== "object") {
+        return value
+    }
+
+    const source = value as Record<string, unknown>
+    const filtered: Record<string, unknown> = {}
+
+    for (const [key, nested] of Object.entries(source)) {
+        if (isPromptRelatedKey(key)) {
+            continue
+        }
+
+        const child = getNonPromptOnlyValue(nested)
+        const hasChildContent = hasComparableContent(child)
 
         if (hasChildContent) {
             filtered[key] = child
@@ -264,7 +342,7 @@ function countChanges(
     }
 
     const original = extractDiffableData(serverData)
-    const modified = extractDiffableData(draftData)
+    const modified = extractDiffableData(draftData, serverData?.parameters)
 
     const hasAnyChanges = !deepEqual(original, modified)
     if (!hasAnyChanges) {
@@ -276,7 +354,9 @@ function countChanges(
     const hasPromptSections = hasPromptContent(original) || hasPromptContent(modified)
     const promptChanges =
         hasPromptSections && !deepEqual(originalPrompt ?? {}, modifiedPrompt ?? {}) ? 1 : 0
-    const propertyChanges = promptChanges === 1 ? 0 : 1
+    const originalProperties = getNonPromptOnlyValue(original)
+    const modifiedProperties = getNonPromptOnlyValue(modified)
+    const propertyChanges = !deepEqual(originalProperties ?? {}, modifiedProperties ?? {}) ? 1 : 0
 
     return {promptChanges, propertyChanges}
 }
@@ -334,7 +414,7 @@ const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string,
 
         // Build diff data
         const originalStructure = extractDiffableData(serverData)
-        const modifiedStructure = extractDiffableData(draftData)
+        const modifiedStructure = extractDiffableData(draftData, serverData?.parameters)
 
         const original = stableStringify(originalStructure)
         const modified = stableStringify(modifiedStructure)
@@ -412,12 +492,7 @@ const variantCommitAtom = atom(null, async (get, set, params: CommitParams): Pro
 
     // Build parameters from enhanced data
     // The molecule stores enhanced prompts/custom props, but API expects ag_config format
-    const parameters: Record<string, unknown> = {}
-
-    if (data.parameters) {
-        // Start with raw parameters
-        Object.assign(parameters, data.parameters)
-    }
+    const parameters = buildComparableParameters(data)
 
     // The commit action handles the rest (API call, polling, callbacks)
     const commitParams: CommitRevisionParams = {
