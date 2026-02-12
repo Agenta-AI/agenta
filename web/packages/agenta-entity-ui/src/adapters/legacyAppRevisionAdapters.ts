@@ -28,6 +28,7 @@ import {
     legacyAppRevisionMolecule,
     type LegacyAppRevisionData,
     type CommitRevisionParams,
+    stripVolatileKeys,
 } from "@agenta/entities/legacyAppRevision"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {atom} from "jotai"
@@ -57,30 +58,197 @@ const legacyAppRevisionDataAtom = (id: string) =>
 // ============================================================================
 
 /**
- * Extract configuration data for diff display.
- * For OSS variants, we diff the parameters/enhancedPrompts.
+ * Legacy prompt keys that are superseded by structured prompt format
+ * and should not appear in the commit diff.
+ */
+const LEGACY_PROMPT_KEYS = new Set([
+    "system_prompt",
+    "user_prompt",
+    "prompt_template",
+    "temperature",
+    "model",
+    "max_tokens",
+    "top_p",
+    "frequency_penalty",
+    "presence_penalty",
+    "input_keys",
+    "template_format",
+])
+
+/**
+ * Parse JSON-like strings so prompt fields are diffed as nested objects
+ * instead of a single JSON blob string.
+ */
+function parseStructuredString(value: string): unknown {
+    const trimmed = value.trim()
+
+    if (!trimmed) return value
+    if (
+        !(
+            (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+            (trimmed.startsWith("[") && trimmed.endsWith("]"))
+        )
+    ) {
+        return value
+    }
+
+    try {
+        const parsed = JSON.parse(trimmed)
+        if (parsed && typeof parsed === "object") return parsed
+    } catch {
+        // Keep original string when parsing fails.
+    }
+
+    return value
+}
+
+/**
+ * Normalize values recursively for stable field-level diff rendering.
+ */
+function normalizeDiffValue(value: unknown): unknown {
+    if (typeof value === "string") {
+        const parsed = parseStructuredString(value)
+        if (parsed !== value) return normalizeDiffValue(parsed)
+        return value
+    }
+
+    if (Array.isArray(value)) {
+        return value.map(normalizeDiffValue)
+    }
+
+    if (!value || typeof value !== "object") {
+        return value
+    }
+
+    const normalized: Record<string, unknown> = {}
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+        normalized[key] = normalizeDiffValue(nested)
+    }
+    return normalized
+}
+
+/**
+ * Strip flattened legacy prompt fields when structured prompt fields exist.
+ */
+function stripLegacyPromptFields(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(stripLegacyPromptFields)
+    }
+
+    if (!value || typeof value !== "object") {
+        return value
+    }
+
+    const result: Record<string, unknown> = {...(value as Record<string, unknown>)}
+    const hasStructuredPrompt = result.messages || result.llm_config || result.llmConfig
+
+    if (hasStructuredPrompt) {
+        for (const key of LEGACY_PROMPT_KEYS) {
+            delete result[key]
+        }
+    }
+
+    for (const [key, nested] of Object.entries(result)) {
+        result[key] = stripLegacyPromptFields(nested)
+    }
+
+    return result
+}
+
+/**
+ * Extract diffable parameters from revision data.
+ * Uses raw parameters as source-of-truth and normalizes JSON-string fields
+ * into nested objects for granular diffs.
  */
 function extractDiffableData(data: LegacyAppRevisionData | null): Record<string, unknown> {
     if (!data) return {}
 
-    const result: Record<string, unknown> = {}
+    const rawParameters = data.parameters ?? {}
+    const unwrappedParameters =
+        rawParameters.ag_config &&
+        typeof rawParameters.ag_config === "object" &&
+        !Array.isArray(rawParameters.ag_config)
+            ? (rawParameters.ag_config as Record<string, unknown>)
+            : rawParameters
 
-    // Include enhanced prompts if available (these are the UI-visible prompts)
-    if (data.enhancedPrompts && Array.isArray(data.enhancedPrompts)) {
-        result.prompts = data.enhancedPrompts
+    const strippedParameters = stripVolatileKeys(unwrappedParameters, true)
+    const normalizedParameters = normalizeDiffValue(strippedParameters)
+    const cleanedParameters = stripLegacyPromptFields(normalizedParameters)
+
+    return {
+        parameters: cleanedParameters,
+    }
+}
+
+function stableStringify(value: unknown): string {
+    return JSON.stringify(value, null, 2)
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+    return stableStringify(a) === stableStringify(b)
+}
+
+function hasPromptContent(value: unknown): boolean {
+    if (Array.isArray(value)) {
+        return value.some(hasPromptContent)
     }
 
-    // Include enhanced custom properties if available
-    if (data.enhancedCustomProperties) {
-        result.customProperties = data.enhancedCustomProperties
+    if (!value || typeof value !== "object") {
+        return false
     }
 
-    // Fallback to raw parameters if no enhanced data
-    if (!result.prompts && !result.customProperties && data.parameters) {
-        result.parameters = data.parameters
+    const obj = value as Record<string, unknown>
+    if (obj.messages || obj.prompt || obj.prompt_template || obj.system_prompt || obj.user_prompt) {
+        return true
     }
 
-    return result
+    return Object.values(obj).some(hasPromptContent)
+}
+
+function getPromptOnlyValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(getPromptOnlyValue).filter((entry) => entry !== undefined)
+    }
+
+    if (!value || typeof value !== "object") {
+        return undefined
+    }
+
+    const source = value as Record<string, unknown>
+    const filtered: Record<string, unknown> = {}
+
+    for (const [key, nested] of Object.entries(source)) {
+        const isPromptKey =
+            key === "messages" ||
+            key === "prompt" ||
+            key === "llm_config" ||
+            key === "llmConfig" ||
+            key === "system_prompt" ||
+            key === "user_prompt" ||
+            key === "prompt_template" ||
+            key === "template_format" ||
+            key.toLowerCase().includes("prompt")
+
+        if (isPromptKey) {
+            filtered[key] = nested
+            continue
+        }
+
+        const child = getPromptOnlyValue(nested)
+        const hasChildContent = Array.isArray(child)
+            ? child.length > 0
+            : Boolean(
+                  child &&
+                  typeof child === "object" &&
+                  Object.keys(child as Record<string, unknown>).length > 0,
+              )
+
+        if (hasChildContent) {
+            filtered[key] = child
+        }
+    }
+
+    return Object.keys(filtered).length > 0 ? filtered : undefined
 }
 
 /**
@@ -91,38 +259,24 @@ function countChanges(
     serverData: LegacyAppRevisionData | null,
     draftData: LegacyAppRevisionData | null,
 ): {promptChanges: number; propertyChanges: number; description?: string} {
-    if (!serverData || !draftData) {
+    if (!draftData) {
         return {promptChanges: 0, propertyChanges: 0}
     }
 
-    let promptChanges = 0
-    let propertyChanges = 0
+    const original = extractDiffableData(serverData)
+    const modified = extractDiffableData(draftData)
 
-    // Compare enhanced prompts
-    const serverPrompts = serverData.enhancedPrompts || []
-    const draftPrompts = draftData.enhancedPrompts || []
-
-    if (JSON.stringify(serverPrompts) !== JSON.stringify(draftPrompts)) {
-        promptChanges = 1
+    const hasAnyChanges = !deepEqual(original, modified)
+    if (!hasAnyChanges) {
+        return {promptChanges: 0, propertyChanges: 0}
     }
 
-    // Compare enhanced custom properties
-    const serverProps = serverData.enhancedCustomProperties || {}
-    const draftProps = draftData.enhancedCustomProperties || {}
-
-    if (JSON.stringify(serverProps) !== JSON.stringify(draftProps)) {
-        propertyChanges = 1
-    }
-
-    // If no enhanced data, compare raw parameters
-    if (promptChanges === 0 && propertyChanges === 0) {
-        const serverParams = serverData.parameters || {}
-        const draftParams = draftData.parameters || {}
-
-        if (JSON.stringify(serverParams) !== JSON.stringify(draftParams)) {
-            propertyChanges = 1
-        }
-    }
+    const originalPrompt = getPromptOnlyValue(original)
+    const modifiedPrompt = getPromptOnlyValue(modified)
+    const hasPromptSections = hasPromptContent(original) || hasPromptContent(modified)
+    const promptChanges =
+        hasPromptSections && !deepEqual(originalPrompt ?? {}, modifiedPrompt ?? {}) ? 1 : 0
+    const propertyChanges = promptChanges === 1 ? 0 : 1
 
     return {promptChanges, propertyChanges}
 }
@@ -182,8 +336,8 @@ const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string,
         const originalStructure = extractDiffableData(serverData)
         const modifiedStructure = extractDiffableData(draftData)
 
-        const original = JSON.stringify(originalStructure, null, 2)
-        const modified = JSON.stringify(modifiedStructure, null, 2)
+        const original = stableStringify(originalStructure)
+        const modified = stableStringify(modifiedStructure)
 
         // Only include diff data if there are actual changes
         const hasDiff = original !== modified

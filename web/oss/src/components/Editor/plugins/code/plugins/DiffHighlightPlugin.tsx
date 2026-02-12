@@ -179,6 +179,88 @@ function parseDiffLine(lineContent: string): {
     return {diffType: "context", content: lineContent}
 }
 
+interface InlineDiffSegment {
+    text: string
+    changed: boolean
+}
+
+interface InlineDiffPair {
+    removed: InlineDiffSegment[]
+    added: InlineDiffSegment[]
+}
+
+function buildInlineDiffPair(removedLine: string, addedLine: string): InlineDiffPair | null {
+    if (!removedLine || !addedLine || removedLine === addedLine) return null
+
+    const maxPrefix = Math.min(removedLine.length, addedLine.length)
+    let prefixLength = 0
+    while (prefixLength < maxPrefix && removedLine[prefixLength] === addedLine[prefixLength]) {
+        prefixLength++
+    }
+
+    let removedSuffixLength = removedLine.length - 1
+    let addedSuffixLength = addedLine.length - 1
+    while (
+        removedSuffixLength >= prefixLength &&
+        addedSuffixLength >= prefixLength &&
+        removedLine[removedSuffixLength] === addedLine[addedSuffixLength]
+    ) {
+        removedSuffixLength--
+        addedSuffixLength--
+    }
+
+    const removedMiddle = removedLine.slice(prefixLength, removedSuffixLength + 1)
+    const addedMiddle = addedLine.slice(prefixLength, addedSuffixLength + 1)
+    const unchangedChars = prefixLength + (removedLine.length - 1 - removedSuffixLength)
+    const overlapRatio = unchangedChars / Math.max(removedLine.length, addedLine.length)
+
+    // Only apply inline diff for mostly-similar lines; otherwise line-level diff is clearer.
+    if (overlapRatio < 0.3) return null
+
+    const prefix = removedLine.slice(0, prefixLength)
+    const suffix = removedLine.slice(removedSuffixLength + 1)
+
+    const toSegments = (
+        middleText: string,
+        includeChangedSegment: boolean,
+    ): InlineDiffSegment[] => {
+        const segments: InlineDiffSegment[] = []
+        if (prefix) segments.push({text: prefix, changed: false})
+        if (includeChangedSegment && middleText) segments.push({text: middleText, changed: true})
+        if (suffix) segments.push({text: suffix, changed: false})
+        return segments
+    }
+
+    return {
+        removed: toSegments(removedMiddle, Boolean(removedMiddle)),
+        added: toSegments(addedMiddle, Boolean(addedMiddle)),
+    }
+}
+
+function $setLineContentWithInlineDiff(
+    lineNode: CodeLineNode,
+    fullContent: string,
+    diffType: DiffType,
+    segments?: InlineDiffSegment[] | null,
+) {
+    lineNode.clear()
+
+    if (!segments || segments.length === 0) {
+        lineNode.append($createTextNode(fullContent))
+        return
+    }
+
+    const changedBg = diffType === "added" ? "rgba(22, 163, 74, 0.35)" : "rgba(220, 38, 38, 0.35)"
+
+    segments.forEach((segment) => {
+        const node = $createTextNode(segment.text)
+        if (segment.changed) {
+            node.setStyle(`background-color: ${changedBg}; border-radius: 2px; padding: 0 1px;`)
+        }
+        lineNode.append(node)
+    })
+}
+
 /**
  * Checks if a code block contains diff content
  * @param blockText - The full text content of the code block
@@ -332,12 +414,38 @@ export default function DiffHighlightPlugin({
                     return
                 }
 
-                // Process each line for diff highlighting
                 const codeLines = codeBlockNode.getChildren().filter($isCodeLineNode)
+                const parsedLines = codeLines.map((lineNode) =>
+                    parseDiffLine(lineNode.getTextContent()),
+                )
+
+                const inlineDiffByIndex = new Map<number, InlineDiffSegment[]>()
+                for (let i = 0; i < parsedLines.length - 1; i++) {
+                    const current = parsedLines[i]
+                    const next = parsedLines[i + 1]
+                    if (!current || !next) continue
+
+                    const isReplacementPair =
+                        current.diffType === "removed" &&
+                        next.diffType === "added" &&
+                        typeof current.content === "string" &&
+                        typeof next.content === "string"
+
+                    if (!isReplacementPair) continue
+
+                    const inlinePair = buildInlineDiffPair(current.content, next.content)
+                    if (!inlinePair) continue
+
+                    if (inlinePair.removed.length > 0) {
+                        inlineDiffByIndex.set(i, inlinePair.removed)
+                    }
+                    if (inlinePair.added.length > 0) {
+                        inlineDiffByIndex.set(i + 1, inlinePair.added)
+                    }
+                }
 
                 codeLines.forEach((lineNode: CodeLineNode, index: number) => {
-                    const lineContent = lineNode.getTextContent()
-                    const parsed = parseDiffLine(lineContent)
+                    const parsed = parsedLines[index]
                     // Process individual line for diff styling
 
                     if (parsed) {
@@ -363,9 +471,12 @@ export default function DiffHighlightPlugin({
                         // Update line content to remove diff formatting (preserve indentation)
                         const cleanContent = parsed.content
                         if (cleanContent !== currentContent) {
-                            // Replace the line content with the cleaned content
-                            lineNode.clear()
-                            lineNode.append($createTextNode(cleanContent))
+                            $setLineContentWithInlineDiff(
+                                lineNode,
+                                cleanContent,
+                                parsed.diffType,
+                                inlineDiffByIndex.get(index),
+                            )
                         }
                     }
                 })
