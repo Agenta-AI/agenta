@@ -77,13 +77,13 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({promptId, promptVersion}) =>
     }
 
     return (
-        <div className="h-full overflow-y-auto p-4">
+        <div className="p-4">
             {showDiff ? (
                 <DiffView
                     language="json"
                     original={originalJson}
                     modified={workingJson}
-                    className="max-h-full overflow-auto"
+                    className=""
                     enableFolding
                     foldThreshold={3}
                 />

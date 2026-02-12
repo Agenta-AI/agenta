@@ -26,8 +26,8 @@ The Refine AI feature allows users to improve their prompts by providing instruc
 - `context` - Optional additional context
 
 And returns:
-- `refined_prompt` - The improved prompt
-- `explanation` - What changes were made
+- `messages` - The refined messages array
+- `summary` - Short description of what changed
 
 The UI presents this as a chat-like interface for UX, but the state should model it as **refinement iterations**, not chat messages.
 
@@ -293,14 +293,14 @@ interface PromptTemplate {
 
 The key insight is that this is **not** a conversation. Each "turn" is a refinement request:
 - User provides `guidelines`
-- AI returns `explanation` + `refined_prompt`
+- AI returns `messages` (refined) + `summary` (what changed)
 
 ```typescript
 // A single refinement iteration
 interface RefinementIteration {
   id: string
   guidelines: string      // What the user asked for
-  explanation: string     // What the AI changed (from backend response)
+  explanation: string     // Summary of what the AI changed (from backend response)
   timestamp: number
 }
 ```
@@ -462,9 +462,8 @@ import axios from '@/oss/lib/api/assets/axiosConfig'
 export interface RefinePromptResponse {
   content: Array<{ type: 'text'; text: string }>
   structuredContent?: {
-    refined_prompt: string       // Stringified PromptTemplate
     messages: Array<{ role: string; content: string }>
-    explanation?: string         // AI's explanation of changes
+    summary?: string             // Short description of what changed
   }
   isError: boolean
   meta?: { trace_id?: string }
@@ -538,14 +537,17 @@ export function useRefinePrompt(promptId: string) {
         throw new Error(response.content[0]?.text || 'Refinement failed')
       }
 
-      // Parse refined prompt
-      const refined = JSON.parse(response.structuredContent!.refined_prompt)
+      // Parse refined prompt from messages array
+      const refined = {
+        messages: response.structuredContent!.messages,
+        template_format: workingPrompt.template_format,
+      }
 
       // Add iteration to history
       const iteration: RefinementIteration = {
         id: `iter-${Date.now()}`,
         guidelines,
-        explanation: response.structuredContent?.explanation ||
+        explanation: response.structuredContent?.summary ||
                      'Prompt refined based on your instructions.',
         timestamp: Date.now(),
       }
@@ -660,21 +662,23 @@ export function useRefinePrompt(promptId: string) {
 
 ---
 
-## Backend Contract Update (Required)
+## Backend Contract
 
-The current backend response should include an `explanation` field in `structuredContent`:
+The backend response returns `messages` (refined array) and `summary` (change description) in `structuredContent`:
 
 ```json
 {
   "structuredContent": {
-    "refined_prompt": "...",
-    "messages": [...],
-    "explanation": "I made the following changes: ..."
+    "messages": [
+      {"role": "system", "content": "Refined system content."},
+      {"role": "user", "content": "Refined user content."}
+    ],
+    "summary": "Added explicit extraction format and improved role clarity."
   }
 }
 ```
 
-This `explanation` is what gets displayed as the AI's response bubble in the left panel.
+The `summary` is displayed as the AI's response bubble in the left panel.
 
 ---
 
@@ -688,7 +692,7 @@ This `explanation` is what gets displayed as the AI's response bubble in the lef
 
 4. **Iterative Context**: Each refinement uses the **workingPrompt** (not original) to build on previous improvements.
 
-5. **Not a Chat**: The backend API is NOT a chat. It takes `guidelines` and returns `explanation`. The state models this as `RefinementIteration[]`, not chat messages.
+5. **Not a Chat**: The backend API is NOT a chat. It takes `guidelines` and returns `messages` + `summary`. The state models this as `RefinementIteration[]`, not chat messages.
 
 ---
 

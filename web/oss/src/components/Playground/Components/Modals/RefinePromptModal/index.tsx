@@ -45,7 +45,7 @@ const RefinePromptModal: React.FC<RefinePromptModalProps> = ({
             title={null}
             footer={null}
             closable={false}
-            width={960}
+            width={1040}
             styles={{
                 container: {
                     height: "min(90vh, 720px)",

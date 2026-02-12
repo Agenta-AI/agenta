@@ -52,19 +52,18 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
         prevPromptRef.current = workingPrompt
     }
 
-    const hasRefinements = iterations.length > 0
     const hasRefinedPrompt = workingPrompt !== null && iterations.length > 0
 
     // Ref to allow InstructionsPanel to trigger refine via Cmd+Enter
     const submitRef = useRef<(() => void) | null>(null)
 
-    // Cmd+Enter handler scoped to modal
+    // Cmd+Enter handler scoped to modal — only swallow the event when submit proceeds
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && submitRef.current) {
+                submitRef.current()
                 e.preventDefault()
                 e.stopPropagation()
-                submitRef.current?.()
             }
         }
         document.addEventListener("keydown", handler, {capture: true})
@@ -74,26 +73,16 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
     const handleUseRefinedPrompt = useCallback(() => {
         if (!workingPrompt) return
 
-        setPrompts((prevPrompts: any[]) => {
-            return prevPrompts.map((prompt: any) => {
-                if (prompt?.__id !== promptId && prompt?.__name !== promptId) {
-                    return prompt
-                }
+        setPrompts((draft: any[]) => {
+            for (const prompt of draft) {
+                if (prompt?.__id !== promptId && prompt?.__name !== promptId) continue
 
-                const wrappedMessages = workingPrompt.messages.map((msg) => ({
+                prompt.messages.value = workingPrompt.messages.map((msg) => ({
                     __id: generateId(),
                     role: {value: msg.role},
                     content: {value: msg.content},
                 }))
-
-                return {
-                    ...prompt,
-                    messages: {
-                        ...prompt.messages,
-                        value: wrappedMessages,
-                    },
-                }
-            })
+            }
         })
 
         onClose()
@@ -139,7 +128,7 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
                                 size="small"
                                 checked={showDiff}
                                 onChange={setShowDiff}
-                                disabled={!hasRefinements}
+                                disabled={!hasRefinedPrompt}
                                 aria-label="Toggle diff view"
                             />
                         </div>
@@ -156,7 +145,7 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
 
                 {/* Right Content */}
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                    {hasRefinements ? (
+                    {hasRefinedPrompt ? (
                         <PreviewPanel
                             variantId={variantId}
                             promptId={promptId}

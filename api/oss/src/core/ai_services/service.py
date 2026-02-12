@@ -213,9 +213,9 @@ class AIServicesService:
             application_slug=str(self.config.refine_prompt_app),
             environment_slug=str(self.config.environment),
             inputs={
-                "prompt_template_json": prompt_template_json,
-                "guidelines": guidelines or "",
-                "context": context or "",
+                "__ag_prompt_template_json": prompt_template_json,
+                "__ag_guidelines": guidelines or "",
+                "__ag_context": context or "",
             },
         )
 

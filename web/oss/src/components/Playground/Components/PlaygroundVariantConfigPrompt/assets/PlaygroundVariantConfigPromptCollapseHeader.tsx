@@ -1,13 +1,14 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import {Wand2} from "lucide-react"
 import dynamic from "next/dynamic"
 
 import {getPromptById} from "@/oss/components/Playground/context/promptShape"
 import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
-import {aiServicesApi} from "@/oss/services/aiServices/api"
+import {aiServicesStatusQueryAtom} from "@/oss/services/aiServices/atoms"
 
 import type {PromptCollapseHeaderProps} from "../types"
 
@@ -45,28 +46,13 @@ const PlaygroundVariantConfigPromptCollapseHeader: React.FC<PromptCollapseHeader
     ...props
 }) => {
     const [refineModalOpen, setRefineModalOpen] = useState(false)
-    const [aiServicesEnabled, setAiServicesEnabled] = useState<boolean | null>(null)
+    const statusQuery = useAtomValue(aiServicesStatusQueryAtom)
+    const aiServicesEnabled = statusQuery.data?.enabled ?? null
     const prompts = usePromptsSource(variantId)
     const promptName = useMemo(() => {
         const item = getPromptById(prompts, promptId)
         return (item?.__name as string | undefined) ?? "Prompt"
     }, [prompts, promptId])
-
-    // Check AI services status on mount
-    useEffect(() => {
-        let mounted = true
-        aiServicesApi
-            .getStatus()
-            .then((status) => {
-                if (mounted) setAiServicesEnabled(status.enabled)
-            })
-            .catch(() => {
-                if (mounted) setAiServicesEnabled(false)
-            })
-        return () => {
-            mounted = false
-        }
-    }, [])
 
     const handleRefineClick = useCallback(
         (e: React.MouseEvent) => {
@@ -82,8 +68,13 @@ const PlaygroundVariantConfigPromptCollapseHeader: React.FC<PromptCollapseHeader
         setRefineModalOpen(false)
     }, [])
 
+    const isLoading = statusQuery.isPending
     const isDisabled = !aiServicesEnabled
-    const tooltipTitle = isDisabled ? "AI services not available" : "Refine prompt with AI"
+    const tooltipTitle = isLoading
+        ? "Checking AI services…"
+        : isDisabled
+          ? "AI services not available"
+          : "Refine prompt with AI"
 
     return (
         <>
