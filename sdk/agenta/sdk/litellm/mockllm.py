@@ -3,6 +3,7 @@ import random
 from typing import Protocol, Any, Optional, Iterable
 from os import environ
 from contextlib import contextmanager
+from urllib.parse import urlparse
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.lazy import _load_litellm
@@ -119,8 +120,13 @@ def _is_azure_call(*, args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
     # Some Azure configs might be sent as openai-compatible with an Azure base URL.
     for k in ("api_base", "base_url", "azure_endpoint"):
         v = kwargs.get(k)
-        if isinstance(v, str) and ".openai.azure.com" in v:
-            return True
+        if isinstance(v, str):
+            parsed = urlparse(v)
+            host = parsed.hostname
+            if host:
+                host = host.lower()
+                if host == "openai.azure.com" or host.endswith(".openai.azure.com"):
+                    return True
 
     return False
 
