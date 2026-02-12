@@ -1,6 +1,5 @@
-from typing import Optional, Union, Dict
+from typing import Optional, Dict
 
-from agenta.sdk.models.workflows import Reference
 from agenta.sdk.decorators.running import workflow, Workflow, application, evaluator
 from agenta.sdk.workflows.handlers import SinglePromptConfig
 

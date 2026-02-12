@@ -8,16 +8,11 @@ from agents import (
     GuardrailFunctionOutput,
     Runner,
     WebSearchTool,
-    run_demo_loop,
 )
-from agents.exceptions import InputGuardrailTripwireTriggered
 from pydantic import BaseModel
-import asyncio
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
-import agenta as ag
 
 # from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
 # from opentelemetry import trace
@@ -25,7 +20,6 @@ import agenta as ag
 # from opentelemetry.sdk.trace import ReadableSpan
 # from opentelemetry.sdk.trace.export import SpanProcessor
 # from opentelemetry.trace import Span
-from typing import Optional
 
 # os.environ["AGENTA_API_KEY"] = ""
 

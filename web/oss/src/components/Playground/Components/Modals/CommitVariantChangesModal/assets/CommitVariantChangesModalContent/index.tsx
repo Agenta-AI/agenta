@@ -99,9 +99,58 @@ const CommitVariantChangesModalContent = ({
     const modifiedParams =
         commitType === "parameters" && jsonOverride ? jsonOverride : currentAgConfig
     // Use serverData.parameters as the original (initial state before edits)
-    const originalParams = serverData?.parameters
-    const sanitizedOriginalParams = stripAgentaMetadataDeep(originalParams)
-    const sanitizedModifiedParams = stripAgentaMetadataDeep(modifiedParams)
+    // Unwrap ag_config if present (serverData.parameters may have { ag_config: {...} })
+    const rawOriginalParams = serverData?.parameters
+    const originalParams = rawOriginalParams?.ag_config ?? rawOriginalParams
+
+    // Strip legacy flat fields that are superseded by the structured prompt format.
+    // Both server data and transformed output may contain these; they should not
+    // appear in the diff since the structured prompt (messages + llm_config) is
+    // the canonical representation.
+    const legacyKeys = new Set([
+        "system_prompt",
+        "user_prompt",
+        "prompt_template",
+        "temperature",
+        "model",
+        "max_tokens",
+        "top_p",
+        "frequency_penalty",
+        "presence_penalty",
+        "input_keys",
+        "template_format",
+    ])
+
+    const stripLegacyFields = (params: Record<string, any> | undefined): any => {
+        if (!params || typeof params !== "object") return params
+        if (Array.isArray(params)) return params.map(stripLegacyFields)
+
+        const result = {...params}
+
+        // Check if THIS object has structured prompt fields (messages or llm_config)
+        const hasStructuredPrompt = result.messages || result.llm_config
+
+        if (hasStructuredPrompt) {
+            for (const key of legacyKeys) {
+                delete result[key]
+            }
+        }
+
+        // Recurse into nested objects
+        for (const [key, value] of Object.entries(result)) {
+            if (value && typeof value === "object") {
+                result[key] = stripLegacyFields(value)
+            }
+        }
+
+        return result
+    }
+
+    const strippedOriginal = stripAgentaMetadataDeep(originalParams)
+    const strippedModified = stripAgentaMetadataDeep(modifiedParams)
+
+    const sanitizedOriginalParams = stripLegacyFields(strippedOriginal as any)
+    const sanitizedModifiedParams = stripLegacyFields(strippedModified as any)
 
     // Compute snapshot lazily on first render after mount
     if (variant && initialOriginalRef.current === null && initialModifiedRef.current === null) {

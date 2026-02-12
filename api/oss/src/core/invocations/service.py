@@ -25,7 +25,6 @@ from oss.src.core.tracing.dtos import (
     Formatting,
     Condition,
     Filtering,
-    OTelReference,
     OTelLink,
     LogicalOperator,
     ComparisonOperator,

@@ -14,13 +14,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import asyncio
-import random
+import asyncio  # noqa: E402
+import random  # noqa: E402
 
-from agenta.sdk.evaluations import aevaluate, display
+from agenta.sdk.evaluations import aevaluate  # noqa: E402
 
-import agenta as ag
-from agenta.sdk.workflows import builtin
+import agenta as ag  # noqa: E402
+from agenta.sdk.workflows import builtin  # noqa: E402
 
 # Initialize Agenta SDK
 ag.init()

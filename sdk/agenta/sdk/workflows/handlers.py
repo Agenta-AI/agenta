@@ -7,7 +7,7 @@ import ipaddress
 import traceback
 from difflib import SequenceMatcher
 from json import dumps, loads
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Union, Iterable, Tuple
 from urllib.parse import urlparse
 
 import httpx
@@ -129,9 +129,6 @@ def _compute_similarity(embedding_1: List[float], embedding_2: List[float]) -> f
     if norm1 == 0 or norm2 == 0:
         return 0.0
     return dot / (norm1 * norm2)
-
-
-from typing import Any, Iterable, Tuple
 
 
 # ========= Scheme detection =========
@@ -371,7 +368,7 @@ def _compare_jsons(
 
         if compare_schema_only:
             return (
-                1.0 if (gt_key == ao_key and type(gt_value) == type(ao_value)) else 0.0
+                1.0 if (gt_key == ao_key and type(gt_value) == type(ao_value)) else 0.0  # noqa: E721
             )
         return 1.0 if (gt_key == ao_key and gt_value == ao_value) else 0.0
 
@@ -1974,7 +1971,10 @@ async def completion_v0(
     )
 
     if not provider_settings:
-        raise InvalidSecretsV0Error(expected="dict", got=provider_settings)
+        model = getattr(
+            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
+        )
+        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
 
     formatted_prompt = config.prompt.format(**inputs)
 
@@ -2039,7 +2039,10 @@ async def chat_v0(
     )
 
     if not provider_settings:
-        raise InvalidSecretsV0Error(expected="dict", got=provider_settings)
+        model = getattr(
+            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
+        )
+        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
 
     provider_settings = _apply_responses_bridge_if_needed(
         formatted_prompt, provider_settings

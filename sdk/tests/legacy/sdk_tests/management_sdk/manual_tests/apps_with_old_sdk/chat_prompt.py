@@ -75,11 +75,11 @@ async def generate(
 ):
     try:
         prompt_user = ag.config.prompt_user.format(**inputs)
-    except Exception as e:
+    except Exception:
         prompt_user = ag.config.prompt_user
     try:
         prompt_system = ag.config.prompt_system.format(**inputs)
-    except Exception as e:
+    except Exception:
         prompt_system = ag.config.prompt_system
 
     # SET MAX TOKENS - via completion()

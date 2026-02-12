@@ -135,7 +135,7 @@ def parse_environment_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         environment_query_request = EnvironmentQueryRequest()
 
     return environment_query_request
@@ -311,7 +311,7 @@ def parse_environment_variant_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         environment_variant_query_request = EnvironmentVariantQueryRequest()
 
     return environment_variant_query_request

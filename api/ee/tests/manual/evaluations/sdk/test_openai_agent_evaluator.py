@@ -5,30 +5,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from agents import Runner
-import asyncio
-import json
-from typing import Optional, Dict, Any, List
-from uuid import uuid4
-from agents.exceptions import InputGuardrailTripwireTriggered
+from agents import Runner  # noqa: E402
+import asyncio  # noqa: E402
+import json  # noqa: E402
+from typing import Optional, Dict, Any, List  # noqa: E402
+from uuid import uuid4  # noqa: E402
+from agents.exceptions import InputGuardrailTripwireTriggered  # noqa: E402
 
-from pydantic import BaseModel, Field
-from litellm import acompletion
+from pydantic import BaseModel, Field  # noqa: E402
+from litellm import acompletion  # noqa: E402
 
-import agenta as ag
+import agenta as ag  # noqa: E402
 
 ag.init()
 
-from agenta.sdk.evaluations import aevaluate, display
+from agenta.sdk.evaluations import aevaluate  # noqa: E402
 
-from agenta.sdk.models.workflows import (
-    ApplicationRevision,
+from agenta.sdk.models.workflows import (  # noqa: E402
     ApplicationServiceRequest,
-    EvaluatorRevision,
     EvaluatorServiceRequest,
 )
 
-from openai_agent import triage_agent
+from openai_agent import triage_agent  # noqa: E402
 
 
 class EvaluationOutput(BaseModel):
@@ -213,7 +211,7 @@ async def agenta_agent(
     try:
         outputs = await Runner.run(triage_agent, inputs.get("question"))
         return outputs.final_output
-    except InputGuardrailTripwireTriggered as e:
+    except InputGuardrailTripwireTriggered:
         return "I'm sorry, I can't answer that question."
 
 

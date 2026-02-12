@@ -197,10 +197,22 @@ class LegacyApplicationsAdapter:
         folder_id: Optional[UUID] = None,
     ) -> Optional[UpdateAppOutput]:
         """Update an app and return in legacy format."""
+        current = await self.applications_service.fetch_application(
+            project_id=project_id,
+            application_ref=Reference(id=app_id),
+        )
+
+        if not current:
+            return None
+
         application_edit = ApplicationEdit(
             id=app_id,
-            name=app_name,
-            # folder_id is handled at artifact level
+            name=app_name if app_name is not None else current.name,
+            flags=current.flags,
+            tags=current.tags,
+            meta=current.meta,
+            description=current.description,
+            folder_id=folder_id if folder_id is not None else current.folder_id,
         )
 
         application = await self.applications_service.edit_application(
@@ -1208,6 +1220,8 @@ class LegacyApplicationsAdapter:
             app_type=self._flags_to_app_type(application, uri=uri),
             created_at=str(application.created_at) if application.created_at else None,
             updated_at=str(updated_at) if updated_at else None,
+            # TEMPORARY: Disabling name editing
+            folder_id=str(application.folder_id) if application.folder_id else None,
         )
 
     def _application_to_create_output(
@@ -1398,8 +1412,8 @@ class LegacyEnvironmentsAdapter:
     def __init__(
         self,
         *,
-        environments_service: "EnvironmentsService",
-        simple_environments_service: "SimpleEnvironmentsService",
+        environments_service: "EnvironmentsService",  # noqa: F821
+        simple_environments_service: "SimpleEnvironmentsService",  # noqa: F821
         applications_service: "ApplicationsService",
     ):
         self.environments_service = environments_service
@@ -1452,7 +1466,7 @@ class LegacyEnvironmentsAdapter:
         project_id: UUID,
         user_id: UUID,
         environment_name: str,
-    ) -> Optional["SimpleEnvironment"]:
+    ) -> Optional["SimpleEnvironment"]:  # noqa: F821
         """Fetch an environment by slug, creating it if it doesn't exist."""
         from oss.src.core.environments.dtos import (
             SimpleEnvironmentCreate,
@@ -1621,7 +1635,6 @@ class LegacyEnvironmentsAdapter:
 
         Returns (variant_id_str, variant_name) or (None, None).
         """
-        from oss.src.core.applications.dtos import ApplicationRevision
 
         revisions = await self.applications_service.query_application_revisions(
             project_id=project_id,
@@ -1921,8 +1934,40 @@ class LegacyEnvironmentsAdapter:
             windowing=Windowing(),
         )
 
-        # Get latest for the top-level environment output
-        latest = all_revisions[0] if all_revisions else None
+        # Filter revisions to legacy app-deployment semantics:
+        # 1) skip leading revisions where this app was never deployed
+        # 2) once first deployed, keep only revisions where this app's deployed
+        #    application revision actually changes
+        filtered_revisions: List[tuple] = []
+        last_deployed_revision_id: Optional[UUID] = None
+        has_seen_first_deployment = False
+        for rev in reversed(all_revisions):
+            rev_revision_id: Optional[UUID] = None
+            if rev.data and rev.data.references:
+                _, rev_revision_ref = self._extract_app_refs(
+                    rev.data.references,
+                    app_slug,
+                )
+                if rev_revision_ref and rev_revision_ref.id:
+                    rev_revision_id = rev_revision_ref.id
+
+            if not has_seen_first_deployment:
+                if rev_revision_id is None:
+                    continue
+                has_seen_first_deployment = True
+                last_deployed_revision_id = rev_revision_id
+                filtered_revisions.append((rev, rev_revision_id))
+                continue
+
+            if (
+                rev_revision_id is not None
+                and rev_revision_id != last_deployed_revision_id
+            ):
+                filtered_revisions.append((rev, rev_revision_id))
+                last_deployed_revision_id = rev_revision_id
+
+        # Latest deployment for this app (not latest global environment revision)
+        latest = filtered_revisions[-1][0] if filtered_revisions else None
 
         deployed_app_variant_revision_id = None
         deployed_app_variant_id = None
@@ -1947,31 +1992,27 @@ class LegacyEnvironmentsAdapter:
         if latest:
             revision_number = latest.version or 0
 
-        # Batch-resolve usernames for all revisions
-        rev_user_ids = [rev.updated_by_id or rev.created_by_id for rev in all_revisions]
+        # Batch-resolve usernames for filtered revisions only
+        rev_user_ids = [
+            rev.updated_by_id or rev.created_by_id for rev, _ in filtered_revisions
+        ]
         username_map = await _resolve_usernames(
             [uid for uid in rev_user_ids if uid is not None]
         )
 
         # Build revision list
         revision_list = []
-        for rev in all_revisions:
+        for rev, rev_revision_id in filtered_revisions:
             rev_deployed_variant_name = None
-            rev_deployed_revision_id = None
-            if rev.data and rev.data.references:
-                _, rev_revision_ref = self._extract_app_refs(
-                    rev.data.references,
-                    app_slug,
+            rev_deployed_revision_id = str(rev_revision_id) if rev_revision_id else None
+            if rev_revision_id:
+                (
+                    _,
+                    rev_deployed_variant_name,
+                ) = await self._resolve_variant_from_revision_id(
+                    project_id=project_id,
+                    variant_revision_id=rev_revision_id,
                 )
-                if rev_revision_ref and rev_revision_ref.id:
-                    rev_deployed_revision_id = str(rev_revision_ref.id)
-                    (
-                        _,
-                        rev_deployed_variant_name,
-                    ) = await self._resolve_variant_from_revision_id(
-                        project_id=project_id,
-                        variant_revision_id=rev_revision_ref.id,
-                    )
 
             rev_modified_by_id = rev.updated_by_id or rev.created_by_id
             rev_modified_by = (

@@ -7,6 +7,23 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 
 from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.base import Base
+
+# Side-effect imports: register SQLAlchemy models with Base.metadata
+# so Alembic autogenerate can discover them.
+import oss.src.dbs.postgres.environments.dbes  # noqa: F401
+import oss.src.dbs.postgres.evaluations.dbes  # noqa: F401
+import oss.src.dbs.postgres.folders.dbes  # noqa: F401
+import oss.src.dbs.postgres.queries.dbes  # noqa: F401
+import oss.src.dbs.postgres.secrets.dbes  # noqa: F401
+import oss.src.dbs.postgres.testcases.dbes  # noqa: F401
+import oss.src.dbs.postgres.testsets.dbes  # noqa: F401
+import oss.src.dbs.postgres.users.dbes  # noqa: F401
+import oss.src.dbs.postgres.workflows.dbes  # noqa: F401
+
+import ee.src.dbs.postgres.meters.dbes  # noqa: F401
+import ee.src.dbs.postgres.organizations.dbes  # noqa: F401
+import ee.src.dbs.postgres.subscriptions.dbes  # noqa: F401
 
 
 # this is the Alembic Config object, which provides
@@ -20,24 +37,6 @@ config.set_main_option("sqlalchemy.url", engine.postgres_uri_core)  # type: igno
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-from oss.src.dbs.postgres.shared.base import Base
-
-import oss.src.dbs.postgres.secrets.dbes  # noqa: F401
-import oss.src.dbs.postgres.tracing.dbes  # noqa: F401
-import oss.src.dbs.postgres.testcases.dbes  # noqa: F401
-import oss.src.dbs.postgres.testsets.dbes  # noqa: F401
-import oss.src.dbs.postgres.queries.dbes  # noqa: F401
-import oss.src.dbs.postgres.workflows.dbes  # noqa: F401
-import oss.src.dbs.postgres.evaluations.dbes  # noqa: F401
-import oss.src.dbs.postgres.tools.dbes  # noqa: F401
-
-import ee.src.dbs.postgres.meters.dbes  # noqa: F401
-import ee.src.dbs.postgres.subscriptions.dbes  # noqa: F401
-
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
