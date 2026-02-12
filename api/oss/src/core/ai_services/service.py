@@ -40,23 +40,32 @@ _REFINE_PROMPT_OUTPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "refined_prompt": {
-            "type": "string",
-            "description": "The refined prompt template as a stringified JSON object.",
-        },
         "messages": {
             "type": "array",
-            "description": "The refined messages array for verification.",
+            "description": "The refined messages array (same count and roles as input).",
             "items": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
-                    "role": {"type": "string"},
-                    "content": {"type": "string"},
+                    "role": {
+                        "type": "string",
+                        "enum": ["system", "developer", "user", "assistant"],
+                        "description": "Message role. Must match the original.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Refined message content.",
+                    },
                 },
+                "required": ["role", "content"],
             },
         },
+        "summary": {
+            "type": "string",
+            "description": "A short summary describing what was changed in this refinement.",
+        },
     },
-    "required": ["refined_prompt", "messages"],
+    "required": ["messages", "summary"],
 }
 
 
@@ -64,8 +73,8 @@ def _extract_structured_output(outputs: Any) -> Optional[Dict[str, Any]]:
     """Extract the structured output from the cloud completion runner response.
 
     The cloud returns ``{"data": "<json-string>", "trace_id": "..."}``
-    where ``data`` is a JSON string containing ``refined_prompt`` (stringified
-    JSON template) and ``messages`` (verification array).
+    where ``data`` is a JSON string containing ``messages`` (refined array)
+    and ``summary`` (short description of changes).
 
     Returns the parsed dict or None on failure.
     """
@@ -85,38 +94,26 @@ def _extract_structured_output(outputs: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(parsed, dict):
         return None
 
-    refined_prompt = parsed.get("refined_prompt")
-    if not isinstance(refined_prompt, str) or not refined_prompt.strip():
+    messages = parsed.get("messages")
+    if not isinstance(messages, list) or len(messages) == 0:
         return None
 
     return parsed
 
 
-def _validate_refined_template(refined_prompt_str: str) -> Optional[Dict[str, Any]]:
-    """Validate that refined_prompt is a valid JSON prompt template.
+def _validate_messages(messages: Any) -> bool:
+    """Validate that messages is a well-formed list of {role, content} dicts."""
 
-    Returns the parsed template dict if valid, None otherwise.
-    """
-
-    try:
-        template = json.loads(refined_prompt_str)
-    except Exception:  # pylint: disable=broad-exception-caught
-        return None
-
-    if not isinstance(template, dict):
-        return None
-
-    messages = template.get("messages")
     if not isinstance(messages, list) or len(messages) == 0:
-        return None
+        return False
 
     for msg in messages:
         if not isinstance(msg, dict):
-            return None
+            return False
         if "role" not in msg or "content" not in msg:
-            return None
+            return False
 
-    return template
+    return True
 
 
 class AIServicesService:
@@ -216,9 +213,9 @@ class AIServicesService:
             application_slug=str(self.config.refine_prompt_app),
             environment_slug=str(self.config.environment),
             inputs={
-                "prompt_template_json": prompt_template_json,
-                **({"guidelines": guidelines} if guidelines else {}),
-                **({"context": context} if context else {}),
+                "__ag_prompt_template_json": prompt_template_json,
+                "__ag_guidelines": guidelines or "",
+                "__ag_context": context or "",
             },
         )
 
@@ -254,27 +251,28 @@ class AIServicesService:
                 meta=ToolCallMeta(trace_id=trace_id),
             )
 
-        refined_prompt_str = structured["refined_prompt"]
+        messages = structured["messages"]
 
-        # Validate the refined_prompt is a valid JSON prompt template
-        template = _validate_refined_template(refined_prompt_str)
-        if not template:
+        # Validate the messages array
+        if not _validate_messages(messages):
             log.warning(
-                "[ai-services] refined_prompt is not a valid JSON prompt template",
+                "[ai-services] messages array is not valid",
             )
             return ToolCallResponse(
                 isError=True,
                 content=[
                     ToolCallTextContent(
-                        text="AI refine returned an invalid prompt template."
+                        text="AI refine returned an invalid messages array."
                     )
                 ],
                 meta=ToolCallMeta(trace_id=trace_id),
             )
 
+        summary = structured.get("summary", "Prompt refined successfully.")
+
         return ToolCallResponse(
             isError=False,
-            content=[ToolCallTextContent(text=refined_prompt_str)],
+            content=[ToolCallTextContent(text=summary)],
             structuredContent=structured,
             meta=ToolCallMeta(trace_id=trace_id),
         )

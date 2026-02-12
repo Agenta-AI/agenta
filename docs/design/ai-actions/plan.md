@@ -45,12 +45,51 @@ The contract is defined in `docs/design/ai-actions/spec.md`.
 
 ## Phase 2: Frontend
 
-- Add a status query; hide/disable UI when `enabled=false`.
-- Add "Refine prompt" entry point in prompt authoring UI (Playground prompt editor).
-- Implement client in `web/oss/src/services/ai-services/api/index.ts`.
+Full specification in `docs/design/ai-actions/frontend-spec.md`.
+
+### 2.1 Foundation (API + State)
+
+- Create `web/oss/src/services/aiServices/api.ts` - API client with `getStatus()` and `refinePrompt()`
+- Create `RefinePromptModal/store/refinePromptStore.ts` - Jotai atoms for modal state
+- Create `RefinePromptModal/types.ts` - TypeScript interfaces
+
+### 2.2 Modal Shell
+
+- Create `RefinePromptModal/index.tsx` - Modal wrapper using `EnhancedModal`
+- Create `RefinePromptModalContent.tsx` - Two-column layout (like CommitModal)
+- Header: title, diff toggle, close button
+- Footer: Cancel and "Use refined prompt" buttons
+
+### 2.3 Instructions Panel (Left Column)
+
+- `InstructionsPanel/index.tsx` - Container with header + chat + input
+- `ChatHistory.tsx` - Scrollable message list
+- `ChatMessage.tsx` - User messages (right-aligned, gray bg) vs AI messages (left-aligned)
+- `ChatInput.tsx` - Text input + send button (PaperPlaneTilt icon)
+
+### 2.4 Preview Panel (Right Column)
+
+- `PreviewPanel/index.tsx` - Container for preview content
+- `PreviewHeader.tsx` - "Refine prompt" title + Diff toggle switch
+- `EmptyState.tsx` - Initial state before first refinement
+- `LoadingState.tsx` - Skeleton loading during API call
+- `RefinedPromptView.tsx` - Editable messages using `MessageEditor` or `DiffView`
+
+### 2.5 Integration
+
+- Modify `PlaygroundVariantConfigPromptCollapseHeader.tsx` - Add magic wand icon button
+- Check AI services status to conditionally show/hide icon
+- Wire modal open state
+- Implement "Use refined prompt" action to update playground via molecule reducers
+
+### 2.6 Refinement Hook
+
+- Create `useRefinePrompt.ts` - Hook for API calls + iterative refinement logic
+- Manage chat history and loading states
+- Handle errors gracefully
 
 ## Phase 3: Hardening
 
 - Strict input validation (max prompt length; context length).
-- Strict output validation (ensure `refined_prompt` present; otherwise `isError=true`).
+- Strict output validation (ensure `messages` array is well-formed; otherwise `isError=true`).
 - Add logging for tool usage; propagate optional `trace_id`.
