@@ -11,9 +11,9 @@
 For comprehensive testing documentation, see [docs/designs/testing/README.md](docs/designs/testing/README.md).
 
 Quick overview:
-- **API Tests**: `cd api && AGENTA_API_URL=<api_url> AGENTA_AUTH_KEY=<auth_key> python -m pytest oss/tests/pytest/ -v`
-- **SDK Tests**: `cd sdk && AGENTA_API_URL=<api_url> AGENTA_AUTH_KEY=<auth_key> poetry run pytest tests/pytest/ -v`
-- **Web Tests**: `cd web/tests && AGENTA_WEB_URL=<web_url> TESTMAIL_NAMESPACE=<email_ns> TESTMAIL_API_KEY=<email_key> npx playwright test ../oss/tests/playwright/e2e/smoke.spec.ts`
+- **API Tests**: `cd api && python run-tests.py --api-url <api_url> --auth-key <auth_key> --license oss`
+- **SDK Tests**: `cd sdk && python run-tests.py --api-url <api_url> --auth-key <auth_key> --license oss`
+- **Web Tests**: `cd web/tests && AGENTA_WEB_URL=<web_url> TESTMAIL_NAMESPACE=<email_ns> TESTMAIL_API_KEY=<email_key> pnpm tsx playwright/scripts/run-tests.ts --coverage smoke`
 
 Test documentation covers:
 - Testing principles and philosophy
