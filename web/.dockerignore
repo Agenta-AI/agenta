@@ -13,6 +13,7 @@ tests/test-results
 tests/playwright-report
 .husky
 docs
+*.tsbuildinfo
 *.log
 .env
 .env.*

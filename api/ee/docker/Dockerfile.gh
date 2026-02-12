@@ -5,12 +5,13 @@ ARG POETRY_VERSION=1.8.4
 WORKDIR /app
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1 \
+    PIP_NO_CACHE_DIR=0 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 # Install poetry system-level (outside venv) — only used for export
-RUN pip install "poetry==${POETRY_VERSION}" "poetry-plugin-export"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install "poetry==${POETRY_VERSION}" "poetry-plugin-export"
 
 COPY ./pyproject.toml ./poetry.lock* /app/
 
@@ -22,12 +23,14 @@ COPY ./pyproject.toml ./poetry.lock* /app/
 # - hf_xet: transitive, never imported by app code
 # Kept: litellm + chain (tokenizers, huggingface_hub, tiktoken) — needed by agenta SDK
 # Kept: newrelic — used for observability
-RUN python -m venv /opt/venv \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.cache/pypoetry \
+    python -m venv /opt/venv \
     && . /opt/venv/bin/activate \
     && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
-    && pip install --no-cache-dir -r /tmp/requirements.txt \
+    && pip install -r /tmp/requirements.txt \
     && rm -f /tmp/requirements.txt \
-    && pip uninstall -y pip setuptools 2>/dev/null; true \
+    && (pip uninstall -y pip setuptools 2>/dev/null || true) \
     && SITE=$(python -c 'import site; print(site.getsitepackages()[0])') \
     && rm -rf \
         ${SITE}/polars* \
@@ -51,7 +54,10 @@ RUN mkdir -p /app/sdk
 COPY ./sd[k] /app/sdk/
 
 RUN if [ -f /app/sdk/pyproject.toml ]; then \
-        . /opt/venv/bin/activate && pip install pip && pip install --editable /app/sdk && pip uninstall -y pip 2>/dev/null; true; \
+        . /opt/venv/bin/activate && \
+        pip install pip && \
+        pip install --editable /app/sdk && \
+        (pip uninstall -y pip 2>/dev/null || true); \
     fi
 
 
@@ -62,12 +68,6 @@ ARG VCS_REF
 ARG VERSION=0.0.0
 
 WORKDIR /app
-
-LABEL org.opencontainers.image.title="agenta-api-ee" \
-    org.opencontainers.image.description="Agenta API EE GH runtime image" \
-    org.opencontainers.image.version="${VERSION}" \
-    org.opencontainers.image.revision="${VCS_REF}" \
-    org.opencontainers.image.created="${BUILD_DATE}"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -102,5 +102,11 @@ RUN set -eux; \
     for cron_file in /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron; do \
         sed -i -e '$a\' "${cron_file}"; \
     done
+
+LABEL org.opencontainers.image.title="agenta-api-ee" \
+    org.opencontainers.image.description="Agenta API EE GH runtime image" \
+    org.opencontainers.image.version="${VERSION}" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.created="${BUILD_DATE}"
 
 EXPOSE 8000
