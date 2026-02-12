@@ -121,6 +121,8 @@ class GitDAO(GitDAOInterface):
         project_id: UUID,
         #
         artifact_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Artifact]:
         if not artifact_ref:
             return None
@@ -134,6 +136,9 @@ class GitDAO(GitDAOInterface):
                 stmt = stmt.filter(self.ArtifactDBE.id == artifact_ref.id)  # type: ignore
             elif artifact_ref.slug:
                 stmt = stmt.filter(self.ArtifactDBE.slug == artifact_ref.slug)  # type: ignore
+
+            if include_archived is not True:
+                stmt = stmt.filter(self.ArtifactDBE.deleted_at.is_(None))  # type: ignore
 
             stmt = stmt.limit(1)
 
@@ -443,6 +448,8 @@ class GitDAO(GitDAOInterface):
         #
         artifact_ref: Optional[Reference] = None,
         variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Variant]:
         if not artifact_ref and not variant_ref:
             return None
@@ -460,6 +467,9 @@ class GitDAO(GitDAOInterface):
             elif artifact_ref:
                 if artifact_ref.id:
                     stmt = stmt.filter(self.VariantDBE.artifact_id == artifact_ref.id)  # type: ignore
+
+            if include_archived is not True:
+                stmt = stmt.filter(self.VariantDBE.deleted_at.is_(None))  # type: ignore
 
             stmt = stmt.limit(1)
 
@@ -901,6 +911,8 @@ class GitDAO(GitDAOInterface):
         #
         variant_ref: Optional[Reference] = None,
         revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Revision]:
         if not variant_ref and not revision_ref:
             return None
@@ -924,6 +936,9 @@ class GitDAO(GitDAOInterface):
                 else:
                     stmt = stmt.order_by(self.RevisionDBE.created_at.desc())  # type: ignore
                     stmt = stmt.offset(0)
+
+            if include_archived is not True:
+                stmt = stmt.filter(self.RevisionDBE.deleted_at.is_(None))  # type: ignore
 
             stmt = stmt.limit(1)
 

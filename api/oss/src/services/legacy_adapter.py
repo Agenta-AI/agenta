@@ -120,6 +120,7 @@ class LegacyApplicationsAdapter:
             project_id=project_id,
             application_query=application_query,
             application_refs=application_refs,
+            include_archived=False,
         )
 
         apps = []
@@ -176,6 +177,7 @@ class LegacyApplicationsAdapter:
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
+            include_archived=False,
         )
 
         if not application:
@@ -200,6 +202,7 @@ class LegacyApplicationsAdapter:
         current = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
+            include_archived=False,
         )
 
         if not current:
@@ -304,6 +307,7 @@ class LegacyApplicationsAdapter:
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
+            include_archived=False,
         )
 
         if not variant:
@@ -339,6 +343,7 @@ class LegacyApplicationsAdapter:
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
+            include_archived=False,
         )
 
         if not application:
@@ -405,6 +410,7 @@ class LegacyApplicationsAdapter:
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
+            include_archived=False,
         )
 
         if not variant:
@@ -536,6 +542,7 @@ class LegacyApplicationsAdapter:
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
+            include_archived=False,
         )
 
         if not application:
@@ -618,6 +625,7 @@ class LegacyApplicationsAdapter:
         return await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
+            include_archived=False,
         )
 
     async def fetch_variant_by_id(
@@ -630,6 +638,7 @@ class LegacyApplicationsAdapter:
         return await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
+            include_archived=False,
         )
 
     async def fetch_variant_by_slug(
@@ -649,6 +658,7 @@ class LegacyApplicationsAdapter:
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
+            include_archived=False,
         )
 
         if not application:
@@ -786,6 +796,7 @@ class LegacyApplicationsAdapter:
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
+            include_archived=False,
         )
 
         if not application:
@@ -855,6 +866,7 @@ class LegacyApplicationsAdapter:
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
+            include_archived=False,
         )
 
         if not variant:
@@ -937,6 +949,7 @@ class LegacyApplicationsAdapter:
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
+            include_archived=False,
         )
 
         if not variant:
@@ -1023,6 +1036,7 @@ class LegacyApplicationsAdapter:
         source_variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=base_id),
+            include_archived=False,
         )
 
         if not source_variant:
@@ -1048,6 +1062,7 @@ class LegacyApplicationsAdapter:
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
+            include_archived=False,
         )
 
         if not application:
@@ -1457,6 +1472,7 @@ class LegacyEnvironmentsAdapter:
         app = await self.applications_service.fetch_application(
             project_id=project_id,
             application_ref=Reference(id=app_id),
+            include_archived=False,
         )
         return app.slug if app else None
 
@@ -1475,9 +1491,21 @@ class LegacyEnvironmentsAdapter:
         env = await self.environments_service.fetch_environment(
             project_id=project_id,
             environment_ref=Reference(slug=environment_name),
+            include_archived=True,
         )
 
         if env is not None:
+            # If the environment exists but is archived, unarchive it instead of
+            # attempting a conflicting re-create with the same slug.
+            if getattr(env, "deleted_at", None) is not None:
+                env = await self.environments_service.unarchive_environment(
+                    project_id=project_id,
+                    user_id=user_id,
+                    environment_id=env.id,
+                )
+                if env is None:
+                    return None
+
             return await self.simple_environments_service.fetch(
                 project_id=project_id,
                 environment_id=env.id,
@@ -1530,6 +1558,7 @@ class LegacyEnvironmentsAdapter:
             variant = await self.environments_service.fetch_environment_variant(
                 project_id=project_id,
                 environment_ref=Reference(id=env.id),
+                include_archived=False,
             )
             if variant is None:
                 continue
@@ -1653,6 +1682,7 @@ class LegacyEnvironmentsAdapter:
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
+            include_archived=False,
         )
 
         if variant is None:
@@ -1691,6 +1721,7 @@ class LegacyEnvironmentsAdapter:
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
+            include_archived=False,
         )
         if variant is None:
             raise ValueError("App variant not found")
@@ -1745,6 +1776,7 @@ class LegacyEnvironmentsAdapter:
         env_variant = await self.environments_service.fetch_environment_variant(
             project_id=project_id,
             environment_ref=Reference(id=simple_env.id),
+            include_archived=False,
         )
         if env_variant is None:
             raise ValueError(f"Environment variant not found for '{environment_name}'")
@@ -1818,6 +1850,7 @@ class LegacyEnvironmentsAdapter:
         env = await self.environments_service.fetch_environment(
             project_id=project_id,
             environment_ref=Reference(slug=environment_name),
+            include_archived=False,
         )
         if env is None:
             return None
@@ -1826,6 +1859,7 @@ class LegacyEnvironmentsAdapter:
         env_variant = await self.environments_service.fetch_environment_variant(
             project_id=project_id,
             environment_ref=Reference(id=env.id),
+            include_archived=False,
         )
         if env_variant is None:
             return None
@@ -1896,6 +1930,7 @@ class LegacyEnvironmentsAdapter:
         env = await self.environments_service.fetch_environment(
             project_id=project_id,
             environment_ref=Reference(slug=environment_name),
+            include_archived=False,
         )
 
         # If environment doesn't exist in new tables, return empty result
@@ -1914,6 +1949,7 @@ class LegacyEnvironmentsAdapter:
         env_variant = await self.environments_service.fetch_environment_variant(
             project_id=project_id,
             environment_ref=Reference(id=env.id),
+            include_archived=False,
         )
         if env_variant is None:
             return {
