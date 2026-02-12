@@ -3,8 +3,10 @@ from uuid import uuid4, UUID
 from json import loads, JSONDecodeError
 from io import BytesIO
 
+import csv
+from io import StringIO
+
 import orjson
-import polars as pl
 from pydantic import ValidationError
 
 from fastapi.responses import StreamingResponse
@@ -1139,7 +1141,13 @@ class TestsetsRouter:
             buffer = BytesIO()
             _drop_empty_export_columns(testcases_data)
             csv_data = _prepare_testcases_for_csv(testcases_data)
-            pl.DataFrame(csv_data).write_csv(buffer)
+            if csv_data:
+                fieldnames = list(csv_data[0].keys())
+                text_buf = StringIO()
+                writer = csv.DictWriter(text_buf, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(csv_data)
+                buffer = BytesIO(text_buf.getvalue().encode("utf-8"))
             buffer.seek(0)
 
             return StreamingResponse(
@@ -2091,8 +2099,13 @@ class SimpleTestsetsRouter:
             buffer = BytesIO()
             _drop_empty_export_columns(testcases_data)
             csv_data = _prepare_testcases_for_csv(testcases_data)
-            df = pl.DataFrame(csv_data)
-            df.write_csv(buffer)
+            if csv_data:
+                fieldnames = list(csv_data[0].keys())
+                text_buf = StringIO()
+                writer = csv.DictWriter(text_buf, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(csv_data)
+                buffer = BytesIO(text_buf.getvalue().encode("utf-8"))
             buffer.seek(0)
 
             return StreamingResponse(

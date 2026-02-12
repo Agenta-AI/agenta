@@ -6,22 +6,40 @@ WORKDIR /app
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
-    POETRY_VIRTUALENVS_CREATE=false \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:${PATH}"
+    PYTHONUNBUFFERED=1
 
-RUN python -m venv /opt/venv \
-    && pip install --upgrade pip \
-    && pip install "poetry==${POETRY_VERSION}"
+# Install poetry system-level (outside venv) — only used for export
+RUN pip install "poetry==${POETRY_VERSION}" "poetry-plugin-export"
 
 COPY ./pyproject.toml ./poetry.lock* /app/
 
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=cache,target=/root/.cache/pypoetry \
-    poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
+# Create clean venv, install app deps, strip heavy unused deps, add stubs
+# Merged into one layer so stripped files don't persist in a previous layer.
+# Stripped:
+# - polars/polars_runtime/obstore: replaced by stdlib csv in testset code
+# - phonenumbers/twilio: required by supertokens at import-time but never called
+# Kept: litellm + chain (tokenizers, huggingface_hub, tiktoken) — needed by agenta SDK
+RUN python -m venv /opt/venv \
+    && . /opt/venv/bin/activate \
+    && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
     && pip install --no-cache-dir -r /tmp/requirements.txt \
-    && rm -f /tmp/requirements.txt
+    && rm -f /tmp/requirements.txt \
+    && pip uninstall -y pip setuptools 2>/dev/null; true \
+    && SITE=$(python -c 'import site; print(site.getsitepackages()[0])') \
+    && rm -rf \
+        ${SITE}/polars* \
+        ${SITE}/_polars* \
+        ${SITE}/obstore* \
+        ${SITE}/phonenumbers* \
+        ${SITE}/twilio* \
+    && mkdir -p ${SITE}/phonenumbers ${SITE}/twilio/rest \
+    && printf 'PhoneNumberFormat=type("PhoneNumberFormat",(),{"E164":0,"INTERNATIONAL":1,"NATIONAL":2})()\ndef parse(*a,**k):return None\ndef format_number(*a,**k):return ""\ndef is_valid_number(*a,**k):return False\n' \
+        > ${SITE}/phonenumbers/__init__.py \
+    && printf 'class Client:\n    def __init__(self,*a,**k):raise NotImplementedError("twilio stub")\n' \
+        > ${SITE}/twilio/__init__.py \
+    && cp ${SITE}/twilio/__init__.py ${SITE}/twilio/rest/__init__.py \
+    && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 COPY ./ee /app/ee/
 COPY ./oss /app/oss/
@@ -29,7 +47,9 @@ COPY ./entrypoints /app/entrypoints/
 RUN mkdir -p /app/sdk
 COPY ./sd[k] /app/sdk/
 
-RUN if [ -f /app/sdk/pyproject.toml ]; then pip install --editable /app/sdk; fi
+RUN if [ -f /app/sdk/pyproject.toml ]; then \
+        . /opt/venv/bin/activate && pip install pip && pip install --editable /app/sdk && pip uninstall -y pip 2>/dev/null; true; \
+    fi
 
 
 FROM python:3.11-slim-bookworm AS runtime

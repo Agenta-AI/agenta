@@ -511,7 +511,7 @@ class TracingRouter:
 
         # Calculate and propagate costs/tokens BEFORE batching
         # This ensures complete trace trees for proper metric propagation
-        span_dtos = calculate_and_propagate_metrics(span_dtos)
+        span_dtos = await calculate_and_propagate_metrics(span_dtos)
 
         if sync:
             # Synchronous path for low-volume, user-facing operations

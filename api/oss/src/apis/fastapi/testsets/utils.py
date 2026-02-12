@@ -5,8 +5,10 @@ from json import dumps
 from io import BytesIO
 from hashlib import blake2b as digest
 
+import csv
+from io import StringIO
+
 import orjson as oj
-import polars as pl
 
 from fastapi import HTTPException, Query
 
@@ -814,16 +816,10 @@ async def csv_file_to_json_array(
         list: A list of dictionaries representing the CSV rows.
     """
     try:
-        try:
-            data = await csv_file.read()
-            df = pl.read_csv(
-                BytesIO(data), infer_schema_length=0
-            )  # infer_schema_length=0 reads all as strings
-            return df.to_dicts()
-        except Exception as e:
-            log.error("[TESTSETS] Could not read CSV file", exc_info=True)
-            raise e
-
+        data = await csv_file.read()
+        text = data.decode("utf-8-sig")
+        reader = csv.DictReader(StringIO(text))
+        return list(reader)
     except Exception as e:
         log.error("[TESTSETS] Could not read CSV file", exc_info=True)
         raise e
@@ -848,16 +844,18 @@ def json_array_to_csv_file(
         return None
 
     try:
-        df = pl.DataFrame(json_array)
-
         # Apply type conversion if specified
         if column_types:
-            for col, dtype in column_types.items():
-                if col in df.columns:
-                    df = df.with_columns(pl.col(col).cast(dtype))
+            for row in json_array:
+                for col, dtype in column_types.items():
+                    if col in row:
+                        row[col] = dtype(row[col])
 
-        # Write directly to CSV using Polars
-        df.write_csv(output_csv_file)
+        fieldnames = list(json_array[0].keys())
+        with open(output_csv_file, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(json_array)
 
     except Exception as e:
         log.error("[TESTSETS] Could not convert JSON array to CSV file", exc_info=True)

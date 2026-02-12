@@ -216,7 +216,7 @@ class OTLPRouter:
         # -------------------------------------------------------------------- #
         if spans:
             try:
-                spans = calculate_and_propagate_metrics(spans)
+                spans = await calculate_and_propagate_metrics(spans)
             except Exception as e:
                 log.error(
                     f"[OTLP] Failed to calculate metrics: {e}",

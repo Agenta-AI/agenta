@@ -6,22 +6,22 @@ WORKDIR /app
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
-    POETRY_VIRTUALENVS_CREATE=false \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:${PATH}"
+    PYTHONUNBUFFERED=1
 
-RUN python -m venv /opt/venv \
-    && pip install --upgrade pip \
-    && pip install "poetry==${POETRY_VERSION}"
+# Install poetry system-level (outside venv) — only used for export
+RUN pip install "poetry==${POETRY_VERSION}" "poetry-plugin-export"
 
 COPY ./pyproject.toml ./poetry.lock* /app/
 
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=cache,target=/root/.cache/pypoetry \
-    poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
+# Create clean venv and install only app deps into it
+RUN python -m venv /opt/venv \
+    && . /opt/venv/bin/activate \
+    && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
     && pip install --no-cache-dir -r /tmp/requirements.txt \
-    && rm -f /tmp/requirements.txt
+    && rm -f /tmp/requirements.txt \
+    && pip uninstall -y pip setuptools 2>/dev/null; true \
+    && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 COPY ./oss /app/oss/
 COPY ./entrypoints /app/entrypoints/

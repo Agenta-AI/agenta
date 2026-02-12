@@ -3,7 +3,7 @@ from uuid import UUID
 from datetime import datetime
 from collections import OrderedDict
 
-from litellm import cost_calculator
+from oss.src.core.tracing.costs import cost_per_token as _cost_per_token
 
 
 from oss.src.utils.logging import get_module_logger
@@ -192,7 +192,7 @@ def parse_span_dtos_to_span_idx(
     return span_idx
 
 
-def calculate_and_propagate_metrics(
+async def calculate_and_propagate_metrics(
     span_dtos: List[OTelFlatSpan],
 ) -> List[OTelFlatSpan]:
     """
@@ -215,7 +215,7 @@ def calculate_and_propagate_metrics(
     span_id_tree = parse_span_idx_to_span_id_tree(span_idx)
 
     # Calculate incremental costs from token counts
-    calculate_costs(span_idx)
+    await calculate_costs(span_idx)
 
     # Propagate costs up the tree (children to parents)
     cumulate_costs(span_id_tree, span_idx)
@@ -565,7 +565,7 @@ TYPES_WITH_COSTS = [
 ]
 
 
-def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
+async def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
     for span in span_idx.values():
         if (
             span.span_type
@@ -594,7 +594,7 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
             )
 
             try:
-                costs = cost_calculator.cost_per_token(
+                costs = await _cost_per_token(
                     model=model,
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
