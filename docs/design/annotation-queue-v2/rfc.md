@@ -7,7 +7,13 @@
 
 ## Summary
 
-This RFC proposes a redesign of the annotation queue system to support four key capabilities: annotating test sets, human evaluation in eval runs, annotating traces, and programmatic annotation via API/SDK. Two solution approaches are presented with detailed tradeoffs.
+This RFC proposes a redesign of the annotation queue system to support four key capabilities: annotating test sets, human evaluation in eval runs, annotating traces, and programmatic annotation via API/SDK. Three solution approaches are presented:
+
+- **Solution A**: Extend evaluation runs as a universal container
+- **Solution B**: New annotation domain with dedicated entities
+- **Solution C**: Metadata-based queues with no new tables (**Recommended for v1**)
+
+Solution C is recommended for initial implementation due to minimal changes, fast time-to-value, and alignment with industry patterns.
 
 ## Motivation
 
@@ -658,40 +664,397 @@ api/oss/src/
 
 ---
 
+## Solution C: Metadata-Based Queues (Recommended for v1)
+
+### Philosophy
+
+**No new entities. Queues are just filtered views over existing data.** Annotations, review status, and assignments are stored as metadata fields on items (spans, testcases). This is the simplest approach and matches industry patterns (see [competitive-analysis.md](./competitive-analysis.md)).
+
+### Core Principle
+
+Instead of creating queue and task tables, we:
+1. Add review metadata to existing entities (spans, testcases)
+2. Query "the queue" by filtering items with that metadata
+3. Store annotations inline on the items
+
+### Data Model
+
+No new tables. Just metadata conventions on existing entities:
+
+```json
+// Span or Testcase
+{
+  "id": "item-123",
+  "data": {...},           // Original item data
+  "meta": {
+    // Review queue membership
+    "agenta.review": {
+      "queues": {
+        "default": {
+          "status": "pending",      // pending | completed | skipped
+          "added_at": "2024-...",
+          "added_by": "user-123"
+        },
+        "quality-review-q1": {
+          "status": "completed",
+          "completed_at": "2024-...",
+          "completed_by": "user-456"
+        }
+      },
+      "assignments": ["user-456", "user-789"],  // Assigned annotators
+      "claimed_by": "user-456",                 // Current claim (optional)
+      "claimed_at": "2024-..."                  // Claim timestamp (optional)
+    },
+    // Annotations stored inline
+    "agenta.annotations": {
+      "quality": 4,
+      "notes": "Good response, minor formatting issue",
+      "tags": ["accurate", "verbose"]
+    }
+  }
+}
+```
+
+### API Design
+
+#### Adding Items to Review
+
+```python
+# Add spans to review queue
+PATCH /tracing/spans/batch
+{
+  "span_ids": ["span-1", "span-2", "span-3"],
+  "meta": {
+    "agenta.review.queues.default": {
+      "status": "pending",
+      "added_at": "2024-..."
+    },
+    "agenta.review.assignments": ["user-456"]
+  }
+}
+
+# Add testcases to review queue
+PATCH /testcases/batch
+{
+  "testcase_ids": ["tc-1", "tc-2"],
+  "meta": {
+    "agenta.review.queues.default.status": "pending"
+  }
+}
+```
+
+#### Querying the Inbox
+
+For **traces** (already supported):
+```python
+POST /tracing/spans/query
+{
+  "filtering": {
+    "conditions": [
+      {"field": "meta.agenta.review.queues.default.status", "operator": "is", "value": "pending"}
+    ]
+  }
+}
+```
+
+For **testcases** (needs meta filter exposed):
+```python
+POST /testcases/query
+{
+  "meta": {
+    "agenta.review.queues.default.status": "pending"
+  }
+}
+```
+
+For **combined inbox** (new convenience endpoint):
+```python
+GET /annotations/inbox?user_id=X&status=pending
+
+# Returns items from both spans and testcases
+# Internally runs parallel queries and merges
+```
+
+#### Submitting Annotations
+
+```python
+PATCH /tracing/spans/{span_id}
+{
+  "meta": {
+    "agenta.review.queues.default.status": "completed",
+    "agenta.review.queues.default.completed_by": "user-456",
+    "agenta.annotations.quality": 4,
+    "agenta.annotations.notes": "Good response"
+  }
+}
+```
+
+#### Optional: Queue Registry (Lightweight)
+
+For queue-level metadata (name, description, instructions), add a simple registry:
+
+```python
+POST /annotations/queues
+{
+  "slug": "quality-review-q1",
+  "name": "Quality Review Q1",
+  "description": "Review responses for quality rating",
+  "instructions": "Rate quality 1-5, add notes for anything below 3",
+  "annotation_schema": {
+    "type": "object",
+    "properties": {
+      "quality": {"type": "integer", "minimum": 1, "maximum": 5},
+      "notes": {"type": "string"}
+    },
+    "required": ["quality"]
+  }
+}
+```
+
+This is a lightweight entity for UI/documentation purposes only — the actual queue membership is still in item metadata.
+
+### Implementation Changes
+
+#### Backend (Minimal)
+
+1. **Expose meta filter for testcases** (1-2 lines):
+   ```python
+   # In TestcasesQueryRequest
+   meta: Optional[Meta] = None
+   
+   # Pass through to service → DAO (already supported)
+   ```
+
+2. **Add inbox endpoint** (new convenience):
+   ```python
+   GET /annotations/inbox
+   # Queries spans and testcases with review metadata
+   # Returns unified list
+   ```
+
+3. **Optional: Queue registry** (simple CRUD):
+   ```python
+   # New lightweight entity for queue metadata
+   # No foreign keys to items
+   ```
+
+#### Frontend
+
+1. **Trace list**: Add "Send to review" action
+2. **Testcase list**: Add "Send to review" action
+3. **Inbox view**: Query items with review metadata
+4. **Annotation form**: Render based on schema (or freeform)
+
+### Example Flows
+
+#### Annotating Traces
+
+```python
+# 1. User selects traces in UI, clicks "Send to review"
+PATCH /tracing/spans/batch
+{
+  "span_ids": ["s1", "s2", "s3"],
+  "meta": {"agenta.review.queues.default.status": "pending"}
+}
+
+# 2. Annotator opens inbox, sees pending items
+GET /annotations/inbox?status=pending
+
+# 3. Annotator completes annotation
+PATCH /tracing/spans/s1
+{
+  "meta": {
+    "agenta.review.queues.default.status": "completed",
+    "agenta.annotations.quality": "good"
+  }
+}
+
+# 4. Annotation is now on the span, queryable/filterable
+GET /tracing/spans/query?filter=meta.agenta.annotations.quality:good
+```
+
+#### Annotating Testcases
+
+```python
+# 1. User selects testcases, clicks "Send to review"
+PATCH /testcases/batch
+{
+  "testcase_ids": ["tc1", "tc2"],
+  "meta": {"agenta.review.queues.default.status": "pending"}
+}
+
+# 2. Same inbox query
+GET /annotations/inbox?status=pending
+
+# 3. Annotator completes
+PATCH /testcases/tc1
+{
+  "meta": {
+    "agenta.review.queues.default.status": "completed",
+    "agenta.annotations.expected_output": "The answer is 42"
+  }
+}
+
+# 4. Annotation is on the testcase
+# Can be committed to a new testset revision with annotations as columns
+```
+
+#### Human Evaluation in Eval Runs
+
+```python
+# 1. Create eval run with human evaluator step
+# System auto-adds scenarios to review queue
+POST /evaluations/runs
+{
+  "data": {
+    "steps": [
+      {"key": "auto-scorer", "type": "annotation", "origin": "auto"},
+      {"key": "human-review", "type": "annotation", "origin": "human"}
+    ]
+  }
+}
+
+# 2. For human steps, scenarios get review metadata
+# (Internally: scenarios are evaluation results, same metadata pattern)
+
+# 3. Annotators complete via inbox
+# Results written to evaluation_results as before
+```
+
+### Claim Mechanism (Optional)
+
+For concurrent access control:
+
+```python
+# Claim an item
+PATCH /tracing/spans/{span_id}
+{
+  "meta": {
+    "agenta.review.claimed_by": "user-456",
+    "agenta.review.claimed_at": "2024-..."
+  }
+}
+
+# Release claim (timeout or manual)
+PATCH /tracing/spans/{span_id}
+{
+  "meta": {
+    "agenta.review.claimed_by": null,
+    "agenta.review.claimed_at": null
+  }
+}
+
+# Inbox query can filter by claim status
+GET /annotations/inbox?status=pending&unclaimed=true
+```
+
+### Pros
+
+| Benefit | Details |
+|---------|---------|
+| **Minimal changes** | No new tables, just metadata conventions |
+| **Fast to implement** | 1-2 weeks backend |
+| **Flexible** | Any field can be an annotation |
+| **Self-describing** | Items carry their own review/annotation state |
+| **Queryable** | Annotations are filterable like any metadata |
+| **No migration** | Works with existing data |
+| **Familiar pattern** | Matches industry approach |
+
+### Cons
+
+| Drawback | Details |
+|----------|---------|
+| **No schema enforcement** | Annotations are freeform (optional registry helps) |
+| **Progress requires aggregation** | No pre-computed counts |
+| **Limited assignment logic** | No built-in round-robin |
+| **Cross-entity inbox** | Requires merging multiple queries |
+| **Testcase filter gap** | Need to expose meta filter in API |
+
+### Effort Estimate
+
+- **Backend**: 1-2 weeks
+  - Expose meta filter for testcases: 1 day
+  - Batch update endpoints: 2-3 days
+  - Inbox endpoint: 2-3 days
+  - Optional queue registry: 2-3 days
+  - Tests: 2-3 days
+- **Frontend**: 2-3 weeks (inbox, annotation UI, integration)
+- **SDK**: 3-5 days
+
+### Evolution Path
+
+Start with Solution C, add structure as needed:
+
+**v1 (Solution C)**:
+- Metadata-based review status
+- Freeform annotations
+- Simple inbox query
+- No queue entity
+
+**v1.5 (Optional enhancements)**:
+- Queue registry for metadata/instructions
+- Schema validation
+- Claim mechanism
+
+**v2 (If needed)**:
+- Upgrade to Solution B if:
+  - Need sophisticated assignment algorithms
+  - Need per-queue progress dashboards
+  - Need complex lifecycle management
+
+---
+
 ## Comparison Matrix
 
-| Aspect | Solution A (Extend Runs) | Solution B (New Domain) |
-|--------|--------------------------|-------------------------|
-| **Schema changes** | Minimal (extend existing) | New tables |
-| **Conceptual clarity** | Muddled ("eval run" misnomer) | Clean (annotation is annotation) |
-| **Per-task status** | Bolted onto EvaluationResult | Native |
-| **Write-back** | Hooks on result creation | Explicit service |
-| **Source flexibility** | Via adapters | Native polymorphism |
-| **Query model** | Reuses evaluation queries | New query patterns |
-| **Backward compat** | High | Requires migration |
-| **Implementation effort** | 2-3 weeks backend | 4-5 weeks backend |
-| **Maintenance burden** | Higher (dual-purpose entities) | Lower (separation of concerns) |
-| **Future extensibility** | Limited by eval model | Unconstrained |
+| Aspect | Solution A (Extend Runs) | Solution B (New Domain) | Solution C (Metadata) |
+|--------|--------------------------|-------------------------|----------------------|
+| **Schema changes** | Minimal (extend existing) | New tables | None |
+| **Conceptual clarity** | Muddled ("eval run" misnomer) | Clean (annotation domain) | Simple (just metadata) |
+| **Per-task status** | Bolted onto EvaluationResult | Native task entity | Metadata field |
+| **Write-back** | Hooks on result creation | Explicit service | Inline on item |
+| **Source flexibility** | Via adapters | Native polymorphism | Universal (any item) |
+| **Query model** | Reuses evaluation queries | New query patterns | Existing filters |
+| **Backward compat** | High | Requires migration | Full |
+| **Implementation effort** | 2-3 weeks backend | 4-5 weeks backend | 1-2 weeks backend |
+| **Maintenance burden** | Higher (dual-purpose entities) | Lower (separation) | Lowest (no new entities) |
+| **Future extensibility** | Limited by eval model | Unconstrained | Can upgrade to B |
+| **Schema enforcement** | Via evaluator schemas | Per-queue schema | Optional registry |
+| **Assignment algorithms** | Existing partitioning | Built-in | Manual only |
 
 ## Recommendation
 
-**For a product where annotation is becoming a core workflow**: Choose **Solution B**. The upfront investment pays off in cleaner architecture, better extensibility, and reduced long-term maintenance.
+**Start with Solution C** for v1. It's the fastest path to a working annotation system with minimal risk. The metadata-based approach:
 
-**For a quick win with limited scope**: Choose **Solution A**. If annotation is primarily a supporting feature for evaluations and the other use cases are secondary, the pragmatic approach gets you there faster.
+1. Ships in 1-2 weeks (backend)
+2. Requires no migrations
+3. Works with existing trace and testcase infrastructure
+4. Can be enhanced incrementally
+5. Matches proven industry patterns
+
+**Upgrade to Solution B** later if you need:
+- Sophisticated assignment algorithms
+- Queue-level dashboards and analytics
+- Complex lifecycle management
+- Strict schema enforcement
 
 ### Decision Factors
 
-Choose **Solution A** if:
-- Annotation is primarily used within evaluation runs
-- Time-to-market is critical
-- Team is already deep in evaluation codebase
-- Minimal new concepts preferred
+Choose **Solution C** if:
+- You want to ship quickly
+- Freeform annotations are acceptable
+- Simple assignment (manual or first-come) is sufficient
+- You're okay with progress tracking via aggregation queries
 
 Choose **Solution B** if:
-- Annotation is a major product pillar
-- Trace annotation and test set annotation are important use cases
-- Clean APIs for SDK/programmatic access matter
-- Long-term maintainability is prioritized
+- Annotation is a major product pillar from day one
+- You need round-robin or load-balanced assignment
+- Queue-level metadata and lifecycle are critical
+- You want pre-computed progress dashboards
+
+Choose **Solution A** if:
+- Annotation is primarily within evaluation runs
+- You want to reuse evaluation infrastructure
+- The "eval run" abstraction doesn't bother you
 
 ---
 
@@ -711,11 +1074,21 @@ Choose **Solution B** if:
 
 ## Next Steps
 
-1. **Decide on solution approach** — A or B
-2. **Detail the chosen solution** — API specs, detailed schema, migration plan
-3. **Create implementation plan** — Phased rollout, milestones
-4. **Design UI/UX** — Wireframes for inbox, annotation interface
-5. **SDK design** — Client library ergonomics
+1. **Decide on solution approach** — Recommended: Solution C for v1
+2. **Detail implementation** — For Solution C:
+   - Expose meta filter for testcases API
+   - Add batch update endpoints for spans/testcases
+   - Create inbox convenience endpoint
+   - Define metadata conventions (`agenta.review.*`, `agenta.annotations.*`)
+3. **Design UI/UX** — Wireframes for:
+   - "Send to review" action in trace/testcase lists
+   - Inbox view with filtering
+   - Annotation form (freeform or schema-driven)
+4. **SDK design** — Methods for:
+   - Adding items to review queue
+   - Querying inbox
+   - Submitting annotations
+5. **Optional: Queue registry** — Decide if queue-level metadata (name, instructions, schema) is needed for v1
 
 ---
 
