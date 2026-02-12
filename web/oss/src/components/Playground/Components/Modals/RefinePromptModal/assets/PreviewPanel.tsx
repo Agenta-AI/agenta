@@ -6,7 +6,7 @@
  * - Or diff view when diff toggle is on (controlled by parent)
  *
  * The `promptVersion` prop is used as part of editor keys to force
- * remount when the working prompt changes (SharedEditor uses
+ * remount when a new AI refinement result arrives (SharedEditor uses
  * initialValue and does not update reactively).
  */
 

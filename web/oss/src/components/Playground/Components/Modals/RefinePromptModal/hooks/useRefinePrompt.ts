@@ -24,6 +24,7 @@ import {
     pendingGuidelinesAtomFamily,
     refineIterationsAtomFamily,
     refineLoadingAtomFamily,
+    workingPromptVersionAtomFamily,
     workingPromptAtomFamily,
 } from "../store/refinePromptStore"
 import type {PromptTemplate, RefinementIteration} from "../types"
@@ -110,6 +111,7 @@ export function useRefinePrompt({
     // Setters (stable references from Jotai)
     const setOriginalSnapshot = useSetAtom(originalPromptSnapshotAtomFamily(promptId))
     const setWorkingPrompt = useSetAtom(workingPromptAtomFamily(promptId))
+    const setWorkingPromptVersion = useSetAtom(workingPromptVersionAtomFamily(promptId))
     const setIterations = useSetAtom(refineIterationsAtomFamily(promptId))
     const setLoading = useSetAtom(refineLoadingAtomFamily(promptId))
     const setPendingGuidelines = useSetAtom(pendingGuidelinesAtomFamily(promptId))
@@ -181,6 +183,7 @@ export function useRefinePrompt({
                 }
 
                 setWorkingPrompt(refinedPrompt)
+                setWorkingPromptVersion((prev) => prev + 1)
 
                 const iteration: RefinementIteration = {
                     id: generateId(),
@@ -213,6 +216,7 @@ export function useRefinePrompt({
             promptId,
             setOriginalSnapshot,
             setWorkingPrompt,
+            setWorkingPromptVersion,
             setIterations,
             setLoading,
             setPendingGuidelines,

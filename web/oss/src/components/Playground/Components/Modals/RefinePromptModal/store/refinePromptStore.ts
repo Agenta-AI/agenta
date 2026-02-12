@@ -3,7 +3,7 @@
  *
  * Key insight: This is NOT a chat. Each "turn" is a refinement request:
  * - User provides `guidelines`
- * - AI returns `explanation` + `refined_prompt`
+ * - AI returns `messages` + `summary`
  *
  * The state models this as RefinementIteration[], not chat messages.
  */
@@ -33,6 +33,15 @@ export const refineIterationsAtomFamily = atomFamily((promptId: string) =>
 export const workingPromptAtomFamily = atomFamily((promptId: string) =>
     atom<PromptTemplate | null>(null),
 )
+
+/**
+ * Editor remount version.
+ *
+ * Increments only when AI returns a new refined prompt so MessageEditor
+ * can reinitialize from the latest AI output without remounting on
+ * each manual keystroke.
+ */
+export const workingPromptVersionAtomFamily = atomFamily((promptId: string) => atom(0))
 
 /**
  * Loading state for refinement API calls
@@ -69,6 +78,7 @@ export const resetRefineModalAtomFamily = atomFamily((promptId: string) =>
         set(refineModalOpenAtomFamily(promptId), false)
         set(refineIterationsAtomFamily(promptId), [])
         set(workingPromptAtomFamily(promptId), null)
+        set(workingPromptVersionAtomFamily(promptId), 0)
         set(refineLoadingAtomFamily(promptId), false)
         set(refineDiffViewAtomFamily(promptId), false)
         set(originalPromptSnapshotAtomFamily(promptId), null)

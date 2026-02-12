@@ -21,6 +21,7 @@ import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyE
 import {
     refineDiffViewAtomFamily,
     refineIterationsAtomFamily,
+    workingPromptVersionAtomFamily,
     workingPromptAtomFamily,
 } from "../store/refinePromptStore"
 
@@ -40,17 +41,9 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
 }) => {
     const iterations = useAtomValue(refineIterationsAtomFamily(promptId))
     const workingPrompt = useAtomValue(workingPromptAtomFamily(promptId))
+    const promptVersion = useAtomValue(workingPromptVersionAtomFamily(promptId))
     const [showDiff, setShowDiff] = useAtom(refineDiffViewAtomFamily(promptId))
     const setPrompts = useSetAtom(moleculeBackedPromptsAtomFamily(variantId))
-
-    // Track a version counter that increments each time workingPrompt changes.
-    // This forces PreviewPanel's editors to remount with fresh initialValue.
-    const promptVersionRef = useRef(0)
-    const prevPromptRef = useRef(workingPrompt)
-    if (prevPromptRef.current !== workingPrompt) {
-        promptVersionRef.current += 1
-        prevPromptRef.current = workingPrompt
-    }
 
     const hasRefinedPrompt = workingPrompt !== null && iterations.length > 0
 
@@ -149,7 +142,7 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
                         <PreviewPanel
                             variantId={variantId}
                             promptId={promptId}
-                            promptVersion={promptVersionRef.current}
+                            promptVersion={promptVersion}
                         />
                     ) : (
                         <div className="flex h-full items-center justify-center px-4">
