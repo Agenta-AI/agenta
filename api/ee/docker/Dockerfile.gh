@@ -19,7 +19,9 @@ COPY ./pyproject.toml ./poetry.lock* /app/
 # Stripped:
 # - polars/polars_runtime/obstore: replaced by stdlib csv in testset code
 # - phonenumbers/twilio: required by supertokens at import-time but never called
+# - hf_xet: transitive, never imported by app code
 # Kept: litellm + chain (tokenizers, huggingface_hub, tiktoken) — needed by agenta SDK
+# Kept: newrelic — used for observability
 RUN python -m venv /opt/venv \
     && . /opt/venv/bin/activate \
     && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
@@ -33,6 +35,7 @@ RUN python -m venv /opt/venv \
         ${SITE}/obstore* \
         ${SITE}/phonenumbers* \
         ${SITE}/twilio* \
+        ${SITE}/hf_xet* \
     && mkdir -p ${SITE}/phonenumbers ${SITE}/twilio/rest \
     && printf 'PhoneNumberFormat=type("PhoneNumberFormat",(),{"E164":0,"INTERNATIONAL":1,"NATIONAL":2})()\ndef parse(*a,**k):return None\ndef format_number(*a,**k):return ""\ndef is_valid_number(*a,**k):return False\n' \
         > ${SITE}/phonenumbers/__init__.py \
@@ -71,13 +74,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app:/app/sdk \
     PATH="/opt/venv/bin:${PATH}"
 
+# Hardcode bookworm codename to avoid pulling in lsb-release (+ perl ~56MB)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl cron gnupg2 lsb-release && \
-    echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get install -y --no-install-recommends curl cron gnupg2 && \
+    echo "deb http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
     curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
     gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg && \
     apt-get update && \
     apt-get install -y --no-install-recommends postgresql-client-17 && \
+    apt-get purge -y --auto-remove gnupg2 && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv

@@ -14,13 +14,25 @@ RUN pip install "poetry==${POETRY_VERSION}" "poetry-plugin-export"
 
 COPY ./pyproject.toml ./poetry.lock* /app/
 
-# Create clean venv and install only app deps into it
+# Create clean venv, install app deps, strip heavy unused deps
+# Merged into one layer so stripped files don't persist in a previous layer.
+# Stripped:
+# - obstore/hf_xet: transitive, never imported
+# - shapely: transitive from google-cloud-aiplatform, never used
+# Kept: litellm + provider SDKs (google-cloud-aiplatform, boto3, openai) — litellm
+#   dynamically imports these at runtime to route calls to different LLM providers
+# Kept: newrelic — used for observability
 RUN python -m venv /opt/venv \
     && . /opt/venv/bin/activate \
     && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
     && pip install --no-cache-dir -r /tmp/requirements.txt \
     && rm -f /tmp/requirements.txt \
     && pip uninstall -y pip setuptools 2>/dev/null; true \
+    && SITE=$(python -c 'import site; print(site.getsitepackages()[0])') \
+    && rm -rf \
+        ${SITE}/obstore* \
+        ${SITE}/hf_xet* \
+        ${SITE}/shapely* \
     && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 COPY ./oss /app/oss/
