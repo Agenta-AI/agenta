@@ -261,7 +261,15 @@ function hasPromptContent(value: unknown): boolean {
     }
 
     const obj = value as Record<string, unknown>
-    if (obj.messages || obj.prompt || obj.prompt_template || obj.system_prompt || obj.user_prompt) {
+    if (
+        obj.messages ||
+        obj.prompt ||
+        obj.prompt_template ||
+        obj.system_prompt ||
+        obj.user_prompt ||
+        obj.llm_config ||
+        obj.llmConfig
+    ) {
         return true
     }
 
