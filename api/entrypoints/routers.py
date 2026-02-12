@@ -103,6 +103,12 @@ from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 
+from oss.src.dbs.postgres.tools.dao import ToolsDAO
+from oss.src.core.tools.adapters.composio import ComposioAdapter
+from oss.src.core.tools.adapters.registry import GatewayAdapterRegistry
+from oss.src.core.tools.service import ToolsService
+from oss.src.apis.fastapi.tools.router import ToolsRouter
+
 
 from oss.src.routers import (
     admin_router,
@@ -238,6 +244,8 @@ environments_dao = GitDAO(
 evaluations_dao = EvaluationsDAO()
 folders_dao = FoldersDAO()
 
+tools_dao = ToolsDAO()
+
 # SERVICES ---------------------------------------------------------------------
 
 vault_service = VaultService(
@@ -332,6 +340,23 @@ simple_evaluations_service = SimpleEvaluationsService(
     evaluations_worker=evaluations_worker,
 )
 
+# Tools adapter + service
+_composio_adapters = {}
+if env.composio.enabled:
+    _composio_adapters["composio"] = ComposioAdapter(
+        api_key=env.composio.api_key,
+        base_url=env.composio.base_url,
+    )
+
+tools_adapter_registry = GatewayAdapterRegistry(
+    adapters=_composio_adapters,
+)
+
+tools_service = ToolsService(
+    tools_dao=tools_dao,
+    adapter_registry=tools_adapter_registry,
+)
+
 # ROUTERS ----------------------------------------------------------------------
 
 secrets = VaultRouter(
@@ -407,6 +432,10 @@ evaluations = EvaluationsRouter(
 
 simple_evaluations = SimpleEvaluationsRouter(
     simple_evaluations_service=simple_evaluations_service,
+)
+
+tools = ToolsRouter(
+    tools_service=tools_service,
 )
 
 invocations_service = InvocationsService(
@@ -555,6 +584,12 @@ app.include_router(
 )
 
 app.include_router(
+    router=tools.router,
+    prefix="/preview/tools",
+    tags=["Tools"],
+)
+
+app.include_router(
     router=evaluations.admin_router,
     prefix="/admin/evaluations",
     tags=["Evaluations", "Admin"],
@@ -667,11 +702,6 @@ app.include_router(
 )
 
 # ------------------------------------------------------------------------------
-
-
-import oss.src.core.evaluations.tasks.live
-import oss.src.core.evaluations.tasks.legacy
-import oss.src.core.evaluations.tasks.batch
 
 
 if ee and is_ee():

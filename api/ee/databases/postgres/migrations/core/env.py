@@ -1,10 +1,8 @@
-import os
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import pool
 from sqlalchemy.engine import Connection, create_engine
-from sqlalchemy.ext.asyncio import async_engine_from_config, create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 
@@ -26,17 +24,17 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from oss.src.dbs.postgres.shared.base import Base
 
-import oss.src.dbs.postgres.secrets.dbes
-import oss.src.dbs.postgres.tracing.dbes
-import oss.src.dbs.postgres.testcases.dbes
-import oss.src.dbs.postgres.testsets.dbes
-import oss.src.dbs.postgres.queries.dbes
-import oss.src.dbs.postgres.workflows.dbes
-import oss.src.dbs.postgres.evaluations.dbes
+import oss.src.dbs.postgres.secrets.dbes  # noqa: F401
+import oss.src.dbs.postgres.tracing.dbes  # noqa: F401
+import oss.src.dbs.postgres.testcases.dbes  # noqa: F401
+import oss.src.dbs.postgres.testsets.dbes  # noqa: F401
+import oss.src.dbs.postgres.queries.dbes  # noqa: F401
+import oss.src.dbs.postgres.workflows.dbes  # noqa: F401
+import oss.src.dbs.postgres.evaluations.dbes  # noqa: F401
+import oss.src.dbs.postgres.tools.dbes  # noqa: F401
 
-import ee.src.dbs.postgres.meters.dbes
-import ee.src.dbs.postgres.subscriptions.dbes
-
+import ee.src.dbs.postgres.meters.dbes  # noqa: F401
+import ee.src.dbs.postgres.subscriptions.dbes  # noqa: F401
 
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata

@@ -16,8 +16,6 @@ config = context.config
 config.set_main_option("sqlalchemy.url", POSTGRES_URI_CORE)  # type: ignore
 
 
-import oss.src.dbs.postgres.secrets.dbes
-
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
@@ -27,7 +25,6 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from oss.src.dbs.postgres.shared.base import Base
 
-import oss.src.dbs.postgres.secrets.dbes
 
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata

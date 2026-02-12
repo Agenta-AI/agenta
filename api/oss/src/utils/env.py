@@ -558,6 +558,21 @@ class PostgresConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class ComposioConfig(BaseModel):
+    """Composio integration configuration"""
+
+    api_key: str = os.getenv("COMPOSIO_API_KEY", "")
+    base_url: str = os.getenv(
+        "COMPOSIO_BASE_URL", "https://backend.composio.dev/api/v3"
+    )
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.api_key.strip())
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class AlembicConfig(BaseModel):
     """Database migration configuration"""
 
@@ -613,6 +628,7 @@ class EnvironSettings(BaseModel):
     agenta: AgentaConfig = AgentaConfig()
     postgres: PostgresConfig = PostgresConfig()
     alembic: AlembicConfig = AlembicConfig()
+    composio: ComposioConfig = ComposioConfig()
 
     model_config = ConfigDict(extra="ignore")
 
