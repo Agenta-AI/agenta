@@ -58,7 +58,7 @@ Comparing Docker images **before** (main branch) vs **after** (chore/improve-gh-
 | obstore stripped | PASS | ImportError on `import obstore` |
 | hf_xet stripped | PASS | ImportError on `import hf_xet` |
 | newrelic | PASS | importable (used for observability) |
-| costs module (models.dev) | PASS | `_build_pricing` + `cost_per_token` work |
+| litellm cost_calculator | PASS | `cost_calculator.cost_per_token` works (kept litellm) |
 | csv stdlib | PASS | DictWriter/DictReader replace polars |
 | postgresql-client | PASS | `pg_dump` present |
 | curl | PASS | present |
@@ -135,8 +135,8 @@ Comparing Docker images **before** (main branch) vs **after** (chore/improve-gh-
 | uvicorn | PASS | importable |
 | redis | PASS | importable |
 | litellm + SDK | PASS | litellm present, SDK assets work |
-| costs module | PASS | models.dev lookup works |
-| tracing utils | PASS | async calculate_costs importable |
+| litellm cost_calculator | PASS | cost_calculator.cost_per_token works |
+| tracing utils | PASS | calculate_costs importable |
 | csv stdlib | PASS | polars replacement works |
 | polars stripped | PASS | ImportError |
 | obstore stripped | PASS | ImportError |
@@ -223,6 +223,6 @@ Comparing Docker images **before** (main branch) vs **after** (chore/improve-gh-
 - **litellm kept**: agenta SDK imports litellm at module level (`agenta.sdk.assets`); stripping would break SDK
 - **litellm provider SDKs kept** (google-cloud-aiplatform, boto3): litellm dynamically imports these at runtime to route calls to Vertex AI, Bedrock, etc.
 - **newrelic kept**: used for observability
-- **costs.py added**: API-server tracing uses `models.dev` for cost lookup instead of litellm's `cost_calculator`, with existing Redis+in-memory caching
+- **litellm cost_calculator kept**: Since litellm is retained, cost calculation uses litellm's built-in `cost_calculator.cost_per_token` (no custom replacement needed)
 - **polars replaced with stdlib csv**: Only 4 call sites, all trivial CSV read/write
 - **bookworm hardcoded**: Base image is `python:3.11-slim-bookworm`, codename is stable; avoids lsb-release + perl dependency chain
