@@ -286,10 +286,21 @@ export function detectChatVariantFromOpenAISchema(
         runtimePrefix: string
     },
 ): boolean {
-    const properties = (
-        openApiSpec.paths[constructPlaygroundTestUrl(uri, "/run", false)] ||
-        openApiSpec.paths[constructPlaygroundTestUrl(uri, "/test", false)]
-    )?.post?.requestBody?.content["application/json"]?.schema?.properties
+    const operation =
+        openApiSpec.paths[constructPlaygroundTestUrl(uri, "/run", false)]?.post ||
+        openApiSpec.paths[constructPlaygroundTestUrl(uri, "/test", false)]?.post
+
+    // Prefer explicit x-agenta.flags.is_chat from the SDK
+    const agentaExt = (operation as Record<string, unknown>)?.["x-agenta"] as
+        | Record<string, unknown>
+        | undefined
+    const flags = agentaExt?.flags as Record<string, unknown> | undefined
+    if (flags && typeof flags.is_chat === "boolean") {
+        return flags.is_chat
+    }
+
+    // Fallback: heuristic — check if request body has a "messages" property
+    const properties = operation?.requestBody?.content["application/json"]?.schema?.properties
     return properties?.messages !== undefined
 }
 

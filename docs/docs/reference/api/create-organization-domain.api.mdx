@@ -1,0 +1,71 @@
+---
+id: create-organization-domain
+title: "Create Organization Domain"
+description: "Add a new domain to an organization."
+sidebar_label: "Create Organization Domain"
+hide_title: true
+hide_table_of_contents: true
+api: eJytVE1v00AQ/SvWnEBaxaHi5BMRRWpUUKO2cImiampP4i22d7u7LjXW/nc0azuxE1oB4hRn983HvnlvWsjIpkZqJ1UFCSyyLMKooh9RpkqUVeRUhFWkzA4r+RMZNQMBSpMJf5YZJJAaQkd3Y9BdFw4CNBosyZGxkKxbqLAkSGCClRkIkFxeo8tBgKHHWhrKIHGmJgE2zalESFpwjeZw64ysdiDASVfwwdUoX7TMwHuxr7VvJZR4rMk0/1TjvMvj/YajrVaVJcsBZ/M5/0yZvKnTlKzd1kV03YNBQKoqR5VjOGpdyDR0HD9YjmkPTXjvvYD3Z2enib9hIbPuoZ+MUeYvsoI2PDknu74zcigL/pKOSnsKKFQ6ucWqudqGMU45YrL7E1k52pEBv/FiOENjsBkR+Vl1DYIXUNrda5x/IWtxR7BP9jI0kBHd8q3nWes6EDJcL8OBF5C651Eadf9AqRul+chcPjtW0AnmoJl14KZrv8dtDjkOI+om9DIV590IfldsgFzc3q5OEnb6KMnlih2olXXBay6HBOKxu2zcHpnNx50jLAiwZJ4Ga9amgARy57RN4jgtVJ3NcEeVwxnKGLUEVr6ltDbSNSFksVpeUnNBmJGBZL0ZA25YdZ2OprA996jlJTEbvVEXtcuV6Rsd/Jp3UT7MdKvGI12E5qLFagkC+BmdQeazd7M5iOPNNgazYTAN+hhqh2sQRyzs3w8CqAxuAUdYfjhccGfMf4nVKN/HsBOjyV46HxbRpLP2YN8/Xb89f6zTWBdhKfWNt70G1pMNy5NOTlfuIIONgJwFlKyhbe/R0ldTeM/H3bLkSWfS4n3B0t9iYemVN7y57l3yNnqp1e/UjPfyExY1g4K+ntBIrvT/qw6qq5pxzaGbY3rCAssHZbc9apGmpN0o/mTf8hv2vlxd3dyC978AymeIQA==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Organization Domain"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/{organization_id}/domains"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Add a new domain to an organization.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}},{"name":"domain","in":"query","required":true,"schema":{"type":"string","title":"Domain"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

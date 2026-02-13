@@ -1,0 +1,63 @@
+---
+id: list-domains-organizations-domains-get
+title: "List Domains"
+description: "List all domains for the organization."
+sidebar_label: "List Domains"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVcFu2zAM/RWDZy3JdvRpwbp1QYe1WNtTEASMxcRqZcuV6GKZ4X8fKDuJnXbF0BySmCKpx/dIugHGXYB0Cdd+h6X5g2xcGWClQFPIvKnkGVL4YQInaG2iXYGmDMnW+YRzStwgbgIKXEU+Piw0pGBN4HUfsh66hqN1RwwKPIXKlYECpA18ms3kZ4zgts4yCmFb2+RX7wwKMlcylSzuWFXWZDH79CFITAMhy6lA+WeYipi88gKRTXeV0fLN+4oghcDelDtQwIatGBYaWgXB1ru3vG7lvFVQYkERSLm/3kK6PI9o1dFS1tZCuzrl+Cmx7Rnr70t1MUjRKtjaqHADqLURI9qbAQXsa1KHXG7zQBkPSvsWg1sF7B7p3YjuYnCrIPOETHqN/BqfW+cLOQGNTB/YFDRA8qULTeYsiepKDxL9C9OrKd8Cet+l7S8Z9uv67UYZTk8iXdO+5NTTU208aZk2o6Hvq75txsofVDvwPmJuVP1LlKvXUV3EcRtMzni6DgdJ4TTZON3Yz/oETsWg97gf1H0Mi/vhot8No11ytF4SQysfBQVx7mQ/dMNfIeeQwnS0IKb9ghCiyD+TD1Hh2ltIIWeuQjqdZtbVeoI7KhknaKZYmShooKz2hvcxZH6zuKL9d0JNHtLlauhwKwuiWwVjt6PWWJkr2h90SmFec+58jxIUGKEv76KkNlNuXQzvKZpHcMn8ZgEKpIyO8Nnk42T2QoaRs+w2zGKHH+6Ox9IBIxaO9YMCKtDIGRMWn08HgqxygQssB/mGqp1jaU679f+3f88Z02+eVhZNnPoItulVXo4aNt7a379SkLvA4tI0Gwx0723bivmpJi9SrhQ8oze4EWKXq1YdeBeVH2kvDGUZVdJTz2jrTr6zt4Kof+y/y6930LZ/AWtrabo=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Domains"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/organizations/domains"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List all domains for the organization.
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"properties":{"id":{"type":"string","title":"Id"},"slug":{"type":"string","title":"Slug"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"flags":{"additionalProperties":true,"type":"object","title":"Flags"},"token":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Token"},"created_at":{"type":"string","format":"date-time","title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"organization_id":{"type":"string","title":"Organization Id"}},"type":"object","required":["id","slug","name","description","flags","token","created_at","updated_at","organization_id"],"title":"OrganizationDomainResponse","description":"Response model for a domain."},"type":"array","title":"Response List Domains Organizations Domains Get"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
