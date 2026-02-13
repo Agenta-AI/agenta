@@ -2,11 +2,9 @@ import os
 import uuid
 import logging
 import json
-from json import loads
 from traceback import format_exc
 from typing import Optional, Any
 
-import boto3
 import httpx
 import pytest
 import agenta as ag
@@ -84,7 +82,7 @@ def fetch_secret() -> Optional[Any]:
         secret = os.getenv("AWS_SECRET_KEY")
         return secret
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         logger.error("Failed to fetch secrets with: %s", format_exc())
         return None
 
@@ -753,7 +751,7 @@ async def deploy_variant_to_environment(
     client: AsyncClient, variant_id: str, environment_name: str, headers: dict
 ):
     response = await client.post(
-        f"environments/deploy",
+        "environments/deploy",
         json={"environment_name": environment_name, "variant_id": variant_id},
         headers=headers,
     )

@@ -10,7 +10,7 @@ from oss.src.core.shared.dtos import (
     Flags,
     Tags,
     Meta,
-    Windowing,
+    Windowing,  # noqa: F401
 )
 
 

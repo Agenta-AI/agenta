@@ -104,9 +104,6 @@ class VertexAIPartnerModels(VertexBase):
                 CodestralTextCompletion,
             )
             from litellm.llms.openai_like.chat.handler import OpenAILikeChatHandler
-            from litellm.llms.vertex_ai.gemini.vertex_and_google_ai_studio_gemini import (
-                VertexLLM,
-            )
         except Exception as e:
             raise VertexAIError(
                 status_code=400, message=f"Failed to import partner handlers: {e}"

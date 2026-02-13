@@ -37,6 +37,31 @@ export {
     outputConnectionController,
     entitySelectorController,
     executionController,
+    playgroundSnapshotController,
+    applyPendingHydration,
+    applyPendingHydrationsForRevision,
+    clearPendingHydrations,
+    pendingHydrations,
+    pendingHydrationsAtom,
+    setSelectionUpdateCallback,
+    isPlaceholderId,
+    urlSnapshotController,
+    setRunnableTypeResolver,
+    getRunnableTypeResolver,
+    resetRunnableTypeResolver,
+} from "./state"
+
+// Re-export parseSnapshot for debugging
+export {parseSnapshot} from "./snapshot"
+
+export type {
+    CreateSnapshotResult,
+    HydrateSnapshotResult,
+    SnapshotSelectionInput,
+    RunnableTypeResolver,
+    BuildEncodedSnapshotResult,
+    UrlComponents,
+    HydrateFromUrlResult,
 } from "./state"
 
 export type {

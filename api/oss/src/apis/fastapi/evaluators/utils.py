@@ -11,7 +11,6 @@ from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.evaluators.dtos import (
-    EvaluatorFlags,
     EvaluatorQueryFlags,
     #
     EvaluatorQuery,
@@ -142,7 +141,7 @@ def parse_evaluator_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         evaluator_query_request = EvaluatorQueryRequest()
 
     return evaluator_query_request
@@ -321,7 +320,7 @@ def parse_evaluator_variant_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         evaluator_variant_query_request = EvaluatorVariantQueryRequest()
 
     return evaluator_variant_query_request

@@ -1,10 +1,8 @@
-from datetime import datetime, timezone
-
 import uuid_utils.compat as uuid
 
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, Boolean, ForeignKey
 
 
 DeprecatedBase = declarative_base()

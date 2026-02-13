@@ -1,6 +1,7 @@
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
+import {playgroundAppSchemaAtom} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
 import {constructPlaygroundTestUrl} from "@/oss/lib/shared/variant/stringUtils"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
@@ -37,9 +38,9 @@ function getIsChatFlag(spec: OpenAPISpec, routePath?: string): boolean | undefin
 }
 
 export const requestSchemaMetaAtomFamily = atomFamily((params: RequestSchemaMetaParams) =>
-    atom<RequestSchemaMeta>(() => {
+    atom<RequestSchemaMeta>((get) => {
         const {variant, routePath} = params
-        const spec = getSpecLazy()
+        const spec = get(playgroundAppSchemaAtom)
 
         const meta: RequestSchemaMeta = {required: [], inputKeys: [], hasMessages: false}
         if (!spec) return meta

@@ -1,13 +1,10 @@
-import os
 import pytest
 from datetime import datetime, timezone
 
-import httpx
 from sqlalchemy.future import select
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
-from oss.src.models.shared_models import ConfigDB
 from oss.src.models.db_models import (
     ProjectDB,
     UserDB,

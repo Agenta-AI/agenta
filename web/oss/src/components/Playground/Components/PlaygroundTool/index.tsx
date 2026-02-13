@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {legacyAppRevisionEntityWithBridgeAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {Input, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -9,11 +10,10 @@ import {v4 as uuidv4} from "uuid"
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import LLMIconMap from "@/oss/components/LLMIcons"
 import {
-    moleculeBackedVariantAtomFamily,
     moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
 import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
-import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import toolsSpecs from "../PlaygroundVariantConfigPrompt/assets/tools.specs.json"
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControl/assets/PlaygroundVariantPropertyControlWrapper"
@@ -120,8 +120,17 @@ function matchesToolPayload(toolObj: ToolObj, payload: Record<string, any>): boo
     const toolObjAny = toolObj as any
     if (typeof payload.type === "string" && toolObjAny.type === payload.type) return true
     if (typeof payload.name === "string" && toolObjAny.name === payload.name) return true
+    // Single-key existence check for provider-specific keys (e.g. Google's {code_execution: {}}).
+    // Exclude common fields like "type" and "name" because they appear across providers and
+    // would cause false positives (e.g. Anthropic tools matching OpenAI's web_search spec).
     const payloadKeys = Object.keys(payload)
-    if (payloadKeys.length === 1 && payloadKeys[0] in toolObjAny) return true
+    if (
+        payloadKeys.length === 1 &&
+        payloadKeys[0] !== "type" &&
+        payloadKeys[0] !== "name" &&
+        payloadKeys[0] in toolObjAny
+    )
+        return true
     return false
 }
 
@@ -398,11 +407,13 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
 
     // Use molecule-backed atoms for single source of truth
     useAtomValue(moleculeBackedVariantAtomFamily(variantId))
-    const appUriInfo = useAtomValue(appUriInfoAtom)
+    const entityData = useAtomValue(
+        useMemo(() => legacyAppRevisionEntityWithBridgeAtomFamily(variantId), [variantId]),
+    )
     const setPrompts = useSetAtom(
         useMemo(
             () => moleculeBackedPromptsAtomFamily(variantId),
-            [variantId, appUriInfo?.routePath],
+            [variantId, entityData?.routePath],
         ),
     )
 
@@ -415,16 +426,19 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
         }
         setPrompts((prevPrompts: any[] = []) => {
             return prevPrompts.map((prompt: any) => {
-                const toolsArr = prompt?.llmConfig?.tools?.value
+                // Use whichever key the prompt has (entity uses llm_config, OSS uses llmConfig)
+                const configKey = prompt?.llm_config ? "llm_config" : "llmConfig"
+                const llm = prompt?.[configKey]
+                const toolsArr = llm?.tools?.value
                 if (Array.isArray(toolsArr)) {
                     const updatedTools = toolsArr.filter((tool: any) => tool.__id !== id)
                     if (updatedTools.length !== toolsArr.length) {
                         return {
                             ...prompt,
-                            llmConfig: {
-                                ...prompt.llmConfig,
+                            [configKey]: {
+                                ...llm,
                                 tools: {
-                                    ...prompt.llmConfig?.tools,
+                                    ...llm?.tools,
                                     value: updatedTools,
                                 },
                             },

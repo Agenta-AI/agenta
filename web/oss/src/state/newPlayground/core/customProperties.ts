@@ -1,14 +1,18 @@
 import {
     legacyAppRevisionMolecule,
     revisionCustomPropertyKeysAtomFamily,
+    revisionEnhancedCustomPropertiesAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
 import {atom} from "jotai"
 import {RESET, atomFamily} from "jotai/utils"
 
+import {
+    playgroundAppSchemaAtom,
+    playgroundAppRoutePathAtom,
+} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import type {Enhanced} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {deriveCustomPropertiesFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 /**
  * Writable custom properties selector
@@ -23,63 +27,6 @@ export interface CustomPropsAtomParams {
     // Called on writes; receives a delta or next parameters snapshot as provided by caller
     onUpdateParameters?: (update: any) => void
 }
-
-/**
- * Resolves revision data from the molecule (single source of truth).
- * No legacy fallbacks - molecule is the authoritative source.
- */
-const resolveRevisionSource = (get: any, revisionId: string): EnhancedVariant | undefined => {
-    // Prefer merged data (includes draft changes)
-    const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId)) as any
-    if (moleculeData) return moleculeData as EnhancedVariant
-
-    // Fallback to server data if no merged data yet
-    const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId)) as any
-    if (serverData) return serverData as EnhancedVariant
-
-    return undefined
-}
-
-/**
- * @deprecated Legacy local cache - kept for backwards compatibility during migration.
- * New code should use molecule directly via moleculeBackedCustomPropertiesAtomFamily.
- */
-export const localCustomPropsByRevisionAtomFamily = atomFamily((revisionId: string) =>
-    atom<Record<string, Enhanced<any>> | undefined>(undefined),
-)
-
-// Debug logging for development
-const DEBUG_CUSTOM_PROPS = process.env.NODE_ENV === "development"
-const logCustomProps = (...args: unknown[]) => {
-    if (DEBUG_CUSTOM_PROPS) {
-        console.info("[newPlayground/customProperties]", ...args)
-    }
-}
-
-// Derived custom properties from spec + saved variant parameters for a revision
-export const derivedCustomPropsByRevisionAtomFamily = atomFamily((revisionId: string) =>
-    atom<Record<string, Enhanced<any>>>((get) => {
-        const variant = resolveRevisionSource(get, revisionId)
-        const spec = get(appSchemaAtom)
-        if (!variant || !spec) {
-            logCustomProps("derivedCustomProps: missing variant or spec", {
-                revisionId,
-                hasVariant: !!variant,
-                hasSpec: !!spec,
-            })
-            return {}
-        }
-        const routePath = get(appUriInfoAtom)?.routePath
-        const customProps = deriveCustomPropertiesFromSpec(variant as any, spec as any, routePath)
-        logCustomProps("derivedCustomProps: derived", {
-            revisionId,
-            customPropKeys: Object.keys(customProps),
-            routePath,
-            variantParametersKeys: variant.parameters ? Object.keys(variant.parameters) : [],
-        })
-        return customProps
-    }),
-)
 
 /**
  * Custom properties atom family - single source of truth via legacyAppRevisionMolecule.
@@ -98,13 +45,16 @@ export const customPropertiesAtomFamily = atomFamily((params: CustomPropsAtomPar
                 if (moleculeData?.enhancedCustomProperties) {
                     return moleculeData.enhancedCustomProperties as Record<string, Enhanced<any>>
                 }
-                // Fallback to derived if molecule not yet populated
-                return get(derivedCustomPropsByRevisionAtomFamily(params.revisionId))
+                // Fallback to entity-level derived custom properties (per-revision schema query)
+                return get(revisionEnhancedCustomPropertiesAtomFamily(params.revisionId)) as Record<
+                    string,
+                    Enhanced<any>
+                >
             }
 
             // Otherwise derive from spec + saved config (pure)
-            const spec = get(appSchemaAtom)
-            const routePath = params.routePath ?? get(appUriInfoAtom)?.routePath
+            const spec = get(playgroundAppSchemaAtom)
+            const routePath = params.routePath ?? get(playgroundAppRoutePathAtom)
             if (!spec || !params.variant) return {}
             return deriveCustomPropertiesFromSpec(params.variant, spec, routePath)
         },
@@ -155,7 +105,7 @@ export const customPropertiesAtomFamily = atomFamily((params: CustomPropsAtomPar
  */
 export const customPropertiesByRevisionAtomFamily = atomFamily((revisionId: string) =>
     atom<Record<string, Enhanced<any>>>((get) => {
-        const routePath = get(appUriInfoAtom)?.routePath
+        const routePath = get(playgroundAppRoutePathAtom)
         return get(
             customPropertiesAtomFamily({
                 revisionId,

@@ -1,8 +1,8 @@
+import {generateId} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms/app"
 import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms/variants"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {
     inputRowIdsAtom,
     inputRowsByIdFamilyAtom,

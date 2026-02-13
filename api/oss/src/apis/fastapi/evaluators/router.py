@@ -6,18 +6,15 @@ from fastapi import APIRouter, Request, status, Depends, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import set_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.evaluators.dtos import (
-    EvaluatorFlags,
     EvaluatorQueryFlags,
     #
     EvaluatorQuery,
-    #
-    EvaluatorRevision,
     #
     SimpleEvaluatorData,
     SimpleEvaluatorQuery,
@@ -61,17 +58,9 @@ from oss.src.apis.fastapi.evaluators.models import (
     SimpleEvaluatorsResponse,
 )
 from oss.src.apis.fastapi.evaluators.utils import (
-    parse_evaluator_query_request_from_params,
-    parse_evaluator_query_request_from_body,
-    merge_evaluator_query_requests,
     parse_evaluator_variant_query_request_from_params,
     parse_evaluator_variant_query_request_from_body,
     merge_evaluator_variant_query_requests,
-    parse_evaluator_revision_query_request_from_params,
-    parse_evaluator_revision_query_request_from_body,
-    merge_evaluator_revision_query_requests,
-    parse_evaluator_revision_retrieve_request_from_params,
-    parse_evaluator_revision_retrieve_request_from_body,
 )
 
 if is_ee():
@@ -80,6 +69,8 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+# TEMPORARY: Disabling name editing
+RENAME_EVALUATORS_DISABLED_MESSAGE = "Renaming evaluators is temporarily disabled."
 
 
 class EvaluatorsRouter:
@@ -398,6 +389,25 @@ class EvaluatorsRouter:
         if str(evaluator_id) != str(evaluator_edit_request.evaluator.id):
             return EvaluatorResponse()
 
+        # TEMPORARY: Disabling name editing
+        existing_evaluator = await self.evaluators_service.fetch_evaluator(
+            project_id=UUID(request.state.project_id),
+            evaluator_ref=Reference(id=evaluator_id),
+        )
+        if existing_evaluator is None:
+            return EvaluatorResponse()
+
+        edit_model = evaluator_edit_request.evaluator
+        if (
+            "name" in edit_model.model_fields_set
+            and edit_model.name is not None
+            and edit_model.name != existing_evaluator.name
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+            )
+
         evaluator = await self.evaluators_service.edit_evaluator(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -680,7 +690,7 @@ class EvaluatorsRouter:
                     **body_json
                 )
 
-        except:
+        except Exception:
             pass
 
         workflow_variant_query_request = merge_evaluator_variant_query_requests(
@@ -1196,6 +1206,25 @@ class SimpleEvaluatorsRouter:
 
         if str(evaluator_id) != str(simple_evaluator_edit_request.evaluator.id):
             return SimpleEvaluatorResponse()
+
+        # TEMPORARY: Disabling name editing
+        existing_simple_evaluator = await self.simple_evaluators_service.fetch(
+            project_id=UUID(request.state.project_id),
+            evaluator_id=evaluator_id,
+        )
+        if existing_simple_evaluator is None:
+            return SimpleEvaluatorResponse()
+
+        edit_model = simple_evaluator_edit_request.evaluator
+        if (
+            "name" in edit_model.model_fields_set
+            and edit_model.name is not None
+            and edit_model.name != existing_simple_evaluator.name
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+            )
 
         simple_evaluator = await self.simple_evaluators_service.edit(
             project_id=UUID(request.state.project_id),

@@ -1,16 +1,13 @@
 /**
- * Playground Atoms - New Jotai-based State Management
+ * Playground Atoms — Jotai-based State Management
  *
- * This module exports all atoms for the new playground state architecture.
- * These atoms replace the complex SWR middleware system with a clean,
- * performant, and maintainable atom-based approach.
+ * Barrel export for all playground state atoms.
  */
 
 // Core state atoms
-export {selectedVariantsAtom, viewTypeAtom, testRunStatesAtom} from "./core"
+export {selectedVariantsAtom, testRunStatesAtom, isSelectionStorageHydrated} from "./core"
 
 // Variant atoms and types
-// WP-6.6: Export playgroundRevisionListAtom as primary list, revisionListAtom for backward compatibility
 export {
     playgroundLayoutAtom,
     displayedVariantsAtom,
@@ -18,9 +15,10 @@ export {
     earlyRevisionIdsAtom,
     displayedVariantsVariablesAtom,
     playgroundRevisionListAtom,
+    playgroundRevisionsReadyAtom,
+    playgroundLatestRevisionIdAtom,
     revisionListAtom,
     isComparisonViewAtom,
-    // WP-6.1: Molecule-backed list wrapper atoms
     appsListAtom,
     variantsListAtomFamily,
     revisionsListAtomFamily,
@@ -55,8 +53,7 @@ export {
     invalidatePlaygroundQueriesAtom,
 } from "./queries"
 
-// Molecule-backed alternatives (single source of truth)
-// NOTE: variantByRevisionIdAtomFamily has been removed - use moleculeBackedVariantAtomFamily instead
+// Molecule-backed entity state (single source of truth)
 export {
     moleculeBackedVariantAtomFamily,
     moleculeBackedPromptsAtomFamily,
@@ -64,14 +61,7 @@ export {
 } from "@/oss/state/newPlayground/legacyEntityBridge"
 
 // Async/loadable patterns
-// WP-6.5: Added molecule-backed loading state atoms
 export {
-    variantsLoadableAtom,
-    variantsIsLoadingAtom,
-    variantsHasDataAtom,
-    variantsErrorAtom,
-    variantRevisionsLoadableFamily,
-    // WP-6.5: Molecule-backed loading state atoms
     appsListLoadingAtom,
     appsListHasDataAtom,
     revisionsListLoadingAtomFamily,
@@ -108,6 +98,18 @@ export {
 // URL synchronization and derived state
 export {urlRevisionsAtom} from "./urlSync"
 
+// App-scoped atoms (wrappers over per-revision entity data)
+export {
+    playgroundAppSchemaAtom,
+    playgroundAppRoutePathAtom,
+    playgroundAppUriInfoAtom,
+    playgroundAppStatusAtom,
+    playgroundAppStatusLoadingAtom,
+    playgroundIsChatModeAtom,
+    playgroundRevisionDeploymentAtomFamily,
+    playgroundLatestAppRevisionIdAtom,
+} from "./playgroundAppAtoms"
+
 // App-level configuration
 export {appChatModeAtom} from "./app"
 export {promptTemplateFormatAtomFamily, type PromptTemplateFormat} from "./promptTemplateFormat"
@@ -118,7 +120,7 @@ export {parametersOverrideAtomFamily} from "./parametersOverride"
 // Comparison chat helpers
 export {canRunAllChatComparisonAtom} from "./derived/canRunAllChatComparison"
 
-// WP-7.1: Playground selection adapter for EntityPicker integration
+// Playground selection adapter for EntityPicker integration
 export {
     createPlaygroundSelectionAdapter,
     type PlaygroundRevisionSelectionResult,

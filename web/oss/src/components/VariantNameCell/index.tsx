@@ -1,16 +1,21 @@
-import {memo} from "react"
+import {memo, useCallback} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Tag} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import type {Variant} from "@/oss/lib/Types"
-import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
-import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
+import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {
-    variantDisplayNameByIdAtomFamily,
-    latestAppRevisionIdAtom,
-} from "@/oss/state/variant/selectors/variant"
+    playgroundLatestAppRevisionIdAtom,
+    playgroundRevisionDeploymentAtomFamily,
+} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
+import type {VariantStatusInfo} from "@/oss/components/VariantDetailsWithStatus/types"
+import {
+    moleculeBackedVariantAtomFamily,
+    revisionIsDirtyAtomFamily,
+    discardRevisionDraftAtom,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 type Rev = {
     id: string
@@ -40,13 +45,34 @@ const VariantNameCell = memo(
         ) as Rev
 
         const rev = resolvedRevision ?? revision
-        const variantId = (rev && rev.variantId) || ""
 
-        const nameFromStore = useAtomValue(variantDisplayNameByIdAtomFamily(variantId))
-        const latestIdForVariant = useAtomValue(latestAppRevisionIdAtom)
+        const latestIdForVariant = useAtomValue(playgroundLatestAppRevisionIdAtom)
         const deployedInFromStore = useAtomValue(
-            revisionDeploymentAtomFamily((rev && rev.id) || ""),
+            playgroundRevisionDeploymentAtomFamily((rev && rev.id) || ""),
         )
+
+        const _isDirty = useAtomValue(revisionIsDirtyAtomFamily(rev?.id || ""))
+        const isDirty = showStable ? false : _isDirty
+
+        const isLatestRevision =
+            typeof (rev as any)?.isLatestRevision === "boolean"
+                ? (rev as any).isLatestRevision
+                : rev?.id === latestIdForVariant
+
+        const discardDraft = useSetAtom(discardRevisionDraftAtom)
+        const setParamsOverride = useSetAtom(parametersOverrideAtomFamily(rev?.id || "") as any)
+
+        const handleDiscardDraft = useCallback(() => {
+            if (!rev?.id) return
+            try {
+                discardDraft(rev.id)
+                setParamsOverride(null)
+                message.success("Draft changes discarded")
+            } catch (e) {
+                message.error("Failed to discard draft changes")
+                console.error(e)
+            }
+        }, [rev?.id, discardDraft, setParamsOverride])
 
         if (!rev) {
             return (
@@ -56,23 +82,14 @@ const VariantNameCell = memo(
             )
         }
 
-        const resolvedName =
-            (nameFromStore && nameFromStore !== "-" ? nameFromStore : null) ||
-            revisionName ||
-            (rev as any)?.variantName ||
-            "-"
+        const resolvedName = revisionName || (rev as any)?.variantName || "-"
 
         const deployedIn =
             deployedInFromStore && deployedInFromStore.length > 0
                 ? deployedInFromStore
-                : ((rev as any)?.deployedIn as Variant["deployedIn"]) || []
+                : ((rev as any)?.deployedIn as {name: string}[]) || []
 
-        const isLatestRevision =
-            typeof (rev as any)?.isLatestRevision === "boolean"
-                ? (rev as any).isLatestRevision
-                : rev.id === latestIdForVariant
-
-        const variantMin: Pick<Variant, "deployedIn" | "isLatestRevision" | "id"> = {
+        const variantMin: VariantStatusInfo = {
             id: rev.id,
             deployedIn,
             isLatestRevision,
@@ -85,7 +102,9 @@ const VariantNameCell = memo(
                 revision={rev.revision ?? rev.revisionNumber}
                 showBadges={showBadges}
                 showRevisionAsTag
-                showStable={showStable}
+                hasChanges={isDirty}
+                isLatest={isLatestRevision}
+                onDiscardDraft={handleDiscardDraft}
             />
         )
     },

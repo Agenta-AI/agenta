@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Union
+from typing import Optional, List, Union
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
@@ -40,14 +40,9 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
     #
-    WorkflowServiceInterface,
     WorkflowServiceRequest,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
-    #
-    WorkflowRevisionData,
-    WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
 )
 
 from oss.src.services.auth_service import sign_secret_token
@@ -58,9 +53,9 @@ from agenta.sdk.decorators.running import (
     inspect_workflow as _inspect_workflow,
 )
 from agenta.sdk.models.workflows import (
-    WorkflowServiceRequest,
-    WorkflowServiceBatchResponse,
-    WorkflowServiceStreamResponse,
+    WorkflowServiceRequest,  # noqa: F811
+    WorkflowServiceBatchResponse,  # noqa: F811
+    WorkflowServiceStreamResponse,  # noqa: F811
 )
 
 log = get_module_logger(__name__)
@@ -115,11 +110,15 @@ class WorkflowsService:
         project_id: UUID,
         #
         workflow_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Workflow]:
         artifact = await self.workflows_dao.fetch_artifact(
             project_id=project_id,
             #
             artifact_ref=workflow_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not artifact:
@@ -278,12 +277,16 @@ class WorkflowsService:
         #
         workflow_ref: Optional[Reference] = None,
         workflow_variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[WorkflowVariant]:
         variant = await self.workflows_dao.fetch_variant(
             project_id=project_id,
             #
             artifact_ref=workflow_ref,
             variant_ref=workflow_variant_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not variant:
@@ -481,6 +484,8 @@ class WorkflowsService:
         workflow_ref: Optional[Reference] = None,
         workflow_variant_ref: Optional[Reference] = None,
         workflow_revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[WorkflowRevision]:
         if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             return None
@@ -490,6 +495,8 @@ class WorkflowsService:
                 project_id=project_id,
                 #
                 workflow_ref=workflow_ref,
+                #
+                include_archived=include_archived,
             )
 
             if not workflow:
@@ -504,6 +511,8 @@ class WorkflowsService:
                 project_id=project_id,
                 #
                 workflow_ref=workflow_ref,
+                #
+                include_archived=include_archived,
             )
 
             if not workflow_variant:
@@ -519,6 +528,8 @@ class WorkflowsService:
             #
             variant_ref=workflow_variant_ref,
             revision_ref=workflow_revision_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not revision:
@@ -653,6 +664,8 @@ class WorkflowsService:
         project_id: UUID,
         #
         workflow_revisions_log: WorkflowRevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[WorkflowRevision]:
         _revisions_log = RevisionsLog(
             **workflow_revisions_log.model_dump(mode="json"),
@@ -662,6 +675,8 @@ class WorkflowsService:
             project_id=project_id,
             #
             revisions_log=_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         _workflow_revisions = [

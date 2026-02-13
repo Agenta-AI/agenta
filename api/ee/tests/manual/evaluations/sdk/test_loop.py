@@ -5,13 +5,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import agenta as ag
+import agenta as ag  # noqa: E402
 
 ag.init()
 
-from agenta.sdk.decorators import application, evaluator
-from agenta.sdk.workflows import builtin
-from agenta.sdk.evaluations import aevaluate, display
+from agenta.sdk.decorators import application, evaluator  # noqa: E402
+from agenta.sdk.workflows import builtin  # noqa: E402
+from agenta.sdk.evaluations import aevaluate  # noqa: E402
 
 
 my_testcases_data = [

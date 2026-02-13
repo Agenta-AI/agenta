@@ -1,8 +1,10 @@
-import agenta as ag
+import json
+
 from openai import OpenAI
 
+import agenta as ag
+
 client = OpenAI()
-import json
 
 default_prompt = """You are a world class algorithm for extracting information in structured formats. Extract information and create a valid JSON from the following input: {text}"""
 function_json_string = """
