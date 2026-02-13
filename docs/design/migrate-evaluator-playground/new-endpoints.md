@@ -195,6 +195,14 @@ class SimpleEvaluatorData:
     configuration: Optional[dict]
 ```
 
+### Builtin schema hydration behavior
+
+For builtin evaluator URIs (`agenta:builtin:{key}:v0`), the backend now hydrates missing
+`data.schemas.outputs` and `data.service.format` during create and edit.
+
+This preserves the legacy `/evaluators/configs` behavior where evaluator output schemas were
+always available, even when clients send only `uri` and `parameters`.
+
 ### URI-based Handler Registry
 
 The SDK maintains registries that map URIs to implementations:

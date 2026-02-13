@@ -42,11 +42,11 @@ from oss.src.core.evaluators.dtos import (
     #
     EvaluatorRevision,
     EvaluatorRevisionCreate,
-    EvaluatorRevisionData,
     EvaluatorRevisionEdit,
     EvaluatorRevisionCommit,
     EvaluatorRevisionQuery,
 )
+from oss.src.core.evaluators.utils import build_evaluator_data
 from oss.src.core.shared.dtos import Reference
 from oss.src.utils.logging import get_module_logger
 
@@ -759,6 +759,83 @@ class SimpleEvaluatorsService:
     ):
         self.evaluators_service = evaluators_service
 
+    @staticmethod
+    def _extract_builtin_evaluator_key(
+        simple_evaluator_data: Optional[SimpleEvaluatorData],
+    ) -> Optional[str]:
+        uri = simple_evaluator_data.uri if simple_evaluator_data else None
+
+        if not uri:
+            return None
+
+        parts = uri.split(":")
+
+        if len(parts) < 4:
+            return None
+
+        if parts[0] != "agenta" or parts[1] != "builtin":
+            return None
+
+        return parts[2] or None
+
+    @staticmethod
+    def _has_outputs_schema(
+        simple_evaluator_data: Optional[SimpleEvaluatorData],
+    ) -> bool:
+        if not simple_evaluator_data or not isinstance(
+            simple_evaluator_data.schemas, dict
+        ):
+            return False
+
+        return bool(simple_evaluator_data.schemas.get("outputs"))
+
+    def _ensure_builtin_evaluator_data(
+        self,
+        simple_evaluator_data: Optional[SimpleEvaluatorData],
+    ) -> Optional[SimpleEvaluatorData]:
+        evaluator_key = self._extract_builtin_evaluator_key(simple_evaluator_data)
+
+        if not evaluator_key:
+            return simple_evaluator_data
+
+        if self._has_outputs_schema(simple_evaluator_data):
+            return simple_evaluator_data
+
+        settings_values = (
+            simple_evaluator_data.parameters
+            if simple_evaluator_data
+            and isinstance(simple_evaluator_data.parameters, dict)
+            else None
+        )
+
+        hydrated_data = build_evaluator_data(
+            evaluator_key=evaluator_key,
+            settings_values=settings_values,
+        )
+
+        hydrated_data_dict = hydrated_data.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude_unset=True,
+        )
+
+        existing_data_dict = (
+            simple_evaluator_data.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            )
+            if simple_evaluator_data
+            else {}
+        )
+
+        return SimpleEvaluatorData(
+            **{
+                **hydrated_data_dict,
+                **existing_data_dict,
+            }
+        )
+
     # public -------------------------------------------------------------------
 
     async def create(
@@ -849,6 +926,10 @@ class SimpleEvaluatorsService:
 
         evaluator_revision_slug = uuid4().hex[-12:]
 
+        hydrated_simple_evaluator_data = self._ensure_builtin_evaluator_data(
+            simple_evaluator_create.data,
+        )
+
         evaluator_revision_commit = EvaluatorRevisionCommit(
             slug=evaluator_revision_slug,
             #
@@ -890,7 +971,7 @@ class SimpleEvaluatorsService:
             tags=evaluator_create.tags,
             meta=evaluator_create.meta,
             #
-            data=simple_evaluator_create.data,
+            data=hydrated_simple_evaluator_data,
             #
             evaluator_id=evaluator.id,
             evaluator_variant_id=evaluator_variant.id,
@@ -1135,6 +1216,10 @@ class SimpleEvaluatorsService:
 
         evaluator_revision_slug = uuid4().hex[-12:]
 
+        hydrated_simple_evaluator_data = self._ensure_builtin_evaluator_data(
+            simple_evaluator_edit.data,
+        )
+
         evaluator_revision_commit = EvaluatorRevisionCommit(
             slug=evaluator_revision_slug,
             #
@@ -1145,7 +1230,7 @@ class SimpleEvaluatorsService:
             tags=evaluator_edit.tags,
             meta=evaluator_edit.meta,
             #
-            data=simple_evaluator_edit.data,
+            data=hydrated_simple_evaluator_data,
             #
             evaluator_id=evaluator.id,
             evaluator_variant_id=evaluator_variant.id,

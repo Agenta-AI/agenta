@@ -2,7 +2,7 @@
 
 ## Current Phase: PR 2 (Run) In Progress
 
-**Last Updated:** 2026-01-28
+**Last Updated:** 2026-02-13
 
 ---
 
@@ -101,13 +101,27 @@ The SDK maintains a `HANDLER_REGISTRY` that maps URIs to handler functions:
 | `settings_values` | `data.parameters` |
 | `EvaluatorConfig` | `SimpleEvaluator` |
 
+### 5. Output schema regression source is identified
+
+Legacy config creation (`/evaluators/configs`) called `build_evaluator_data`, which generated
+`data.schemas.outputs` and `data.service.format` for builtin evaluators.
+
+The migrated frontend CRUD path uses `/preview/simple/evaluators` and initially sent only
+`data.uri` plus `data.parameters`. That can create revisions without output schemas.
+
+When output schemas are missing, evaluation metrics fallback can include container keys such as
+`attributes.ag`, which then appear as noisy metrics in Overview.
+
+Backend now restores legacy behavior by hydrating builtin evaluator data in
+`SimpleEvaluatorsService` when `schemas.outputs` is missing.
+
 ---
 
 ## Open Questions
 
 1. **Slug uniqueness:** Backend enforces unique slugs per project; generate a short suffix client-side to avoid collisions.
 
-2. **Output schemas:** Should frontend pass `data.schemas.outputs` when creating? Or does backend derive from evaluator type?
+2. **Output schemas:** Resolved. Backend now derives missing builtin evaluator schemas from URI + parameters, so frontend can keep minimal payloads.
 
 3. **Permission model:** Is `RUN_WORKFLOWS` the right permission for evaluator playground? Or should there be `RUN_EVALUATORS`?
 

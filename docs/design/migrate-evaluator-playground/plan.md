@@ -723,7 +723,7 @@ If other parts of the app use `createEvaluatorRunExecution`, update them too:
 
 1. **Slug uniqueness:** Backend enforces unique slugs per project; generate a short suffix client-side to avoid collisions.
 
-2. **Output schemas:** Should frontend pass `data.schemas.outputs` when creating? Or does backend derive from evaluator type?
+2. **Output schemas:** Resolved. Backend hydrates missing builtin evaluator schemas from URI + parameters during create/edit.
 
 3. **Permission model:** Is `RUN_WORKFLOWS` the right permission for evaluator playground? Or should there be `RUN_EVALUATORS`?
 
