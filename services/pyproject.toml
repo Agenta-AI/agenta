@@ -16,7 +16,7 @@ build-backend = "poetry.core.masonry.api"
 python = "^3.11"
 
 # Agenta SDK
-agenta = ">=0.79.0"
+agenta = ">=0.85.0"
 
 # Server
 uvicorn = "^0.40"
