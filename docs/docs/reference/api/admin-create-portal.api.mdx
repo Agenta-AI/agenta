@@ -5,7 +5,7 @@ description: "Create Portal Admin Route"
 sidebar_label: "Create Portal Admin Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVEtv2zAM/isGTxsgxFmxk0/LHkCDbmjQZrsEQcDYTKJOtlSJLpYF/u8DJefVtAV2siGR1KfvoR0wrgMUMxhVtW5AwWdtjG7WMFdgHXlkbZtxBQWgFCxKT8i0cNYzGlDg0GNNTF6G7KDBmqAA69fY6L+xeaErUKAbKOCxJb8FBZ4eW+2pgoJ9SwpCuaEaodgBb530B/aCQQFrNrJwezIwG1fQdXMZE5xtAgXpvBoO5VNRKL12UgcF3LdlSSGsWpPd9cWgoLQNU8NSjs4ZXcax+UOQnt0RTdd1nYKPV1eXg3+h0VVC88176/9jKjgvxLJOuCti1Eb+NFMdLguMLc92sdneriLZ52R16rCiG6Y1eejmndqvofe4PWH0u00AoVNQh/Vb5P+gEHBNcBj2emkkI5vKbnc82y4fqOQz4WfxXunovm5+HHOkN7H7+jW+JvpeOmxfcj2dTi4GJm3PRf0SvZ1NorezGIjszrYsnqmJN1Zi4Gzg6HveQAF5TEW+TKHJhQ9HeUpHyEFBIP+0D0frDRSwYXahyPPS2LYa4JoaxgHqHJ0GcXWgsvWat7FlNBnf0PaasCIPxWx+WnAvjkoeOS87yINO35Cw1cdy1PLG+j5G+1BuUpfQoZuVje09c6MILhtNxqBArpF4Gg4+DIbwnL2zYgkDljEM+7PjNqhnLBzuDwqojkkAJqw/HTcEmbBeY3My7y2xzoAd2GD6w7kzqKPnI4xdr+MsvW6goFdSlItaitRJTVAgFt2I/sUMdrslBvrpTdfJcnraRLJKB1wa8fgKTaALNId3At7d9XF4n4F6GeVv2r74nD6haaU6OuYJvZYjo0HUXlDBktpHZUmOT7ou3ieZcnD45PZ+Cl33D53uFMw=
+api: eJyVVF1v2jAU/SvRfdoki7BqT3ka6yYVdVNRy/aCUHVJLuDOiV3bqcqQ//t0bRJCaSvtqZV978nhfHgPHjcOigVMqlo2IOCrVEo2G1gK0IYseqmbaQUFIA/cl5bQ073R1qMCAQYt1uTJMsgeGqwJCtB2g438G5fvZQUCZAMFPLZkdyDA0mMrLVVQeNuSAFduqUYo9uB3hvedt8xBgJde8cHNADCbVhDCkmGc0Y0jx5sX4zH/qciVVhqegwLu2rIk59atym4PwyCg1I2nxvM4GqNkGWHzB8c7+yObEEIQ8Pni4hz4NypZJTbfrdX2P1DBWBbWy8S7Io9S8X/SU+3OB5QuT26x2d2so9inYgXRn8jG04YshGUQ3Rlai7uBoj90IghBQO0274n/k5zDDUEP9vZoFCOb821g000bBemup/EgCCj98wBGrx6o9AOYS9by2UM48u9njuFZRG0S/cPc8ohxtCg59LYU35IFr32sG7maz2dngCkfp8G4jP3IZrEfWSxVdqtbz7mryW81V8lo52N3/BYKyGOz8lUqXs6aGspTw1wOAhzZp65grVVQwNZ744o8L5VuqxFuqPE4QpmjkcDNcFS2VvpdXJnMpte0uyKsyEKxWA4H7jiVKWenY703aOQ1sVqHak9av9X2UMWu2Nu0FaLnaz20fBLJZZPZFATwz0g6jUefRmN4qd7JMBcKy5if7tvxGsQLFfrfDwKojm0CT1h/OV4wM1a9xmaA955ZJ8R6NTiVuVEoY28ijf3Bx0V6IUHAwUl2LnrJVic3QQBHdMv+FwvY71fo6JdVIfBxeh7Zsko6XCnO+BqVozM2/VsDH24PdfiYgXid5R/avfokP6FqeTom5gmt5E/GgIjOUOaS1idlScYPts7eOEbpEz67uZtDCP8AHkIrcw==
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -62,7 +62,7 @@ Create Portal Admin Route
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
 >
   
 </StatusCodes>

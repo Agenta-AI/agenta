@@ -1,0 +1,71 @@
+---
+id: transfer-organization-ownership
+title: "Transfer Organization Ownership"
+description: "Transfer organization ownership to another member."
+sidebar_label: "Transfer Organization Ownership"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VcFu2zAM/RWDpw0Q4qzYyacF24AG3ZaizXYJgoKxmVidbamS3DYz9O8DZTuxm7bAhmGnJNQTRT6+xzSQkU2N1E6qChJYGqzslkykzA4r+Qs5HqmHiozNpY6cirBSLicTlVRuyExAgNJkAnCeQQKuS3EzTHFzSAECNBosyZGxkKwaqLAkSGAElxkIkFyRRpeDAEN3tTSUQeJMTQJsmlOJkDTg9pqvW2dktQMBTrqCA4thB/MMvBeHtyp6aCv6Fw99o4dowcnaV9acw2pVWbJ87Ww65Y8xz9d1mpK127qIrjowCEhV5ahyDEetC5mG4uNby3eaYyneey/g/dnZaeIfWMis7fmzMcr8QVbQhifpZFt3Rg5lwd+ko9KeAgqVjk6x2i+2YaJjppj3LiIrRzsy4Nde9DE0BvcDOr+otkDwAkq7e435r2Qt7ggOyV6GBjKiJZ96HriuAyH98TwEvIDUPQ7SqM0tpW6Q5iNz+ehYTCeYo3JWgZu2/A63PuY4jqid0MtUfGpH8NxjPeR8ubw8SdjqoySXK3akVtYF27kcEoiHRrNx88R3Pu4NHDdDm3gQYMnc966tTQEJ5M5pm8RxWqg6m+COKocTlDFqCewES2ltpNuHK7PL+QXtzwkzMpCs1kPANauw1dUYdpgFanlBzE7n4VntcmW6wnsT5+0tH2a8VcMRz0Jx0exyDgK4jdYw08m7yRTEExuNwGwgTINe+rfDMYgnLBz6BwFUBveAIyw/HA+4Mp5HidUg32HtjpbWYrAzR+U1R0//3cbuKGUpx7pAGcwWemk6maxG+9iCgOR0QfdK4dPRSl0LyFl0yQqaZoOWvpvCew7f1WRYDWsB92gkbng2qwYyafl7BskWC0uvNPzmqvPZ2+ilTnrFVCyXeyxq/gUCftL+mT8a3k//8fkRUWER5r0jmg4yS1PSbnD5ZG+zdQ7+vlxcL8H737ZlsQ4=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Transfer Organization Ownership"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/{organization_id}/transfer/{new_owner_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Transfer organization ownership to another member.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}},{"name":"new_owner_id","in":"path","required":true,"schema":{"type":"string","title":"New Owner Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

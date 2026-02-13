@@ -5,7 +5,7 @@ description: "Remove app, all its variant."
 sidebar_label: "Remove App"
 hide_title: true
 hide_table_of_contents: true
-api: eJytVE1v2zAM/SsCTxugJlmxk08z0AAt2mFFm+2SBgVrM7E6W1IlOlhm6L8Pkp2vZi0wYKc4/NLj4yM7YFx5yOaQW+thIaEkXzhlWRkNGdxRY9Yk0FopsK6FYi/W6BRqHj3oB527VduQZp89aCFEDBRnZyK3VrARLmWDBGPJYSx5VUIGvfkRrQUJFh02xOQiig40NgQZoLWPqgQJKqKwyBVIcPTSKkclZOxakuCLihqErAPe2Jjl2Sm9AgmsuI6GiOOqhBAWMdtboz35mHA+mcSf42bv26Ig75dtLe6GYJBQGM2kOYajtbUqUiPjZx9zuj2IEEKQ8Pn8/LTwD6xVmdLE1Dnj/qEqWBfJY9XjLolR1fFLMTX+NKA2xZEX9ebbMjF7zFGQO4vSTCtyEBZBbm3oHG4OiLwxPUAIEhq/eo/zr+Q9rgh2xd4OTWSIWfSG/dvm6ZkKPpr3PPXVPz3ELfZl9vT27L7dxkVP398e24Zczma3JwX72TbElYkCLqkmpiReriCDMVrrx10v2gASPLn1VtGtqyGDitn6bDwuatOWI1yRZhyhGqNVENXpqWid4k1KyW+vrmlzSViSg2y+OAy4j8roZ30ctqMZrbqm2PWwS3nLlXHqdz/AYaWqPiu2pfTSpPTt0iRwIr+9AgmxjV7Ek9Gn0QReH4ij4ChqLJKot28nN8hXLOz6BwnUJEUDEzZf9o6IzBrPDeqDesM9ytPpOELS7Vfqf12tgU+mXzy2Naqk/tRIN0x+HpfXg4RsOFgLCZXxHD1d94Sevrs6hGh+acnF6S4kJChPket5B6Xy8buEbIm1p3e6+nA37MNH8Ra4rQJ0HP8a6zb+Awk/abM/qmnPq624usGZFwVZPkg7OUtRhbsVuJjeTGdTCOEPDUkdnw==
+api: eJytVE1r20AQ/StiTi1sbDf0pFNFY4hJSkPi9uKYMJHG1qb62OyOTFyx/73MSrbsuAkUepI0X3rz5s20wLh2EC8gMcbBUkFGLrXasK4riOGWynpDERqjIiyKSLOLNmg1Vjy6r+6rxK6bkip28X0VRZEERmdnUWJMxHVkQzYoqA1ZlJKzDGLozA9oDCgwaLEkJisoWqiwJIgBjXnQGSjQgsIg56DA0nOjLWUQs21IgUtzKhHiFnhrJMux1dUaFLDmQgyCY5aB90vJdqauHDlJOJ9M5HHc7F2TpuTcqimi2z4YFKR1xVSxhKMxhU5DI+MnJzntAMJ77xV8Pj8/LfwTC52FtGhqbW3/oSoYK+Sx7nBnxKgLedNMpTsNKOr0yIvV9vsqMHvMkVd7i66Y1mTBL73a2dBa3B4QeV13AMErKN36Pc6/kXO4JtgXezs0kBHNxetl1KYJhOzcs2DwClJ+OShTPz5RygdlvgqXLwx+wL+PGTSzCNx08Pu45VBjGFE3obepuOhG8Lef7UIu5/Obk4KdPkrivJYlyKggprAAnEMMYzTGjdtO+B4UOLKb3VY0toAYcmbj4vE4LeomG+GaKsYR6jEaDaJwR2ljNW9DSnIzu6LtJWFGFuLF8jDgTtTV6eU4bM8xGn1F0nW/j0nDeW31704E/VrmXZYPs1vVh6NLArgouZmBAmmjW4TJ6NNoAq+PzFGwLAamQQe7fwc3qFcs7PsHBVSGrQAmLL8MDkFmasclVgf1+puWhPNzhKQd1vJ/Xb6eT9Hn2BSowwaFRtp+8gs5AA4UxP3RWyrIa8fiadtHdPTDFt6L+bkhK9NdKghQHoXrRQuZdvKeQbzCwtE7XX247ffhY/QWuJ0CKhn/BotGvkDBL9oOhzncinwnrrZ3JmlKhg/STk6bqHC/AhfT6+l8Ct7/AZWiNEY=
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -65,7 +65,7 @@ Arguments:
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
 >
   
 </StatusCodes>
