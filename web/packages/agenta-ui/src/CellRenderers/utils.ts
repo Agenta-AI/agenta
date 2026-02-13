@@ -103,21 +103,6 @@ export const isChatMessagesArray = (value: unknown): boolean => {
 /**
  * Extract chat messages array from various formats
  */
-const CHAT_ARRAY_KEYS = [
-    "messages",
-    "prompt",
-    "completion",
-    "input_messages",
-    "output_messages",
-    "message_history",
-    "history",
-    "chat",
-    "conversation",
-    "logs",
-    "responses",
-    "output_messages",
-]
-
 export type ChatExtractionPreference = "input" | "output"
 
 interface ExtractChatMessagesOptions {
@@ -211,15 +196,6 @@ export const extractChatMessages = (
 
     // Object with known chat array keys - validate shape before accepting
     for (const key of orderedKeys) {
-        const arr = obj[key]
-        if (Array.isArray(arr) && isChatMessagesArray(arr)) {
-            return arr
-        }
-    }
-
-    // Backward-compatible fallback for old keys if we missed any
-    for (const key of CHAT_ARRAY_KEYS) {
-        if (orderedKeys.includes(key)) continue
         const arr = obj[key]
         if (Array.isArray(arr) && isChatMessagesArray(arr)) {
             return arr

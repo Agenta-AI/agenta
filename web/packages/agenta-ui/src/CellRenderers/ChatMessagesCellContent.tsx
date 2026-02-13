@@ -1,7 +1,13 @@
 import {memo, useMemo} from "react"
 
 import {DEFAULT_ROLE_COLOR_CLASS, ROLE_COLOR_CLASSES} from "./constants"
-import {extractChatMessages, normalizeChatMessages, truncateContent, tryParseJson} from "./utils"
+import {
+    extractChatMessages,
+    normalizeChatMessages,
+    truncateContent,
+    tryParseJson,
+    type ChatExtractionPreference,
+} from "./utils"
 
 interface ChatMessagesCellContentProps {
     /** Value that may contain chat messages */
@@ -16,6 +22,8 @@ interface ChatMessagesCellContentProps {
     truncate?: boolean
     /** Show dividers between messages */
     showDividers?: boolean
+    /** Hint for chat extraction direction in mixed payloads */
+    chatPreference?: ChatExtractionPreference
 }
 
 /**
@@ -165,12 +173,13 @@ const ChatMessagesCellContent = memo(
         maxTotalLines,
         truncate = true,
         showDividers = true,
+        chatPreference,
     }: ChatMessagesCellContentProps) => {
         // Memoize message extraction and smart selection together
         const {displayMessages, totalCount} = useMemo(() => {
             // Parse JSON string if needed, otherwise use value directly
             const parsed = typeof value === "string" ? tryParseJson(value).parsed : value
-            const extracted = extractChatMessages(parsed)
+            const extracted = extractChatMessages(parsed, {prefer: chatPreference})
             if (!extracted) return {displayMessages: [], totalCount: 0}
 
             // Smart selection: pick messages that fit within line budget
@@ -184,7 +193,7 @@ const ChatMessagesCellContent = memo(
             const normalized = normalizeChatMessages(selected)
 
             return {displayMessages: normalized, totalCount: total}
-        }, [value, maxTotalLines, maxLines])
+        }, [value, maxTotalLines, maxLines, chatPreference])
 
         if (displayMessages.length === 0) {
             return null

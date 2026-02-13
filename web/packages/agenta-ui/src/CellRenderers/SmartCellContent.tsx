@@ -101,8 +101,9 @@ const SmartCellContent = memo(
             const cellContent = (
                 <div className={`cursor-pointer ${className}`}>
                     <ChatMessagesCellContent
-                        value={value}
+                        value={jsonValue}
                         keyPrefix={keyPrefix}
+                        chatPreference={chatPreference}
                         maxLines={4}
                         truncate
                     />
@@ -115,8 +116,9 @@ const SmartCellContent = memo(
                 <CellContentPopover
                     fullContent={
                         <ChatMessagesCellContent
-                            value={value}
+                            value={jsonValue}
                             keyPrefix={`${keyPrefix}-popover`}
+                            chatPreference={chatPreference}
                             truncate={false}
                         />
                     }
