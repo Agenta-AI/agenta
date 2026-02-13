@@ -492,7 +492,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     mode="json",
                 )
 
-            # run_dbe.flags["is_closed"] = True  # type: ignore
+            run_dbe.flags["is_closed"] = True  # type: ignore
             flag_modified(run_dbe, "flags")
 
             run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore
@@ -537,7 +537,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         mode="json",
                     )
 
-                # run_dbe.flags["is_closed"] = True  # type: ignore
+                run_dbe.flags["is_closed"] = True  # type: ignore
                 flag_modified(run_dbe, "flags")
 
                 run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore
@@ -690,10 +690,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationRunDBE.tags.contains(run.tags),
                     )
 
-                if run.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationRunDBE.meta.contains(run.meta),
-                    )
+                # meta is JSON (not JSONB) — containment (@>) is not supported
+                # if run.meta is not None:
+                #     stmt = stmt.filter(
+                #         EvaluationRunDBE.meta.contains(run.meta),
+                #     )
 
                 if run.status is not None:
                     stmt = stmt.filter(
@@ -1245,10 +1246,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationScenarioDBE.tags.contains(scenario.tags),
                     )
 
-                if scenario.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.meta.contains(scenario.meta),
-                    )
+                # meta is JSON (not JSONB) — containment (@>) is not supported
+                # if scenario.meta is not None:
+                #     stmt = stmt.filter(
+                #         EvaluationScenarioDBE.meta.contains(scenario.meta),
+                #     )
 
                 if scenario.status is not None:
                     stmt = stmt.filter(
@@ -1765,10 +1767,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationResultDBE.tags.contains(result.tags),
                     )
 
-                if result.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.meta.contains(result.meta),
-                    )
+                # meta is JSON (not JSONB) — containment (@>) is not supported
+                # if result.meta is not None:
+                #     stmt = stmt.filter(
+                #         EvaluationResultDBE.meta.contains(result.meta),
+                #     )
 
                 if result.status is not None:
                     stmt = stmt.filter(
@@ -2220,10 +2223,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationMetricsDBE.tags.contains(metric.tags),
                     )
 
-                if metric.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.meta.contains(metric.meta),
-                    )
+                # meta is JSON (not JSONB) — containment (@>) is not supported
+                # if metric.meta is not None:
+                #     stmt = stmt.filter(
+                #         EvaluationMetricsDBE.meta.contains(metric.meta),
+                #     )
 
                 if metric.status is not None:
                     stmt = stmt.filter(
@@ -2679,10 +2683,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationQueueDBE.tags.contains(queue.tags),
                     )
 
-                if queue.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationQueueDBE.meta.contains(queue.meta),
-                    )
+                # meta is JSON (not JSONB) — containment (@>) is not supported
+                # if queue.meta is not None:
+                #     stmt = stmt.filter(
+                #         EvaluationQueueDBE.meta.contains(queue.meta),
+                #     )
 
                 if queue.name is not None:
                     stmt = stmt.filter(

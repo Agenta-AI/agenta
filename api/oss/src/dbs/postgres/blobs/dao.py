@@ -443,10 +443,11 @@ class BlobsDAO(BlobsDAOInterface):
                     self.BlobDBE.tags.contains(blob_query.tags),  # type: ignore
                 )
 
-            if blob_query.meta:
-                stmt = stmt.filter(
-                    self.BlobDBE.meta.contains(blob_query.meta),  # type: ignore
-                )
+            # meta is JSON (not JSONB) — containment (@>) is not supported
+            # if blob_query.meta:
+            #     stmt = stmt.filter(
+            #         self.BlobDBE.meta.contains(blob_query.meta),
+            #     )
 
             if windowing:
                 stmt = apply_windowing(
