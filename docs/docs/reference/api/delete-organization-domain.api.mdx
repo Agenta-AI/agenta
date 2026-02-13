@@ -1,0 +1,71 @@
+---
+id: delete-organization-domain
+title: "Delete Organization Domain"
+description: "Delete a domain from an organization."
+sidebar_label: "Delete Organization Domain"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VcFu2zAM/RWDpw0Q4qzYyacFS4EG7dCi7XYJgoK1mVidbamSXDQz9O8DZTu2m7bYgGGnJOLjE/XIxzSQkU2N1E6qChJYUkGOIowyVaKsoq1RZYRVpMwOK/kLGTYDAUqTCT9WGSSQhay7MeiuJQABGg2W5MhYSNYNVFgSJDDBygwESL5fo8tBgKHHWhrKIHGmJgE2zalESBpwe83p1hlZ7UCAk67gg8sRX7TKwHtxuKst5V/csmxVCfwbJrBaVZYs55zM5/wx1fOmTlOydlsX0XUHBgGpqhxVjuGodSHTUHb8YDmnGerw3nsBn09Ojol/YCGz9rWnxijzF6ygDbfPybbujBzKgr9JR6U9BhQqnUSx2l9uQy+nMrHi3YmsHO3IgN940Z+hMbgfaXmh2gLBCyjt7j3Zv5G1uCM4kL0NDWJEtxz13G1dB0H68CoceAGpex7RqPsHSt2I5itr+ex4jI4ww9isgzZt+R1uM3AMLWo79LYUy7YFr13WQ85ub6+OCNv5KMnlarBhsJzLIYF4bDIbNy885+PWGDZuDg7xIMCSeerdWpsCEsid0zaJ47RQdTbDHVUOZyhj1BLYB5bS2ki3DymLq9U57c8IMzKQrDdjwA3PYDtVU9ihE6jlObE2nXcXtcuV6Yru/Zu3WT50eKvGDV6E4qLF1QoE8DNau8xnn2ZzEC9MNAGzfTAN09LfHcIgXqhweD8IoDJ4Bxxh+WUIcGVaWVdiNeLrlutkVS37NTmprBnM/McruROQxzbWBZP6rvKmG4j1ZOtaEJAcr+FuJjg47M2NgFxZxxRNc4+WvpvCez5+rMlw3zcCntBIvOcurBvIpOXvGSRbLCy9874P152fPkZvvaKfjYoH4wmLmn+BgJ+0f+WvhPfQf7x+UClsu7wf/KaLL9KUtBtlHi1ndsjBxMvTi9PbU/D+N9fhmpM=
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Organization Domain"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/organizations/{organization_id}/domains/{domain_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete a domain from an organization.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}},{"name":"domain_id","in":"path","required":true,"schema":{"type":"string","title":"Domain Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

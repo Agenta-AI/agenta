@@ -1,0 +1,76 @@
+---
+id: test-provider-organizations-providers-provider-id-test-post
+title: "Test Provider"
+description: "Test SSO provider connection."
+sidebar_label: "Test Provider"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVt9v4zYM/lcEPl0BL+mKPRkYsKDdcMFta3DJ7SUNAtViYt3Zkk+ig8sM/+8HSnZiN2239XlPccQfIj/yI9UAyb2HdA33bi+N/luStsbDJgGFPnO64v+Qwgo9ieXyXlTOHrRCJzJrDGYsnjyYB7PKtRdoVGW1IUHoyQvKUdzP725HRju9r124RjwexQ4py7XZs+6DUdpn9oDuKJTN6hINCWmUOMhCK0ms5vBrrR2q01Ve4DftafJg5jvh6yxD73d1kYhSui8xhNPt0kdX4p322/D1M7kar6LxTuoCVW8ovdAmanMICmVG+iAJ/cB6JwuPidB+G6QYD64mkICtMGY5V5AC47Ht49jaIdanY789a2i13UYb6wkSqKSTJRI6rlUDRpYIKQzUIQHNdaok5ZBADxOknGACPsuxlJA2QMeKTT05bfaQAGkq+GDRgzRX0LYbduErazx6trq5vuafcU8sT2iLj50yJJBZQ2iI1WVVFToLaU4/e7ZpBpFUjjEiHW/Q6rXoOKgEfFHvX9NasrxNOngakOZ4vwuAjS3a5HRi6qIATrf38Sfbtk/a/22u7gYu2gR2RaBaA1IpzYeyWAwgiIXqfNnHz5jRILXfgjFjgMREeLOjZW/fJpA5lIRqK+k5VHfWlSwBJQl/IF3iwM1tNBUzYkd1pQaOXsLqWZevAfgpuu0uGbJm+3q7DIdZbOhLQM4UWUPgT+iurnnG9e9rN0B/BN4IgMtAN88H1jNuwJ0xv3qBKK3CQuysE9KMhvAE2pZz++nm5pKef3VT0xrxq3PWvZ2bCknqIrCUsPSXCoXNRtJ/wRZtCPfooN2cayOdk8dBGX+3MUCufulfpf4f6L3cB+ZGlZdVAxhixdKWp2ZVx/bvR004YHbQt4GbCyLdMpbf6B97i7GJ4Xd6g3Y4lyhW6GUo7mIJnrusV3m/Wi0uHMb+KJFyy3votE4ohxSmo0U0PS2iaTPYLO2UF1HofXfoF1DtCkghJ6p8Op1mha3VRO7RkJxIPZWVDjz2mNVO0zGYzBbzD3h8j1Khg3S9GSosufFiK43VTvDLSn/AY0/PFGY15dZ1offLL49WbSjrzg6rOgvBidliDglwGpEj15MfJ9cXxBspM2dkFlqkvzuImfUjFE75QwJYBsIAoSx/OQs4Mi5BKc3AX3hb9dPgaTDNmbT/P8L+6yOsax7m6bQqpA6TJFSt6TiwHk1rnusnFkAC6fiFFYiwSSBnFqVraJpH6fGTK9qWj7/W6LjXNwkcpNPykTtv3YDSnr8VpDHUlwv87mOH7JV4KfqeD4bJcJBFzf8ggS94fPIiDJM17/nWdBqzLMOKBrYXi4CJeRoYi/vlCtr2Ow7jPcU=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Test Provider"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/providers/{provider_id}/test"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Test SSO provider connection.
+
+This endpoint tests the OIDC provider configuration by fetching the
+discovery document and validating required endpoints exist.
+If successful, marks the provider as valid (is_valid=true).
+If failed, marks as invalid and deactivates (is_valid=false, is_active=false).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"provider_id","in":"path","required":true,"schema":{"type":"string","title":"Provider Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"id":{"type":"string","title":"Id"},"slug":{"type":"string","title":"Slug"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"flags":{"additionalProperties":true,"type":"object","title":"Flags"},"settings":{"additionalProperties":true,"type":"object","title":"Settings"},"created_at":{"type":"string","format":"date-time","title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"organization_id":{"type":"string","title":"Organization Id"}},"type":"object","required":["id","slug","name","description","flags","settings","created_at","updated_at","organization_id"],"title":"OrganizationProviderResponse","description":"Response model for an SSO provider."}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
