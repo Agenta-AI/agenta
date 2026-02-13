@@ -59,6 +59,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
+            onCell: () => ({
+                style: {verticalAlign: "middle"},
+            }),
             fixed: "left",
             render: (_, record) => <NodeNameCell name={record.span_name} type={record.span_type} />,
         },
