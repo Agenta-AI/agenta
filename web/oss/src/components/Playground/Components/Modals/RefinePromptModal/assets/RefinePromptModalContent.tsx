@@ -11,11 +11,13 @@
 
 import {useCallback, useEffect, useRef} from "react"
 
+import {getMetadataLazy, type ArrayMetadata} from "@agenta/entities/legacyAppRevision"
 import {generateId} from "@agenta/shared/utils"
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Switch, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
 import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {
@@ -70,11 +72,51 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
             for (const prompt of draft) {
                 if (prompt?.__id !== promptId && prompt?.__name !== promptId) continue
 
-                prompt.messages.value = workingPrompt.messages.map((msg) => ({
-                    __id: generateId(),
-                    role: {value: msg.role},
-                    content: {value: msg.content},
-                }))
+                const existingMessages = Array.isArray(prompt?.messages?.value)
+                    ? prompt.messages.value
+                    : []
+                const messagesMetadataId = prompt?.messages?.__metadata as string | undefined
+                const parentMetadata = messagesMetadataId
+                    ? getMetadataLazy<ArrayMetadata>(messagesMetadataId)
+                    : undefined
+                const itemMetadata = parentMetadata?.itemMetadata
+
+                prompt.messages.value = workingPrompt.messages.map((msg, index) => {
+                    if (itemMetadata) {
+                        const created = createMessageFromSchema(itemMetadata as any, {
+                            role: msg.role,
+                            content: msg.content,
+                        })
+                        if (created) return created
+                    }
+
+                    const existing = existingMessages[index]
+
+                    return {
+                        ...(existing && typeof existing === "object" ? existing : {}),
+                        __id: existing?.__id || generateId(),
+                        role:
+                            existing?.role && typeof existing.role === "object"
+                                ? {
+                                      ...existing.role,
+                                      value: msg.role,
+                                  }
+                                : {
+                                      __id: generateId(),
+                                      value: msg.role,
+                                  },
+                        content:
+                            existing?.content && typeof existing.content === "object"
+                                ? {
+                                      ...existing.content,
+                                      value: msg.content,
+                                  }
+                                : {
+                                      __id: generateId(),
+                                      value: msg.content,
+                                  },
+                    }
+                })
             }
         })
 
