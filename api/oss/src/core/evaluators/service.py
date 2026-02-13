@@ -104,11 +104,15 @@ class EvaluatorsService:
         project_id: UUID,
         #
         evaluator_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Evaluator]:
         workflow = await self.workflows_service.fetch_workflow(
             project_id=project_id,
             #
             workflow_ref=evaluator_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow:
@@ -293,12 +297,16 @@ class EvaluatorsService:
         #
         evaluator_ref: Optional[Reference] = None,
         evaluator_variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[EvaluatorVariant]:
         workflow_variant = await self.workflows_service.fetch_workflow_variant(
             project_id=project_id,
             #
             workflow_ref=evaluator_ref,
             workflow_variant_ref=evaluator_variant_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow_variant:
@@ -521,6 +529,8 @@ class EvaluatorsService:
         evaluator_ref: Optional[Reference] = None,
         evaluator_variant_ref: Optional[Reference] = None,
         evaluator_revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[EvaluatorRevision]:
         workflow_revision = await self.workflows_service.fetch_workflow_revision(
             project_id=project_id,
@@ -528,6 +538,8 @@ class EvaluatorsService:
             workflow_ref=evaluator_ref,
             workflow_variant_ref=evaluator_variant_ref,
             workflow_revision_ref=evaluator_revision_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow_revision:
