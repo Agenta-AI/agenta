@@ -3,7 +3,6 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import ValidationError
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.throttling import check_throttle
 
@@ -14,11 +13,6 @@ from oss.src.apis.fastapi.ai_services.models import (
     ToolCallRequestModel,
     ToolCallResponseModel,
 )
-
-
-if is_ee():
-    from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
 
 _RATE_LIMIT_BURST = 10
@@ -56,16 +50,10 @@ class AIServicesRouter:
 
     @intercept_exceptions()
     async def get_status(self, request: Request) -> AIServicesStatusResponse:
-        allow_tools = True
-
-        if is_ee():
-            allow_tools = await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
-            )
-
-        return self.service.status(allow_tools=allow_tools)
+        # TODO: Access control should be org-level feature flag (org owner
+        # enables/disables AI services for the whole org) rather than
+        # per-user permissions.  For now, env-var gating is sufficient.
+        return self.service.status()
 
     @intercept_exceptions()
     async def call_tool(
@@ -77,13 +65,9 @@ class AIServicesRouter:
         if not self.service.enabled:
             raise HTTPException(status_code=503, detail="AI services are disabled")
 
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        # TODO: Access control should be org-level feature flag (org owner
+        # enables/disables AI services for the whole org) rather than
+        # per-user permissions.  For now, env-var gating is sufficient.
 
         # Router-level rate limit
         key = {

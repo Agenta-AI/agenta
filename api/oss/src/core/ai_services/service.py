@@ -158,12 +158,9 @@ class AIServicesService:
     def enabled(self) -> bool:
         return self.config.enabled
 
-    def status(self, *, allow_tools: bool) -> AIServicesStatus:
+    def status(self) -> AIServicesStatus:
         if not self.enabled:
             return AIServicesStatus(enabled=False, tools=[])
-
-        if not allow_tools:
-            return AIServicesStatus(enabled=True, tools=[])
 
         return AIServicesStatus(
             enabled=True,
