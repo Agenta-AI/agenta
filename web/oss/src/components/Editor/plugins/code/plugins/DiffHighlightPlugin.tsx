@@ -179,6 +179,339 @@ function parseDiffLine(lineContent: string): {
     return {diffType: "context", content: lineContent}
 }
 
+interface InlineDiffSegment {
+    text: string
+    changed: boolean
+    truncated?: boolean
+}
+
+interface InlineDiffPair {
+    removed: InlineDiffSegment[]
+    added: InlineDiffSegment[]
+}
+
+interface TokenDiffOp {
+    type: "equal" | "insert" | "delete"
+    text: string
+}
+
+const INLINE_DIFF_MIN_OVERLAP_RATIO = 0.18
+const INLINE_DIFF_MAX_TOKEN_COUNT = 220
+const INLINE_DIFF_EDGE_CONTEXT_CHARS = 64
+const INLINE_DIFF_MIDDLE_CONTEXT_CHARS = 24
+const INLINE_DIFF_MIDDLE_TRUNCATE_THRESHOLD = 160
+const INLINE_DIFF_TRUNCATION_SUFFIX = " unchanged chars omitted ...]"
+
+function buildTruncationMarker(hiddenChars: number): InlineDiffSegment {
+    return {
+        text: `[... ${hiddenChars}${INLINE_DIFF_TRUNCATION_SUFFIX}`,
+        changed: false,
+        truncated: true,
+    }
+}
+
+function pushInlineSegment(
+    segments: InlineDiffSegment[],
+    text: string,
+    changed: boolean,
+    truncated = false,
+): InlineDiffSegment[] {
+    if (!text) return segments
+
+    const previous = segments[segments.length - 1]
+    if (previous && previous.changed === changed && Boolean(previous.truncated) === truncated) {
+        previous.text += text
+        return segments
+    }
+
+    segments.push({text, changed, truncated})
+    return segments
+}
+
+function getLastChangedIndex(segments: InlineDiffSegment[]): number {
+    for (let index = segments.length - 1; index >= 0; index--) {
+        if (segments[index].changed) return index
+    }
+    return -1
+}
+
+function truncateSegment({
+    text,
+    isLeading,
+    isTrailing,
+}: {
+    text: string
+    isLeading: boolean
+    isTrailing: boolean
+}): InlineDiffSegment[] {
+    if (isLeading || isTrailing) {
+        if (text.length <= INLINE_DIFF_EDGE_CONTEXT_CHARS) {
+            return [{text, changed: false}]
+        }
+
+        const hiddenChars = text.length - INLINE_DIFF_EDGE_CONTEXT_CHARS
+        if (isLeading) {
+            return [
+                buildTruncationMarker(hiddenChars),
+                {
+                    text: text.slice(-INLINE_DIFF_EDGE_CONTEXT_CHARS),
+                    changed: false,
+                },
+            ]
+        }
+
+        return [
+            {
+                text: text.slice(0, INLINE_DIFF_EDGE_CONTEXT_CHARS),
+                changed: false,
+            },
+            buildTruncationMarker(hiddenChars),
+        ]
+    }
+
+    if (text.length <= INLINE_DIFF_MIDDLE_TRUNCATE_THRESHOLD) return [{text, changed: false}]
+
+    const hiddenChars = text.length - INLINE_DIFF_MIDDLE_CONTEXT_CHARS * 2
+    return [
+        {
+            text: text.slice(0, INLINE_DIFF_MIDDLE_CONTEXT_CHARS),
+            changed: false,
+        },
+        buildTruncationMarker(hiddenChars),
+        {
+            text: text.slice(-INLINE_DIFF_MIDDLE_CONTEXT_CHARS),
+            changed: false,
+        },
+    ]
+}
+
+function truncateInlineSegments(segments: InlineDiffSegment[]): InlineDiffSegment[] {
+    const firstChangedIndex = segments.findIndex((segment) => segment.changed)
+    if (firstChangedIndex < 0) return segments
+
+    const lastChangedIndex = getLastChangedIndex(segments)
+    const truncatedSegments: InlineDiffSegment[] = []
+
+    segments.forEach((segment, index) => {
+        if (segment.changed) {
+            pushInlineSegment(truncatedSegments, segment.text, true)
+            return
+        }
+
+        const isLeading = index < firstChangedIndex
+        const isTrailing = index > lastChangedIndex
+        truncateSegment({
+            text: segment.text,
+            isLeading,
+            isTrailing,
+        }).forEach((truncatedSegment) => {
+            pushInlineSegment(
+                truncatedSegments,
+                truncatedSegment.text,
+                truncatedSegment.changed,
+                Boolean(truncatedSegment.truncated),
+            )
+        })
+    })
+
+    return truncatedSegments
+}
+
+function tokenizeInlineDiff(line: string): string[] {
+    return line.match(/\s+|[a-zA-Z0-9_]+|./g) ?? []
+}
+
+function computeTokenDiff(removedTokens: string[], addedTokens: string[]): TokenDiffOp[] {
+    const removedLength = removedTokens.length
+    const addedLength = addedTokens.length
+
+    const dp: number[][] = Array.from({length: removedLength + 1}, () =>
+        Array(addedLength + 1).fill(0),
+    )
+
+    for (let i = 1; i <= removedLength; i++) {
+        for (let j = 1; j <= addedLength; j++) {
+            if (removedTokens[i - 1] === addedTokens[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
+            }
+        }
+    }
+
+    const reversed: TokenDiffOp[] = []
+    let i = removedLength
+    let j = addedLength
+
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && removedTokens[i - 1] === addedTokens[j - 1]) {
+            reversed.push({type: "equal", text: removedTokens[i - 1]})
+            i--
+            j--
+            continue
+        }
+
+        if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+            reversed.push({type: "insert", text: addedTokens[j - 1]})
+            j--
+            continue
+        }
+
+        reversed.push({type: "delete", text: removedTokens[i - 1]})
+        i--
+    }
+
+    const merged: TokenDiffOp[] = []
+    for (let index = reversed.length - 1; index >= 0; index--) {
+        const op = reversed[index]
+        const previous = merged[merged.length - 1]
+        if (previous && previous.type === op.type) {
+            previous.text += op.text
+        } else {
+            merged.push({...op})
+        }
+    }
+
+    return merged
+}
+
+function buildInlineDiffFromTokenDiff(
+    removedLine: string,
+    addedLine: string,
+    ops: TokenDiffOp[],
+): InlineDiffPair | null {
+    const removedSegments: InlineDiffSegment[] = []
+    const addedSegments: InlineDiffSegment[] = []
+    let unchangedChars = 0
+
+    ops.forEach((op) => {
+        if (op.type === "equal") {
+            unchangedChars += op.text.length
+            pushInlineSegment(removedSegments, op.text, false)
+            pushInlineSegment(addedSegments, op.text, false)
+            return
+        }
+
+        if (op.type === "delete") {
+            pushInlineSegment(removedSegments, op.text, true)
+            return
+        }
+
+        pushInlineSegment(addedSegments, op.text, true)
+    })
+
+    const overlapRatio = unchangedChars / Math.max(removedLine.length, addedLine.length)
+    if (overlapRatio < INLINE_DIFF_MIN_OVERLAP_RATIO) return null
+
+    const hasRemovedChange = removedSegments.some((segment) => segment.changed)
+    const hasAddedChange = addedSegments.some((segment) => segment.changed)
+    if (!hasRemovedChange && !hasAddedChange) return null
+
+    return {
+        removed: truncateInlineSegments(removedSegments),
+        added: truncateInlineSegments(addedSegments),
+    }
+}
+
+function buildInlineDiffFromPrefixSuffix(
+    removedLine: string,
+    addedLine: string,
+): InlineDiffPair | null {
+    const maxPrefix = Math.min(removedLine.length, addedLine.length)
+    let prefixLength = 0
+    while (prefixLength < maxPrefix && removedLine[prefixLength] === addedLine[prefixLength]) {
+        prefixLength++
+    }
+
+    let removedSuffixLength = removedLine.length - 1
+    let addedSuffixLength = addedLine.length - 1
+    while (
+        removedSuffixLength >= prefixLength &&
+        addedSuffixLength >= prefixLength &&
+        removedLine[removedSuffixLength] === addedLine[addedSuffixLength]
+    ) {
+        removedSuffixLength--
+        addedSuffixLength--
+    }
+
+    const removedMiddle = removedLine.slice(prefixLength, removedSuffixLength + 1)
+    const addedMiddle = addedLine.slice(prefixLength, addedSuffixLength + 1)
+    const unchangedChars = prefixLength + (removedLine.length - 1 - removedSuffixLength)
+    const overlapRatio = unchangedChars / Math.max(removedLine.length, addedLine.length)
+
+    // If there is very little overlap, full line-level highlighting is usually clearer.
+    if (overlapRatio < INLINE_DIFF_MIN_OVERLAP_RATIO) return null
+
+    const prefix = removedLine.slice(0, prefixLength)
+    const suffix = removedLine.slice(removedSuffixLength + 1)
+
+    const toSegments = (
+        middleText: string,
+        includeChangedSegment: boolean,
+    ): InlineDiffSegment[] => {
+        const segments: InlineDiffSegment[] = []
+        if (prefix) segments.push({text: prefix, changed: false})
+        if (includeChangedSegment && middleText) segments.push({text: middleText, changed: true})
+        if (suffix) segments.push({text: suffix, changed: false})
+        return truncateInlineSegments(segments)
+    }
+
+    return {
+        removed: toSegments(removedMiddle, Boolean(removedMiddle)),
+        added: toSegments(addedMiddle, Boolean(addedMiddle)),
+    }
+}
+
+function buildInlineDiffPair(removedLine: string, addedLine: string): InlineDiffPair | null {
+    if (!removedLine || !addedLine || removedLine === addedLine) return null
+
+    const removedTokens = tokenizeInlineDiff(removedLine)
+    const addedTokens = tokenizeInlineDiff(addedLine)
+
+    const canUseTokenDiff =
+        removedTokens.length <= INLINE_DIFF_MAX_TOKEN_COUNT &&
+        addedTokens.length <= INLINE_DIFF_MAX_TOKEN_COUNT
+
+    if (canUseTokenDiff) {
+        const tokenDiffPair = buildInlineDiffFromTokenDiff(
+            removedLine,
+            addedLine,
+            computeTokenDiff(removedTokens, addedTokens),
+        )
+        if (tokenDiffPair) return tokenDiffPair
+    }
+
+    return buildInlineDiffFromPrefixSuffix(removedLine, addedLine)
+}
+
+function $setLineContentWithInlineDiff(
+    lineNode: CodeLineNode,
+    fullContent: string,
+    diffType: DiffType,
+    segments?: InlineDiffSegment[] | null,
+) {
+    lineNode.clear()
+
+    if (!segments || segments.length === 0) {
+        lineNode.append($createTextNode(fullContent))
+        return
+    }
+
+    const changedBg = diffType === "added" ? "rgba(22, 163, 74, 0.35)" : "rgba(220, 38, 38, 0.35)"
+    const truncationStyle =
+        "background-color: rgba(100, 116, 139, 0.18); color: #334155; border-radius: 3px; padding: 0 4px; font-style: italic;"
+
+    segments.forEach((segment) => {
+        const node = $createTextNode(segment.text)
+        if (segment.changed) {
+            node.setStyle(`background-color: ${changedBg}; border-radius: 2px; padding: 0 1px;`)
+        } else if (segment.truncated) {
+            node.setStyle(truncationStyle)
+        }
+        lineNode.append(node)
+    })
+}
+
 /**
  * Checks if a code block contains diff content
  * @param blockText - The full text content of the code block
@@ -332,12 +665,38 @@ export default function DiffHighlightPlugin({
                     return
                 }
 
-                // Process each line for diff highlighting
                 const codeLines = codeBlockNode.getChildren().filter($isCodeLineNode)
+                const parsedLines = codeLines.map((lineNode) =>
+                    parseDiffLine(lineNode.getTextContent()),
+                )
+
+                const inlineDiffByIndex = new Map<number, InlineDiffSegment[]>()
+                for (let i = 0; i < parsedLines.length - 1; i++) {
+                    const current = parsedLines[i]
+                    const next = parsedLines[i + 1]
+                    if (!current || !next) continue
+
+                    const isReplacementPair =
+                        current.diffType === "removed" &&
+                        next.diffType === "added" &&
+                        typeof current.content === "string" &&
+                        typeof next.content === "string"
+
+                    if (!isReplacementPair) continue
+
+                    const inlinePair = buildInlineDiffPair(current.content, next.content)
+                    if (!inlinePair) continue
+
+                    if (inlinePair.removed.length > 0) {
+                        inlineDiffByIndex.set(i, inlinePair.removed)
+                    }
+                    if (inlinePair.added.length > 0) {
+                        inlineDiffByIndex.set(i + 1, inlinePair.added)
+                    }
+                }
 
                 codeLines.forEach((lineNode: CodeLineNode, index: number) => {
-                    const lineContent = lineNode.getTextContent()
-                    const parsed = parseDiffLine(lineContent)
+                    const parsed = parsedLines[index]
                     // Process individual line for diff styling
 
                     if (parsed) {
@@ -363,9 +722,12 @@ export default function DiffHighlightPlugin({
                         // Update line content to remove diff formatting (preserve indentation)
                         const cleanContent = parsed.content
                         if (cleanContent !== currentContent) {
-                            // Replace the line content with the cleaned content
-                            lineNode.clear()
-                            lineNode.append($createTextNode(cleanContent))
+                            $setLineContentWithInlineDiff(
+                                lineNode,
+                                cleanContent,
+                                parsed.diffType,
+                                inlineDiffByIndex.get(index),
+                            )
                         }
                     }
                 })
