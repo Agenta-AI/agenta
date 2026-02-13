@@ -19,6 +19,9 @@ const config = {
         },
     },
     experimental: {
+        ...(ossConfig.experimental ?? {}),
+        // Allow CJS dependencies to consume ESM-only externals (e.g. react-syntax-highlighter -> refractor/*)
+        esmExternals: "loose",
         optimizePackageImports: [
             "@agenta/oss",
             "@agenta/shared",
