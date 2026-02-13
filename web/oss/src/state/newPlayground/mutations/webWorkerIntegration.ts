@@ -1,28 +1,33 @@
+import {getAllMetadata} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
+import {generateId} from "@agenta/shared/utils"
 import {produce} from "immer"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {hashResponse} from "@/oss/components/Playground/assets/hash"
-import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms"
+import {appChatModeAtom, generationRowIdsAtom} from "@/oss/components/Playground/state/atoms"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms/propertySelectors"
+import {
+    playgroundAppUriInfoAtom,
+    playgroundAppSchemaAtom,
+} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import {
     displayedVariantsAtom,
     revisionListAtom,
 } from "@/oss/components/Playground/state/atoms/variants"
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {extractInputKeysFromSchema, extractVariables} from "@/oss/lib/shared/variant/inputHelpers"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {
     extractValueByMetadata,
     stripAgentaMetadataDeep,
+    stripEnhancedWrappers,
 } from "@/oss/lib/shared/variant/valueHelpers"
 import {getJWT} from "@/oss/services/api"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
     chatTurnIdsAtom,
     chatTurnsByIdAtom,
+    // chatTurnsByIdAtom, // Moved
     chatTurnsByIdFamilyAtom,
     inputRowsByIdAtom,
     inputRowsByIdFamilyAtom,
@@ -31,9 +36,7 @@ import {
     runStatusByRowRevisionAtom,
 } from "@/oss/state/generation/entities"
 import {rowVariablesAtomFamily} from "@/oss/state/generation/selectors"
-import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {promptsAtomFamily, promptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
+import {promptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {repetitionCountAtom} from "@/oss/state/newPlayground/generation/options"
 import {
     loadingByRowRevisionAtomFamily,
@@ -44,9 +47,14 @@ import {
     buildCompletionResponseText,
     buildToolMessages,
 } from "@/oss/state/newPlayground/helpers/messageFactory"
+import {
+    moleculeBackedCustomPropertiesAtomFamily,
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {variableValuesSelectorFamily} from "@/oss/state/newPlayground/selectors/variables"
 import {getProjectValues} from "@/oss/state/project"
-import {appUriInfoAtom, getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
+// (runnableBridge imported above with external deps)
 
 import {selectedAppIdAtom} from "../../app"
 
@@ -95,12 +103,12 @@ const _scrubLargeFields = (value: any): any => {
 
 function resolveEffectiveRevisionId(
     get: any,
-    requestedVariantId: string | undefined,
+    requestedRevisionId: string | undefined,
 ): string | null {
     const revisions = (get(revisionListAtom) || []) as any[]
     const displayed = (get(displayedVariantsAtom) || []) as string[]
     const effectiveId =
-        requestedVariantId ||
+        requestedRevisionId ||
         (Array.isArray(displayed) && displayed.length > 0
             ? (displayed[0] as string | undefined)
             : undefined) ||
@@ -108,17 +116,10 @@ function resolveEffectiveRevisionId(
     return effectiveId || null
 }
 
-function detectIsChatVariant(get: any, rowId: string): boolean {
-    const spec = getSpecLazy()
-    const appUri = get(appUriInfoAtom)
-    if (spec) {
-        const properties = (
-            spec.paths[(appUri?.routePath || "") + "/run"] ||
-            spec.paths[(appUri?.routePath || "") + "/test"]
-        )?.post?.requestBody?.content["application/json"]?.schema?.properties
-        return properties?.messages !== undefined
-    }
-    return false
+function detectIsChatVariant(get: any, _rowId: string): boolean {
+    // Use the same chat mode detection as the rendering layer
+    // instead of manually parsing raw OpenAPI paths which can miss the messages schema.
+    return Boolean(get(appChatModeAtom))
 }
 
 interface ResolvedVariableKeys {
@@ -203,92 +204,24 @@ function computeVariableValues(
 
 // Resolve the set of allowed variable keys for a given revision
 function resolveAllowedVariableKeys(get: any, revisionId: string): ResolvedVariableKeys {
-    const ordered: string[] = []
-    const seen = new Set<string>()
-    const trimmedToKey = new Map<string, string>()
-    const addKey = (rawKey: unknown, preferNew: boolean) => {
-        if (typeof rawKey !== "string" || rawKey.length === 0) return
-        const key = rawKey
-        const trimmed = key.trim()
-        let insertionIndex = ordered.length
-        if (trimmed.length > 0) {
-            const existing = trimmedToKey.get(trimmed)
-            if (existing && existing !== key) {
-                if (!preferNew) return
-                if (seen.has(existing)) {
-                    seen.delete(existing)
-                    const idx = ordered.indexOf(existing)
-                    if (idx >= 0) {
-                        ordered.splice(idx, 1)
-                        insertionIndex = idx
-                    }
-                }
-            } else if (existing === key) {
-                return
-            }
-        }
-        if (seen.has(key)) return
-        if (insertionIndex < ordered.length) {
-            ordered.splice(insertionIndex, 0, key)
-        } else {
-            ordered.push(key)
-        }
-        seen.add(key)
-        if (trimmed.length > 0) trimmedToKey.set(trimmed, key)
-    }
-
-    const flags = get(variantFlagsAtomFamily({revisionId})) as any
-    const isCustom = !!flags?.isCustom
-    if (isCustom) {
-        const spec = getSpecLazy()
-        const routePath = get(appUriInfoAtom)?.routePath
-        const keys = extractInputKeysFromSchema(spec, routePath) || []
-        keys.forEach((key) => addKey(key, true))
+    // Prefer runnableBridge input ports (single source of truth)
+    const ports = (get(runnableBridge.inputPorts(revisionId)) || []) as {key?: string}[]
+    const ordered = ports.map((p) => p?.key).filter((k): k is string => !!k)
+    if (ordered.length > 0) {
         return {ordered, set: new Set(ordered)}
     }
+
+    // Fallback to prompt variables if bridge input ports are unavailable
     const promptVars = (get(promptVariablesAtomFamily(revisionId)) || []) as string[]
-    const livePrompts = (get(promptsAtomFamily(revisionId)) || []) as any[]
-    const scanned: string[] = []
-    const scannedSeen = new Set<string>()
-    const recordScanned = (value: string) => {
-        if (!scannedSeen.has(value)) {
-            scannedSeen.add(value)
-            scanned.push(value)
-        }
-    }
-    try {
-        for (const p of livePrompts || []) {
-            const msgs = (p as any)?.messages?.value || []
-            for (const m of msgs) {
-                const content = m?.content?.value
-                if (typeof content === "string") {
-                    extractVariables(content).forEach((v) => recordScanned(v))
-                } else if (Array.isArray(content)) {
-                    for (const part of content) {
-                        const text = part?.text?.value ?? part?.text ?? ""
-                        if (typeof text === "string")
-                            extractVariables(text).forEach((v) => recordScanned(v))
-                    }
-                }
-            }
-        }
-    } catch {}
-    if (scanned.length > 0) {
-        scanned.forEach((value) => addKey(value, true))
-    }
-    if (ordered.length === 0) {
-        ;(promptVars || []).forEach((value) => addKey(value, true))
-    } else {
-        ;(promptVars || []).forEach((value) => addKey(value, false))
-    }
-    return {ordered, set: new Set(ordered)}
+    const keys = (promptVars || []).filter((k) => typeof k === "string" && k.length > 0)
+    return {ordered: keys, set: new Set(keys)}
 }
 
 export const triggerWebWorkerTestAtom = atom(
     null,
-    async (get, set, params: {rowId: string; variantId?: string; messageId?: string}) => {
+    async (get, set, params: {rowId: string; revisionId?: string; messageId?: string}) => {
         const {rowId} = params
-        const requestedVariantId = params.variantId
+        const requestedRevisionId = params.revisionId
         const messageId = params.messageId
 
         const webWorker = (window as any).__playgroundWebWorker
@@ -296,7 +229,7 @@ export const triggerWebWorkerTestAtom = atom(
         const {postMessageToWorker, createWorkerMessage} = webWorker
 
         const displayed = (get(displayedVariantsAtom) || []) as string[]
-        const effectiveId = resolveEffectiveRevisionId(get, requestedVariantId)
+        const effectiveId = resolveEffectiveRevisionId(get, requestedRevisionId)
         if (!effectiveId) return
 
         // Derive logicalId from provided rowId (session id: turn-<rev>-<logicalId> or logical id itself)
@@ -304,23 +237,24 @@ export const triggerWebWorkerTestAtom = atom(
         const logicalIdFromRow =
             sessionMatch?.[2] || (String(rowId).startsWith("lt-") ? String(rowId) : "")
 
-        if (!requestedVariantId) {
+        if (!requestedRevisionId) {
             if (Array.isArray(displayed) && displayed.length > 1) {
                 const lid = logicalIdFromRow || String(rowId)
                 for (const revId of displayed) {
                     if (!revId) continue
                     const rid = `turn-${revId}-${lid}`
-                    set(triggerWebWorkerTestAtom, {rowId: rid, variantId: revId})
+                    set(triggerWebWorkerTestAtom, {rowId: rid, revisionId: revId})
                 }
                 return
             }
         }
 
-        const variant = get(variantByRevisionIdAtomFamily(effectiveId)) as any
-        const prompts = get(promptsAtomFamily(effectiveId))
+        // Use molecule-backed atoms for single source of truth (includes draft state)
+        const variant = get(moleculeBackedVariantAtomFamily(effectiveId)) as any
+        const prompts = get(moleculeBackedPromptsAtomFamily(effectiveId))
         // const promptVars = get(promptVariablesAtomFamily(effectiveId))
         const customProps = variant
-            ? get(customPropertiesByRevisionAtomFamily(effectiveId))
+            ? get(moleculeBackedCustomPropertiesAtomFamily(effectiveId))
             : undefined
         const currentVariant = variant
             ? ({...variant, prompts, customProperties: customProps} as any)
@@ -423,7 +357,9 @@ export const triggerWebWorkerTestAtom = atom(
                 .filter(Boolean)
         }
 
-        const sanitizedChatHistory = stripAgentaMetadataDeep(chatHistory)
+        const sanitizedChatHistory = stripEnhancedWrappers(
+            stripAgentaMetadataDeep(chatHistory),
+        ) as any[]
         const sanitizedPrompts = stripAgentaMetadataDeep(prompts)
 
         inputRow = (() => {
@@ -463,7 +399,7 @@ export const triggerWebWorkerTestAtom = atom(
         const appId = get(selectedAppIdAtom)
         const {appType} = (get(currentAppContextAtom) as any) || {}
         const jwt = await getJWT()
-        const uri = get(appUriInfoAtom) || ({} as any)
+        const uri = get(playgroundAppUriInfoAtom) || ({} as any)
         const rawRepetitions = get(repetitionCountAtom)
         const repetitions = Array.isArray(displayed) && displayed.length > 1 ? 1 : rawRepetitions
 
@@ -489,7 +425,7 @@ export const triggerWebWorkerTestAtom = atom(
             headers,
             projectId,
             chatHistory: sanitizedChatHistory,
-            spec: getSpecLazy(),
+            spec: get(playgroundAppSchemaAtom),
             runId,
             prompts: sanitizedPrompts,
             // variables: promptVars,
@@ -504,15 +440,8 @@ export const triggerWebWorkerTestAtom = atom(
             revisionId: effectiveId,
             variantId: effectiveId,
             isChat: isChatVariant,
-            isCustom: get(variantFlagsAtomFamily({revisionId: effectiveId}))?.isCustom || false,
             appType,
         }
-        console.debug("[WW] post runVariantInputRow", {
-            rowId,
-            variantId: effectiveId,
-            isChatVariant,
-            hasJwt: Boolean(jwt),
-        })
         postMessageToWorker(createWorkerMessage("runVariantInputRow", payload))
     },
 )

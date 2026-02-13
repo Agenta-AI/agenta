@@ -322,6 +322,23 @@ async def create_project(
             set_default=payload.make_default,
         )
 
+        # Create default human evaluator for the new project
+        # Import here to avoid circular import at module load time
+        from oss.src.core.evaluators.defaults import create_default_human_evaluator
+
+        await create_default_human_evaluator(
+            project_id=project.id,
+            user_id=UUID(request.state.user_id),
+        )
+
+        # Create default environments for the new project
+        from oss.src.core.environments.defaults import create_default_environments
+
+        await create_default_environments(
+            project_id=project.id,
+            user_id=UUID(request.state.user_id),
+        )
+
         membership = await _get_ee_membership_for_project(
             user_id=request.state.user_id,
             project_id=project.id,
@@ -341,6 +358,23 @@ async def create_project(
         workspace_id=str(workspace_id),
         organization_id=str(organization_id),
         set_default=payload.make_default,
+    )
+
+    # Create default human evaluator for the new project
+    # Import here to avoid circular import at module load time
+    from oss.src.core.evaluators.defaults import create_default_human_evaluator
+
+    await create_default_human_evaluator(
+        project_id=project.id,
+        user_id=UUID(request.state.user_id),
+    )
+
+    # Create default environments for the new project
+    from oss.src.core.environments.defaults import create_default_environments
+
+    await create_default_environments(
+        project_id=project.id,
+        user_id=UUID(request.state.user_id),
     )
 
     organization = await db_manager.fetch_organization_by_id(

@@ -114,6 +114,10 @@ Each step supports the following options:
 | `showSkip`              | `boolean`                                       | `true`     | Show skip button                                   |
 | `selectorRetryAttempts` | `number`                                        | `3`        | Retries for async elements                         |
 | `selectorRetryDelay`    | `number`                                        | `200`      | Delay between retries (ms)                         |
+| `nextAction`            | `{selector, type?, waitForSelector?, ...}`      | -          | Perform action when Next is clicked                |
+| `prevAction`            | `{selector, type?, waitForSelector?, ...}`      | -          | Perform action when Previous is clicked            |
+| `waitForSelectorVisible` | `boolean`                                     | `true`     | Require visibility when waiting for selector       |
+| `waitForHiddenSelector` | `string`                                       | -          | Wait until selector is hidden/removed              |
 
 ### Lifecycle Hooks
 
@@ -142,6 +146,14 @@ Each step supports the following options:
     onNext: async () => {
         await saveProgress()
     },
+
+    // Called before moving to previous step (can be async)
+    onPrev: async () => {
+        await cleanup()
+    },
+
+    // Optional panel key for syncing UI state
+    panelKey: "testsetPanel",
 }
 ```
 

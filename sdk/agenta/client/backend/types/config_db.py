@@ -8,7 +8,7 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 class ConfigDb(UniversalBaseModel):
     config_name: str
-    parameters: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = None
+    parameters: typing.Optional[typing.Dict[str, typing.Any]] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

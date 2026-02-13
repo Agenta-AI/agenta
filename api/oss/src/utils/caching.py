@@ -620,6 +620,58 @@ async def acquire_lock(
         return None
 
 
+async def renew_lock(
+    namespace: str,
+    key: Optional[Union[str, dict]] = None,
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    ttl: int = AGENTA_LOCK_TTL,
+) -> bool:
+    """Renew (extend) the TTL of an existing distributed lock.
+
+    Use this to prevent lock expiration during long-running operations.
+    Only succeeds if the lock key still exists in Redis.
+
+    Args:
+        namespace: Lock namespace (same as used in acquire_lock)
+        key: Lock key (same as used in acquire_lock)
+        project_id: Optional project ID (same as used in acquire_lock)
+        user_id: Optional user ID (same as used in acquire_lock)
+        ttl: New expiration time in seconds
+
+    Returns:
+        True if lock was renewed, False if lock has already expired or on error
+    """
+    try:
+        lock_key = _pack(
+            namespace=f"lock:{namespace}",
+            key=key,
+            project_id=project_id,
+            user_id=user_id,
+        )
+
+        renewed = await r.expire(lock_key, ttl)
+
+        if renewed:
+            if CACHE_DEBUG:
+                log.debug(
+                    "[lock] RENEWED",
+                    key=lock_key,
+                    ttl=ttl,
+                )
+            return True
+        else:
+            log.warn(f"[lock] RENEW FAILED (expired): namespace={namespace} key={key}")
+            return False
+
+    except Exception as e:
+        log.error(
+            f"[lock] RENEW ERROR: namespace={namespace} key={key} error={e}",
+            exc_info=True,
+        )
+        return False
+
+
 async def release_lock(
     namespace: str,
     key: Optional[Union[str, dict]] = None,

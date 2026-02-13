@@ -42,6 +42,7 @@ export const BooleanGroupTab = memo(function BooleanGroupTab({
 
     // Check if value is set (not null/undefined)
     const hasValue = value !== null && value !== undefined
+    const isRatingField = typeof label === "string" && /rating|thumb/i.test(label)
 
     return (
         <div className="flex flex-col gap-0 mb-0 playground-property-control">
@@ -56,6 +57,7 @@ export const BooleanGroupTab = memo(function BooleanGroupTab({
                             onChange={(e) => handleChange(e.target.value)}
                             value={value}
                             disabled={disabled}
+                            data-tour={isRatingField ? "annotation-rating" : undefined}
                         >
                             {options?.map((option) => (
                                 <Radio.Button key={String(option.value)} value={option.value}>

@@ -23,7 +23,7 @@ from oss.databases.postgres.migrations.tracing.utils import (
 from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
 
-from oss.src.routers import evaluation_router, human_evaluation_router
+from oss.src.routers import evaluation_router
 from oss.src.core.auth.supertokens.config import init_supertokens
 
 # DBEs
@@ -45,6 +45,11 @@ from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowVariantDBE,
     WorkflowRevisionDBE,
 )
+from oss.src.dbs.postgres.environments.dbes import (
+    EnvironmentArtifactDBE,
+    EnvironmentVariantDBE,
+    EnvironmentRevisionDBE,
+)
 
 # DAOs
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
@@ -64,11 +69,14 @@ from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.queries.service import SimpleQueriesService
-from oss.src.core.applications.service import LegacyApplicationsService
+from oss.src.core.applications.services import ApplicationsService
+from oss.src.core.applications.services import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
+from oss.src.core.environments.service import EnvironmentsService
+from oss.src.core.environments.service import SimpleEnvironmentsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
 
@@ -84,11 +92,14 @@ from oss.src.apis.fastapi.testsets.router import TestsetsRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
 from oss.src.apis.fastapi.queries.router import QueriesRouter
 from oss.src.apis.fastapi.queries.router import SimpleQueriesRouter
-from oss.src.apis.fastapi.applications.router import LegacyApplicationsRouter
+from oss.src.apis.fastapi.applications.router import ApplicationsRouter
+from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
+from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
+from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 
@@ -112,6 +123,9 @@ from oss.src.routers import (
 
 from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
+import oss.src.core.evaluations.tasks.live  # noqa: F401
+import oss.src.core.evaluations.tasks.legacy  # noqa: F401
+import oss.src.core.evaluations.tasks.batch  # noqa: F401
 
 from redis.asyncio import Redis
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
@@ -218,6 +232,12 @@ workflows_dao = GitDAO(
     RevisionDBE=WorkflowRevisionDBE,
 )
 
+environments_dao = GitDAO(
+    ArtifactDBE=EnvironmentArtifactDBE,
+    VariantDBE=EnvironmentVariantDBE,
+    RevisionDBE=EnvironmentRevisionDBE,
+)
+
 evaluations_dao = EvaluationsDAO()
 folders_dao = FoldersDAO()
 
@@ -264,7 +284,6 @@ simple_queries_service = SimpleQueriesService(
     queries_service=queries_service,
 )
 
-legacy_applications_service = LegacyApplicationsService()
 folders_service = FoldersService(
     folders_dao=folders_dao,
 )
@@ -273,12 +292,28 @@ workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
 )
 
+applications_service = ApplicationsService(
+    workflows_service=workflows_service,
+)
+
+simple_applications_service = SimpleApplicationsService(
+    applications_service=applications_service,
+)
+
 evaluators_service = EvaluatorsService(
     workflows_service=workflows_service,
 )
 
 simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
+)
+
+environments_service = EnvironmentsService(
+    environments_dao=environments_dao,
+)
+
+simple_environments_service = SimpleEnvironmentsService(
+    environments_service=environments_service,
 )
 
 evaluations_service = EvaluationsService(
@@ -291,12 +326,11 @@ evaluations_service = EvaluationsService(
 )
 
 simple_evaluations_service = SimpleEvaluationsService(
-    queries_service=queries_service,
     testsets_service=testsets_service,
+    queries_service=queries_service,
+    applications_service=applications_service,
     evaluators_service=evaluators_service,
     evaluations_service=evaluations_service,
-    simple_testsets_service=simple_testsets_service,
-    simple_evaluators_service=simple_evaluators_service,
     evaluations_worker=evaluations_worker,
 )
 
@@ -336,8 +370,12 @@ simple_queries = SimpleQueriesRouter(
     simple_queries_service=simple_queries_service,
 )
 
-legacy_applications = LegacyApplicationsRouter(
-    legacy_applications_service=legacy_applications_service,
+applications = ApplicationsRouter(
+    applications_service=applications_service,
+)
+
+simple_applications = SimpleApplicationsRouter(
+    simple_applications_service=simple_applications_service,
 )
 
 folders = FoldersRouter(
@@ -356,6 +394,14 @@ simple_evaluators = SimpleEvaluatorsRouter(
     simple_evaluators_service=simple_evaluators_service,
 )
 
+environments = EnvironmentsRouter(
+    environments_service=environments_service,
+)
+
+simple_environments = SimpleEnvironmentsRouter(
+    simple_environments_service=simple_environments_service,
+)
+
 evaluations = EvaluationsRouter(
     evaluations_service=evaluations_service,
     queries_service=queries_service,
@@ -366,8 +412,9 @@ simple_evaluations = SimpleEvaluationsRouter(
 )
 
 invocations_service = InvocationsService(
-    legacy_applications_service=legacy_applications_service,
     tracing_router=tracing,
+    applications_service=applications_service,
+    simple_applications_service=simple_applications_service,
 )
 
 annotations_service = AnnotationsService(
@@ -468,8 +515,14 @@ app.include_router(
 )
 
 app.include_router(
-    router=legacy_applications.router,
-    prefix="/preview/legacy/applications",
+    router=applications.router,
+    prefix="/preview/applications",
+    tags=["Applications"],
+)
+
+app.include_router(
+    router=simple_applications.router,
+    prefix="/preview/simple/applications",
     tags=["Applications"],
 )
 
@@ -489,6 +542,18 @@ app.include_router(
     router=simple_evaluators.router,
     prefix="/preview/simple/evaluators",
     tags=["Evaluators"],
+)
+
+app.include_router(
+    router=environments.router,
+    prefix="/preview/environments",
+    tags=["Environments"],
+)
+
+app.include_router(
+    router=simple_environments.router,
+    prefix="/preview/simple/environments",
+    tags=["Environments"],
 )
 
 app.include_router(
@@ -513,12 +578,6 @@ app.include_router(
     evaluation_router.router,
     prefix="/evaluations",
     tags=["Evaluations"],
-)
-
-app.include_router(
-    human_evaluation_router.router,
-    prefix="/human-evaluations",
-    tags=["Human-Evaluations"],
 )
 
 app.include_router(
@@ -604,12 +663,5 @@ app.include_router(
 )
 
 # ------------------------------------------------------------------------------
-
-
-import oss.src.core.evaluations.tasks.live
-import oss.src.core.evaluations.tasks.legacy
-import oss.src.core.evaluations.tasks.batch
-
-
 if ee and is_ee():
     app = ee.extend_app_schema(app)

@@ -1,10 +1,10 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {MinusCircleOutlined} from "@ant-design/icons"
 import {Alert, Form, Input, Modal, Select, Space, Typography, theme} from "antd"
 import Link from "next/link"
 
-import {message} from "@/oss/components/AppMessageContext"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
@@ -219,7 +219,7 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
             <Typography.Paragraph type="secondary">
                 Invite members to your team by entering their emails.{" "}
                 {!isEE() || !hasRBAC
-                    ? "Role base access control is available in the cloud and enterprise editions of Agenta"
+                    ? "Role-based access control is available in Cloud/EE."
                     : "You can specify the roles to control the access level of the invited members on Agenta."}
             </Typography.Paragraph>
             <InviteForm

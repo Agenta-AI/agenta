@@ -5,7 +5,10 @@ from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.applications.service import LegacyApplicationsService
+from oss.src.core.applications.services import (
+    ApplicationsService,
+    SimpleApplicationsService,
+)
 
 from oss.src.core.shared.dtos import (
     Tags,
@@ -22,7 +25,6 @@ from oss.src.core.tracing.dtos import (
     Formatting,
     Condition,
     Filtering,
-    OTelReference,
     OTelLink,
     LogicalOperator,
     ComparisonOperator,
@@ -31,8 +33,8 @@ from oss.src.core.tracing.dtos import (
     SpanType,
 )
 from oss.src.core.applications.dtos import (
-    LegacyApplicationFlags,
-    LegacyApplicationData,
+    SimpleApplicationFlags,
+    SimpleApplicationCreate,
 )
 
 
@@ -60,7 +62,6 @@ from oss.src.apis.fastapi.tracing.models import (
     OTelTracingRequest,
     OTelTracingResponse,
 )
-from oss.src.apis.fastapi.applications.models import LegacyApplicationCreate
 
 
 log = get_module_logger(__name__)
@@ -70,10 +71,12 @@ class InvocationsService:
     def __init__(
         self,
         *,
-        legacy_applications_service: LegacyApplicationsService,
+        applications_service: ApplicationsService,
+        simple_applications_service: SimpleApplicationsService,
         tracing_router: TracingRouter,
     ):
-        self.legacy_applications_service = legacy_applications_service
+        self.applications_service = applications_service
+        self.simple_applications_service = simple_applications_service
         self.tracing_router = tracing_router
 
     async def create(
@@ -85,15 +88,17 @@ class InvocationsService:
         #
         invocation_create: InvocationCreate,
     ) -> Optional[Invocation]:
-        legacy_application_slug = (
+        application_slug = (
             invocation_create.references.application.slug
             if invocation_create.references.application
             else None
         ) or uuid4().hex[-12:]
 
-        legacy_application_flags = LegacyApplicationFlags()
+        application_flags = SimpleApplicationFlags()
 
-        application_revision = await self.legacy_applications_service.retrieve(
+        simple_application = None
+
+        application_revision = await self.applications_service.fetch_application_revision(
             project_id=project_id,
             #
             application_ref=invocation_create.references.application,
@@ -102,26 +107,28 @@ class InvocationsService:
         )
 
         if not application_revision:
-            legacy_application_create = LegacyApplicationCreate(
-                slug=legacy_application_slug,
+            simple_application_create = SimpleApplicationCreate(
+                slug=application_slug,
                 #
-                name=legacy_application_slug,
+                name=application_slug,
                 #
-                flags=legacy_application_flags,
+                flags=application_flags,
             )
 
-            legacy_application = await self.legacy_applications_service.create(
+            simple_application = await self.simple_applications_service.create(
                 project_id=project_id,
                 user_id=user_id,
                 #
-                legacy_application_create=legacy_application_create,
+                simple_application_create=simple_application_create,
             )
 
-            if legacy_application:
-                application_revision = await self.legacy_applications_service.retrieve(
-                    project_id=project_id,
-                    #
-                    application_ref=Reference(id=legacy_application.id),
+            if simple_application:
+                application_revision = (
+                    await self.applications_service.fetch_application_revision(
+                        project_id=project_id,
+                        #
+                        application_ref=Reference(id=simple_application.id),
+                    )
                 )
 
         if not application_revision or not application_revision.data:
@@ -167,7 +174,7 @@ class InvocationsService:
             project_id=project_id,
             user_id=user_id,
             #
-            name=legacy_application.name,
+            name=simple_application.name if simple_application else application_slug,
             #
             flags=invocation_flags,
             tags=invocation_create.tags,
@@ -240,43 +247,47 @@ class InvocationsService:
         if invocation is None:
             return None
 
-        legacy_application_slug = (
+        application_slug = (
             invocation.references.application.slug
             if invocation.references.application
             else None
         ) or uuid4().hex
 
-        legacy_application_flags = LegacyApplicationFlags()
+        application_flags = SimpleApplicationFlags()
 
-        application_revision = await self.legacy_applications_service.retrieve(
-            project_id=project_id,
-            #
-            application_ref=invocation.references.application,
-            application_variant_ref=invocation.references.application_variant,
-            application_revision_ref=invocation.references.application_revision,
+        application_revision = (
+            await self.applications_service.fetch_application_revision(
+                project_id=project_id,
+                #
+                application_ref=invocation.references.application,
+                application_variant_ref=invocation.references.application_variant,
+                application_revision_ref=invocation.references.application_revision,
+            )
         )
 
         if not application_revision:
-            legacy_application_create = LegacyApplicationCreate(
-                slug=legacy_application_slug,
+            simple_application_create = SimpleApplicationCreate(
+                slug=application_slug,
                 #
-                name=legacy_application_slug,
+                name=application_slug,
                 #
-                flags=legacy_application_flags,
+                flags=application_flags,
             )
 
-            legacy_application = await self.legacy_applications_service.create(
+            simple_application = await self.simple_applications_service.create(
                 project_id=project_id,
                 user_id=user_id,
                 #
-                legacy_application_create=legacy_application_create,
+                simple_application_create=simple_application_create,
             )
 
-            if legacy_application:
-                application_revision = await self.legacy_applications_service.retrieve(
-                    project_id=project_id,
-                    #
-                    application_ref=Reference(id=legacy_application.id),
+            if simple_application:
+                application_revision = (
+                    await self.applications_service.fetch_application_revision(
+                        project_id=project_id,
+                        #
+                        application_ref=Reference(id=simple_application.id),
+                    )
                 )
 
         if not application_revision or not application_revision.data:

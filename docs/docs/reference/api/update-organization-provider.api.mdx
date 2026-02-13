@@ -1,0 +1,71 @@
+---
+id: update-organization-provider
+title: "Update Organization Provider"
+description: "Update an SSO provider."
+sidebar_label: "Update Organization Provider"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VU1v2zAM/SsBTxugxV2xk0/LugINuqFBP3YJgoKx2VidbamSnDYz/N8HSnZiJ22wAcNySSI9kU/k41MNKdnESO2kKiGGO52ioxGWo5ubq5E2ai1TMmMQoDQZZNQ0hRgqj7tXZoWl/OXX7zs0CNBosCBHxkI8r6HEgiCGAVqmIEByTo0uAwGGnippKIXYmYoE2CSjAiGuwW00H7fOyHIFApx0OS9c9eKNpik0jdjm6sj8izyzNlbIsQghyLovKt3wuf2IiSodlY63UOtcJp5h9Gi5xPVhQrV8pMSBAExTyVDMZ4br7STZLuiWDG5yhUykaZiJ1aq0DKvh9OSEv4YdvamShKx9qPLRdQuGP6cYsnw6PT0M/ANzmYbanxujzF9E5e5sr8dxHcqcf0lHhT0E5CoZ7GK5uXrwyhq2jPvfrsjS0YoMNItGdGtoDG56ff2mAkFoBBR2dUwC38laXBFsg70N9cUY3fJuw8rTlS9Itz31C42AxL28poEOd8a1fHEs6gPMTnBzX5tAv8UtdjF2LQodersUX0MLXkvWQS5ub2cHAYM+CnKZSsOIJZmff5dBDFF/4m1U7xlAE3VTaqO6N7ANCLBk1p19VCaHGDLntI2jKMlVlY5xRaXDMcoItQQeSktJZaTb+COT2fSSNheE7EfxfNEH3LAMg7CGsG0zUMtL4vK0ZjKpXKZMS7yzkyyc4vuzwK93nnD+goXmmtVeAA+q3/+JJz6azKYggK8Ypulk/HF8AmJvxgZgni5MvJg6Xn4bxF6FtrUBAVT40QJHWHzebTBrrawrsOzFa91/4KuznasPuNW7aT/yarQFZSVHOkfpZ82zrVuRzAfPggUB8eE7sdUJb/etfSEgU9ZxmLpeoqU7kzcNLz9VZFgLCwFrNBKXXP15Dam0/DuF+AFzS0du9e66HbP3o7du0umlZLGsMa/4Hwj4SZtX3ju2p/+Yvl8nb4NZNw51izgLyT54s9pFOPBuJh5OTJKEtDuKXfT8YDa5PbsAAcv2pSxUyocMPrOL4XOgq3RoPT+lvFZDjuWqYr+NIQTlz2/hVfvv
+sidebar_class_name: "patch api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update Organization Provider"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"patch"}
+  path={"/organizations/{organization_id}/providers/{provider_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Update an SSO provider.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}},{"name":"provider_id","in":"path","required":true,"schema":{"type":"string","title":"Provider Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","additionalProperties":true,"title":"Payload"}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

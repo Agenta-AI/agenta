@@ -26,6 +26,48 @@ export const shippedFeatures: ShippedFeature[] = [
   // Evaluation: 86B7FF
   // Integration: FFA500
   {
+    id: "prompt-folders",
+    title: "Folders for Prompt Organization",
+    description:
+      "Create folders and subfolders to organize prompts. Drag prompts between folders and search across everything.",
+    changelogPath: "/docs/changelog/prompt-folders",
+    shippedAt: "2026-02-04",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "trace-linking",
+    title: "Navigation Links from Traces to App/Environment/Variant",
+    description:
+      "Clickable links in observability traces to navigate to the application, variant, version, and environment used in each trace. Jump directly to the configuration that generated a specific trace.",
+    changelogPath: "/docs/changelog/trace-navigation-links",
+    shippedAt: "2026-01-28",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+  {
+    id: "date-range-filtering",
+    title: "Date Range Filtering in Metrics Dashboard",
+    description:
+      "Filter traces by date range in the metrics dashboard. View metrics for the last 6 hours, 24 hours, 7 days, or 30 days.",
+    changelogPath: "/docs/changelog/chat-sessions-observability",
+    shippedAt: "2026-01-09",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+  {
     id: "testset-versioning",
     title: "Test Set Versioning and New UI",
     description:
@@ -323,24 +365,11 @@ export const shippedFeatures: ShippedFeature[] = [
 ];
 export const inProgressFeatures: PlannedFeature[] = [
   {
-    id: "trace-linking",
-    title: "Navigation Links from Traces to App/Environment/Variant",
+    id: "navigation-in-the-playground",
+    title: "Improving Navigation between Testsets in the Playground",
     description:
-      "Add clickable links in the observability trace and drawer view to navigate to the application, variant, version, and environment used in each trace. Makes it easy to jump directly to the configuration that generated a specific trace.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2699",
-    labels: [
-      {
-        name: "Observability",
-        color: "DE74FF",
-      },
-    ],
-  },
-  {
-    id: "prompt-folders",
-    title: "Folders for Prompt Organization",
-    description:
-      "Create folders and subfolders to organize prompts in the playground. Move prompts between folders and search within specific folders to structure prompt libraries.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2859",
+      "We are making it easy to use and navigate in the playground with large testsets.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2731",
     labels: [
       {
         name: "Playground",
@@ -361,22 +390,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       },
     ],
   },
-  {
-    id: "date-range-filtering",
-    title: "Date Range Filtering in Metrics Dashboard",
-    description:
-      "We are adding the ability to filter traces by date range in the metrics dashboard.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2774",
-    labels: [
-      {
-        name: "Observability",
-        color: "DE74FF",
-      },
-    ],
-  },
-];
-
-export const plannedFeatures: PlannedFeature[] = [
   {
     id: "ai-prompt-refinement",
     title: "AI-Powered Prompt Refinement in the Playground",
@@ -408,11 +421,54 @@ export const plannedFeatures: PlannedFeature[] = [
     ],
   },
   {
-    id: "navigation-in-the-playground",
-    title: "Improving Navigation between Testsets in the Playground",
+    id: "evaluators-in-playground",
+    title: "Running Evaluators in the Playground",
     description:
-      "We are making it easy to use and navigate in the playground with large testsets  .",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2731",
+      "Run evaluators directly in the playground to get immediate quality feedback on prompt changes. Evaluate outputs inline as you iterate on prompts. Scores, pass/fail results, and evaluator reasoning appear right next to the LLM response.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3702",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+    ],
+  },
+  {
+    id: "enterprise-sso",
+    title: "Enterprise SSO",
+    description:
+      "Single sign-on (SSO) support for enterprise customers. Integrate your identity provider using SAML or OIDC for secure, centralized authentication. Log in with existing corporate credentials and control user provisioning and access.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3703",
+    labels: [
+      {
+        name: "Security",
+        color: "000000",
+      },
+    ],
+  },
+  {
+    id: "us-region",
+    title: "US Region for Agenta Cloud",
+    description:
+      "Agenta Cloud is adding a US-based region. Run your projects with all data stored within the United States. This helps meet data residency requirements that need data to stay in a specific geography.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3704",
+    labels: [
+      {
+        name: "Misc",
+        color: "000000",
+      },
+    ],
+  },
+  {
+    id: "agents-from-ui",
+    title: "Creating Agents from the UI",
+    description:
+      "Build and configure AI agents directly from the Agenta UI. Define agent workflows, select tools, and set up orchestration logic without writing code. Test and iterate on agent behavior in the playground, then deploy to production with versioning and observability built in.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3705",
     labels: [
       {
         name: "Playground",
@@ -421,19 +477,21 @@ export const plannedFeatures: PlannedFeature[] = [
     ],
   },
   {
-    id: "appending-single-test-cases",
-    title: "Appending Single Testcases in the Playground",
+    id: "deployment-webhooks",
+    title: "Webhooks for Deployment Linked to CI",
     description:
-      "Using testcases from different testsets is not possible right now in the Playground. We are adding the ability to append a single testcase to a testset.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2732",
+      "Trigger CI/CD pipelines automatically when you deploy a prompt version. Connect Agenta deployments to your existing CI workflows so that deploying a new version kicks off automated tests, approval gates, or release processes.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3706",
     labels: [
       {
-        name: "Playground",
-        color: "BCFF78",
+        name: "Integration",
+        color: "FFA500",
       },
     ],
   },
+];
 
+export const plannedFeatures: PlannedFeature[] = [
   {
     id: "prompt-caching-sdk",
     title: "Prompt Caching in the SDK",

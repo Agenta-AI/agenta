@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {CaretLeft, Plus} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Typography} from "antd"
@@ -7,7 +8,6 @@ import deepEqual from "fast-deep-equal"
 import {useRouter} from "next/router"
 import {useSWRConfig} from "swr"
 
-import {message} from "@/oss/components/AppMessageContext"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
@@ -231,12 +231,13 @@ const AnnotateDrawerTitle = ({
     }, [isChangedMetricData, isChangedSelectedEvalMetrics, onCaptureError])
 
     return (
-        <section className="w-full flex items-center justify-between">
+        <section className="w-full flex items-center justify-between" data-tour="annotate-drawer">
             <div className="flex items-center gap-2">
                 <Button
                     type="text"
                     icon={<CaretLeft size={14} />}
                     onClick={() => onClickPrev(steps)}
+                    data-tour="annotate-drawer-close"
                 />
                 {steps === AnnotateDrawerSteps.ANNOTATE || showOnly?.annotateUi ? (
                     <Typography.Text className="text-sm font-medium">Annotate</Typography.Text>
@@ -258,6 +259,7 @@ const AnnotateDrawerTitle = ({
                     <Button
                         icon={<Plus size={14} />}
                         onClick={() => onClickNext(AnnotateDrawerSteps.SELECT_EVALUATORS)}
+                        data-tour="annotation-add-evaluator"
                     >
                         Add Evaluator
                     </Button>
@@ -266,6 +268,7 @@ const AnnotateDrawerTitle = ({
                         onClick={onSaveChanges}
                         loading={isSaving}
                         disabled={isChangedMetricData && isChangedSelectedEvalMetrics}
+                        data-tour="annotation-submit"
                     >
                         Save
                     </Button>

@@ -50,7 +50,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
         else {
             // Run for all completion rows: iterate input row ids and trigger tests
             for (const rid of completionRowIds || []) {
-                triggerTest({rowId: rid, variantId})
+                triggerTest({rowId: rid, revisionId: variantId})
             }
         }
     }, [appType, runAllChat, completionRowIds, triggerTest, variantId])
@@ -72,7 +72,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     return (
         <div
             className={clsx(
-                "h-[48px] flex justify-between items-center gap-4 sticky top-0 z-[1000] !bg-[white]",
+                "h-[48px] flex justify-between items-center gap-4 sticky top-0 z-[100] !bg-[white]",
                 classes.container,
             )}
         >

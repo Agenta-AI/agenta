@@ -53,14 +53,15 @@ export function useOnboardingTour({
 
     const hasBeenSeen = Boolean(seenTours[tourId])
     const isActive = activeTourId === tourId && isNextStepVisible
-    const canAutoStart = isNewUser && !hasBeenSeen && autoStartCondition && tourRegistry.has(tourId)
+    const isTourAvailable = Boolean(tourRegistry.get(tourId))
+    const canAutoStart = isNewUser && !hasBeenSeen && autoStartCondition && isTourAvailable
 
     // Manual start function
     const startTour = useCallback(
         (options?: TriggerTourOptions) => {
             const {force = false} = options ?? {}
 
-            if (!tourRegistry.has(tourId)) {
+            if (!tourRegistry.get(tourId)) {
                 console.warn(`[Onboarding] Tour "${tourId}" not found in registry`)
                 dispatch({type: "CHECK_FAILURE", error: "Tour not found"})
                 return

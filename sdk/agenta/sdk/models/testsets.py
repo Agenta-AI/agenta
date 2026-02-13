@@ -4,43 +4,19 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from agenta.sdk.models.shared import (
-    TraceID,
-    SpanID,
-    Link,
     Identifier,
     Slug,
-    Version,
-    Reference,
     Lifecycle,
     Header,
-    Flags,
     Tags,
     Meta,
-    Metadata,
-    Data,
-    Commit,
     AliasConfig,
     sync_alias,
 )
 
 from agenta.sdk.models.git import (
     Artifact,
-    ArtifactCreate,
-    ArtifactEdit,
-    ArtifactQuery,
-    ArtifactFork,
-    Variant,
-    VariantCreate,
-    VariantEdit,
-    VariantQuery,
-    VariantFork,
     Revision,
-    RevisionCreate,
-    RevisionEdit,
-    RevisionQuery,
-    RevisionCommit,
-    RevisionsLog,
-    RevisionFork,
 )
 
 from agenta.sdk.models.blobs import (

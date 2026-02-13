@@ -6,9 +6,9 @@ import {atom, useAtom} from "jotai"
 
 import useURL from "@/oss/hooks/useURL"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {variantTableSelectionAtomFamily} from "@/oss/state/variant/atoms/selection"
 
 import ResizableTitle from "../../ResizableTitle"
+import {variantTableSelectionAtomFamily} from "../store/selectionAtoms"
 
 import {getColumns} from "./assets/getVariantColumns"
 
@@ -140,9 +140,10 @@ const VariantsTable = ({
                     },
                 }}
                 pagination={false}
-                onRow={(record: any) => ({
+                onRow={(record: any, index) => ({
                     className: "variant-table-row",
                     style: {cursor: "pointer"},
+                    "data-tour": index === 0 ? "version-row" : undefined,
                     onClick: () => {
                         onRowClick(record)
                     },

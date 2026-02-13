@@ -1,12 +1,11 @@
 from typing import Optional, Union
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status, Response
+from fastapi import APIRouter, Request, status, Response, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.invocations.service import (
     InvocationsService,
@@ -165,7 +164,7 @@ class InvocationsRouter:
         return invocation_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=InvocationResponse())
+    @suppress_exceptions(default=InvocationResponse(), exclude=[HTTPException])
     async def fetch_invocation(
         self,
         request: Request,
@@ -264,7 +263,7 @@ class InvocationsRouter:
         return invocation_link_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=InvocationsResponse())
+    @suppress_exceptions(default=InvocationsResponse(), exclude=[HTTPException])
     async def query_invocations(
         self,
         request: Request,

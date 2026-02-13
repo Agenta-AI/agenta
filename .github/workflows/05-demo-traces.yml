@@ -1,0 +1,63 @@
+name: Generate Demo Traces
+
+permissions:
+  contents: read
+
+on:
+  schedule:
+    # Run twice daily: 9am and 4pm UTC
+    - cron: '0 9 * * *'
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+    inputs:
+      count:
+        description: 'Number of traces to generate'
+        required: false
+        default: '12'
+        type: string
+
+jobs:
+  generate-traces:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/python/RAG_QA_chatbot
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Generate traces
+        env:
+          AGENTA_API_KEY: ${{ secrets.DEMO_AGENTA_API_KEY }}
+          AGENTA_HOST: https://cloud.agenta.ai
+          OPENAI_API_KEY: ${{ secrets.DEMO_OPENAI_API_KEY }}
+          QDRANT_URL: ${{ secrets.DEMO_QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.DEMO_QDRANT_API_KEY }}
+          COLLECTION_NAME: agenta_docs
+          EMBEDDING_MODEL: openai
+          TOP_K: '5'
+          LLM_MODEL: gpt-4o-mini
+        run: |
+          uv run python scripts/test_traces.py --count ${{ github.event.inputs.count || '12' }}
+
+      - name: Summary
+        run: |
+          echo "## Demo Traces Generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Count:** ${{ github.event.inputs.count || '12' }} traces" >> $GITHUB_STEP_SUMMARY
+          echo "- **Time:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "- **View:** [Agenta Observability](https://cloud.agenta.ai/observability)" >> $GITHUB_STEP_SUMMARY

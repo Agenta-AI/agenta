@@ -128,8 +128,9 @@ class AppVariantResponse(BaseModel):
 
 class AppVariantRevision(BaseModel):
     id: Optional[str] = None
+    variant_id: Optional[str] = None
     revision: int
-    modified_by: str
+    modified_by: Optional[str] = None
     config: ConfigDB
     created_at: str
     commit_message: Optional[str] = None
@@ -214,7 +215,7 @@ class App(BaseModel):
     app_name: str
     app_type: Optional[str] = None
     folder_id: Optional[str] = None
-    updated_at: str
+    updated_at: Optional[str] = None
 
 
 class RemoveApp(BaseModel):

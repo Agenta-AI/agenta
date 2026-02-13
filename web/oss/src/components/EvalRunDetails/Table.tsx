@@ -1,9 +1,9 @@
 import {useCallback, useMemo, useRef} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import clsx from "clsx"
 import {useAtomValue, useStore} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
 import {
     InfiniteVirtualTableFeatureShell,

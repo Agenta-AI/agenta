@@ -63,12 +63,12 @@ from oss.src.core.tracing.service import TracingService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
+from oss.src.core.applications.services import ApplicationsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
-from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
@@ -135,6 +135,10 @@ workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
 )
 
+applications_service = ApplicationsService(
+    workflows_service=workflows_service,
+)
+
 evaluators_service = EvaluatorsService(
     workflows_service=workflows_service,
 )
@@ -159,10 +163,6 @@ tracing_router = TracingRouter(
 
 simple_testsets_router = SimpleTestsetsRouter(
     simple_testsets_service=simple_testsets_service,
-)
-
-simple_evaluators_router = SimpleEvaluatorsRouter(
-    simple_evaluators_service=simple_evaluators_service,
 )
 
 router = APIRouter()
@@ -201,8 +201,8 @@ async def fetch_evaluation_ids(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -254,8 +254,8 @@ async def fetch_evaluation_status(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -306,8 +306,8 @@ async def fetch_evaluation_results(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -356,8 +356,8 @@ async def fetch_evaluation_scenarios(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -395,8 +395,8 @@ async def fetch_list_evaluations(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -439,8 +439,8 @@ async def fetch_evaluation(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -479,8 +479,8 @@ async def delete_evaluations(
             permission=Permission.DELETE_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -531,8 +531,8 @@ async def fetch_evaluation_scenarios_comparison_results(
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            log.error(error_msg)
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            # log.debug(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -604,14 +604,14 @@ async def start_evaluation(
                 #
                 revision_id=payload.revisions_ids[i],
                 #
-                autoeval_ids=payload.evaluators_configs,
+                evaluator_ids=payload.evaluator_ids,
                 #
-                evaluations_service=evaluations_service,
+                testsets_service=testsets_service,
                 queries_service=queries_service,
                 workflows_service=workflows_service,
-                testsets_service=testsets_service,
-                simple_evaluators_router=simple_evaluators_router,
-                tracing_router=tracing_router,
+                applications_service=applications_service,
+                evaluators_service=evaluators_service,
+                evaluations_service=evaluations_service,
             )
 
             if not run:
@@ -624,14 +624,6 @@ async def start_evaluation(
                 user_id=request.state.user_id,
                 #
                 run_id=run.id,
-                #
-                testset_revision_id=payload.testset_revision_id,
-                #
-                revision_id=payload.revisions_ids[i],
-                #
-                autoeval_ids=payload.evaluators_configs,
-                #
-                run_config=payload.rate_limit.model_dump(mode="json"),
             )
         # ----------------------------------------------------------------------
 

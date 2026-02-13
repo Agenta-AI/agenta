@@ -3,13 +3,36 @@ from dataclasses import dataclass
 from typing import List, Union, Optional, Dict, Literal, Any
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
-from pydantic import BaseModel, Field, model_validator, AliasChoices
+from pydantic import Field, model_validator, AliasChoices
 
 from starlette.responses import StreamingResponse
 
 
 from agenta.sdk.assets import supported_llm_models, model_metadata
-from agenta.client.backend.types import AgentaNodesResponse, AgentaNodeDto
+
+
+# SDK-internal types for inline trace responses.
+# These are defined locally since they are SDK-internal models not exposed by the API.
+
+
+class AgentaNodeDto(BaseModel):
+    """SDK-internal type for inline trace node representation.
+
+    This type accepts arbitrary fields via extra="allow" since it's
+    constructed from span dictionaries with dynamic keys.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+
+class AgentaNodesResponse(BaseModel):
+    """SDK-internal type for inline trace response."""
+
+    version: str
+    nodes: List[AgentaNodeDto] = []
+    count: Optional[int] = None
+
+    model_config = ConfigDict(extra="allow")
 
 
 @dataclass
@@ -496,10 +519,10 @@ class TemplateFormatError(PromptTemplateError):
         super().__init__(message)
 
 
-import re
-from typing import Any, Dict, Iterable, Tuple, Optional
+import re  # noqa: E402
+from typing import Any, Dict, Iterable, Tuple, Optional  # noqa: E402
 
-from agenta.sdk.utils.lazy import _load_jinja2, _load_jsonpath
+from agenta.sdk.utils.lazy import _load_jinja2, _load_jsonpath  # noqa: E402
 
 
 # ========= Scheme detection =========

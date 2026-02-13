@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Form, Input, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import ReadOnlyBox from "@/oss/components/pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
 import axios from "@/oss/lib/api/assets/axiosConfig"

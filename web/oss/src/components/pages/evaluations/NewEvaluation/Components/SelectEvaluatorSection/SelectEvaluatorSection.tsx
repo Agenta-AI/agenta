@@ -336,7 +336,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
 
     return (
         <>
-            <div className={clsx(className)} {...props}>
+            <div className={clsx(className)} data-tour="evaluator-select" {...props}>
                 {hasEvaluatorConfigs && (
                     <div className="flex items-center justify-between mb-2">
                         <Input.Search
@@ -397,7 +397,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                                 onSelectEvalConfig(selectedRowKeys)
                             },
                         }}
-                        onRow={(record) => ({
+                        onRow={(record, index) => ({
                             style: {cursor: "pointer"},
                             onClick: () => {
                                 if (selectedEvalConfigs.includes(record.id)) {
@@ -408,6 +408,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                                     onSelectEvalConfig([...selectedEvalConfigs, record.id])
                                 }
                             },
+                            "data-tour": index === 0 ? "evaluator-row" : undefined,
                         })}
                         className="ph-no-capture"
                         columns={columnsPreview}
@@ -427,7 +428,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                                 onSelectEvalConfig(selectedRowKeys)
                             },
                         }}
-                        onRow={(record) => ({
+                        onRow={(record, index) => ({
                             style: {cursor: "pointer"},
                             onClick: () => {
                                 if (selectedEvalConfigs.includes(record.id)) {
@@ -438,6 +439,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                                     onSelectEvalConfig([...selectedEvalConfigs, record.id])
                                 }
                             },
+                            "data-tour": index === 0 ? "evaluator-row" : undefined,
                         })}
                         className="ph-no-capture"
                         columns={columnsConfig}

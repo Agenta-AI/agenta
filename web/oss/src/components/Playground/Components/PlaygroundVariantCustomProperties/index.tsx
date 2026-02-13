@@ -1,16 +1,17 @@
 import {memo, useCallback, useMemo} from "react"
 
+import {
+    metadataAtom,
+    legacyAppRevisionSchemaQueryAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {Collapse, Typography} from "antd"
 import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
 import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 
-import {metadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {
-    customPropertiesByRevisionAtomFamily,
-    customPropertyIdsByRevisionAtomFamily,
-} from "@/oss/state/newPlayground/core/customProperties"
+import {customPropertyIdsByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
+import {moleculeBackedCustomPropertiesAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {parameterUpdateMutationAtom} from "../../state/atoms/propertyMutations"
 import {useStyles} from "../PlaygroundVariantConfigPrompt/styles"
@@ -37,25 +38,46 @@ const {Text} = Typography
 
 const PlaygroundVariantCustomProperty = memo(
     ({variantId, viewOnly, id, customPropsRecord}: PlaygroundVariantCustomPropertyProps) => {
+        // Use molecule-backed custom properties for proper reactivity with draft/discard
         const propertyAtom = useMemo(() => {
             return customPropsRecord
                 ? atom(() => customPropsRecord[id])
                 : selectAtom(
-                      customPropertiesByRevisionAtomFamily(variantId),
-                      (state) => state[id],
+                      moleculeBackedCustomPropertiesAtomFamily(variantId),
+                      (state) => (state as Record<string, any>)?.[id],
                       deepEqual,
                   )
         }, [variantId, id, customPropsRecord])
         const customProperty = useAtomValue(propertyAtom)
         const updateParam = useSetAtom(parameterUpdateMutationAtom)
 
+        // Try to get metadata from global metadataAtom first (for legacy/OSS transformer)
         const propertyMetadataAtom = useMemo(() => {
             return selectAtom(metadataAtom, (state) => state[customProperty?.__metadata], deepEqual)
         }, [customProperty])
 
-        const meta = useAtomValue(propertyMetadataAtom, {
+        const globalMeta = useAtomValue(propertyMetadataAtom, {
             store: getDefaultStore(),
         })
+
+        // Fallback to schema from entity-level derivation if global metadata not found
+        const meta = useMemo(() => {
+            if (globalMeta) return globalMeta
+            // Use schema from entity-level EnhancedCustomProperty
+            const schema = (customProperty as any)?.schema
+            if (schema) {
+                return {
+                    type: schema.type,
+                    title: schema.title || id,
+                    description: schema.description,
+                    default: schema.default,
+                    minimum: schema.minimum,
+                    maximum: schema.maximum,
+                    enum: schema.enum,
+                }
+            }
+            return null
+        }, [globalMeta, customProperty, id])
 
         const type: string | undefined = (meta && (meta as any).type) || undefined
         const renderer = type ? (renderMap as any)[type as keyof typeof renderMap] : undefined
@@ -63,13 +85,7 @@ const PlaygroundVariantCustomProperty = memo(
         const handleChange = useCallback(
             (newValue: any, _arg?: any, subPropertyId?: string) => {
                 const pid = subPropertyId || (customProperty as any)?.__id
-                if (process.env.NODE_ENV === "development") {
-                    console.debug("[CustomProps][Mut][UI]", {
-                        variantId,
-                        propertyId: pid,
-                        newValue,
-                    })
-                }
+
                 updateParam({
                     event: newValue,
                     propertyId: pid,
@@ -115,8 +131,13 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
 }) => {
     const classes = useStyles()
 
+    // Subscribe directly to schema query to ensure re-render when async data arrives
+    // This is the root subscription that triggers downstream atom updates
+    useAtomValue(legacyAppRevisionSchemaQueryAtomFamily(variantId))
+
     // Derive custom properties from spec + saved params using new selector
     const atomCustomPropertyIds = useAtomValue(customPropertyIdsByRevisionAtomFamily(variantId))
+
     const customPropertyIds = useMemo(() => {
         return providedCustomProps ? Object.keys(providedCustomProps) : atomCustomPropertyIds
     }, [providedCustomProps, atomCustomPropertyIds])
@@ -178,7 +199,13 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
         providedCustomProps,
     ])
 
-    return hasCustomProperties ? (
+    // Render empty fragment to maintain atom subscription while loading
+    // This ensures the component stays mounted and re-renders when async schema loads
+    if (!hasCustomProperties) {
+        return <></>
+    }
+
+    return (
         <Collapse
             ghost
             className={clsx("rounded-none", className, classes.collapseContainer)}
@@ -186,7 +213,7 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
             defaultActiveKey={initialOpen ? "1" : undefined}
             items={items}
         />
-    ) : null
+    )
 }
 
 export default memo(PlaygroundVariantCustomProperties)

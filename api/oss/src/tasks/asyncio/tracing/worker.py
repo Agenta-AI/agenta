@@ -208,9 +208,6 @@ class TracingWorker:
                     # If no messages, loop will check time and either read again or break
 
             # Calculate batch size in bytes
-            batch_bytes = sum(len(data.get(b"data", b"")) for _, data in batch)
-            batch_mb = batch_bytes / (1024 * 1024)
-
             return batch
 
         except Exception as e:
@@ -304,7 +301,8 @@ class TracingWorker:
                     f"[INGEST] Failed to deserialize span: {e}",
                     msg_id=msg_id,
                 )
-                # Continue processing other messages
+                # ACK unprocessable messages to prevent PEL buildup
+                processed_message_ids.append(msg_id)
 
         if not spans_by_org:
             return (processed_count, processed_message_ids)
@@ -403,9 +401,9 @@ class TracingWorker:
                 if processed_message_ids:
                     await self.ack_and_delete(processed_message_ids)
 
-            except Exception as e:
+            except Exception:
                 log.error(
-                    "[INGEST] Error in worker loop: {e}",
+                    "[INGEST] Error in worker loop",
                     exc_info=True,
                 )
                 # Sleep before retry to avoid tight error loop

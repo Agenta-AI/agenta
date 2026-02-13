@@ -28,14 +28,14 @@ from ee.src.services.email_helper import (
 )
 
 from oss.src.core.auth.service import AuthService
-
-
-log = get_module_logger(__name__)
-
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.core.meters.service import MetersService
+from ee.src.utils.entitlements import check_entitlements, Gauge
+
+
+log = get_module_logger(__name__)
 
 subscription_service = SubscriptionsService(
     subscriptions_dao=SubscriptionsDAO(),
@@ -43,8 +43,6 @@ subscription_service = SubscriptionsService(
         meters_dao=MetersDAO(),
     ),
 )
-
-from ee.src.utils.entitlements import check_entitlements, Gauge
 
 DEMOS = "AGENTA_DEMOS"
 DEMO_ROLE = "viewer"
@@ -65,6 +63,10 @@ async def list_all_demos() -> List[Demo]:
         for project_id in demo_project_ids:
             project = await db_manager.get_project_by_id(project_id)
 
+            if project is None:
+                # log.debug(f"Demo project not found: {project_id}")
+                continue
+
             try:
                 demos.append(
                     Demo(
@@ -74,10 +76,10 @@ async def list_all_demos() -> List[Demo]:
                     )
                 )
 
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 log.error(format_exc())
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         log.error(format_exc())
 
     return demos

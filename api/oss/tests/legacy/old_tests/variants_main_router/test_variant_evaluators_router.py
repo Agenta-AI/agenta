@@ -12,7 +12,6 @@ from oss.src.models.db_models import (
     TestsetDB,
     AppVariantDB,
     EvaluationDB,
-    DeploymentDB,
     EvaluationScenarioDB,
 )
 
@@ -155,7 +154,7 @@ async def test_get_evaluator_configs():
             timeout=timeout,
         )
         assert response.status_code == 200
-        assert type(response.json()) == list
+        assert type(response.json()) == list  # noqa: E721
 
 
 async def fetch_evaluation_results(evaluation_id):
@@ -386,7 +385,7 @@ async def test_rag_experiment_tree_maps_correctly(
         "mapping": mapper_to_run_rag_faithfulness_evaluation,
     }
     response = await test_client.post(
-        f"{BACKEND_API_HOST}/evaluators/map/",
+        f"{BACKEND_API_HOST}/evaluators/map",
         json=payload,
         timeout=timeout,
     )
@@ -396,7 +395,7 @@ async def test_rag_experiment_tree_maps_correctly(
         "question" in response_data["outputs"]
         and "contexts" in response_data["outputs"]
         and "answer" in response_data["outputs"]
-    ) == True
+    )
 
 
 @pytest.mark.asyncio
@@ -408,16 +407,15 @@ async def test_simple_experiment_tree_maps_correctly(
         "mapping": mapper_to_run_auto_exact_match_evaluation,
     }
     response = await test_client.post(
-        f"{BACKEND_API_HOST}/evaluators/map/",
+        f"{BACKEND_API_HOST}/evaluators/map",
         json=payload,
         timeout=timeout,
     )
     response_data = response.json()
     assert response.status_code == 200
-    assert (
-        "prediction" in response_data["outputs"]
-        and isinstance(response_data["outputs"]["prediction"], str)
-    ) == True
+    assert "prediction" in response_data["outputs"] and isinstance(
+        response_data["outputs"]["prediction"], str
+    )
 
 
 @pytest.mark.asyncio
@@ -429,7 +427,7 @@ async def test_rag_faithfulness_evaluator_run(
         "credentials": {"OPENAI_API_KEY": os.environ["OPENAI_API_KEY"]},
     }
     response = await test_client.post(
-        f"{BACKEND_API_HOST}/evaluators/rag_faithfulness/run/",
+        f"{BACKEND_API_HOST}/evaluators/rag_faithfulness/run",
         json=payload,
         timeout=timeout,
     )
@@ -452,7 +450,7 @@ async def test_custom_code_evaluator_run(custom_code_snippet):
         },
     }
     response = await test_client.post(
-        f"{BACKEND_API_HOST}/evaluators/auto_custom_code_run/run/",
+        f"{BACKEND_API_HOST}/evaluators/auto_custom_code_run/run",
         json=payload,
         timeout=timeout,
     )
@@ -468,7 +466,7 @@ async def test_run_evaluators_via_api(
     evaluators_response_status_code = []
     for evaluator_key, evaluator_payload in evaluators_payload_data.items():
         response = await test_client.post(
-            f"{BACKEND_API_HOST}/evaluators/{evaluator_key}/run/",
+            f"{BACKEND_API_HOST}/evaluators/{evaluator_key}/run",
             json=evaluator_payload,
             timeout=timeout,
         )

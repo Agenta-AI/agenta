@@ -5,9 +5,7 @@ import {restrictToParentElement} from "@dnd-kit/modifiers"
 import {arrayMove, SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable"
 import {Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
-
-import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
+import {useAtom} from "jotai"
 
 import {usePlaygroundLayout} from "../../../hooks/usePlaygroundLayout"
 import {selectedVariantsAtom} from "../../../state/atoms"
@@ -21,7 +19,7 @@ const PromptComparisonVariantNavigation = ({
     ...props
 }: PromptComparisonVariantNavigationProps) => {
     const {displayedVariants} = usePlaygroundLayout()
-    const selectedVariants = useAtomValue(selectedVariantsAtom)
+    const [, setSelectedVariants] = useAtom(selectedVariantsAtom)
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -38,21 +36,21 @@ const PromptComparisonVariantNavigation = ({
             const {active, over} = event
 
             if (over?.id && active.id && active.id !== over?.id) {
-                // Get current revision IDs from selectedVariants (which is a string array)
-                const currentRevisionIds = selectedVariants || []
+                // Use displayedVariants for indices since that's what SortableContext uses
+                const currentRevisionIds = displayedVariants || []
 
-                const oldIndex = currentRevisionIds.indexOf(active.id)
-                const newIndex = currentRevisionIds.indexOf(over.id)
+                const oldIndex = currentRevisionIds.indexOf(active.id as string)
+                const newIndex = currentRevisionIds.indexOf(over.id as string)
 
                 if (oldIndex !== -1 && newIndex !== -1) {
-                    // Reorder the array
+                    // Reorder the array and update atom directly
+                    // This preserves local drafts (writePlaygroundSelectionToQuery filters them out)
                     const reorderedRevisions = arrayMove(currentRevisionIds, oldIndex, newIndex)
-
-                    void writePlaygroundSelectionToQuery(reorderedRevisions)
+                    setSelectedVariants(reorderedRevisions)
                 }
             }
         },
-        [selectedVariants],
+        [displayedVariants, setSelectedVariants],
     )
 
     return (

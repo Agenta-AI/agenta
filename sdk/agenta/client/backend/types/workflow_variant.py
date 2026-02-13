@@ -11,11 +11,15 @@ from ..core.pydantic_utilities import (
     UniversalBaseModel,
     update_forward_refs,
 )
-from .workflow_artifact import WorkflowArtifact
 from .workflow_flags import WorkflowFlags
 
 
 class WorkflowVariant(UniversalBaseModel):
+    workflow_id: typing.Optional[str] = None
+    artifact_id: typing.Optional[str] = None
+    flags: typing.Optional[WorkflowFlags] = None
+    tags: typing.Optional[typing.Dict[str, typing.Optional["LabelJsonOutput"]]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = None
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
     created_at: typing.Optional[dt.datetime] = None
@@ -26,12 +30,6 @@ class WorkflowVariant(UniversalBaseModel):
     deleted_by_id: typing.Optional[str] = None
     slug: typing.Optional[str] = None
     id: typing.Optional[str] = None
-    flags: typing.Optional[WorkflowFlags] = None
-    metadata: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
-        None
-    )
-    artifact_id: typing.Optional[str] = None
-    artifact: typing.Optional[WorkflowArtifact] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
@@ -45,6 +43,9 @@ class WorkflowVariant(UniversalBaseModel):
             extra = pydantic.Extra.allow
 
 
-from .full_json_output import FullJsonOutput  # noqa: E402, F401, I001
+from .label_json_output import LabelJsonOutput  # noqa: E402, I001
+from .full_json_output import FullJsonOutput  # noqa: E402, I001
 
-update_forward_refs(WorkflowVariant)
+update_forward_refs(
+    WorkflowVariant, FullJsonOutput=FullJsonOutput, LabelJsonOutput=LabelJsonOutput
+)

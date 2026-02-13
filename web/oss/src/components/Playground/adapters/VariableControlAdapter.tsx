@@ -85,9 +85,7 @@ const VariableControlAdapter: React.FC<Props> = ({
     const {isComparisonView} = usePlaygroundLayout()
     const viewType = isComparisonView ? "comparison" : "single"
 
-    const effectivePlaceholder = disableForCustom
-        ? "Insert a {{variable}} in your template to create an input."
-        : placeholder || "Enter a value"
+    const effectivePlaceholder = placeholder || "Enter a value"
 
     return (
         <SharedEditor

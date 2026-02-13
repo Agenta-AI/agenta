@@ -1,5 +1,6 @@
 import {memo, useCallback, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {
     CaretDown,
     CaretRight,
@@ -13,8 +14,6 @@ import {
     X,
 } from "@phosphor-icons/react"
 import {Button, Input, Popover, Tooltip} from "antd"
-
-import {message} from "@/oss/components/AppMessageContext"
 
 export interface DrillInFieldHeaderProps {
     /** Field name to display */

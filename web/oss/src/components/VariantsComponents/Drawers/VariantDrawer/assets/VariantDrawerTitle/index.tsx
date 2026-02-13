@@ -8,13 +8,15 @@ import {useRouter} from "next/router"
 
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {playgroundAppStatusAtom} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
-import {currentVariantAppStatusAtom} from "@/oss/state/variant/atoms/fetcher"
+import {
+    moleculeBackedVariantAtomFamily,
+    revisionIsDirtyAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {VariantDrawerTitleProps} from "../types"
 import {drawerVariantIsLoadingAtomFamily} from "../VariantDrawerContent"
@@ -29,7 +31,7 @@ const NavControls = memo(
     }: Pick<VariantDrawerTitleProps, "variantId" | "variantIds" | "variants" | "isLoading">) => {
         const [, updateQuery] = useQuery("replace")
         const [displayMode] = useQueryParam("displayMode")
-        const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
+        const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
         const selectedParent = useMemo(() => {
             const parentId =
                 typeof selectedVariant?._parentVariant === "string"
@@ -143,9 +145,10 @@ const TitleActions = memo(
         variants,
         isLoading,
     }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "variants" | "isLoading">) => {
-        const appStatus = useAtomValue(currentVariantAppStatusAtom)
-        const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
-        const isDirty = useAtomValue(variantIsDirtyAtomFamily(variantId))
+        const [, updateQuery] = useQuery("replace")
+        const appStatus = useAtomValue(playgroundAppStatusAtom)
+        const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
+        const isDirty = useAtomValue(revisionIsDirtyAtomFamily(variantId))
         const {goToPlayground} = usePlaygroundNavigation()
         const {appURL: _appURL} = useURL()
         const _router = useRouter()
@@ -173,6 +176,7 @@ const TitleActions = memo(
                     }
                     revisionId={selectedVariant?._parentVariant ? selectedVariant?.id : undefined}
                     disabled={isLoading}
+                    data-tour="deploy-button"
                 />
 
                 <CommitVariantChangesButton
@@ -182,6 +186,10 @@ const TitleActions = memo(
                     size="small"
                     disabled={!isDirty || isLoading}
                     commitType={viewAs}
+                    onSuccess={({revisionId}) => {
+                        if (!revisionId) return
+                        updateQuery({revisionId, drawerType: "variant"})
+                    }}
                 />
             </div>
         )
@@ -201,7 +209,13 @@ const VariantDrawerTitle = ({
     return (
         <section className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-                <Button onClick={onClose} type="text" icon={<CloseOutlined />} size="small" />
+                <Button
+                    onClick={onClose}
+                    type="text"
+                    data-tour="variant-drawer-close-button"
+                    icon={<CloseOutlined />}
+                    size="small"
+                />
                 <Button
                     onClick={onToggleWidth}
                     type="text"

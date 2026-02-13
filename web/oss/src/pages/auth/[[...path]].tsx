@@ -26,6 +26,7 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
+import {shouldShowRegionSelector} from "@/oss/lib/helpers/region"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 import {orgsAtom} from "@/oss/state/org"
@@ -38,6 +39,9 @@ const EmailFirst = dynamic(() => import("@/oss/components/pages/auth/EmailFirst"
 const SocialAuth = dynamic(() => import("@/oss/components/pages/auth/SocialAuth"), {ssr: false})
 const SendOTP = dynamic(() => import("@/oss/components/pages/auth/SendOTP"), {ssr: false})
 const SideBanner = dynamic(() => import("@/oss/components/pages/auth/SideBanner"), {ssr: false})
+const RegionSelector = dynamic(() => import("@/oss/components/pages/auth/RegionSelector"), {
+    ssr: false,
+})
 
 const {Text, Title} = Typography
 const LAST_SSO_ORG_SLUG_KEY = "lastSsoOrgSlug"
@@ -426,10 +430,10 @@ const Auth = () => {
                     src="/assets/Agenta-logo-full-light.png"
                     alt="agenta-ai"
                     width={114}
-                    height={40}
+                    height={39}
                     className={clsx(["absolute", "top-4 lg:top-14", "left-4 lg:left-14"])}
                 />
-                <div className="h-[680px] w-[400px] flex flex-col justify-start gap-8 mx-auto mt-10">
+                <div className="w-full max-w-[400px] flex flex-col justify-start gap-8 mx-auto">
                     <div>
                         <Title level={2} className="font-bold">
                             Welcome to Agenta AI
@@ -463,6 +467,7 @@ const Auth = () => {
                     )}
 
                     <div className="flex flex-col gap-6 min-h-[360px]">
+                        {shouldShowRegionSelector() && <RegionSelector />}
                         {/* Show invite email mismatch message */}
                         {hasInviteEmailMismatch && (
                             <div className="flex flex-col gap-4">

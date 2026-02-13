@@ -25,7 +25,7 @@ class BillingClient:
 
     def handle_events(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -34,7 +34,7 @@ class BillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -51,7 +51,7 @@ class BillingClient:
 
     def create_portal(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -60,7 +60,7 @@ class BillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -81,7 +81,7 @@ class BillingClient:
         plan: Plan,
         success_url: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -94,7 +94,7 @@ class BillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -116,7 +116,7 @@ class BillingClient:
 
     def fetch_plans(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -125,7 +125,7 @@ class BillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -142,7 +142,7 @@ class BillingClient:
 
     def switch_plans(
         self, *, plan: Plan, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -153,7 +153,7 @@ class BillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -174,7 +174,7 @@ class BillingClient:
 
     def fetch_subscription(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -183,7 +183,7 @@ class BillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -200,7 +200,7 @@ class BillingClient:
 
     def cancel_plan(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -209,7 +209,7 @@ class BillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -226,7 +226,7 @@ class BillingClient:
 
     def fetch_usage(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -235,7 +235,7 @@ class BillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -268,7 +268,7 @@ class AsyncBillingClient:
 
     async def handle_events(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -277,7 +277,7 @@ class AsyncBillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -304,7 +304,7 @@ class AsyncBillingClient:
 
     async def create_portal(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -313,7 +313,7 @@ class AsyncBillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -344,7 +344,7 @@ class AsyncBillingClient:
         plan: Plan,
         success_url: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -357,7 +357,7 @@ class AsyncBillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -387,7 +387,7 @@ class AsyncBillingClient:
 
     async def fetch_plans(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -396,7 +396,7 @@ class AsyncBillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -421,7 +421,7 @@ class AsyncBillingClient:
 
     async def switch_plans(
         self, *, plan: Plan, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -432,7 +432,7 @@ class AsyncBillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -461,7 +461,7 @@ class AsyncBillingClient:
 
     async def fetch_subscription(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -470,7 +470,7 @@ class AsyncBillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -497,7 +497,7 @@ class AsyncBillingClient:
 
     async def cancel_plan(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -506,7 +506,7 @@ class AsyncBillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples
@@ -531,7 +531,7 @@ class AsyncBillingClient:
 
     async def fetch_usage(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.Optional[typing.Any]:
+    ) -> typing.Any:
         """
         Parameters
         ----------
@@ -540,7 +540,7 @@ class AsyncBillingClient:
 
         Returns
         -------
-        typing.Optional[typing.Any]
+        typing.Any
             Successful Response
 
         Examples

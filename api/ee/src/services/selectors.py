@@ -11,7 +11,6 @@ from oss.src.dbs.postgres.shared.engine import engine
 from ee.src.models.api.organization_models import Organization
 
 from oss.src.models.db_models import (
-    OrganizationDB,
     WorkspaceDB,
 )
 from ee.src.models.db_models import (

@@ -1,10 +1,10 @@
 import {useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
 import {Alert, Button, Modal, Popover, Typography, Upload, UploadFile} from "antd"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {FilePreviewTable} from "@/oss/components/pages/testset/modals/components/FilePreviewTable"
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
 import {isValidCSVFile, isValidJSONFile} from "@/oss/lib/helpers/fileManipulations"

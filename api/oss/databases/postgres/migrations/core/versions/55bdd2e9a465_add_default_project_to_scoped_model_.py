@@ -8,8 +8,6 @@ Create Date: 2024-09-12 21:56:38.701088
 
 from typing import Sequence, Union
 
-from alembic import op
-import sqlalchemy as sa
 
 from oss.databases.postgres.migrations.core.data_migrations.projects import (
     add_project_id_to_db_entities,

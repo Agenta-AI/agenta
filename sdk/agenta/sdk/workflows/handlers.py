@@ -7,7 +7,7 @@ import ipaddress
 import traceback
 from difflib import SequenceMatcher
 from json import dumps, loads
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Union, Iterable, Tuple
 from urllib.parse import urlparse
 
 import httpx
@@ -129,9 +129,6 @@ def _compute_similarity(embedding_1: List[float], embedding_2: List[float]) -> f
     if norm1 == 0 or norm2 == 0:
         return 0.0
     return dot / (norm1 * norm2)
-
-
-from typing import Any, Iterable, Tuple
 
 
 # ========= Scheme detection =========
@@ -371,7 +368,7 @@ def _compare_jsons(
 
         if compare_schema_only:
             return (
-                1.0 if (gt_key == ao_key and type(gt_value) == type(ao_value)) else 0.0
+                1.0 if (gt_key == ao_key and type(gt_value) == type(ao_value)) else 0.0  # noqa: E721
             )
         return 1.0 if (gt_key == ao_key and gt_value == ao_value) else 0.0
 
@@ -815,9 +812,13 @@ async def auto_webhook_test_v0(
             ) from e
 
         if response.status_code != 200:
+            try:
+                message = response.json()
+            except Exception:
+                message = response.text
             raise WebhookServerV0Error(
                 code=response.status_code,
-                message=response.json(),
+                message=message,
             )
 
         content_length = response.headers.get("content-length")
@@ -1970,7 +1971,10 @@ async def completion_v0(
     )
 
     if not provider_settings:
-        raise InvalidSecretsV0Error(expected="dict", got=provider_settings)
+        model = getattr(
+            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
+        )
+        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
 
     formatted_prompt = config.prompt.format(**inputs)
 
@@ -2035,7 +2039,10 @@ async def chat_v0(
     )
 
     if not provider_settings:
-        raise InvalidSecretsV0Error(expected="dict", got=provider_settings)
+        model = getattr(
+            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
+        )
+        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
 
     provider_settings = _apply_responses_bridge_if_needed(
         formatted_prompt, provider_settings
@@ -2050,3 +2057,81 @@ async def chat_v0(
         )
 
     return response.choices[0].message.model_dump(exclude_none=True)  # type: ignore
+
+
+@instrument()
+async def hook_v0(
+    parameters: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+) -> Any:
+    """
+    Webhook-based application handler for CUSTOM app types.
+
+    Forwards the request to an external webhook URL and returns the response.
+    The webhook URL is read from the workflow interface (``url`` field in
+    revision data), not from ``parameters``.
+
+    Args:
+        parameters: Configuration parameters forwarded to the webhook.
+        inputs: Inputs to forward to the webhook.
+
+    Returns:
+        The response from the webhook.
+    """
+    from agenta.sdk.contexts.running import RunningContext
+
+    ctx = RunningContext.get()
+    webhook_url = ctx.interface.url if ctx.interface else None
+
+    if not webhook_url:
+        raise MissingConfigurationParameterV0Error(path="url")
+
+    webhook_url = str(webhook_url)
+    try:
+        _validate_webhook_url(webhook_url)
+    except ValueError as exc:
+        raise InvalidConfigurationParameterV0Error(
+            path="url",
+            expected="http/https URL",
+            got=webhook_url,
+        ) from exc
+
+    json_payload = {
+        "inputs": inputs or {},
+        "parameters": parameters or {},
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                url=webhook_url,
+                json=json_payload,
+                timeout=httpx.Timeout(30.0, connect=5.0),
+            )
+        except Exception as e:
+            raise WebhookClientV0Error(
+                message=str(e),
+            ) from e
+
+        if response.status_code != 200:
+            try:
+                message = response.json()
+            except Exception:
+                message = response.text
+            raise WebhookServerV0Error(
+                code=response.status_code,
+                message=message,
+            )
+
+        content_length = response.headers.get("content-length")
+        if content_length and int(content_length) > _WEBHOOK_RESPONSE_MAX_BYTES:
+            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
+
+        response_bytes = response.content
+        if len(response_bytes) > _WEBHOOK_RESPONSE_MAX_BYTES:
+            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
+
+        try:
+            return json.loads(response_bytes)
+        except Exception:
+            return response_bytes.decode("utf-8")

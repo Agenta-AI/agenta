@@ -7,7 +7,6 @@ from fastapi import APIRouter, Request, Depends, status, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.tracing.dtos import ListOperator, ComparisonOperator, Condition
 
@@ -217,7 +216,7 @@ class TracingRouter:
         return link_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=OTelTracingResponse())
+    @suppress_exceptions(default=OTelTracingResponse(), exclude=[HTTPException])
     async def query_spans(  # QUERY
         self,
         request: Request,
@@ -240,7 +239,7 @@ class TracingRouter:
             if body_json:
                 query_from_body = parse_query_from_body_request(**body_json)
 
-        except:
+        except Exception:
             pass
 
         merged_query = merge_queries(query, query_from_body)
@@ -339,7 +338,7 @@ class TracingRouter:
             return None
 
     @intercept_exceptions()
-    @suppress_exceptions(default=AnalyticsResponse())
+    @suppress_exceptions(default=AnalyticsResponse(), exclude=[HTTPException])
     async def fetch_analytics(
         self,
         request: Request,
@@ -366,7 +365,7 @@ class TracingRouter:
                     **body_json,
                 )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         (
@@ -419,7 +418,7 @@ class TracingRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=OldAnalyticsResponse())
+    @suppress_exceptions(default=OldAnalyticsResponse(), exclude=[HTTPException])
     async def fetch_legacy_analytics(
         self,
         request: Request,
@@ -444,7 +443,7 @@ class TracingRouter:
                     **body_json,
                 )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         merged_query = merge_queries(
@@ -645,7 +644,7 @@ class TracingRouter:
         return link_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=OTelTracingResponse())
+    @suppress_exceptions(default=OTelTracingResponse(), exclude=[HTTPException])
     async def fetch_trace(  # READ
         self,
         request: Request,
@@ -818,7 +817,7 @@ class TracingRouter:
     ## SESSIONS & USERS
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SessionIdsResponse())
+    @suppress_exceptions(default=SessionIdsResponse(), exclude=[HTTPException])
     async def list_sessions(
         self,
         request: Request,
@@ -856,7 +855,7 @@ class TracingRouter:
         return session_ids_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=UserIdsResponse())
+    @suppress_exceptions(default=UserIdsResponse(), exclude=[HTTPException])
     async def list_users(
         self,
         request: Request,

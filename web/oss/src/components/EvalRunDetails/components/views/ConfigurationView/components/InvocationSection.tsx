@@ -42,19 +42,6 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
     const variantConfig = variantConfigQuery.data
     const isVariantLoading = variantConfigQuery.isPending || variantConfigQuery.isFetching
 
-    // DEBUG: Log invocation section state
-    console.log("[InvocationSection] runId:", runId)
-    console.log("[InvocationSection] invocationRefs:", invocationRefs)
-    console.log("[InvocationSection] rawRefs:", rawRefs)
-    console.log("[InvocationSection] variantConfigQuery:", {
-        isPending: variantConfigQuery.isPending,
-        isFetching: variantConfigQuery.isFetching,
-        error: variantConfigQuery.error,
-        data: variantConfigQuery.data,
-    })
-    console.log("[InvocationSection] variantConfig:", variantConfig)
-    console.log("[InvocationSection] isVariantLoading:", isVariantLoading)
-
     const applicationRef = rawRefs.application ?? rawRefs.application_ref ?? {}
     const applicationRevisionRef = rawRefs.applicationRevision ?? rawRefs.application_revision ?? {}
     const applicationVariantRef = rawRefs.applicationVariant ?? rawRefs.application_variant ?? {}
@@ -212,13 +199,6 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
         !isVariantLoading && !variantLoading && variantConfig && !variantConfig.url
     const [view, setView] = useState<"details" | "json">("details")
 
-    // DEBUG: Log view state decision factors
-    console.log("[InvocationSection] hasSchemaAvailable:", hasSchemaAvailable)
-    console.log("[InvocationSection] schemaDefinitelyUnavailable:", schemaDefinitelyUnavailable)
-    console.log("[InvocationSection] variantConfig?.url:", variantConfig?.url)
-    console.log("[InvocationSection] current view:", view)
-    console.log("[InvocationSection] promptVariantKey:", promptVariantKey)
-
     // Sync view state when we definitively know schema is unavailable (after loading completes)
     useEffect(() => {
         if (schemaDefinitelyUnavailable && view === "details") {
@@ -338,36 +318,13 @@ const VariantConfigurationBlock = memo(
         variantVersion: number | string | null
         hasParamsSnapshot: boolean
     }) => {
-        // DEBUG: Log VariantConfigurationBlock props
-        console.log("[VariantConfigurationBlock] isLoading:", isLoading)
-        console.log("[VariantConfigurationBlock] hasVariantConfig:", hasVariantConfig)
-        console.log("[VariantConfigurationBlock] promptVariantKey:", promptVariantKey)
-        console.log("[VariantConfigurationBlock] variantParameters:", variantParameters)
-        console.log("[VariantConfigurationBlock] variantDisplayId:", variantDisplayId)
-        console.log("[VariantConfigurationBlock] variantName:", variantName)
-        console.log("[VariantConfigurationBlock] variantSlug:", variantSlug)
-        console.log("[VariantConfigurationBlock] variantResolved:", variantResolved)
-        console.log("[VariantConfigurationBlock] variantVersion:", variantVersion)
-        console.log("[VariantConfigurationBlock] hasParamsSnapshot:", hasParamsSnapshot)
-        console.log("[VariantConfigurationBlock] title:", title)
-
         if (isLoading) {
-            console.log("[VariantConfigurationBlock] Rendering: ReadOnlySkeleton (isLoading)")
             return <ReadOnlySkeleton />
         }
 
         if (!hasVariantConfig) {
-            console.log(
-                "[VariantConfigurationBlock] Rendering: 'Variant configuration unavailable' (no hasVariantConfig)",
-            )
             return <Text type="secondary">Variant configuration unavailable.</Text>
         }
-
-        console.log("[VariantConfigurationBlock] Rendering: PromptConfigCard with:", {
-            variantId: promptVariantKey ?? undefined,
-            parameters: variantParameters,
-            hasSnapshot: hasParamsSnapshot,
-        })
 
         return (
             <div className="flex flex-col gap-2">

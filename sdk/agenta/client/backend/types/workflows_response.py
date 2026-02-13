@@ -4,12 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .workflow_artifact import WorkflowArtifact
+from .workflow import Workflow
 
 
 class WorkflowsResponse(UniversalBaseModel):
-    count: int
-    workflows: typing.Optional[typing.List[WorkflowArtifact]] = None
+    count: typing.Optional[int] = None
+    workflows: typing.Optional[typing.List[Workflow]] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

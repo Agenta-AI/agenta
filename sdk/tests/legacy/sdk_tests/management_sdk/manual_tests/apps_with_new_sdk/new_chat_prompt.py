@@ -82,11 +82,11 @@ async def generate(
     config = ag.ConfigManager.get_from_route(schema=MyConfig)
     try:
         prompt_user = config.prompt_user.format(**inputs)
-    except Exception as e:
+    except Exception:
         prompt_user = config.prompt_user
     try:
         prompt_system = config.prompt_system.format(**inputs)
-    except Exception as e:
+    except Exception:
         prompt_system = config.prompt_system
 
     # SET MAX TOKENS - via completion()

@@ -1,8 +1,8 @@
 import {useCallback} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {createNewTestset} from "@/oss/services/testsets/api"
 import {currentColumnsAtom, saveTestsetAtom} from "@/oss/state/entities/testcase"
 import {fetchRevisionsList} from "@/oss/state/entities/testset"

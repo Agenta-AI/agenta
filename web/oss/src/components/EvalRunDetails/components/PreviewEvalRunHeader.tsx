@@ -1,12 +1,12 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {PauseIcon, PlayIcon, XCircleIcon} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
 
@@ -105,7 +105,7 @@ const PreviewEvalRunTabs = ({
         ]
 
         if (evalType === "human") {
-            base.push({label: "Focus", value: "focus"})
+            base.push({label: "Annotate", value: "focus"})
         }
 
         return base

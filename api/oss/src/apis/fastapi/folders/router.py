@@ -6,7 +6,6 @@ from fastapi import APIRouter, Request, HTTPException, status
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.apis.fastapi.folders.models import (
     FolderCreateRequest,
@@ -164,7 +163,7 @@ class FoldersRouter:
 
     # GET /folders/{folder_id}
     @intercept_exceptions()
-    @suppress_exceptions(default=FolderResponse())
+    @suppress_exceptions(default=FolderResponse(), exclude=[HTTPException])
     async def fetch_folder(
         self,
         *,
@@ -259,7 +258,7 @@ class FoldersRouter:
 
     # POST /folders/query
     @intercept_exceptions()
-    @suppress_exceptions(default=FoldersResponse())
+    @suppress_exceptions(default=FoldersResponse(), exclude=[HTTPException])
     async def query_folders(
         self,
         *,

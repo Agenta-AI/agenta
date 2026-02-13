@@ -75,7 +75,7 @@ const TestSetMenu = ({variantId, resultHashes, isRunning}: TestSetMenuProps) => 
 
     return (
         <Dropdown menu={{items}} trigger={["click"]}>
-            <Button size="small" className="flex items-center gap-2">
+            <Button size="small" className="flex items-center gap-2" data-tour="load-testset">
                 <DatabaseIcon size={14} />
                 Testset
                 <CaretDownIcon className="text-[10px]" />

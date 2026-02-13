@@ -1,23 +1,20 @@
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status, Depends
+from fastapi import APIRouter, Request, status, Depends, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import set_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.evaluators.dtos import (
-    EvaluatorFlags,
     EvaluatorQueryFlags,
     #
     EvaluatorQuery,
-    #
-    EvaluatorRevision,
     #
     SimpleEvaluatorData,
     SimpleEvaluatorQuery,
@@ -61,17 +58,9 @@ from oss.src.apis.fastapi.evaluators.models import (
     SimpleEvaluatorsResponse,
 )
 from oss.src.apis.fastapi.evaluators.utils import (
-    parse_evaluator_query_request_from_params,
-    parse_evaluator_query_request_from_body,
-    merge_evaluator_query_requests,
     parse_evaluator_variant_query_request_from_params,
     parse_evaluator_variant_query_request_from_body,
     merge_evaluator_variant_query_requests,
-    parse_evaluator_revision_query_request_from_params,
-    parse_evaluator_revision_query_request_from_body,
-    merge_evaluator_revision_query_requests,
-    parse_evaluator_revision_retrieve_request_from_params,
-    parse_evaluator_revision_retrieve_request_from_body,
 )
 
 if is_ee():
@@ -80,6 +69,8 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+# TEMPORARY: Disabling name editing
+RENAME_EVALUATORS_DISABLED_MESSAGE = "Renaming evaluators is temporarily disabled."
 
 
 class EvaluatorsRouter:
@@ -352,7 +343,7 @@ class EvaluatorsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluatorResponse())
+    @suppress_exceptions(default=EvaluatorResponse(), exclude=[HTTPException])
     async def fetch_evaluator(
         self,
         request: Request,
@@ -397,6 +388,25 @@ class EvaluatorsRouter:
 
         if str(evaluator_id) != str(evaluator_edit_request.evaluator.id):
             return EvaluatorResponse()
+
+        # TEMPORARY: Disabling name editing
+        existing_evaluator = await self.evaluators_service.fetch_evaluator(
+            project_id=UUID(request.state.project_id),
+            evaluator_ref=Reference(id=evaluator_id),
+        )
+        if existing_evaluator is None:
+            return EvaluatorResponse()
+
+        edit_model = evaluator_edit_request.evaluator
+        if (
+            "name" in edit_model.model_fields_set
+            and edit_model.name is not None
+            and edit_model.name != existing_evaluator.name
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+            )
 
         evaluator = await self.evaluators_service.edit_evaluator(
             project_id=UUID(request.state.project_id),
@@ -465,7 +475,7 @@ class EvaluatorsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluatorsResponse())
+    @suppress_exceptions(default=EvaluatorsResponse(), exclude=[HTTPException])
     async def query_evaluators(
         self,
         request: Request,
@@ -680,7 +690,7 @@ class EvaluatorsRouter:
                     **body_json
                 )
 
-        except:
+        except Exception:
             pass
 
         workflow_variant_query_request = merge_evaluator_variant_query_requests(
@@ -713,7 +723,7 @@ class EvaluatorsRouter:
         self,
         request: Request,
         *,
-        evaluator_variant_id: UUID,
+        evaluator_variant_id: Optional[UUID] = None,
         #
         evaluator_variant_fork_request: EvaluatorForkRequest,
     ):
@@ -725,11 +735,23 @@ class EvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        fork_request = evaluator_variant_fork_request.evaluator
+
+        if evaluator_variant_id:
+            if (
+                fork_request.evaluator_variant_id
+                and fork_request.evaluator_variant_id != evaluator_variant_id
+            ):
+                return EvaluatorVariantResponse()
+
+            if not fork_request.evaluator_variant_id:
+                fork_request.evaluator_variant_id = evaluator_variant_id
+
         evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_fork=evaluator_variant_fork_request.evaluator,
+            evaluator_fork=fork_request,
         )
 
         evaluator_variant_response = EvaluatorVariantResponse(
@@ -750,9 +772,8 @@ class EvaluatorsRouter:
     ) -> EvaluatorRevisionResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
-                project_id=request.state.project_id,
                 user_uid=request.state.user_id,
-                #
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATORS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -824,7 +845,7 @@ class EvaluatorsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluatorRevisionResponse())
+    @suppress_exceptions(default=EvaluatorRevisionResponse(), exclude=[HTTPException])
     async def fetch_evaluator_revision(
         self,
         request: Request,
@@ -939,7 +960,7 @@ class EvaluatorsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=EvaluatorRevisionsResponse())
+    @suppress_exceptions(default=EvaluatorRevisionsResponse(), exclude=[HTTPException])
     async def query_evaluator_revisions(
         self,
         request: Request,
@@ -1102,16 +1123,6 @@ class SimpleEvaluatorsRouter:
             response_model_exclude_none=True,
         )
 
-        self.router.add_api_route(
-            "/{evaluator_id}/transfer",
-            self.transfer_simple_evaluator,
-            methods=["POST"],
-            operation_id="transfer_simple_evaluator",
-            status_code=status.HTTP_200_OK,
-            response_model=SimpleEvaluatorResponse,
-            response_model_exclude_none=True,
-        )
-
     # SIMPLE EVALUATORS --------------------------------------------------------
 
     @intercept_exceptions()
@@ -1148,7 +1159,7 @@ class SimpleEvaluatorsRouter:
         return simple_evaluator_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleEvaluatorResponse())
+    @suppress_exceptions(default=SimpleEvaluatorResponse(), exclude=[HTTPException])
     async def fetch_simple_evaluator(
         self,
         request: Request,
@@ -1195,6 +1206,25 @@ class SimpleEvaluatorsRouter:
 
         if str(evaluator_id) != str(simple_evaluator_edit_request.evaluator.id):
             return SimpleEvaluatorResponse()
+
+        # TEMPORARY: Disabling name editing
+        existing_simple_evaluator = await self.simple_evaluators_service.fetch(
+            project_id=UUID(request.state.project_id),
+            evaluator_id=evaluator_id,
+        )
+        if existing_simple_evaluator is None:
+            return SimpleEvaluatorResponse()
+
+        edit_model = simple_evaluator_edit_request.evaluator
+        if (
+            "name" in edit_model.model_fields_set
+            and edit_model.name is not None
+            and edit_model.name != existing_simple_evaluator.name
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+            )
 
         simple_evaluator = await self.simple_evaluators_service.edit(
             project_id=UUID(request.state.project_id),
@@ -1397,7 +1427,7 @@ class SimpleEvaluatorsRouter:
         return simple_evaluator_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleEvaluatorsResponse())
+    @suppress_exceptions(default=SimpleEvaluatorsResponse(), exclude=[HTTPException])
     async def list_simple_evaluators(
         self,
         request: Request,
@@ -1417,7 +1447,7 @@ class SimpleEvaluatorsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleEvaluatorsResponse())
+    @suppress_exceptions(default=SimpleEvaluatorsResponse(), exclude=[HTTPException])
     async def query_simple_evaluators(  # TODO: FIX ME
         self,
         request: Request,
@@ -1552,31 +1582,3 @@ class SimpleEvaluatorsRouter:
         )
 
         return simple_evaluators_response
-
-    @intercept_exceptions()
-    async def transfer_simple_evaluator(
-        self,
-        *,
-        request: Request,
-        evaluator_id: UUID,
-    ) -> SimpleEvaluatorResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        simple_evaluator = await self.simple_evaluators_service.transfer(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            evaluator_id=evaluator_id,
-        )
-
-        simple_evaluator_response = SimpleEvaluatorResponse(
-            count=1 if simple_evaluator else 0,
-            evaluator=simple_evaluator,
-        )
-
-        return simple_evaluator_response

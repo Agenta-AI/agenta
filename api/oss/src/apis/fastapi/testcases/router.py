@@ -1,11 +1,10 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request, status, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
@@ -67,7 +66,7 @@ class TestcasesRouter:
     # TESTCASES ----------------------------------------------------------------
 
     @intercept_exceptions()
-    @suppress_exceptions(default=TestcaseResponse())
+    @suppress_exceptions(default=TestcaseResponse(), exclude=[HTTPException])
     async def fetch_testcase(
         self,
         request: Request,
@@ -98,7 +97,7 @@ class TestcasesRouter:
         return testcase_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=TestcasesResponse())
+    @suppress_exceptions(default=TestcasesResponse(), exclude=[HTTPException])
     async def list_testcases(
         self,
         request: Request,
@@ -112,7 +111,7 @@ class TestcasesRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=TestcasesResponse())
+    @suppress_exceptions(default=TestcasesResponse(), exclude=[HTTPException])
     async def query_testcases(
         self,
         request: Request,

@@ -8,10 +8,15 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 
 class Organization(UniversalBaseModel):
     id: str
+    slug: typing.Optional[str] = None
     name: typing.Optional[str] = None
-    owner: str
     description: typing.Optional[str] = None
-    type: typing.Optional[str] = None
+    flags: typing.Optional[typing.Dict[str, typing.Any]] = None
+    tags: typing.Optional[typing.Dict[str, typing.Any]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Any]] = None
+    owner_id: str
+    members: typing.Optional[typing.List[str]] = None
+    invitations: typing.Optional[typing.List[typing.Any]] = None
     workspaces: typing.Optional[typing.List[str]] = None
 
     if IS_PYDANTIC_V2:

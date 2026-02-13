@@ -12,17 +12,19 @@ interface VariantDetailsRendererProps {
 const VariantDetailsRenderer = ({
     record,
     isLoading = false,
-    ...props
+    showStable,
 }: VariantDetailsRendererProps) => {
     return record.variant ? (
         <VariantDetailsWithStatus
             variantName={record.variant?.variantName || record.variant?.name || ""}
-            revision={record.revision}
+            revision={record.variant?.revision}
             variant={record.variant}
-            {...props}
+            showStable={showStable}
         />
     ) : isLoading ? (
         <Skeleton.Button active size="small" style={{width: 200}} />
+    ) : !record.deployed_app_variant_revision ? (
+        <Typography.Text type="secondary">Not deployed in this revision</Typography.Text>
     ) : (
         <Typography.Text type="danger">This variant could not be found</Typography.Text>
     )

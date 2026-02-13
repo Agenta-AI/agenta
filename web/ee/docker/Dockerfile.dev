@@ -14,13 +14,44 @@ COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* .npmrc* ./
 RUN PNPM_VERSION=$(cat package.json | jq -r '.packageManager | split("@")[1]') && \
     npm install -g pnpm@${PNPM_VERSION}
 
+# Copy app package manifests
 COPY ee/package.json ./ee/yarn.lock* ./ee/package-lock.json* ./ee/pnpm-lock.yaml* ./ee/.npmrc* ./ee/
 COPY oss/package.json ./oss/yarn.lock* ./oss/package-lock.json* ./oss/pnpm-lock.yaml* ./oss/.npmrc* ./oss/
+
+# Copy workspace package manifests (required for workspace:* resolution)
+COPY packages/agenta-shared/package.json ./packages/agenta-shared/
+COPY packages/agenta-ui/package.json ./packages/agenta-ui/
+COPY packages/agenta-entities/package.json ./packages/agenta-entities/
+COPY packages/agenta-entity-ui/package.json ./packages/agenta-entity-ui/
+COPY packages/agenta-playground/package.json ./packages/agenta-playground/
+COPY packages/agenta-playground-ui/package.json ./packages/agenta-playground-ui/
+
+# Copy shared package config files (required by package tsconfigs)
+COPY packages/tsconfig.base.json ./packages/
+COPY packages/css-modules.d.ts ./packages/
+
+# Copy tests workspace manifest (EE devDependency on @agenta/web-tests)
+COPY tests/package.json ./tests/
+
 COPY ./pnpm-workspace.yaml ./turbo.json ./
 
 COPY ./entrypoint.sh /app/entrypoint.sh   
 
 RUN pnpm i
+
+# Copy workspace package sources (after install to preserve layer caching)
+COPY packages/agenta-shared/src ./packages/agenta-shared/src
+COPY packages/agenta-shared/tsconfig.json ./packages/agenta-shared/
+COPY packages/agenta-ui/src ./packages/agenta-ui/src
+COPY packages/agenta-ui/tsconfig.json ./packages/agenta-ui/
+COPY packages/agenta-entities/src ./packages/agenta-entities/src
+COPY packages/agenta-entities/tsconfig.json ./packages/agenta-entities/
+COPY packages/agenta-entity-ui/src ./packages/agenta-entity-ui/src
+COPY packages/agenta-entity-ui/tsconfig.json ./packages/agenta-entity-ui/
+COPY packages/agenta-playground/src ./packages/agenta-playground/src
+COPY packages/agenta-playground/tsconfig.json ./packages/agenta-playground/
+COPY packages/agenta-playground-ui/src ./packages/agenta-playground-ui/src
+COPY packages/agenta-playground-ui/tsconfig.json ./packages/agenta-playground-ui/
 
 COPY ee/src ./ee/src
 COPY ee/public ./ee/public

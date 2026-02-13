@@ -1,6 +1,6 @@
 import pytest
 
-from tests.legacy.conftest import *
+from tests.legacy.conftest import *  # noqa: F403
 
 
 class TestMockCompletion:
@@ -11,7 +11,7 @@ class TestMockCompletion:
         headers = {"Authorization": app_variant_response.get("credentials", None)}
 
         # Set valid LLM keys
-        await set_valid_llm_keys(client=http_client, headers=headers)
+        await set_valid_llm_keys(client=http_client, headers=headers)  # noqa: F405
 
         return {
             "app_variant_response": app_variant_response,
@@ -35,7 +35,7 @@ class TestMockCompletion:
         user_scope_project_id = app_variant_response.get("scope_project_id")
         non_member_credentials = app_variant_response.get("non_member_credentials", "")
         non_member_headers = {"Authorization": non_member_credentials}
-        await set_valid_llm_keys(client=http_client, headers=non_member_headers)
+        await set_valid_llm_keys(client=http_client, headers=non_member_headers)  # noqa: F405
 
         # Act
         response = await http_client.post(
@@ -64,7 +64,7 @@ class TestMockCompletion:
             },
             headers=non_member_headers,
         )
-        response_data = response.json()
+        response_data = response.json()  # noqa: F841
 
         # Assert: Verify the response
         assert response.status_code == expected_status, (

@@ -1,10 +1,14 @@
 // @ts-nocheck
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    variantsListQueryStateAtomFamily,
+    revisionsListQueryStateAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
 import {Button, Flex, Input, Radio, Space, Typography} from "antd"
-import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
+import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
@@ -15,20 +19,11 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useQueryParamState} from "@/oss/state/appState"
 import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
-import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {
-    selectedVariantsCountAtom,
-    variantTableSelectionAtomFamily,
-} from "@/oss/state/variant/atoms/selection"
-import {
-    modelNameByRevisionIdAtomFamily,
-    revisionListAtom,
-    variantDisplayNameByIdAtomFamily,
-} from "@/oss/state/variant/selectors/variant"
+import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import DeploymentsDashboard from "../DeploymentsDashboard"
 import {envRevisionsAtom} from "../DeploymentsDashboard/atoms"
@@ -36,9 +31,11 @@ import {openDeploymentsDrawerAtom} from "../DeploymentsDashboard/modals/store/de
 import DeployVariantButton from "../Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
 
 import {
+    comparisonAllRevisionsAtom,
     comparisonSelectionScopeAtom,
     openComparisonModalAtom,
 } from "./Modals/VariantComparisonModal/store/comparisonModalStore"
+import {selectedVariantsCountAtom, variantTableSelectionAtomFamily} from "./store/selectionAtoms"
 import VariantsTable from "./Table"
 
 // Comparison modal is opened via atoms; no local deploy/delete modals here
@@ -53,8 +50,39 @@ const VariantsDashboard = () => {
     const [searchTerm, setSearchTerm] = useState("")
     const {baseAppURL} = useURL()
     // Data: use all revisions list and map once to table rows (no slicing)
-    const revisions = useAtomValue(revisionListAtom)
-    const isVariantLoading = useAtomValue(variantsPendingAtom)
+    const emptyListAtom = useMemo(
+        () => atom({data: [], isPending: false, isError: false, error: null}),
+        [],
+    )
+    const variantsListAtom = useMemo(
+        () => (appId ? variantsListQueryStateAtomFamily(appId) : emptyListAtom),
+        [appId, emptyListAtom],
+    )
+    const variantsQuery = useAtomValue(variantsListAtom)
+    const variants = variantsQuery.data ?? []
+    const revisionsListAtom = useMemo(
+        () =>
+            atom((get) => {
+                if (!appId) {
+                    return {data: [], isPending: false}
+                }
+                const listQuery = get(variantsListQueryStateAtomFamily(appId))
+                const list = listQuery.data ?? []
+                let isPending = listQuery.isPending ?? false
+                const revisions = list.flatMap((variant: any) => {
+                    const revisionsQuery = get(revisionsListQueryStateAtomFamily(variant.id))
+                    if (revisionsQuery.isPending) {
+                        isPending = true
+                    }
+                    return revisionsQuery.data ?? []
+                })
+                return {data: revisions, isPending}
+            }),
+        [appId],
+    )
+    const revisionsState = useAtomValue(revisionsListAtom)
+    const revisions = revisionsState.data ?? []
+    const isVariantLoading = revisionsState.isPending ?? false
     const {environments, isEnvironmentsLoading} = useEnvironments({appId})
 
     const deploymentRevisionsAtom = useMemo(
@@ -64,6 +92,7 @@ const VariantsDashboard = () => {
     const {data: envRevisions} = useAtomValue(deploymentRevisionsAtom)
     const setEnvRevisions = useSetAtom(envRevisionsAtom)
     const openDeploymentsDrawer = useSetAtom(openDeploymentsDrawerAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const selectionScope = "variants/dashboard"
     const selectedRowKeys = useAtomValue(variantTableSelectionAtomFamily(selectionScope))
     const selectedRevisionId = useMemo(() => {
@@ -95,25 +124,44 @@ const VariantsDashboard = () => {
         setEnvRevisions(envRevisions)
     }, [envRevisions, setEnvRevisions])
 
-    const baseRows = useMemo(() => {
-        const store = getDefaultStore()
-        return (revisions || []).map((r: any) => {
-            const ts = r.updatedAtTimestamp ?? r.createdAtTimestamp
-            const modelName = store.get(modelNameByRevisionIdAtomFamily(r.id))
-            const variantName = store.get(variantDisplayNameByIdAtomFamily(r.variantId))
-            return {
-                id: r.id,
-                variantId: r.variantId,
-                variantName,
-                commitMessage: r.commitMessage ?? r.commit_message ?? null,
-                createdAt: formatDate24(ts),
-                createdAtTimestamp: ts,
-                modifiedBy: r.modifiedBy ?? r.modified_by ?? r.createdBy ?? r.created_by,
-                modelName,
-                _revisionId: r.id,
-            }
+    useEffect(() => {
+        recordWidgetEvent("registry_page_viewed")
+    }, [recordWidgetEvent])
+
+    const variantNameMap = useMemo(() => {
+        const map: Record<string, string> = {}
+        variants.forEach((variant: any) => {
+            if (!variant?.id) return
+            map[variant.id] = (variant.name as string) || (variant.baseName as string) || variant.id
         })
-    }, [revisions])
+        return map
+    }, [variants])
+
+    const baseRows = useMemo(() => {
+        return (revisions || [])
+            .map((r: any) => {
+                if (Number(r?.revision ?? 0) <= 0) return null
+                const timestamp = r.createdAt ? new Date(r.createdAt).valueOf() : Date.now()
+                const params = r.parameters || {}
+                const llmConfig = (params as any)?.prompt?.llm_config || params
+                const modelName =
+                    (typeof llmConfig?.model === "string" && llmConfig.model.trim()) || undefined
+                const variantName = variantNameMap[r.variantId] ?? "-"
+                return {
+                    id: r.id,
+                    variantId: r.variantId,
+                    variantName,
+                    commitMessage: r.commitMessage ?? r.commit_message ?? null,
+                    createdAt: formatDate24(timestamp),
+                    createdAtTimestamp: timestamp,
+                    updatedAtTimestamp: timestamp,
+                    modifiedBy: r.author ?? r.modifiedBy ?? r.modified_by ?? null,
+                    modelName,
+                    _revisionId: r.id,
+                }
+            })
+            .filter(Boolean)
+    }, [revisions, variantNameMap])
 
     const filteredRows = useMemo(() => {
         if (!searchTerm) return baseRows
@@ -122,7 +170,11 @@ const VariantsDashboard = () => {
     }, [baseRows, searchTerm])
 
     const tableRows = useMemo(() => {
-        if (displayMode !== "grouped") return filteredRows
+        if (displayMode !== "grouped") {
+            return [...filteredRows].sort(
+                (a: any, b: any) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0),
+            )
+        }
         // Group revisions by variantId; parent row uses latest revision id
         const byVariant: Record<string, any[]> = {}
         filteredRows.forEach((r: any) => {
@@ -141,6 +193,8 @@ const VariantsDashboard = () => {
                 children,
             })
         })
+        // Sort variant groups by latest revision timestamp (newest first)
+        groups.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0))
         return groups
     }, [filteredRows, displayMode])
 
@@ -148,6 +202,7 @@ const VariantsDashboard = () => {
     const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
     const openComparisonModal = useSetAtom(openComparisonModalAtom)
     const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
+    const setComparisonAllRevisions = useSetAtom(comparisonAllRevisionsAtom)
     const {goToPlayground} = usePlaygroundNavigation()
     const prefetchPlayground = useCallback(async () => {
         if (appId) {
@@ -163,7 +218,7 @@ const VariantsDashboard = () => {
             const store = getDefaultStore()
             const revId = record?._revisionId ?? record?.id
             if (revId) {
-                store.get(promptsAtomFamily(revId))
+                store.get(moleculeBackedPromptsAtomFamily(revId))
             }
             if (revId) {
                 goToPlayground(revId)
@@ -249,6 +304,7 @@ const VariantsDashboard = () => {
                         disabled={selectedCount !== 2}
                         icon={<SwapOutlined />}
                         onClick={() => {
+                            setComparisonAllRevisions(baseRows as any)
                             setComparisonSelectionScope(selectionScope)
                             openComparisonModal()
                         }}
@@ -267,13 +323,15 @@ const VariantsDashboard = () => {
                         type="primary"
                         disabled={!envRevisions}
                         icon={<CodeSimpleIcon size={14} />}
-                        onClick={() =>
+                        data-tour="api-code-button"
+                        onClick={() => {
                             openDeploymentsDrawer({
                                 initialWidth: 1200,
                                 revisionId: selectedRevisionId,
                                 mode: "variant",
                             })
-                        }
+                            recordWidgetEvent("integration_snippet_viewed")
+                        }}
                     >
                         Use API
                     </Button>

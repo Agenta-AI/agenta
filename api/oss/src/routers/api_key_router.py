@@ -48,8 +48,8 @@ async def list_api_keys(request: Request) -> List[ListAPIKeysResponse]:
     return [
         ListAPIKeysResponse(
             prefix=api_key.prefix,
-            created_at=str(api_key.created_at),
-            last_used_at=str(api_key.updated_at),
+            created_at=str(api_key.created_at) if api_key.created_at else None,
+            last_used_at=str(api_key.updated_at) if api_key.updated_at else None,
             expiration_date=api_key.expiration_date,
         )
         for api_key in api_keys

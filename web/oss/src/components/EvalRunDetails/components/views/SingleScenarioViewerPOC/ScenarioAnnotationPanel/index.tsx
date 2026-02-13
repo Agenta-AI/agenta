@@ -1,10 +1,10 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Card, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {uuidToSpanId} from "@/oss/lib/traces/helpers"

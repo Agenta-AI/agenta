@@ -149,20 +149,26 @@ export const useOrgData = () => {
                 const projectId = lastUsedProjectId ?? preferredProject?.project_id
                 const currentPathMatch = router.asPath.match(/\/p\/[^/]+\/(.*)/)
                 const currentPagePath = currentPathMatch?.[1]?.split("?")[0] ?? "apps"
+                const isAppScopedPath = currentPagePath.startsWith("apps/")
 
                 let href: string
                 if (projectId) {
-                    // Preserve query params for settings tab
-                    const isOnSettingsPage = currentPagePath.startsWith("settings")
-                    const currentTab =
-                        (settingsTab && settingsTab !== "workspace" ? settingsTab : undefined) ??
-                        (router.query.tab as string | undefined)
-                    const tabParam =
-                        isOnSettingsPage && currentTab
-                            ? `?tab=${encodeURIComponent(currentTab)}`
-                            : ""
+                    if (isAppScopedPath) {
+                        href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
+                    } else {
+                        // Preserve query params for settings tab
+                        const isOnSettingsPage = currentPagePath.startsWith("settings")
+                        const currentTab =
+                            (settingsTab && settingsTab !== "workspace"
+                                ? settingsTab
+                                : undefined) ?? (router.query.tab as string | undefined)
+                        const tabParam =
+                            isOnSettingsPage && currentTab
+                                ? `?tab=${encodeURIComponent(currentTab)}`
+                                : ""
 
-                    href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/${currentPagePath}${tabParam}`
+                        href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/${currentPagePath}${tabParam}`
+                    }
                 } else {
                     href = `/w/${encodeURIComponent(workspaceId)}`
                 }
@@ -179,8 +185,8 @@ export const useOrgData = () => {
             queryClient,
             resolveWorkspaceForOrg,
             router,
-            selectedOrgId,
             settingsTab,
+            selectedOrgId,
         ],
     )
 

@@ -68,7 +68,7 @@ const ListOfOrgs = ({
     buttonProps,
     interactive = true,
     overrideOrganizationId,
-    organizationSelectionEnabled = true,
+    organizationSelectionEnabled = isEE(),
     ...dropdownProps
 }: ListOfOrgsProps) => {
     const formatErrorMessage = (detail: any, fallback: string) => {
@@ -289,8 +289,7 @@ const ListOfOrgs = ({
     }, [authUpgradeOpen, authUpgradeOrgId, effectiveSelectedId])
 
     const organizationButtonLabel = organizationDisplayName
-    const organizationCount = Array.isArray(organizations) ? organizations.length : 0
-    const canSelectOrganizations = isEE() && organizationCount >= 1
+    const canOpenOrganizationMenu = interactive
 
     const sharedButtonProps = useMemo(() => {
         if (!buttonProps) {
@@ -340,9 +339,12 @@ const ListOfOrgs = ({
         </Button>
     )
 
-    const isPostSignupPage = router.pathname === "/post-signup"
+    const isPostSignupPage =
+        router.pathname === "/post-signup" || router.pathname === "/get-started"
     const canShow = Boolean(
-        (project?.project_id || effectiveSelectedId || selectedOrganization?.id) && user?.id,
+        (project?.project_id || effectiveSelectedId || selectedOrganization?.id) &&
+        user?.id &&
+        !isPostSignupPage,
     )
 
     const createMutation = useMutation({
@@ -603,7 +605,7 @@ const ListOfOrgs = ({
         <div className={clsx("flex flex-col gap-2 px-2 py-3", {"items-center": collapsed})}>
             {canShow ? (
                 <>
-                    {interactive && canSelectOrganizations ? (
+                    {canOpenOrganizationMenu ? (
                         <Dropdown
                             {...dropdownProps}
                             trigger={["click"]}
@@ -620,6 +622,7 @@ const ListOfOrgs = ({
                                 items: organizationMenuItems,
                                 selectedKeys: selectedOrganizationKey,
                                 onClick: handleOrganizationMenuClick,
+                                className: "min-w-[150px]",
                             }}
                         >
                             <div data-org-selector>

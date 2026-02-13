@@ -35,7 +35,6 @@ from ee.src.models.api.workspace_models import (
 from ee.src.models.api.organization_models import (
     Organization,
     OrganizationUpdate,
-    OrganizationOutput,
     CreateOrganizationPayload,
 )
 from ee.src.services.organization_service import (
@@ -138,7 +137,7 @@ async def fetch_organization_details(
 
         return organization
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while fetching organization details",
             exc_info=True,
@@ -200,7 +199,7 @@ async def update_organization(
 
         return organization
 
-    except ValueError as e:
+    except ValueError:
         # Slug validation errors (format, immutability, personal org, etc.)
         # Return a generic error message to avoid exposing internal details.
         return JSONResponse(
@@ -259,7 +258,7 @@ async def create_workspace(
         )
         return workspace
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while creating workspace",
             exc_info=True,
@@ -305,7 +304,7 @@ async def update_workspace(
         workspace = await workspace_manager.update_workspace(payload, workspace_id)
         return workspace
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while updating workspace",
             exc_info=True,
@@ -409,7 +408,7 @@ async def create_organization(
             status_code=201,
         )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while creating organization",
             exc_info=True,
@@ -467,7 +466,7 @@ async def delete_organization(
             status_code=200,
         )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while deleting organization",
             exc_info=True,
@@ -526,7 +525,7 @@ async def list_organization_domains(
             for domain in domains
         ]
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while listing organization domains",
             exc_info=True,
@@ -580,7 +579,7 @@ async def create_organization_domain(
             else None,
         }
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while creating organization domain",
             exc_info=True,
@@ -634,7 +633,7 @@ async def get_organization_domain(
             "updated_at": domain.updated_at.isoformat() if domain.updated_at else None,
         }
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while fetching organization domain",
             exc_info=True,
@@ -668,8 +667,8 @@ async def delete_organization_domain(
                 status_code=403,
             )
 
-        domains_dao = OrganizationDomainsDAO()
         # TODO: Implement delete method in DAO
+        # domains_dao = OrganizationDomainsDAO()
         # await domains_dao.delete(UUID(domain_id))
 
         return JSONResponse(
@@ -677,7 +676,7 @@ async def delete_organization_domain(
             status_code=200,
         )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while deleting organization domain",
             exc_info=True,
@@ -737,7 +736,7 @@ async def verify_organization_domain(
             else None,
         }
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while verifying organization domain",
             exc_info=True,
@@ -778,7 +777,7 @@ async def list_organization_providers(
         provider_service = OrganizationProvidersService()
         return await provider_service.list_providers(organization_id)
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while listing organization providers",
             exc_info=True,
@@ -831,7 +830,7 @@ async def create_organization_provider(
 
         return created_provider
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while creating organization provider",
             exc_info=True,
@@ -871,7 +870,7 @@ async def get_organization_provider(
             provider_id=provider_id,
         )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while fetching organization provider",
             exc_info=True,
@@ -924,7 +923,7 @@ async def update_organization_provider(
 
         return updated_provider
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while updating organization provider",
             exc_info=True,
@@ -970,7 +969,7 @@ async def delete_organization_provider(
             status_code=200,
         )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while deleting organization provider",
             exc_info=True,

@@ -11,7 +11,6 @@ from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.evaluators.dtos import (
-    EvaluatorFlags,
     EvaluatorQueryFlags,
     #
     EvaluatorQuery,
@@ -67,7 +66,7 @@ def parse_evaluator_query_request_from_params(
             meta=_meta,
             tags=_tags,
         )
-        if __flags or _meta or _tags
+        if name or description or __flags or _meta or _tags
         else None
     )
 
@@ -142,7 +141,7 @@ def parse_evaluator_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         evaluator_query_request = EvaluatorQueryRequest()
 
     return evaluator_query_request
@@ -165,8 +164,11 @@ def merge_evaluator_query_requests(
             evaluator_refs=query_request_body.evaluator_refs
             or query_request_params.evaluator_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -213,7 +215,7 @@ def parse_evaluator_variant_query_request_from_params(
             meta=_meta,
             tags=_tags,
         )
-        if __flags or _meta or _tags
+        if name or description or __flags or _meta or _tags
         else None
     )
 
@@ -318,7 +320,7 @@ def parse_evaluator_variant_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         evaluator_variant_query_request = EvaluatorVariantQueryRequest()
 
     return evaluator_variant_query_request
@@ -344,8 +346,11 @@ def merge_evaluator_variant_query_requests(
             evaluator_variant_refs=query_request_body.evaluator_variant_refs
             or query_request_params.evaluator_variant_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -399,7 +404,7 @@ def parse_evaluator_revision_query_request_from_params(
             meta=_meta,
             tags=_tags,
         )
-        if __flags or _meta or _tags
+        if name or description or __flags or _meta or _tags
         else None
     )
 
@@ -563,8 +568,11 @@ def merge_evaluator_revision_query_requests(
             evaluator_revision_refs=query_request_body.evaluator_revision_refs
             or query_request_params.evaluator_revision_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )

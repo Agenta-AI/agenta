@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {CloseOutlined, FileOutlined, InfoCircleOutlined, InboxOutlined} from "@ant-design/icons"
 import {Code, Table} from "@phosphor-icons/react"
 import {Alert, Button, Form, Input, Popover, Typography, Upload, UploadFile} from "antd"
@@ -7,11 +8,11 @@ import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {testsetsRefreshTriggerAtom} from "@/oss/components/TestsetsTable/atoms/tableStore"
 import useURL from "@/oss/hooks/useURL"
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
 import {isValidCSVFile, isValidJSONFile} from "@/oss/lib/helpers/fileManipulations"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"
 import {uploadTestsetPreview} from "@/oss/services/testsets/api"
 import {invalidateTestsetsListCache} from "@/oss/state/entities/testset"
@@ -118,6 +119,7 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
     const [validationError, setValidationError] = useState<string | null>(null)
     const [previewData, setPreviewData] = useState<GenericObject[]>([])
     const setRefreshTrigger = useSetAtom(testsetsRefreshTriggerAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
 
     /**
      * Parse CSV text properly handling quoted fields with embedded newlines and commas
@@ -261,6 +263,7 @@ const CreateTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
             setRefreshTrigger((prev) => prev + 1)
 
             message.success("Testset uploaded successfully")
+            recordWidgetEvent("testset_created")
 
             // Get the revision ID from the response and navigate to it
             const revisionId = response.data?.testset?.revision_id

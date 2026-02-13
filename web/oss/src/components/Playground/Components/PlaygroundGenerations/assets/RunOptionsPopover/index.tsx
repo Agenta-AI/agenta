@@ -62,7 +62,7 @@ const RunOptionsPopover = ({isRunning, variantId}: {isRunning: boolean; variantI
             trigger="click"
             placement="bottomRight"
             arrow={false}
-            overlayInnerStyle={{padding: "16px"}}
+            styles={{container: {padding: "16px"}}}
             onOpenChange={handleOpenChange}
         >
             <Button

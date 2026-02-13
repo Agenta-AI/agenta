@@ -51,10 +51,6 @@ from oss.src.models.api.api_models import (
     WithPagination,
 )
 
-from oss.src.models.shared_models import (
-    AggregatedResult,
-    EvaluationScenarioResult,
-)
 
 log = get_module_logger(__name__)
 
@@ -82,6 +78,10 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
     else:
         uri = None
 
+    # Fall back to created_* fields if no update has occurred
+    modified_by_id = app_variant_db.modified_by_id or app_variant_db.user_id
+    updated_at = app_variant_db.updated_at or app_variant_db.created_at
+
     variant_response = AppVariantResponse(
         app_id=str(app_variant_db.app_id),
         app_name=str(app_variant_db.app.app_name),
@@ -93,9 +93,11 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         config_name=app_variant_db.config_name,  # type: ignore
         uri=uri,  # type: ignore
         revision=app_variant_db.revision,  # type: ignore
-        created_at=str(app_variant_db.updated_at),
-        updated_at=str(app_variant_db.created_at),
-        modified_by_id=str(app_variant_db.modified_by_id),
+        created_at=str(app_variant_db.created_at)
+        if app_variant_db.created_at
+        else None,
+        updated_at=str(updated_at) if updated_at else None,
+        modified_by_id=str(modified_by_id) if modified_by_id else None,
     )
     return variant_response
 
@@ -108,6 +110,9 @@ async def app_variant_db_revisions_to_output(
         app_variant_revisions.append(
             AppVariantRevision(
                 id=str(app_variant_revision_db.id) or None,
+                variant_id=str(app_variant_revision_db.variant_id)
+                if app_variant_revision_db.variant_id
+                else None,
                 revision=app_variant_revision_db.revision,
                 modified_by=app_variant_revision_db.modified_by.username,
                 config={
@@ -126,6 +131,9 @@ async def app_variant_db_revision_to_output(
 ) -> AppVariantRevision:
     return AppVariantRevision(
         id=str(app_variant_revision_db.id) or None,
+        variant_id=str(app_variant_revision_db.variant_id)
+        if app_variant_revision_db.variant_id
+        else None,
         revision=app_variant_revision_db.revision,
         modified_by=app_variant_revision_db.modified_by.username,
         config=ConfigDB(
@@ -222,12 +230,15 @@ def base_db_to_pydantic(base_db: VariantBaseDB) -> BaseOutput:
 
 
 def app_db_to_pydantic(app_db: AppDB) -> App:
+    # Fall back to created_at if no update has occurred
+    updated_at = app_db.updated_at or app_db.created_at
+
     return App(
         app_name=app_db.app_name,
         app_id=str(app_db.id),
         app_type=AppType.friendly_tag(app_db.app_type),
         folder_id=str(app_db.folder_id) if app_db.folder_id else None,
-        updated_at=str(app_db.updated_at),
+        updated_at=str(updated_at) if updated_at else None,
     )
 
 
@@ -256,11 +267,14 @@ def testset_db_to_pydantic(testset_db: TestsetDB) -> TestsetOutput:
     Returns:
         TestsetAPI: The converted TestsetAPI object.
     """
+    # Fall back to created_at if no update has occurred
+    updated_at = testset_db.updated_at or testset_db.created_at
+
     return TestsetOutput(
         name=testset_db.name,
         csvdata=testset_db.csvdata,
-        created_at=str(testset_db.created_at),
-        updated_at=str(testset_db.updated_at),
+        created_at=str(testset_db.created_at) if testset_db.created_at else None,
+        updated_at=str(updated_at) if updated_at else None,
         id=str(testset_db.id),
         columns=_extract_columns_from_csvdata(testset_db.csvdata),
     )
@@ -276,14 +290,19 @@ def user_db_to_pydantic(user_db: UserDB) -> User:
 
 
 def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
+    # Fall back to created_at if no update has occurred
+    updated_at = evaluator_config.updated_at or evaluator_config.created_at
+
     return EvaluatorConfig(
         id=str(evaluator_config.id),
         project_id=str(evaluator_config.project_id),
         name=evaluator_config.name,
         evaluator_key=evaluator_config.evaluator_key,
         settings_values=evaluator_config.settings_values,
-        created_at=str(evaluator_config.created_at),
-        updated_at=str(evaluator_config.updated_at),
+        created_at=str(evaluator_config.created_at)
+        if evaluator_config.created_at
+        else None,
+        updated_at=str(updated_at) if updated_at else None,
     )
 
 

@@ -530,6 +530,25 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "karimkohel",
+      "name": "karim kohel",
+      "avatar_url": "https://avatars.githubusercontent.com/u/46066647?v=4",
+      "profile": "http://karimkohel.com",
+      "contributions": [
+        "example",
+        "doc"
+      ]
+    },
+    {
+      "login": "Vishesh-Paliwal",
+      "name": "Vishesh Paliwal",
+      "avatar_url": "https://avatars.githubusercontent.com/u/142072830?v=4",
+      "profile": "https://github.com/Vishesh-Paliwal",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

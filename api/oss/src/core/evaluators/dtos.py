@@ -12,7 +12,7 @@ from oss.src.core.shared.dtos import (
     Metadata,
 )
 from oss.src.core.workflows.dtos import (
-    ArtifactFork,
+    ArtifactFork,  # noqa: F401
     VariantFork,
     RevisionFork,
     #
@@ -280,6 +280,9 @@ class SimpleEvaluator(Identifier, Slug, Lifecycle, Header, Metadata):
 
     data: Optional[SimpleEvaluatorData] = None
 
+    variant_id: Optional[UUID] = None
+    revision_id: Optional[UUID] = None
+
 
 class SimpleEvaluatorCreate(Slug, Header, Metadata):
     flags: Optional[SimpleEvaluatorFlags] = None
@@ -293,7 +296,7 @@ class SimpleEvaluatorEdit(Identifier, Header, Metadata):
     data: Optional[SimpleEvaluatorData] = None
 
 
-class SimpleEvaluatorQuery(Metadata):
+class SimpleEvaluatorQuery(Header, Metadata):
     flags: Optional[SimpleEvaluatorQueryFlags] = None
 
 

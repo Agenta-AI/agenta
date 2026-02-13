@@ -1,17 +1,19 @@
 import {memo, useMemo} from "react"
 
+import {legacyAppRevisionEntityWithBridgeAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {
+    getMetadataLazy,
+    metadataSelectorFamily,
+    getAllMetadata,
+} from "@agenta/entities/legacyAppRevision"
 import {Typography} from "antd"
 import deepEqual from "fast-deep-equal"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {
-    getMetadataLazy,
-    metadataSelectorFamily,
-    metadataAtom,
-} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {getEnhancedRevisionById} from "@/oss/state/variant/atoms/fetcher"
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedCustomPropertiesAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {usePromptsSource} from "../../context/PromptsSource"
 import {findPropertyInObject, findPropertyById} from "../../hooks/usePlayground/assets/helpers"
@@ -50,17 +52,19 @@ const PlaygroundVariantPropertyControl = ({
     )
 
     // ATOM-LEVEL: compute selector atoms (stable via useMemo), no conditional hooks
+    // Use molecule-backed atoms for single source of truth
     const propertyValueAtom = useMemo(() => {
         if (!propertyId) return nullValueAtom
         // Prompt-only: find property in prompts or custom properties for the given revision
         return atom((get) => {
             const revIdForPrompts = actualVariantId
             if (revIdForPrompts) {
-                const prompts = get(promptsAtomFamily(revIdForPrompts))
+                const prompts = get(moleculeBackedPromptsAtomFamily(revIdForPrompts))
                 const list = (prompts as any[]) || []
                 const property =
                     findPropertyInObject(list, propertyId) ||
                     findPropertyById(list as any, propertyId)
+
                 if (property) {
                     return {
                         value: (property as any)?.content?.value || (property as any)?.value,
@@ -70,9 +74,11 @@ const PlaygroundVariantPropertyControl = ({
                 }
 
                 // Fallback: try custom properties derived from OpenAPI spec
-                const variant = getEnhancedRevisionById(get as any, revIdForPrompts)
+                const variant = get(legacyAppRevisionEntityWithBridgeAtomFamily(revIdForPrompts))
                 if (variant) {
-                    const customProps = get(customPropertiesByRevisionAtomFamily(revIdForPrompts))
+                    const customProps = get(
+                        moleculeBackedCustomPropertiesAtomFamily(revIdForPrompts),
+                    )
                     const values = Object.values(customProps || {}) as any[]
                     const node = values.find((n) => n?.__id === propertyId)
                     if (node) {
@@ -100,26 +106,33 @@ const PlaygroundVariantPropertyControl = ({
             }
 
             const revIdForPrompts = actualVariantId
+            let foundProperty: any = null
             if (revIdForPrompts) {
-                const prompts = get(promptsAtomFamily(revIdForPrompts))
+                // Use molecule-backed prompts for single source of truth
+                const prompts = get(moleculeBackedPromptsAtomFamily(revIdForPrompts))
                 const list = (prompts as any[]) || []
-                const metadataMap = get(metadataAtom) as Record<string, any>
+                const metadataMap = getAllMetadata() as Record<string, any>
                 const property =
                     findPropertyInObject(list, propertyId) ||
                     findPropertyById(list as any, propertyId)
+                foundProperty = property
                 const propertyMetadata = resolveMetadata(property?.__metadata)
+
                 if (propertyMetadata) return propertyMetadata
                 if (property?.__metadata) {
                     const meta = metadataMap?.[property.__metadata]
                     return meta ?? getMetadataLazy(property.__metadata)
                 }
 
-                // Fallback: custom properties metadata
-                const variant = getEnhancedRevisionById(get as any, revIdForPrompts)
+                // Fallback: custom properties metadata (molecule-backed)
+                const variant = get(legacyAppRevisionEntityWithBridgeAtomFamily(revIdForPrompts))
                 if (variant) {
-                    const customProps = get(customPropertiesByRevisionAtomFamily(revIdForPrompts))
+                    const customProps = get(
+                        moleculeBackedCustomPropertiesAtomFamily(revIdForPrompts),
+                    )
                     const values = Object.values(customProps || {}) as any[]
                     const node = values.find((n) => n?.__id === propertyId)
+                    if (node) foundProperty = node
                     const customMetadata = resolveMetadata(node?.__metadata)
                     if (customMetadata) return customMetadata
                     if (node?.__metadata) {
@@ -128,8 +141,11 @@ const PlaygroundVariantPropertyControl = ({
                     }
                 }
             }
-            // Synthesize minimal metadata for string inputs when nothing found
-            return {type: "string", title: propertyId} as any
+            // Synthesize minimal metadata for string inputs when nothing found.
+            // Use __name from the property (human-readable) when available,
+            // falling back to propertyId only as last resort.
+            const fallbackTitle = foundProperty?.__name || foundProperty?.key || propertyId
+            return {type: "string", title: fallbackTitle} as any
         })
     }, [actualVariantId, propertyId])
 

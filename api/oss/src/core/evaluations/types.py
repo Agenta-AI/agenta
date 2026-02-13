@@ -465,8 +465,6 @@ class SimpleEvaluationCreate(Header, Metadata):
 
     data: Optional[SimpleEvaluationData] = None
 
-    jit: Optional[Dict[str, bool]] = None
-
 
 class SimpleEvaluationEdit(Identifier, Header, Metadata):
     version: str = CURRENT_VERSION

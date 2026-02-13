@@ -1,4 +1,4 @@
-import os
+from uuid import UUID
 from typing import List, Optional
 
 from fastapi.responses import JSONResponse
@@ -7,9 +7,12 @@ from fastapi import HTTPException, Request
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
-from oss.src.models import converters
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import db_manager, app_manager
+from oss.src.services.legacy_adapter import (
+    get_legacy_adapter,
+    get_legacy_environments_adapter,
+)
 from oss.src.models.api.api_models import (
     App,
     UpdateApp,
@@ -58,6 +61,8 @@ from oss.src.models.shared_models import AppType
 router = APIRouter()
 
 log = get_module_logger(__name__)
+# TEMPORARY: Disabling name editing
+RENAME_APPS_DISABLED_MESSAGE = "Renaming applications is temporarily disabled."
 
 
 @router.get(
@@ -79,6 +84,19 @@ async def list_app_variants(
         List[AppVariantResponse]: A list of app variants for the given app ID.
     """
 
+    if is_ee():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,
+        )
+        if not has_permission:
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
     cache_key = {
         "app_id": app_id,
     }
@@ -94,25 +112,11 @@ async def list_app_variants(
     if app_variants is not None:
         return app_variants
 
-    if is_ee():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATIONS,
-        )
-        if not has_permission:
-            error_msg = "You do not have access to perform this action. Please contact your organization admin."
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
-            )
-
-    app_variants = await db_manager.list_app_variants(app_id=app_id)
-
-    app_variants = [
-        await converters.app_variant_db_to_output(app_variant)
-        for app_variant in app_variants
-    ]
+    adapter = get_legacy_adapter()
+    app_variants = await adapter.list_app_variants(
+        project_id=UUID(request.state.project_id),
+        app_id=UUID(app_id),
+    )
 
     await set_cache(
         project_id=request.state.project_id,
@@ -148,14 +152,10 @@ async def get_variant_by_env(
         AppVariantResponse: The retrieved app variant.
     """
     try:
-        app = await db_manager.get_app_instance_by_id(
-            project_id=request.state.project_id,
-            app_id=app_id,
-        )
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=str(app.project_id),
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_APPLICATIONS,
             )
             if not has_permission:
@@ -165,17 +165,18 @@ async def get_variant_by_env(
                     status_code=403,
                 )
 
-        # Fetch the app variant using the provided app_id and environment
-        app_variant_db = await db_manager.get_app_variant_by_app_name_and_environment(
-            app_id=app_id, environment=environment
+        env_adapter = get_legacy_environments_adapter()
+        app_variant = await env_adapter.fetch_variant_by_environment(
+            project_id=UUID(request.state.project_id),
+            app_id=UUID(app_id),
+            environment_name=environment,
         )
 
-        # Check if the fetched app variant is None and raise exception if it is
-        if app_variant_db is None:
+        if app_variant is None:
             raise HTTPException(status_code=500, detail="App Variant not found")
-        return await converters.app_variant_db_to_output(app_variant_db)
+
+        return app_variant
     except ValueError as e:
-        # Handle ValueErrors and return 400 status code
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException as e:
         raise e
@@ -242,31 +243,38 @@ async def create_app(
         if not check:
             return NOT_ENTITLED_RESPONSE(Tracker.GAUGES)
 
-    try:
-        app_db = await db_manager.create_app_and_envs(
-            payload.app_name,
-            project_id=request.state.project_id,
-            template_key=payload.template_key,
-            folder_id=payload.folder_id,
-        )
-    except ValueError:
+    adapter = get_legacy_adapter()
+
+    # Check if app already exists
+    existing_app = await adapter.fetch_app_by_name(
+        project_id=UUID(request.state.project_id),
+        app_name=payload.app_name,
+    )
+    if existing_app is not None:
         raise HTTPException(
             status_code=400,
             detail="App with the same name already exists",
+        )
+
+    app_output = await adapter.create_app(
+        project_id=UUID(request.state.project_id),
+        user_id=UUID(request.state.user_id),
+        app_name=payload.app_name,
+        folder_id=UUID(payload.folder_id) if payload.folder_id else None,
+        template_key=payload.template_key,
+    )
+
+    if app_output is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create application",
         )
 
     await invalidate_cache(
         project_id=request.state.project_id,
     )
 
-    return CreateAppOutput(
-        app_id=str(app_db.id),
-        app_name=str(app_db.app_name),
-        app_type=AppType.friendly_tag(app_db.app_type),
-        created_at=str(app_db.created_at),
-        updated_at=str(app_db.updated_at),
-        folder_id=str(app_db.folder_id) if app_db.folder_id else None,
-    )
+    return app_output
 
 
 @router.get("/{app_id}/", response_model=ReadAppOutput, operation_id="read_app")
@@ -287,9 +295,13 @@ async def read_app(
         HTTPException: If there is an error retrieving the app or the user does not have permission to access the app.
     """
 
-    try:
-        app = await db_manager.fetch_app_by_id(app_id)
-    except db_manager.NoResultFound:
+    adapter = get_legacy_adapter()
+    app = await adapter.fetch_app(
+        project_id=UUID(request.state.project_id),
+        app_id=UUID(app_id),
+    )
+
+    if app is None:
         raise HTTPException(
             status_code=404, detail=f"No application with ID '{app_id}' found"
         )
@@ -297,7 +309,7 @@ async def read_app(
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app.project_id),
+            project_id=request.state.project_id,
             permission=Permission.VIEW_APPLICATIONS,
         )
         if not has_permission:
@@ -307,14 +319,7 @@ async def read_app(
                 status_code=403,
             )
 
-    return ReadAppOutput(
-        app_id=str(app.id),
-        app_name=str(app.app_name),
-        app_type=AppType.friendly_tag(app.app_type),
-        created_at=str(app.created_at),
-        updated_at=str(app.updated_at),
-        folder_id=str(app.folder_id) if app.folder_id else None,
-    )
+    return app
 
 
 @router.patch("/{app_id}/", response_model=UpdateAppOutput, operation_id="update_app")
@@ -337,9 +342,13 @@ async def update_app(
         HTTPException: If there is an error creating the app or the user does not have permission to access the app.
     """
 
-    try:
-        app = await db_manager.fetch_app_by_id(app_id)
-    except db_manager.NoResultFound:
+    adapter = get_legacy_adapter()
+    app = await adapter.fetch_app(
+        project_id=UUID(request.state.project_id),
+        app_id=UUID(app_id),
+    )
+
+    if app is None:
         raise HTTPException(
             status_code=404, detail=f"No application with ID '{app_id}' found"
         )
@@ -347,7 +356,7 @@ async def update_app(
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app.project_id),
+            project_id=request.state.project_id,
             permission=Permission.EDIT_APPLICATIONS,
         )
         if not has_permission:
@@ -356,24 +365,37 @@ async def update_app(
                 {"detail": error_msg},
                 status_code=403,
             )
-    await db_manager.update_app(
-        app_id=app_id, values_to_update=payload.model_dump(exclude_unset=True)
+
+    # TEMPORARY: Disabling name editing
+    if (
+        "app_name" in payload.model_fields_set
+        and payload.app_name is not None
+        and payload.app_name != app.app_name
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=RENAME_APPS_DISABLED_MESSAGE,
+        )
+
+    updated_app = await adapter.update_app(
+        project_id=UUID(request.state.project_id),
+        user_id=UUID(request.state.user_id),
+        app_id=UUID(app_id),
+        app_name=payload.app_name,
+        folder_id=UUID(payload.folder_id) if payload.folder_id else None,
     )
 
-    app = await db_manager.fetch_app_by_id(app_id)
+    if updated_app is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update application",
+        )
 
     await invalidate_cache(
         project_id=request.state.project_id,
     )
 
-    return UpdateAppOutput(
-        app_id=str(app.id),
-        app_name=str(app.app_name),
-        app_type=AppType.friendly_tag(app.app_type),
-        created_at=str(app.created_at),
-        updated_at=str(app.updated_at),
-        folder_id=str(app.folder_id) if app.folder_id else None,
-    )
+    return updated_app
 
 
 @router.get("/", response_model=List[App], operation_id="list_apps")
@@ -409,8 +431,9 @@ async def list_apps(
                 detail="You do not have access to perform this action. Please contact your organization admin.",
             )
 
-    apps = await db_manager.list_apps(
-        project_id=request.state.project_id,
+    adapter = get_legacy_adapter()
+    apps = await adapter.list_apps(
+        project_id=UUID(request.state.project_id),
         app_name=app_name,
     )
     return apps
@@ -435,9 +458,13 @@ async def add_variant_from_url(
         dict: The newly added variant.
     """
 
-    try:
-        app = await db_manager.fetch_app_by_id(app_id=app_id)
-    except db_manager.NoResultFound:
+    adapter = get_legacy_adapter()
+    app = await adapter.fetch_app(
+        project_id=UUID(request.state.project_id),
+        app_id=UUID(app_id),
+    )
+
+    if app is None:
         raise HTTPException(
             status_code=404, detail=f"No application with ID '{app_id}' found"
         )
@@ -446,7 +473,7 @@ async def add_variant_from_url(
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=str(app.project_id),
+                project_id=request.state.project_id,
                 permission=Permission.EDIT_APPLICATIONS,
             )
             if not has_permission:
@@ -456,31 +483,31 @@ async def add_variant_from_url(
                     status_code=403,
                 )
 
-        variant_db = await app_manager.add_variant_from_url(
-            app=app,
-            project_id=str(app.project_id),
+        app_variant = await adapter.create_variant_from_url(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            app_id=UUID(app_id),
             variant_name=payload.variant_name,
             url=payload.url,
             base_name=payload.base_name,
             config_name=payload.config_name,
-            user_uid=request.state.user_id,
             commit_message=payload.commit_message,
         )
 
-        app_variant_db = await db_manager.fetch_app_variant_by_id(
-            str(variant_db.id),
-        )
-
-        app_variant_dto = await converters.app_variant_db_to_output(
-            app_variant_db,
-        )
+        if app_variant is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create variant from URL",
+            )
 
         await invalidate_cache(
             project_id=request.state.project_id,
         )
 
-        return app_variant_dto
+        return app_variant
 
+    except HTTPException:
+        raise
     except Exception as e:
         log.error(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -546,9 +573,13 @@ async def remove_app(
         app -- App to remove
     """
 
-    try:
-        app = await db_manager.fetch_app_by_id(app_id)
-    except db_manager.NoResultFound:
+    adapter = get_legacy_adapter()
+    app = await adapter.fetch_app(
+        project_id=UUID(request.state.project_id),
+        app_id=UUID(app_id),
+    )
+
+    if app is None:
         raise HTTPException(
             status_code=404, detail=f"No application with ID '{app_id}' found"
         )
@@ -556,7 +587,7 @@ async def remove_app(
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app.project_id),
+            project_id=request.state.project_id,
             permission=Permission.EDIT_APPLICATIONS,
         )
         if not has_permission:
@@ -572,7 +603,11 @@ async def remove_app(
             delta=-1,
         )
 
-    await app_manager.remove_app(app)
+    await adapter.delete_app(
+        project_id=UUID(request.state.project_id),
+        user_id=UUID(request.state.user_id),
+        app_id=UUID(app_id),
+    )
 
     await invalidate_cache(
         project_id=request.state.project_id,
@@ -626,17 +661,19 @@ async def list_environments(
                 status_code=403,
             )
 
-    environments_db = await db_manager.list_environments(app_id=app_id)
+    env_adapter = get_legacy_environments_adapter()
+    env_dicts = await env_adapter.list_environments(
+        project_id=UUID(request.state.project_id),
+        app_id=UUID(app_id),
+    )
 
     fixed_order = ["development", "staging", "production"]
 
-    sorted_environments = sorted(
-        environments_db, key=lambda env: (fixed_order + [env.name]).index(env.name)
+    sorted_env_dicts = sorted(
+        env_dicts, key=lambda env: (fixed_order + [env["name"]]).index(env["name"])
     )
 
-    environments = [
-        await converters.environment_db_to_output(env) for env in sorted_environments
-    ]
+    environments = [EnvironmentOutput(**env) for env in sorted_env_dicts]
 
     await set_cache(
         project_id=request.state.project_id,
@@ -671,21 +708,13 @@ async def list_app_environment_revisions(
                 status_code=403,
             )
 
-    app_environment = await db_manager.fetch_app_environment_by_name_and_appid(
-        app_id,
-        environment_name,
+    env_adapter = get_legacy_environments_adapter()
+    result = await env_adapter.list_environment_revisions(
+        project_id=UUID(request.state.project_id),
+        app_id=UUID(app_id),
+        environment_name=environment_name,
     )
-    if app_environment is None:
+    if result is None:
         return JSONResponse({"detail": "App environment not found"}, status_code=404)
 
-    app_environment_revisions = (
-        await db_manager.fetch_environment_revisions_for_environment(app_environment)
-    )
-    if app_environment_revisions is None:
-        return JSONResponse(
-            {"detail": "No revisions found for app environment"}, status_code=404
-        )
-
-    return await converters.environment_db_and_revision_to_extended_output(
-        app_environment, app_environment_revisions
-    )
+    return EnvironmentOutputExtended(**result)
