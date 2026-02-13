@@ -1,6 +1,5 @@
-from typing import TypeVar, Type, Optional
+from typing import TypeVar, Type
 from uuid import UUID
-from datetime import datetime
 
 from oss.src.utils.logging import get_module_logger
 

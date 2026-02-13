@@ -11,7 +11,6 @@ from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.workflows.dtos import (
-    WorkflowFlags,
     WorkflowQueryFlags,
     #
     WorkflowQuery,
@@ -142,7 +141,7 @@ def parse_workflow_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         workflow_query_request = WorkflowQueryRequest()
 
     return workflow_query_request
@@ -321,7 +320,7 @@ def parse_workflow_variant_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         workflow_variant_query_request = WorkflowVariantQueryRequest()
 
     return workflow_variant_query_request

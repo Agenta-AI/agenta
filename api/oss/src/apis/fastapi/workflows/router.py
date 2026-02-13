@@ -2,19 +2,14 @@ from typing import Optional, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status, HTTPException, Depends
-from fastapi.responses import Response, JSONResponse, StreamingResponse
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import set_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
-)
-from oss.src.core.workflows.dtos import (
-    WorkflowRevisionData,
-    WorkflowRevision,
 )
 from oss.src.core.workflows.service import (
     WorkflowsService,
@@ -53,8 +48,6 @@ from oss.src.apis.fastapi.workflows.utils import (
     parse_workflow_revision_query_request_from_params,
     parse_workflow_revision_query_request_from_body,
     merge_workflow_revision_query_requests,
-    parse_workflow_revision_retrieve_request_from_params,
-    parse_workflow_revision_retrieve_request_from_body,
 )
 
 from agenta.sdk.models.workflows import (
@@ -507,7 +500,7 @@ class WorkflowsRouter:
             if body_json:
                 query_request_body = parse_workflow_query_request_from_body(**body_json)
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         workflow_query_request = merge_workflow_query_requests(
@@ -717,7 +710,7 @@ class WorkflowsRouter:
                     **body_json
                 )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         workflow_variant_query_request = merge_workflow_variant_query_requests(
@@ -956,7 +949,7 @@ class WorkflowsRouter:
                     **body_json
                 )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         workflow_revision_query_request = merge_workflow_revision_query_requests(
@@ -1009,7 +1002,7 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        if str(workflow_variant_id) != str(
+        if workflow_variant_id is not None and str(workflow_variant_id) != str(
             workflow_revision_commit_request.workflow_revision.workflow_variant_id
         ):
             return WorkflowRevisionResponse()

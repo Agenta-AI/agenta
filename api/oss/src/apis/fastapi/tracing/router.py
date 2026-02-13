@@ -7,7 +7,6 @@ from fastapi import APIRouter, Request, Depends, status, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.tracing.dtos import ListOperator, ComparisonOperator, Condition
 
@@ -240,7 +239,7 @@ class TracingRouter:
             if body_json:
                 query_from_body = parse_query_from_body_request(**body_json)
 
-        except:
+        except Exception:
             pass
 
         merged_query = merge_queries(query, query_from_body)
@@ -366,7 +365,7 @@ class TracingRouter:
                     **body_json,
                 )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         (
@@ -444,7 +443,7 @@ class TracingRouter:
                     **body_json,
                 )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         merged_query = merge_queries(

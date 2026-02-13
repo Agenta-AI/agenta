@@ -7,13 +7,11 @@ if TYPE_CHECKING:
         DaytonaConfig,
         Sandbox,
     )
-    from fastapi import APIRouter, Body, FastAPI, HTTPException, Request
+    from fastapi import APIRouter, FastAPI, HTTPException, Request
     from jinja2 import Template, TemplateError
     from openai import AsyncOpenAI, OpenAIError
     from starlette.responses import Response as StarletteResponse, StreamingResponse
     from jsonpath import JSONPointer
-    import jsonpath as jsonpath_module
-    import yaml as yaml_module
 
 
 class _JsonpathModule(Protocol):

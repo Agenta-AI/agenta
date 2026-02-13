@@ -4,15 +4,19 @@ import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
+// import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
+
 import {
-    inputRowsByIdComputedAtom,
-    // inputRowIdsAtom,
     chatSessionsByIdAtom,
     chatTurnsByIdAtom,
+    inputRowsByIdComputedAtom,
     rowIdIndexAtom,
-    type InputRow,
     type ChatTurn,
+    type InputRow,
 } from "./entities"
+
+// Computed map merging base rows and synthesized cache for visible ids
+// Computed map merging base rows and synthesized cache for visible ids
 
 // Collections
 // Keep this a pure read to avoid write-on-read render loops
@@ -60,7 +64,6 @@ export const rowChatTurnAtomFamily = atomFamily((p: {rowId: string; turnId: stri
 export const rowVariablesAtomFamily = atomFamily((p: {rowId: string; revisionId: string}) =>
     atom((get) => {
         const row = get(inputRowAtomFamily(p.rowId)) as InputRow | null
-        console.log("rowVariablesAtomFamily", row)
         return row?.variables ?? []
     }),
 )
@@ -97,7 +100,8 @@ export const rowVariablesForDisplayAtomFamily = atomFamily(
                 const bKeys = Object.keys(b || {})
                 if (aKeys.length !== bKeys.length) return false
                 for (const k of aKeys) {
-                    if (a[k] !== (b as any)[k]) return false
+                    if ((a as Record<string, any>)[k] !== (b as Record<string, any>)[k])
+                        return false
                 }
                 return true
             },

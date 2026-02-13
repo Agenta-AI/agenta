@@ -448,7 +448,7 @@ const EvaluationRunsTableActive = ({
                 return <EmptyStateSdkEvaluation onOpenSetupModal={openSdkSetupModal} />
             case "all":
             default:
-                return <EmptyStateAllEvaluations onCreateEvaluation={openCreateModal} />
+                return <EmptyStateAllEvaluations />
         }
     }, [
         evaluationKind,

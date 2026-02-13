@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
@@ -7,7 +7,6 @@ from fastapi import APIRouter, Request, Query, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
@@ -1130,7 +1129,7 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        if str(scenario_id) != scenario_edit_request.scenario.id:
+        if str(scenario_id) != str(scenario_edit_request.scenario.id):
             return EvaluationScenarioResponse()
 
         scenario = await self.evaluations_service.edit_scenario(
@@ -1351,7 +1350,7 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        if str(result_id) != result_edit_request.result.id:
+        if str(result_id) != str(result_edit_request.result.id):
             return EvaluationResultResponse()
 
         result = await self.evaluations_service.edit_result(
@@ -1730,7 +1729,7 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        if str(queue_id) != queue_edit_request.queue.id:
+        if str(queue_id) != str(queue_edit_request.queue.id):
             return EvaluationQueueResponse()
 
         queue = await self.evaluations_service.edit_queue(
@@ -2117,7 +2116,7 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        if str(evaluation_id) != evaluation_edit_request.evaluation.id:
+        if str(evaluation_id) != str(evaluation_edit_request.evaluation.id):
             return SimpleEvaluationResponse()
 
         evaluation_edit = evaluation_edit_request.evaluation

@@ -1,1 +1,1 @@
-from .running import application, evaluator
+from .running import application, evaluator  # noqa: F401

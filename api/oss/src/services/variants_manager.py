@@ -715,7 +715,7 @@ async def fetch_configs_by_application_ref(
             variant_ref=ReferenceDTO(
                 slug=variant.slug,
                 version=latest_revision.version,
-                id=latest_revision.id,
+                id=variant.id,
                 commit_message=latest_revision.message,
             ),
             environment_ref=None,
@@ -807,7 +807,11 @@ async def fetch_configs_by_variant_ref(
             variant_ref=ReferenceDTO(
                 slug=variant.slug if variant else revision.slug,
                 version=revision.version,
-                id=revision.id,
+                id=(
+                    variant.id
+                    if variant and variant.id
+                    else revision.application_variant_id
+                ),
                 commit_message=revision.message,
             ),
             environment_ref=None,
@@ -882,7 +886,7 @@ async def fetch_config_by_variant_ref(
         variant_ref=ReferenceDTO(
             slug=app_variant.slug,
             version=app_variant_revision.version,
-            id=app_variant_revision.id,
+            id=app_variant.id,
             commit_message=app_variant_revision.message,
         ),
         environment_ref=None,
@@ -989,9 +993,10 @@ async def fork_config_by_variant_ref(
     if app_variant_revision.data:
         params = app_variant_revision.data.parameters or {}
 
-    # Build compound slug for the forked variant
+    # Build compound slug for the forked variant (always unique)
+    unique_suffix = uuid4().hex[-12:]
     if variant_ref.slug:
-        # Fetch app to construct compound slug: {app_slug}.{variant_name}
+        # Fetch app to construct compound slug: {app_slug}.{variant_name}_{suffix}
         app = await _fetch_app(
             project_id=project_id,
             app_id=app_variant.application_id,
@@ -999,10 +1004,10 @@ async def fork_config_by_variant_ref(
         if not app:
             log.error(f"App not found for application_id: {app_variant.application_id}")
             return None
-        fork_slug = f"{app.slug}.{variant_ref.slug}"
+        fork_slug = f"{app.slug}.{variant_ref.slug}_{unique_suffix}"
     else:
         # app_variant.slug is already compound; append a unique suffix
-        fork_slug = app_variant.slug + "_" + uuid4().hex[-12:]
+        fork_slug = app_variant.slug + "_" + unique_suffix
 
     variant_slug, variant_version = await _create_variant(
         project_id=project_id,

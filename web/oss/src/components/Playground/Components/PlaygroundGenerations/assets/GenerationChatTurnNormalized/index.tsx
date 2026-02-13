@@ -14,8 +14,8 @@ import useHasAssistantContent from "@/oss/components/Playground/hooks/chat/useHa
 import {useRepetitionResult} from "@/oss/components/Playground/hooks/useRepetitionResult"
 import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {resolvedGenerationResultAtomFamily} from "@/oss/components/Playground/state/atoms/generationProperties"
-import {messageSchemaMetadataAtom} from "@/oss/state/generation/entities"
-import {assistantMessageAtomFamily, chatTurnAtomFamily} from "@/oss/state/generation/selectors"
+import {chatTurnsByIdFamilyAtom, messageSchemaMetadataAtom} from "@/oss/state/generation/entities"
+import {chatTurnAtomFamily} from "@/oss/state/generation/selectors"
 import {
     addChatTurnAtom,
     cancelChatTurnAtom,
@@ -89,23 +89,12 @@ const GenerationChatTurnNormalized = ({
         })
     }, [cancelTurn, resolvedTurnId, turnId, effectiveRevisionId])
 
-    const sessionRowId = useMemo(
-        () =>
-            (resolvedTurnId ||
-                (variantId && turnId ? `turn-${variantId}-${turnId}` : turnId)) as string,
-        [resolvedTurnId, variantId, turnId],
-    )
+    const sessionRowId = turnId
+    const turn = useAtomValue(chatTurnsByIdFamilyAtom(sessionRowId)) as any
 
-    const assistantMsg = useAtomValue(
-        useMemo(
-            () =>
-                assistantMessageAtomFamily({
-                    turnId: sessionRowId,
-                    revisionId: variantId as string,
-                }),
-            [sessionRowId, variantId],
-        ),
-    ) as any
+    const assistantMsg = useMemo(() => {
+        return turn?.assistantMessageByRevision?.[variantId as string] ?? null
+    }, [turn, variantId])
 
     const displayAssistantValue = useAssistantDisplayValue(
         messageOverride || assistantMsg,
@@ -134,7 +123,9 @@ const GenerationChatTurnNormalized = ({
                     rowId={turnId}
                     kind="user"
                     className="w-full"
+                    hideExpandResults
                     messageOptionProps={{
+                        hideAddToTestset: true,
                         allowFileUpload: true,
                     }}
                     messageProps={messageProps}
@@ -172,6 +163,10 @@ const GenerationChatTurnNormalized = ({
                         messageProps={messageProps}
                         messageOverride={messageOverride}
                         repetitionProps={repetitionProps}
+                        hideRerun
+                        messageOptionProps={{
+                            allowFileUpload: false,
+                        }}
                     />
                     {variantId
                         ? toolMessages.map((_, index) => (
