@@ -19,6 +19,7 @@ export const LastOutputCell = ({sessionId}: {sessionId: string}) => {
     return (
         <SmartCellContent
             value={sanitized}
+            keyPrefix={`session-${sessionId}-output`}
             maxLines={4}
             chatPreference="output"
             className="max-w-[300px] h-[112px] overflow-hidden"

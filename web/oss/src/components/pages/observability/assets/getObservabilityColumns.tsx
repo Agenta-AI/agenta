@@ -106,6 +106,7 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                 return (
                     <SmartCellContent
                         value={sanitizedOutputs}
+                        keyPrefix={`trace-output-${record.span_id}`}
                         maxLines={4}
                         chatPreference="output"
                         className="h-[112px] overflow-hidden"
