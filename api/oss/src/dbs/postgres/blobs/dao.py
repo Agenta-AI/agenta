@@ -68,7 +68,7 @@ class BlobsDAO(BlobsDAOInterface):
                     self.BlobDBE.project_id == project_id,  # type: ignore
                 )
 
-                stmt = select(self.BlobDBE).filter(
+                stmt = stmt.filter(
                     self.BlobDBE.id == blob.id,  # type: ignore
                 )
 
@@ -244,7 +244,7 @@ class BlobsDAO(BlobsDAOInterface):
                     self.BlobDBE.project_id == project_id,  # type: ignore
                 )
 
-                stmt = select(self.BlobDBE).filter(
+                stmt = stmt.filter(
                     self.BlobDBE.id.in_(blob_ids),  # type: ignore
                 )
 
