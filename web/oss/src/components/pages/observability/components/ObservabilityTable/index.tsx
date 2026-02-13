@@ -9,6 +9,7 @@ import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
 import ResizableTitle from "@/oss/components/ResizableTitle"
 import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {isNewUserAtom} from "@/oss/lib/onboarding"
+import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
@@ -77,6 +78,7 @@ const ObservabilityTable = () => {
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const isNewUser = useAtomValue(isNewUserAtom)
+    const onboardingStorageUserId = useAtomValue(onboardingStorageUserIdAtom)
     const hasReceivedTraces = useAtomValue(hasReceivedTracesAtom)
     const setHasReceivedTraces = useSetAtom(hasReceivedTracesAtom)
     const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
@@ -188,10 +190,10 @@ const ObservabilityTable = () => {
     const showOnboarding = isNewUser && !hasReceivedTraces
 
     useEffect(() => {
-        if (traces.length > 0 && !hasReceivedTraces) {
+        if (onboardingStorageUserId && traces.length > 0 && !hasReceivedTraces) {
             setHasReceivedTraces(true)
         }
-    }, [traces.length, hasReceivedTraces, setHasReceivedTraces])
+    }, [onboardingStorageUserId, traces.length, hasReceivedTraces, setHasReceivedTraces])
 
     const handleResize =
         (key: string) =>

@@ -7,6 +7,7 @@ import dynamic from "next/dynamic"
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
 import {isNewUserAtom} from "@/oss/lib/onboarding"
+import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {hasReceivedSessionsAtom} from "@/oss/state/newObservability/atoms/controls"
 import {useSessions} from "@/oss/state/newObservability/hooks/useSessions"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
@@ -44,6 +45,7 @@ const SessionsTable: React.FC = () => {
     } = useSessions()
 
     const isNewUser = useAtomValue(isNewUserAtom)
+    const onboardingStorageUserId = useAtomValue(onboardingStorageUserIdAtom)
     const openDrawer = useSetAtom(openSessionDrawerWithUrlAtom)
     const hasReceivedSessions = useAtomValue(hasReceivedSessionsAtom)
     const setHasReceivedSessions = useSetAtom(hasReceivedSessionsAtom)
@@ -51,10 +53,10 @@ const SessionsTable: React.FC = () => {
     const showOnboarding = isNewUser && !hasReceivedSessions
 
     useEffect(() => {
-        if (sessionCount > 0 && !hasReceivedSessions) {
+        if (onboardingStorageUserId && sessionCount > 0 && !hasReceivedSessions) {
             setHasReceivedSessions(true)
         }
-    }, [sessionCount, hasReceivedSessions, setHasReceivedSessions])
+    }, [onboardingStorageUserId, sessionCount, hasReceivedSessions, setHasReceivedSessions])
 
     const handleLoadMore = useCallback(() => {
         if (isFetchingMore || !hasMoreSessions) return
