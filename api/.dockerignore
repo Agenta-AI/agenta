@@ -24,7 +24,6 @@ build/
 .env.*
 
 # Test and coverage
-.pytest_cache
 .coverage
 htmlcov
 oss/tests

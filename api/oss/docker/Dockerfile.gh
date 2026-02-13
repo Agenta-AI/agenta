@@ -72,7 +72,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app:/app/sdk \
     PATH="/opt/venv/bin:${PATH}"
 
-# Hardcode bookworm codename to avoid pulling in lsb-release (+ perl ~56MB)
+# Hardcode bookworm codename to avoid pulling in lsb-release (+ perl ~56MB).
+# IMPORTANT: This codename must match the Debian release used in the base image (python:3.11-slim-bookworm).
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl cron gnupg2 && \
     echo "deb http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
