@@ -105,6 +105,7 @@ const SmartCellContent = memo(
                         keyPrefix={keyPrefix}
                         chatPreference={chatPreference}
                         maxLines={4}
+                        maxTotalLines={maxLines}
                         truncate
                     />
                 </div>
