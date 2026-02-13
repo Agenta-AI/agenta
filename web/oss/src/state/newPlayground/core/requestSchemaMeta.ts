@@ -6,7 +6,6 @@ import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
 import {constructPlaygroundTestUrl} from "@/oss/lib/shared/variant/stringUtils"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import type {OpenAPISpec} from "@/oss/lib/shared/variant/types/openapi"
-import {getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
 
 export interface RequestSchemaMetaParams {
     variant: EnhancedVariant
