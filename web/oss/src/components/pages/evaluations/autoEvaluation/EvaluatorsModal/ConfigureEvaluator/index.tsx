@@ -11,6 +11,7 @@ import {createUseStyles} from "react-jss"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
+import {deriveEvaluatorOutputsSchema} from "@/oss/lib/evaluators/utils"
 import {EvaluationSettingsTemplate, JSSTheme, SettingsPreset} from "@/oss/lib/Types"
 import {
     CreateEvaluatorConfigData,
@@ -333,6 +334,16 @@ const ConfigureEvaluator = ({
 
             const existingParameters = editEvalEditValues?.data?.parameters || {}
             const mergedParameters = {...existingParameters, ...parameters}
+            const createOutputsSchema = deriveEvaluatorOutputsSchema({
+                evaluatorKey: selectedEvaluator.key,
+                evaluatorTemplate: selectedEvaluator,
+                parameters,
+            })
+            const updateOutputsSchema = deriveEvaluatorOutputsSchema({
+                evaluatorKey: selectedEvaluator.key,
+                evaluatorTemplate: selectedEvaluator,
+                parameters: mergedParameters,
+            })
 
             const payload: CreateEvaluatorConfigData = {
                 name: values.name,
@@ -340,9 +351,36 @@ const ConfigureEvaluator = ({
                 tags: values.tags,
                 evaluator_key: selectedEvaluator.key,
                 parameters,
+                outputs_schema: createOutputsSchema,
             }
 
             if (editMode) {
+                const existingData = editEvalEditValues?.data ?? {}
+                const existingSchemas =
+                    existingData.schemas &&
+                    typeof existingData.schemas === "object" &&
+                    !Array.isArray(existingData.schemas)
+                        ? existingData.schemas
+                        : undefined
+
+                const nextSchemas = (() => {
+                    if (updateOutputsSchema) {
+                        return {
+                            ...(existingSchemas ?? {}),
+                            outputs: updateOutputsSchema,
+                        }
+                    }
+
+                    if (!existingSchemas) return undefined
+
+                    const {outputs, ...remainingSchemas} = existingSchemas
+                    void outputs
+                    return Object.keys(remainingSchemas).length ? remainingSchemas : undefined
+                })()
+
+                const {schemas: _unusedSchemas, ...dataWithoutSchemas} = existingData
+                void _unusedSchemas
+
                 const updatedEvaluator = await updateEvaluatorConfig(editEvalEditValues?.id!, {
                     id: editEvalEditValues?.id!,
                     name: values.name,
@@ -351,8 +389,9 @@ const ConfigureEvaluator = ({
                     meta: editEvalEditValues?.meta,
                     flags: editEvalEditValues?.flags,
                     data: {
-                        ...(editEvalEditValues?.data ?? {}),
+                        ...dataWithoutSchemas,
                         parameters: mergedParameters,
+                        ...(nextSchemas ? {schemas: nextSchemas} : {}),
                     },
                 })
 

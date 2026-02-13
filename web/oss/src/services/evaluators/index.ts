@@ -12,6 +12,7 @@ import {
     Evaluator,
     SimpleEvaluator,
     SimpleEvaluatorCreate,
+    SimpleEvaluatorData,
     SimpleEvaluatorEdit,
     SimpleEvaluatorResponse,
     SimpleEvaluatorsResponse,
@@ -142,24 +143,22 @@ export const fetchAllEvaluatorConfigs = async (
     const response = await axios.post<SimpleEvaluatorsResponse>(
         `${getAgentaApiUrl()}/preview/simple/evaluators/query?project_id=${projectId}`,
         {
-            evaluator: {
-                flags: {
-                    is_evaluator: true,
-                    is_human: false,
-                },
-            },
             include_archived: false,
         },
     )
 
     const evaluators = response.data?.evaluators ?? []
-    return evaluators.filter((item) => !item.deleted_at).map(decorateSimpleEvaluator)
+    return evaluators
+        .filter((item) => !item.deleted_at)
+        .filter((item) => item.flags?.is_human !== true)
+        .map(decorateSimpleEvaluator)
 }
 
 export interface CreateEvaluatorConfigData {
     name: string
     evaluator_key: string
     parameters: Record<string, any>
+    outputs_schema?: Record<string, any>
     tags?: string[]
     description?: string
 }
@@ -171,16 +170,24 @@ export const createEvaluatorConfig = async (
     const {projectId} = getProjectValues()
     void _appId
 
+    const data: SimpleEvaluatorData = {
+        uri: buildEvaluatorUri(config.evaluator_key),
+        parameters: config.parameters,
+    }
+
+    if (config.outputs_schema) {
+        data.schemas = {
+            outputs: config.outputs_schema,
+        }
+    }
+
     const payload: SimpleEvaluatorCreate = {
         slug: buildEvaluatorSlug(config.name),
         name: config.name,
         description: config.description,
         tags: config.tags,
         flags: {is_evaluator: true, is_human: false},
-        data: {
-            uri: buildEvaluatorUri(config.evaluator_key),
-            parameters: config.parameters,
-        },
+        data,
     }
 
     const response = await axios.post<SimpleEvaluatorResponse>(

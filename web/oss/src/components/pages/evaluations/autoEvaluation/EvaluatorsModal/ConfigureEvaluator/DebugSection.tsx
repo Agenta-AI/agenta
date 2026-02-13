@@ -60,7 +60,6 @@ import {
 } from "@/oss/lib/transformers"
 import {BaseResponse, ChatMessage, JSSTheme, Parameter, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
-import {createEvaluatorDataMapping} from "@/oss/services/evaluations/api_ee"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
 import {
     invokeEvaluator,
@@ -433,58 +432,48 @@ const DebugSection = () => {
                 return
             }
 
-            const {testcaseObj, evalMapObj} = mapTestcaseAndEvalValues(
+            const {testcaseObj} = mapTestcaseAndEvalValues(
                 normalizedSettings,
                 selectedTestcase.testcase,
             )
 
             let outputs = {}
 
-            if (Object.keys(evalMapObj).length && selectedEvaluator.key.startsWith("rag_")) {
-                const mapResponse = await createEvaluatorDataMapping({
-                    inputs: baseResponseData,
-                    mapping: transformTraceKeysInSettings(evalMapObj),
-                })
-                outputs = {...outputs, ...mapResponse.outputs}
-            }
-
             if (Object.keys(testcaseObj).length) {
                 outputs = {...outputs, ...testcaseObj}
             }
 
-            if (!selectedEvaluator.key.startsWith("rag_")) {
-                const correctAnswerKey = parameters.correct_answer_key
-                const groundTruthKey =
-                    typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
-                        ? correctAnswerKey.split(".")[1]
-                        : correctAnswerKey
+            const correctAnswerKey = parameters.correct_answer_key
+            const groundTruthKey =
+                typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
+                    ? correctAnswerKey.split(".")[1]
+                    : correctAnswerKey
 
-                const normalizeCompact = (val: any) => {
-                    try {
-                        if (val === undefined || val === null) return ""
-                        const str = typeof val === "string" ? val : JSON.stringify(val)
-                        const parsed = safeJson5Parse(str)
-                        if (parsed && typeof parsed === "object") {
-                            return JSON.stringify(parsed)
-                        }
-                        return str
-                    } catch {
-                        return typeof val === "string" ? val : JSON.stringify(val)
+            const normalizeCompact = (val: any) => {
+                try {
+                    if (val === undefined || val === null) return ""
+                    const str = typeof val === "string" ? val : JSON.stringify(val)
+                    const parsed = safeJson5Parse(str)
+                    if (parsed && typeof parsed === "object") {
+                        return JSON.stringify(parsed)
                     }
+                    return str
+                } catch {
+                    return typeof val === "string" ? val : JSON.stringify(val)
                 }
+            }
 
-                const rawGT = selectedTestcase?.["testcase"]?.[groundTruthKey]
-                const ground_truth = normalizeCompact(rawGT)
-                const prediction = normalizeCompact(variantResult)
+            const rawGT = selectedTestcase?.["testcase"]?.[groundTruthKey]
+            const ground_truth = normalizeCompact(rawGT)
+            const prediction = normalizeCompact(variantResult)
 
-                outputs = {
-                    ...outputs,
-                    ...selectedTestcase.testcase,
-                    ground_truth,
-                    [groundTruthKey]: ground_truth,
-                    prediction,
-                    ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
-                }
+            outputs = {
+                ...outputs,
+                ...selectedTestcase.testcase,
+                ground_truth,
+                [groundTruthKey]: ground_truth,
+                prediction,
+                ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
             }
 
             const evaluatorKey = resolveEvaluatorKey(evaluatorConfig) || selectedEvaluator?.key

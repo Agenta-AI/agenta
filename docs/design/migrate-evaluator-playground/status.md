@@ -101,7 +101,7 @@ The SDK maintains a `HANDLER_REGISTRY` that maps URIs to handler functions:
 | `settings_values` | `data.parameters` |
 | `EvaluatorConfig` | `SimpleEvaluator` |
 
-### 5. Output schema regression source is identified
+### 5. Output schema ownership moved to frontend templates
 
 Legacy config creation (`/evaluators/configs`) called `build_evaluator_data`, which generated
 `data.schemas.outputs` and `data.service.format` for builtin evaluators.
@@ -109,11 +109,16 @@ Legacy config creation (`/evaluators/configs`) called `build_evaluator_data`, wh
 The migrated frontend CRUD path uses `/preview/simple/evaluators` and initially sent only
 `data.uri` plus `data.parameters`. That can create revisions without output schemas.
 
-When output schemas are missing, evaluation metrics fallback can include container keys such as
-`attributes.ag`, which then appear as noisy metrics in Overview.
+Frontend now receives `outputs_schema` in the evaluator template payload (`GET /evaluators`) and
+sends `data.schemas.outputs` during create and edit.
 
-Backend now restores legacy behavior by hydrating builtin evaluator data in
-`SimpleEvaluatorsService` when `schemas.outputs` is missing.
+Schema selection rules are now:
+- fixed evaluators: use template `outputs_schema`
+- `auto_ai_critique`: use `parameters.json_schema.schema`
+- `json_multi_field_match`: derive schema from configured `fields`
+- evaluators without template schema: send no output schema
+
+Backend hydration still exists as a fallback path for builtin evaluators.
 
 ---
 
@@ -121,7 +126,7 @@ Backend now restores legacy behavior by hydrating builtin evaluator data in
 
 1. **Slug uniqueness:** Backend enforces unique slugs per project; generate a short suffix client-side to avoid collisions.
 
-2. **Output schemas:** Resolved. Backend now derives missing builtin evaluator schemas from URI + parameters, so frontend can keep minimal payloads.
+2. **Output schemas:** Resolved. Frontend now sends known output schemas from evaluator templates and dynamic settings.
 
 3. **Permission model:** Is `RUN_WORKFLOWS` the right permission for evaluator playground? Or should there be `RUN_EVALUATORS`?
 

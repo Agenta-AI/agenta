@@ -1,3 +1,6 @@
+from copy import deepcopy
+
+
 rag_evaluator_settings_template = {
     "question_key": {
         "label": "Question Key",
@@ -830,6 +833,76 @@ evaluators = [
     #     "tags": ["rag"],
     # },
 ]
+
+
+_SUCCESS_ONLY_OUTPUT_SCHEMA = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "success": {"type": "boolean"},
+    },
+    "required": ["success"],
+    "additionalProperties": False,
+}
+
+_SCORE_AND_SUCCESS_OUTPUT_SCHEMA = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "score": {"type": "number"},
+        "success": {"type": "boolean"},
+    },
+    "required": [],
+    "additionalProperties": False,
+}
+
+_FIXED_OUTPUT_SCHEMA_BY_KEY = {
+    "auto_custom_code_run": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "field_match_test": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_json_diff": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_semantic_similarity": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_webhook_test": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_exact_match": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains_json": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_similarity_match": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_regex_test": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_starts_with": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_ends_with": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains_any": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains_all": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_levenshtein_distance": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+}
+
+
+def _extract_auto_ai_critique_default_outputs_schema():
+    for evaluator in evaluators:
+        if evaluator.get("key") != "auto_ai_critique":
+            continue
+
+        settings_template = evaluator.get("settings_template") or {}
+        json_schema_field = settings_template.get("json_schema") or {}
+        default_value = json_schema_field.get("default") or {}
+        schema = default_value.get("schema")
+
+        return deepcopy(schema) if isinstance(schema, dict) else None
+
+    return None
+
+
+_auto_ai_critique_outputs_schema = _extract_auto_ai_critique_default_outputs_schema()
+if _auto_ai_critique_outputs_schema is not None:
+    _FIXED_OUTPUT_SCHEMA_BY_KEY["auto_ai_critique"] = _auto_ai_critique_outputs_schema
+
+for evaluator in evaluators:
+    evaluator_key = evaluator.get("key")
+    outputs_schema = (
+        _FIXED_OUTPUT_SCHEMA_BY_KEY.get(evaluator_key)
+        if isinstance(evaluator_key, str)
+        else None
+    )
+    if outputs_schema is not None:
+        evaluator["outputs_schema"] = deepcopy(outputs_schema)
 
 
 def get_all_evaluators():

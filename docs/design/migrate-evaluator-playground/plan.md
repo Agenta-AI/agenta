@@ -113,6 +113,13 @@ export interface SimpleEvaluatorsResponse {
 
 **File:** `web/oss/src/services/evaluators/index.ts`
 
+Output schema ownership for create and edit:
+
+- If evaluator template includes `outputs_schema`, send it as `data.schemas.outputs`
+- If evaluator is `auto_ai_critique`, derive from `parameters.json_schema.schema`
+- If evaluator is `json_multi_field_match`, derive from `parameters.fields`
+- If evaluator has no known schema, omit `data.schemas.outputs`
+
 Replace legacy functions with new implementations:
 
 ```typescript
