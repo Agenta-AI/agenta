@@ -3,6 +3,7 @@ from uuid import UUID
 from datetime import datetime
 from json import dumps
 from hashlib import blake2b as digest
+from copy import deepcopy
 
 import csv
 from io import StringIO
@@ -863,23 +864,37 @@ def json_array_to_csv_file(
         return None
 
     try:
+        # Create a deep copy to avoid mutating the original input
+        processed_array = deepcopy(json_array)
+
         # Apply type conversion if specified
         if column_types:
-            for row in json_array:
+            for row in processed_array:
                 for col, dtype in column_types.items():
                     if col in row:
-                        row[col] = dtype(row[col])
+                        value = row[col]
+                        if value is None or value == "":
+                            continue
+                        try:
+                            row[col] = dtype(value)
+                        except (ValueError, TypeError):
+                            log.warning(
+                                "[TESTSETS] Failed to cast column '%s' value '%s' using %s",
+                                col,
+                                value,
+                                getattr(dtype, "__name__", str(dtype)),
+                            )
 
         # Collect all unique keys from all rows to handle heterogeneous data
         all_keys = set()
-        for row in json_array:
+        for row in processed_array:
             all_keys.update(row.keys())
         fieldnames = sorted(all_keys)  # Sort for consistent column order
 
         with open(output_csv_file, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
-            writer.writerows(json_array)
+            writer.writerows(processed_array)
 
     except Exception as e:
         log.error("[TESTSETS] Could not convert JSON array to CSV file", exc_info=True)
