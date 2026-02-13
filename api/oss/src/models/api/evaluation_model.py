@@ -7,8 +7,6 @@ from pydantic import BaseModel, Field, model_validator, ConfigDict
 from oss.src.utils import traces
 from oss.src.models.api.api_models import Result
 
-from oss.src.core.shared.dtos import Tags, Meta
-
 
 class LegacyEvaluator(BaseModel):
     name: str
@@ -16,6 +14,7 @@ class LegacyEvaluator(BaseModel):
     direct_use: bool
     settings_presets: Optional[list[dict]] = None
     settings_template: dict
+    outputs_schema: Optional[Dict[str, Any]] = None
     description: Optional[str] = None
     oss: Optional[bool] = False
     requires_llm_api_keys: Optional[bool] = False

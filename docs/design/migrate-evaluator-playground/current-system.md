@@ -90,27 +90,26 @@ evaluatorByKeyAtomFamily        // Find evaluator by key
 #### Evaluators Service (`/web/oss/src/services/evaluators/index.ts`)
 
 ```typescript
-// Evaluator Templates (legacy)
+// Evaluator Templates
 fetchAllEvaluators()           // GET /evaluators
 
-// Evaluator Configs (legacy)
-fetchAllEvaluatorConfigs()     // GET /evaluators/configs
-createEvaluatorConfig()        // POST /evaluators/configs
-updateEvaluatorConfig()        // PUT /evaluators/configs/{id}
-deleteEvaluatorConfig()        // DELETE /evaluators/configs/{id}
+// Evaluator Configs
+fetchAllEvaluatorConfigs()     // POST /preview/simple/evaluators/query
+createEvaluatorConfig()        // POST /preview/simple/evaluators/
+updateEvaluatorConfig()        // PUT /preview/simple/evaluators/{id}
+deleteEvaluatorConfig()        // POST /preview/simple/evaluators/{id}/archive
 
-// Custom/Human Evaluators (new)
+// Custom/Human Evaluators
 createEvaluator()              // POST /preview/simple/evaluators/
 updateEvaluator()              // PUT /preview/simple/evaluators/{id}
 fetchEvaluatorById()           // GET /preview/simple/evaluators/{id}
 deleteHumanEvaluator()         // POST /preview/simple/evaluators/{id}/archive
 ```
 
-#### Evaluator Run Service (`/web/oss/src/services/evaluations/api_ee/index.ts`)
+#### Evaluator Run Service (`/web/oss/src/services/workflows/invoke.ts`)
 
 ```typescript
-createEvaluatorDataMapping()   // POST /evaluators/map
-createEvaluatorRunExecution()  // POST /evaluators/{key}/run
+invokeEvaluator()              // POST /preview/workflows/invoke
 ```
 
 ## Data Flow
@@ -130,7 +129,7 @@ createEvaluatorRunExecution()  // POST /evaluators/{key}/run
 │  /evaluators → EvaluatorsRegistry                                           │
 │       ├─ Uses useEvaluatorsRegistryData() hook                              │
 │       │     ├─ Calls fetchAllEvaluators() → GET /evaluators                 │
-│       │     └─ Calls fetchAllEvaluatorConfigs() → GET /evaluators/configs   │
+│       │     └─ Calls fetchAllEvaluatorConfigs() → POST /preview/simple/evaluators/query │
 │       │                                                                      │
 │       ├─ "Create new" → SelectEvaluatorModal → /evaluators/configure/new    │
 │       └─ Click row → /evaluators/configure/{id}                             │
@@ -153,64 +152,68 @@ createEvaluatorRunExecution()  // POST /evaluators/{key}/run
 │  └─────────────────────────────┘  └─────────────────────────────┘           │
 │                                                                              │
 │  Commit Actions:                                                             │
-│  - Create: POST /evaluators/configs → createEvaluatorConfig()               │
-│  - Update: PUT /evaluators/configs/{id} → updateEvaluatorConfig()           │
+│  - Create: POST /preview/simple/evaluators → createEvaluatorConfig()        │
+│  - Update: PUT /preview/simple/evaluators/{id} → updateEvaluatorConfig()    │
 │                                                                              │
 │  Test Actions:                                                               │
 │  - Run Variant: callVariant() → POST to variant URL                         │
-│  - Run Evaluator: createEvaluatorRunExecution()                             │
-│                   → POST /evaluators/{key}/run                              │
+│  - Run Evaluator: invokeEvaluator()                                         │
+│                   → POST /preview/workflows/invoke                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Current API Endpoints Used
 
-### Legacy Endpoints (to be migrated)
+### Evaluator Templates
 
 | Endpoint | Method | Frontend Function | Purpose |
 |----------|--------|-------------------|---------|
 | `/evaluators/` | GET | `fetchAllEvaluators()` | List evaluator templates |
-| `/evaluators/configs/` | GET | `fetchAllEvaluatorConfigs()` | List evaluator configs |
-| `/evaluators/configs/` | POST | `createEvaluatorConfig()` | Create new config |
-| `/evaluators/configs/{id}/` | PUT | `updateEvaluatorConfig()` | Update existing config |
-| `/evaluators/configs/{id}/` | DELETE | `deleteEvaluatorConfig()` | Delete config |
 
-### Endpoints That Remain Unchanged
+### Evaluator CRUD
 
 | Endpoint | Method | Frontend Function | Purpose |
 |----------|--------|-------------------|---------|
-| `/evaluators/map/` | POST | `createEvaluatorDataMapping()` | Map trace data for RAG evaluators |
-| `/evaluators/{key}/run/` | POST | `createEvaluatorRunExecution()` | Run evaluator (test) |
+| `/preview/simple/evaluators/query` | POST | `fetchAllEvaluatorConfigs()` | List evaluator configs |
+| `/preview/simple/evaluators/` | POST | `createEvaluatorConfig()` | Create evaluator config |
+| `/preview/simple/evaluators/{id}` | PUT | `updateEvaluatorConfig()` | Update evaluator config |
+| `/preview/simple/evaluators/{id}/archive` | POST | `deleteEvaluatorConfig()` | Archive evaluator config |
 
-### Already Using New Endpoints (for custom evaluators)
+### Evaluator Run (Playground)
 
 | Endpoint | Method | Frontend Function | Purpose |
 |----------|--------|-------------------|---------|
-| `/preview/simple/evaluators/` | POST | `createEvaluator()` | Create custom evaluator |
-| `/preview/simple/evaluators/{id}` | PUT | `updateEvaluator()` | Update custom evaluator |
-| `/preview/simple/evaluators/{id}` | GET | `fetchEvaluatorById()` | Fetch evaluator by ID |
-| `/preview/simple/evaluators/{id}/archive` | POST | `deleteHumanEvaluator()` | Archive human evaluator |
+| `/preview/workflows/invoke` | POST | `invokeEvaluator()` | Run evaluator using workflow invocation |
 
 ## Data Types
 
-### Current EvaluatorConfig (Legacy)
+### Current Evaluator Config
 
 ```typescript
-interface EvaluatorConfig {
+interface SimpleEvaluator {
     id: string
-    evaluator_key: string
-    name: string
-    settings_values: Record<string, any>
+    slug: string
+    name?: string
+    description?: string
+    tags?: string[]
+    flags?: {
+        is_custom?: boolean
+        is_evaluator?: boolean
+        is_human?: boolean
+    }
+    data?: {
+        uri?: string
+        parameters?: Record<string, any>
+        schemas?: {
+            outputs?: Record<string, any>
+        }
+    }
     created_at: string
     updated_at: string
-    color?: string
-    tags?: string[]
-    // Frontend additions
-    icon_url?: string | StaticImageData
 }
 ```
 
-### Current Evaluator Template (Legacy)
+### Current Evaluator Template
 
 ```typescript
 interface Evaluator {
@@ -218,6 +221,7 @@ interface Evaluator {
     key: string
     settings_presets?: SettingsPreset[]
     settings_template: Record<string, EvaluationSettingsTemplate>
+    outputs_schema?: Record<string, any>
     icon_url?: string | StaticImageData
     color?: string
     direct_use?: boolean

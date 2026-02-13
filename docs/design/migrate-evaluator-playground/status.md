@@ -1,8 +1,8 @@
 # Status: Evaluator Playground Migration
 
-## Current Phase: PR 1 (CRUD) In Progress
+## Current Phase: PR 2 (Run) In Progress
 
-**Last Updated:** 2026-01-27
+**Last Updated:** 2026-02-13
 
 ---
 
@@ -10,8 +10,8 @@
 
 **Direct Migration (No Adapters)** - Split into two PRs:
 
-1. **PR 1:** CRUD migration to `SimpleEvaluator` endpoints
-2. **PR 2:** Run migration to native workflow invoke
+1. **PR 1:** CRUD migration to `SimpleEvaluator` endpoints (draft PR)
+2. **PR 2:** Run migration to native workflow invoke (in progress)
 
 See [plan.md](./plan.md) for detailed implementation steps.
 
@@ -55,8 +55,8 @@ See [plan.md](./plan.md) for detailed implementation steps.
 
 ### Next Steps
 
-- [ ] Complete PR 1: CRUD migration (stacked on PR #3527)
-- [ ] After PR 1 stable, start PR 2: Run migration
+- [ ] Finalize PR 1: CRUD migration (stacked on PR #3527)
+- [ ] Finish PR 2: Run migration
 
 ---
 
@@ -101,13 +101,32 @@ The SDK maintains a `HANDLER_REGISTRY` that maps URIs to handler functions:
 | `settings_values` | `data.parameters` |
 | `EvaluatorConfig` | `SimpleEvaluator` |
 
+### 5. Output schema ownership moved to frontend templates
+
+Legacy config creation (`/evaluators/configs`) called `build_evaluator_data`, which generated
+`data.schemas.outputs` and `data.service.format` for builtin evaluators.
+
+The migrated frontend CRUD path uses `/preview/simple/evaluators` and initially sent only
+`data.uri` plus `data.parameters`. That can create revisions without output schemas.
+
+Frontend now receives `outputs_schema` in the evaluator template payload (`GET /evaluators`) and
+sends `data.schemas.outputs` during create and edit.
+
+Schema selection rules are now:
+- fixed evaluators: use template `outputs_schema`
+- `auto_ai_critique`: use `parameters.json_schema.schema`
+- `json_multi_field_match`: derive schema from configured `fields`
+- evaluators without template schema: send no output schema
+
+Backend hydration still exists as a fallback path for builtin evaluators.
+
 ---
 
 ## Open Questions
 
 1. **Slug uniqueness:** Backend enforces unique slugs per project; generate a short suffix client-side to avoid collisions.
 
-2. **Output schemas:** Should frontend pass `data.schemas.outputs` when creating? Or does backend derive from evaluator type?
+2. **Output schemas:** Resolved. Frontend now sends known output schemas from evaluator templates and dynamic settings.
 
 3. **Permission model:** Is `RUN_WORKFLOWS` the right permission for evaluator playground? Or should there be `RUN_EVALUATORS`?
 

@@ -113,6 +113,13 @@ export interface SimpleEvaluatorsResponse {
 
 **File:** `web/oss/src/services/evaluators/index.ts`
 
+Output schema ownership for create and edit:
+
+- If evaluator template includes `outputs_schema`, send it as `data.schemas.outputs`
+- If evaluator is `auto_ai_critique`, derive from `parameters.json_schema.schema`
+- If evaluator is `json_multi_field_match`, derive from `parameters.fields`
+- If evaluator has no known schema, omit `data.schemas.outputs`
+
 Replace legacy functions with new implementations:
 
 ```typescript
@@ -518,18 +525,21 @@ export interface WorkflowServiceBatchResponse {
 
 ```typescript
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import { getAgentaApiUrl } from "@/oss/lib/helpers/utils"
-import { getProjectValues } from "@/oss/contexts/project.context"
-import {
-    WorkflowServiceRequest,
-    WorkflowServiceBatchResponse,
-    SimpleEvaluator,
-} from "@/oss/lib/Types"
+import type { SimpleEvaluator } from "@/oss/lib/Types"
+import axios from "@/oss/lib/api/assets/axiosConfig"
+import { getAgentaApiUrl } from "@/oss/lib/helpers/api"
+import { buildEvaluatorUri, resolveEvaluatorKey } from "@/oss/lib/evaluators/utils"
+import { getProjectValues } from "@/oss/state/project"
+
+export interface WorkflowServiceBatchResponse {
+    status?: { code?: number; message?: string }
+    data?: { outputs?: any }
+}
 
 export interface InvokeEvaluatorParams {
-    evaluator: SimpleEvaluator
-    inputs: Record<string, any>        // testcase data + any extra inputs
-    outputs: any                        // prediction/output from variant
+    evaluator?: Partial<SimpleEvaluator> | null
+    inputs?: Record<string, any>        // testcase data + any extra inputs
+    outputs?: any                        // prediction/output from variant
     parameters?: Record<string, any>   // override settings (optional)
 }
 
@@ -542,16 +552,12 @@ export const invokeEvaluator = async (
     const { projectId } = getProjectValues()
     const { evaluator, inputs, outputs, parameters } = params
 
-    const uri = evaluator.data?.uri
-    if (!uri) {
-        throw new Error("Evaluator has no URI configured")
-    }
+    const evaluatorKey = resolveEvaluatorKey(evaluator)
+    const uri = evaluator?.data?.uri || (evaluatorKey ? buildEvaluatorUri(evaluatorKey) : undefined)
+    if (!uri) throw new Error("Evaluator URI is missing")
 
-    const request: WorkflowServiceRequest = {
-        version: "2025.07.14",
-        interface: {
-            uri,
-        },
+    const request = {
+        interface: { uri },
         configuration: {
             parameters: parameters ?? evaluator.data?.parameters,
         },
@@ -608,11 +614,8 @@ const runResponse = await createEvaluatorRunExecution(
 import { invokeEvaluator, mapWorkflowResponseToEvaluatorOutput } from "@/oss/services/workflows/invoke"
 
 const workflowResponse = await invokeEvaluator({
-    evaluator: simpleEvaluator,  // from playground state
-    inputs: {
-        ...testcaseData,
-        prediction: variantOutput,
-    },
+    evaluator: simpleEvaluator ?? { data: { uri: buildEvaluatorUri(selectedEvaluator.key) } },
+    inputs: evaluatorInputs,
     outputs: variantOutput,
     parameters: formValues.parameters,  // current form settings
 })
@@ -727,7 +730,7 @@ If other parts of the app use `createEvaluatorRunExecution`, update them too:
 
 1. **Slug uniqueness:** Backend enforces unique slugs per project; generate a short suffix client-side to avoid collisions.
 
-2. **Output schemas:** Should frontend pass `data.schemas.outputs` when creating? Or does backend derive from evaluator type?
+2. **Output schemas:** Resolved. Backend hydrates missing builtin evaluator schemas from URI + parameters during create/edit.
 
 3. **Permission model:** Is `RUN_WORKFLOWS` the right permission for evaluator playground? Or should there be `RUN_EVALUATORS`?
 

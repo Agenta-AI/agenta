@@ -860,6 +860,7 @@ export interface Evaluator {
     key: string
     settings_presets?: SettingsPreset[]
     settings_template: Record<string, EvaluationSettingsTemplate>
+    outputs_schema?: Record<string, any>
     icon_url?: string | StaticImageData
     color?: string
     direct_use?: boolean
