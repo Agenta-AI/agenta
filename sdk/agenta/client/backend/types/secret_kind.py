@@ -2,4 +2,6 @@
 
 import typing
 
-SecretKind = typing.Union[typing.Literal["provider_key", "custom_provider"], typing.Any]
+SecretKind = typing.Union[
+    typing.Literal["provider_key", "custom_provider", "sso_provider"], typing.Any
+]

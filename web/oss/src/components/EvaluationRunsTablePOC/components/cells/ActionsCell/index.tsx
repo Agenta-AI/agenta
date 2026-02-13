@@ -1,5 +1,6 @@
 import {memo, useMemo, useState, useCallback} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {MoreOutlined} from "@ant-design/icons"
 import {
     Database,
@@ -14,7 +15,6 @@ import {
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Dropdown, MenuProps, Tooltip} from "antd"
 
-import {message} from "@/oss/components/AppMessageContext"
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"

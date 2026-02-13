@@ -1,9 +1,10 @@
 import {atom} from "jotai"
 
 import {drawerVariantIdAtom} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
+import {discardLocalDraft, isLocalDraft} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
-import {selectedVariantsAtom} from "./core"
+import {selectedVariantsAtom, viewTypeAtom} from "./core"
 import {addVariantMutationAtom} from "./variantCrud"
 
 /**
@@ -23,6 +24,10 @@ export const removeVariantFromSelectionMutationAtom = atom(null, (get, set, vari
     const currentSelected = get(selectedVariantsAtom)
     const updatedSelected = currentSelected.filter((id) => id !== variantId)
 
+    // Keep selection state in sync even if URL doesn't change (e.g., local draft removal)
+    set(selectedVariantsAtom, updatedSelected)
+    set(viewTypeAtom, updatedSelected.length > 1 ? "comparison" : "single")
+
     // Update selection and URL (playground will read this)
     void writePlaygroundSelectionToQuery(updatedSelected)
 
@@ -34,6 +39,14 @@ export const removeVariantFromSelectionMutationAtom = atom(null, (get, set, vari
         !updatedSelected.includes(currentDrawerId)
     ) {
         set(drawerVariantIdAtom, updatedSelected[0] ?? null)
+    }
+
+    // If removing a local draft, discard its data from the molecule
+    if (isLocalDraft(variantId)) {
+        discardLocalDraft(variantId)
+        if (process.env.NODE_ENV === "development") {
+            console.log("🗑️ Local draft discarded:", variantId)
+        }
     }
 
     if (process.env.NODE_ENV === "development") {

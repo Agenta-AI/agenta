@@ -1,11 +1,11 @@
 import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
+import {revisionListAtom} from "@/oss/components/Playground/state/atoms"
 import {
     variantDrawerAtom,
     drawerVariantIdAtom,
 } from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
-import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 import {isVariantSupportedRoute} from "./routeMatchers"
 

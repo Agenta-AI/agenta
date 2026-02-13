@@ -113,11 +113,24 @@ export function transformToRequestBody({
         }
     }
     const enhancedPrompts = (prompts || variant?.prompts || []) as any[]
+    // Get original parameters to preserve fields like input_keys, template_format
+    const originalParams = variant?.parameters?.ag_config || variant?.parameters || {}
     const promptConfigs = (enhancedPrompts || []).reduce(
         (acc, prompt) => {
             const extracted = extractValueByMetadata(prompt, allMetadata)
             const name = prompt.__name
             if (!name) return acc
+
+            // Preserve input_keys and template_format from original parameters if they exist
+            const originalPromptConfig = originalParams[name]
+            if (originalPromptConfig) {
+                if (originalPromptConfig.input_keys && !extracted.input_keys) {
+                    extracted.input_keys = originalPromptConfig.input_keys
+                }
+                if (originalPromptConfig.template_format && !extracted.template_format) {
+                    extracted.template_format = originalPromptConfig.template_format
+                }
+            }
 
             acc[name] = extracted
             return acc
@@ -161,6 +174,20 @@ export function transformToRequestBody({
             customProperties || variant?.customProperties,
             allMetadata,
         ) as Record<string, any>) || {}
+
+    // Preserve custom properties from original parameters that aren't in enhanced format
+    // This handles custom apps where properties like max_tweet_length, output_format, etc.
+    // are stored directly in parameters but not in the enhanced customProperties
+    const promptKeys = new Set(Object.keys(promptConfigs))
+    const customKeys = new Set(Object.keys(customConfigs))
+    for (const [key, value] of Object.entries(originalParams)) {
+        // Skip if it's a prompt config or already in customConfigs
+        if (promptKeys.has(key) || customKeys.has(key)) continue
+        // Skip if it's a nested object with llm_config or messages (it's a prompt, not custom property)
+        if (value && typeof value === "object" && (value.llm_config || value.messages)) continue
+        // Preserve the custom property
+        customConfigs[key] = value
+    }
 
     let ag_config = {
         ...promptConfigs,

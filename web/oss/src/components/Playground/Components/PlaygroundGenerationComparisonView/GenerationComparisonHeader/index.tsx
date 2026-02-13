@@ -61,7 +61,7 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
         }
         ;(inputRowIds as string[]).forEach((rid) => {
             ;(displayedVariantIds as string[]).forEach((vid) => {
-                triggerTest({rowId: rid, variantId: vid} as any)
+                triggerTest({rowId: rid, revisionId: vid})
             })
         })
     }, [triggerTest, isChatVariant, inputRowIds, displayedVariantIds, runAllChat, canRunAllChat])
@@ -107,7 +107,7 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
                     resultHashes={resultHashes}
                     key={resultHashes?.join("-") || "no-results"}
                 />
-                <LoadTestsetButton label="Load testset" />
+                <LoadTestsetButton label="Load testset" data-tour="load-testset" />
 
                 {!isRunning ? (
                     <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">

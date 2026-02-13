@@ -19,6 +19,7 @@ const ToolsRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnly}) => {
         const item = getPromptById(prompts, promptId)
         const llm = (item?.llmConfig ?? item?.llm_config) as any
         const tools = getArrayVal(llm?.tools)
+
         return tools.map((t: any) => t?.__id).filter(Boolean)
     }, [prompts, promptId])
 

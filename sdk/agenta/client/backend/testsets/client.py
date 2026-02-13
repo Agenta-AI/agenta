@@ -5,22 +5,42 @@ import typing
 from .. import core
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
-from ..types.meta_request import MetaRequest
-from ..types.testset_output_response import TestsetOutputResponse
-from ..types.testset_simple_response import TestsetSimpleResponse
-from ..types.testcase_response import TestcaseResponse
-from ..types.testset import Testset
+from ..types.reference import Reference
+from ..types.simple_testset_create import SimpleTestsetCreate
+from ..types.simple_testset_edit import SimpleTestsetEdit
+from ..types.simple_testset_query import SimpleTestsetQuery
+from ..types.simple_testset_response import SimpleTestsetResponse
+from ..types.simple_testsets_response import SimpleTestsetsResponse
+from ..types.testset_create import TestsetCreate
+from ..types.testset_edit import TestsetEdit
+from ..types.testset_query import TestsetQuery
 from ..types.testset_response import TestsetResponse
+from ..types.testset_revision_commit import TestsetRevisionCommit
+from ..types.testset_revision_create import TestsetRevisionCreate
+from ..types.testset_revision_edit import TestsetRevisionEdit
+from ..types.testset_revision_query import TestsetRevisionQuery
+from ..types.testset_revision_response import TestsetRevisionResponse
+from ..types.testset_revisions_log import TestsetRevisionsLog
+from ..types.testset_revisions_response import TestsetRevisionsResponse
+from ..types.testset_variant_create import TestsetVariantCreate
+from ..types.testset_variant_edit import TestsetVariantEdit
+from ..types.testset_variant_query import TestsetVariantQuery
+from ..types.testset_variant_response import TestsetVariantResponse
+from ..types.testset_variants_response import TestsetVariantsResponse
 from ..types.testsets_response import TestsetsResponse
+from ..types.windowing import Windowing
 from .raw_client import AsyncRawTestsetsClient, RawTestsetsClient
-from .types.create_testset_from_file_request_file_type import (
-    CreateTestsetFromFileRequestFileType,
+from .types.create_simple_testset_from_file_request_file_type import (
+    CreateSimpleTestsetFromFileRequestFileType,
 )
-from .types.fetch_testset_to_file_request_file_type import (
-    FetchTestsetToFileRequestFileType,
+from .types.edit_simple_testset_from_file_request_file_type import (
+    EditSimpleTestsetFromFileRequestFileType,
 )
-from .types.update_testset_from_file_request_file_type import (
-    UpdateTestsetFromFileRequestFileType,
+from .types.fetch_simple_testset_to_file_request_file_type import (
+    FetchSimpleTestsetToFileRequestFileType,
+)
+from .types.fetch_testset_revision_to_file_request_file_type import (
+    FetchTestsetRevisionToFileRequestFileType,
 )
 
 # this is used as the default value for optional parameters
@@ -42,154 +62,19 @@ class TestsetsClient:
         """
         return self._raw_client
 
-    def upload_file(
-        self,
-        *,
-        file: core.File,
-        upload_type: typing.Optional[str] = OMIT,
-        testset_name: typing.Optional[str] = OMIT,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetSimpleResponse:
-        """
-        Uploads a CSV or JSON file and saves its data to Postgres.
-
-        Args:
-        upload_type : Either a json or csv file.
-            file (UploadFile): The CSV or JSON file to upload.
-            testset_name (Optional): the name of the testset if provided.
-
-        Returns:
-            dict: The result of the upload process.
-
-        Parameters
-        ----------
-        file : core.File
-            See core.File for more documentation
-
-        upload_type : typing.Optional[str]
-
-        testset_name : typing.Optional[str]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        TestsetSimpleResponse
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.testsets.upload_file()
-        """
-        _response = self._raw_client.upload_file(
-            file=file,
-            upload_type=upload_type,
-            testset_name=testset_name,
-            request_options=request_options,
-        )
-        return _response.data
-
-    def import_testset(
-        self,
-        *,
-        authorization: typing.Optional[str] = None,
-        endpoint: typing.Optional[str] = OMIT,
-        testset_name: typing.Optional[str] = OMIT,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetSimpleResponse:
-        """
-        Import JSON testset data from an endpoint and save it to Postgres.
-
-        Args:
-            endpoint (str): An endpoint URL to import data from.
-            testset_name (str): the name of the testset if provided.
-
-        Returns:
-            dict: The result of the import process.
-
-        Parameters
-        ----------
-        authorization : typing.Optional[str]
-
-        endpoint : typing.Optional[str]
-
-        testset_name : typing.Optional[str]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        TestsetSimpleResponse
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.testsets.import_testset()
-        """
-        _response = self._raw_client.import_testset(
-            authorization=authorization,
-            endpoint=endpoint,
-            testset_name=testset_name,
-            request_options=request_options,
-        )
-        return _response.data
-
-    def get_testsets(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[TestsetOutputResponse]:
-        """
-        Get all testsets.
-
-        Returns:
-        - A list of testset objects.
-
-        Raises:
-        - `HTTPException` with status code 404 if no testsets are found.
-
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.List[TestsetOutputResponse]
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.testsets.get_testsets()
-        """
-        _response = self._raw_client.get_testsets(request_options=request_options)
-        return _response.data
-
     def create_testset(
         self,
         *,
-        testset: Testset,
+        testset: TestsetCreate,
+        testset_id: typing.Optional[str] = None,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
         Parameters
         ----------
-        testset : Testset
+        testset : TestsetCreate
+
+        testset_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -201,182 +86,18 @@ class TestsetsClient:
 
         Examples
         --------
-        from agenta import AgentaApi, Testset
+        from agenta import AgentaApi, TestsetCreate
 
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
         client.testsets.create_testset(
-            testset=Testset(),
+            testset=TestsetCreate(),
         )
         """
         _response = self._raw_client.create_testset(
-            testset=testset, request_options=request_options
+            testset=testset, testset_id=testset_id, request_options=request_options
         )
-        return _response.data
-
-    def delete_testsets(
-        self,
-        *,
-        testset_ids: typing.Sequence[str],
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.List[str]:
-        """
-        Delete specific testsets based on their unique IDs.
-
-        Args:
-        testset_ids (List[str]): The unique identifiers of the testsets to delete.
-
-        Returns:
-        A list of the deleted testsets' IDs.
-
-        Parameters
-        ----------
-        testset_ids : typing.Sequence[str]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.List[str]
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.testsets.delete_testsets(
-            testset_ids=["testset_ids"],
-        )
-        """
-        _response = self._raw_client.delete_testsets(
-            testset_ids=testset_ids, request_options=request_options
-        )
-        return _response.data
-
-    def get_single_testset(
-        self,
-        testset_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Fetch a specific testset in Postgres.
-
-        Args:
-            testset_id (str): The id of the testset to fetch.
-
-        Returns:
-            The requested testset if found, else an HTTPException.
-
-        Parameters
-        ----------
-        testset_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.testsets.get_single_testset(
-            testset_id="testset_id",
-        )
-        """
-        _response = self._raw_client.get_single_testset(
-            testset_id, request_options=request_options
-        )
-        return _response.data
-
-    def update_testset(
-        self,
-        testset_id: str,
-        *,
-        name: str,
-        csvdata: typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]],
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Update a testset with given id, update the testset in Postgres.
-
-        Args:
-        testset_id (str): id of the testset to be updated.
-        csvdata (NewTestset): New data to replace the old testset.
-
-        Returns:
-        str: The id of the testset updated.
-
-        Parameters
-        ----------
-        testset_id : str
-
-        name : str
-
-        csvdata : typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.testsets.update_testset(
-            testset_id="testset_id",
-            name="name",
-            csvdata=[{"key": "value"}],
-        )
-        """
-        _response = self._raw_client.update_testset(
-            testset_id, name=name, csvdata=csvdata, request_options=request_options
-        )
-        return _response.data
-
-    def list_testsets(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> TestsetResponse:
-        """
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        TestsetResponse
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.testsets.list_testsets()
-        """
-        _response = self._raw_client.list_testsets(request_options=request_options)
         return _response.data
 
     def fetch_testset(
@@ -418,7 +139,7 @@ class TestsetsClient:
         self,
         testset_id: str,
         *,
-        testset: Testset,
+        testset: TestsetEdit,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
@@ -426,7 +147,7 @@ class TestsetsClient:
         ----------
         testset_id : str
 
-        testset : Testset
+        testset : TestsetEdit
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -438,14 +159,14 @@ class TestsetsClient:
 
         Examples
         --------
-        from agenta import AgentaApi, Testset
+        from agenta import AgentaApi, TestsetEdit
 
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
         client.testsets.edit_testset(
             testset_id="testset_id",
-            testset=Testset(),
+            testset=TestsetEdit(),
         )
         """
         _response = self._raw_client.edit_testset(
@@ -526,13 +247,22 @@ class TestsetsClient:
     def query_testsets(
         self,
         *,
-        request: typing.Optional[MetaRequest] = None,
+        testset: typing.Optional[TestsetQuery] = OMIT,
+        testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        include_archived: typing.Optional[bool] = OMIT,
+        windowing: typing.Optional[Windowing] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetsResponse:
         """
         Parameters
         ----------
-        request : typing.Optional[MetaRequest]
+        testset : typing.Optional[TestsetQuery]
+
+        testset_refs : typing.Optional[typing.Sequence[Reference]]
+
+        include_archived : typing.Optional[bool]
+
+        windowing : typing.Optional[Windowing]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -552,28 +282,918 @@ class TestsetsClient:
         client.testsets.query_testsets()
         """
         _response = self._raw_client.query_testsets(
-            request=request, request_options=request_options
+            testset=testset,
+            testset_refs=testset_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+            request_options=request_options,
         )
         return _response.data
 
-    def create_testset_from_file(
+    def create_testset_variant(
+        self,
+        *,
+        testset_variant: TestsetVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantResponse:
+        """
+        Parameters
+        ----------
+        testset_variant : TestsetVariantCreate
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, TestsetVariantCreate
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.create_testset_variant(
+            testset_variant=TestsetVariantCreate(),
+        )
+        """
+        _response = self._raw_client.create_testset_variant(
+            testset_variant=testset_variant, request_options=request_options
+        )
+        return _response.data
+
+    def fetch_testset_variant(
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantResponse:
+        """
+        Parameters
+        ----------
+        testset_variant_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.fetch_testset_variant(
+            testset_variant_id="testset_variant_id",
+        )
+        """
+        _response = self._raw_client.fetch_testset_variant(
+            testset_variant_id, request_options=request_options
+        )
+        return _response.data
+
+    def edit_testset_variant(
+        self,
+        testset_variant_id: str,
+        *,
+        testset_variant: TestsetVariantEdit,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantResponse:
+        """
+        Parameters
+        ----------
+        testset_variant_id : str
+
+        testset_variant : TestsetVariantEdit
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, TestsetVariantEdit
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.edit_testset_variant(
+            testset_variant_id="testset_variant_id",
+            testset_variant=TestsetVariantEdit(),
+        )
+        """
+        _response = self._raw_client.edit_testset_variant(
+            testset_variant_id,
+            testset_variant=testset_variant,
+            request_options=request_options,
+        )
+        return _response.data
+
+    def archive_testset_variant(
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantResponse:
+        """
+        Parameters
+        ----------
+        testset_variant_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.archive_testset_variant(
+            testset_variant_id="testset_variant_id",
+        )
+        """
+        _response = self._raw_client.archive_testset_variant(
+            testset_variant_id, request_options=request_options
+        )
+        return _response.data
+
+    def unarchive_testset_variant(
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantResponse:
+        """
+        Parameters
+        ----------
+        testset_variant_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.unarchive_testset_variant(
+            testset_variant_id="testset_variant_id",
+        )
+        """
+        _response = self._raw_client.unarchive_testset_variant(
+            testset_variant_id, request_options=request_options
+        )
+        return _response.data
+
+    def query_testset_variants(
+        self,
+        *,
+        testset_variant: typing.Optional[TestsetVariantQuery] = OMIT,
+        testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        testset_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        include_archived: typing.Optional[bool] = OMIT,
+        windowing: typing.Optional[Windowing] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantsResponse:
+        """
+        Parameters
+        ----------
+        testset_variant : typing.Optional[TestsetVariantQuery]
+
+        testset_refs : typing.Optional[typing.Sequence[Reference]]
+
+        testset_variant_refs : typing.Optional[typing.Sequence[Reference]]
+
+        include_archived : typing.Optional[bool]
+
+        windowing : typing.Optional[Windowing]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantsResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.query_testset_variants()
+        """
+        _response = self._raw_client.query_testset_variants(
+            testset_variant=testset_variant,
+            testset_refs=testset_refs,
+            testset_variant_refs=testset_variant_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+            request_options=request_options,
+        )
+        return _response.data
+
+    def retrieve_testset_revision(
+        self,
+        *,
+        testset_ref: typing.Optional[Reference] = OMIT,
+        testset_variant_ref: typing.Optional[Reference] = OMIT,
+        testset_revision_ref: typing.Optional[Reference] = OMIT,
+        include_testcases: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_ref : typing.Optional[Reference]
+
+        testset_variant_ref : typing.Optional[Reference]
+
+        testset_revision_ref : typing.Optional[Reference]
+
+        include_testcases : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.retrieve_testset_revision()
+        """
+        _response = self._raw_client.retrieve_testset_revision(
+            testset_ref=testset_ref,
+            testset_variant_ref=testset_variant_ref,
+            testset_revision_ref=testset_revision_ref,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    def create_testset_revision(
+        self,
+        *,
+        testset_revision: TestsetRevisionCreate,
+        include_testcases: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision : TestsetRevisionCreate
+
+        include_testcases : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, TestsetRevisionCreate
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.create_testset_revision(
+            testset_revision=TestsetRevisionCreate(),
+        )
+        """
+        _response = self._raw_client.create_testset_revision(
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    def fetch_testset_revision(
+        self,
+        testset_revision_id: str,
+        *,
+        include_testcases: typing.Optional[bool] = None,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision_id : str
+
+        include_testcases : typing.Optional[bool]
+            Include full testcase objects. Default (null/true): include testcases. False: return only testcase IDs.
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.fetch_testset_revision(
+            testset_revision_id="testset_revision_id",
+        )
+        """
+        _response = self._raw_client.fetch_testset_revision(
+            testset_revision_id,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    def edit_testset_revision(
+        self,
+        testset_revision_id: str,
+        *,
+        testset_revision: TestsetRevisionEdit,
+        include_testcases: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision_id : str
+
+        testset_revision : TestsetRevisionEdit
+
+        include_testcases : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, TestsetRevisionEdit
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.edit_testset_revision(
+            testset_revision_id="testset_revision_id",
+            testset_revision=TestsetRevisionEdit(),
+        )
+        """
+        _response = self._raw_client.edit_testset_revision(
+            testset_revision_id,
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    def archive_testset_revision(
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.archive_testset_revision(
+            testset_revision_id="testset_revision_id",
+        )
+        """
+        _response = self._raw_client.archive_testset_revision(
+            testset_revision_id, request_options=request_options
+        )
+        return _response.data
+
+    def unarchive_testset_revision(
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.unarchive_testset_revision(
+            testset_revision_id="testset_revision_id",
+        )
+        """
+        _response = self._raw_client.unarchive_testset_revision(
+            testset_revision_id, request_options=request_options
+        )
+        return _response.data
+
+    def fetch_testset_revision_to_file(
+        self,
+        testset_revision_id: str,
+        *,
+        file_type: typing.Optional[FetchTestsetRevisionToFileRequestFileType] = None,
+        file_name: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Any:
+        """
+        Parameters
+        ----------
+        testset_revision_id : str
+
+        file_type : typing.Optional[FetchTestsetRevisionToFileRequestFileType]
+            File type to download. Supported: 'csv' or 'json'. Default: 'csv'.
+
+        file_name : typing.Optional[str]
+            Optional custom filename for the download.
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.fetch_testset_revision_to_file(
+            testset_revision_id="testset_revision_id",
+        )
+        """
+        _response = self._raw_client.fetch_testset_revision_to_file(
+            testset_revision_id,
+            file_type=file_type,
+            file_name=file_name,
+            request_options=request_options,
+        )
+        return _response.data
+
+    def query_testset_revisions(
+        self,
+        *,
+        testset_revision: typing.Optional[TestsetRevisionQuery] = OMIT,
+        testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        testset_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        testset_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        include_archived: typing.Optional[bool] = OMIT,
+        include_testcases: typing.Optional[bool] = OMIT,
+        windowing: typing.Optional[Windowing] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionsResponse:
+        """
+        Parameters
+        ----------
+        testset_revision : typing.Optional[TestsetRevisionQuery]
+
+        testset_refs : typing.Optional[typing.Sequence[Reference]]
+
+        testset_variant_refs : typing.Optional[typing.Sequence[Reference]]
+
+        testset_revision_refs : typing.Optional[typing.Sequence[Reference]]
+
+        include_archived : typing.Optional[bool]
+
+        include_testcases : typing.Optional[bool]
+
+        windowing : typing.Optional[Windowing]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionsResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.query_testset_revisions()
+        """
+        _response = self._raw_client.query_testset_revisions(
+            testset_revision=testset_revision,
+            testset_refs=testset_refs,
+            testset_variant_refs=testset_variant_refs,
+            testset_revision_refs=testset_revision_refs,
+            include_archived=include_archived,
+            include_testcases=include_testcases,
+            windowing=windowing,
+            request_options=request_options,
+        )
+        return _response.data
+
+    def commit_testset_revision(
+        self,
+        *,
+        testset_revision_commit: TestsetRevisionCommit,
+        include_testcases: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision_commit : TestsetRevisionCommit
+
+        include_testcases : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, TestsetRevisionCommit
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.commit_testset_revision(
+            testset_revision_commit=TestsetRevisionCommit(),
+        )
+        """
+        _response = self._raw_client.commit_testset_revision(
+            testset_revision_commit=testset_revision_commit,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    def log_testset_revisions(
+        self,
+        *,
+        testset_revision: TestsetRevisionsLog,
+        include_testcases: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionsResponse:
+        """
+        Parameters
+        ----------
+        testset_revision : TestsetRevisionsLog
+
+        include_testcases : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionsResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, TestsetRevisionsLog
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.log_testset_revisions(
+            testset_revision=TestsetRevisionsLog(),
+        )
+        """
+        _response = self._raw_client.log_testset_revisions(
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    def create_simple_testset(
+        self,
+        *,
+        testset: SimpleTestsetCreate,
+        testset_id: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetResponse:
+        """
+        Parameters
+        ----------
+        testset : SimpleTestsetCreate
+
+        testset_id : typing.Optional[str]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, SimpleTestsetCreate
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.create_simple_testset(
+            testset=SimpleTestsetCreate(),
+        )
+        """
+        _response = self._raw_client.create_simple_testset(
+            testset=testset, testset_id=testset_id, request_options=request_options
+        )
+        return _response.data
+
+    def fetch_simple_testset(
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetResponse:
+        """
+        Parameters
+        ----------
+        testset_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.fetch_simple_testset(
+            testset_id="testset_id",
+        )
+        """
+        _response = self._raw_client.fetch_simple_testset(
+            testset_id, request_options=request_options
+        )
+        return _response.data
+
+    def edit_simple_testset(
+        self,
+        testset_id: str,
+        *,
+        testset: SimpleTestsetEdit,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetResponse:
+        """
+        Parameters
+        ----------
+        testset_id : str
+
+        testset : SimpleTestsetEdit
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, SimpleTestsetEdit
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.edit_simple_testset(
+            testset_id="testset_id",
+            testset=SimpleTestsetEdit(),
+        )
+        """
+        _response = self._raw_client.edit_simple_testset(
+            testset_id, testset=testset, request_options=request_options
+        )
+        return _response.data
+
+    def archive_simple_testset(
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetResponse:
+        """
+        Parameters
+        ----------
+        testset_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.archive_simple_testset(
+            testset_id="testset_id",
+        )
+        """
+        _response = self._raw_client.archive_simple_testset(
+            testset_id, request_options=request_options
+        )
+        return _response.data
+
+    def unarchive_simple_testset(
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetResponse:
+        """
+        Parameters
+        ----------
+        testset_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.unarchive_simple_testset(
+            testset_id="testset_id",
+        )
+        """
+        _response = self._raw_client.unarchive_simple_testset(
+            testset_id, request_options=request_options
+        )
+        return _response.data
+
+    def query_simple_testsets(
+        self,
+        *,
+        testset: typing.Optional[SimpleTestsetQuery] = OMIT,
+        testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        include_archived: typing.Optional[bool] = OMIT,
+        windowing: typing.Optional[Windowing] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetsResponse:
+        """
+        Parameters
+        ----------
+        testset : typing.Optional[SimpleTestsetQuery]
+
+        testset_refs : typing.Optional[typing.Sequence[Reference]]
+
+        include_archived : typing.Optional[bool]
+
+        windowing : typing.Optional[Windowing]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetsResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.testsets.query_simple_testsets()
+        """
+        _response = self._raw_client.query_simple_testsets(
+            testset=testset,
+            testset_refs=testset_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+            request_options=request_options,
+        )
+        return _response.data
+
+    def create_simple_testset_from_file(
         self,
         *,
         file: core.File,
-        file_type: typing.Optional[CreateTestsetFromFileRequestFileType] = OMIT,
+        file_type: typing.Optional[CreateSimpleTestsetFromFileRequestFileType] = OMIT,
         testset_slug: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
         testset_description: typing.Optional[str] = OMIT,
-        testset_meta: typing.Optional[typing.List[str]] = OMIT,
+        testset_tags: typing.Optional[str] = OMIT,
+        testset_meta: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetResponse:
+    ) -> SimpleTestsetResponse:
         """
         Parameters
         ----------
         file : core.File
             See core.File for more documentation
 
-        file_type : typing.Optional[CreateTestsetFromFileRequestFileType]
+        file_type : typing.Optional[CreateSimpleTestsetFromFileRequestFileType]
 
         testset_slug : typing.Optional[str]
 
@@ -581,14 +1201,16 @@ class TestsetsClient:
 
         testset_description : typing.Optional[str]
 
-        testset_meta : typing.Optional[typing.List[str]]
+        testset_tags : typing.Optional[str]
+
+        testset_meta : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        TestsetResponse
+        SimpleTestsetResponse
             Successful Response
 
         Examples
@@ -598,27 +1220,32 @@ class TestsetsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.testsets.create_testset_from_file()
+        client.testsets.create_simple_testset_from_file()
         """
-        _response = self._raw_client.create_testset_from_file(
+        _response = self._raw_client.create_simple_testset_from_file(
             file=file,
             file_type=file_type,
             testset_slug=testset_slug,
             testset_name=testset_name,
             testset_description=testset_description,
+            testset_tags=testset_tags,
             testset_meta=testset_meta,
             request_options=request_options,
         )
         return _response.data
 
-    def update_testset_from_file(
+    def edit_simple_testset_from_file(
         self,
         testset_id: str,
         *,
         file: core.File,
-        file_type: typing.Optional[UpdateTestsetFromFileRequestFileType] = OMIT,
+        file_type: typing.Optional[EditSimpleTestsetFromFileRequestFileType] = OMIT,
+        testset_name: typing.Optional[str] = OMIT,
+        testset_description: typing.Optional[str] = OMIT,
+        testset_tags: typing.Optional[str] = OMIT,
+        testset_meta: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetResponse:
+    ) -> SimpleTestsetResponse:
         """
         Parameters
         ----------
@@ -627,14 +1254,22 @@ class TestsetsClient:
         file : core.File
             See core.File for more documentation
 
-        file_type : typing.Optional[UpdateTestsetFromFileRequestFileType]
+        file_type : typing.Optional[EditSimpleTestsetFromFileRequestFileType]
+
+        testset_name : typing.Optional[str]
+
+        testset_description : typing.Optional[str]
+
+        testset_tags : typing.Optional[str]
+
+        testset_meta : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        TestsetResponse
+        SimpleTestsetResponse
             Successful Response
 
         Examples
@@ -644,35 +1279,45 @@ class TestsetsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.testsets.update_testset_from_file(
+        client.testsets.edit_simple_testset_from_file(
             testset_id="testset_id",
         )
         """
-        _response = self._raw_client.update_testset_from_file(
-            testset_id, file=file, file_type=file_type, request_options=request_options
+        _response = self._raw_client.edit_simple_testset_from_file(
+            testset_id,
+            file=file,
+            file_type=file_type,
+            testset_name=testset_name,
+            testset_description=testset_description,
+            testset_tags=testset_tags,
+            testset_meta=testset_meta,
+            request_options=request_options,
         )
         return _response.data
 
-    def fetch_testset_to_file(
+    def fetch_simple_testset_to_file(
         self,
         testset_id: str,
         *,
-        file_type: typing.Optional[FetchTestsetToFileRequestFileType] = None,
+        file_type: typing.Optional[FetchSimpleTestsetToFileRequestFileType] = None,
+        file_name: typing.Optional[str] = None,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetResponse:
+    ) -> SimpleTestsetResponse:
         """
         Parameters
         ----------
         testset_id : str
 
-        file_type : typing.Optional[FetchTestsetToFileRequestFileType]
+        file_type : typing.Optional[FetchSimpleTestsetToFileRequestFileType]
+
+        file_name : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        TestsetResponse
+        SimpleTestsetResponse
             Successful Response
 
         Examples
@@ -682,32 +1327,35 @@ class TestsetsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.testsets.fetch_testset_to_file(
+        client.testsets.fetch_simple_testset_to_file(
             testset_id="testset_id",
         )
         """
-        _response = self._raw_client.fetch_testset_to_file(
-            testset_id, file_type=file_type, request_options=request_options
+        _response = self._raw_client.fetch_simple_testset_to_file(
+            testset_id,
+            file_type=file_type,
+            file_name=file_name,
+            request_options=request_options,
         )
         return _response.data
 
-    def fetch_testcase(
+    def transfer_simple_testset(
         self,
-        testcase_id: str,
+        testset_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestcaseResponse:
+    ) -> SimpleTestsetResponse:
         """
         Parameters
         ----------
-        testcase_id : str
+        testset_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        TestcaseResponse
+        SimpleTestsetResponse
             Successful Response
 
         Examples
@@ -717,12 +1365,12 @@ class TestsetsClient:
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
-        client.testsets.fetch_testcase(
-            testcase_id="testcase_id",
+        client.testsets.transfer_simple_testset(
+            testset_id="testset_id",
         )
         """
-        _response = self._raw_client.fetch_testcase(
-            testcase_id, request_options=request_options
+        _response = self._raw_client.transfer_simple_testset(
+            testset_id, request_options=request_options
         )
         return _response.data
 
@@ -742,178 +1390,19 @@ class AsyncTestsetsClient:
         """
         return self._raw_client
 
-    async def upload_file(
-        self,
-        *,
-        file: core.File,
-        upload_type: typing.Optional[str] = OMIT,
-        testset_name: typing.Optional[str] = OMIT,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetSimpleResponse:
-        """
-        Uploads a CSV or JSON file and saves its data to Postgres.
-
-        Args:
-        upload_type : Either a json or csv file.
-            file (UploadFile): The CSV or JSON file to upload.
-            testset_name (Optional): the name of the testset if provided.
-
-        Returns:
-            dict: The result of the upload process.
-
-        Parameters
-        ----------
-        file : core.File
-            See core.File for more documentation
-
-        upload_type : typing.Optional[str]
-
-        testset_name : typing.Optional[str]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        TestsetSimpleResponse
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.testsets.upload_file()
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.upload_file(
-            file=file,
-            upload_type=upload_type,
-            testset_name=testset_name,
-            request_options=request_options,
-        )
-        return _response.data
-
-    async def import_testset(
-        self,
-        *,
-        authorization: typing.Optional[str] = None,
-        endpoint: typing.Optional[str] = OMIT,
-        testset_name: typing.Optional[str] = OMIT,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetSimpleResponse:
-        """
-        Import JSON testset data from an endpoint and save it to Postgres.
-
-        Args:
-            endpoint (str): An endpoint URL to import data from.
-            testset_name (str): the name of the testset if provided.
-
-        Returns:
-            dict: The result of the import process.
-
-        Parameters
-        ----------
-        authorization : typing.Optional[str]
-
-        endpoint : typing.Optional[str]
-
-        testset_name : typing.Optional[str]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        TestsetSimpleResponse
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.testsets.import_testset()
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.import_testset(
-            authorization=authorization,
-            endpoint=endpoint,
-            testset_name=testset_name,
-            request_options=request_options,
-        )
-        return _response.data
-
-    async def get_testsets(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[TestsetOutputResponse]:
-        """
-        Get all testsets.
-
-        Returns:
-        - A list of testset objects.
-
-        Raises:
-        - `HTTPException` with status code 404 if no testsets are found.
-
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.List[TestsetOutputResponse]
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.testsets.get_testsets()
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.get_testsets(request_options=request_options)
-        return _response.data
-
     async def create_testset(
         self,
         *,
-        testset: Testset,
+        testset: TestsetCreate,
+        testset_id: typing.Optional[str] = None,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
         Parameters
         ----------
-        testset : Testset
+        testset : TestsetCreate
+
+        testset_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -927,7 +1416,7 @@ class AsyncTestsetsClient:
         --------
         import asyncio
 
-        from agenta import AsyncAgentaApi, Testset
+        from agenta import AsyncAgentaApi, TestsetCreate
 
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -936,212 +1425,14 @@ class AsyncTestsetsClient:
 
         async def main() -> None:
             await client.testsets.create_testset(
-                testset=Testset(),
+                testset=TestsetCreate(),
             )
 
 
         asyncio.run(main())
         """
         _response = await self._raw_client.create_testset(
-            testset=testset, request_options=request_options
-        )
-        return _response.data
-
-    async def delete_testsets(
-        self,
-        *,
-        testset_ids: typing.Sequence[str],
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.List[str]:
-        """
-        Delete specific testsets based on their unique IDs.
-
-        Args:
-        testset_ids (List[str]): The unique identifiers of the testsets to delete.
-
-        Returns:
-        A list of the deleted testsets' IDs.
-
-        Parameters
-        ----------
-        testset_ids : typing.Sequence[str]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.List[str]
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.testsets.delete_testsets(
-                testset_ids=["testset_ids"],
-            )
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.delete_testsets(
-            testset_ids=testset_ids, request_options=request_options
-        )
-        return _response.data
-
-    async def get_single_testset(
-        self,
-        testset_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Fetch a specific testset in Postgres.
-
-        Args:
-            testset_id (str): The id of the testset to fetch.
-
-        Returns:
-            The requested testset if found, else an HTTPException.
-
-        Parameters
-        ----------
-        testset_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.testsets.get_single_testset(
-                testset_id="testset_id",
-            )
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.get_single_testset(
-            testset_id, request_options=request_options
-        )
-        return _response.data
-
-    async def update_testset(
-        self,
-        testset_id: str,
-        *,
-        name: str,
-        csvdata: typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]],
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Optional[typing.Any]:
-        """
-        Update a testset with given id, update the testset in Postgres.
-
-        Args:
-        testset_id (str): id of the testset to be updated.
-        csvdata (NewTestset): New data to replace the old testset.
-
-        Returns:
-        str: The id of the testset updated.
-
-        Parameters
-        ----------
-        testset_id : str
-
-        name : str
-
-        csvdata : typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.testsets.update_testset(
-                testset_id="testset_id",
-                name="name",
-                csvdata=[{"key": "value"}],
-            )
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.update_testset(
-            testset_id, name=name, csvdata=csvdata, request_options=request_options
-        )
-        return _response.data
-
-    async def list_testsets(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> TestsetResponse:
-        """
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        TestsetResponse
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-
-
-        async def main() -> None:
-            await client.testsets.list_testsets()
-
-
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.list_testsets(
-            request_options=request_options
+            testset=testset, testset_id=testset_id, request_options=request_options
         )
         return _response.data
 
@@ -1192,7 +1483,7 @@ class AsyncTestsetsClient:
         self,
         testset_id: str,
         *,
-        testset: Testset,
+        testset: TestsetEdit,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetResponse:
         """
@@ -1200,7 +1491,7 @@ class AsyncTestsetsClient:
         ----------
         testset_id : str
 
-        testset : Testset
+        testset : TestsetEdit
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1214,7 +1505,7 @@ class AsyncTestsetsClient:
         --------
         import asyncio
 
-        from agenta import AsyncAgentaApi, Testset
+        from agenta import AsyncAgentaApi, TestsetEdit
 
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -1224,7 +1515,7 @@ class AsyncTestsetsClient:
         async def main() -> None:
             await client.testsets.edit_testset(
                 testset_id="testset_id",
-                testset=Testset(),
+                testset=TestsetEdit(),
             )
 
 
@@ -1324,13 +1615,22 @@ class AsyncTestsetsClient:
     async def query_testsets(
         self,
         *,
-        request: typing.Optional[MetaRequest] = None,
+        testset: typing.Optional[TestsetQuery] = OMIT,
+        testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        include_archived: typing.Optional[bool] = OMIT,
+        windowing: typing.Optional[Windowing] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestsetsResponse:
         """
         Parameters
         ----------
-        request : typing.Optional[MetaRequest]
+        testset : typing.Optional[TestsetQuery]
+
+        testset_refs : typing.Optional[typing.Sequence[Reference]]
+
+        include_archived : typing.Optional[bool]
+
+        windowing : typing.Optional[Windowing]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1358,28 +1658,1094 @@ class AsyncTestsetsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.query_testsets(
-            request=request, request_options=request_options
+            testset=testset,
+            testset_refs=testset_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+            request_options=request_options,
         )
         return _response.data
 
-    async def create_testset_from_file(
+    async def create_testset_variant(
+        self,
+        *,
+        testset_variant: TestsetVariantCreate,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantResponse:
+        """
+        Parameters
+        ----------
+        testset_variant : TestsetVariantCreate
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi, TestsetVariantCreate
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.create_testset_variant(
+                testset_variant=TestsetVariantCreate(),
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.create_testset_variant(
+            testset_variant=testset_variant, request_options=request_options
+        )
+        return _response.data
+
+    async def fetch_testset_variant(
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantResponse:
+        """
+        Parameters
+        ----------
+        testset_variant_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.fetch_testset_variant(
+                testset_variant_id="testset_variant_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fetch_testset_variant(
+            testset_variant_id, request_options=request_options
+        )
+        return _response.data
+
+    async def edit_testset_variant(
+        self,
+        testset_variant_id: str,
+        *,
+        testset_variant: TestsetVariantEdit,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantResponse:
+        """
+        Parameters
+        ----------
+        testset_variant_id : str
+
+        testset_variant : TestsetVariantEdit
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi, TestsetVariantEdit
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.edit_testset_variant(
+                testset_variant_id="testset_variant_id",
+                testset_variant=TestsetVariantEdit(),
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.edit_testset_variant(
+            testset_variant_id,
+            testset_variant=testset_variant,
+            request_options=request_options,
+        )
+        return _response.data
+
+    async def archive_testset_variant(
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantResponse:
+        """
+        Parameters
+        ----------
+        testset_variant_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.archive_testset_variant(
+                testset_variant_id="testset_variant_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.archive_testset_variant(
+            testset_variant_id, request_options=request_options
+        )
+        return _response.data
+
+    async def unarchive_testset_variant(
+        self,
+        testset_variant_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantResponse:
+        """
+        Parameters
+        ----------
+        testset_variant_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.unarchive_testset_variant(
+                testset_variant_id="testset_variant_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.unarchive_testset_variant(
+            testset_variant_id, request_options=request_options
+        )
+        return _response.data
+
+    async def query_testset_variants(
+        self,
+        *,
+        testset_variant: typing.Optional[TestsetVariantQuery] = OMIT,
+        testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        testset_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        include_archived: typing.Optional[bool] = OMIT,
+        windowing: typing.Optional[Windowing] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetVariantsResponse:
+        """
+        Parameters
+        ----------
+        testset_variant : typing.Optional[TestsetVariantQuery]
+
+        testset_refs : typing.Optional[typing.Sequence[Reference]]
+
+        testset_variant_refs : typing.Optional[typing.Sequence[Reference]]
+
+        include_archived : typing.Optional[bool]
+
+        windowing : typing.Optional[Windowing]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetVariantsResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.query_testset_variants()
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.query_testset_variants(
+            testset_variant=testset_variant,
+            testset_refs=testset_refs,
+            testset_variant_refs=testset_variant_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+            request_options=request_options,
+        )
+        return _response.data
+
+    async def retrieve_testset_revision(
+        self,
+        *,
+        testset_ref: typing.Optional[Reference] = OMIT,
+        testset_variant_ref: typing.Optional[Reference] = OMIT,
+        testset_revision_ref: typing.Optional[Reference] = OMIT,
+        include_testcases: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_ref : typing.Optional[Reference]
+
+        testset_variant_ref : typing.Optional[Reference]
+
+        testset_revision_ref : typing.Optional[Reference]
+
+        include_testcases : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.retrieve_testset_revision()
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.retrieve_testset_revision(
+            testset_ref=testset_ref,
+            testset_variant_ref=testset_variant_ref,
+            testset_revision_ref=testset_revision_ref,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    async def create_testset_revision(
+        self,
+        *,
+        testset_revision: TestsetRevisionCreate,
+        include_testcases: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision : TestsetRevisionCreate
+
+        include_testcases : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi, TestsetRevisionCreate
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.create_testset_revision(
+                testset_revision=TestsetRevisionCreate(),
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.create_testset_revision(
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    async def fetch_testset_revision(
+        self,
+        testset_revision_id: str,
+        *,
+        include_testcases: typing.Optional[bool] = None,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision_id : str
+
+        include_testcases : typing.Optional[bool]
+            Include full testcase objects. Default (null/true): include testcases. False: return only testcase IDs.
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.fetch_testset_revision(
+                testset_revision_id="testset_revision_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fetch_testset_revision(
+            testset_revision_id,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    async def edit_testset_revision(
+        self,
+        testset_revision_id: str,
+        *,
+        testset_revision: TestsetRevisionEdit,
+        include_testcases: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision_id : str
+
+        testset_revision : TestsetRevisionEdit
+
+        include_testcases : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi, TestsetRevisionEdit
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.edit_testset_revision(
+                testset_revision_id="testset_revision_id",
+                testset_revision=TestsetRevisionEdit(),
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.edit_testset_revision(
+            testset_revision_id,
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    async def archive_testset_revision(
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.archive_testset_revision(
+                testset_revision_id="testset_revision_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.archive_testset_revision(
+            testset_revision_id, request_options=request_options
+        )
+        return _response.data
+
+    async def unarchive_testset_revision(
+        self,
+        testset_revision_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.unarchive_testset_revision(
+                testset_revision_id="testset_revision_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.unarchive_testset_revision(
+            testset_revision_id, request_options=request_options
+        )
+        return _response.data
+
+    async def fetch_testset_revision_to_file(
+        self,
+        testset_revision_id: str,
+        *,
+        file_type: typing.Optional[FetchTestsetRevisionToFileRequestFileType] = None,
+        file_name: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Any:
+        """
+        Parameters
+        ----------
+        testset_revision_id : str
+
+        file_type : typing.Optional[FetchTestsetRevisionToFileRequestFileType]
+            File type to download. Supported: 'csv' or 'json'. Default: 'csv'.
+
+        file_name : typing.Optional[str]
+            Optional custom filename for the download.
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Any
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.fetch_testset_revision_to_file(
+                testset_revision_id="testset_revision_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fetch_testset_revision_to_file(
+            testset_revision_id,
+            file_type=file_type,
+            file_name=file_name,
+            request_options=request_options,
+        )
+        return _response.data
+
+    async def query_testset_revisions(
+        self,
+        *,
+        testset_revision: typing.Optional[TestsetRevisionQuery] = OMIT,
+        testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        testset_variant_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        testset_revision_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        include_archived: typing.Optional[bool] = OMIT,
+        include_testcases: typing.Optional[bool] = OMIT,
+        windowing: typing.Optional[Windowing] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionsResponse:
+        """
+        Parameters
+        ----------
+        testset_revision : typing.Optional[TestsetRevisionQuery]
+
+        testset_refs : typing.Optional[typing.Sequence[Reference]]
+
+        testset_variant_refs : typing.Optional[typing.Sequence[Reference]]
+
+        testset_revision_refs : typing.Optional[typing.Sequence[Reference]]
+
+        include_archived : typing.Optional[bool]
+
+        include_testcases : typing.Optional[bool]
+
+        windowing : typing.Optional[Windowing]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionsResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.query_testset_revisions()
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.query_testset_revisions(
+            testset_revision=testset_revision,
+            testset_refs=testset_refs,
+            testset_variant_refs=testset_variant_refs,
+            testset_revision_refs=testset_revision_refs,
+            include_archived=include_archived,
+            include_testcases=include_testcases,
+            windowing=windowing,
+            request_options=request_options,
+        )
+        return _response.data
+
+    async def commit_testset_revision(
+        self,
+        *,
+        testset_revision_commit: TestsetRevisionCommit,
+        include_testcases: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionResponse:
+        """
+        Parameters
+        ----------
+        testset_revision_commit : TestsetRevisionCommit
+
+        include_testcases : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi, TestsetRevisionCommit
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.commit_testset_revision(
+                testset_revision_commit=TestsetRevisionCommit(),
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.commit_testset_revision(
+            testset_revision_commit=testset_revision_commit,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    async def log_testset_revisions(
+        self,
+        *,
+        testset_revision: TestsetRevisionsLog,
+        include_testcases: typing.Optional[bool] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestsetRevisionsResponse:
+        """
+        Parameters
+        ----------
+        testset_revision : TestsetRevisionsLog
+
+        include_testcases : typing.Optional[bool]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestsetRevisionsResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi, TestsetRevisionsLog
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.log_testset_revisions(
+                testset_revision=TestsetRevisionsLog(),
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.log_testset_revisions(
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
+            request_options=request_options,
+        )
+        return _response.data
+
+    async def create_simple_testset(
+        self,
+        *,
+        testset: SimpleTestsetCreate,
+        testset_id: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetResponse:
+        """
+        Parameters
+        ----------
+        testset : SimpleTestsetCreate
+
+        testset_id : typing.Optional[str]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi, SimpleTestsetCreate
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.create_simple_testset(
+                testset=SimpleTestsetCreate(),
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.create_simple_testset(
+            testset=testset, testset_id=testset_id, request_options=request_options
+        )
+        return _response.data
+
+    async def fetch_simple_testset(
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetResponse:
+        """
+        Parameters
+        ----------
+        testset_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.fetch_simple_testset(
+                testset_id="testset_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.fetch_simple_testset(
+            testset_id, request_options=request_options
+        )
+        return _response.data
+
+    async def edit_simple_testset(
+        self,
+        testset_id: str,
+        *,
+        testset: SimpleTestsetEdit,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetResponse:
+        """
+        Parameters
+        ----------
+        testset_id : str
+
+        testset : SimpleTestsetEdit
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi, SimpleTestsetEdit
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.edit_simple_testset(
+                testset_id="testset_id",
+                testset=SimpleTestsetEdit(),
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.edit_simple_testset(
+            testset_id, testset=testset, request_options=request_options
+        )
+        return _response.data
+
+    async def archive_simple_testset(
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetResponse:
+        """
+        Parameters
+        ----------
+        testset_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.archive_simple_testset(
+                testset_id="testset_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.archive_simple_testset(
+            testset_id, request_options=request_options
+        )
+        return _response.data
+
+    async def unarchive_simple_testset(
+        self,
+        testset_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetResponse:
+        """
+        Parameters
+        ----------
+        testset_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.unarchive_simple_testset(
+                testset_id="testset_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.unarchive_simple_testset(
+            testset_id, request_options=request_options
+        )
+        return _response.data
+
+    async def query_simple_testsets(
+        self,
+        *,
+        testset: typing.Optional[SimpleTestsetQuery] = OMIT,
+        testset_refs: typing.Optional[typing.Sequence[Reference]] = OMIT,
+        include_archived: typing.Optional[bool] = OMIT,
+        windowing: typing.Optional[Windowing] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> SimpleTestsetsResponse:
+        """
+        Parameters
+        ----------
+        testset : typing.Optional[SimpleTestsetQuery]
+
+        testset_refs : typing.Optional[typing.Sequence[Reference]]
+
+        include_archived : typing.Optional[bool]
+
+        windowing : typing.Optional[Windowing]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        SimpleTestsetsResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.query_simple_testsets()
+
+
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.query_simple_testsets(
+            testset=testset,
+            testset_refs=testset_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+            request_options=request_options,
+        )
+        return _response.data
+
+    async def create_simple_testset_from_file(
         self,
         *,
         file: core.File,
-        file_type: typing.Optional[CreateTestsetFromFileRequestFileType] = OMIT,
+        file_type: typing.Optional[CreateSimpleTestsetFromFileRequestFileType] = OMIT,
         testset_slug: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
         testset_description: typing.Optional[str] = OMIT,
-        testset_meta: typing.Optional[typing.List[str]] = OMIT,
+        testset_tags: typing.Optional[str] = OMIT,
+        testset_meta: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetResponse:
+    ) -> SimpleTestsetResponse:
         """
         Parameters
         ----------
         file : core.File
             See core.File for more documentation
 
-        file_type : typing.Optional[CreateTestsetFromFileRequestFileType]
+        file_type : typing.Optional[CreateSimpleTestsetFromFileRequestFileType]
 
         testset_slug : typing.Optional[str]
 
@@ -1387,14 +2753,16 @@ class AsyncTestsetsClient:
 
         testset_description : typing.Optional[str]
 
-        testset_meta : typing.Optional[typing.List[str]]
+        testset_tags : typing.Optional[str]
+
+        testset_meta : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        TestsetResponse
+        SimpleTestsetResponse
             Successful Response
 
         Examples
@@ -1409,30 +2777,35 @@ class AsyncTestsetsClient:
 
 
         async def main() -> None:
-            await client.testsets.create_testset_from_file()
+            await client.testsets.create_simple_testset_from_file()
 
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.create_testset_from_file(
+        _response = await self._raw_client.create_simple_testset_from_file(
             file=file,
             file_type=file_type,
             testset_slug=testset_slug,
             testset_name=testset_name,
             testset_description=testset_description,
+            testset_tags=testset_tags,
             testset_meta=testset_meta,
             request_options=request_options,
         )
         return _response.data
 
-    async def update_testset_from_file(
+    async def edit_simple_testset_from_file(
         self,
         testset_id: str,
         *,
         file: core.File,
-        file_type: typing.Optional[UpdateTestsetFromFileRequestFileType] = OMIT,
+        file_type: typing.Optional[EditSimpleTestsetFromFileRequestFileType] = OMIT,
+        testset_name: typing.Optional[str] = OMIT,
+        testset_description: typing.Optional[str] = OMIT,
+        testset_tags: typing.Optional[str] = OMIT,
+        testset_meta: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetResponse:
+    ) -> SimpleTestsetResponse:
         """
         Parameters
         ----------
@@ -1441,14 +2814,22 @@ class AsyncTestsetsClient:
         file : core.File
             See core.File for more documentation
 
-        file_type : typing.Optional[UpdateTestsetFromFileRequestFileType]
+        file_type : typing.Optional[EditSimpleTestsetFromFileRequestFileType]
+
+        testset_name : typing.Optional[str]
+
+        testset_description : typing.Optional[str]
+
+        testset_tags : typing.Optional[str]
+
+        testset_meta : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        TestsetResponse
+        SimpleTestsetResponse
             Successful Response
 
         Examples
@@ -1463,38 +2844,48 @@ class AsyncTestsetsClient:
 
 
         async def main() -> None:
-            await client.testsets.update_testset_from_file(
+            await client.testsets.edit_simple_testset_from_file(
                 testset_id="testset_id",
             )
 
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.update_testset_from_file(
-            testset_id, file=file, file_type=file_type, request_options=request_options
+        _response = await self._raw_client.edit_simple_testset_from_file(
+            testset_id,
+            file=file,
+            file_type=file_type,
+            testset_name=testset_name,
+            testset_description=testset_description,
+            testset_tags=testset_tags,
+            testset_meta=testset_meta,
+            request_options=request_options,
         )
         return _response.data
 
-    async def fetch_testset_to_file(
+    async def fetch_simple_testset_to_file(
         self,
         testset_id: str,
         *,
-        file_type: typing.Optional[FetchTestsetToFileRequestFileType] = None,
+        file_type: typing.Optional[FetchSimpleTestsetToFileRequestFileType] = None,
+        file_name: typing.Optional[str] = None,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetResponse:
+    ) -> SimpleTestsetResponse:
         """
         Parameters
         ----------
         testset_id : str
 
-        file_type : typing.Optional[FetchTestsetToFileRequestFileType]
+        file_type : typing.Optional[FetchSimpleTestsetToFileRequestFileType]
+
+        file_name : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        TestsetResponse
+        SimpleTestsetResponse
             Successful Response
 
         Examples
@@ -1509,35 +2900,38 @@ class AsyncTestsetsClient:
 
 
         async def main() -> None:
-            await client.testsets.fetch_testset_to_file(
+            await client.testsets.fetch_simple_testset_to_file(
                 testset_id="testset_id",
             )
 
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_testset_to_file(
-            testset_id, file_type=file_type, request_options=request_options
+        _response = await self._raw_client.fetch_simple_testset_to_file(
+            testset_id,
+            file_type=file_type,
+            file_name=file_name,
+            request_options=request_options,
         )
         return _response.data
 
-    async def fetch_testcase(
+    async def transfer_simple_testset(
         self,
-        testcase_id: str,
+        testset_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestcaseResponse:
+    ) -> SimpleTestsetResponse:
         """
         Parameters
         ----------
-        testcase_id : str
+        testset_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        TestcaseResponse
+        SimpleTestsetResponse
             Successful Response
 
         Examples
@@ -1552,14 +2946,14 @@ class AsyncTestsetsClient:
 
 
         async def main() -> None:
-            await client.testsets.fetch_testcase(
-                testcase_id="testcase_id",
+            await client.testsets.transfer_simple_testset(
+                testset_id="testset_id",
             )
 
 
         asyncio.run(main())
         """
-        _response = await self._raw_client.fetch_testcase(
-            testcase_id, request_options=request_options
+        _response = await self._raw_client.transfer_simple_testset(
+            testset_id, request_options=request_options
         )
         return _response.data

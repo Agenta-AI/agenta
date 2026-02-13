@@ -1,0 +1,58 @@
+/* BracketError.css */
+
+/* Bracket error styling for code lines - high specificity */
+.editor-code .editor-code-line.bracket-error,
+.bracket-error {
+    background-color: rgba(255, 0, 0, 0.2) !important;
+    position: relative !important;
+}
+
+/* Use ::after pseudo-element to avoid conflict with gutter's ::before */
+.editor-code .editor-code-line.bracket-error::after,
+.bracket-error::after {
+    content: "" !important;
+    position: absolute !important;
+    right: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 4px !important;
+    background-color: #ff4444 !important;
+    z-index: 11 !important;
+    pointer-events: none !important;
+}
+
+/* Removed ::before pseudo-element that was interfering with gutter */
+/* The warning icon was positioned at left: -20px which overlapped with line numbers */
+
+/* Alternative styling - red underline */
+.bracket-error-underline {
+    border-bottom: 2px solid #ff4444 !important;
+    background-color: rgba(255, 0, 0, 0.05) !important;
+}
+
+/* Subtle bracket error styling */
+.bracket-error-subtle {
+    box-shadow: inset 0 0 0 1px rgba(255, 68, 68, 0.3) !important;
+    background-color: rgba(255, 68, 68, 0.05) !important;
+}
+
+/* Validation error styling for code lines - orange/amber theme */
+/* Only applies to actual schema validation errors, not syntax errors */
+/* Will be skipped if line has syntax errors to avoid interference */
+.editor-code .editor-code-line.validation-error {
+    background-color: rgba(255, 165, 0, 0.15) !important;
+    position: relative !important;
+}
+
+/* Right border indicator for validation errors - only for line-level errors */
+.editor-code .editor-code-line.validation-error::after {
+    content: "" !important;
+    position: absolute !important;
+    right: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 4px !important;
+    background-color: #ff8c00 !important;
+    z-index: 11 !important;
+    pointer-events: none !important;
+}

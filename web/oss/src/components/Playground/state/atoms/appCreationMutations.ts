@@ -409,6 +409,18 @@ export const createAppMutationAtom = atom(
                 queryKey: ["variants", app.app_id, projectId],
             })
 
+            // Also invalidate entity package queries used by playgroundRevisionListAtom
+            // These are the queries that the Playground UI depends on for displaying variants/revisions
+            await Promise.all([
+                queryClient.invalidateQueries({
+                    queryKey: ["oss-variants-for-selection", app.app_id, projectId],
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: ["oss-revisions-for-selection"],
+                    exact: false,
+                }),
+            ])
+
             // Do not block the UI on revision detection
             onStatusChange?.("success", undefined, app.app_id)
 

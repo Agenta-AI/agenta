@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {
     CopyOutlined,
     FullscreenExitOutlined,
@@ -13,7 +14,6 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import Link from "next/link"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {useDurationCounter} from "@/oss/hooks/useDurationCounter"
 import {getTypedValue} from "@/oss/lib/evaluations/legacy"
 import {

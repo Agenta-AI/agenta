@@ -10,14 +10,24 @@
 export {selectedVariantsAtom, viewTypeAtom, testRunStatesAtom} from "./core"
 
 // Variant atoms and types
+// WP-6.6: Export playgroundRevisionListAtom as primary list, revisionListAtom for backward compatibility
 export {
     playgroundLayoutAtom,
     displayedVariantsAtom,
     earlyDisplayedVariantsAtom,
     earlyRevisionIdsAtom,
     displayedVariantsVariablesAtom,
+    playgroundRevisionListAtom,
     revisionListAtom,
     isComparisonViewAtom,
+    // WP-6.1: Molecule-backed list wrapper atoms
+    appsListAtom,
+    variantsListAtomFamily,
+    revisionsListAtomFamily,
+    // Re-export types
+    type AppListItem,
+    type VariantListItem,
+    type RevisionListItem,
 } from "./variants"
 
 // UI state mutations
@@ -29,9 +39,6 @@ export {promptPropertyAtomFamily} from "./promptSelectors"
 
 // Variant listing (flat) selectors
 export {variantListDisplayAtom, variantListDisplayFilteredAtomFamily} from "./variantListing"
-
-// Variant options (grouped) selectors
-export {variantOptionsAtomFamily} from "./optionsSelectors"
 
 // Generation-related selectors
 export {
@@ -48,21 +55,32 @@ export {
     invalidatePlaygroundQueriesAtom,
 } from "./queries"
 
-// Remaining selectors kept in propertySelectors for now
-export {variantByRevisionIdAtomFamily} from "./propertySelectors"
+// Molecule-backed alternatives (single source of truth)
+// NOTE: variantByRevisionIdAtomFamily has been removed - use moleculeBackedVariantAtomFamily instead
+export {
+    moleculeBackedVariantAtomFamily,
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedCustomPropertiesAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 // Async/loadable patterns
+// WP-6.5: Added molecule-backed loading state atoms
 export {
     variantsLoadableAtom,
     variantsIsLoadingAtom,
     variantsHasDataAtom,
     variantsErrorAtom,
     variantRevisionsLoadableFamily,
+    // WP-6.5: Molecule-backed loading state atoms
+    appsListLoadingAtom,
+    appsListHasDataAtom,
+    revisionsListLoadingAtomFamily,
+    revisionsListHasDataAtomFamily,
     type VariantUpdate,
 } from "./loadable"
 
-// Dirty state management (derived atoms)
-export {promptsDirtyAtomFamily, variantIsDirtyAtomFamily} from "./dirtyState"
+// Dirty state management - use molecule-backed version from legacyEntityBridge
+export {revisionIsDirtyAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 // Variant CRUD operations
 export {saveVariantMutationAtom, deleteVariantMutationAtom} from "./variantCrud"
@@ -99,3 +117,9 @@ export {parametersOverrideAtomFamily} from "./parametersOverride"
 
 // Comparison chat helpers
 export {canRunAllChatComparisonAtom} from "./derived/canRunAllChatComparison"
+
+// WP-7.1: Playground selection adapter for EntityPicker integration
+export {
+    createPlaygroundSelectionAdapter,
+    type PlaygroundRevisionSelectionResult,
+} from "./playgroundSelectionAdapter"

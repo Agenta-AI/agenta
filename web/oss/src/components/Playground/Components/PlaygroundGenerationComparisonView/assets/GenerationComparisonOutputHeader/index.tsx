@@ -1,11 +1,10 @@
 import {memo, useMemo} from "react"
 
-import {Typography} from "antd"
+import {Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
-import Version from "@/oss/components/Playground/assets/Version"
-import {revisionListAtom} from "@/oss/components/Playground/state/atoms"
+import {revisionLabelInfoAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {useStyles} from "../styles"
 
@@ -15,22 +14,19 @@ const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeade
     className,
     variantId,
 }) => {
-    // Use atom-based state management
-    const revisions = useAtomValue(revisionListAtom)
+    // Use the entity-level revision label API (handles both regular revisions and local drafts)
+    const labelInfo = useAtomValue(
+        useMemo(() => revisionLabelInfoAtomFamily(variantId), [variantId]),
+    )
 
-    const {variantName, revision} = useMemo(() => {
-        const variant = (revisions || []).find((rev) => rev.id === variantId)
-        return {
-            variantName: variant?.variantName,
-            revision: variant?.revision,
-        }
-    }, [revisions, variantId])
     const classes = useStyles()
 
     return (
         <div className={clsx(classes.title, className)}>
-            <Typography>{variantName}</Typography>
-            <Version revision={revision as number} />
+            <Typography>{labelInfo.variantName}</Typography>
+            <Tag color="default" bordered={false} className="bg-[rgba(5,23,41,0.06)]">
+                {labelInfo.label}
+            </Tag>
         </div>
     )
 }

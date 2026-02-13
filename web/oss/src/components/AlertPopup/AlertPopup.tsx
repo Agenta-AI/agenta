@@ -1,11 +1,10 @@
 import {ReactNode} from "react"
 
+import {modal} from "@agenta/ui/app-message"
 import {Button, ModalFuncProps} from "antd"
 import {HookAPI} from "antd/es/modal/useModal"
 
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
-
-import {modal} from "../AppMessageContext"
 
 function handleCb(cb: AlertPopupProps["onOk"]) {
     if (typeof cb !== "function") return cb

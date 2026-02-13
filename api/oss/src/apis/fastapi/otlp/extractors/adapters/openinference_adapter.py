@@ -168,9 +168,9 @@ class OpenInferenceAdapter(BaseAdapter):
                             )
                             if new_suffix != suffix:
                                 suffix = new_suffix
-                                log.warn(
-                                    f"OpenInferenceAdapter: Stripped '.message.' from suffix for {key}, new suffix: {suffix}"
-                                )
+                                # log.warn(
+                                #     f"OpenInferenceAdapter: Stripped '.message.' from suffix for {key}, new suffix: {suffix}"
+                                # )
                             else:
                                 # Log if pattern didn't match for a key that might be expected to have it.
                                 # This could happen for new, unexpected sub-structures under messages.
@@ -197,9 +197,9 @@ class OpenInferenceAdapter(BaseAdapter):
             if has_input_messages and "ag.data.inputs" in transformed_attributes:
                 # If we have structured messages, remove the generic 'input.value' mapping
                 del transformed_attributes["ag.data.inputs"]
-                log.warn(
-                    f"OpenInferenceAdapter: For node type '{current_node_type}', removed generic 'ag.data.inputs' (from input.value) in favor of message-based inputs."
-                )
+                # log.warn(
+                #     f"OpenInferenceAdapter: For node type '{current_node_type}', removed generic 'ag.data.inputs' (from input.value) in favor of message-based inputs."
+                # )
 
             # Check if llm.output_messages were processed (resulting in ag.data.outputs.completion.* keys)
             has_output_messages = any(
@@ -209,9 +209,9 @@ class OpenInferenceAdapter(BaseAdapter):
             if has_output_messages and "ag.data.outputs" in transformed_attributes:
                 # If we have structured messages, remove the generic 'output.value' mapping
                 del transformed_attributes["ag.data.outputs"]
-                log.warn(
-                    f"OpenInferenceAdapter: For node type '{current_node_type}', removed generic 'ag.data.outputs' (from output.value) in favor of message-based outputs."
-                )
+                # log.warn(
+                #     f"OpenInferenceAdapter: For node type '{current_node_type}', removed generic 'ag.data.outputs' (from output.value) in favor of message-based outputs."
+                # )
 
         for k, v in transformed_attributes.items():
             for namespace, feature in NAMESPACE_PREFIX_FEATURE_MAPPING.items():

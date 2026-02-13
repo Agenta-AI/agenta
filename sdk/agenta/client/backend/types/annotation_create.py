@@ -10,19 +10,22 @@ from ..core.pydantic_utilities import (
     UniversalBaseModel,
     update_forward_refs,
 )
-from .annotation_kind import AnnotationKind
-from .annotation_link import AnnotationLink
-from .annotation_references import AnnotationReferences
-from .annotation_source import AnnotationSource
+from .annotation_create_links import AnnotationCreateLinks
+from .simple_trace_channel import SimpleTraceChannel
+from .simple_trace_kind import SimpleTraceKind
+from .simple_trace_origin import SimpleTraceOrigin
+from .simple_trace_references import SimpleTraceReferences
 
 
 class AnnotationCreate(UniversalBaseModel):
-    kind: typing.Optional[AnnotationKind] = None
-    source: typing.Optional[AnnotationSource] = None
+    origin: typing.Optional[SimpleTraceOrigin] = None
+    kind: typing.Optional[SimpleTraceKind] = None
+    channel: typing.Optional[SimpleTraceChannel] = None
+    tags: typing.Optional[typing.Dict[str, typing.Optional["LabelJsonInput"]]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Optional["FullJsonInput"]]] = None
     data: typing.Dict[str, typing.Optional["FullJsonInput"]]
-    metadata: typing.Optional[typing.Dict[str, typing.Optional["FullJsonInput"]]] = None
-    references: AnnotationReferences
-    links: typing.Dict[str, AnnotationLink]
+    references: SimpleTraceReferences
+    links: AnnotationCreateLinks
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
@@ -36,6 +39,9 @@ class AnnotationCreate(UniversalBaseModel):
             extra = pydantic.Extra.allow
 
 
-from .full_json_input import FullJsonInput  # noqa: E402, F401, I001
+from .label_json_input import LabelJsonInput  # noqa: E402, I001
+from .full_json_input import FullJsonInput  # noqa: E402, I001
 
-update_forward_refs(AnnotationCreate)
+update_forward_refs(
+    AnnotationCreate, FullJsonInput=FullJsonInput, LabelJsonInput=LabelJsonInput
+)

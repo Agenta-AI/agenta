@@ -11,10 +11,8 @@ import {
 } from "@/oss/lib/shared/variant/transformer/transformer"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {customPropertiesAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {
-    transformedPromptsAtomFamily,
-    promptsAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
+import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 const SharedEditor = dynamic(() => import("@/oss/components/Playground/Components/SharedEditor"), {
@@ -58,7 +56,7 @@ export const NewVariantParametersView = ({
 
     // Base parameters are derived from prompts (same structure used for prompt commits)
     const derived = useAtomValue(transformedPromptsAtomFamily(revisionId)) as any
-    const promptsAtom = useMemo(() => promptsAtomFamily(revisionId), [revisionId])
+    const promptsAtom = useMemo(() => moleculeBackedPromptsAtomFamily(revisionId), [revisionId])
     const prompts = useAtomValue(promptsAtom)
     const setPrompts = useSetAtom(promptsAtom)
 

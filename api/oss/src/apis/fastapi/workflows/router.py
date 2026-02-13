@@ -368,7 +368,7 @@ class WorkflowsRouter:
         return workflow_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowResponse())
+    @suppress_exceptions(default=WorkflowResponse(), exclude=[HTTPException])
     async def fetch_workflow(
         self,
         request: Request,
@@ -489,7 +489,7 @@ class WorkflowsRouter:
         return workflow_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowsResponse())
+    @suppress_exceptions(default=WorkflowsResponse(), exclude=[HTTPException])
     async def query_workflows(
         self,
         request: Request,
@@ -574,7 +574,7 @@ class WorkflowsRouter:
         return workflow_variant_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowVariantResponse())
+    @suppress_exceptions(default=WorkflowVariantResponse(), exclude=[HTTPException])
     async def fetch_workflow_variant(
         self,
         request: Request,
@@ -697,7 +697,7 @@ class WorkflowsRouter:
         return workflow_variant_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowVariantsResponse())
+    @suppress_exceptions(default=WorkflowVariantsResponse(), exclude=[HTTPException])
     async def query_workflow_variants(
         self,
         request: Request,
@@ -814,7 +814,7 @@ class WorkflowsRouter:
         return workflow_revision_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowRevisionResponse())
+    @suppress_exceptions(default=WorkflowRevisionResponse(), exclude=[HTTPException])
     async def fetch_workflow_revision(
         self,
         request: Request,
@@ -937,7 +937,7 @@ class WorkflowsRouter:
         return workflow_revision_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowRevisionsResponse())
+    @suppress_exceptions(default=WorkflowRevisionsResponse(), exclude=[HTTPException])
     async def query_workflow_revisions(
         self,
         request: Request,
@@ -1029,7 +1029,7 @@ class WorkflowsRouter:
         return workflow_revision_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowRevisionsResponse())
+    @suppress_exceptions(default=WorkflowRevisionsResponse(), exclude=[HTTPException])
     async def log_workflow_revisions(
         self,
         request: Request,
@@ -1058,7 +1058,7 @@ class WorkflowsRouter:
         return workflow_revisions_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowRevisionResponse())
+    @suppress_exceptions(default=WorkflowRevisionResponse(), exclude=[HTTPException])
     async def retrieve_workflow_revision(
         self,
         request: Request,
@@ -1115,7 +1115,9 @@ class WorkflowsRouter:
     # WORKFLOW SERVICES --------------------------------------------------------
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowServiceBatchResponse())
+    @suppress_exceptions(
+        default=WorkflowServiceBatchResponse(), exclude=[HTTPException]
+    )
     async def invoke_workflow(
         self,
         request: Request,
@@ -1144,7 +1146,7 @@ class WorkflowsRouter:
             return await handle_invoke_failure(exception)
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowServiceRequest())
+    @suppress_exceptions(default=WorkflowServiceRequest(), exclude=[HTTPException])
     async def inspect_workflow(
         self,
         request: Request,

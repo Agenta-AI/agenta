@@ -1,39 +1,34 @@
 import {memo} from "react"
 
-import {SwapOutlined} from "@ant-design/icons"
-import {useRouter} from "next/router"
+import {useSetAtom} from "jotai"
 
-import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
-import {useAppId} from "@/oss/hooks/useAppId"
-import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import useURL from "@/oss/hooks/useURL"
+import EmptyState from "@/oss/components/EmptyState"
+import {EMPTY_STATE_VIDEOS} from "@/oss/components/EmptyState/videos"
+import {setOnboardingWidgetActivationAtom} from "@/oss/lib/onboarding"
 
 const EmptyObservability = () => {
-    const router = useRouter()
-    const appId = useAppId()
-    const {baseAppURL} = useURL()
-    const {goToPlayground} = usePlaygroundNavigation()
+    const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
+
+    const handleSetupTracing = () => {
+        setOnboardingWidgetActivation("tracing-snippet")
+    }
 
     return (
-        <div className="py-16">
-            <EmptyComponent
-                image={
-                    <SwapOutlined style={{transform: "rotate(90deg)"}} className="text-[32px]" />
-                }
-                description="Monitor the performance and results of your LLM applications here."
-                primaryCta={{
-                    text: appId ? "Go to Playground" : "Create an Application",
-                    onClick: () => (appId ? goToPlayground() : router.push(baseAppURL)),
-                    tooltip: "Run your LLM app in the playground to generate and view insights.",
-                }}
-                secondaryCta={{
-                    text: "Learn More",
-                    onClick: () => router.push("https://agenta.ai/docs/observability/quickstart"),
-                    tooltip:
-                        "Explore more about tracking and analyzing your app's observability data.",
-                }}
-            />
-        </div>
+        <EmptyState
+            className="py-4"
+            videoId={EMPTY_STATE_VIDEOS.observability}
+            previewAlt="Observability demo showing trace visualization"
+            title="No traces yet"
+            description="Add a few lines of code to start capturing traces from your LLM application. Monitor latency, token usage, and debug issues with detailed insights."
+            primaryCta={{
+                label: "Set Up Tracing",
+                onClick: handleSetupTracing,
+            }}
+            secondaryCta={{
+                label: "Learn More",
+                href: "https://docs.agenta.ai/observability/quickstart",
+            }}
+        />
     )
 }
 

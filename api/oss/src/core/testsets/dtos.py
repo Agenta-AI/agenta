@@ -240,5 +240,5 @@ class SimpleTestsetEdit(Identifier, Header, Metadata):
     data: Optional[TestsetRevisionData] = None
 
 
-class SimpleTestsetQuery(Metadata):
+class SimpleTestsetQuery(Header, Metadata):
     flags: Optional[TestsetFlags] = None  # type: ignore

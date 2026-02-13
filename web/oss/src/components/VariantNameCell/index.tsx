@@ -3,9 +3,9 @@ import {memo} from "react"
 import {Tag} from "antd"
 import {useAtomValue} from "jotai"
 
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms/propertySelectors"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import type {Variant} from "@/oss/lib/Types"
+import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 import {
     variantDisplayNameByIdAtomFamily,
@@ -36,7 +36,7 @@ const VariantNameCell = memo(
         showStable = false,
     }: VariantNameCellProps) => {
         const resolvedRevision = useAtomValue(
-            variantByRevisionIdAtomFamily(revisionId || (revision?.id ?? "")),
+            moleculeBackedVariantAtomFamily(revisionId || (revision?.id ?? "")),
         ) as Rev
 
         const rev = resolvedRevision ?? revision

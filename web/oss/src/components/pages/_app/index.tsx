@@ -1,3 +1,4 @@
+import {default as AppContextComponent} from "@agenta/ui/app-message"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {App as AppComponent} from "antd"
 import {enableMapSet} from "immer"
@@ -18,7 +19,6 @@ import GlobalStateProvider from "@/oss/state/Providers"
 import ThemeContextBridge from "@/oss/ThemeContextBridge"
 
 import AppGlobalWrappers from "../../AppGlobalWrappers"
-import AppContextComponent from "../../AppMessageContext"
 
 enableMapSet()
 

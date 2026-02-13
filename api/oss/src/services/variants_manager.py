@@ -344,7 +344,8 @@ async def _fetch_environment(
                     app_name=application_ref.slug,
                 )
 
-                application_ref.id = app.id
+                if app:
+                    application_ref.id = app.id
 
             if not application_ref.id:
                 return None, None

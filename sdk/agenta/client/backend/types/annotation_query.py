@@ -10,20 +10,21 @@ from ..core.pydantic_utilities import (
     UniversalBaseModel,
     update_forward_refs,
 )
-from .annotation_kind import AnnotationKind
-from .annotation_link import AnnotationLink
-from .annotation_references import AnnotationReferences
-from .annotation_source import AnnotationSource
+from .annotation_query_links import AnnotationQueryLinks
+from .simple_trace_channel import SimpleTraceChannel
+from .simple_trace_kind import SimpleTraceKind
+from .simple_trace_origin import SimpleTraceOrigin
+from .simple_trace_references import SimpleTraceReferences
 
 
 class AnnotationQuery(UniversalBaseModel):
-    trace_id: typing.Optional[str] = None
-    span_id: typing.Optional[str] = None
-    kind: typing.Optional[AnnotationKind] = None
-    source: typing.Optional[AnnotationSource] = None
-    metadata: typing.Optional[typing.Dict[str, typing.Optional["FullJsonInput"]]] = None
-    references: typing.Optional[AnnotationReferences] = None
-    links: typing.Optional[typing.Dict[str, typing.Optional[AnnotationLink]]] = None
+    origin: typing.Optional[SimpleTraceOrigin] = None
+    kind: typing.Optional[SimpleTraceKind] = None
+    channel: typing.Optional[SimpleTraceChannel] = None
+    tags: typing.Optional[typing.Dict[str, typing.Optional["LabelJsonInput"]]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Optional["FullJsonInput"]]] = None
+    references: typing.Optional[SimpleTraceReferences] = None
+    links: typing.Optional[AnnotationQueryLinks] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
@@ -37,6 +38,9 @@ class AnnotationQuery(UniversalBaseModel):
             extra = pydantic.Extra.allow
 
 
-from .full_json_input import FullJsonInput  # noqa: E402, F401, I001
+from .label_json_input import LabelJsonInput  # noqa: E402, I001
+from .full_json_input import FullJsonInput  # noqa: E402, I001
 
-update_forward_refs(AnnotationQuery)
+update_forward_refs(
+    AnnotationQuery, FullJsonInput=FullJsonInput, LabelJsonInput=LabelJsonInput
+)

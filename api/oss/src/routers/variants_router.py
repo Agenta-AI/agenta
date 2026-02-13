@@ -34,6 +34,22 @@ from oss.src.models.api.api_models import (
     AddVariantFromBasePayload,
     UpdateVariantParameterPayload,
 )
+from pydantic import BaseModel
+
+
+# Request/Response models for revision query
+class RevisionsQueryRequest(BaseModel):
+    """Request model for querying revisions by IDs"""
+
+    revision_ids: List[UUID]
+
+
+class RevisionsQueryResponse(BaseModel):
+    """Response model for revision query"""
+
+    count: int = 0
+    revisions: List[AppVariantRevision] = []
+
 
 router = APIRouter()
 
@@ -422,6 +438,61 @@ async def get_variant_revision(
         )
 
     return await converters.app_variant_db_revision_to_output(app_variant_revision)
+
+
+@router.post(
+    "/revisions/query/",
+    operation_id="query_variant_revisions",
+    response_model=RevisionsQueryResponse,
+)
+async def query_variant_revisions(
+    request: Request,
+    payload: RevisionsQueryRequest,
+):
+    """Query variant revisions by their IDs.
+
+    This endpoint allows batch fetching of multiple revisions at once,
+    which is more efficient than making individual requests.
+
+    Args:
+        payload: Request containing list of revision IDs to fetch
+
+    Returns:
+        RevisionsQueryResponse: Response containing the count and list of revisions
+    """
+    if is_ee():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATIONS,
+        )
+        if not has_permission:
+            error_msg = "You do not have permission to perform this action. Please contact your organization admin."
+            log.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
+    revisions = []
+    for revision_id in payload.revision_ids:
+        try:
+            revision_db = await db_manager.fetch_app_variant_revision_by_id(
+                variant_revision_id=str(revision_id)
+            )
+            if revision_db:
+                revision_output = await converters.app_variant_db_revision_to_output(
+                    revision_db
+                )
+                revisions.append(revision_output)
+        except Exception as e:
+            log.warning(f"Failed to fetch revision {revision_id}: {e}")
+            continue
+
+    return RevisionsQueryResponse(
+        count=len(revisions),
+        revisions=revisions,
+    )
 
 
 @router.delete(

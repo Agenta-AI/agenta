@@ -16,10 +16,13 @@ export const selectedVariantsAtom = atom(
         const all = get(selectedVariantsByAppAtom)
         return all[appId] || []
     },
-    (get, set, next: string[]) => {
+    (get, set, next: string[] | ((prev: string[]) => string[])) => {
         const appId = get(routerAppIdAtom) || get(recentAppIdAtom) || "__global__"
         const all = get(selectedVariantsByAppAtom)
-        set(selectedVariantsByAppAtom, {...all, [appId]: next})
+        const current = all[appId] || []
+        // Support both direct value and updater function patterns
+        const newValue = typeof next === "function" ? next(current) : next
+        set(selectedVariantsByAppAtom, {...all, [appId]: newValue})
     },
 )
 

@@ -1,7 +1,7 @@
 """Add retention helper indexes on projects
 
 Revision ID: a2b3c4d5e6f7
-Revises: a2b3c4d5e6f7
+Revises: c3b2a1d4e5f6
 Create Date: 2025-01-06 12:00:00.000000
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision: str = "a2b3c4d5e6f7"
-down_revision: Union[str, None] = "a2b3c4d5e6f7"
+down_revision: Union[str, None] = "c3b2a1d4e5f6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

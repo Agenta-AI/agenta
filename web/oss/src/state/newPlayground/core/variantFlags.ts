@@ -1,3 +1,4 @@
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
@@ -11,10 +12,20 @@ export interface VariantFlagsParams {
     routePath?: string
 }
 
+const resolveRevisionSource = (get: any, revisionId: string) => {
+    const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId)) as any
+    if (serverData) return serverData
+
+    const moleculeData = get(legacyAppRevisionMolecule.atoms.data(revisionId)) as any
+    if (moleculeData) return moleculeData
+
+    return getEnhancedRevisionById(get as any, revisionId)
+}
+
 export const variantFlagsAtomFamily = atomFamily((params: VariantFlagsParams) =>
     atom((get) => {
         const {routePath, revisionId} = params
-        const variant = getEnhancedRevisionById(get as any, revisionId) as any
+        const variant = resolveRevisionSource(get, revisionId) as any
         const meta = get(requestSchemaMetaAtomFamily({variant, routePath}))
         const appType = get(currentAppContextAtom)?.appType || undefined
         const isChat = appType ? appType === "chat" : Boolean(meta?.hasMessages)

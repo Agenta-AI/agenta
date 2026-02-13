@@ -1,27 +1,37 @@
 /**
  * Prompt-related selectors and unified property facades
  * Scope: prompt-only reads and unified property access across prompts and generation data.
+ *
+ * ARCHITECTURE NOTE:
+ * This module aligns with the new @agenta/playground pattern where property updates
+ * route through the moleculePropertyUpdateAtom (single mutation path) instead of
+ * directly mutating enhancedPrompts arrays at the component layer.
  */
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {
+    moleculeBackedPromptsAtomFamily,
+    moleculePropertyUpdateAtom,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {findPropertyById, findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
 
-import {updateVariantPropertyEnhancedMutationAtom} from "./propertyMutations"
-
 /**
  * PROMPTS-ONLY READ/WRITE FACADE
- * `promptPropertyAtomFamily` provides a unified interface to read a prompt property value
- * for a given revision (variant revisionId) and write updates via the centralized mutation atom.
- * It does NOT touch generation data and serves as a simple facade over the prompts source of truth.
+ *
+ * Provides a unified interface to read/write prompt property values.
+ *
+ * READ: Finds property by __id in molecule-backed prompts
+ * WRITE: Routes property updates through moleculePropertyUpdateAtom
+ *        (single mutation path via legacyAppRevisionMolecule.reducers.updateProperty)
  */
 export const promptPropertyAtomFamily = atomFamily(
     (params: {revisionId: string; propertyId: string}) =>
         atom(
             (get) => {
-                const prompts = get(promptsAtomFamily(params.revisionId))
+                // Use molecule-backed prompts for single source of truth
+                const prompts = get(moleculeBackedPromptsAtomFamily(params.revisionId))
                 const list = (prompts as any[]) || []
                 const property =
                     findPropertyInObject(list, params.propertyId) ||
@@ -29,10 +39,21 @@ export const promptPropertyAtomFamily = atomFamily(
                 if (!property) return null
                 return (property as any)?.content?.value || (property as any)?.value
             },
-            (_get, set, nextValue: any) => {
-                set(updateVariantPropertyEnhancedMutationAtom, {
-                    variantId: params.revisionId,
-                    propertyId: params.propertyId,
+            (_get, set, nextValue: unknown) => {
+                const {revisionId, propertyId} = params
+
+                console.log("🔵 [promptPropertyAtomFamily] WRITE called", {
+                    revisionId,
+                    propertyId,
+                    nextValue,
+                })
+
+                console.log("🔵 [promptPropertyAtomFamily] Updating via moleculePropertyUpdateAtom")
+
+                // Route through the centralized molecule update path
+                set(moleculePropertyUpdateAtom, {
+                    revisionId,
+                    propertyId,
                     value: nextValue,
                 })
             },

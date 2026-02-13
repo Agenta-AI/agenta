@@ -59,8 +59,7 @@ export const checkValidity = (obj: Record<string, any>, metadata: ConfigMetadata
         }
     }
 
-    // TODO: REMOVE THIS EDGE CASE and COME UP WITH A CORRECTED GENERIC
-    // SUBSTITUTION FOR THIS CHECK
+    // Handle Message object type with nullable keys
     if (metadata.type === "object" && metadata.title === "Message") {
         const nullableKeys = Object.keys(metadata.properties)
             .map((key) => {

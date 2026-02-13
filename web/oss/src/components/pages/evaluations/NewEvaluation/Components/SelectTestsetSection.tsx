@@ -102,6 +102,7 @@ const SelectTestsetSection = ({
     handlePanelChange,
     selectedVariantRevisionIds,
     selectedVariants,
+    allowAutoAdvance = true,
     className,
 }: SelectTestsetSectionProps) => {
     // Stable flag for whether any revision is selected
@@ -136,7 +137,7 @@ const SelectTestsetSection = ({
                     <span className="font-mono">{expectedVariables.join(", ")}</span>
                 </div>
             )}
-            <div className="flex flex-col grow min-h-0">
+            <div className="flex flex-col grow min-h-0" data-tour="testset-select">
                 <TestsetsTable
                     mode="select"
                     className="flex-1 min-h-0"
@@ -164,7 +165,9 @@ const SelectTestsetSection = ({
                             if (setSelectedTestsetName && testsetName) {
                                 setSelectedTestsetName(testsetName)
                             }
-                            handlePanelChange("evaluatorPanel")
+                            if (allowAutoAdvance) {
+                                handlePanelChange("evaluatorPanel")
+                            }
                         }
                     }}
                 />

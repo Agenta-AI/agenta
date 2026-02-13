@@ -1,4 +1,4 @@
-from typing import Optional, Protocol, Any
+from typing import Protocol, Any, Optional, Iterable
 from os import environ
 from contextlib import contextmanager
 
@@ -69,6 +69,42 @@ class LitellmProtocol(Protocol):
     async def acompletion(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
+def _iter_exception_chain(exc: BaseException) -> Iterable[BaseException]:
+    """Iterate an exception + cause/context chain without cycles."""
+
+    seen: set[int] = set()
+    cur: Optional[BaseException] = exc
+    while cur is not None and id(cur) not in seen:
+        yield cur
+        seen.add(id(cur))
+        cur = cur.__cause__ or cur.__context__
+
+
+def _has_closed_http_client_error(exc: BaseException) -> bool:
+    # httpx raises: "RuntimeError: Cannot send a request, as the client has been closed."
+    markers = (
+        "Cannot send a request, as the client has been closed",
+        "Cannot send request, as the client has been closed",
+        "client has been closed",
+    )
+
+    for e in _iter_exception_chain(exc):
+        msg = str(e)
+        if any(marker in msg for marker in markers):
+            return True
+
+    return False
+
+
+def _flush_litellm_client_cache(litellm: Any) -> None:
+    cache = getattr(litellm, "in_memory_llm_clients_cache", None)
+    if cache is None:
+        return
+    flush = getattr(cache, "flush_cache", None)
+    if callable(flush):
+        flush()
+
+
 async def acompletion(*args, **kwargs):
     mock = AGENTA_LITELLM_MOCK or RoutingContext.get().mock
 
@@ -84,4 +120,29 @@ async def acompletion(*args, **kwargs):
     if not litellm:
         raise ValueError("litellm not found")
 
-    return await litellm.acompletion(*args, **kwargs)
+    # Retry logic for litellm's httpx client caching.
+    #
+    # In production we sometimes see errors bubble up as "OpenAIException - Connection error",
+    # while the root cause (in the exception chain) is actually:
+    # "RuntimeError: Cannot send a request, as the client has been closed." (httpx)
+    #
+    # When this happens, flushing LiteLLM's cached clients and retrying once usually recovers.
+    # See: https://github.com/BerriAI/litellm/issues/13034
+    max_retries = 2
+    for attempt in range(max_retries):
+        try:
+            return await litellm.acompletion(*args, **kwargs)
+        except Exception as e:
+            should_retry = attempt < max_retries - 1 and _has_closed_http_client_error(
+                e
+            )
+            if not should_retry:
+                raise
+
+            log.warning(
+                "LiteLLM http client was closed; flushing cache and retrying (attempt %d/%d)",
+                attempt + 1,
+                max_retries,
+            )
+            _flush_litellm_client_cache(litellm)
+            continue

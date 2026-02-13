@@ -1,7 +1,7 @@
-from typing import Optional, List
+from typing import Any, Optional, Union, Dict, List
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from fastapi import HTTPException
 
 from oss.src.core.shared.dtos import (
@@ -75,25 +75,49 @@ class EvaluationClosedException(HTTPException):
         self.queue_id = queue_id
 
 
+JIT = Optional[Union[bool, Dict]]
+
+
+def _coerce_jit(v: Any) -> bool:
+    """Coerce jit value to bool. Dicts (e.g. legacy SDK payloads) become False."""
+    if isinstance(v, dict):
+        return False
+    if v is None:
+        return True
+    return bool(v)
+
+
 # EVALUATION RUNS --------------------------------------------------------------
 
 
 class EvaluationRunsCreateRequest(BaseModel):
     runs: List[EvaluationRunCreate]
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunEditRequest(BaseModel):
     run: EvaluationRunEdit
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunsEditRequest(BaseModel):
     runs: List[EvaluationRunEdit]
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunQueryRequest(BaseModel):
     run: Optional[EvaluationRunQuery] = None
     #
     windowing: Optional[Windowing] = None
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunIdsRequest(BaseModel):
@@ -301,16 +325,25 @@ class EvaluationQueueScenarioIdsResponse(BaseModel):
 
 class SimpleEvaluationCreateRequest(BaseModel):
     evaluation: SimpleEvaluationCreate
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class SimpleEvaluationEditRequest(BaseModel):
     evaluation: SimpleEvaluationEdit
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class SimpleEvaluationQueryRequest(BaseModel):
     evaluation: Optional[SimpleEvaluationQuery] = None
     #
     windowing: Optional[Windowing] = None
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class SimpleEvaluationResponse(BaseModel):

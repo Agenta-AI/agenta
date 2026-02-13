@@ -217,7 +217,7 @@ class TracingRouter:
         return link_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=OTelTracingResponse())
+    @suppress_exceptions(default=OTelTracingResponse(), exclude=[HTTPException])
     async def query_spans(  # QUERY
         self,
         request: Request,
@@ -339,7 +339,7 @@ class TracingRouter:
             return None
 
     @intercept_exceptions()
-    @suppress_exceptions(default=AnalyticsResponse())
+    @suppress_exceptions(default=AnalyticsResponse(), exclude=[HTTPException])
     async def fetch_analytics(
         self,
         request: Request,
@@ -419,7 +419,7 @@ class TracingRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=OldAnalyticsResponse())
+    @suppress_exceptions(default=OldAnalyticsResponse(), exclude=[HTTPException])
     async def fetch_legacy_analytics(
         self,
         request: Request,
@@ -645,7 +645,7 @@ class TracingRouter:
         return link_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=OTelTracingResponse())
+    @suppress_exceptions(default=OTelTracingResponse(), exclude=[HTTPException])
     async def fetch_trace(  # READ
         self,
         request: Request,
@@ -818,7 +818,7 @@ class TracingRouter:
     ## SESSIONS & USERS
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SessionIdsResponse())
+    @suppress_exceptions(default=SessionIdsResponse(), exclude=[HTTPException])
     async def list_sessions(
         self,
         request: Request,
@@ -856,7 +856,7 @@ class TracingRouter:
         return session_ids_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=UserIdsResponse())
+    @suppress_exceptions(default=UserIdsResponse(), exclude=[HTTPException])
     async def list_users(
         self,
         request: Request,

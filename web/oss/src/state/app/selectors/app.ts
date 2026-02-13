@@ -1,6 +1,7 @@
 import {eagerAtom} from "jotai-eager"
 
 import {ListAppsItem} from "@/oss/lib/Types"
+import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {appStatusAtom} from "@/oss/state/variant/atoms/appStatus"
 import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 
@@ -44,12 +45,22 @@ export const shouldRenderPlaygroundAtom = eagerAtom<boolean>((get) => {
     // If no app found, do not block rendering
     if (!app) return true
 
+    // For non-custom apps, render regardless of status checks
+    if (app.app_type !== "custom") return true
+
+    // Only subscribe to legacy app-status fetch on the old playground route.
+    // This avoids triggering fetchOpenApiSchemaJson when on /playground-test
+    // (which uses package-layer schema atoms instead).
+    const appState = get(appStateSnapshotAtom)
+    const isOldPlayground =
+        appState.pathname?.includes("/playground") &&
+        !appState.pathname?.includes("/playground-test")
+
+    if (!isOldPlayground) return true
+
     // Leverage app service status to decide rendering for custom apps
     const isLoading = get(appStatusLoadingAtom)
     const isUp = get(appStatusAtom)
-
-    // For non-custom apps, render regardless of status checks
-    if (app.app_type !== "custom") return true
 
     // For custom apps: render while loading or if up; block only when definitively down
     if (isLoading) return true
