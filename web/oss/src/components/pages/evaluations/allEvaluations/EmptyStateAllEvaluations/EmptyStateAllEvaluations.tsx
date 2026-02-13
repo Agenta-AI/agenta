@@ -1,19 +1,22 @@
-import {Play} from "@phosphor-icons/react"
-
 import EmptyState from "@/oss/components/EmptyState"
 import {EMPTY_STATE_VIDEOS} from "@/oss/components/EmptyState/videos"
+import EvaluationRunsCreateButton from "@/oss/components/EvaluationRunsTablePOC/components/EvaluationRunsCreateButton"
 
-const EmptyStateAllEvaluations = ({onCreateEvaluation}: {onCreateEvaluation: () => void}) => {
+const EmptyStateAllEvaluations = () => {
     return (
         <EmptyState
             videoId={EMPTY_STATE_VIDEOS.evaluation}
-            previewAlt="Evaluation workflow demonstration"
-            title="Get Started with Evaluations"
-            description="Compare prompt versions, catch regressions, and measure quality automatically. Create evaluation templates and let Agenta score your outputs."
+            previewAlt="All evaluation types overview"
+            title="Get Started with All Evaluations"
+            description="Track auto, human, live, and SDK evaluations in one place. Start an evaluation by choosing the type that matches your workflow."
             primaryCta={{
-                label: "Run Evaluation",
-                onClick: onCreateEvaluation,
-                icon: <Play size={16} />,
+                node: (
+                    <EvaluationRunsCreateButton
+                        label="Start evaluation"
+                        size="large"
+                        className="!px-8"
+                    />
+                ),
             }}
             secondaryCta={{
                 label: "Learn More",

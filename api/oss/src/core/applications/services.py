@@ -104,11 +104,15 @@ class ApplicationsService:
         project_id: UUID,
         #
         application_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Application]:
         workflow = await self.workflows_service.fetch_workflow(
             project_id=project_id,
             #
             workflow_ref=application_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow:
@@ -293,12 +297,16 @@ class ApplicationsService:
         #
         application_ref: Optional[Reference] = None,
         application_variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[ApplicationVariant]:
         workflow_variant = await self.workflows_service.fetch_workflow_variant(
             project_id=project_id,
             #
             workflow_ref=application_ref,
             workflow_variant_ref=application_variant_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow_variant:
@@ -521,6 +529,8 @@ class ApplicationsService:
         application_ref: Optional[Reference] = None,
         application_variant_ref: Optional[Reference] = None,
         application_revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[ApplicationRevision]:
         workflow_revision = await self.workflows_service.fetch_workflow_revision(
             project_id=project_id,
@@ -528,6 +538,8 @@ class ApplicationsService:
             workflow_ref=application_ref,
             workflow_variant_ref=application_variant_ref,
             workflow_revision_ref=application_revision_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow_revision:
@@ -716,6 +728,8 @@ class ApplicationsService:
         project_id: UUID,
         #
         application_revisions_log: ApplicationRevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[ApplicationRevision]:
         workflow_revisions_log = WorkflowRevisionsLog(
             **application_revisions_log.model_dump(
@@ -727,6 +741,8 @@ class ApplicationsService:
             project_id=project_id,
             #
             workflow_revisions_log=workflow_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow_revisions:

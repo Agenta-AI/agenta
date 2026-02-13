@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo} from "react"
 
 import {PlusIcon} from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip, type MenuProps} from "antd"
+import {Button, Dropdown, Tooltip, type ButtonProps, type MenuProps} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {
@@ -51,7 +51,17 @@ const isSupportedCreateType = (value: unknown): value is SupportedCreateType => 
 
 const FALLBACK_CREATE_TYPE: SupportedCreateType = "auto"
 
-const EvaluationRunsCreateButton = () => {
+interface EvaluationRunsCreateButtonProps {
+    label?: string
+    size?: ButtonProps["size"]
+    className?: string
+}
+
+const EvaluationRunsCreateButton = ({
+    label,
+    size = "middle",
+    className,
+}: EvaluationRunsCreateButtonProps) => {
     const {createEnabled, createTooltip, evaluationKind, defaultCreateType, scope} = useAtomValue(
         evaluationRunsTableHeaderStateAtom,
     )
@@ -155,8 +165,10 @@ const EvaluationRunsCreateButton = () => {
                             type="primary"
                             icon={<PlusIcon size={16} />}
                             disabled={!createEnabled}
+                            size={size}
+                            className={className}
                         >
-                            New Evaluation
+                            {label ?? "New Evaluation"}
                         </Button>
                     </Dropdown>
                 ) : (
@@ -165,8 +177,10 @@ const EvaluationRunsCreateButton = () => {
                         icon={<PlusIcon size={16} />}
                         disabled={!createEnabled}
                         onClick={openCreateModal}
+                        size={size}
+                        className={className}
                     >
-                        New evaluation
+                        {label ?? "New evaluation"}
                     </Button>
                 )}
             </div>
