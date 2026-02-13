@@ -461,19 +461,26 @@ const DebugSection = () => {
             const evaluatorUri =
                 evaluatorConfig?.data?.uri ||
                 (evaluatorKey ? buildEvaluatorUri(evaluatorKey) : undefined)
+            const evaluatorUrl = evaluatorConfig?.data?.url
 
-            if (!evaluatorUri) {
-                setOutputResult("Evaluator URI is missing. Save the evaluator and try again.")
+            if (!evaluatorUri && !evaluatorUrl) {
+                setOutputResult(
+                    "Evaluator interface is missing (uri/url). Save the evaluator and try again.",
+                )
                 setEvalOutputStatus({success: false, error: true})
                 return
             }
 
             const evaluatorParameters = transformTraceKeysInSettings(normalizedSettings)
+            const parsedVariantOutput = safeParse(variantResult, variantResult)
             const workflowOutputs =
-                baseResponseData?.data ?? safeParse(variantResult, variantResult)
+                variantResult !== ""
+                    ? parsedVariantOutput
+                    : (baseResponseData?.data ?? parsedVariantOutput)
 
             const workflowResponse = await invokeEvaluator({
                 uri: evaluatorUri,
+                url: evaluatorUrl,
                 evaluator: evaluatorConfig,
                 inputs: outputs,
                 outputs: workflowOutputs,

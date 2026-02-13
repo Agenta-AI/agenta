@@ -28,6 +28,7 @@ export interface InvokeEvaluatorOptions {
 
 export interface InvokeEvaluatorParams {
     uri?: string
+    url?: string
     evaluator?: Partial<SimpleEvaluator> | null
     inputs?: Record<string, any>
     outputs?: any
@@ -39,6 +40,7 @@ const DEFAULT_EVALUATOR_TIMEOUT = 120_000
 
 export const invokeEvaluator = async ({
     uri,
+    url,
     evaluator,
     inputs,
     outputs,
@@ -48,17 +50,19 @@ export const invokeEvaluator = async ({
     const {projectId} = getProjectValues()
     const evaluatorKey = resolveEvaluatorKey(evaluator)
     const explicitUri = typeof uri === "string" ? uri.trim() : ""
+    const explicitUrl = typeof url === "string" ? url.trim() : ""
     const evaluatorUri =
         explicitUri ||
         evaluator?.data?.uri ||
         (evaluatorKey ? buildEvaluatorUri(evaluatorKey) : undefined)
+    const evaluatorUrl = explicitUrl || evaluator?.data?.url
 
-    if (!evaluatorUri) {
-        throw new Error("Evaluator URI is missing")
+    if (!evaluatorUri && !evaluatorUrl) {
+        throw new Error("Evaluator interface is missing (uri/url)")
     }
 
     const request: Record<string, any> = {
-        interface: {uri: evaluatorUri},
+        interface: evaluatorUri ? {uri: evaluatorUri} : {url: evaluatorUrl},
         configuration: parameters ? {parameters} : undefined,
         data: {
             inputs,
@@ -84,7 +88,10 @@ export const invokeEvaluator = async ({
 export const mapWorkflowResponseToEvaluatorOutput = (
     response: WorkflowServiceBatchResponse,
 ): {outputs: Record<string, any>} => {
-    if (response.status?.code && response.status.code >= 400) {
+    const statusType = response.status?.type?.toLowerCase()
+    const hasErrorType =
+        statusType === "error" || statusType === "failure" || statusType === "failed"
+    if ((response.status?.code && response.status.code >= 400) || hasErrorType) {
         throw new Error(response.status.message || "Evaluator execution failed")
     }
 
