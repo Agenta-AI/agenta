@@ -594,19 +594,6 @@ class AIServicesConfig(BaseModel):
         ]
         return all(isinstance(v, str) and v.strip() for v in required)
 
-    @property
-    def normalized_api_url(self) -> str | None:
-        if not self.api_url or not self.api_url.strip():
-            return None
-        url = self.api_url.rstrip("/")
-        # Some environments use a base API url like https://host/api, while
-        # AI services endpoints live at https://host/services/...
-        if url.endswith("/api"):
-            url = url[: -len("/api")]
-        if url.endswith("/services"):
-            url = url[: -len("/services")]
-        return url
-
 
 class EnvironSettings(BaseModel):
     """

@@ -125,7 +125,7 @@ class AIServicesService:
         if not config.enabled:
             return cls(config=config, client=None)
 
-        api_url = config.normalized_api_url
+        api_url = config.api_url
         api_key = config.api_key
 
         # enabled implies these exist, but keep this defensive.
