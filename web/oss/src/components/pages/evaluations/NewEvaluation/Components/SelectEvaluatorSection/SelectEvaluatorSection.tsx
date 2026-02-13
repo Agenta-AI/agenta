@@ -11,9 +11,10 @@ import router from "next/router"
 
 import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 import useURL from "@/oss/hooks/useURL"
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
-import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
+import {Evaluator, SimpleEvaluator} from "@/oss/lib/Types"
 
 import {openEvaluatorDrawerAtom} from "../../../autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
 import type {SelectEvaluatorSectionProps} from "../../types"
@@ -88,12 +89,12 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
 
     const evaluatorConfigs = useMemo(() => {
         if (preview) {
-            return evaluators as EvaluatorConfig[]
+            return [] as SimpleEvaluator[]
         }
         return (
             propsEvaluatorConfigs?.length ? propsEvaluatorConfigs : evaluatorConfigsSwr.data || []
-        ) as EvaluatorConfig[]
-    }, [preview, propsEvaluatorConfigs, evaluatorConfigsSwr.data, evaluators])
+        ) as SimpleEvaluator[]
+    }, [preview, propsEvaluatorConfigs, evaluatorConfigsSwr.data])
 
     const isLoadingEvaluators = fetchLoadingEvaluators
     const isLoadingEvaluatorConfigs = fetchLoadingConfigs
@@ -122,7 +123,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         const availableIds = new Set(
             (preview
                 ? (evaluators as EvaluatorDto<"response">[])
-                : (evaluatorConfigs as EvaluatorConfig[])
+                : (evaluatorConfigs as SimpleEvaluator[])
             ).map((config) => config.id),
         )
 
@@ -141,10 +142,9 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
 
     // Handler to open the drawer in edit mode
     const handleEditConfig = useCallback(
-        (record: EvaluatorConfig) => {
-            const evaluator = (evaluators as Evaluator[]).find(
-                (e) => e.key === record.evaluator_key,
-            )
+        (record: SimpleEvaluator) => {
+            const evaluatorKey = resolveEvaluatorKey(record)
+            const evaluator = (evaluators as Evaluator[]).find((e) => e.key === evaluatorKey)
             if (evaluator) {
                 openEvaluatorDrawer({
                     evaluator,
@@ -158,10 +158,9 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
 
     // Handler to open the drawer in clone mode
     const handleCloneConfig = useCallback(
-        (record: EvaluatorConfig) => {
-            const evaluator = (evaluators as Evaluator[]).find(
-                (e) => e.key === record.evaluator_key,
-            )
+        (record: SimpleEvaluator) => {
+            const evaluatorKey = resolveEvaluatorKey(record)
+            const evaluator = (evaluators as Evaluator[]).find((e) => e.key === evaluatorKey)
             if (evaluator) {
                 openEvaluatorDrawer({
                     evaluator,
@@ -203,13 +202,13 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         [],
     )
 
-    const columnsConfig: ColumnsType<EvaluatorConfig> = useMemo(
+    const columnsConfig: ColumnsType<SimpleEvaluator> = useMemo(
         () => [
             {
                 title: "Name",
                 dataIndex: "name",
                 key: "name",
-                render: (_, record: EvaluatorConfig) => {
+                render: (_, record: SimpleEvaluator) => {
                     return <div>{record.name}</div>
                 },
             },
@@ -217,10 +216,11 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                 title: "Type",
                 dataIndex: "type",
                 key: "type",
-                render: (x, record: EvaluatorConfig) => {
+                render: (x, record: SimpleEvaluator) => {
                     // Find the evaluator by key to display its name
+                    const evaluatorKey = resolveEvaluatorKey(record)
                     const evaluator = (evaluators as Evaluator[]).find(
-                        (item) => item.key === record.evaluator_key,
+                        (item) => item.key === evaluatorKey,
                     )
                     return <Tag color={record.color}>{evaluator?.name}</Tag>
                 },
@@ -231,7 +231,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                 width: 56,
                 fixed: "right",
                 align: "center",
-                render: (_, record: EvaluatorConfig) => {
+                render: (_, record: SimpleEvaluator) => {
                     return (
                         <Dropdown
                             trigger={["click"]}
@@ -276,7 +276,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     // Conditionally type filteredEvalConfigs based on Preview
     const filteredEvalConfigs: Preview extends true
         ? EvaluatorDto<"response">[]
-        : EvaluatorConfig[] = useMemo(() => {
+        : SimpleEvaluator[] = useMemo(() => {
         if (preview) {
             // Explicitly narrow types for Preview = true (human evaluations)
             let data = evaluators as EvaluatorDto<"response">[]
@@ -295,21 +295,21 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
 
             if (!searchTerm) return data as any
             return data.filter((item) =>
-                item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+                (item.name || "").toLowerCase().includes(searchTerm.toLowerCase()),
             ) as any
         } else {
             // Explicitly narrow types for Preview = false
-            const data = evaluatorConfigs as EvaluatorConfig[]
+            const data = evaluatorConfigs as SimpleEvaluator[]
             if (!searchTerm) return data
             return data.filter((item) =>
-                item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+                (item.name || "").toLowerCase().includes(searchTerm.toLowerCase()),
             ) as any
         }
     }, [searchTerm, evaluatorConfigs, preview, evaluators])
 
     const onSelectEvalConfig = (selectedRowKeys: React.Key[]) => {
         const currentSelected = new Set(selectedEvalConfigs)
-        const configs = filteredEvalConfigs as EvaluatorDto<"response">[]
+        const configs = filteredEvalConfigs as {id: string}[]
         configs.forEach((item) => {
             if (selectedRowKeys.includes(item.id)) {
                 currentSelected.add(item.id)
@@ -331,7 +331,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                 ).length > 0
             )
         }
-        return (evaluatorConfigs as EvaluatorConfig[]).length > 0
+        return (evaluatorConfigs as SimpleEvaluator[]).length > 0
     }, [preview, evaluators, evaluatorConfigs])
 
     return (
@@ -419,7 +419,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                         pagination={false}
                     />
                 ) : (
-                    <Table<EvaluatorConfig>
+                    <Table<SimpleEvaluator>
                         rowSelection={{
                             type: "checkbox",
                             columnWidth: 48,
@@ -444,7 +444,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                         className="ph-no-capture"
                         columns={columnsConfig}
                         rowKey={"id"}
-                        dataSource={filteredEvalConfigs as EvaluatorConfig[]}
+                        dataSource={filteredEvalConfigs as SimpleEvaluator[]}
                         scroll={{x: true, y: 455}}
                         bordered
                         pagination={false}

@@ -47,18 +47,41 @@ const mergeEvaluatorWithConfig = (
         ...configAny,
     }
 
-    const previewSettings = isPlainObject(evaluatorAny.settings_values)
-        ? (evaluatorAny.settings_values as Record<string, unknown>)
+    const previewData = isPlainObject(evaluatorAny.data)
+        ? (evaluatorAny.data as Record<string, unknown>)
         : undefined
-    const configSettings = isPlainObject(configAny.settings_values)
-        ? (configAny.settings_values as Record<string, unknown>)
+    const configData = isPlainObject(configAny.data)
+        ? (configAny.data as Record<string, unknown>)
         : undefined
+    if (previewData || configData) {
+        const mergedData: Record<string, unknown> = {
+            ...(previewData ?? {}),
+            ...(configData ?? {}),
+        }
 
-    if (previewSettings || configSettings) {
-        merged.settings_values = {
+        const previewParameters = isPlainObject(previewData?.parameters)
+            ? (previewData?.parameters as Record<string, unknown>)
+            : undefined
+        const configParameters = isPlainObject(configData?.parameters)
+            ? (configData?.parameters as Record<string, unknown>)
+            : undefined
+        const previewSettings = isPlainObject(evaluatorAny.settings_values)
+            ? (evaluatorAny.settings_values as Record<string, unknown>)
+            : undefined
+        const configSettings = isPlainObject(configAny.settings_values)
+            ? (configAny.settings_values as Record<string, unknown>)
+            : undefined
+        const mergedParameters = {
+            ...(previewParameters ?? {}),
             ...(previewSettings ?? {}),
+            ...(configParameters ?? {}),
             ...(configSettings ?? {}),
         }
+        if (Object.keys(mergedParameters).length) {
+            mergedData.parameters = mergedParameters
+        }
+
+        merged.data = mergedData
     }
 
     return merged as EvaluatorPreviewDto

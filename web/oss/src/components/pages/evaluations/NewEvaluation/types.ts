@@ -4,7 +4,7 @@ import {ModalProps} from "antd"
 
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {LLMRunRateLimit, Evaluator, EvaluatorConfig, testset} from "@/oss/lib/Types"
+import {LLMRunRateLimit, Evaluator, SimpleEvaluator, testset} from "@/oss/lib/Types"
 
 export interface NewEvaluationAppOption {
     label: string
@@ -54,7 +54,7 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     variants?: EnhancedVariant[]
     variantsLoading?: boolean
     evaluators: Evaluator[] | EvaluatorDto<"response">[]
-    evaluatorConfigs: EvaluatorConfig[]
+    evaluatorConfigs: SimpleEvaluator[]
     advanceSettings: LLMRunRateLimitWithCorrectAnswer
     setAdvanceSettings: Dispatch<SetStateAction<LLMRunRateLimitWithCorrectAnswer>>
     appOptions: NewEvaluationAppOption[]
@@ -97,7 +97,7 @@ export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
 }
 
 export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
-    evaluatorConfigs: EvaluatorConfig[]
+    evaluatorConfigs: SimpleEvaluator[]
     evaluators: Evaluator[]
     selectedEvalConfigs: string[]
     setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>

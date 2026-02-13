@@ -6,11 +6,11 @@ import {SWRConfiguration} from "swr"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {evaluatorConfigsQueryAtomFamily} from "@/oss/state/evaluators"
 
-import {EvaluatorConfig} from "../../Types"
+import {SimpleEvaluator} from "../../Types"
 
 type EvaluatorConfigResult<Preview extends boolean> = Preview extends true
     ? undefined
-    : EvaluatorConfig[]
+    : SimpleEvaluator[]
 
 type EvaluatorConfigsOptions<Preview extends boolean> = {
     preview?: Preview

@@ -3,6 +3,7 @@ import {useMemo} from "react"
 import {useAtomValue} from "jotai"
 
 import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import useEvaluatorConfigs from "@/oss/lib/hooks/useEvaluatorConfigs"
 
 import {EVALUATOR_CATEGORY_LABEL_MAP} from "../constants"
@@ -25,6 +26,7 @@ export const useEvaluatorTypeFromConfigs = ({
         }
 
         const candidates = collectEvaluatorCandidates(
+            resolveEvaluatorKey(evaluator as any),
             (evaluator as any)?.slug,
             (evaluator as any)?.key,
             (evaluator as any)?.meta?.evaluator_key,
@@ -32,7 +34,7 @@ export const useEvaluatorTypeFromConfigs = ({
         )
 
         const match = configs.find((cfg) => {
-            const key = (cfg?.evaluator_key || cfg?.name || cfg?.id || "").toString().trim()
+            const key = (resolveEvaluatorKey(cfg) || cfg?.name || cfg?.id || "").toString().trim()
             if (!key) return false
             const lower = key.toLowerCase()
             if (candidates.includes(lower)) return true
@@ -63,7 +65,7 @@ export const useEvaluatorTypeFromConfigs = ({
         // 2) Infer label by scanning evaluator_key/name tokens for known category slugs
         const categorySlugs = Object.keys(EVALUATOR_CATEGORY_LABEL_MAP || {})
         const keyTokens = [
-            (match as any)?.evaluator_key,
+            resolveEvaluatorKey(match),
             (match as any)?.name,
             (evaluator as any)?.key,
             (evaluator as any)?.name,
