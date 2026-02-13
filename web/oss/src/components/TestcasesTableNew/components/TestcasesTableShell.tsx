@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {CaretDown, CaretRight, Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Input, Skeleton, Tooltip} from "antd"
@@ -16,7 +17,6 @@ import {
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 
-import {message} from "../../AppMessageContext"
 import {testcasesDatasetStore, type TestcaseTableRow} from "../atoms/tableStore"
 import type {UseTestcasesTableResult} from "../hooks/types"
 import {groupColumns} from "../utils/groupColumns"

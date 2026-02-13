@@ -1,20 +1,27 @@
+import {getMetadataLazy, type ArrayMetadata} from "@agenta/entities/legacyAppRevision"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {v4 as uuidv4} from "uuid"
 
 import {hashMetadata} from "@/oss/components/Playground/assets/hash"
 import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {ArrayMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
+
+/** Split compoundKey into [revisionId, promptId] safely.
+ *  promptId may contain colons (e.g. "prompt:prompt1"), so we only split on the first ":". */
+function splitCompoundKey(compoundKey: string): [string, string] {
+    const idx = compoundKey.indexOf(":")
+    return [compoundKey.substring(0, idx), compoundKey.substring(idx + 1)]
+}
 
 // Add a new message for a prompt identified by `${revisionId}:${promptId}`
 export const addPromptMessageMutationAtomFamily = atomFamily((compoundKey: string) =>
     atom(null, (get, set) => {
-        const [revisionId, promptId] = compoundKey.split(":", 2)
-        // const revisions = get(revisionListAtom) || []
-        // const variant = revisions.find((r: any) => r.id === revisionId)
-        const prompts = get(promptsAtomFamily(revisionId)) as any[]
+        const [revisionId, promptId] = splitCompoundKey(compoundKey)
+
+        // Get prompts from molecule (single source of truth)
+        const prompts = (get(moleculeBackedPromptsAtomFamily(revisionId)) as any[]) || []
+
         const prompt = (prompts || []).find(
             (p: any) => p?.__id === promptId || p?.__name === promptId,
         )
@@ -25,10 +32,11 @@ export const addPromptMessageMutationAtomFamily = atomFamily((compoundKey: strin
         const metadata = parentMetadata?.itemMetadata
         if (!metadata) return
 
-        const newMessage = createMessageFromSchema(metadata, {role: "", content: ""})
+        const newMessage = createMessageFromSchema(metadata, {role: "user", content: ""})
         if (!newMessage) return
 
-        set(promptsAtomFamily(revisionId), (prev: any[]) => {
+        // Mutation recipe for molecule-backed prompts
+        const mutatePrompts = (prev: any[]) => {
             const next = (prev || []).map((p: any) => {
                 if (!(p?.__id === promptId || p?.__name === promptId)) return p
                 const currentMessages = p?.messages?.value || []
@@ -41,25 +49,30 @@ export const addPromptMessageMutationAtomFamily = atomFamily((compoundKey: strin
                 }
             })
             return next
-        })
+        }
+
+        // Update via molecule-backed prompts atom (single source of truth)
+        set(moleculeBackedPromptsAtomFamily(revisionId), mutatePrompts)
     }),
 )
 
 // Delete a message by id for a prompt identified by `${revisionId}:${promptId}`
 export const deletePromptMessageMutationAtomFamily = atomFamily((compoundKey: string) =>
     atom(null, (get, set, params: {messageId: string}) => {
-        const [revisionId, promptId] = compoundKey.split(":", 2)
+        const [revisionId, promptId] = splitCompoundKey(compoundKey)
         const {messageId} = params || ({} as any)
         if (!messageId) return
 
-        // const revisions = get(revisionListAtom) || []
-        // const variant = revisions.find((r: any) => r.id === revisionId)
-        const prompts = get(promptsAtomFamily(revisionId)) as any[]
+        // Get prompts from molecule (single source of truth)
+        const prompts = (get(moleculeBackedPromptsAtomFamily(revisionId)) as any[]) || []
+
         const prompt = (prompts || []).find(
             (p: any) => p?.__id === promptId || p?.__name === promptId,
         )
         if (!prompt?.messages) return
-        set(promptsAtomFamily(revisionId), (prev: any[]) => {
+
+        // Mutation recipe for molecule-backed prompts
+        const mutatePrompts = (prev: any[]) => {
             const next = (prev || []).map((p: any) => {
                 if (!(p?.__id === promptId || p?.__name === promptId)) return p
                 const currentMessages = p?.messages?.value || []
@@ -73,7 +86,10 @@ export const deletePromptMessageMutationAtomFamily = atomFamily((compoundKey: st
                 }
             })
             return next
-        })
+        }
+
+        // Update via molecule-backed prompts atom (single source of truth)
+        set(moleculeBackedPromptsAtomFamily(revisionId), mutatePrompts)
     }),
 )
 
@@ -82,7 +98,7 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
     atom(
         null,
         (
-            get,
+            _get,
             set,
             params?: {
                 payload?: Record<string, any>
@@ -93,7 +109,8 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
                 toolLabel?: string
             },
         ) => {
-            const [revisionId, promptId] = compoundKey.split(":", 2)
+            const [revisionId, promptId] = splitCompoundKey(compoundKey)
+
             const payload = params?.payload
             const source = params?.source ?? (payload ? "builtin" : "inline")
             const providerKey = params?.providerKey
@@ -156,26 +173,33 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
                 },
             }
 
-            // const revisions = get(revisionListAtom) || []
-            // const variant = revisions.find((r: any) => r.id === revisionId)
-            set(promptsAtomFamily(revisionId), (prev: any[]) => {
+            // Mutation recipe for molecule-backed prompts
+            const mutatePrompts = (prev: any[]) => {
                 const list = Array.isArray(prev) ? prev : []
                 const next = list.map((p: any) => {
                     if (!(p?.__id === promptId || p?.__name === promptId)) return p
-                    const currentTools = p?.llmConfig?.tools?.value || []
+                    // Use whichever key the prompt already has (entity uses llm_config,
+                    // OSS transformer uses llmConfig). Writing to the wrong key
+                    // creates a split that drops responseFormat.
+                    const configKey = p?.llm_config ? "llm_config" : "llmConfig"
+                    const llm = p?.[configKey] || {}
+                    const currentTools = llm?.tools?.value || []
                     return {
                         ...p,
-                        llmConfig: {
-                            ...p.llmConfig,
+                        [configKey]: {
+                            ...llm,
                             tools: {
-                                ...p.llmConfig?.tools,
+                                ...llm?.tools,
                                 value: [...currentTools, newTool],
                             },
                         },
                     }
                 })
                 return next
-            })
+            }
+
+            // Update via molecule-backed prompts atom (single source of truth)
+            set(moleculeBackedPromptsAtomFamily(revisionId), mutatePrompts)
         },
     ),
 )

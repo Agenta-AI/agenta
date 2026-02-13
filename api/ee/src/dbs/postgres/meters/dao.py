@@ -1,11 +1,8 @@
 from typing import Callable, Tuple, Optional
-from collections import defaultdict
-from datetime import datetime, timezone
 
 from sqlalchemy import update
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
-from sqlalchemy import case, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import func, literal
 
@@ -18,6 +15,7 @@ from ee.src.core.meters.types import MeterDTO
 from ee.src.core.subscriptions.types import SubscriptionDTO
 from ee.src.core.meters.interfaces import MetersDAOInterface
 from ee.src.dbs.postgres.meters.dbes import MeterDBE
+from ee.src.utils.billing import compute_billing_period
 
 
 log = get_module_logger(__name__)
@@ -82,7 +80,7 @@ class MetersDAO(MetersDAOInterface):
 
                     except Exception:
                         log.error(
-                            f"[report] [dump] Error converting meter to DTO",
+                            "[report] [dump] Error converting meter to DTO",
                             exc_info=True,
                         )
                         continue
@@ -144,7 +142,7 @@ class MetersDAO(MetersDAOInterface):
 
             try:
                 await session.commit()
-                log.info(f"[report] [bump] ✅ Committed successfully")
+                log.info("[report] [bump] ✅ Committed successfully")
             except Exception:
                 log.error("[report] [bump] ❌ Commit failed", exc_info=True)
                 await session.rollback()
@@ -194,14 +192,7 @@ class MetersDAO(MetersDAOInterface):
         anchor: Optional[int] = None,
     ) -> Tuple[bool, MeterDTO]:
         if quota.monthly:
-            now = datetime.now(timezone.utc)
-
-            if not anchor or now.day < anchor:
-                year, month = now.year, now.month
-            else:
-                year = now.year + now.month // 12
-                month = ((now.month + 1) % 12) or 12
-
+            year, month = compute_billing_period(anchor=anchor)
             meter.year, meter.month = year, month
 
         async with engine.core_session() as session:
@@ -243,14 +234,7 @@ class MetersDAO(MetersDAOInterface):
     ) -> Tuple[bool, MeterDTO, Callable]:
         # 1. Normalize meter.year/month if monthly quota
         if quota.monthly:
-            now = datetime.now(timezone.utc)
-
-            if not anchor or now.day < anchor:
-                year, month = now.year, now.month
-            else:
-                year = now.year + now.month // 12
-                month = ((now.month + 1) % 12) or 12
-
+            year, month = compute_billing_period(anchor=anchor)
             meter.year, meter.month = year, month
 
         # 2. Calculate proposed value (starting from 0)
@@ -298,7 +282,7 @@ class MetersDAO(MetersDAOInterface):
             else:
                 where = where | where_clause
 
-        # 4. Build SQL statement (atomic upsert)
+        # 4. Build SQL statement (atomic upsert with RETURNING)
         async with engine.core_session() as session:
             stmt = (
                 insert(MeterDBE)
@@ -329,19 +313,22 @@ class MetersDAO(MetersDAOInterface):
                     },
                     where=where,
                 )
+                .returning(MeterDBE.value)
             )
 
             result = await session.execute(stmt)
+            row = result.fetchone()
             await session.commit()
 
         # 5. Check if update was applied (strict mode)
-        allowed = result.rowcount > 0
+        allowed = row is not None
+        actual_value = row[0] if row else desired_value
 
         return (
             allowed,
             MeterDTO(
                 **meter.model_dump(exclude={"value", "synced"}),
-                value=desired_value,  # not technically accurate in soft mode, but good enough
+                value=actual_value,
                 synced=0,
             ),
             lambda: None,  # rollback not needed; no state was touched otherwise

@@ -35,11 +35,11 @@ from oss.src.core.tracing.service import TracingService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
+from oss.src.core.applications.services import ApplicationsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 
 import agenta as ag
 
@@ -69,7 +69,7 @@ broker = RedisStreamBroker(
 )
 
 
-# EVALSS ------------------------------------------------------------------
+# EVALS -------------------------------------------------------------------
 # Instantiate workers (analogous to router instantiation in routers.py)
 
 tracing_dao = TracingDAO()
@@ -135,6 +135,10 @@ workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
 )
 
+applications_service = ApplicationsService(
+    workflows_service=workflows_service,
+)
+
 evaluators_service = EvaluatorsService(
     workflows_service=workflows_service,
 )
@@ -157,21 +161,21 @@ tracing_router = TracingRouter(
     tracing_worker=tracing_worker,
 )
 
-simple_evaluators_router = SimpleEvaluatorsRouter(
-    simple_evaluators_service=simple_evaluators_service,
-)
-
 evaluations_worker = EvaluationsWorker(
     broker=broker,
     #
     tracing_router=tracing_router,
-    simple_evaluators_router=simple_evaluators_router,
+    simple_evaluators_service=simple_evaluators_service,
     #
     testsets_service=testsets_service,
     queries_service=queries_service,
     workflows_service=workflows_service,
+    applications_service=applications_service,
     evaluations_service=evaluations_service,
 )
+
+# Wire evaluations_worker into evaluations_service (circular dependency)
+evaluations_service.evaluations_worker = evaluations_worker
 
 
 def main() -> int:

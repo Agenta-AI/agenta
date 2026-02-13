@@ -1,5 +1,10 @@
 import {memo, useEffect, useMemo} from "react"
 
+import {
+    legacyAppRevisionSchemaQueryAtomFamily,
+    revisionEnhancedCustomPropertiesAtomFamily,
+    revisionEnhancedPromptsAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Spin, Switch, Tabs, TabsProps, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -12,26 +17,16 @@ import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
 import {PromptsSourceProvider} from "@/oss/components/Playground/context/PromptsSource"
-import {
-    parametersOverrideAtomFamily,
-    variantByRevisionIdAtomFamily,
-} from "@/oss/components/Playground/state/atoms"
-import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms/dirtyState"
+import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {playgroundRevisionDeploymentAtomFamily} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {
-    deriveCustomPropertiesFromSpec,
-    derivePromptsFromSpec,
-} from "@/oss/lib/shared/variant/transformer/transformer"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {
-    appSchemaAtom,
-    appStatusLoadingAtom,
-    appUriInfoAtom,
-    revisionDeploymentAtomFamily,
-    variantRevisionsQueryFamily,
-} from "@/oss/state/variant/atoms/fetcher"
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
+    revisionIsDirtyAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {variantDrawerAtom} from "../../store/variantDrawerStore"
 import {NewVariantParametersView} from "../Parameters"
@@ -41,39 +36,26 @@ const {Text} = Typography
 
 const EMPTY_REVISION_ID = "__variant-drawer-empty__"
 
-const resolveParentVariantId = (variant: any): string | null => {
-    if (!variant) return null
-    const parent = variant?._parentVariant
-    if (typeof parent === "string" && parent.trim()) return parent
-    if (parent && typeof parent === "object") return parent.id || parent.variantId || null
-    return variant?.variantId ?? null
-}
-
+/**
+ * Loading state atom for drawer variant.
+ *
+ * Waits for both variant data AND schema before rendering, so prompts and
+ * custom properties are derived with full metadata on first paint.
+ * For completion/chat apps the schema is prefetched, so this adds no latency.
+ */
 export const drawerVariantIsLoadingAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
-        const schemaLoading = !!get(appStatusLoadingAtom)
         if (!revisionId || revisionId === EMPTY_REVISION_ID) {
-            return schemaLoading
+            return true
         }
 
-        const selectedVariant = get(variantByRevisionIdAtomFamily(revisionId)) as any
+        const selectedVariant = get(moleculeBackedVariantAtomFamily(revisionId)) as any
         if (!selectedVariant) {
             return true
         }
 
-        const parentVariantId = resolveParentVariantId(selectedVariant)
-        if (!parentVariantId) {
-            return schemaLoading
-        }
-
-        const revisionsQuery = get(variantRevisionsQueryFamily(parentVariantId)) as any
-        const data = revisionsQuery?.data
-        const hasRevisionData = Array.isArray(data) && data.length > 0
-
-        const revisionLoading =
-            !!revisionsQuery?.isLoading || (!hasRevisionData && !!revisionsQuery?.isFetching)
-
-        return schemaLoading || revisionLoading
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        return schemaQuery.isPending
     }),
 )
 
@@ -90,22 +72,30 @@ const VariantDrawerContent = ({
 
     const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
 
-    // Focused selected variant by revision ID
-    const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
+    const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
 
-    // App-level: app status is true when OpenAPI schema is available
-    const appSchema = useAtomValue(appSchemaAtom)
-    const appStatus = !!appSchema
-    const uriInfo = useAtomValue(appUriInfoAtom)
-
-    const prompts = useAtomValue(promptsAtomFamily(variantId))
+    const prompts = useAtomValue(moleculeBackedPromptsAtomFamily(variantId))
     const promptIds = prompts?.map((p: any) => p?.__id as string)
 
+    // Original (server-committed) prompts and custom properties from entity layer
+    const originalPrompts = useAtomValue(revisionEnhancedPromptsAtomFamily(variantId)) as any[]
+    const originalCustomPropsRecord = useAtomValue(
+        revisionEnhancedCustomPropertiesAtomFamily(variantId),
+    ) as Record<string, any>
+
+    const originalPromptIds = useMemo(
+        () => (originalPrompts || []).map((p: any) => p.__id || p.__name).filter(Boolean),
+        [originalPrompts],
+    )
+
+    // Show Overview tab if we have prompts or variant data
+    const appStatus = (promptIds && promptIds.length > 0) || !!selectedVariant
+
     // Focused deployed environments by revision ID
-    const deployedIn = useAtomValue(revisionDeploymentAtomFamily(variantId)) || []
+    const deployedIn = useAtomValue(playgroundRevisionDeploymentAtomFamily(variantId)) || []
     const commitMsg = selectedVariant?.commitMessage
     const isDirty = useAtomValue(
-        variantIsDirtyAtomFamily((selectedVariant as any)?.id || variantId),
+        revisionIsDirtyAtomFamily((selectedVariant as any)?.id || variantId),
     )
 
     // Ensure clean revisions don't get stuck in Original mode
@@ -114,45 +104,6 @@ const VariantDrawerContent = ({
             onToggleOriginal?.(false)
         }
     }, [isDirty, showOriginal, onToggleOriginal])
-
-    // Derive original (saved) prompts from spec and saved parameters for read-only view
-    const originalPrompts = useMemo(() => {
-        try {
-            if (!showOriginal) return [] as any[]
-            if (!appSchema || !selectedVariant) return [] as any[]
-            const routePath = uriInfo?.routePath
-            const derived = derivePromptsFromSpec(
-                selectedVariant as any,
-                appSchema as any,
-                routePath,
-            )
-            return Array.isArray(derived) ? (derived as any[]) : []
-        } catch {
-            return [] as any[]
-        }
-    }, [showOriginal, appSchema, selectedVariant, uriInfo?.routePath])
-
-    const originalPromptIds = useMemo(
-        () => originalPrompts.map((p: any) => p.__id || p.__name).filter(Boolean),
-        [originalPrompts],
-    )
-
-    // Derive original (saved) custom properties for read-only view
-    const originalCustomPropsRecord = useMemo(() => {
-        try {
-            if (!showOriginal) return {}
-            if (!appSchema || !selectedVariant) return {}
-            const routePath = uriInfo?.routePath
-            const record = deriveCustomPropertiesFromSpec(
-                selectedVariant as any,
-                appSchema as any,
-                routePath,
-            ) as Record<string, any>
-            return record || {}
-        } catch {
-            return {}
-        }
-    }, [showOriginal, appSchema, selectedVariant, uriInfo?.routePath])
 
     const disableOriginalPromptCollapse = originalPromptIds.length === 1
     const disablePromptCollapse = (promptIds?.length || 0) === 1
@@ -230,6 +181,7 @@ const VariantDrawerContent = ({
         showOriginal,
         originalPrompts,
         originalPromptIds,
+        originalCustomPropsRecord,
         isLoading,
         disableOriginalPromptCollapse,
         disablePromptCollapse,

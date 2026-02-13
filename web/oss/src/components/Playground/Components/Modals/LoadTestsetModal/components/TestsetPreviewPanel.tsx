@@ -1,11 +1,11 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
 import {Table} from "@phosphor-icons/react"
 import {Button, Input, Modal, Typography} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import TestcaseEditDrawer from "@/oss/components/TestcasesTableNew/components/TestcaseEditDrawer"
 import {TestcasesTableShell} from "@/oss/components/TestcasesTableNew/components/TestcasesTableShell"

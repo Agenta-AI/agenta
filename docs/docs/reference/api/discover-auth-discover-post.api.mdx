@@ -1,0 +1,78 @@
+---
+id: discover-auth-discover-post
+title: "Discover"
+description: "Discover authentication methods available for a given email."
+sidebar_label: "Discover"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVktv4zYQ/ivEnFpAsbNBTzqt2wRYY7u1ETtFAccIaHFsc0uRWpJyohr678WQkiU/1gH2vL5YJOf9fTPkHjzfOEgXMCr9FpYJCHSZlYWXRkMK99JlZoeW8dJvUXuZcTphOfqtEY7xHZeKrxSytbGMs43coWaYc6kGz/pZz7fSMdSiMFJ7Jgw69tdkzizukKv0Wd+wid1wLf+LZjXP0dHuk0PL8E06jzpD9osJAXGlKnbDstJa1F5V0SB5fvrnV1K7R8+lQsEKo2RWManXxubBNkXziL602rFcaplz1T9mGlGgiGkc57pW5nUACZgCbdgZC0hBNJV5IemXw6owzkMCFr+V6PzvRlSQ7iEz2qP29MmLQjWWh18dFXkPLttizumrsOTFS3S0CnWkD18VCCk4b6XeQAIxbEgbiQS89IokHsK6rpNWxay+YtZGJC0KwjpqLTu1FubHGDbUZKHT8LbEsOEKo12M7e72lv6O6TIrswydW5eKPTbCkPxw9gS/66W/MkYh1/10o0idQEPI4EMIGdkyPbLHdTVZQ7o4s1cnp64La3ZSoA0L6TF35+FJcQmZNrKxoKicKjfXpGZ0TmBtpRUvBbe+erlud06SbEqSjHy8g7QU0ERx5qQH/2w2mTYZj/XaQGeUW8urnvvpoTDvee5KeNmRg3p5wUQr+aXB810qRwZ0BLjI6oaKdeD1b3d358z9myspYr8/WGvsj9NWhBl0hTjKZEenZ7xsQCdaNjtSe9ygPSrZKTR/mhhg6AZ3lXZf0Dm+wQ7n74uGYrA5ndYJSF2UoSAHmoeNOoHMv/XMnMH5B9Xyzb8LJ9Umht/I9eDsIIoIfb8U8Rq46KwV+TSfT88MRn5EJkEKzSwvuN9CCkMa9MN20FNbod2FEbHYQ2kVpLD1vnDpcJgpU4oB36D2fMDlkBcS6iVpZKWVvgoqo+n4M1afkAu0kC6WfYEZcSuy5VjsUGFeyM9IOdOVCWm4vo1t7lEgpCieqEVJEWsfu0vp4Y3nhcLeJQOlQ/sR4/4gM3nEe236cI9CSmw0HUMClHxsntvBh8EtnL4djoSpmXgWuNNGHI4hOandoWqQHELzyPOP3QHlQ9jkXPfs3XfIHMXRu31/Pmd6z5mGSNSWw0JxGQZHwGLfUH4BpEr1bEu7TGBLTZEuYL9fcYdPVtU1bX8r0RKvlwnsuJVUw0DqpCUhUf5frNpZoP1NGCokrsrI6JMZS/MvaoyyDAt/VXbZ69vpZDaHBFbN4ys3gnQsf6Vhw18hhfCaI+3QYmFvD4rrTUljMYVok37/A2T9310=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Discover"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/auth/discover"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Discover authentication methods available for a given email.
+
+This endpoint does NOT reveal:
+- Organization names
+- User existence (optionally - currently does for UX)
+- Detailed policy information
+
+Returns minimal information needed for authentication flow.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"email":{"type":"string","format":"email","title":"Email"}},"type":"object","required":["email"],"title":"DiscoverRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"exists":{"type":"boolean","title":"Exists"},"methods":{"additionalProperties":{"anyOf":[{"type":"boolean"},{"properties":{"providers":{"items":{"properties":{"id":{"type":"string","title":"Id"},"slug":{"type":"string","title":"Slug"},"third_party_id":{"type":"string","title":"Third Party Id"}},"type":"object","required":["id","slug","third_party_id"],"title":"SSOProviderInfo"},"type":"array","title":"Providers"}},"type":"object","required":["providers"],"title":"SSOProviders"}]},"type":"object","title":"Methods"}},"type":"object","required":["exists","methods"],"title":"DiscoverResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -11,6 +11,7 @@ import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
+import ListOfApps from "./components/ListOfApps"
 import ListOfOrgs from "./components/ListOfOrgs"
 import SidebarMenu from "./components/SidebarMenu"
 import {useSidebarConfig} from "./hooks/useSidebarConfig"
@@ -31,21 +32,25 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
 
     const isSidebarCollapsed = collapsed
 
-    const {topItems, bottomItems} = useMemo(() => {
-        const topItems: SidebarConfig[] = []
+    const {projectItems, appItems, bottomItems} = useMemo(() => {
+        const projectItems: SidebarConfig[] = []
+        const appItems: SidebarConfig[] = []
         const bottomItems: SidebarConfig[] = []
 
         menu.forEach((item) => {
             if (item.isHidden) return
             if (item.isBottom) {
                 bottomItems.push(item)
+            } else if (item.isAppSection) {
+                appItems.push(item)
             } else {
-                topItems.push(item)
+                projectItems.push(item)
             }
         })
 
         return {
-            topItems,
+            projectItems,
+            appItems,
             bottomItems,
         }
     }, [menu])
@@ -68,11 +73,11 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
                 }
             })
         }
-        executor([...topItems, ...bottomItems])
+        executor([...projectItems, ...appItems, ...bottomItems])
 
         //@ts-ignore
         return [[matched?.key], openKey ? [openKey] : []]
-    }, [router.asPath, topItems, bottomItems])
+    }, [router.asPath, projectItems, appItems, bottomItems])
 
     useEffect(() => {
         setOpenKey((prevKey) => {
@@ -101,29 +106,57 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
                 >
                     {showSettingsView ? null : <ListOfOrgs collapsed={collapsed} />}
 
-                    {showSettingsView ? null : <Divider className="-mt-[3.5px] mb-3" />}
+                    {showSettingsView ? null : <Divider className="-mt-[3.5px] mb-1" />}
                     <ErrorBoundary fallback={<div />}>
-                        <div className="flex flex-col justify-between items-center h-full">
-                            {showSettingsView ? (
-                                <SettingsSidebar lastPath={lastPath} />
-                            ) : (
-                                <SidebarMenu
-                                    menuProps={{
-                                        className:
-                                            "border-r-0 overflow-y-auto relative [&_.ant-menu-item-selected]:font-medium",
-                                        selectedKeys,
-                                        openKeys: openKey ? [openKey] : [],
-                                        onOpenChange: (openKeys) =>
-                                            setOpenKey((prev) => {
-                                                const next = openKeys.at(-1)
-                                                return prev === next ? prev : next
-                                            }),
-                                    }}
-                                    items={topItems}
-                                    collapsed={isSidebarCollapsed}
-                                />
-                            )}
-                            <div className="w-full flex flex-col">
+                        <div className="flex flex-col justify-between items-center h-full overflow-y-auto">
+                            <div className="flex-1 min-h-0 w-full overflow-y-auto">
+                                {showSettingsView ? (
+                                    <SettingsSidebar lastPath={lastPath} />
+                                ) : (
+                                    <>
+                                        <SidebarMenu
+                                            menuProps={{
+                                                className:
+                                                    "border-r-0 overflow-y-auto relative [&_.ant-menu-item-selected]:font-medium",
+                                                selectedKeys,
+                                                openKeys: openKey ? [openKey] : [],
+                                                onOpenChange: (openKeys) =>
+                                                    setOpenKey((prev) => {
+                                                        const next = openKeys.at(-1)
+                                                        return prev === next ? prev : next
+                                                    }),
+                                            }}
+                                            items={projectItems}
+                                            collapsed={isSidebarCollapsed}
+                                        />
+
+                                        {appItems.length > 0 && (
+                                            <>
+                                                <Divider className="my-1" />
+                                                <div className="px-2">
+                                                    <ListOfApps collapsed={isSidebarCollapsed} />
+                                                </div>
+                                                <SidebarMenu
+                                                    menuProps={{
+                                                        className:
+                                                            "border-r-0 overflow-y-auto relative [&_.ant-menu-item-selected]:font-medium",
+                                                        selectedKeys,
+                                                        openKeys: openKey ? [openKey] : [],
+                                                        onOpenChange: (openKeys) =>
+                                                            setOpenKey((prev) => {
+                                                                const next = openKeys.at(-1)
+                                                                return prev === next ? prev : next
+                                                            }),
+                                                    }}
+                                                    items={appItems}
+                                                    collapsed={isSidebarCollapsed}
+                                                />
+                                            </>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                            <div className="w-full flex flex-col shrink-0">
                                 {!collapsed && (
                                     <div className="mx-auto">
                                         <SidePanelSubscriptionInfo />

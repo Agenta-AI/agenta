@@ -272,7 +272,8 @@ const ensureEvaluatorRevisions = async ({
             {run: patchedRun},
             {
                 params: {project_id: projectId},
-            },
+                _ignoreError: true,
+            } as any,
         )
         if (process.env.NODE_ENV !== "production") {
             console.debug("[EvalRunDetails2] Run patch successful", {

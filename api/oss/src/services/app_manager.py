@@ -12,7 +12,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import AppVariantDB, AppDB
 
 if is_ee():
-    from ee.src.services import db_manager_ee
+    pass
 
 log = get_module_logger(__name__)
 
@@ -143,7 +143,6 @@ async def terminate_and_remove_app_variant(
     if app_variant_id:
         app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id)
 
-    app_id = str(app_variant_db.app_id)  # type: ignore
     if app_variant_db is None:
         error_msg = f"Failed to delete app variant {app_variant_id}: Not found in DB."
         log.error(error_msg)
@@ -204,7 +203,7 @@ async def remove_app(app: AppDB):
         if len(app_variants) == 0:
             await remove_app_related_resources(str(app.id), str(app.project_id))
 
-    except Exception as e:
+    except Exception:
         # Failsafe: in case something went wrong,
         # delete app and its related resources
         try:
@@ -291,7 +290,7 @@ async def add_variant_from_url(
 
     already_exists = any(av for av in variants if av.variant_name == variant_name)  # type: ignore
     if already_exists:
-        log.error("App variant with the same name already exists")
+        # log.debug("App variant with the same name already exists")
         raise ValueError("App variant with the same name already exists")
 
     user_instance = await db_manager.get_user_with_id(user_id=user_uid)

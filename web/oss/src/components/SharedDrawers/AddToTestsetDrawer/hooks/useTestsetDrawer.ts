@@ -1,9 +1,9 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {getYamlOrJson} from "@/oss/lib/helpers/utils"
 import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {getValueAtPath} from "@/oss/state/entities/trace"

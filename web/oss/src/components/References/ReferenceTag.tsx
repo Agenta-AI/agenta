@@ -1,9 +1,8 @@
+import {message} from "@agenta/ui/app-message"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Tag, type TagProps, Tooltip} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
-
-import {message} from "@/oss/components/AppMessageContext"
 
 import {getReferenceToneColors, type ReferenceTone} from "./referenceColors"
 

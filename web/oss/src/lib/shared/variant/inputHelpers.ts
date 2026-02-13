@@ -7,7 +7,7 @@ import {OpenAPISpec} from "./types/openapi"
 export const extractInputKeysFromSchema = (spec: OpenAPISpec, routePath = "") => {
     const requestSchema = getRequestSchema(spec, {routePath})
     if (!requestSchema || !("properties" in requestSchema)) {
-        console.error("Invalid OpenAPI schema")
+        return []
     }
     const expectedProperties = requestSchema?.properties || {}
     const expectedPropertyKeys = Object.keys(expectedProperties).filter(

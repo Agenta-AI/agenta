@@ -1,6 +1,6 @@
 import uuid
 import traceback
-from typing import Optional
+from typing import Dict, List
 
 
 import click
@@ -16,9 +16,18 @@ from oss.src.models.deprecated_models import (  # type: ignore
 BATCH_SIZE = 200
 
 
-def get_app_db(session: Connection, app_id: str) -> Optional[DeprecatedAppDB]:
-    query = session.execute(select(DeprecatedAppDB).filter_by(id=uuid.UUID(app_id)))
-    return query.fetchone()  # type: ignore
+def get_app_names_batch(
+    session: Connection, app_ids: List[uuid.UUID]
+) -> Dict[uuid.UUID, str]:
+    """Fetch app names for multiple app_ids in a single query."""
+    if not app_ids:
+        return {}
+    query = session.execute(
+        select(DeprecatedAppDB.id, DeprecatedAppDB.app_name).filter(
+            DeprecatedAppDB.id.in_(app_ids)
+        )
+    )
+    return {row.id: row.app_name for row in query.fetchall()}
 
 
 def update_evaluators_with_app_name(session: Connection):
@@ -50,41 +59,61 @@ def update_evaluators_with_app_name(session: Connection):
             if not records:
                 break
 
-            # Process and update records in the batch
+            # Collect unique app_ids from this batch
+            unique_app_ids = list(
+                {record.app_id for record in records if record.app_id is not None}
+            )
+
+            # Batch fetch all app names in a single query
+            app_names = get_app_names_batch(session, unique_app_ids)
+
+            # Build list of updates for batch execution
+            updates_to_apply: List[Dict] = []
+            batch_skipped = 0
+
             for record in records:
-                if hasattr(record, "app_id") and record.app_id is not None:
-                    evaluator_config_app = get_app_db(
-                        session=session, app_id=str(record.app_id)
-                    )
-                    if evaluator_config_app is not None:
-                        # Update the name with the app_name as a prefix
-                        new_name = f"{record.name} ({evaluator_config_app.app_name})"
-                        session.execute(
-                            update(DeprecatedEvaluatorConfigDB)
-                            .where(DeprecatedEvaluatorConfigDB.id == record.id)
-                            .values(name=new_name)
-                        )
-                    else:
-                        print(
-                            f"Skipping... No application found for evaluator_config {str(record.id)}."
-                        )
-                        SKIPPED_RECORDS += 1
-                else:
+                if record.app_id is None:
                     print(
                         f"Skipping... evaluator_config {str(record.id)} have app_id that is NULL."
                     )
-                    SKIPPED_RECORDS += 1
+                    batch_skipped += 1
+                    continue
+
+                app_name = app_names.get(record.app_id)
+                if app_name is not None:
+                    new_name = f"{record.name} ({app_name})"
+                    updates_to_apply.append({"id": record.id, "name": new_name})
+                else:
+                    print(
+                        f"Skipping... No application found for evaluator_config {str(record.id)}."
+                    )
+                    batch_skipped += 1
+
+            # Execute bulk update using bindparam for efficiency
+            if updates_to_apply:
+                from sqlalchemy import bindparam
+
+                stmt = (
+                    update(DeprecatedEvaluatorConfigDB)
+                    .where(DeprecatedEvaluatorConfigDB.id == bindparam("id"))
+                    .values(name=bindparam("name"))
+                )
+                session.execute(stmt, updates_to_apply)
 
             session.commit()
 
+            SKIPPED_RECORDS += batch_skipped
+
             # Update progress tracking
             batch_migrated = len(records)
+            batch_updated = len(updates_to_apply)
             TOTAL_MIGRATED += batch_migrated
             offset += BATCH_SIZE
             remaining_records = TOTAL_EVALUATOR_CONFIGS - TOTAL_MIGRATED
             click.echo(
                 click.style(
-                    f"Processed {batch_migrated} records in this batch. Total records migrated: {TOTAL_MIGRATED}. Records left to migrate: {remaining_records}",
+                    f"Processed {batch_migrated} records ({batch_updated} updated, {batch_skipped} skipped). "
+                    f"Total: {TOTAL_MIGRATED}. Remaining: {remaining_records}",
                     fg="yellow",
                 )
             )

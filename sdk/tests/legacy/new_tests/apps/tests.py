@@ -3,7 +3,7 @@ import uuid
 import pytest
 import pytest_asyncio
 
-from agenta_backend.tests.apps.fixtures import *
+from agenta_backend.tests.apps.fixtures import *  # noqa: F403
 
 
 class TestAppCreationManagement:
@@ -47,7 +47,7 @@ class TestAppCreationManagement:
         )
 
         # Cleanup: Remove application
-        await delete_application(http_client, response_data["app_id"], headers)
+        await delete_application(http_client, response_data["app_id"], headers)  # noqa: F405
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -80,7 +80,9 @@ class TestAppCreationManagement:
         description = "Create app with conflicts"
         api_credentials = self.owner_scope_response.get("credentials", "")
         headers = {"Authorization": api_credentials}
-        await create_application(http_client, app_name, headers)  # Create the app first
+        await create_application(  # noqa: F405
+            http_client, app_name, headers
+        )  # Create the app first
 
         # Act: Send a POST request to /apps
         response = await http_client.post("/apps", json=app_data, headers=headers)
@@ -94,7 +96,7 @@ class TestAppCreationManagement:
         app_cleanup_response = await http_client.get("/apps", headers=headers)
         for app in app_cleanup_response.json():
             if app["app_name"] == app_name:
-                await delete_application(http_client, app["app_id"], headers)
+                await delete_application(http_client, app["app_id"], headers)  # noqa: F405
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -131,8 +133,8 @@ class TestAppCreationManagement:
     async def test_entitlements_limited_access(self, http_client):
         # Arrange: Prepare data
         app_data = {"app_name": f"app_{uuid.uuid4().hex[:8]}"}
-        expected_status = 403
-        description = "Limited access for free-tier user"
+        expected_status = 403  # noqa: F841
+        description = "Limited access for free-tier user"  # noqa: F841
         api_credentials = self.non_paying_scope_response.get("credentials", "")
         headers = {"Authorization": api_credentials}
 
@@ -155,7 +157,7 @@ class TestAppCreationManagement:
 
         # Cleanup: Remove application
         for app_response in list_of_app_responses:
-            await delete_application(http_client, app_response.get("app_id"), headers)
+            await delete_application(http_client, app_response.get("app_id"), headers)  # noqa: F405
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -164,8 +166,8 @@ class TestAppCreationManagement:
     async def test_permissions_allowed_post(self, http_client):
         # Arrange: Prepare data
         app_data = {"app_name": f"app_{uuid.uuid4().hex[:8]}"}
-        expected_status = 200
-        description = "Principal in scope and action allowed for POST"
+        expected_status = 200  # noqa: F841
+        description = "Principal in scope and action allowed for POST"  # noqa: F841
         members_credentials = list(self.all_members_scope_response.values())
         owner_project_id = members_credentials[0].get("project", {}).get("id")
         credential_headers = [
@@ -229,7 +231,7 @@ class TestAppCreationManagement:
         app_name = f"app_{uuid.uuid4().hex[:8]}"
         api_credentials = self.owner_scope_response.get("credentials", "")
         headers = {"Authorization": api_credentials}
-        await create_application(http_client, app_name, headers)
+        await create_application(http_client, app_name, headers)  # noqa: F405
 
         # Act: Send a GET request to /apps
         response = await http_client.get("/apps", headers=headers)
@@ -242,7 +244,7 @@ class TestAppCreationManagement:
         assert len(response_data) == 1, f"Failed for case: {description}"
 
         # Cleanup: Remove application
-        await delete_application(http_client, response_data[0]["app_id"], headers)
+        await delete_application(http_client, response_data[0]["app_id"], headers)  # noqa: F405
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -256,7 +258,7 @@ class TestAppCreationManagement:
         headers = {"Authorization": api_credentials}
         for _ in range(3):
             app_name = f"app_{uuid.uuid4().hex[:8]}"
-            await create_application(http_client, app_name, headers)
+            await create_application(http_client, app_name, headers)  # noqa: F405
 
         # Act: Send a GET request to /apps
         response = await http_client.get("/apps", headers=headers)
@@ -270,7 +272,7 @@ class TestAppCreationManagement:
 
         # Cleanup: Remove applications
         for app in response_data:
-            await delete_application(http_client, app["app_id"], headers)
+            await delete_application(http_client, app["app_id"], headers)  # noqa: F405
 
     @pytest.mark.asyncio
     @pytest.mark.edge
@@ -284,7 +286,7 @@ class TestAppCreationManagement:
         headers = {"Authorization": api_credentials}
         for _ in range(6):
             app_name = f"app_{uuid.uuid4().hex[:8]}"
-            await create_application(http_client, app_name, headers)
+            await create_application(http_client, app_name, headers)  # noqa: F405
 
         # Act: Send a GET request to /apps
         response = await http_client.get("/apps", headers=headers)
@@ -298,7 +300,7 @@ class TestAppCreationManagement:
 
         # Cleanup: Remove applications
         for app in response_data:
-            await delete_application(http_client, app["app_id"], headers)
+            await delete_application(http_client, app["app_id"], headers)  # noqa: F405
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -315,7 +317,7 @@ class TestAppCreationManagement:
             "id", ""
         )
         owner_headers = {"Authorization": owner_credentials}
-        app = await create_application(http_client, app_name, owner_headers)
+        app = await create_application(http_client, app_name, owner_headers)  # noqa: F405
 
         non_member_credentials = self.non_member_scope_response.get("credentials", "")
         non_member_headers = {"Authorization": non_member_credentials}
@@ -331,7 +333,7 @@ class TestAppCreationManagement:
         )
 
         # Cleanup: Delete the application with valid principal
-        await delete_application(http_client, app["app_id"], owner_headers)
+        await delete_application(http_client, app["app_id"], owner_headers)  # noqa: F405
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -348,7 +350,7 @@ class TestAppCreationManagement:
         ]
         for credential in credential_headers:
             app_name = f"app_{uuid.uuid4().hex[:8]}"
-            await create_application(http_client, app_name, credential)
+            await create_application(http_client, app_name, credential)  # noqa: F405
 
         # Act: Send a GET request to /apps
         response = await http_client.get("/apps")
@@ -375,7 +377,7 @@ class TestAppCreationManagement:
         app_name = f"app_{uuid.uuid4().hex[:8]}"
         api_credentials = self.owner_scope_response.get("credentials", None)
         headers = {"Authorization": api_credentials}
-        app = await create_application(http_client, app_name, headers)
+        app = await create_application(http_client, app_name, headers)  # noqa: F405
         updated_name = f"updated_{app_name}"
         payload = {"app_name": updated_name}
 
@@ -390,7 +392,7 @@ class TestAppCreationManagement:
         assert response_data["app_name"] == updated_name
 
         # Cleanup: Delete the updated application
-        await delete_application(http_client, app["app_id"], headers)
+        await delete_application(http_client, app["app_id"], headers)  # noqa: F405
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -402,8 +404,8 @@ class TestAppCreationManagement:
         app_name_2 = f"app_{uuid.uuid4().hex[:8]}"
         api_credentials = self.owner_scope_response.get("credentials", None)
         headers = {"Authorization": api_credentials}
-        app_1 = await create_application(http_client, app_name_1, headers)
-        app_2 = await create_application(http_client, app_name_2, headers)
+        app_1 = await create_application(http_client, app_name_1, headers)  # noqa: F405
+        app_2 = await create_application(http_client, app_name_2, headers)  # noqa: F405
         expected_status = 500  # Internally, the error is IntegrityError
 
         # Act: Attempt to update app_1 with the name of app_2
@@ -419,8 +421,8 @@ class TestAppCreationManagement:
         assert response.status_code == expected_status
 
         # Cleanup: Delete both applications
-        await delete_application(http_client, app_1["app_id"], headers)
-        await delete_application(http_client, app_2["app_id"], headers)
+        await delete_application(http_client, app_1["app_id"], headers)  # noqa: F405
+        await delete_application(http_client, app_2["app_id"], headers)  # noqa: F405
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -432,7 +434,7 @@ class TestAppCreationManagement:
         app_name = f"app_{uuid.uuid4().hex[:8]}"
         api_credentials = self.owner_scope_response.get("credentials", "")
         headers = {"Authorization": api_credentials}
-        app = await create_application(http_client, app_name, headers)
+        app = await create_application(http_client, app_name, headers)  # noqa: F405
         updated_name = f"updated_{app_name}"
         payload = {"app_name": updated_name}
 
@@ -447,7 +449,7 @@ class TestAppCreationManagement:
         assert response_data["app_name"] == updated_name
 
         # Cleanup: Delete the updated application
-        await delete_application(http_client, app["app_id"], headers)
+        await delete_application(http_client, app["app_id"], headers)  # noqa: F405
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -459,7 +461,7 @@ class TestAppCreationManagement:
         app_name = f"app_{uuid.uuid4().hex[:8]}"
         api_credentials = self.owner_scope_response.get("credentials", "")
         headers = {"Authorization": api_credentials}
-        app = await create_application(http_client, app_name, headers)
+        app = await create_application(http_client, app_name, headers)  # noqa: F405
 
         # Act: Send a DELETE request to remove the app
         response = await http_client.delete(f"/apps/{app['app_id']}", headers=headers)
@@ -477,7 +479,7 @@ class TestAppCreationManagement:
         app_name = f"app_{uuid.uuid4().hex[:8]}"
         api_credentials = self.owner_scope_response.get("credentials", "")
         headers = {"Authorization": api_credentials}
-        app = await create_application(http_client, app_name, headers)
+        app = await create_application(http_client, app_name, headers)  # noqa: F405
 
         # Act: Send a DELETE request without the --force flag
         response = await http_client.delete(f"/apps/{app['app_id']}", headers=headers)
@@ -495,7 +497,7 @@ class TestAppCreationManagement:
         app_name = f"app_{uuid.uuid4().hex[:8]}"
         api_credentials = self.owner_scope_response.get("credentials", "")
         headers = {"Authorization": api_credentials}
-        app = await create_application(http_client, app_name, headers)
+        app = await create_application(http_client, app_name, headers)  # noqa: F405
 
         # Act: Send a DELETE request with the --force flag
         response = await http_client.delete(
@@ -534,7 +536,7 @@ class TestAppCreationManagement:
         app_name = f"app_{uuid.uuid4().hex[:8]}"
         api_credentials = self.owner_scope_response.get("credentials", "")
         headers = {"Authorization": api_credentials}
-        app = await create_application(http_client, app_name, headers)
+        app = await create_application(http_client, app_name, headers)  # noqa: F405
         invalid_headers = {"Authorization": "ApiKey ak-invalid-principal"}
 
         # Act: Send a DELETE request with invalid principal
@@ -546,7 +548,7 @@ class TestAppCreationManagement:
         assert response.status_code == expected_status
 
         # Cleanup: Delete the application with valid principal
-        await delete_application(http_client, app["app_id"], headers)
+        await delete_application(http_client, app["app_id"], headers)  # noqa: F405
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -558,7 +560,7 @@ class TestAppCreationManagement:
         app_name = f"app_{uuid.uuid4().hex[:8]}"
         api_credentials = self.owner_scope_response.get("credentials", "")
         headers = {"Authorization": api_credentials}
-        app = await create_application(http_client, app_name, headers)
+        app = await create_application(http_client, app_name, headers)  # noqa: F405
         non_member_response_credentials = self.non_member_scope_response.get(
             "credentials", ""
         )
@@ -573,4 +575,4 @@ class TestAppCreationManagement:
         assert response.status_code == expected_status
 
         # Cleanup: Delete the application with valid principal
-        await delete_application(http_client, app["app_id"], headers)
+        await delete_application(http_client, app["app_id"], headers)  # noqa: F405

@@ -1,16 +1,18 @@
-import {produce} from "immer"
+import {
+    legacyAppRevisionMolecule,
+    revisionCustomPropertyKeysAtomFamily,
+    revisionEnhancedCustomPropertiesAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {atom} from "jotai"
 import {RESET, atomFamily} from "jotai/utils"
 
+import {
+    playgroundAppSchemaAtom,
+    playgroundAppRoutePathAtom,
+} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import type {Enhanced} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {deriveCustomPropertiesFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {
-    appSchemaAtom,
-    appUriInfoAtom,
-    getEnhancedRevisionById,
-} from "@/oss/state/variant/atoms/fetcher"
 
 /**
  * Writable custom properties selector
@@ -26,93 +28,67 @@ export interface CustomPropsAtomParams {
     onUpdateParameters?: (update: any) => void
 }
 
-// Internal local cache keyed by revisionId (Playground-only live edits)
-const localCustomPropsByRevisionAtomFamily = atomFamily((revisionId: string) =>
-    atom<Record<string, Enhanced<any>> | undefined>(undefined),
-)
-
-const regenerateEnhancedIds = (value: any): any => {
-    if (Array.isArray(value)) {
-        return value.map((item) => regenerateEnhancedIds(item))
-    }
-
-    if (value && typeof value === "object") {
-        const clone: Record<string, any> = {}
-        Object.keys(value).forEach((key) => {
-            clone[key] = regenerateEnhancedIds(value[key])
-        })
-
-        if ("__test" in clone) {
-            clone.__test = generateId()
-        }
-
-        return clone
-    }
-
-    return value
-}
-
-// Derived custom properties from spec + saved variant parameters for a revision
-export const derivedCustomPropsByRevisionAtomFamily = atomFamily((revisionId: string) =>
-    atom<Record<string, Enhanced<any>>>((get) => {
-        const variant = getEnhancedRevisionById(get as any, revisionId)
-        const spec = get(appSchemaAtom)
-        if (!variant || !spec) return {}
-        const routePath = get(appUriInfoAtom)?.routePath
-        return deriveCustomPropertiesFromSpec(variant as any, spec as any, routePath)
-    }),
-)
-
+/**
+ * Custom properties atom family - single source of truth via legacyAppRevisionMolecule.
+ *
+ * - Read: molecule.data.enhancedCustomProperties (includes draft changes)
+ * - Write: molecule.reducers.mutateEnhancedCustomProperties / setEnhancedCustomProperties
+ *
+ * This replaces the legacy pattern of local caches + fallback derivation.
+ */
 export const customPropertiesAtomFamily = atomFamily((params: CustomPropsAtomParams) =>
-    atom<Record<string, Enhanced<any>>, any>(
+    atom(
         (get) => {
-            // If a revision is provided and local props exist, prefer them for live edits
+            // If a revision is provided, use molecule as single source
             if (params.revisionId) {
-                const local = get(localCustomPropsByRevisionAtomFamily(params.revisionId))
-                if (local !== undefined) return local
-                return get(derivedCustomPropsByRevisionAtomFamily(params.revisionId))
+                const moleculeData = get(legacyAppRevisionMolecule.atoms.data(params.revisionId))
+                if (moleculeData?.enhancedCustomProperties) {
+                    return moleculeData.enhancedCustomProperties as Record<string, Enhanced<any>>
+                }
+                // Fallback to entity-level derived custom properties (per-revision schema query)
+                return get(revisionEnhancedCustomPropertiesAtomFamily(params.revisionId)) as Record<
+                    string,
+                    Enhanced<any>
+                >
             }
 
             // Otherwise derive from spec + saved config (pure)
-            const spec = get(appSchemaAtom)
-            const routePath = params.routePath ?? get(appUriInfoAtom)?.routePath
+            const spec = get(playgroundAppSchemaAtom)
+            const routePath = params.routePath ?? get(playgroundAppRoutePathAtom)
             if (!spec || !params.variant) return {}
             return deriveCustomPropertiesFromSpec(params.variant, spec, routePath)
         },
-        (get, set, update) => {
+        (
+            _get,
+            set,
+            update:
+                | typeof RESET
+                | Record<string, Enhanced<any>>
+                | ((draft: Record<string, unknown>) => void),
+        ) => {
             const {revisionId} = params
 
-            // Prefer local revision cache update to keep Playground behavior
             if (revisionId) {
                 if (update === RESET) {
-                    set(localCustomPropsByRevisionAtomFamily(revisionId), undefined)
+                    // Discard draft via molecule
+                    set(legacyAppRevisionMolecule.actions.discardDraft, revisionId)
                     return
                 }
 
-                const base =
-                    get(localCustomPropsByRevisionAtomFamily(revisionId)) ??
-                    get(derivedCustomPropsByRevisionAtomFamily(revisionId))
-
-                let next: any
+                // Route writes through molecule reducers
                 if (typeof update === "function") {
-                    const fn: any = update
-                    if (fn.length >= 1) {
-                        const source = base === undefined ? {} : base
-                        next = produce(source, (draft: any) => {
-                            const res = fn(draft)
-                            if (res !== undefined) {
-                                return res
-                            }
-                        })
-                    } else {
-                        const res = fn(base)
-                        next = res === undefined ? base : res
-                    }
+                    set(
+                        legacyAppRevisionMolecule.reducers.mutateEnhancedCustomProperties,
+                        revisionId,
+                        update as (draft: Record<string, unknown>) => void,
+                    )
                 } else {
-                    next = update
+                    set(
+                        legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties,
+                        revisionId,
+                        update as Record<string, unknown>,
+                    )
                 }
-
-                set(localCustomPropsByRevisionAtomFamily(revisionId), next)
                 return
             }
 
@@ -129,7 +105,7 @@ export const customPropertiesAtomFamily = atomFamily((params: CustomPropsAtomPar
  */
 export const customPropertiesByRevisionAtomFamily = atomFamily((revisionId: string) =>
     atom<Record<string, Enhanced<any>>>((get) => {
-        const routePath = get(appUriInfoAtom)?.routePath
+        const routePath = get(playgroundAppRoutePathAtom)
         return get(
             customPropertiesAtomFamily({
                 revisionId,
@@ -139,24 +115,8 @@ export const customPropertiesByRevisionAtomFamily = atomFamily((revisionId: stri
     }),
 )
 
-export const customPropertyIdsByRevisionAtomFamily = atomFamily((revisionId: string) =>
-    atom<string[]>((get) => {
-        const local = get(localCustomPropsByRevisionAtomFamily(revisionId))
-        const source = local ?? get(derivedCustomPropsByRevisionAtomFamily(revisionId))
-        if (!source) {
-            return []
-        }
-        return Object.keys(source)
-    }),
-)
-
 /**
- * Clears the local custom properties cache for a given revisionId.
- * Use this when discarding draft changes so custom workflow properties revert to saved state.
+ * Get custom property IDs for a revision.
+ * Directly re-exports the entity-level atom family for proper reactivity.
  */
-export const clearLocalCustomPropsForRevisionAtomFamily = atomFamily((revisionId: string) =>
-    atom(null, (get, set) => {
-        const derived = get(derivedCustomPropsByRevisionAtomFamily(revisionId))
-        set(localCustomPropsByRevisionAtomFamily(revisionId), regenerateEnhancedIds(derived))
-    }),
-)
+export const customPropertyIdsByRevisionAtomFamily = revisionCustomPropertyKeysAtomFamily

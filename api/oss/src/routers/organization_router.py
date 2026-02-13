@@ -12,7 +12,7 @@ from oss.src.models.api.organization_models import (
     OrganizationDetails,
     OrganizationMember,
 )
-from oss.src.services import db_manager, organization_service
+from oss.src.services import organization_service
 from oss.src.models.api.workspace_models import (
     InviteRequest,
     ResendInviteRequest,

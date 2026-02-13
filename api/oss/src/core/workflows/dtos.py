@@ -1,5 +1,5 @@
-from typing import Optional, Dict, Any, Union
-from uuid import UUID, uuid4
+from typing import Optional, Dict, Any, Union  # noqa: F401
+from uuid import UUID, uuid4  # noqa: F401
 from urllib.parse import urlparse
 
 from pydantic import (
@@ -41,7 +41,7 @@ from oss.src.core.git.dtos import (
 )
 
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
-from oss.src.core.shared.dtos import (
+from oss.src.core.shared.dtos import (  # noqa: F401
     Identifier,
     Slug,
     Version,
@@ -55,14 +55,19 @@ from oss.src.core.shared.dtos import (
     # Secret,
 )
 
-from oss.src.core.tracing.dtos import Trace
+from oss.src.core.tracing.dtos import Trace  # noqa: F401
 from agenta.sdk.models.workflows import (
-    WorkflowServiceRequestData,  # export
-    WorkflowServiceResponseData,  # export
-    WorkflowServiceRequest,  # export
-    WorkflowServiceResponse,  # export
-    WorkflowServiceBatchResponse,  # export
-    WorkflowServiceStreamResponse,  # export
+    WorkflowServiceRequestData,  # noqa: F401
+    WorkflowServiceResponseData,  # noqa: F401
+    WorkflowServiceRequest,  # noqa: F401
+    WorkflowServiceResponse,  # noqa: F401
+    WorkflowServiceBatchResponse,  # noqa: F401
+    WorkflowServiceStreamResponse,  # noqa: F401
+    #
+    JsonSchemas,  # noqa: F401
+    WorkflowServiceInterface as SDKWorkflowServiceInterface,
+    WorkflowServiceConfiguration as SDKWorkflowServiceConfiguration,
+    WorkflowRevisionData as SDKWorkflowRevisionData,
 )
 
 # aliases ----------------------------------------------------------------------
@@ -102,12 +107,14 @@ class WorkflowFlags(BaseModel):
     is_custom: bool = False
     is_evaluator: bool = False
     is_human: bool = False
+    is_chat: bool = False
 
 
 class WorkflowQueryFlags(BaseModel):
     is_custom: Optional[bool] = None
     is_evaluator: Optional[bool] = None
     is_human: Optional[bool] = None
+    is_chat: Optional[bool] = None
 
 
 # workflows --------------------------------------------------------------------
@@ -162,45 +169,44 @@ class WorkflowVariantQuery(VariantQuery):
 
 # workflow revisions -----------------------------------------------------------
 
-
-class WorkflowServiceVersion(BaseModel):
-    version: Optional[str] = None
-
-
-class WorkflowServiceInterface(WorkflowServiceVersion):
-    uri: Optional[str] = None  # str (Enum) w/ validation
-    url: Optional[str] = None  # str w/ validation
-    headers: Optional[Dict[str, Union[Reference, str]]] = (
-        None  # either hardcoded or a secret
-    )
-    # handler: Optional[Callable] = None
-
-    schemas: Optional[Dict[str, Schema]] = None  # json-schema instead of pydantic
+# Re-export SDK types for use in API
+WorkflowServiceInterface = SDKWorkflowServiceInterface
+WorkflowServiceConfiguration = SDKWorkflowServiceConfiguration
 
 
-class WorkflowServiceConfiguration(WorkflowServiceInterface):
-    script: Optional[Data] = None  # str w/ validation
-    parameters: Optional[Data] = None  # configuration values
-    runtime: Optional[str] = (
-        None  # runtime environment (python, javascript, typescript), None = python
-    )
+class WorkflowRevisionData(SDKWorkflowRevisionData):
+    """
+    Extends SDK's WorkflowRevisionData with legacy field support for migration.
 
+    SDK format (new):
+        - version: str
+        - uri: Optional[str]
+        - url: Optional[str]
+        - headers: Optional[Dict[str, Union[str, Reference]]]
+        - schemas: Optional[JsonSchemas]  # with parameters/inputs/outputs
+        - script: Optional[Data]
+        - parameters: Optional[Data]
 
-class WorkflowRevisionData(WorkflowServiceConfiguration):
-    # LEGACY FIELDS
+    Legacy format (old, from config_parameters):
+        - service: dict with {agenta, url, format, ...}
+        - configuration: dict with parameters
+    """
+
+    # LEGACY FIELDS (for backward compatibility during migration)
     service: Optional[dict] = None  # url, schema, kind, etc
     configuration: Optional[dict] = None  # parameters, variables, etc
 
     @model_validator(mode="after")
-    def validate_all(self) -> "WorkflowRevisionData":
+    def validate_legacy_fields(self) -> "WorkflowRevisionData":
+        """Validate legacy service fields if present."""
         errors = []
 
         if self.service and self.service.get("agenta") and self.service.get("format"):
-            _format = self.service.get("format")  # pylint: disable=redefined-builtin
+            _format = self.service.get("format")
 
             try:
-                validator_class = self._get_validator_class_from_schema(_format)  # type: ignore
-                validator_class.check_schema(_format)  # type: ignore
+                validator_class = self._get_validator_class_from_schema(_format)
+                validator_class.check_schema(_format)
             except SchemaError as e:
                 errors.append(
                     {
@@ -252,7 +258,6 @@ class WorkflowRevisionData(WorkflowServiceConfiguration):
         elif "draft-04" in schema_uri:
             return Draft4Validator
         else:
-            # fallback default if unknown $schema
             return Draft202012Validator
 
     @staticmethod

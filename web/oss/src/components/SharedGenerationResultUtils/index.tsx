@@ -1,5 +1,13 @@
 import {memo, useCallback, useMemo} from "react"
 
+import {
+    sortSpansByStartTime,
+    transformTracesResponseToTree,
+    traceEntityAtomFamily,
+    type TraceSpan,
+    type TraceSpanNode,
+    StatusCodeEnum,
+} from "@agenta/entities/trace"
 import {PlusCircle, Timer, TreeView} from "@phosphor-icons/react"
 import {Button, Space, Tag} from "antd"
 import clsx from "clsx"
@@ -13,18 +21,43 @@ import {
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {resolvePath} from "@/oss/lib/traces/traceUtils"
-import {sortSpansByStartTime} from "@/oss/lib/traces/tracing"
-import {transformTracesResponseToTree} from "@/oss/services/tracing/lib/helpers"
-import {StatusCode, type TraceSpan, type TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
-import {traceEntityAtomFamily} from "@/oss/state/entities/trace"
+
+// Map StatusCodeEnum values to match legacy StatusCode usage
+const StatusCode = {
+    STATUS_CODE_OK: StatusCodeEnum.enum.STATUS_CODE_OK,
+    STATUS_CODE_ERROR: StatusCodeEnum.enum.STATUS_CODE_ERROR,
+    STATUS_CODE_UNSET: StatusCodeEnum.enum.STATUS_CODE_UNSET,
+}
 
 // Use the global Jotai store to ensure the TraceDrawer (rendered in AppGlobalWrappers)
 // receives the state updates, even when this component is inside an isolated store context
 const globalStore = getDefaultStore()
 
+interface TreeNode {
+    metrics?: {
+        acc?: {
+            duration?: {total?: number}
+            tokens?: {total?: number; prompt?: number; completion?: number}
+            costs?: {total?: number}
+        }
+        unit?: {
+            duration?: {total?: number}
+            tokens?: {total?: number; prompt?: number; completion?: number}
+            costs?: {total?: number}
+        }
+    }
+    status?: string
+}
+
 interface SharedGenerationResultUtilsProps {
+    /** Trace ID for fetching metrics from server */
     traceId?: string | null
+    /** Inline tree data with metrics (alternative to traceId) */
+    tree?: {
+        nodes?: TreeNode[]
+        trace_id?: string
+    } | null
     className?: string
     showStatus?: boolean
 }
@@ -85,8 +118,38 @@ const extractPrimarySpan = (response: any, traceId?: string | null): TraceSpanNo
         hasResponse: !!response,
         responseType: typeof response,
         hasTraces: !!response?.traces,
+        hasNodes: !!response?.nodes,
         traceId,
     })
+
+    // Handle inline tree format (from old playground response.tree)
+    // Format: { nodes: [{ metrics: { acc: {...}, unit: {...} }, status: "..." }] }
+    if (response?.nodes && Array.isArray(response.nodes) && response.nodes.length > 0) {
+        const node = response.nodes[0]
+        const metricAcc = node?.metrics?.acc
+        const metricUnit = node?.metrics?.unit
+        const metric = metricAcc || metricUnit
+
+        // Convert inline tree node to TraceSpanNode-like structure
+        // This allows the readMetric function to extract values
+        return {
+            span_id: traceId || "inline",
+            trace_id: traceId || "inline",
+            status_code: node?.status,
+            // Put metrics in attributes.ag.metrics for readMetric to find
+            attributes: {
+                ag: {
+                    metrics: {
+                        duration: {cumulative: metric?.duration},
+                        tokens: {cumulative: metric?.tokens},
+                        costs: {cumulative: metric?.costs},
+                    },
+                },
+            },
+            // Also keep original metrics for direct access
+            metrics: metric,
+        } as unknown as TraceSpanNode
+    }
 
     const nodes = (() => {
         if (response?.traces) {
@@ -164,27 +227,40 @@ const readMetric = (span: TraceSpanNode | undefined, paths: MetricPath[]): numbe
 
 const SharedGenerationResultUtils = ({
     traceId,
+    tree,
     className,
     showStatus = true,
 }: SharedGenerationResultUtilsProps) => {
     const [, setTraceQueryParam] = useQueryParamState("trace")
     const [, setSpanQueryParam] = useQueryParamState("span")
 
-    // Use trace entity atom family for data fetching
-    const traceEntityAtom = useMemo(() => traceEntityAtomFamily(traceId ?? null), [traceId])
-    const {data, isPending: isLoading} = useAtomValue(traceEntityAtom)
+    // Determine effective trace ID (from prop or inline tree)
+    const effectiveTraceId = traceId ?? tree?.trace_id ?? null
 
-    console.log("[SharedGenerationResultUtils] traceEntityAtom result:", {
+    // Use trace entity atom family for data fetching (only if no inline tree)
+    const traceEntityAtom = useMemo(
+        () => traceEntityAtomFamily(!tree ? effectiveTraceId : null),
+        [effectiveTraceId, tree],
+    )
+    const {data: fetchedData, isPending} = useAtomValue(traceEntityAtom)
+
+    // Use inline tree data if provided, otherwise use fetched data
+    const data = tree || fetchedData
+
+    // Only show loading if we're actually fetching (no inline tree and query is pending)
+    const isLoading = !tree && isPending
+
+    console.log("[SharedGenerationResultUtils] data source:", {
         traceId,
-        hasData: !!data,
+        effectiveTraceId,
+        hasInlineTree: !!tree,
+        hasFetchedData: !!fetchedData,
         isLoading,
-        dataType: typeof data,
-        dataKeys: data ? Object.keys(data) : [],
     })
 
     const primarySpan = useMemo(
-        () => extractPrimarySpan(data, traceId ?? undefined),
-        [data, traceId],
+        () => extractPrimarySpan(data, effectiveTraceId ?? undefined),
+        [data, effectiveTraceId],
     )
 
     const status: StatusCode | undefined = useMemo(() => {
@@ -272,21 +348,21 @@ const SharedGenerationResultUtils = ({
         (event: React.MouseEvent) => {
             event.stopPropagation()
             event.preventDefault()
-            if (!traceId) return
+            if (!effectiveTraceId || effectiveTraceId === "inline") return
 
             const activeSpanId = primarySpan?.span_id ?? null
             // Use the global store directly to ensure the TraceDrawer (in AppGlobalWrappers)
             // receives the state update, even when this component is inside an isolated store
-            globalStore.set(openTraceDrawerAtom, {traceId, activeSpanId})
+            globalStore.set(openTraceDrawerAtom, {traceId: effectiveTraceId, activeSpanId})
             globalStore.set(setTraceDrawerActiveSpanAtom, activeSpanId)
-            setTraceQueryParam(traceId, {shallow: true})
+            setTraceQueryParam(effectiveTraceId, {shallow: true})
             if (activeSpanId) {
                 setSpanQueryParam(activeSpanId, {shallow: true})
             } else {
                 setSpanQueryParam(undefined, {shallow: true})
             }
         },
-        [primarySpan?.span_id, setSpanQueryParam, setTraceQueryParam, traceId],
+        [effectiveTraceId, primarySpan?.span_id, setSpanQueryParam, setTraceQueryParam],
     )
 
     const formattedLatency = useMemo(
@@ -301,7 +377,11 @@ const SharedGenerationResultUtils = ({
         [completionTokens],
     )
 
-    if (!traceId) return null
+    // Return null if neither traceId nor inline tree data provided
+    if (!traceId && !tree) return null
+
+    // Can only open trace drawer if we have a real traceId (not inline data)
+    const canOpenTrace = !!effectiveTraceId && effectiveTraceId !== "inline"
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>
@@ -310,7 +390,7 @@ const SharedGenerationResultUtils = ({
                 size="small"
                 icon={<TreeView size={14} />}
                 loading={isLoading}
-                disabled={!primarySpan}
+                disabled={!canOpenTrace}
                 onClick={handleOpenTrace}
                 data-ivt-stop-row-click
             />

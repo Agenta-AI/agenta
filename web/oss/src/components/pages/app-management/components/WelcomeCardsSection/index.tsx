@@ -8,6 +8,7 @@ import {useRouter} from "next/router"
 import useURL from "@/oss/hooks/useURL"
 import {onboardingWidgetStatusAtom} from "@/oss/lib/onboarding"
 import {ProjectsResponse} from "@/oss/services/project/types"
+import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {projectsAtom} from "@/oss/state/project"
 
@@ -24,6 +25,7 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
     const welcomeCardsDismissed = useAtomValue(welcomeCardsDismissedAtom)
     const setWelcomeCardsDismissed = useSetAtom(welcomeCardsDismissedAtom)
     const projects = useAtomValue(projectsAtom)
+    const {orgs, changeSelectedOrg} = useOrgData()
     const router = useRouter()
     const {projectURL} = useURL()
 
@@ -42,6 +44,7 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
         )
         const demoWorkspaceId = demoProject?.workspace_id || demoProject?.organization_id || null
         const demoOrganizationId = demoProject?.organization_id || null
+        const demoOrgId = orgs.find((org) => org.flags?.is_demo)?.id || null
         const demoProjectLink =
             demoProject && demoWorkspaceId
                 ? `/w/${encodeURIComponent(demoWorkspaceId)}/p/${encodeURIComponent(
@@ -68,19 +71,33 @@ const WelcomeCardsSection = ({onCreatePrompt, onSetupTracing}: WelcomeCardsSecti
             {
                 title: "Explore demo project",
                 subtitle: "How Agenta looks with real example data (view-only)",
-                onClick: () => {
-                    if (!demoProjectLink) {
-                        message.error("Demo project is not available.")
+                onClick: async () => {
+                    if (demoProjectLink) {
+                        if (demoOrganizationId) {
+                            cacheWorkspaceOrgPair(demoWorkspaceId, demoOrganizationId)
+                        }
+                        handleNavigate(demoProjectLink)
                         return
                     }
-                    if (demoOrganizationId) {
-                        cacheWorkspaceOrgPair(demoWorkspaceId, demoOrganizationId)
+
+                    if (demoOrgId) {
+                        await changeSelectedOrg(demoOrgId)
+                        return
                     }
-                    handleNavigate(demoProjectLink)
+
+                    message.error("Demo project is not available.")
                 },
             },
         ]
-    }, [projectURL, projects, handleNavigate, onCreatePrompt, onSetupTracing])
+    }, [
+        changeSelectedOrg,
+        handleNavigate,
+        onCreatePrompt,
+        onSetupTracing,
+        orgs,
+        projectURL,
+        projects,
+    ])
 
     const dismissWelcomeCards = useCallback(() => {
         setWelcomeCardsDismissed(true)

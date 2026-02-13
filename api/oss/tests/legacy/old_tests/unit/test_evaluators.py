@@ -62,7 +62,7 @@ async def test_auto_ai_critique_evaluator(
     )
     try:
         assert expected_min <= round(result.value, 1) <= expected_max
-    except TypeError as error:
+    except TypeError:
         # exceptions
         # - raised by evaluator (agenta) -> TypeError
         assert not isinstance(result.value, float) or not isinstance(result.value, int)
@@ -384,7 +384,7 @@ async def test_auto_semantic_similarity_match(
     )
     try:
         assert expected_min <= round(result.value, 1) <= expected_max
-    except TypeError as error:
+    except TypeError:
         # exceptions
         # - raised by evaluator (agenta) -> TypeError
         assert not isinstance(result.value, float) or not isinstance(result.value, int)
@@ -485,7 +485,7 @@ async def test_rag_faithfulness_evaluator(
 
     try:
         assert expected_min <= round(result.value, 1) <= expected_max
-    except TypeError as error:
+    except TypeError:
         # exceptions
         # - raised by evaluator (agenta) -> TypeError
         assert not isinstance(result.value, float) or not isinstance(result.value, int)
@@ -532,7 +532,7 @@ async def test_rag_context_relevancy_evaluator(
 
     try:
         assert expected_min <= round(result.value, 1) <= expected_max
-    except TypeError as error:
+    except TypeError:
         # exceptions
         # - raised by autoevals -> ValueError (caught already and then passed as a stacktrace to the result)
         # - raised by evaluator (agenta) -> TypeError
@@ -581,7 +581,7 @@ async def test_rag_faithfulness_evaluator_for_baseresponse_v3(
 
     try:
         assert expected_min <= round(result.value, 1) <= expected_max
-    except TypeError as error:
+    except TypeError:
         # exceptions
         # - raised by evaluator (agenta) -> TypeError
         assert not isinstance(result.value, float) or not isinstance(result.value, int)
@@ -628,7 +628,7 @@ async def test_rag_context_relevancy_evaluator_for_baseresponse_v3(
 
     try:
         assert expected_min <= round(result.value, 1) <= expected_max
-    except TypeError as error:
+    except TypeError:
         # exceptions
         # - raised by autoevals -> ValueError (caught already and then passed as a stacktrace to the result)
         # - raised by evaluator (agenta) -> TypeError

@@ -5,42 +5,24 @@ from typing import Any, Dict, Optional, Tuple, List
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.services import db_manager
-from oss.src.services import app_manager
 from oss.src.utils.exceptions import suppress
-from oss.src.models.shared_models import AppType
-from oss.src.services.db_manager import (
-    AppDB,
-    DeploymentDB,
-    AppVariantDB,
-    AppVariantRevisionsDB,
-    AppEnvironmentDB,
-    AppEnvironmentRevisionDB,
+
+# New workflow services via adapter
+from oss.src.services.legacy_adapter import get_legacy_adapter
+from oss.src.core.applications.dtos import (
+    Application,
+    ApplicationVariant,
+    ApplicationRevision,
 )
+
+# Old DB function - still needed for user lookup
 from oss.src.services.db_manager import (
-    get_deployment_by_id,
     get_user_with_id,
-    fetch_base_by_id,
-    fetch_app_by_id,
-    fetch_app_by_name,
-    fetch_app_variant_by_id,
-    fetch_app_variant_revision_by_id,
-    fetch_app_variant_by_config_name_and_appid,
-    fetch_app_variant_revision_by_variant,
-    fetch_app_environment_by_id,
-    fetch_app_environment_revision,
-    fetch_app_environment_by_name_and_appid,
-    fetch_app_environment_revision_by_version,
-    list_bases_for_app_id,
-    add_variant_from_base_and_config,
-    update_variant_parameters,
-    deploy_to_environment,
-    create_new_variant_base,
-    create_deployment,
-    update_base,
-    create_new_app_variant,
-    create_new_config,
 )
+
+# New environment adapter
+from oss.src.services.legacy_adapter import get_legacy_environments_adapter
+from oss.src.core.shared.dtos import Reference, Windowing
 
 
 log = get_module_logger(__name__)
@@ -84,7 +66,7 @@ class LegacyLifecycleDTO(BaseModel):
     updated_by: Optional[str] = None  # email
 
 
-# DIFFERENT FROM A configuration IN THE SENSE OF Application sStructure
+# DIFFERENT FROM A configuration IN THE SENSE OF Application Structure
 # HERE IT IS A PROXY FOR A variant
 class ConfigDTO(BaseModel):
     params: Dict[str, Any]
@@ -101,89 +83,70 @@ class ConfigDTO(BaseModel):
     environment_lifecycle: Optional[LegacyLifecycleDTO] = None
 
 
-# - HERLPERS
+# - HELPERS
 
 
 async def _fetch_app(
     project_id: str,
     app_id: Optional[UUID] = None,
     app_name: Optional[str] = None,
-) -> Optional[AppDB]:
+) -> Optional[Application]:
+    """Fetch an app using the new ApplicationsService via adapter."""
+    adapter = get_legacy_adapter()
     app = None
 
     with suppress():
         if app_id:
-            app = await fetch_app_by_id(
-                app_id=app_id.hex,
+            app = await adapter.fetch_app_by_id(
+                project_id=UUID(project_id),
+                app_id=app_id,
             )
         elif app_name:
-            app = await fetch_app_by_name(
-                project_id=project_id,
+            app = await adapter.fetch_app_by_name(
+                project_id=UUID(project_id),
                 app_name=app_name,
             )
 
-    if not app:
-        return None
-
     return app
-
-
-async def _fetch_deployment(
-    project_id: str,
-    base_id: UUID,
-) -> Optional[DeploymentDB]:
-    variant_base = None
-
-    with suppress():
-        variant_base = await fetch_base_by_id(
-            # project_id=project_id,
-            base_id=base_id.hex,
-        )
-
-    if not variant_base:
-        return None
-
-    deployment = None
-
-    with suppress():
-        deployment = await get_deployment_by_id(
-            # project_id=project_id,
-            deployment_id=variant_base.deployment_id.hex,
-        )
-
-    if not deployment:
-        return None
-
-    return deployment
 
 
 async def _fetch_variant(
     project_id: str,
     variant_ref: ReferenceDTO,
     application_ref: Optional[ReferenceDTO] = None,
-) -> Tuple[Optional[AppVariantDB], Optional[AppVariantRevisionsDB]]:
+) -> Tuple[Optional[ApplicationVariant], Optional[ApplicationRevision]]:
+    """Fetch variant and revision using the new ApplicationsService via adapter."""
+    adapter = get_legacy_adapter()
     app_variant_revision = None
     app_variant = None
 
     with suppress():
-        # by variant_id
+        # by variant_id (could be variant ID or revision ID)
         if variant_ref.id:
-            app_variant_revision = await fetch_app_variant_revision_by_id(
-                # project_id=project_id,
-                variant_revision_id=variant_ref.id.hex,
+            # First try as revision ID
+            app_variant_revision = await adapter.fetch_revision_by_id(
+                project_id=UUID(project_id),
+                revision_id=variant_ref.id,
             )
             if not app_variant_revision:
-                app_variant = await fetch_app_variant_by_id(
-                    app_variant_id=variant_ref.id.hex,
-                    include_hidden=True,
+                # Try as variant ID
+                app_variant = await adapter.fetch_variant_by_id(
+                    project_id=UUID(project_id),
+                    variant_id=variant_ref.id,
                 )
                 if app_variant:
-                    variant_ref.version = variant_ref.version or app_variant.revision
-                    app_variant_revision = await fetch_app_variant_revision_by_variant(
-                        project_id=project_id,
-                        app_variant_id=app_variant.id.hex,
-                        revision=variant_ref.version,
-                    )
+                    # Get specific version or latest
+                    if variant_ref.version:
+                        app_variant_revision = await adapter.fetch_revision_by_version(
+                            project_id=UUID(project_id),
+                            variant_id=app_variant.id,
+                            version=variant_ref.version,
+                        )
+                    else:
+                        app_variant_revision = await adapter.fetch_latest_revision(
+                            project_id=UUID(project_id),
+                            variant_id=app_variant.id,
+                        )
 
         # by application_id, variant_slug, and ...
         elif (
@@ -192,45 +155,46 @@ async def _fetch_variant(
             and variant_ref.slug
         ):
             if not application_ref.id and application_ref.slug:
-                app = await fetch_app_by_name(
-                    project_id=project_id,
+                app = await adapter.fetch_app_by_name(
+                    project_id=UUID(project_id),
                     app_name=application_ref.slug,
                 )
-
-                application_ref.id = app.id
+                if app:
+                    application_ref.id = app.id
 
             if not application_ref.id:
                 return None, None
 
-            # ASSUMPTION : single or first base, not default base.
-            # TODO: handle default base and then {variant_name} as {base_name}.{variant_ref.slug},
-            #       and then use fetch_app_variant_by_name_and_appid() instead.
-            app_variant = await fetch_app_variant_by_config_name_and_appid(
-                # project_id=project_id,
-                app_id=application_ref.id.hex,
-                config_name=variant_ref.slug,
+            # Fetch variant by slug (config_name)
+            app_variant = await adapter.fetch_variant_by_slug(
+                project_id=UUID(project_id),
+                app_id=application_ref.id,
+                variant_slug=variant_ref.slug,
             )
-
             if not app_variant:
                 return None, None
 
-            # ... variant_version or latest variant version
-            variant_ref.version = variant_ref.version or app_variant.revision
-            app_variant_revision = await fetch_app_variant_revision_by_variant(
-                project_id=project_id,
-                # application_id=application_ref.id.hex,
-                app_variant_id=app_variant.id.hex,
-                revision=variant_ref.version,
-            )
+            # Get specific version or latest
+            if variant_ref.version:
+                app_variant_revision = await adapter.fetch_revision_by_version(
+                    project_id=UUID(project_id),
+                    variant_id=app_variant.id,
+                    version=variant_ref.version,
+                )
+            else:
+                app_variant_revision = await adapter.fetch_latest_revision(
+                    project_id=UUID(project_id),
+                    variant_id=app_variant.id,
+                )
 
         if not app_variant_revision:
             return None, None
 
+        # If we have revision but not variant, fetch the variant
         if not app_variant and app_variant_revision:
-            app_variant = await fetch_app_variant_by_id(
-                # project_id=project_id,
-                app_variant_id=app_variant_revision.variant_id.hex,
-                include_hidden=True,
+            app_variant = await adapter.fetch_variant_by_id(
+                project_id=UUID(project_id),
+                variant_id=app_variant_revision.application_variant_id,
             )
 
     if not (app_variant_revision and app_variant):
@@ -242,18 +206,25 @@ async def _fetch_variant(
 async def _fetch_variants(
     project_id: str,
     application_ref: ReferenceDTO,
-) -> List[AppVariantDB]:  # type: ignore
-    app_variants = []
+) -> List[ApplicationVariant]:
+    """Fetch all variants for an app using the new ApplicationsService via adapter."""
+    adapter = get_legacy_adapter()
+    app_variants: List[ApplicationVariant] = []
 
     with suppress():
-        if application_ref.id:
-            app_variants = await db_manager.list_app_variants_for_app_id(
-                app_id=str(application_ref.id), project_id=project_id
+        app_id = application_ref.id
+        if not app_id and application_ref.slug:
+            app = await adapter.fetch_app_by_name(
+                project_id=UUID(project_id),
+                app_name=application_ref.slug,
             )
+            if app:
+                app_id = app.id
 
-        elif application_ref.slug:
-            app_variants = await db_manager.list_app_variants_by_app_slug(
-                app_slug=application_ref.slug, project_id=project_id
+        if app_id:
+            app_variants = await adapter.query_variants_for_app(
+                project_id=UUID(project_id),
+                app_id=app_id,
             )
 
     return app_variants
@@ -263,15 +234,18 @@ async def _fetch_variant_versions(
     project_id: str,
     application_ref: Optional[ReferenceDTO],
     variant_ref: ReferenceDTO,
-) -> Optional[List[AppVariantRevisionsDB]]:
-    variant_revisions = []
+) -> Optional[List[ApplicationRevision]]:
+    """Fetch all revisions for a variant using the new ApplicationsService via adapter."""
+    adapter = get_legacy_adapter()
+    variant_revisions: List[ApplicationRevision] = []
 
     with suppress():
         app_variant = None
 
         if variant_ref.id:
-            app_variant = await db_manager.fetch_app_variant_by_id(
-                app_variant_id=variant_ref.id.hex
+            app_variant = await adapter.fetch_variant_by_id(
+                project_id=UUID(project_id),
+                variant_id=variant_ref.id,
             )
 
         elif variant_ref.slug and application_ref is not None:
@@ -286,170 +260,261 @@ async def _fetch_variant_versions(
 
             application_ref.id = app.id
 
-            app_variant = await db_manager.fetch_app_variant_by_slug(
+            app_variant = await adapter.fetch_variant_by_slug(
+                project_id=UUID(project_id),
+                app_id=application_ref.id,
                 variant_slug=variant_ref.slug,
-                app_id=application_ref.id.hex,  # type: ignore
             )
 
         if not app_variant:
             return None
 
-        variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
-            variant_id=str(app_variant.id), project_id=project_id
+        variant_revisions = await adapter.query_revisions_for_variant(
+            project_id=UUID(project_id),
+            variant_id=app_variant.id,
         )
 
     return variant_revisions
+
+
+def _extract_deployed_revision_id(
+    references: Optional[Dict],
+    app_slug: Optional[str],
+) -> Optional[UUID]:
+    """Extract the application_revision.id from the nested references dict.
+
+    Each entry in ``references`` maps an app-scoped key
+    (e.g. ``"my-app.revision"``) to a dict with keys
+    ``"application"``, ``"application_variant"``, ``"application_revision"``,
+    whose values are ``Reference`` objects (or raw dicts when Pydantic
+    deserialization was skipped).
+    """
+    if not references or not app_slug:
+        return None
+    app_refs = references.get(f"{app_slug}.revision")
+    if not app_refs or not isinstance(app_refs, dict):
+        return None
+    revision_ref = app_refs.get("application_revision")
+    if revision_ref is None:
+        return None
+    # Reference object (normal path)
+    if hasattr(revision_ref, "id") and revision_ref.id:
+        return revision_ref.id
+    # Raw dict fallback (e.g. un-hydrated JSON from DB)
+    if isinstance(revision_ref, dict):
+        rev_id = revision_ref.get("id")
+        if isinstance(rev_id, UUID):
+            return rev_id
+        if isinstance(rev_id, str):
+            with suppress(Exception):
+                return UUID(rev_id)
+    return None
+
+
+class _EnvironmentShim:
+    """Lightweight shim mimicking old AppEnvironmentDB attributes."""
+
+    def __init__(self, *, name: str, id: Optional[UUID] = None):
+        self.name = name
+        self.id = id
+
+
+class _EnvironmentRevisionShim:
+    """Lightweight shim mimicking old AppEnvironmentRevisionDB attributes."""
+
+    def __init__(
+        self,
+        *,
+        id: Optional[UUID] = None,
+        revision: Optional[int] = None,
+        deployed_app_variant_revision_id: Optional[UUID] = None,
+        environment_id: Optional[UUID] = None,
+        commit_message: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        project_id: Optional[str] = None,
+    ):
+        self.id = id
+        self.revision = revision
+        self.deployed_app_variant_revision_id = deployed_app_variant_revision_id
+        self.environment_id = environment_id
+        self.commit_message = commit_message
+        self.created_at = created_at
+        self.project_id = project_id
 
 
 async def _fetch_environment(
     project_id: str,
     environment_ref: ReferenceDTO,
     application_ref: Optional[ReferenceDTO] = None,
-) -> Tuple[Optional[AppEnvironmentDB], Optional[AppEnvironmentRevisionDB]]:
-    app_environment_revision = None
-    app_environment = None
+) -> Tuple[Optional[_EnvironmentShim], Optional[_EnvironmentRevisionShim]]:
+    """Fetch environment and revision from the new git-based environment tables.
+
+    Returns shim objects that provide the same attributes as the old
+    AppEnvironmentDB / AppEnvironmentRevisionDB so that callers don't
+    need to change.
+    """
+
+    env_adapter = get_legacy_environments_adapter()
 
     with suppress():
-        # by environment_id
-        if environment_ref.id:
-            environment_ref.version = None
-
-            app_environment_revision = await fetch_app_environment_revision(
-                # project_id=project_id,
-                revision_id=environment_ref.id.hex,
-            )
-
-            if not app_environment_revision:
-                return None, None
-
-            app_environment_revision.revision = None
-
-            app_environment = await fetch_app_environment_by_id(
-                # project_id=project_id,
-                environment_id=app_environment_revision.environment_id.hex,
-            )
-
-            if not app_environment:
-                return None, None
-
-        # by application_id, environment_slug, and ...
-        elif (
-            application_ref
-            and (application_ref.id or application_ref.slug)
-            and environment_ref.slug
-        ):
+        # Resolve the application slug (needed for reading revision data)
+        app_slug: Optional[str] = None
+        if application_ref and (application_ref.id or application_ref.slug):
+            if application_ref.slug:
+                app_slug = application_ref.slug
+            if application_ref.id and not app_slug:
+                app_slug = await env_adapter._resolve_app_slug(
+                    project_id=UUID(project_id),
+                    app_id=application_ref.id,
+                )
+            # Resolve id from slug if needed
             if not application_ref.id and application_ref.slug:
-                app = await fetch_app_by_name(
-                    project_id=project_id,
+                adapter = get_legacy_adapter()
+                app = await adapter.fetch_app_by_name(
+                    project_id=UUID(project_id),
                     app_name=application_ref.slug,
                 )
-
                 if app:
                     application_ref.id = app.id
+                    if not app_slug:
+                        app_slug = app.slug
 
-            if not application_ref.id:
-                return None, None
-
-            # ASSUMPTION : single or first base, not default base.
-            # TODO: handle default base and then {environment_name} as {base_name}.{environment_ref.slug},
-            #       and then use fetch_app_environment_by_name_and_appid() instead.
-            app_environment = await fetch_app_environment_by_name_and_appid(
-                # project_id=project_id,
-                app_id=application_ref.id.hex,
-                environment_name=environment_ref.slug,
-            )
-
-            if not app_environment:
-                return None, None
-
-            # ... environment_version or latest environment version
-            # in the case of environments, the latest version is indicated by a None,
-            # as opposed to the latest version of a variant which is indicated by a version number
-            # coming from the app_variant revision.
-
-            with suppress(verbose=False):
-                (
-                    app_environment_revision,
-                    version,
-                ) = await fetch_app_environment_revision_by_version(
-                    project_id=project_id,
-                    # application_id=application_ref.id.hex,
-                    app_environment_id=app_environment.id.hex,
-                    version=environment_ref.version,
+        # -----------------------------------------------------------
+        # CASE 1: lookup by environment revision id
+        # -----------------------------------------------------------
+        if environment_ref.id:
+            # The id here is an *environment revision* id.
+            env_revisions = (
+                env_adapter.environments_service.query_environment_revisions(
+                    project_id=UUID(project_id),
+                    environment_revision_refs=[Reference(id=environment_ref.id)],
+                    windowing=Windowing(limit=1),
                 )
+            )
+            env_revisions = await env_revisions
+            if not env_revisions:
+                return None, None
 
-            if not app_environment_revision:
-                return app_environment, None
+            env_rev = env_revisions[0]
 
-            app_environment_revision.revision = version
+            # Resolve the environment artifact from the revision
+            env_id = env_rev.environment_id or env_rev.artifact_id
+            if not env_id:
+                return None, None
 
-    if not (app_environment_revision and app_environment):
-        return None, None
+            env = await env_adapter.environments_service.fetch_environment(
+                project_id=UUID(project_id),
+                environment_ref=Reference(id=env_id),
+            )
+            if not env:
+                return None, None
 
-    return app_environment, app_environment_revision
-
-
-async def add_variant_from_base_and_config_v2(
-    base_db,
-    new_config_name: str,
-    parameters: Dict[str, Any],
-    user_uid: str,
-    project_id: str,
-    commit_message: Optional[str] = None,
-):
-    """
-    Create a new variant from base and config without requiring previous variants.
-
-    This is a replacement for add_variant_from_base_and_config that doesn't depend
-    on existing variants, making it suitable for creating the first variant for a base.
-
-    Args:
-        base_db: The base to create the variant from
-        new_config_name (str): Name for the new variant/config
-        parameters (Dict[str, Any]): Parameters for the variant
-        user_uid (str): User ID creating the variant
-        project_id (str): Project ID
-        commit_message (Optional[str]): Commit message
-
-    Returns:
-        AppVariantDB: The created variant
-    """
-    try:
-        # Create config (always empty initially for v0, per create_new_app_variant requirement)
-        config = await create_new_config(
-            config_name=new_config_name,
-            parameters={},  # Always empty for create_new_app_variant for v0
-        )
-
-        user = await get_user_with_id(user_id=user_uid)
-        app = await fetch_app_by_id(app_id=str(base_db.app_id))
-
-        app_variant = await create_new_app_variant(
-            app=app,
-            user=user,
-            variant_name=new_config_name,
-            project_id=project_id,
-            base=base_db,
-            config=config,
-            base_name=base_db.base_name,
-            commit_message=commit_message,
-        )
-
-        # If we have parameters, we create a new revision (v1) with the parameters
-        if parameters:
-            app_variant = await update_variant_parameters(
-                app_variant_id=str(app_variant.id),
-                parameters=parameters,
-                user_uid=user_uid,
-                project_id=project_id,
-                commit_message=commit_message,
+            # Extract deployed_app_variant_revision_id from revision data
+            deployed_variant_revision_id = _extract_deployed_revision_id(
+                env_rev.data.references if env_rev.data else None,
+                app_slug,
             )
 
-        return app_variant
+            env_shim = _EnvironmentShim(name=env.slug, id=env.id)
+            rev_shim = _EnvironmentRevisionShim(
+                id=env_rev.id,
+                revision=None,
+                deployed_app_variant_revision_id=deployed_variant_revision_id,
+                environment_id=env.id,
+                commit_message=env_rev.message,
+                created_at=env_rev.created_at,
+                project_id=project_id,
+            )
+            return env_shim, rev_shim
 
-    except Exception as e:
-        log.error(f"Failed to create variant from base {base_db.id}: {str(e)}")
-        raise
+        # -----------------------------------------------------------
+        # CASE 2: lookup by environment slug + application ref
+        # -----------------------------------------------------------
+        if environment_ref.slug:
+            env = await env_adapter.environments_service.fetch_environment(
+                project_id=UUID(project_id),
+                environment_ref=Reference(slug=environment_ref.slug),
+            )
+            if not env:
+                return None, None
+
+            env_shim = _EnvironmentShim(name=env.slug, id=env.id)
+
+            # Fetch variant + revisions for this environment
+            env_variant = (
+                await env_adapter.environments_service.fetch_environment_variant(
+                    project_id=UUID(project_id),
+                    environment_ref=Reference(id=env.id),
+                )
+            )
+            if not env_variant:
+                return env_shim, None
+
+            # Fetch all revisions (ordered latest-first via descending UUID7)
+            env_revisions = (
+                await env_adapter.environments_service.query_environment_revisions(
+                    project_id=UUID(project_id),
+                    environment_variant_refs=[Reference(id=env_variant.id)],
+                    windowing=Windowing(),
+                )
+            )
+            if not env_revisions:
+                return env_shim, None
+
+            # Resolve version: None or 0 means latest, positive means offset
+            target_rev = None
+            version = None
+            ref_key = f"{app_slug}.revision" if app_slug else None
+
+            if environment_ref.version is None or environment_ref.version == 0:
+                # Latest: find the most recent revision that has data for
+                # the requested app.  Revisions are returned latest-first
+                # (descending id via default windowing).
+                for rev in env_revisions:
+                    if (
+                        ref_key
+                        and rev.data
+                        and rev.data.references
+                        and ref_key in rev.data.references
+                    ):
+                        target_rev = rev
+                        version = rev.version
+                        break
+                # If no revision has the app key, fall back to the first
+                # revision overall (mirrors the old behaviour).
+                if target_rev is None and env_revisions:
+                    target_rev = env_revisions[0]
+                    version = target_rev.version if target_rev else None
+            else:
+                # Specific version
+                version_str = str(environment_ref.version)
+                for rev in env_revisions:
+                    if str(rev.version) == version_str:
+                        target_rev = rev
+                        version = rev.version
+                        break
+
+            if not target_rev:
+                return env_shim, None
+
+            # Extract deployed_app_variant_revision_id from revision data
+            deployed_variant_revision_id = _extract_deployed_revision_id(
+                target_rev.data.references if target_rev.data else None,
+                app_slug,
+            )
+
+            rev_shim = _EnvironmentRevisionShim(
+                id=target_rev.id,
+                revision=version,
+                deployed_app_variant_revision_id=deployed_variant_revision_id,
+                environment_id=env.id,
+                commit_message=target_rev.message,
+                created_at=target_rev.created_at,
+                project_id=project_id,
+            )
+            return env_shim, rev_shim
+
+    return None, None
 
 
 async def _create_variant(
@@ -457,36 +522,26 @@ async def _create_variant(
     user_id: str,
     slug: str,
     params: Dict[str, Any],
-    base_id: UUID,
+    app_id: UUID,
     commit_message: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[int]]:
-    variant_base = None
+    """Create a new variant using the new ApplicationsService via adapter."""
+    adapter = get_legacy_adapter()
 
-    with suppress():
-        variant_base = await fetch_base_by_id(
-            # project_id=project_id,
-            base_id=base_id.hex,
-        )
+    result = await adapter.create_variant_with_revision(
+        project_id=UUID(project_id),
+        user_id=UUID(user_id),
+        app_id=app_id,
+        variant_slug=slug,
+        parameters=params,
+        commit_message=commit_message,
+    )
 
-    if not variant_base:
+    if not result:
         return None, None
 
-    app_variant = None
-
-    with suppress():
-        app_variant = await add_variant_from_base_and_config_v2(
-            base_db=variant_base,
-            new_config_name=slug,
-            parameters=params,
-            user_uid=user_id,
-            project_id=project_id,
-            commit_message=commit_message,
-        )
-
-    if not app_variant:
-        return None, None
-
-    return app_variant.config_name, app_variant.revision  # type: ignore
+    variant, revision = result
+    return variant.slug, revision.version
 
 
 async def _update_variant(
@@ -496,112 +551,51 @@ async def _update_variant(
     params: Dict[str, Any],
     commit_message: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[int], Optional[datetime]]:
-    app_variant = None
+    """Update a variant by committing a new revision with updated parameters."""
+    adapter = get_legacy_adapter()
 
-    with suppress():
-        app_variant = await update_variant_parameters(
-            project_id=project_id,
-            user_uid=user_id,
-            app_variant_id=variant_id.hex,
-            parameters=params,
-            commit_message=commit_message,
-        )
+    revision = await adapter.commit_variant_revision(
+        project_id=UUID(project_id),
+        user_id=UUID(user_id),
+        variant_id=variant_id,
+        parameters=params,
+        commit_message=commit_message,
+    )
 
-    if not app_variant:
+    if not revision:
         return None, None, None
 
-    return app_variant.config_name, app_variant.revision, app_variant.updated_at  # type: ignore
+    # Get variant to return the slug
+    variant = await adapter.fetch_variant_by_id(
+        project_id=UUID(project_id),
+        variant_id=variant_id,
+    )
+
+    if not variant:
+        return None, None, None
+
+    return variant.slug, revision.version, revision.updated_at
 
 
 async def _update_environment(
-    project_id: str,
-    user_id: str,
+    project_id: UUID,
+    user_id: UUID,
     environment_name: str,
     variant_id: UUID,
     variant_revision_id: Optional[UUID] = None,
     commit_message: Optional[str] = None,
 ):
+    """Update environment deployment - uses new git-based environment tables."""
     with suppress():
-        await deploy_to_environment(
-            # project_id=project_id,
+        env_adapter = get_legacy_environments_adapter()
+        await env_adapter.deploy_to_environment(
+            project_id=project_id,
+            user_id=user_id,
+            variant_id=variant_id,
             environment_name=environment_name,
-            variant_id=variant_id.hex,
-            variant_revision_id=(
-                variant_revision_id.hex if variant_revision_id else None
-            ),
+            revision_id=variant_revision_id,
             commit_message=commit_message,
-            **{"user_uid": user_id},
         )
-
-
-async def _get_app_service_url(app: AppDB) -> Optional[str]:
-    """Get service URL for an app.
-
-    Args:
-        app (AppDB): The app to get service URL for
-
-    Returns:
-        Optional[str]: Service URL for SERVICE apps, None for CUSTOM apps
-    """
-    if not app.app_type:
-        # Default to CUSTOM if no app_type is set
-        return None
-
-    if app.app_type in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
-        # SERVICE apps have service URLs
-        return app_manager.get_service_url_from_template_key(app.app_type)
-    else:
-        # CUSTOM apps and legacy types don't have service URLs
-        return None
-
-
-async def _create_first_base_for_app(
-    app: AppDB,
-    project_id: str,
-    user_id: str,
-    base_name: str = "default",
-) -> Optional[UUID]:
-    """Create the first base for an app that has no bases.
-
-    Args:
-        app (AppDB): The app to create a base for
-        project_id (str): Project ID
-        user_id (str): User ID creating the base
-        base_name (str): Name for the base (default: "default")
-
-    Returns:
-        Optional[UUID]: The ID of the created base, or None if creation failed
-    """
-    try:
-        service_url = await _get_app_service_url(app)
-
-        db_base = await create_new_variant_base(
-            app=app,
-            project_id=project_id,
-            base_name=base_name,
-        )
-
-        # Always create deployment (SERVICE apps get service URL, CUSTOM apps get empty URI)
-        deployment_uri = service_url if service_url else ""
-
-        deployment = await create_deployment(
-            app_id=str(app.id),
-            project_id=project_id,
-            uri=deployment_uri,
-        )
-
-        await update_base(
-            str(db_base.id),
-            deployment_id=deployment.id,
-        )
-
-        return db_base.id
-
-    except Exception as e:
-        log.error(f"Failed to create first base for app {app.app_name}: {str(e)}")
-        return None
-
-    return None
 
 
 # - CREATE
@@ -613,6 +607,7 @@ async def add_config(
     application_ref: ReferenceDTO,
     user_id: str,
 ) -> Optional[ConfigDTO]:
+    """Create a new config (variant) using the new ApplicationsService."""
     if not variant_ref.slug:
         log.error("Variant slug is required for creating a config")
         return None
@@ -631,36 +626,14 @@ async def add_config(
         log.error(f"App not found for application_ref: {application_ref}")
         return None
 
-    # --> FETCHING: bases
-    bases = None
-
-    with suppress():
-        bases = await list_bases_for_app_id(
-            # project_id=project_id,
-            app_id=app.id.hex,
-        )
-
-    if not bases or not isinstance(bases, list) or len(bases) < 1:
-        # No bases exist for this app - create the first base based on app type
-        base_id = await _create_first_base_for_app(
-            app=app,
-            project_id=project_id,
-            user_id=user_id,
-            base_name="default",
-        )
-
-        if not base_id:
-            log.error(f"Failed to create first base for app {app.app_name}")
-            return None
-    else:
-        base_id = bases[0].id  # use the first available base
-
+    # Create variant with compound slug: {app_slug}.{variant_name}
+    compound_slug = f"{app.slug}.{variant_ref.slug}"
     variant_slug, variant_version = await _create_variant(
         project_id=project_id,
         user_id=user_id,
-        slug=variant_ref.slug,
+        slug=compound_slug,
         params={},
-        base_id=base_id,
+        app_id=app.id,
         commit_message=variant_ref.commit_message,
     )
 
@@ -691,6 +664,8 @@ async def fetch_configs_by_application_ref(
     project_id: str,
     application_ref: ReferenceDTO,
 ) -> List[ConfigDTO]:
+    """Fetch all configs for an app using the new ApplicationsService."""
+    adapter = get_legacy_adapter()
     configs_list = []
 
     app = await _fetch_app(
@@ -711,35 +686,57 @@ async def fetch_configs_by_application_ref(
         return configs_list
 
     for variant in variants:
-        variant_latest_version = await db_manager.fetch_app_variant_revision_by_variant(
-            app_variant_id=variant.id.hex,
-            project_id=project_id,
-            revision=variant.revision,
+        # Get latest revision for this variant
+        latest_revision = await adapter.fetch_latest_revision(
+            project_id=UUID(project_id),
+            variant_id=variant.id,
         )
+
+        if not latest_revision:
+            continue
+
+        # Extract parameters from revision data
+        params = {}
+        url = None
+        if latest_revision.data:
+            params = latest_revision.data.parameters or {}
+            url = latest_revision.data.url
+
         config = ConfigDTO(
-            params=variant_latest_version.config_parameters,
-            url=None,
+            params=params,
+            url=url,
             #
             application_ref=ReferenceDTO(
-                slug=variant.app.app_name,
+                slug=app.slug,
                 version=None,
-                id=variant.app.id,
+                id=app.id,
             ),
             service_ref=None,
             variant_ref=ReferenceDTO(
-                slug=variant.config_name,
-                version=variant_latest_version.revision,
-                id=variant_latest_version.id,
-                commit_message=variant_latest_version.commit_message,
+                slug=variant.slug,
+                version=latest_revision.version,
+                id=variant.id,
+                commit_message=latest_revision.message,
             ),
             environment_ref=None,
             #
             variant_lifecycle=LegacyLifecycleDTO(
-                created_at=variant_latest_version.created_at.isoformat(),
-                updated_at=variant_latest_version.updated_at.isoformat(),
-                updated_by_id=str(variant_latest_version.modified_by.id),
-                # DEPRECATING
-                updated_by=variant_latest_version.modified_by.email,
+                created_at=(
+                    latest_revision.created_at.isoformat()
+                    if latest_revision.created_at
+                    else None
+                ),
+                updated_at=(
+                    latest_revision.updated_at.isoformat()
+                    if latest_revision.updated_at
+                    else None
+                ),
+                updated_by_id=(
+                    str(latest_revision.updated_by_id)
+                    if latest_revision.updated_by_id
+                    else None
+                ),
+                updated_by=None,  # Not available in new system
             ),
         )
 
@@ -753,6 +750,8 @@ async def fetch_configs_by_variant_ref(
     variant_ref: ReferenceDTO,
     application_ref: Optional[ReferenceDTO],
 ) -> List[ConfigDTO]:
+    """Fetch all revisions for a variant as configs using the new ApplicationsService."""
+    adapter = get_legacy_adapter()
     configs_list: List[ConfigDTO] = []
 
     variant_versions = await _fetch_variant_versions(
@@ -763,31 +762,71 @@ async def fetch_configs_by_variant_ref(
     if not variant_versions:
         return configs_list
 
-    for variant_version in variant_versions:
+    # Get the variant to access app info
+    variant = None
+    if variant_ref.id:
+        variant = await adapter.fetch_variant_by_id(
+            project_id=UUID(project_id),
+            variant_id=variant_ref.id,
+        )
+    elif variant_versions:
+        # Get variant from first revision's variant_id
+        first_rev = variant_versions[0]
+        if first_rev.application_variant_id:
+            variant = await adapter.fetch_variant_by_id(
+                project_id=UUID(project_id),
+                variant_id=first_rev.application_variant_id,
+            )
+
+    # Get app info
+    app = None
+    if variant and variant.application_id:
+        app = await adapter.fetch_app_by_id(
+            project_id=UUID(project_id),
+            app_id=variant.application_id,
+        )
+
+    for revision in variant_versions:
+        # Extract parameters from revision data
+        params = {}
+        url = None
+        if revision.data:
+            params = revision.data.parameters or {}
+            url = revision.data.url
+
         config = ConfigDTO(
-            params=variant_version.config_parameters,
-            url=None,
+            params=params,
+            url=url,
             #
             application_ref=ReferenceDTO(
-                slug=variant_version.variant_revision.app.app_name,
+                slug=app.slug if app else None,
                 version=None,
-                id=variant_version.variant_revision.app_id,
+                id=app.id if app else None,
             ),
             service_ref=None,
             variant_ref=ReferenceDTO(
-                slug=variant_version.variant_revision.config_name,
-                version=variant_version.variant_revision.revision,
-                id=variant_version.variant_revision.id,
-                commit_message=variant_version.commit_message,
+                slug=variant.slug if variant else revision.slug,
+                version=revision.version,
+                id=(
+                    variant.id
+                    if variant and variant.id
+                    else revision.application_variant_id
+                ),
+                commit_message=revision.message,
             ),
             environment_ref=None,
             #
             variant_lifecycle=LegacyLifecycleDTO(
-                created_at=variant_version.created_at.isoformat(),
-                updated_at=variant_version.updated_at.isoformat(),
-                updated_by_id=str(variant_version.modified_by.id),
-                # DEPRECATING
-                updated_by=variant_version.modified_by.email,
+                created_at=(
+                    revision.created_at.isoformat() if revision.created_at else None
+                ),
+                updated_at=(
+                    revision.updated_at.isoformat() if revision.updated_at else None
+                ),
+                updated_by_id=(
+                    str(revision.updated_by_id) if revision.updated_by_id else None
+                ),
+                updated_by=None,  # Not available in new system
             ),
         )
         configs_list.append(config)
@@ -801,6 +840,7 @@ async def fetch_config_by_variant_ref(
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
+    """Fetch a single config by variant ref using the new ApplicationsService."""
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
         variant_ref=variant_ref,
@@ -810,15 +850,16 @@ async def fetch_config_by_variant_ref(
     if not (app_variant and app_variant_revision):
         return None
 
-    deployment = await _fetch_deployment(
-        project_id=project_id,
-        base_id=app_variant.base_id,
-    )
-    deployment_uri = deployment.uri if deployment else None
+    # Extract URL from revision data (no more deployments)
+    url = None
+    params = {}
+    if app_variant_revision.data:
+        url = app_variant_revision.data.url
+        params = app_variant_revision.data.parameters or {}
 
     app = await _fetch_app(
         project_id=project_id,
-        app_id=app_variant.app_id,
+        app_id=app_variant.application_id,
     )
 
     if not app:
@@ -834,25 +875,31 @@ async def fetch_config_by_variant_ref(
             _user_email = user.email
 
     config = ConfigDTO(
-        params=app_variant_revision.config_parameters,
-        url=deployment_uri,
+        params=params,
+        url=url,
         #
         application_ref=ReferenceDTO(
-            slug=app.app_name,
+            slug=app.slug,
             version=None,
             id=app.id,
         ),
         variant_ref=ReferenceDTO(
-            slug=app_variant.config_name,
-            version=app_variant_revision.revision,
-            id=app_variant_revision.id,
-            commit_message=app_variant_revision.commit_message,
+            slug=app_variant.slug,
+            version=app_variant_revision.version,
+            id=app_variant.id,
+            commit_message=app_variant_revision.message,
         ),
         environment_ref=None,
         #
         variant_lifecycle=LegacyLifecycleDTO(
-            created_at=app_variant_revision.created_at.isoformat(),
-            updated_at=app_variant.updated_at.isoformat(),
+            created_at=(
+                app_variant_revision.created_at.isoformat()
+                if app_variant_revision.created_at
+                else None
+            ),
+            updated_at=(
+                app_variant.updated_at.isoformat() if app_variant.updated_at else None
+            ),
             updated_by_id=_user_id,
             # DEPRECATING
             updated_by=_user_email,
@@ -928,6 +975,7 @@ async def fork_config_by_variant_ref(
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
+    """Fork a variant to create a new config using the new ApplicationsService."""
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
         variant_ref=variant_ref,
@@ -940,16 +988,33 @@ async def fork_config_by_variant_ref(
     if not user_id:
         return None
 
+    # Extract parameters from revision data
+    params = {}
+    if app_variant_revision.data:
+        params = app_variant_revision.data.parameters or {}
+
+    # Build compound slug for the forked variant (always unique)
+    unique_suffix = uuid4().hex[-12:]
+    if variant_ref.slug:
+        # Fetch app to construct compound slug: {app_slug}.{variant_name}_{suffix}
+        app = await _fetch_app(
+            project_id=project_id,
+            app_id=app_variant.application_id,
+        )
+        if not app:
+            log.error(f"App not found for application_id: {app_variant.application_id}")
+            return None
+        fork_slug = f"{app.slug}.{variant_ref.slug}_{unique_suffix}"
+    else:
+        # app_variant.slug is already compound; append a unique suffix
+        fork_slug = app_variant.slug + "_" + unique_suffix
+
     variant_slug, variant_version = await _create_variant(
         project_id=project_id,
         user_id=user_id,
-        slug=(
-            variant_ref.slug
-            if variant_ref.slug
-            else app_variant.config_name + "_" + uuid4().hex[-12:]
-        ),
-        params=app_variant_revision.config_parameters,
-        base_id=app_variant.base_id,
+        slug=fork_slug,
+        params=params,
+        app_id=app_variant.application_id,
         commit_message=variant_ref.commit_message,
     )
 
@@ -959,7 +1024,7 @@ async def fork_config_by_variant_ref(
     application_ref = ReferenceDTO(
         slug=None,
         version=None,
-        id=app_variant.app_id,
+        id=app_variant.application_id,
     )
 
     variant_ref = ReferenceDTO(
@@ -1057,7 +1122,7 @@ async def commit_config(
     application_ref = ReferenceDTO(
         slug=None,
         version=None,
-        id=app_variant.app_id,  # type: ignore
+        id=app_variant.application_id,
     )
     variant_ref = ReferenceDTO(
         slug=variant_slug,
@@ -1108,9 +1173,13 @@ async def deploy_config(
     if not app_environment:
         return None
 
+    if not user_id:
+        log.error("User ID is required for deploying a config")
+        return None
+
     await _update_environment(
-        project_id=project_id,
-        user_id=user_id,  # type: ignore
+        project_id=UUID(project_id),
+        user_id=UUID(user_id),
         environment_name=app_environment.name,
         variant_id=app_variant.id,
         variant_revision_id=app_variant_revision.id,
@@ -1167,6 +1236,9 @@ async def delete_config(
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> None:
+    """Delete (archive) a config using the new ApplicationsService."""
+    adapter = get_legacy_adapter()
+
     variant, _ = await _fetch_variant(
         project_id=project_id,
         variant_ref=variant_ref,
@@ -1175,4 +1247,12 @@ async def delete_config(
     if not variant:
         return None
 
-    await db_manager.mark_app_variant_as_hidden(app_variant_id=str(variant.id))
+    if not user_id:
+        log.error("User ID is required for deleting a config")
+        return None
+
+    await adapter.mark_variant_hidden(
+        project_id=UUID(project_id),
+        user_id=UUID(user_id),
+        variant_id=variant.id,
+    )

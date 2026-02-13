@@ -1,7 +1,4 @@
-from typing import Tuple, Callable, List, Optional
-from datetime import datetime
-from os import environ
-from json import loads
+from typing import Awaitable, Tuple, Callable, List, Optional
 
 import stripe
 
@@ -76,7 +73,10 @@ class MetersService:
     ) -> Tuple[bool, MeterDTO, Callable]:
         return await self.meters_dao.adjust(meter=meter, quota=quota, anchor=anchor)
 
-    async def report(self):
+    async def report(
+        self,
+        renew: Optional[Callable[[], Awaitable[bool]]] = None,
+    ):
         if not env.stripe.enabled:
             log.warn("✗ Stripe disabled")
             return
@@ -110,10 +110,10 @@ class MetersService:
                 )
 
                 if not meters:
-                    log.info(f"[report] No more meters to process")
+                    log.info("[report] No more meters to process")
                     break
 
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception:  # pylint: disable=broad-exception-caught
                 log.error(
                     f"[report] Error dumping meters for batch #{batch_number}:",
                     exc_info=True,
@@ -123,112 +123,139 @@ class MetersService:
             reported_count = 0
             skipped_count = 0
             error_count = 0
+            # Meters to bump = flush from dump(). Includes both successfully
+            # reported meters AND non-reportable meters (no subscription,
+            # missing customer_id, etc.). Only actual Stripe API failures
+            # are excluded so they get retried on the next run.
+            meters_to_bump: List[MeterDTO] = []
 
             for idx, meter in enumerate(meters, 1):
                 if meter.subscription is None:
+                    # No subscription — not reportable to Stripe, but still
+                    # bump so dump() doesn't return it forever.
                     skipped_count += 1
+                    meters_to_bump.append(meter)
                     continue
 
                 try:
-                    if meter.key.value in REPORTS:
-                        subscription_id = meter.subscription.subscription_id
-                        customer_id = meter.subscription.customer_id
+                    if meter.key.value not in REPORTS:
+                        # Key not in REPORTS — not reportable to Stripe.
+                        # Bump to flush from dump().
+                        skipped_count += 1
+                        meters_to_bump.append(meter)
+                        continue
 
-                        if not subscription_id:
-                            # log.warn(
-                            #     f"[report] Skipping meter {meter.organization_id}/{meter.key} - missing subscription_id"
-                            # )
-                            skipped_count += 1
-                            continue
+                    subscription_id = meter.subscription.subscription_id
+                    customer_id = meter.subscription.customer_id
 
-                        if not customer_id:
-                            log.warn(
-                                f"[report] Skipping meter {meter.organization_id}/{meter.key} - missing customer_id"
+                    if not subscription_id:
+                        # Missing subscription_id — can't report to Stripe.
+                        # Bump to flush from dump().
+                        skipped_count += 1
+                        meters_to_bump.append(meter)
+                        continue
+
+                    if not customer_id:
+                        # Missing customer_id — can't report to Stripe.
+                        # Bump to flush from dump().
+                        log.warn(
+                            f"[report] Skipping meter {meter.organization_id}/{meter.key} - missing customer_id"
+                        )
+                        skipped_count += 1
+                        meters_to_bump.append(meter)
+                        continue
+
+                    if meter.key.name in Gauge.__members__.keys():
+                        try:
+                            price_id = (
+                                env.stripe.pricing.get(meter.subscription.plan, {})
+                                .get("users", {})
+                                .get("price")
                             )
-                            skipped_count += 1
+
+                            if not price_id:
+                                log.warn(
+                                    f"[report] Skipping meter {meter.organization_id}/{meter.key} - missing price_id"
+                                )
+                                skipped_count += 1
+                                meters_to_bump.append(meter)
+                                continue
+
+                            _id = None
+                            for item in stripe.SubscriptionItem.list(
+                                subscription=subscription_id,
+                            ).auto_paging_iter():
+                                if item.price.id == price_id:
+                                    _id = item.id
+                                    break
+
+                            if not _id:
+                                log.warn(
+                                    f"[report] Skipping meter {meter.organization_id}/{meter.key} - subscription item not found"
+                                )
+                                skipped_count += 1
+                                meters_to_bump.append(meter)
+                                continue
+
+                            quantity = meter.value
+                            items = [{"id": _id, "quantity": quantity}]
+
+                            stripe.Subscription.modify(
+                                subscription_id,
+                                items=items,
+                            )
+
+                            reported_count += 1
+                            meters_to_bump.append(meter)
+                            log.info(
+                                f"[stripe] updating:  {meter.organization_id} |         | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value}"
+                            )
+
+                        except Exception:  # pylint: disable=broad-exception-caught
+                            # Actual Stripe API failure — do NOT bump so it
+                            # gets retried on the next run.
+                            log.error(
+                                f"[report] Error modifying subscription for {meter.organization_id}/{meter.key}:",
+                                exc_info=True,
+                            )
+                            error_count += 1
                             continue
 
-                        if meter.key.name in Gauge.__members__.keys():
-                            try:
-                                price_id = (
-                                    env.stripe.pricing.get(meter.subscription.plan, {})
-                                    .get("users", {})
-                                    .get("price")
-                                )
+                    if meter.key.name in Counter.__members__.keys():
+                        try:
+                            event_name = meter.key.value
+                            delta = max(meter.value - meter.synced, 0)
 
-                                if not price_id:
-                                    log.warn(
-                                        f"[report] Skipping meter {meter.organization_id}/{meter.key} - missing price_id"
-                                    )
-                                    skipped_count += 1
-                                    continue
-
-                                _id = None
-                                for item in stripe.SubscriptionItem.list(
-                                    subscription=subscription_id,
-                                ).auto_paging_iter():
-                                    if item.price.id == price_id:
-                                        _id = item.id
-                                        break
-
-                                if not _id:
-                                    log.warn(
-                                        f"[report] Skipping meter {meter.organization_id}/{meter.key} - subscription item not found"
-                                    )
-                                    skipped_count += 1
-                                    continue
-
-                                quantity = meter.value
-                                items = [{"id": _id, "quantity": quantity}]
-
-                                stripe.Subscription.modify(
-                                    subscription_id,
-                                    items=items,
-                                )
-
-                                reported_count += 1
-                                log.info(
-                                    f"[stripe] updating:  {meter.organization_id} |         | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value}"
-                                )
-
-                            except Exception as e:  # pylint: disable=broad-exception-caught
-                                log.error(
-                                    f"[report] Error modifying subscription for {meter.organization_id}/{meter.key}:",
-                                    exc_info=True,
-                                )
-                                error_count += 1
+                            if delta == 0:
+                                # Nothing to report — bump to flush from dump().
+                                skipped_count += 1
+                                meters_to_bump.append(meter)
                                 continue
 
-                        if meter.key.name in Counter.__members__.keys():
-                            try:
-                                event_name = meter.key.value
-                                delta = meter.value - meter.synced
+                            payload = {"delta": delta, "customer_id": customer_id}
 
-                                if delta <= 0:
-                                    skipped_count += 1
-                                    continue
+                            stripe.billing.MeterEvent.create(
+                                event_name=event_name,
+                                payload=payload,
+                            )
 
-                                payload = {"delta": delta, "customer_id": customer_id}
+                            reported_count += 1
+                            meters_to_bump.append(meter)
+                            log.info(
+                                f"[stripe] reporting: {meter.organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value - meter.synced}"
+                            )
 
-                                stripe.billing.MeterEvent.create(
-                                    event_name=event_name,
-                                    payload=payload,
-                                )
+                        except Exception:  # pylint: disable=broad-exception-caught
+                            # Actual Stripe API failure — do NOT bump so it
+                            # gets retried on the next run.
+                            log.error(
+                                f"[report] Error creating meter event for {meter.organization_id}/{meter.key}:",
+                                exc_info=True,
+                            )
+                            error_count += 1
+                            continue
 
-                                reported_count += 1
-                                log.info(
-                                    f"[stripe] reporting: {meter.organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value - meter.synced}"
-                                )
-
-                            except Exception as e:  # pylint: disable=broad-exception-caught
-                                log.error(
-                                    f"[report] Error creating meter event for {meter.organization_id}/{meter.key}:",
-                                    exc_info=True,
-                                )
-                                error_count += 1
-                                continue
-
-                except Exception as e:  # pylint: disable=broad-exception-caught
+                except Exception:  # pylint: disable=broad-exception-caught
                     log.error(
                         f"[report] Error reporting meter {meter.organization_id}/{meter.key}:",
                         exc_info=True,
@@ -239,33 +266,47 @@ class MetersService:
                 f"[report] Batch #{batch_number}: {reported_count} reported, {skipped_count} skipped, {error_count} errors"
             )
 
-            # Set synced values for this batch
-            for meter in meters:
+            # Set synced = value for all meters we want to flush from dump().
+            # This includes both successfully reported AND non-reportable meters.
+            # Only actual Stripe API failures are excluded (not in meters_to_bump).
+            for meter in meters_to_bump:
                 meter.synced = meter.value
 
-            # Commit this batch to DB
+            if not meters_to_bump:
+                log.info(f"[report] Batch #{batch_number}: no meters to bump")
+                total_skipped += skipped_count
+                total_errors += error_count
+                continue
+
             try:
                 log.info(
-                    f"[report] Bumping batch #{batch_number} ({len(meters)} meters)"
+                    f"[report] Bumping batch #{batch_number} ({len(meters_to_bump)} meters)"
                 )
-                await self.bump(meters=meters)
+                await self.bump(meters=meters_to_bump)
                 log.info(f"[report] ✅ Batch #{batch_number} completed successfully")
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception:  # pylint: disable=broad-exception-caught
                 log.error(
                     f"[report] ❌ Error bumping batch #{batch_number}:", exc_info=True
                 )
                 total_errors += len(meters)
                 continue
 
+            # Renew lock after each batch to prevent expiration during long runs
+            if renew:
+                try:
+                    await renew()
+                except Exception:
+                    log.error("[report] Failed to renew lock", exc_info=True)
+
             # Update totals
             total_reported += reported_count
             total_skipped += skipped_count
             total_errors += error_count
 
-        log.info(f"[report] ============================================")
-        log.info(f"[report] ✅ REPORT JOB COMPLETED")
+        log.info("[report] ============================================")
+        log.info("[report] ✅ REPORT JOB COMPLETED")
         log.info(f"[report] Total batches: {batch_number}")
         log.info(f"[report] Total reported: {total_reported}")
         log.info(f"[report] Total skipped: {total_skipped}")
         log.info(f"[report] Total errors: {total_errors}")
-        log.info(f"[report] ============================================")
+        log.info("[report] ============================================")

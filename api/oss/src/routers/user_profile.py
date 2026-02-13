@@ -44,13 +44,16 @@ async def user_profile(request: Request):
         "User not found. Please ensure that the user_id is specified correctly."
     )
 
+    # Fall back to created_at if no update has occurred
+    updated_at = user.updated_at or user.created_at
+
     user = User(
         id=str(user.id),
         uid=str(user.uid),
         email=str(user.email),
         username=str(user.username),
-        created_at=str(user.created_at),
-        updated_at=str(user.updated_at),
+        created_at=str(user.created_at) if user.created_at else None,
+        updated_at=str(updated_at) if updated_at else None,
     )
 
     await set_cache(
@@ -81,13 +84,16 @@ async def update_user_username(request: Request, payload: UserUpdate):
         namespace="user_profile",
     )
 
+    # Fall back to created_at if no update has occurred
+    updated_at = user.updated_at or user.created_at
+
     return User(
         id=str(user.id),
         uid=str(user.uid),
         email=str(user.email),
         username=str(user.username),
-        created_at=str(user.created_at),
-        updated_at=str(user.updated_at),
+        created_at=str(user.created_at) if user.created_at else None,
+        updated_at=str(updated_at) if updated_at else None,
     )
 
 

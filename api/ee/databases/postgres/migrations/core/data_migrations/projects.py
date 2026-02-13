@@ -199,7 +199,7 @@ def repair_evaluation_scenario_to_have_project_id(session: Connection):
     # Final reporting
     click.echo(
         click.style(
-            f"Migration to repair evaluation_scenario to have project_id completed.",
+            "Migration to repair evaluation_scenario to have project_id completed.",
             fg="green",
         )
     )

@@ -1,4 +1,4 @@
-import {message} from "@/oss/components/AppMessageContext"
+import {message} from "@agenta/ui/app-message"
 
 export const getErrorMessage = (error: any, fallback = "An unknown error occurred!") => {
     let message = fallback

@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
 
@@ -7,9 +7,6 @@ from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
-from oss.src.services.auth_service import sign_secret_token
-from oss.src.services.db_manager import get_project_by_id
-from oss.src.core.secrets.utils import get_llm_providers_secrets
 
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
@@ -51,15 +48,6 @@ from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
-from oss.src.core.annotations.types import (
-    AnnotationOrigin,
-    AnnotationKind,
-    AnnotationChannel,
-)
-from oss.src.apis.fastapi.annotations.models import (
-    AnnotationCreate,
-    AnnotationCreateRequest,
-)
 
 from oss.src.core.evaluations.types import (
     EvaluationMetricsRefresh,
@@ -70,7 +58,6 @@ from oss.src.core.evaluations.types import (
 )
 from oss.src.core.shared.dtos import (
     Reference,
-    Link,
 )
 from oss.src.core.tracing.dtos import (
     Filtering,
@@ -81,13 +68,10 @@ from oss.src.core.tracing.dtos import (
     TracingQuery,
     OTelSpansTree as Trace,
     LogicalOperator,
-    SimpleTraceReferences,
 )
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
     WorkflowServiceRequest,
-    WorkflowServiceResponse,
 )
 from oss.src.core.queries.dtos import (
     QueryRevisionData,
@@ -249,11 +233,14 @@ async def evaluate_live_query(
             run_id=run_id,
         )
 
-        assert run, f"Evaluation run with id {run_id} not found!"
+        if not run:
+            raise ValueError(f"Evaluation run with id {run_id} not found!")
 
-        assert run.data, f"Evaluation run with id {run_id} has no data!"
+        if not run.data:
+            raise ValueError(f"Evaluation run with id {run_id} has no data!")
 
-        assert run.data.steps, f"Evaluation run with id {run_id} has no steps!"
+        if not run.data.steps:
+            raise ValueError(f"Evaluation run with id {run_id} has no steps!")
 
         steps = run.data.steps
 
@@ -270,11 +257,9 @@ async def evaluate_live_query(
         }
 
         input_steps_keys = list(input_steps.keys())
-        invocation_steps_keys = list(invocation_steps.keys())
+        invocation_steps_keys = list(invocation_steps.keys())  # noqa: F841
         annotation_steps_keys = list(annotation_steps.keys())
 
-        nof_inputs = len(input_steps_keys)
-        nof_invocations = len(invocation_steps_keys)
         nof_annotations = len(annotation_steps_keys)
         # ----------------------------------------------------------------------
 
@@ -425,7 +410,12 @@ async def evaluate_live_query(
             query_traces[query_step_key] = tracing_response.traces or dict()
         # ----------------------------------------------------------------------
 
+        total_traces = sum(len(traces) for traces in query_traces.values())
+        if total_traces == 0:
+            return
+
         # run online evaluation ------------------------------------------------
+        any_results_created = False
         for query_step_key in query_traces.keys():
             if not query_traces[query_step_key].keys():
                 continue
@@ -487,9 +477,10 @@ async def evaluate_live_query(
                 results=results_create,
             )
 
-            assert len(results) == nof_traces, (
-                f"Failed to create evaluation results for run {run_id}!"
-            )
+            if len(results) != nof_traces:
+                raise ValueError(
+                    f"Failed to create evaluation results for run {run_id}!"
+                )
             # ------------------------------------------------------------------
 
             scenario_has_errors: Dict[int, int] = dict()
@@ -497,6 +488,7 @@ async def evaluate_live_query(
 
             # iterate over query traces ----------------------------------------
             for idx, trace in enumerate(query_traces[query_step_key].values()):
+                scenario_results_created = False
                 scenario_has_errors[idx] = 0
                 scenario_status[idx] = EvaluationStatus.SUCCESS
 
@@ -710,7 +702,7 @@ async def evaluate_live_query(
                         trace_id = annotation.trace_id
 
                         if not annotation.trace_id:
-                            log.warn(f"annotation trace_id is missing.")
+                            log.warn("annotation trace_id is missing.")
                             scenario_has_errors[idx] += 1
                             scenario_status[idx] = EvaluationStatus.ERRORS
                             continue
@@ -725,14 +717,14 @@ async def evaluate_live_query(
 
                         if trace:
                             log.info(
-                                f"Trace found  ",
+                                "Trace found  ",
                                 scenario_id=scenario.id,
                                 step_key=annotation_step_key,
                                 trace_id=annotation.trace_id,
                             )
                         else:
                             log.warn(
-                                f"Trace missing",
+                                "Trace missing",
                                 scenario_id=scenario.id,
                                 step_key=annotation_step_key,
                                 trace_id=annotation.trace_id,
@@ -765,9 +757,12 @@ async def evaluate_live_query(
                         results=results_create,
                     )
 
-                    assert len(results) == 1, (
-                        f"Failed to create evaluation result for scenario with id {scenario.id}!"
-                    )
+                    if len(results) != 1:
+                        raise ValueError(
+                            f"Failed to create evaluation result for scenario with id {scenario.id}!"
+                        )
+                    scenario_results_created = True
+                    any_results_created = True
                 # --------------------------------------------------------------
 
                 scenario_edit = EvaluationScenarioEdit(
@@ -790,27 +785,29 @@ async def evaluate_live_query(
                         run_id=run_id,
                     )
 
-                await evaluations_service.refresh_metrics(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    metrics=EvaluationMetricsRefresh(
-                        run_id=run_id,
-                        scenario_id=scenario_id,
-                    ),
-                )
+                if scenario_results_created:
+                    await evaluations_service.refresh_metrics(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        metrics=EvaluationMetricsRefresh(
+                            run_id=run_id,
+                            scenario_id=scenario_id,
+                        ),
+                    )
             # ------------------------------------------------------------------
 
-        await evaluations_service.refresh_metrics(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            metrics=EvaluationMetricsRefresh(
-                run_id=run_id,
-                timestamp=timestamp,
-                interval=interval,
-            ),
-        )
+        if any_results_created:
+            await evaluations_service.refresh_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                metrics=EvaluationMetricsRefresh(
+                    run_id=run_id,
+                    timestamp=timestamp,
+                    interval=interval,
+                ),
+            )
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.error(e, exc_info=True)
 

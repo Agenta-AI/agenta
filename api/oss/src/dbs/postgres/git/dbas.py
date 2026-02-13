@@ -11,6 +11,7 @@ from oss.src.dbs.postgres.shared.dbas import (
     HeaderDBA,
     CommitDBA,
     DataDBA,
+    FolderScopeDBA,
 )
 
 
@@ -22,6 +23,7 @@ class ArtifactDBA(
     TagsDBA,
     MetaDBA,
     HeaderDBA,
+    FolderScopeDBA,
 ):
     __abstract__ = True
 

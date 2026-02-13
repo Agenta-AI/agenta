@@ -1,30 +1,14 @@
-from typing import Dict, List, Optional
 from uuid import UUID
-import asyncio
-import traceback
-from json import dumps
 
 from redis.asyncio import Redis
-from fastapi import Request
 
-from oss.src.utils.helpers import parse_url, get_slug_from_name_and_id
+
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
-from oss.src.services.auth_service import sign_secret_token
-from oss.src.services import llm_apps_service
-from oss.src.models.shared_models import InvokationResult
-from oss.src.services.db_manager import (
-    fetch_app_by_id,
-    fetch_app_variant_by_id,
-    fetch_app_variant_revision_by_id,
-    get_deployment_by_id,
-    get_project_by_id,
-)
-from oss.src.core.secrets.utils import get_llm_providers_secrets
 
 if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, Counter
+    pass
 
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
@@ -64,59 +48,8 @@ from oss.src.core.annotations.service import AnnotationsService
 # from oss.src.apis.fastapi.tracing.utils import make_hash_id
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
-from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
-
-from oss.src.core.annotations.types import (
-    AnnotationOrigin,
-    AnnotationKind,
-    AnnotationChannel,
-)
-from oss.src.apis.fastapi.annotations.models import (
-    AnnotationCreate,
-    AnnotationCreateRequest,
-)
-
-from oss.src.core.evaluations.types import (
-    EvaluationStatus,
-    EvaluationRun,
-    EvaluationRunCreate,
-    EvaluationRunEdit,
-    EvaluationScenarioCreate,
-    EvaluationScenarioEdit,
-    EvaluationResultCreate,
-    EvaluationMetricsCreate,
-)
-
-from oss.src.core.shared.dtos import Reference
-from oss.src.core.tracing.dtos import (
-    Filtering,
-    Windowing,
-    Formatting,
-    Format,
-    Focus,
-    TracingQuery,
-)
-from oss.src.core.workflows.dtos import (
-    WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
-    WorkflowServiceRequest,
-    WorkflowServiceResponse,
-    WorkflowServiceInterface,
-    WorkflowRevisionData,
-    WorkflowRevision,
-    WorkflowVariant,
-    Workflow,
-)
-
-from oss.src.core.queries.dtos import (
-    QueryRevision,
-    QueryVariant,
-    Query,
-)
-
-from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 
 
 log = get_module_logger(__name__)
@@ -185,11 +118,6 @@ simple_testsets_service = SimpleTestsetsService(
     testsets_service=testsets_service,
 )
 
-testsets_service = TestsetsService(
-    testsets_dao=testsets_dao,
-    testcases_service=testcases_service,
-)
-
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
 )
@@ -220,10 +148,6 @@ tracing_router = TracingRouter(
 
 simple_testsets_router = SimpleTestsetsRouter(
     simple_testsets_service=simple_testsets_service,
-)  # TODO: REMOVE/REPLACE ONCE TRANSFER IS MOVED TO 'core'
-
-simple_evaluators_router = SimpleEvaluatorsRouter(
-    simple_evaluators_service=simple_evaluators_service,
 )  # TODO: REMOVE/REPLACE ONCE TRANSFER IS MOVED TO 'core'
 
 annotations_service = AnnotationsService(

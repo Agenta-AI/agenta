@@ -1,11 +1,11 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
 import {Alert, Button, Form, Input, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import {useDebounceValue} from "usehooks-ts"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
@@ -299,7 +299,8 @@ const CreateEvaluator = ({
                     rules={[{required: true, message: "Evaluator name is required!"}]}
                     className="mb-0"
                 >
-                    <Input placeholder="Enter a name" />
+                    {/* TEMPORARY: Disabling name editing */}
+                    <Input placeholder="Enter a name" disabled={isEditMode} />
                 </Form.Item>
             </div>
 
@@ -330,6 +331,7 @@ const CreateEvaluator = ({
                 >
                     <Input
                         placeholder="Enter a unique slug"
+                        disabled={isEditMode}
                         onChange={() => !slugTouched && setSlugTouched(true)}
                     />
                 </Form.Item>

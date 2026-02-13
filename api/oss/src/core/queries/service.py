@@ -691,6 +691,7 @@ class QueriesService:
         #
         query_revisions_log: QueryRevisionsLog,
         #
+        include_archived: bool = False,
     ) -> List[QueryRevision]:
         _revisions_log = RevisionsLog(
             **query_revisions_log.model_dump(mode="json"),
@@ -700,6 +701,8 @@ class QueriesService:
             project_id=project_id,
             #
             revisions_log=_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         _query_revisions = [

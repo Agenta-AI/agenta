@@ -1,5 +1,4 @@
 from typing import Tuple, Callable, Optional
-from datetime import datetime
 
 from ee.src.core.entitlements.types import Quota
 from ee.src.core.meters.types import MeterDTO

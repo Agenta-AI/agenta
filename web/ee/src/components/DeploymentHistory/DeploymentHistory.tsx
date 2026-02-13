@@ -241,7 +241,7 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
                                 >
                                     <Space style={{justifyContent: "space-between"}}>
                                         <Text className={classes.historyItemsTitle}>
-                                            <b>Revision</b> <span>v{item.revision}</span>
+                                            <b>Revision</b> <span>v{index + 1}</span>
                                         </Text>
                                         <Text className={classes.historyItemsTitle}>
                                             <span style={{fontSize: 12}}>

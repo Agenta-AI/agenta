@@ -197,6 +197,7 @@ const EvaluationRunsTableActive = ({
     headerTitle,
     tabs,
     headerExtra,
+    hideOnboardingVideos,
 }: EvaluationRunsTableProps) => {
     const {
         projectId: contextProjectId,
@@ -425,6 +426,10 @@ const EvaluationRunsTableActive = ({
     const emptyStateComponent = useMemo((): ReactNode => {
         if (!isEmptyState) return null
 
+        if (hideOnboardingVideos) {
+            return null
+        }
+
         const openCreateModal = () => setIsCreateModalOpen(true)
 
         const openSdkSetupModal = () => {
@@ -443,9 +448,15 @@ const EvaluationRunsTableActive = ({
                 return <EmptyStateSdkEvaluation onOpenSetupModal={openSdkSetupModal} />
             case "all":
             default:
-                return <EmptyStateAllEvaluations onCreateEvaluation={openCreateModal} />
+                return <EmptyStateAllEvaluations />
         }
-    }, [evaluationKind, isEmptyState, setIsCreateModalOpen, setSelectedCreateType])
+    }, [
+        evaluationKind,
+        hideOnboardingVideos,
+        isEmptyState,
+        setIsCreateModalOpen,
+        setSelectedCreateType,
+    ])
 
     const tableProps = useMemo<TableProps<EvaluationRunTableRow>>(
         () => ({

@@ -1,0 +1,71 @@
+---
+id: fetch-environment
+title: "Fetch Environment"
+description: "Fetch Environment"
+sidebar_label: "Fetch Environment"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1V0uP2zYQ/ivGnBKAWbuLnnSqu4/ETdsssk4vhrGgxbHFlBIVPtw4gv57MZRkU5Z34yw2J8viPL9vODOqwPGNhWQBN8VWGl3kWDgLSwa6RMOd1MVMQAJrdGn2gAcZYFByw3N0aEi/goLnCAlEMg9SAANZQAIldxkwMPjFS4MCEmc8MrBphjmHpAK3K0nbOiOLDTBYa5NzBwl4H6w46RQJRGGOZgLqeklWbakLi5YMXU4m9CPQpkaWlAAkcO/TFK1dezX62AoDg1QXjlJJKuBlqWQa8h1/tqRTRcGVhtBwsvGQat8otTHLwuEGTRTkVZBgIHDNvXKQTGoWAxM8FrsP6wBc3/paK4GGoOsJPY1PzfYShVcKCJUumNtgMIDFYK0C3Y+7l/Zh47kRKKIMV1or5EWU4cyO3rZiUZprrizWNev09Oozpu40e7chkmHgpD2IkQshiRuu7nrRDvDpIo3stpDRm9NmIJUm9YqbV3/yFao/rC7efPCu9O41HKcSA3ssDYPEn6Jl3qQPOTr+zGSjzI5Ksec4X/XfxBh9D5Fbr74DCKtAOszP1OLG8N3T5drX/TFQ/yIwa9b2orMgG9j4m3Rr1u8gzzN1HZmoGaQGuUPxwN2Zd1twh2+cDPE87uWqMTuaBrB8KX6Gk0+N2daJQIU/wcl1Y7Z10sG12r1gN+zA+n3XdsQOrxf10qG199IB9qJeOrj2Xqzym+fW6j3p1gxeLrwwns+aBafGwHma+2le16Tx6+XlcPj/w5UUYbSPbozR5vmTX6DjUoUx2bS8YwGl097pj7TsZX3UJaNJo5sAw7ywm1P70qEDWss3eGibj4sGMEZzOiXeC+q2JN7RV7TtN3VfIzMDNq4Iy6/uJNeHfW8RsGnCb+WiUjlQ1DD0OBTXDQVPlce7+fxuYLCpj35h3NJSO7rpLbU5ukzTxrvBZsd1GSQwLg1uJf43jpY4O676u24NDCyabbcQe6Mggcy50ibjcaq0Fxd8g4XjF1yOeSnDbbGYeiPdLqhM72bvcfcOuUADyWIZC9xTUTZl1hfbU8NL+R4JrHYVn3qXaSO/NbXTbuJZo1UHytc6ZnwaghtN72bAgNJoYJpc/HIxgWPwesJ0n3gayqfzHY6BHaGwzx8YYB4uEzjk+W+HA4qs1NblvIjsneLqaEK3KFAxjkvFZbguwX3V8riAlkforeMWGCRH3y1LBpm2jnSqasUtfjKqrun1F4+G2Foy2HIj+YqwW1QgpKVn0a7Bg/D2PQdefWyvxevRYTPqh90xWhCdW648/QMG/+Ju+I0VWkfWFU3VCk3TFEsXqQ86HVXXvt7f3syhrv8Ha6fO/g==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Environment"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/preview/environments/{environment_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Environment
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"environment_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Environment Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"environment":{"anyOf":[{"properties":{"folder_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Folder Id"},"flags":{"anyOf":[{"properties":{"is_guarded":{"type":"boolean","title":"Is Guarded","default":false}},"type":"object","title":"EnvironmentFlags"},{"type":"null"}]},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Environment"},{"type":"null"}]}},"type":"object","title":"EnvironmentResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

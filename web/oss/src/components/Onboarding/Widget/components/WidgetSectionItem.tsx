@@ -29,7 +29,7 @@ const WidgetSectionItem = memo(function WidgetSectionItem({
         <Tooltip title={tooltipTitle}>
             <div
                 className={clsx(
-                    "flex items-center gap-3 rounded-[10px] border border-solid border-colorBorderSecondary p-3",
+                    "flex items-center gap-3 rounded-[10px] border border-solid border-colorBorderSecondary px-3 py-1",
                     "shadow-[0px_1px_2px_0px_rgba(0,0,0,0.03),0px_1px_6px_-1px_rgba(0,0,0,0.02),0px_2px_4px_0px_rgba(0,0,0,0.02)]",
                     {
                         "bg-colorFillTertiary cursor-pointer": isCompleted,
@@ -46,23 +46,21 @@ const WidgetSectionItem = memo(function WidgetSectionItem({
                 }}
             >
                 {isCompleted ? (
-                    <CheckCircle size={24} weight="fill" className="shrink-0 text-colorText" />
+                    <CheckCircle size={18} weight="fill" className="shrink-0 text-colorText" />
                 ) : (
                     <CircleDashed
-                        size={24}
+                        size={18}
                         weight="regular"
                         className="shrink-0 text-colorTextTertiary"
                     />
                 )}
-                <Text className="flex-1 text-sm font-medium leading-[22px] text-colorText">
-                    {item.title}
-                </Text>
+                <Text className="flex-1 font-medium text-colorText">{item.title}</Text>
                 {!isCompleted && (
                     <Button
                         type="text"
                         size="small"
                         className="flex h-[34px] w-[34px] shrink-0 items-center justify-center !rounded-[10px] !p-0"
-                        icon={<ArrowRight size={18} className="text-colorText" />}
+                        icon={<ArrowRight size={16} className="text-colorText" />}
                         onClick={(e) => {
                             e.stopPropagation()
                             onItemClick(item)
