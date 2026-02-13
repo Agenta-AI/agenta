@@ -205,7 +205,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id == run_id,
             )
 
@@ -238,7 +238,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
@@ -272,7 +272,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id == run.id,
             )
 
@@ -333,7 +333,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
@@ -403,7 +403,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id == run_id,
             )
 
@@ -435,7 +435,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
@@ -918,7 +918,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id == scenario_id,
             )
 
@@ -951,7 +951,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id.in_(scenario_ids),
             )
 
@@ -985,7 +985,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id == scenario.id,
             )
 
@@ -1042,7 +1042,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id.in_(scenario_ids),
             )
 
@@ -1106,7 +1106,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id == scenario_id,
             )
 
@@ -1150,7 +1150,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id.in_(scenario_ids),
             )
 
