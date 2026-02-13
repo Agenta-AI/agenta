@@ -63,6 +63,12 @@ _PUBLIC_ENDPOINTS = (
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
+_INVITE_ACCEPT_ENDPOINT_IDENTIFIER = "/invite/accept"
+_INVITATION_POLICY_ENDPOINT_IDENTIFIERS = (
+    _INVITE_ACCEPT_ENDPOINT_IDENTIFIER,
+    "/invite/resend",
+    "/invite",
+)
 
 _SECRET_KEY = env.agenta.auth_key
 _SECRET_EXP = 15 * 60  # 15 minutes
@@ -368,11 +374,14 @@ async def verify_bearer_token(
 
         project_id = None
         workspace_id = None
+        is_invite_accept_route = _INVITE_ACCEPT_ENDPOINT_IDENTIFIER in request.url.path
+        cache_scope = "invite_accept" if is_invite_accept_route else "default"
 
         cache_key = {
             "u_id": user_id[-12:],  # Use last 12 characters of user_id for cache key
             "p_id": query_project_id[-12:] if query_project_id else "",
             "w_id": query_workspace_id[-12:] if query_workspace_id else "",
+            "scope": cache_scope,
         }
 
         state = await get_cache(
@@ -522,7 +531,11 @@ async def verify_bearer_token(
         # or workspace.  This is required whenever the caller supplied an
         # explicit project_id or workspace_id (in the latter case we check
         # workspace membership since the default project was resolved from it).
-        if is_ee() and (query_project_id or query_workspace_id):
+        if (
+            is_ee()
+            and (query_project_id or query_workspace_id)
+            and not is_invite_accept_route
+        ):
             if query_project_id:
                 is_member = await db_manager_ee.project_member_exists(
                     project_id=project_id,
@@ -594,13 +607,14 @@ async def verify_bearer_token(
             "credentials": f"{_SECRET_TOKEN_PREFIX}{secret_token}",
         }
 
-        await set_cache(
-            project_id=query_project_id,
-            user_id=user_id,
-            namespace="verify_bearer_token",
-            key=cache_key,
-            value=state,
-        )
+        if not is_invite_accept_route:
+            await set_cache(
+                project_id=query_project_id,
+                user_id=user_id,
+                namespace="verify_bearer_token",
+                key=cache_key,
+                value=state,
+            )
 
         request.state.user_id = state.get("user_id")
         request.state.user_email = state.get("user_email")
@@ -811,13 +825,9 @@ async def _check_organization_policy(request: Request):
 
     # Skip policy check for invitation routes
     # Users must be able to accept invitations regardless of org auth policies
-    invitation_paths = [
-        "/invite/accept",
-        "/invite/resend",
-        "/invite",
-    ]
-
-    if any(path in request.url.path for path in invitation_paths):
+    if any(
+        path in request.url.path for path in _INVITATION_POLICY_ENDPOINT_IDENTIFIERS
+    ):
         return
 
     # Skip policy checks for org-agnostic endpoints (no explicit org context).

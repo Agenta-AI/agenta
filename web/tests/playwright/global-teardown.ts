@@ -13,24 +13,20 @@ import {fileURLToPath} from "url"
  * Attempts to delete all accounts in local OSS testing environments.
  * Uses environment variables to determine eligibility and endpoint configuration.
  */
-async function globalTeardown(config: any) {
+async function globalTeardown() {
     console.log("[global-teardown] Starting global teardown...")
-    const project = config.projects.find((project: any) => project.name === process.env.PROJECT)
-
-    if (!project) {
-        throw new Error(`Project ${process.env.PROJECT} not found`)
-    }
-    const {baseURL} = project.use
+    const baseURL = process.env.AGENTA_WEB_URL || "http://localhost"
     console.log(`[global-teardown] Using web-url: ${baseURL}`)
 
     const token = process.env.AGENTA_AUTH_KEY
     const apiURL = process.env.AGENTA_API_URL || `${baseURL}/api`
     console.log(`[global-teardown] Using api-url: ${apiURL}`)
 
+    const license = process.env.AGENTA_LICENSE || "oss"
     console.log(
-        `[global-teardown] Environment variables - token: ${token ? "present" : "absent"}, LICENSE: ${process.env.LICENSE}, PROJECT: ${process.env.PROJECT}`,
+        `[global-teardown] Environment variables - token: ${token ? "present" : "absent"}, AGENTA_LICENSE: ${license}`,
     )
-    if (token && process.env.LICENSE === "oss" && process.env.PROJECT === "local") {
+    if (token && license === "oss") {
         console.log(
             "[global-teardown] Conditions met for deleting all accounts, sending request...",
         )

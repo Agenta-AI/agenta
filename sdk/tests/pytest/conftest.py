@@ -1,7 +1,3 @@
-from tests.pytest.utils.env import ag_env  # noqa: F401
-from tests.pytest.utils.sdk import ag_sdk  # noqa: F401
-from tests.pytest.utils.accounts import (
-    foo_account,  # noqa: F401
-    cls_account,  # noqa: F401
-    mod_account,  # noqa: F401
-)
+# Root conftest for SDK tests.
+# Intentionally minimal — e2e fixtures are scoped to tests/pytest/e2e/.
+# Unit tests must not require environment variables or running services.

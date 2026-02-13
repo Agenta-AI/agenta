@@ -831,11 +831,14 @@ class TestsetsService:
         testset_revisions_log: TestsetRevisionsLog,
         #
         include_testcases: Optional[bool] = None,
+        include_archived: bool = False,
     ) -> List[TestsetRevision]:
         revisions = await self.testsets_dao.log_revisions(
             project_id=project_id,
             #
             revisions_log=testset_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         if not revisions:
