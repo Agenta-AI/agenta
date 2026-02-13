@@ -54,7 +54,7 @@ def get_long_conversation_messages() -> list[dict[str, str]]:
         "I also need internet-friendly cafes because I might do a bit of remote work in two afternoons during the trip.",
         "I am interested in architecture and contemporary art, and I can handle full museum days if they are worth it.",
         "Please keep hotel transfers simple because I will carry one medium suitcase and a backpack on trains.",
-        "For the final plan, include day-by-day pacing, practical train segments, and a few weather fallback activities."
+        "For the final plan, include day-by-day pacing, practical train segments, and a few weather fallback activities.",
     ]
 
     assistant_messages = [
@@ -66,7 +66,7 @@ def get_long_conversation_messages() -> list[dict[str, str]]:
         "I will ensure vegetarian-first recommendations and add optional seafood alternatives so meal planning remains flexible.",
         "I'll provide two reliable cafe-work blocks with strong Wi-Fi and seating comfort, plus backup options in case of crowding.",
         "I will build architecture and contemporary art anchors into the route, balancing iconic institutions with less crowded alternatives.",
-        "I'll keep accommodations close to major stations or direct transit lines, minimizing luggage friction across city changes."
+        "I'll keep accommodations close to major stations or direct transit lines, minimizing luggage friction across city changes.",
     ]
 
     for idx, user_msg in enumerate(user_messages):
