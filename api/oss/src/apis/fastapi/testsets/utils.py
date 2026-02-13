@@ -819,7 +819,27 @@ async def csv_file_to_json_array(
         data = await csv_file.read()
         text = data.decode("utf-8-sig")
         reader = csv.DictReader(StringIO(text))
-        return list(reader)
+        rows = list(reader)
+
+        # Apply type conversion if specified, preserving original values on failure
+        if column_types:
+            for row in rows:
+                for col, dtype in column_types.items():
+                    if col in row:
+                        value = row[col]
+                        if value is None or value == "":
+                            continue
+                        try:
+                            row[col] = dtype(value)
+                        except (ValueError, TypeError):
+                            log.warning(
+                                "[TESTSETS] Failed to cast column '%s' value '%s' using %s",
+                                col,
+                                value,
+                                getattr(dtype, "__name__", str(dtype)),
+                            )
+
+        return rows
     except Exception as e:
         log.error("[TESTSETS] Could not read CSV file", exc_info=True)
         raise e
@@ -851,9 +871,14 @@ def json_array_to_csv_file(
                     if col in row:
                         row[col] = dtype(row[col])
 
-        fieldnames = list(json_array[0].keys())
+        # Collect all unique keys from all rows to handle heterogeneous data
+        all_keys = set()
+        for row in json_array:
+            all_keys.update(row.keys())
+        fieldnames = sorted(all_keys)  # Sort for consistent column order
+
         with open(output_csv_file, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
             writer.writeheader()
             writer.writerows(json_array)
 

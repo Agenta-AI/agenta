@@ -1142,9 +1142,14 @@ class TestsetsRouter:
             _drop_empty_export_columns(testcases_data)
             csv_data = _prepare_testcases_for_csv(testcases_data)
             if csv_data:
-                fieldnames = list(csv_data[0].keys())
+                # Collect all unique keys from all rows to handle heterogeneous data
+                all_keys = set()
+                for row in csv_data:
+                    all_keys.update(row.keys())
+                fieldnames = sorted(all_keys)  # Sort for consistent column order
+
                 text_buf = StringIO()
-                writer = csv.DictWriter(text_buf, fieldnames=fieldnames)
+                writer = csv.DictWriter(text_buf, fieldnames=fieldnames, extrasaction='ignore')
                 writer.writeheader()
                 writer.writerows(csv_data)
                 buffer = BytesIO(text_buf.getvalue().encode("utf-8"))
@@ -2100,9 +2105,14 @@ class SimpleTestsetsRouter:
             _drop_empty_export_columns(testcases_data)
             csv_data = _prepare_testcases_for_csv(testcases_data)
             if csv_data:
-                fieldnames = list(csv_data[0].keys())
+                # Collect all unique keys from all rows to handle heterogeneous data
+                all_keys = set()
+                for row in csv_data:
+                    all_keys.update(row.keys())
+                fieldnames = sorted(all_keys)  # Sort for consistent column order
+
                 text_buf = StringIO()
-                writer = csv.DictWriter(text_buf, fieldnames=fieldnames)
+                writer = csv.DictWriter(text_buf, fieldnames=fieldnames, extrasaction='ignore')
                 writer.writeheader()
                 writer.writerows(csv_data)
                 buffer = BytesIO(text_buf.getvalue().encode("utf-8"))
