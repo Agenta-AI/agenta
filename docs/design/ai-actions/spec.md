@@ -23,14 +23,14 @@ AI services are enabled when all required env vars are present.
 
 If disabled:
 
-- `GET /preview/ai/services/status` returns `enabled: false`
-- `POST /preview/ai/services/tools/call` returns HTTP 503
+- `GET /ai/services/status` returns `enabled: false`
+- `POST /ai/services/tools/call` returns HTTP 503
 
 ## HTTP API
 
-Base path: `/preview/ai/services`
+Base path: `/ai/services`
 
-### GET /preview/ai/services/status
+### GET /ai/services/status
 
 Used by the frontend to decide whether to show AI actions.
 
@@ -89,7 +89,7 @@ When disabled:
 }
 ```
 
-### POST /preview/ai/services/tools/call
+### POST /ai/services/tools/call
 
 Request:
 

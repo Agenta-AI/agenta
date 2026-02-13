@@ -13,8 +13,8 @@
     - HTTP client (`client.py`): `AgentaAIServicesClient.invoke_deployed_prompt()` via httpx.
     - Service (`service.py`): `AIServicesService` with `status()`, `call_tool()`, `refine_prompt()` plus output extraction and validation.
   - API layer (`api/oss/src/apis/fastapi/ai_services/`):
-    - `GET /preview/ai/services/status` — returns enabled flag + available tools.
-    - `POST /preview/ai/services/tools/call` — executes a tool call.
+    - `GET /ai/services/status` — returns enabled flag + available tools.
+    - `POST /ai/services/tools/call` — executes a tool call.
   - Wiring in `api/entrypoints/routers.py`.
   - EE permission check (`EDIT_WORKFLOWS`) on both endpoints.
   - Rate limiting via `check_throttle` (burst 10 / refill 30 per min).

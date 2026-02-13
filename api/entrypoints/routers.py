@@ -544,7 +544,7 @@ app.include_router(
 
 app.include_router(
     router=ai_services.router,
-    prefix="/preview/ai/services",
+    prefix="/ai/services",
     tags=["AI Services"],
 )
 

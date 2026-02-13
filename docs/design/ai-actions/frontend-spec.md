@@ -127,7 +127,7 @@ The UI presents this as a chat-like interface for UX, but the state should model
    - Loading indicator (Bubble with `loading={true}`)
 4. **Right Panel**:
    - Shows loading skeleton
-5. API call to `/preview/ai/services/tools/call` with:
+5. API call to `/ai/services/tools/call` with:
    - `prompt_template_json`: Original prompt
    - `guidelines`: User's instructions
 6. On success:
@@ -480,7 +480,7 @@ export interface AIServicesStatus {
 
 export const aiServicesApi = {
   async getStatus(): Promise<AIServicesStatus> {
-    const { data } = await axios.get('/preview/ai/services/status')
+    const { data } = await axios.get('/ai/services/status')
     return data
   },
 
@@ -489,7 +489,7 @@ export const aiServicesApi = {
     guidelines: string,
     context?: string
   ): Promise<RefinePromptResponse> {
-    const { data } = await axios.post('/preview/ai/services/tools/call', {
+    const { data } = await axios.post('/ai/services/tools/call', {
       name: 'tools.agenta.api.refine_prompt',
       arguments: {
         prompt_template_json: JSON.stringify(promptTemplate),
@@ -684,7 +684,7 @@ The `summary` is displayed as the AI's response bubble in the left panel.
 
 ## Notes
 
-1. **Feature Flag**: Magic wand icon should only appear when AI services are enabled (check via `GET /preview/ai/services/status`)
+1. **Feature Flag**: Magic wand icon should only appear when AI services are enabled (check via `GET /ai/services/status`)
 
 2. **Permissions**: The refine feature requires `EDIT_WORKFLOWS` permission (EE only)
 

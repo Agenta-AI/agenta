@@ -2,8 +2,8 @@
  * AI Services API Client
  *
  * Client for interacting with the AI Services backend endpoints:
- * - GET /preview/ai/services/status - Check if AI services are enabled
- * - POST /preview/ai/services/tools/call - Execute a tool call (e.g., refine prompt)
+ * - GET /ai/services/status - Check if AI services are enabled
+ * - POST /ai/services/tools/call - Execute a tool call (e.g., refine prompt)
  */
 
 import type {PromptTemplate} from "@/oss/components/Playground/Components/Modals/RefinePromptModal/types"
@@ -13,7 +13,7 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 export const TOOL_REFINE_PROMPT = "tools.agenta.api.refine_prompt"
 
 /**
- * Response from GET /preview/ai/services/status
+ * Response from GET /ai/services/status
  */
 export interface AIServicesStatus {
     enabled: boolean
@@ -27,7 +27,7 @@ export interface AIServicesStatus {
 }
 
 /**
- * Response from POST /preview/ai/services/tools/call
+ * Response from POST /ai/services/tools/call
  */
 export interface ToolCallResponse {
     content: {type: "text"; text: string}[]
@@ -47,7 +47,7 @@ export const aiServicesApi = {
      * Check if AI services are enabled and get available tools
      */
     async getStatus(): Promise<AIServicesStatus> {
-        const {data} = await axios.get<AIServicesStatus>("/preview/ai/services/status")
+        const {data} = await axios.get<AIServicesStatus>("/ai/services/status")
         return data
     },
 
@@ -64,7 +64,7 @@ export const aiServicesApi = {
         guidelines: string,
         context?: string,
     ): Promise<ToolCallResponse> {
-        const {data} = await axios.post<ToolCallResponse>("/preview/ai/services/tools/call", {
+        const {data} = await axios.post<ToolCallResponse>("/ai/services/tools/call", {
             name: TOOL_REFINE_PROMPT,
             arguments: {
                 prompt_template_json: JSON.stringify(promptTemplate),

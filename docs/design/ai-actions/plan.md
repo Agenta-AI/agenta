@@ -30,8 +30,8 @@ The contract is defined in `docs/design/ai-actions/spec.md`.
 ### 1.3 API
 
 - Add `api/oss/src/apis/fastapi/ai_services/*`:
-  - `GET /preview/ai/services/status`
-  - `POST /preview/ai/services/tools/call`
+  - `GET /ai/services/status`
+  - `POST /ai/services/tools/call`
 
 ### 1.4 Dependency Wiring
 

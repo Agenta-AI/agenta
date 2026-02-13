@@ -123,7 +123,7 @@ ENDPOINTS = {
         # None defined yet
     ],
     Category.AI_SERVICES: [
-        (Method.POST, "/preview/ai/services/tools/call"),
+        (Method.POST, "/ai/services/tools/call"),
     ],
     Category.STANDARD: [
         # None defined yet
