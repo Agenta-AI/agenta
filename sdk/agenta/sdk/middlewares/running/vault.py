@@ -38,6 +38,10 @@ for provider_kind in StandardProviderKind.__args__[0].__args__:  # type: ignore
 if "mistral" not in _PROVIDER_KINDS:
     _PROVIDER_KINDS.append("mistral")
 
+_PROVIDER_ENV_VAR_OVERRIDES = {
+    "together_ai": "TOGETHERAI_API_KEY",
+}
+
 _AUTH_ENABLED = (
     getenv("AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED", "true").lower() in TRUTHY
 )
@@ -255,7 +259,9 @@ async def get_secrets(
     try:
         for provider_kind in _PROVIDER_KINDS:
             provider = provider_kind
-            key_name = f"{provider.upper()}_API_KEY"
+            key_name = _PROVIDER_ENV_VAR_OVERRIDES.get(
+                provider, f"{provider.upper()}_API_KEY"
+            )
             key = getenv(key_name)
 
             if not key:
