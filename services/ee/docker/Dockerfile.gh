@@ -11,7 +11,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 
 # Install poetry system-level (outside venv) — only used for export
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install "poetry==${POETRY_VERSION}" "poetry-plugin-export"
+    pip install --timeout=300 "poetry==${POETRY_VERSION}" "poetry-plugin-export"
 
 COPY ./pyproject.toml ./poetry.lock* /app/
 
@@ -38,13 +38,23 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         ${SITE}/shapely* \
     && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
-COPY ./oss /app/oss/
-COPY ./entrypoints /app/entrypoints/
+# Copy and install SDK first (changes less frequently than app code)
 RUN mkdir -p /app/sdk
 COPY ./sd[k] /app/sdk/
 
+RUN if [ -f /app/sdk/pyproject.toml ]; then \
+        . /opt/venv/bin/activate && \
+        pip install pip && \
+        pip install --editable /app/sdk && \
+        (pip uninstall -y pip 2>/dev/null || true); \
+    fi
 
-FROM python:3.11-slim-bookworm AS runtime
+# Copy app code last (changes more frequently)
+COPY ./oss /app/oss/
+COPY ./entrypoints /app/entrypoints/
+
+
+FROM python:3.11-slim-bookworm AS runner
 
 ARG BUILD_DATE
 ARG VCS_REF

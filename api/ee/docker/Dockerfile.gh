@@ -11,7 +11,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 
 # Install poetry system-level (outside venv) — only used for export
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install "poetry==${POETRY_VERSION}" "poetry-plugin-export"
+    pip install --timeout=300 "poetry==${POETRY_VERSION}" "poetry-plugin-export"
 
 COPY ./pyproject.toml ./poetry.lock* /app/
 
@@ -47,9 +47,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && cp ${SITE}/twilio/__init__.py ${SITE}/twilio/rest/__init__.py \
     && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
-COPY ./ee /app/ee/
-COPY ./oss /app/oss/
-COPY ./entrypoints /app/entrypoints/
+# Copy and install SDK first (changes less frequently than app code)
 RUN mkdir -p /app/sdk
 COPY ./sd[k] /app/sdk/
 
@@ -60,8 +58,13 @@ RUN if [ -f /app/sdk/pyproject.toml ]; then \
         (pip uninstall -y pip 2>/dev/null || true); \
     fi
 
+# Copy app code last (changes more frequently)
+COPY ./ee /app/ee/
+COPY ./oss /app/oss/
+COPY ./entrypoints /app/entrypoints/
 
-FROM python:3.11-slim-bookworm AS runtime
+
+FROM python:3.11-slim-bookworm AS runner
 
 ARG BUILD_DATE
 ARG VCS_REF
@@ -85,18 +88,22 @@ RUN apt-get update && \
     apt-get purge -y --auto-remove gnupg2 && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /opt/venv /opt/venv
-COPY --from=builder /app/ee /app/ee
-COPY --from=builder /app/oss /app/oss
-COPY --from=builder /app/entrypoints /app/entrypoints
-COPY --from=builder /app/sdk /app/sdk
-
+# Copy stable cron files first (change less frequently)
 COPY --chmod=755 ./oss/src/crons/queries.sh /queries.sh
 COPY --chmod=644 ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
 COPY --chmod=755 ./ee/src/crons/meters.sh /meters.sh
 COPY --chmod=644 ./ee/src/crons/meters.txt /etc/cron.d/meters-cron
 COPY --chmod=755 ./ee/src/crons/spans.sh /spans.sh
 COPY --chmod=644 ./ee/src/crons/spans.txt /etc/cron.d/spans-cron
+
+# Copy dependencies from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Copy app code last (changes most frequently)
+COPY --from=builder /app/ee /app/ee
+COPY --from=builder /app/oss /app/oss
+COPY --from=builder /app/entrypoints /app/entrypoints
+COPY --from=builder /app/sdk /app/sdk
 
 RUN set -eux; \
     for cron_file in /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron; do \
