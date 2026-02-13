@@ -1149,7 +1149,9 @@ class TestsetsRouter:
                 fieldnames = sorted(all_keys)  # Sort for consistent column order
 
                 text_buf = StringIO()
-                writer = csv.DictWriter(text_buf, fieldnames=fieldnames, extrasaction='ignore')
+                writer = csv.DictWriter(
+                    text_buf, fieldnames=fieldnames, extrasaction="ignore"
+                )
                 writer.writeheader()
                 writer.writerows(csv_data)
                 buffer = BytesIO(text_buf.getvalue().encode("utf-8"))
@@ -2112,7 +2114,9 @@ class SimpleTestsetsRouter:
                 fieldnames = sorted(all_keys)  # Sort for consistent column order
 
                 text_buf = StringIO()
-                writer = csv.DictWriter(text_buf, fieldnames=fieldnames, extrasaction='ignore')
+                writer = csv.DictWriter(
+                    text_buf, fieldnames=fieldnames, extrasaction="ignore"
+                )
                 writer.writeheader()
                 writer.writerows(csv_data)
                 buffer = BytesIO(text_buf.getvalue().encode("utf-8"))

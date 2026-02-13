@@ -878,7 +878,7 @@ def json_array_to_csv_file(
         fieldnames = sorted(all_keys)  # Sort for consistent column order
 
         with open(output_csv_file, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
             writer.writerows(json_array)
 
