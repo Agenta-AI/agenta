@@ -23,6 +23,12 @@ from oss.src.utils.env import AIServicesConfig, env
 log = get_module_logger(__name__)
 
 
+_REFINE_PROMPT_TITLE = "Refine Prompt"
+_REFINE_PROMPT_DESCRIPTION = (
+    "Refine a prompt template. Input is a stringified JSON prompt "
+    "template; output is a refined version with the same structure."
+)
+
 _REFINE_PROMPT_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -164,11 +170,8 @@ class AIServicesService:
             tools=[
                 ToolDefinition(
                     name=TOOL_REFINE_PROMPT,
-                    title="Refine Prompt",
-                    description=(
-                        "Refine a prompt template. Input is a stringified JSON prompt "
-                        "template; output is a refined version with the same structure."
-                    ),
+                    title=_REFINE_PROMPT_TITLE,
+                    description=_REFINE_PROMPT_DESCRIPTION,
                     inputSchema=_REFINE_PROMPT_INPUT_SCHEMA,
                     outputSchema=_REFINE_PROMPT_OUTPUT_SCHEMA,
                 )
