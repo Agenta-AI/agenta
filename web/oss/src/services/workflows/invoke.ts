@@ -27,6 +27,7 @@ export interface InvokeEvaluatorOptions {
 }
 
 export interface InvokeEvaluatorParams {
+    uri?: string
     evaluator?: Partial<SimpleEvaluator> | null
     inputs?: Record<string, any>
     outputs?: any
@@ -37,6 +38,7 @@ export interface InvokeEvaluatorParams {
 const DEFAULT_EVALUATOR_TIMEOUT = 120_000
 
 export const invokeEvaluator = async ({
+    uri,
     evaluator,
     inputs,
     outputs,
@@ -45,8 +47,11 @@ export const invokeEvaluator = async ({
 }: InvokeEvaluatorParams): Promise<WorkflowServiceBatchResponse> => {
     const {projectId} = getProjectValues()
     const evaluatorKey = resolveEvaluatorKey(evaluator)
+    const explicitUri = typeof uri === "string" ? uri.trim() : ""
     const evaluatorUri =
-        evaluator?.data?.uri || (evaluatorKey ? buildEvaluatorUri(evaluatorKey) : undefined)
+        explicitUri ||
+        evaluator?.data?.uri ||
+        (evaluatorKey ? buildEvaluatorUri(evaluatorKey) : undefined)
 
     if (!evaluatorUri) {
         throw new Error("Evaluator URI is missing")

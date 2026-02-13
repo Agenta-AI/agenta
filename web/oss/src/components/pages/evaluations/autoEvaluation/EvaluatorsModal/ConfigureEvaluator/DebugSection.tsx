@@ -473,7 +473,8 @@ const DebugSection = () => {
                 baseResponseData?.data ?? safeParse(variantResult, variantResult)
 
             const workflowResponse = await invokeEvaluator({
-                evaluator: evaluatorConfig ?? {data: {uri: evaluatorUri}},
+                uri: evaluatorUri,
+                evaluator: evaluatorConfig,
                 inputs: outputs,
                 outputs: workflowOutputs,
                 parameters: evaluatorParameters,
