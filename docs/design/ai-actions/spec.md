@@ -155,7 +155,6 @@ Error status codes:
 
 - 400: invalid request shape (unknown tool name, invalid args types)
 - 401: unauthenticated (handled by existing auth middleware)
-- 403: forbidden (EE permission checks)
 - 429: rate limited
 - 503: AI services disabled / not configured
 
@@ -166,9 +165,8 @@ Required (Chapter 1):
 ```bash
 AGENTA_AI_SERVICES_API_KEY=ag-xxx
 AGENTA_AI_SERVICES_API_URL=https://eu.cloud.agenta.ai
-AGENTA_AI_SERVICES_ENVIRONMENT=production
-
-AGENTA_AI_SERVICES_REFINE_PROMPT_APP=ai-refine
+AGENTA_AI_SERVICES_ENVIRONMENT_SLUG=production
+AGENTA_AI_SERVICES_REFINE_PROMPT_KEY=ai-refine
 ```
 
 Notes:
@@ -189,9 +187,9 @@ Invocation payload:
 ```json
 {
   "inputs": {
-    "prompt_template_json": "<stringified JSON prompt template>",
-    "guidelines": "...",
-    "context": "..."
+    "__ag_prompt_template_json": "<stringified JSON prompt template>",
+    "__ag_guidelines": "...",
+    "__ag_context": "..."
   },
   "environment": "production",
   "app": "ai-refine"
@@ -216,5 +214,6 @@ The `data` field is a JSON string (structured output from the model). The backen
 ## Permission + Rate Limits
 
 - Auth context comes from existing middleware (request.state).
-- In EE, the refine tool should require the closest existing permission for prompt editing (recommendation: `EDIT_WORKFLOWS`).
-- Add a simple rate limit at the router boundary (return HTTP 429).
+- In EE, request throttling for tool execution is configured in entitlements middleware via the `AI_SERVICES` category.
+- In OSS, no router-level rate limit is applied for this endpoint.
+- Organization-level feature flagging for AI services is planned (owner-controlled org setting).
