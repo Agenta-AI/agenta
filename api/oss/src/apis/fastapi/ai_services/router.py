@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import ValidationError
 
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.throttling import check_throttle
 
 from oss.src.core.ai_services.dtos import TOOL_REFINE_PROMPT
 from oss.src.core.ai_services.service import AIServicesService
@@ -13,10 +12,6 @@ from oss.src.apis.fastapi.ai_services.models import (
     ToolCallRequestModel,
     ToolCallResponseModel,
 )
-
-
-_RATE_LIMIT_BURST = 10
-_RATE_LIMIT_PER_MIN = 30
 
 
 class AIServicesRouter:
@@ -49,7 +44,7 @@ class AIServicesRouter:
         )
 
     @intercept_exceptions()
-    async def get_status(self, request: Request) -> AIServicesStatusResponse:
+    async def get_status(self) -> AIServicesStatusResponse:
         # TODO: Access control should be org-level feature flag (org owner
         # enables/disables AI services for the whole org) rather than
         # per-user permissions.  For now, env-var gating is sufficient.
@@ -58,7 +53,6 @@ class AIServicesRouter:
     @intercept_exceptions()
     async def call_tool(
         self,
-        request: Request,
         *,
         tool_call: ToolCallRequestModel,
     ) -> ToolCallResponseModel:
@@ -68,28 +62,6 @@ class AIServicesRouter:
         # TODO: Access control should be org-level feature flag (org owner
         # enables/disables AI services for the whole org) rather than
         # per-user permissions.  For now, env-var gating is sufficient.
-
-        # Router-level rate limit
-        key = {
-            "ep": "ai_services",
-            "tool": tool_call.name,
-            "org": getattr(request.state, "organization_id", None),
-            "user": getattr(request.state, "user_id", None),
-        }
-        result = await check_throttle(
-            key,
-            max_capacity=_RATE_LIMIT_BURST,
-            refill_rate=_RATE_LIMIT_PER_MIN,
-        )
-        if not result.allow:
-            retry_after = (
-                int(result.retry_after_seconds) if result.retry_after_seconds else 1
-            )
-            raise HTTPException(
-                status_code=429,
-                detail="Rate limit exceeded",
-                headers={"Retry-After": str(retry_after)},
-            )
 
         # Tool routing + strict request validation
         if tool_call.name != TOOL_REFINE_PROMPT:
