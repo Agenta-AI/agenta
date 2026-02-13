@@ -6,7 +6,10 @@ import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
-import {openDeleteVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeleteVariantModal/store/deleteVariantModalStore"
+import {
+    openDeleteVariantModalAtom,
+    type OpenDeleteVariantModalPayload,
+} from "@/oss/components/Playground/Components/Modals/DeleteVariantModal/store/deleteVariantModalStore"
 import {openDeployVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeployVariantModal/store/deployVariantModalStore"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import VariantNameCell from "@/oss/components/VariantNameCell"
@@ -75,13 +78,18 @@ const ActionCell = memo(
         const openDeployVariantModal = useSetAtom(openDeployVariantModalAtom)
 
         const resolveDeletionTargets = useCallback(
-            (r: EnhancedVariant) => {
+            (r: EnhancedVariant): OpenDeleteVariantModalPayload => {
                 const selection = Array.from(new Set((selectedRowKeys || []).map(String)))
                 const recordKey = String((r as any)._revisionId ?? (r as any)._id ?? (r as any).id)
                 const recordSelected = selection.includes(recordKey)
+                const isGroupedParentRow = Boolean((r as any)._isParentRow)
+                const variantId = String((r as any).variantId ?? "")
 
                 if (recordSelected && selection.length > 0) {
-                    return selection
+                    return {
+                        revisionIds: selection,
+                        forceVariantIds: isGroupedParentRow && variantId ? [variantId] : [],
+                    }
                 }
 
                 const childKeys = ((r as any).children || [])
@@ -89,10 +97,16 @@ const ActionCell = memo(
                     .filter((id: string | null | undefined) => Boolean(id))
 
                 if (childKeys.length > 0) {
-                    return Array.from(new Set([recordKey, ...childKeys]))
+                    return {
+                        revisionIds: Array.from(new Set([recordKey, ...childKeys])),
+                        forceVariantIds: variantId ? [variantId] : [],
+                    }
                 }
 
-                return [recordKey]
+                return {
+                    revisionIds: [recordKey],
+                    forceVariantIds: isGroupedParentRow && variantId ? [variantId] : [],
+                }
             },
             [selectedRowKeys],
         )
