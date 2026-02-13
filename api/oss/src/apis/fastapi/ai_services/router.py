@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from oss.src.utils.exceptions import intercept_exceptions
 
-from oss.src.core.ai_services.dtos import TOOL_REFINE_PROMPT
+from oss.src.core.ai_services.dtos import AIServicesUnknownToolError
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.models import (
     AIServicesStatusResponse,
@@ -63,17 +63,12 @@ class AIServicesRouter:
         # enables/disables AI services for the whole org) rather than
         # per-user permissions.  For now, env-var gating is sufficient.
 
-        # Tool routing + strict request validation
-        if tool_call.name != TOOL_REFINE_PROMPT:
-            raise HTTPException(status_code=400, detail="Unknown tool")
-
         try:
             return await self.service.call_tool(
                 name=tool_call.name,
                 arguments=tool_call.arguments,
             )
+        except AIServicesUnknownToolError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
         except ValidationError as e:
             raise HTTPException(status_code=400, detail=e.errors()) from e
-        except ValueError as e:
-            # Unknown tool or invalid argument shape
-            raise HTTPException(status_code=400, detail=str(e)) from e

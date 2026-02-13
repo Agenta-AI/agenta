@@ -52,6 +52,14 @@ class AIServicesConnectionError(AIServicesError):
         super().__init__(message=message, status_code=502)
 
 
+class AIServicesUnknownToolError(AIServicesError):
+    """Raised when a requested tool name is not recognized by the dispatcher."""
+
+    def __init__(self, tool_name: str):
+        super().__init__(message=f"Unknown tool: {tool_name}", status_code=400)
+        self.tool_name = tool_name
+
+
 # ---------------------------------------------------------------------------
 # Client response DTO
 # ---------------------------------------------------------------------------

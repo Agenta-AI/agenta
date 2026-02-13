@@ -10,6 +10,7 @@ from oss.src.core.ai_services.client import AgentaAIServicesClient
 from oss.src.core.ai_services.dtos import (
     AIServicesError,
     AIServicesStatus,
+    AIServicesUnknownToolError,
     RefinePromptArguments,
     ToolCallMeta,
     ToolCallResponse,
@@ -179,7 +180,7 @@ class AIServicesService:
         self, *, name: str, arguments: Dict[str, Any]
     ) -> ToolCallResponse:
         if name != TOOL_REFINE_PROMPT:
-            raise ValueError(f"Unknown tool: {name}")
+            raise AIServicesUnknownToolError(name)
 
         args = RefinePromptArguments.model_validate(arguments)
 
