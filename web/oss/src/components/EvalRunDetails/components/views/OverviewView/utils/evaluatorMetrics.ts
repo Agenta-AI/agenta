@@ -69,6 +69,10 @@ export const buildEvaluatorMetricEntries = (
         .map(({stepKey, label, evaluatorRef}) => {
             const prefix = `${stepKey}.`
             const unique = new Map<string, EvaluatorMetricDefinition>()
+            const isContainerMetric = (rawKey: string) =>
+                rawKey === "attributes.ag" ||
+                rawKey === "attributes.ag.data" ||
+                rawKey === "attributes.ag.data.outputs"
             const fallbackMetrics = fallbackMetricsByStep?.[stepKey] ?? []
             const fallbackByCanonicalKey = new Map<string, EvaluatorMetricDefinition>()
             const allowedCanonicalKeys = new Set(
@@ -90,6 +94,7 @@ export const buildEvaluatorMetricEntries = (
                     if (!key.startsWith(prefix)) return
                     const rawKey = key.slice(prefix.length)
                     if (!rawKey) return
+                    if (isContainerMetric(rawKey)) return
                     const canonicalKey = canonicalizeMetricKey(rawKey)
                     if (hasSchema && !allowedCanonicalKeys.has(canonicalKey)) {
                         if (!rawKey.startsWith("attributes.ag.data.outputs.")) {
