@@ -728,6 +728,8 @@ class EvaluatorsService:
         project_id: UUID,
         #
         evaluator_revisions_log: EvaluatorRevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[EvaluatorRevision]:
         workflow_revisions_log = WorkflowRevisionsLog(
             **evaluator_revisions_log.model_dump(
@@ -739,6 +741,8 @@ class EvaluatorsService:
             project_id=project_id,
             #
             workflow_revisions_log=workflow_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow_revisions:

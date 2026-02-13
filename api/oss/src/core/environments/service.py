@@ -810,11 +810,15 @@ class EnvironmentsService:
         project_id: UUID,
         #
         environment_revisions_log: EnvironmentRevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[EnvironmentRevision]:
         revisions = await self.environments_dao.log_revisions(
             project_id=project_id,
             #
             revisions_log=environment_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         if not revisions:

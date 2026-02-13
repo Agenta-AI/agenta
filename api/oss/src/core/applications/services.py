@@ -728,6 +728,8 @@ class ApplicationsService:
         project_id: UUID,
         #
         application_revisions_log: ApplicationRevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[ApplicationRevision]:
         workflow_revisions_log = WorkflowRevisionsLog(
             **application_revisions_log.model_dump(
@@ -739,6 +741,8 @@ class ApplicationsService:
             project_id=project_id,
             #
             workflow_revisions_log=workflow_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow_revisions:

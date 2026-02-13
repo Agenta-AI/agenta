@@ -1319,6 +1319,8 @@ class GitDAO(GitDAOInterface):
         project_id: UUID,
         #
         revisions_log: RevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[Revision]:
         # If only artifact_id is provided, fetch the default variant first
         variant_id = revisions_log.variant_id
@@ -1385,6 +1387,12 @@ class GitDAO(GitDAOInterface):
             stmt = stmt.filter(
                 self.RevisionDBE.variant_id == revision.variant_id,  # type: ignore
             )
+
+            # Filter out archived/deleted revisions unless explicitly requested
+            if not include_archived:
+                stmt = stmt.filter(
+                    self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+                )
 
             stmt = stmt.order_by(order_by)
             stmt = stmt.offset(offset)

@@ -664,6 +664,8 @@ class WorkflowsService:
         project_id: UUID,
         #
         workflow_revisions_log: WorkflowRevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[WorkflowRevision]:
         _revisions_log = RevisionsLog(
             **workflow_revisions_log.model_dump(mode="json"),
@@ -673,6 +675,8 @@ class WorkflowsService:
             project_id=project_id,
             #
             revisions_log=_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         _workflow_revisions = [

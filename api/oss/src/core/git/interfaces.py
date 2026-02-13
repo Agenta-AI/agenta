@@ -304,6 +304,8 @@ class GitDAOInterface(ABC):
         project_id: UUID,
         #
         revisions_log: RevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[Revision]:
         raise NotImplementedError
 
