@@ -1,5 +1,6 @@
 import {useMemo, useCallback, useState, useEffect, useRef} from "react"
 
+import {getMetadataLazy} from "@agenta/entities/legacyAppRevision"
 import {mergeRegister} from "@lexical/utils"
 import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
@@ -13,7 +14,6 @@ import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeB
 import PromptMessageHeader from "@/oss/components/Playground/Components/Shared/PromptMessageHeader"
 import {useMessageContentHandlers} from "@/oss/components/Playground/hooks/useMessageContentHandlers"
 import {useMessageContentProps} from "@/oss/components/Playground/hooks/useMessageContentProps"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import {usePromptMessageConfig} from "../../hooks/usePromptMessageConfig"
 import {

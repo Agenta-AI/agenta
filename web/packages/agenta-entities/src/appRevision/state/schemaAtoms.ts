@@ -20,6 +20,7 @@
  * @see serviceSchemaAtoms.ts — Prefetch atoms and composition logic
  */
 
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -63,16 +64,17 @@ const emptySchemaState: RevisionSchemaState = {
  */
 const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery<RevisionSchemaState>((get) => {
+        const projectId = get(projectIdAtom)
         const entityData = get(appRevisionEntityAtomFamily(revisionId))
         const uri = entityData?.uri
-        const enabled = !!revisionId && !!uri
+        const enabled = !!revisionId && !!uri && !!projectId
 
         return {
-            queryKey: ["appRevisionSchema", revisionId, uri],
+            queryKey: ["appRevisionSchema", revisionId, uri, projectId],
             queryFn: async (): Promise<RevisionSchemaState> => {
                 if (!uri) return emptySchemaState
 
-                const result = await fetchRevisionSchema(uri)
+                const result = await fetchRevisionSchema(uri, projectId)
                 if (!result || !result.schema) {
                     return {
                         ...emptySchemaState,

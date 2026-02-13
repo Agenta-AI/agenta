@@ -3,7 +3,6 @@ from nbconvert import MarkdownExporter
 from nbconvert.preprocessors import ClearOutputPreprocessor
 import nbformat
 import os
-import sys
 import argparse
 
 

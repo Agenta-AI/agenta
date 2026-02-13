@@ -6,7 +6,6 @@ from fastapi import APIRouter, Request, status, Depends, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -42,15 +41,6 @@ from oss.src.apis.fastapi.queries.models import (
 from oss.src.apis.fastapi.queries.utils import (
     parse_query_query_request_from_params,
     parse_query_query_request_from_body,
-    merge_query_query_requests,
-    parse_query_variant_query_request_from_params,
-    parse_query_variant_query_request_from_body,
-    merge_query_variant_query_requests,
-    parse_query_revision_query_request_from_params,
-    parse_query_revision_query_request_from_body,
-    merge_query_revision_query_requests,
-    parse_query_revision_retrieve_request_from_params,
-    parse_query_revision_retrieve_request_from_body,
 )
 
 if is_ee():
@@ -405,7 +395,7 @@ class QueriesRouter:
             if body_json:
                 query_request_body = parse_query_query_request_from_body(**body_json)
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         query_query_request = query_request_params or query_request_body

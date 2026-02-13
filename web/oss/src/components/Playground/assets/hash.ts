@@ -1,8 +1,9 @@
 import crypto from "crypto"
 
+import {updateMetadataAtom} from "@agenta/entities/legacyAppRevision"
 import stableHash from "stable-hash"
 
-import {updateMetadataAtom, updateResponseAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {updateResponseAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 const hashCache = new WeakMap()
 
@@ -38,10 +39,4 @@ export const hashResponse = (response: any) => {
 
         return responseHash
     }
-}
-
-export const validateHash = (value: any, storedHash: string) => {
-    const weakHash = stableHash(value)
-    const safeHash = crypto.createHash("MD5").update(weakHash).digest("hex")
-    return safeHash === storedHash
 }

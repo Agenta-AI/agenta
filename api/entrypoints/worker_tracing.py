@@ -87,7 +87,7 @@ async def main_async() -> int:
 
         return 0
 
-    except Exception as e:
+    except Exception:
         log.error("[OTLP] Fatal error", exc_info=True)
         return 1
 
@@ -104,7 +104,7 @@ def main() -> int:
     except KeyboardInterrupt:
         log.info("[OTLP] Shutdown requested")
         return 0
-    except Exception as e:
+    except Exception:
         log.error("[OTLP] Fatal error", exc_info=True)
         return 1
 

@@ -157,6 +157,24 @@ export {
     type LegacyAppRevisionSelectionConfig,
 } from "./state"
 
+// ============================================================================
+// SNAPSHOT - Draft Patch Helpers for URL Sharing
+// ============================================================================
+
+export {
+    buildLegacyAppRevisionDraftPatch,
+    applyLegacyAppRevisionDraftPatch,
+    initializeServerData,
+    hasDraftChanges,
+    type LegacyAppRevisionDraftPatch,
+    type BuildPatchResult,
+} from "./snapshot"
+
+// Auto-register snapshot adapter when this module is imported
+// This ensures the adapter is available in the registry for snapshot operations
+import "./snapshotAdapter"
+export {legacyAppRevisionSnapshotAdapter} from "./snapshotAdapter"
+
 // Re-export store atoms for direct access if needed
 export {
     // Query atoms
@@ -209,6 +227,8 @@ export {
     setAppsListAtom,
     setVariantsListAtomFamily,
     setRevisionsListAtomFamily,
+    // Cache reactivity
+    revisionCacheVersionAtom,
 } from "./state"
 
 // Re-export schema atoms
@@ -224,13 +244,24 @@ export {
     // Enhanced custom properties (with values)
     revisionEnhancedCustomPropertiesAtomFamily,
     revisionCustomPropertyKeysAtomFamily,
-    customPropertyMetadataAtom,
     type EnhancedCustomProperty,
     // Enhanced prompts (with values)
     revisionEnhancedPromptsAtomFamily,
     revisionPromptKeysAtomFamily,
     type EnhancedPrompt,
+    // Service schema metadata warmer
+    serviceSchemaMetadataWarmerAtom,
 } from "./state"
+
+// Re-export spec derivation utilities (pure functions)
+export {
+    deriveEnhancedPrompts,
+    deriveEnhancedCustomProperties,
+    isPromptLikeStructure,
+    isPromptLikeSchema,
+    isPromptProperty,
+    enhanceToolsArray,
+} from "./utils"
 
 // Re-export metadata atoms
 export {
@@ -302,6 +333,7 @@ export {
     createLocalDraftFromRevision,
     discardLocalDraft,
     discardAllLocalDrafts,
+    cleanupStaleLocalDrafts,
     // App scoping setup
     setCurrentAppIdAtom,
     // Re-exports

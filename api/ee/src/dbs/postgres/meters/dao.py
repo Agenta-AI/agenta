@@ -1,11 +1,8 @@
 from typing import Callable, Tuple, Optional
-from collections import defaultdict
-from datetime import datetime, timezone
 
 from sqlalchemy import update
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
-from sqlalchemy import case, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import func, literal
 
@@ -83,7 +80,7 @@ class MetersDAO(MetersDAOInterface):
 
                     except Exception:
                         log.error(
-                            f"[report] [dump] Error converting meter to DTO",
+                            "[report] [dump] Error converting meter to DTO",
                             exc_info=True,
                         )
                         continue
@@ -145,7 +142,7 @@ class MetersDAO(MetersDAOInterface):
 
             try:
                 await session.commit()
-                log.info(f"[report] [bump] ✅ Committed successfully")
+                log.info("[report] [bump] ✅ Committed successfully")
             except Exception:
                 log.error("[report] [bump] ❌ Commit failed", exc_info=True)
                 await session.rollback()

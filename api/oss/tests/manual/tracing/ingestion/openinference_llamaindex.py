@@ -2,7 +2,6 @@
 # dependencies = ["agenta", "llama_index", "openinference-instrumentation-llama_index"]
 # ///
 
-import os
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
 

@@ -1,8 +1,9 @@
 import {useCallback} from "react"
 
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getMetadataLazy} from "@agenta/entities/legacyAppRevision"
+import {generateId} from "@agenta/shared/utils"
+
 import {createObjectFromMetadata} from "@/oss/lib/shared/variant/genericTransformer/helpers/arrays"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 
 type AnyObj = Record<string, any>
 
@@ -222,6 +223,12 @@ export function useMessageContentHandlers() {
                 baseArray = [...(contentProperty!.value as AnyObj[])]
             } else {
                 const textNode = buildTextNode((contentProperty as AnyObj)?.__metadata)
+                // Preserve existing text when converting from string to array
+                const existingText =
+                    typeof contentProperty?.value === "string" ? contentProperty.value : ""
+                if (existingText && textNode?.text) {
+                    textNode.text = {...textNode.text, value: existingText}
+                }
                 baseArray = [textNode]
             }
             baseArray.push(newNode)

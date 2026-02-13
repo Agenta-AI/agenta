@@ -118,6 +118,9 @@ export type {OptionGroup} from "./schemaOptions"
 // Pluralization utilities
 export {pluralize, formatCount} from "./pluralize"
 
+// ID generation utilities
+export {generateId} from "./generateId"
+
 // Mapping utilities for input/output mappings
 export {
     determineMappingStatus,

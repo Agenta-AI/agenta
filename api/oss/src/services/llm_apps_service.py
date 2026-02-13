@@ -6,11 +6,9 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils import common  # noqa: F401
 from oss.src.services import helpers
 from oss.src.services.auth_service import sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
-from oss.src.apis.fastapi.tracing.utils import make_hash_id  # noqa: F401
 from oss.src.models.shared_models import InvokationResult, Result, Error
 
 log = get_module_logger(__name__)
@@ -378,8 +376,8 @@ async def run_with_retry(
     if "references" in kwargs and "testcase_id" in input_data:
         kwargs["references"]["testcase"] = {"id": input_data["testcase_id"]}
 
-    references = kwargs.get("references", None)  # noqa: F841
-    links = kwargs.get("links", None)  # noqa: F841
+    # references = kwargs.get("references", None)
+    # links = kwargs.get("links", None)
     # hash_id = make_hash_id(references=references, links=links)
 
     retries = 0

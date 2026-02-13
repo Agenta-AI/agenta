@@ -519,6 +519,7 @@ export function getSchemaPropertyAtPath(
  */
 export async function fetchServiceSchema(
     serviceType: AppServiceType,
+    projectId?: string | null,
 ): Promise<RevisionSchemaState | null> {
     const routePath = SERVICE_ROUTE_PATHS[serviceType]
     if (!routePath) return null
@@ -534,7 +535,10 @@ export async function fetchServiceSchema(
 
     try {
         // Pass full absolute URL with baseURL:"" to bypass axios's preconfigured baseURL
-        const response = await axios.get<Record<string, unknown>>(openApiUrl, {baseURL: ""})
+        const response = await axios.get<Record<string, unknown>>(openApiUrl, {
+            baseURL: "",
+            params: projectId ? {project_id: projectId} : undefined,
+        })
         const rawSchema = response.data
 
         if (!rawSchema || typeof rawSchema !== "object") return null

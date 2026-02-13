@@ -72,7 +72,7 @@ def test_variant_commit(mock_commit, prompt):
     )
 
     assert variant.variant_version == 2
-    assert type(variant.params) == dict
+    assert type(variant.params) == dict  # noqa: E721
     assert variant.params["temperature"] == 0.6
 
 
@@ -96,7 +96,7 @@ async def test_variant_acommit(mock_acommit, prompt):
     )
 
     assert variant.variant_version == 4
-    assert type(variant.params) == dict
+    assert type(variant.params) == dict  # noqa: E721
     assert variant.params["temperature"] == 1.0
 
 

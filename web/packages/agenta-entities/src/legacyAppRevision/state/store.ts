@@ -22,7 +22,7 @@ import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 import {extractVariablesFromAgConfig} from "../../runnable/utils"
 import type {QueryState} from "../../shared"
 import type {ListQueryState} from "../../shared"
-import {extractRoutePath, extractRuntimePrefix, isLocalDraftId} from "../../shared"
+import {extractRoutePath, extractRuntimePrefix, isLocalDraftId, isPlaceholderId} from "../../shared"
 import {
     fetchOssRevisionById,
     fetchOssRevisionEnriched,
@@ -36,6 +36,11 @@ import {
     type VariantDetail,
 } from "../api"
 import type {LegacyAppRevisionData} from "../core"
+import {
+    stripVolatileKeys,
+    enhancedPromptsToParameters,
+    enhancedCustomPropertiesToParameters,
+} from "../utils"
 
 // ============================================================================
 // INPUT PORTS TYPE
@@ -118,9 +123,11 @@ export const variantDetailCacheAtomFamily = atomFamily((variantId: string) =>
 const directQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery<LegacyAppRevisionData | null>((get) => {
         const projectId = get(projectIdAtom)
-        // Skip queries for local draft IDs - they don't exist on the server
+        // Skip queries for local draft IDs and placeholder IDs - they don't exist on the server
+        // Placeholder IDs are temporary IDs used during pending hydrations (e.g., "__pending_hydration__dk-xxx")
         const isLocal = isLocalDraftId(revisionId)
-        const enabled = !!revisionId && !!projectId && !isLocal
+        const isPlaceholder = isPlaceholderId(revisionId)
+        const enabled = !!revisionId && !!projectId && !isLocal && !isPlaceholder
 
         return {
             queryKey: ["legacyAppRevision", revisionId, projectId],
@@ -143,9 +150,10 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
     atomWithQuery<LegacyAppRevisionData | null>((get) => {
         const projectId = get(projectIdAtom)
         const parsed = parseEnrichedKey(key)
-        // Skip queries for local draft IDs
+        // Skip queries for local draft IDs and placeholder IDs
         const isLocal = parsed ? isLocalDraftId(parsed.revisionId) : false
-        const enabled = !!parsed && !!projectId && !isLocal
+        const isPlaceholder = parsed ? isPlaceholderId(parsed.revisionId) : false
+        const enabled = !!parsed && !!projectId && !isLocal && !isPlaceholder
 
         return {
             queryKey: ["legacyAppRevisionEnriched", key, projectId],
@@ -219,25 +227,6 @@ function getDraftAtom(
         [LegacyAppRevisionData | null],
         void
     >
-}
-
-const stripVolatileKeys = (value: unknown): unknown => {
-    if (Array.isArray(value)) {
-        return value.map(stripVolatileKeys)
-    }
-    if (value && typeof value === "object") {
-        return Object.entries(value as Record<string, unknown>).reduce(
-            (acc, [key, val]) => {
-                if (key === "__id" || key === "__test") {
-                    return acc
-                }
-                acc[key] = stripVolatileKeys(val)
-                return acc
-            },
-            {} as Record<string, unknown>,
-        )
-    }
-    return value
 }
 
 // ============================================================================
@@ -390,7 +379,7 @@ export const appsQueryAtom = atomWithQuery<AppListItem[]>((get) => {
     const enabled = !!projectId
 
     return {
-        queryKey: ["oss-apps-for-selection", projectId],
+        queryKey: ["apps-for-selection", projectId],
         queryFn: async () => fetchAppsList(projectId!),
         staleTime: 1000 * 60,
         refetchOnWindowFocus: false,
@@ -516,6 +505,13 @@ export const revisionsListQueryStateAtomFamily = atomFamily((variantId: string) 
 // REVISION LIST CACHE LOOKUP
 // ============================================================================
 
+/**
+ * Writable atom that is incremented whenever we know revision queries have
+ * settled (e.g., after a query invalidation). Reading this in a derived atom
+ * adds a reactive dependency so the atom re-evaluates when signaled.
+ */
+export const revisionCacheVersionAtom = atom(0)
+
 const findRevisionListItemInCache = (
     queryClient: import("@tanstack/react-query").QueryClient,
     revisionId: string,
@@ -533,10 +529,36 @@ const findRevisionListItemInCache = (
     return null
 }
 
+/**
+ * Revision list item lookup from React Query cache — **now reactive**.
+ *
+ * Previous implementation depended only on `queryClientAtom` (a constant),
+ * so it computed once and was never invalidated when new revision data arrived.
+ * This caused the enriched query path to never fire, forcing all entity reads
+ * through the slow `directQueryAtomFamily` (2 sequential API calls per revision).
+ *
+ * Fix: additionally read `revisionCacheVersionAtom` so that callers who bump
+ * the version (e.g., after query invalidation or initial data load) trigger
+ * a re-evaluation. We also reactively read `revisionsQueryAtomFamily` for
+ * the variant ID discovered via an initial cache scan, ensuring data flows
+ * through the faster enriched path once revision list queries resolve.
+ */
 const revisionListItemFromCacheAtomFamily = atomFamily((revisionId: string) =>
     atom<RevisionListItem | null>((get) => {
+        // Subscribe to the version counter so we re-evaluate when signaled
+        get(revisionCacheVersionAtom)
+
         const queryClient = get(queryClientAtom)
-        return findRevisionListItemInCache(queryClient, revisionId)
+        const cached = findRevisionListItemInCache(queryClient, revisionId)
+
+        if (cached?.variantId) {
+            // Also subscribe to the reactive revision query for this variant
+            // so that future data updates (e.g., after invalidation) trigger
+            // re-evaluation through Jotai's dependency tracking.
+            get(revisionsQueryAtomFamily(cached.variantId))
+        }
+
+        return cached
     }),
 )
 
@@ -790,7 +812,11 @@ export const legacyAppRevisionServerDataSelectorFamily = atomFamily((revisionId:
 
 /**
  * Check if revision has unsaved changes.
- * Compares draft with enriched server data.
+ * Compares draft parameters with server parameters.
+ *
+ * IMPORTANT: We compare parameters (the source of truth) rather than the entire
+ * object, because enhanced prompts/properties are derived and may have different
+ * structure even when the underlying data is the same.
  */
 export const legacyAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revisionId: string) =>
     atom<boolean>((get) => {
@@ -805,9 +831,54 @@ export const legacyAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revision
             return true // New entity
         }
 
-        const draftStr = JSON.stringify(stripVolatileKeys(draft))
-        const serverStr = JSON.stringify(stripVolatileKeys(serverData))
-        return draftStr !== serverStr
+        // IMPORTANT: Compare PARAMETERS only, not enhanced prompts/properties.
+        // Enhanced prompts/properties are DERIVED from parameters and stored in draft
+        // when user edits, but server data doesn't have them (they're empty []).
+        // We need to convert enhanced data back to parameters for comparison.
+
+        const serverParams = serverData.parameters ?? {}
+        const hasEnhancedPrompts = draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)
+        const hasEnhancedCustomProps =
+            draft.enhancedCustomProperties && typeof draft.enhancedCustomProperties === "object"
+
+        // When enhanced data exists, use SERVER params as the base for conversion.
+        // This ensures that when the user manually reverts changes back to the original,
+        // the resulting parameters have the same key ordering as server data.
+        // Using draft.parameters as the base would fail because URL-hydrated draft
+        // parameters go through transformToRequestBody → toSnakeCaseDeep which may
+        // produce different key ordering than the original server parameters.
+        //
+        // When no enhanced data exists (e.g., right after URL hydration before seed),
+        // compare draft.parameters directly.
+        let draftParams: Record<string, unknown>
+        if (hasEnhancedPrompts || hasEnhancedCustomProps) {
+            draftParams = {...serverParams}
+        } else {
+            draftParams = {...(draft.parameters ?? {})}
+        }
+
+        // If draft has enhanced prompts, convert them back to parameters
+        // This captures any edits the user made through the enhanced prompt UI
+        if (hasEnhancedPrompts) {
+            draftParams = enhancedPromptsToParameters(draft.enhancedPrompts!, draftParams)
+        }
+
+        // If draft has enhanced custom properties, convert them back to parameters
+        if (hasEnhancedCustomProps) {
+            draftParams = enhancedCustomPropertiesToParameters(
+                draft.enhancedCustomProperties as Record<string, unknown>,
+                draftParams,
+            )
+        }
+
+        // Compare parameters (the source of truth)
+        // preserveNulls=true because null values are meaningful changes
+        const strippedDraft = stripVolatileKeys(draftParams, true)
+        const strippedServer = stripVolatileKeys(serverParams, true)
+        const draftParamsStr = JSON.stringify(strippedDraft)
+        const serverParamsStr = JSON.stringify(strippedServer)
+
+        return draftParamsStr !== serverParamsStr
     }),
 )
 
@@ -1085,7 +1156,13 @@ export const updatePropertyAtom = atom(
                         typeof val === "object" &&
                         (val as {__id?: string}).__id === propertyId
                     ) {
-                        customProps[key] = value
+                        // Preserve enhanced wrapper (__id, __metadata, schema) — only update .value
+                        const typedVal = val as {value?: unknown; [k: string]: unknown}
+                        if ("value" in typedVal) {
+                            typedVal.value = value
+                        } else {
+                            customProps[key] = value
+                        }
                         propertyFound = true
                         return
                     }

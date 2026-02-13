@@ -1,12 +1,10 @@
-import pytest
-
-from utils.env import ag_env
+from utils.env import ag_env  # noqa: F401
 from utils.api import (
-    authed_api,
-    unauthed_api,
+    authed_api,  # noqa: F401
+    unauthed_api,  # noqa: F401
 )
 from utils.accounts import (
-    foo_account,
-    cls_account,
-    mod_account,
+    foo_account,  # noqa: F401
+    cls_account,  # noqa: F401
+    mod_account,  # noqa: F401
 )

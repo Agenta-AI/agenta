@@ -1,27 +1,33 @@
+import {getAllMetadata} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
+import {generateId} from "@agenta/shared/utils"
 import {produce} from "immer"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {hashResponse} from "@/oss/components/Playground/assets/hash"
-import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms"
+import {appChatModeAtom, generationRowIdsAtom} from "@/oss/components/Playground/state/atoms"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {
+    playgroundAppUriInfoAtom,
+    playgroundAppSchemaAtom,
+} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import {
     displayedVariantsAtom,
     revisionListAtom,
 } from "@/oss/components/Playground/state/atoms/variants"
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {
     extractValueByMetadata,
     stripAgentaMetadataDeep,
+    stripEnhancedWrappers,
 } from "@/oss/lib/shared/variant/valueHelpers"
 import {getJWT} from "@/oss/services/api"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
     chatTurnIdsAtom,
     chatTurnsByIdAtom,
+    // chatTurnsByIdAtom, // Moved
     chatTurnsByIdFamilyAtom,
     inputRowsByIdAtom,
     inputRowsByIdFamilyAtom,
@@ -42,13 +48,12 @@ import {
     buildToolMessages,
 } from "@/oss/state/newPlayground/helpers/messageFactory"
 import {
-    moleculeBackedVariantAtomFamily,
-    moleculeBackedPromptsAtomFamily,
     moleculeBackedCustomPropertiesAtomFamily,
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
 import {variableValuesSelectorFamily} from "@/oss/state/newPlayground/selectors/variables"
 import {getProjectValues} from "@/oss/state/project"
-import {appUriInfoAtom, getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
 // (runnableBridge imported above with external deps)
 
 import {selectedAppIdAtom} from "../../app"
@@ -111,17 +116,10 @@ function resolveEffectiveRevisionId(
     return effectiveId || null
 }
 
-function detectIsChatVariant(get: any, rowId: string): boolean {
-    const spec = getSpecLazy()
-    const appUri = get(appUriInfoAtom)
-    if (spec) {
-        const properties = (
-            spec.paths[(appUri?.routePath || "") + "/run"] ||
-            spec.paths[(appUri?.routePath || "") + "/test"]
-        )?.post?.requestBody?.content["application/json"]?.schema?.properties
-        return properties?.messages !== undefined
-    }
-    return false
+function detectIsChatVariant(get: any, _rowId: string): boolean {
+    // Use the same chat mode detection as the rendering layer
+    // instead of manually parsing raw OpenAPI paths which can miss the messages schema.
+    return Boolean(get(appChatModeAtom))
 }
 
 interface ResolvedVariableKeys {
@@ -359,7 +357,9 @@ export const triggerWebWorkerTestAtom = atom(
                 .filter(Boolean)
         }
 
-        const sanitizedChatHistory = stripAgentaMetadataDeep(chatHistory)
+        const sanitizedChatHistory = stripEnhancedWrappers(
+            stripAgentaMetadataDeep(chatHistory),
+        ) as any[]
         const sanitizedPrompts = stripAgentaMetadataDeep(prompts)
 
         inputRow = (() => {
@@ -399,7 +399,7 @@ export const triggerWebWorkerTestAtom = atom(
         const appId = get(selectedAppIdAtom)
         const {appType} = (get(currentAppContextAtom) as any) || {}
         const jwt = await getJWT()
-        const uri = get(appUriInfoAtom) || ({} as any)
+        const uri = get(playgroundAppUriInfoAtom) || ({} as any)
         const rawRepetitions = get(repetitionCountAtom)
         const repetitions = Array.isArray(displayed) && displayed.length > 1 ? 1 : rawRepetitions
 
@@ -425,7 +425,7 @@ export const triggerWebWorkerTestAtom = atom(
             headers,
             projectId,
             chatHistory: sanitizedChatHistory,
-            spec: getSpecLazy(),
+            spec: get(playgroundAppSchemaAtom),
             runId,
             prompts: sanitizedPrompts,
             // variables: promptVars,
@@ -442,12 +442,6 @@ export const triggerWebWorkerTestAtom = atom(
             isChat: isChatVariant,
             appType,
         }
-        console.debug("[WW] post runVariantInputRow", {
-            rowId,
-            variantId: effectiveId,
-            isChatVariant,
-            hasJwt: Boolean(jwt),
-        })
         postMessageToWorker(createWorkerMessage("runVariantInputRow", payload))
     },
 )
