@@ -60,6 +60,8 @@ class GitDAOInterface(ABC):
         project_id: UUID,
         #
         artifact_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Artifact]:
         raise NotImplementedError
 
@@ -135,6 +137,8 @@ class GitDAOInterface(ABC):
         #
         artifact_ref: Optional[Reference] = None,
         variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Variant]:
         raise NotImplementedError
 
@@ -224,6 +228,8 @@ class GitDAOInterface(ABC):
         #
         variant_ref: Optional[Reference] = None,
         revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Revision]:
         raise NotImplementedError
 
@@ -298,6 +304,8 @@ class GitDAOInterface(ABC):
         project_id: UUID,
         #
         revisions_log: RevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[Revision]:
         raise NotImplementedError
 

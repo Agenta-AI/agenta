@@ -5,7 +5,7 @@ description: "Switch Plans User Route"
 sidebar_label: "Switch Plans User Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVMFu2zAM/RWDpw0QkqzYyadl2IAW3dCgTXcJgoC2mVidLKmSnDUL9O8DZcdJmvawUxyJpB7fe+QeAm485Av4KpWSegNLAcaSwyCNvqkgB/9HhrJeWYXagwCLDhsK5DhrDxobghz4FgRIDTk8t+R2IMDRcysdVZAH15IAX9bUIOR7CDvLST44flEA6bZhDKUybbXaTla1KQouMRxYZ07/Fq2Xmrw/PavbBrUMu5XC4uzi5eIEN6QDrlByt0EGxWhm3EKMSwburdGePGO9mkz4pyJfOmmZFcjhoS1L8n7dquy+D+b6RgfSgcPRWiXLROL4yXPO/th/jDEK+Hx1dVn4FypZpbTsu3PG/UdVsI6FC7LDXVFAqfhLBmr8ZYAy5dkt6t3dOml6Lk8Uw4nUgTbkIC6jOJyhc8hSHWj8YTqAEAU0fvOW3IfQn+Q9bgiGYu+HJjKyOd/G49umeKIynFltkfrqnu7jTjQ+0tux+34b3zr63nrsEHI9n88uCnbavnJLmqCMDeazR08uuzdtYMc0FGrDQ2aND2m4Qg05jItuGMdp6MbdBIIAT257GLzWKcihDsH6fDxO1h51vh6hHKOVwFb2VLZOhl1Kmc5ubml3TViRg3yxPA14YBt1xjgPGzRBK2+JKepHftqG2jj5t1O7n/26y2IOpF6blN7TNU3gsunsBgRwGx05k9Gn0QReU3YWzBOAZZqAw9vpGsQrFob+eac0yf4QCJsvxwtGxmQ3qE/qva/QGayBi0AvgcWRyeYJxL4XbwG9eCxnvzN7AZcCatY5X8B+X6CnR6di5ONuZbJGlfRYKHbyGpWnCwDDNoAP973pP2Yg3gb2m3bH3bxF1XJI8sUWneR3kg3EQTYG0OVMy5JsOMm6WD1cZbDv7O5hDjH+A+mQJqo=
+api: eJyVVE1v2zAM/SsGTxsgJFmxk0/LPoAG3dCg7XYJgoC2mVidbKmSnDUL9N8Hyh9xmvawUxyKpJ7ee+QRPO4cpCv4LJWS9Q7WArQhi17qelFACu6P9Hm5MQprBwIMWqzIk+WqI9RYEaTApyBA1pDCU0P2AAIsPTXSUgGptw0JcHlJFUJ6BH8wXOS85RsFUN1UjCFXuik2+9mm1FnGLYaAsXr8N2ucrMm5caxsKqylP2wUZmcHzxcR3FHtcYOSX+ulV4xmyU8IYc3AndG1I8dYr2Yz/inI5VYaZgVSuG/ynJzbNiq565K5v6491Z7T0Rgl80ji9NFxzfH0/hBCEPDx6uqy8S9UsohlyTdrtf2PrmAsC+dli7sgj1Lxl/RUucsEpfOzU6wPt9uo6bk8QQwRWXvakYWwDqKPobXIUvU0ftctQAgCKrd7Te4+9Qc5hzuCodnbqZGM5IFPA9vMNJGQ/ngRA0FA7p9HbXT2SLkftfnCXD57CCf8Q87JrqvITQu/yxv55CRRq9DbVHxtJXjtsj7l+uFhedGw9ccLx8UpTNikLvnpyCZ3uvHsuop8qXlQjXY+DqgvIYVp1g70NA7utJ1iEODI7vvhbayCFErvjUun0zgek3Y2JiinaCTwODjKGyv9IZbMl4sbOlwTFmQhXa3HCfdsxdZc52mDIGjkDTFF3dqYN77UVv5tHdPtj7KtClHorR7rPI/gkvlyAQL4GS05s8mHyQxeUnaWzFOEeTRNf3c8BvGCheH9vJeqOELgCatPpwNGxmRXWI/6va3QGayBCzYiiyPjqEQQx068FXTisZzd3u0EXAsoWed0Bcdjho5+WhUCh9u1yxoV0mGm2MlbVI4uAAwbBd7ddaZ/n4B4HdhvOpz2+x5VwynRF3u0ku+JNhC9bAygrZnnORk/qrpYX9xlsO/y9v4BQvgHVnw9UQ==
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -62,7 +62,7 @@ Switch Plans User Route
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
 >
   
 </StatusCodes>

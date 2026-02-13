@@ -219,7 +219,7 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
             <Typography.Paragraph type="secondary">
                 Invite members to your team by entering their emails.{" "}
                 {!isEE() || !hasRBAC
-                    ? "Role base access control is available in the cloud and enterprise editions of Agenta"
+                    ? "Role-based access control is available in Cloud/EE."
                     : "You can specify the roles to control the access level of the invited members on Agenta."}
             </Typography.Paragraph>
             <InviteForm

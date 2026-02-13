@@ -5,7 +5,7 @@ description: "Revert Deployment Revision"
 sidebar_label: "Revert Deployment Revision"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVMGO2jAQ/ZXonVrJInTVU05F3UqLttUilvaC0MqbDMTbxPbaDiqN/O+VnRBggZV6ItgzzzPvzZsWjm8ssiW+KrkWG4sVg9JkuBNKTgtkMLQl454K0pXa1STdk6GtsEJJMGhueE2OTMBoIXlNyHAh9kkUYBASGTR3JRgMvTbCUIHMmYYYbF5SzZG1cDsdUKwzQm7A4ISrwsHtAJvMe9hkWsD7VUCzWklLNgDcjMfhpyCbG6FDJ8jw2OQ5WbtuqmTeB4MhV9KRdCGca12JPDaevtiQ0x6K8t57hs83N+fAv3glipiWfDNGmf9AhTaBbCe6ugtyXFThSziq7XlApfKTWy53D+vI/Clnng0nQjrakIFfebY/48bw3RGx31VXIDxDbTfvafCDrOUbwgB2PTSSkSzCrT+8rZ5fKHcn+i9jX93TfdzqAHOgt2P3ehu3HX2XHtuH3C0WszPATttTUedx6pMLIxcKJVeq4A2trIsucCUypHnnofQw/2l72Qs+7WwFBktmu/dPYypkKJ3TNkvTvFJNMeIbko6PuEi5FgizbilvjHC7mDKZTe9pd0e8IINsuToOeAxz1k3OadggGtfingKHvXMnjSuVEX+7cegNW3ZZgSQh1yqm93xOYnHJZDYFQ2ijY288+jQa4y2nJ8HBIjyPFtm/Ha/B3rAw9A8GqqM/4IjXXw4XobIgRc3lEd67Ep5UNtDh6I9LdcVFtEKso+3VXaJXNybvIcGQXd12vcQrhjLMSbZE2z5zSz9N5X04fm3IBBVXDFtuBH8OnC5bFMKG7wLZmleWzqod1gs+zHsXfUzALnexV1oGmbe8asI/MPym3fVVHbdFuR+qtg+e5DlpdwRzttzC9A3umD08LuD9P7GdNUc=
+api: eJyVVMtuGjEU/RV0Vq1kZWjU1ayKkkpBaRVEaDcIRc7MhXE6D8f2oNCR/726ngcQIFJXgH18uD4PN3ByYxEvcVOVa7WxWAlUmox0qiqnKWIY2pJxTynpvNoVVLonQ1tlVVVCQEsjC3JkmKNBKQtCjDPYJ5VCQJWIoaXLIGDotVaGUsTO1CRgk4wKibiB22lmsc6ocgMBp1zOC7cD7Wje0Y6mKbxfMZvVVWnJMsH1eMwfKdnEKM03QYzHOknI2nWdj+YdGAJJVToqHcOl1rlKwsWjF8tnmv1Q3nsv8PX6+pT4t8xVGo6NvhtTmf9ghTYstlPt3Ck5qXL+phwV9hSQV8nRrix3D+ug/LFmXgwrqnS0IQO/8qJfk8bI3YGwP6p2QHiBwm4+8uAnWSs3hIHsMjSIMVrwrmfrdR0E6benYcELJO7tgKZ6fqHEHdDcsJZvDn4//4DZZ2gZtGnH73CrPcfeotahy1Lcthac+7MecrdYzE4I23wcB2MemjM6E1selFxWcb90ZV1okssQI0raHkb7DkXN+T75qK0mBCyZbd/B2uSIkTmnbRxFSV7V6ZXcUOnklVSR1ArcF0tJbZTbhSOT2fSednckUzKIl6tDwCNntU3fMWxwTGp1T6xh1/5J7bLKqL9tpLrSZ+0pH5Kwrg6DMAnDjSazKQT4Gq1646svV2O81/QIzDWTSUhV/99hG+KdCsP9IUBF6BgcyeLbfoMnYysKWR7wfWjh0WSDHBzWSOdShTqFOZrO3SU6d8PhnhIC8cUXs7N4JZBxTuIlmuZZWvplcu95+bUmwy6uBLbSKPnMmi4bpMry9xTxWuaWTqYdnih8mnct+jyCOH+L3umSbd7KvOZfEPhDu8vPfXhxsj5UTQeeJAlpd0Bz8kBy+oZ2zB4eF/D+Hyz1S+4=
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -62,7 +62,7 @@ Revert Deployment Revision
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
 >
   
 </StatusCodes>
