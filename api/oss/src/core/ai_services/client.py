@@ -1,10 +1,17 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict
 
 import httpx
 
 from oss.src.utils.logging import get_module_logger
+
+from oss.src.core.ai_services.dtos import (
+    AIServicesConnectionError,
+    AIServicesTimeoutError,
+    AIServicesUpstreamError,
+    InvokeResponse,
+)
 
 
 log = get_module_logger(__name__)
@@ -18,7 +25,7 @@ class AgentaAIServicesClient:
         *,
         api_url: str,
         api_key: str,
-        timeout_s: float = 20.0,
+        timeout_s: float = 60.0,
     ):
         self.api_url = api_url.rstrip("/")
         self.api_key = api_key
@@ -30,12 +37,17 @@ class AgentaAIServicesClient:
         application_slug: str,
         environment_slug: str,
         inputs: Dict[str, Any],
-    ) -> Tuple[Optional[Any], Optional[str]]:
+    ) -> InvokeResponse:
         """Invoke a deployed prompt by app/environment slug.
 
         NOTE: This targets the cloud completion runner endpoint.
 
-        Returns: (raw_response, trace_id)
+        Returns an InvokeResponse DTO.
+
+        Raises:
+            AIServicesUpstreamError: on non-2xx HTTP response
+            AIServicesTimeoutError: on request timeout
+            AIServicesConnectionError: on transport / network error
         """
 
         url = f"{self.api_url}/services/completion/run"
@@ -56,7 +68,7 @@ class AgentaAIServicesClient:
             async with httpx.AsyncClient(timeout=self.timeout_s) as client:
                 res = await client.post(url, json=payload, headers=headers)
 
-            # Non-2xx responses still carry useful error payloads
+            # Try to parse JSON regardless of status
             data: Any = None
             try:
                 data = res.json()
@@ -69,33 +81,25 @@ class AgentaAIServicesClient:
                     status_code=res.status_code,
                     url=url,
                 )
-                # Surface as tool execution error (caller maps to isError)
-                return {
-                    "_error": True,
-                    "status_code": res.status_code,
-                    "detail": data,
-                }, None
+                raise AIServicesUpstreamError(
+                    message=f"Upstream returned HTTP {res.status_code}.",
+                    status_code=res.status_code,
+                    detail=data,
+                )
 
             trace_id = None
             if isinstance(data, dict):
                 trace_id = data.get("trace_id") or data.get("traceId")
 
-                return data, trace_id
+            return InvokeResponse(data=data, trace_id=trace_id)
 
-            return None, None
+        except AIServicesUpstreamError:
+            raise
 
-        except httpx.TimeoutException:
+        except httpx.TimeoutException as e:
             log.warning("[ai-services] Upstream invoke timed out", url=url)
-            return {
-                "_error": True,
-                "status_code": 504,
-                "detail": "Upstream timeout",
-            }, None
+            raise AIServicesTimeoutError() from e
 
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             log.warning("[ai-services] Upstream invoke error", url=url, error=str(e))
-            return {
-                "_error": True,
-                "status_code": 502,
-                "detail": "Upstream error",
-            }, None
+            raise AIServicesConnectionError() from e

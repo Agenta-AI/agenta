@@ -8,6 +8,7 @@ from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.ai_services.client import AgentaAIServicesClient
 from oss.src.core.ai_services.dtos import (
+    AIServicesError,
     AIServicesStatus,
     RefinePromptArguments,
     ToolCallMeta,
@@ -209,37 +210,37 @@ class AIServicesService:
                 ],
             )
 
-        outputs, trace_id = await self.client.invoke_deployed_prompt(
-            application_slug=str(self.config.refine_prompt_key),
-            environment_slug=str(self.config.environment_slug),
-            inputs={
-                "__ag_prompt_template_json": prompt_template_json,
-                "__ag_guidelines": guidelines or "",
-                "__ag_context": context or "",
-            },
-        )
+        trace_id: Optional[str] = None
 
-        # Upstream failure is encoded into outputs as a dict with _error flag
-        if isinstance(outputs, dict) and outputs.get("_error"):
-            detail = outputs.get("detail")
-            msg = "AI refine failed."
-            if isinstance(detail, str) and detail.strip():
-                msg = detail
-            elif isinstance(detail, dict):
-                msg = str(detail.get("detail") or detail.get("message") or msg)
-
+        try:
+            response = await self.client.invoke_deployed_prompt(
+                application_slug=str(self.config.refine_prompt_key),
+                environment_slug=str(self.config.environment_slug),
+                inputs={
+                    "__ag_prompt_template_json": prompt_template_json,
+                    "__ag_guidelines": guidelines or "",
+                    "__ag_context": context or "",
+                },
+            )
+            trace_id = response.trace_id
+        except AIServicesError as e:
+            log.warning(
+                "[ai-services] Upstream call failed",
+                error=e.message,
+                status_code=e.status_code,
+            )
             return ToolCallResponse(
                 isError=True,
-                content=[ToolCallTextContent(text=msg)],
+                content=[ToolCallTextContent(text=e.message)],
                 meta=ToolCallMeta(trace_id=trace_id),
             )
 
         # Extract and validate structured output
-        structured = _extract_structured_output(outputs)
+        structured = _extract_structured_output(response.data)
         if not structured:
             log.warning(
                 "[ai-services] Failed to extract structured output",
-                outputs_type=type(outputs).__name__,
+                data_type=type(response.data).__name__,
             )
             return ToolCallResponse(
                 isError=True,
