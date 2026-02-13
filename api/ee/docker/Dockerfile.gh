@@ -1,6 +1,6 @@
 FROM python:3.11-slim-bookworm AS builder
 
-ARG POETRY_VERSION=1.8.4
+ARG POETRY_VERSION=2.3.1
 
 WORKDIR /app
 
@@ -18,7 +18,6 @@ COPY ./pyproject.toml ./poetry.lock* /app/
 # Create clean venv, install app deps, strip heavy unused deps, add stubs
 # Merged into one layer so stripped files don't persist in a previous layer.
 # Stripped:
-# - polars/polars_runtime/obstore: replaced by stdlib csv in testset code
 # - phonenumbers/twilio: required by supertokens at import-time but never called
 # - hf_xet: transitive, never imported by app code
 # Kept: litellm + chain (tokenizers, huggingface_hub, tiktoken) — needed by agenta SDK
@@ -33,9 +32,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && (pip uninstall -y pip setuptools 2>/dev/null || true) \
     && SITE=$(python -c 'import site; print(site.getsitepackages()[0])') \
     && rm -rf \
-        ${SITE}/polars* \
-        ${SITE}/_polars* \
-        ${SITE}/obstore* \
         ${SITE}/phonenumbers* \
         ${SITE}/twilio* \
         ${SITE}/hf_xet* \

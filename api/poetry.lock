@@ -2,18 +2,18 @@
 
 [[package]]
 name = "agenta"
-version = "0.85.4"
+version = "0.85.5"
 description = "The SDK for agenta is an open-source LLMOps platform."
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 files = [
-    {file = "agenta-0.85.4-py3-none-any.whl", hash = "sha256:26a6e19db34e2b664cb6ca9f61d7c3c0db8fe83ff28578ee785b8b49212880d4"},
-    {file = "agenta-0.85.4.tar.gz", hash = "sha256:5e8fba041ea248619aace7b9c5f59e258799e7b63f44c456d67fd4de669df1fc"},
+    {file = "agenta-0.85.5-py3-none-any.whl", hash = "sha256:80d5fa2808c599d5cac7c84d512cac2cee295847544af9762bd73214b5952438"},
+    {file = "agenta-0.85.5.tar.gz", hash = "sha256:d3e255a29e06f8063866cfcc335db94b6035ffae5ee9996cc47d5dbad1823ae5"},
 ]
 
 [package.dependencies]
-daytona = ">=0.138,<0.139"
+daytona = ">=0.142,<0.143"
 fastapi = ">=0.128"
 httpx = ">=0.28,<0.29"
 jinja2 = ">=3,<4"
@@ -789,41 +789,45 @@ test-randomorder = ["pytest-randomly"]
 
 [[package]]
 name = "daytona"
-version = "0.138.0"
+version = "0.142.0"
 description = "Python SDK for Daytona"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "daytona-0.138.0-py3-none-any.whl", hash = "sha256:9cdb7960bb9fe356118e61050bdfbbba2446549bca5c56cc5da0be0b031bef2a"},
-    {file = "daytona-0.138.0.tar.gz", hash = "sha256:ca7a0b2817a911ec523604e4ecda6d26336d8d08b0a5418ebc6d06e6e11238b5"},
+    {file = "daytona-0.142.0-py3-none-any.whl", hash = "sha256:4c0be433011149d0f18984d1aa2e38b2fa1c9eb8fc80ab145b9c7dae683e66f0"},
+    {file = "daytona-0.142.0.tar.gz", hash = "sha256:2232b3c8786c6c397530fcc99c33b30c8ba675c84775b6223823ea3836c12619"},
 ]
 
 [package.dependencies]
 aiofiles = ">=24.1.0,<24.2.0"
-daytona-api-client = "0.138.0"
-daytona-api-client-async = "0.138.0"
-daytona-toolbox-api-client = "0.138.0"
-daytona-toolbox-api-client-async = "0.138.0"
+daytona-api-client = "0.142.0"
+daytona-api-client-async = "0.142.0"
+daytona-toolbox-api-client = "0.142.0"
+daytona-toolbox-api-client-async = "0.142.0"
 Deprecated = ">=1.2.18,<2.0.0"
 environs = ">=10.0.0,<15.0.0"
 httpx = ">=0.28.0,<0.29.0"
 multipart = ">=1.0.0,<2.0.0"
 obstore = ">=0.8.0,<0.9.0"
+opentelemetry-api = ">=1.27.0,<2.0.0"
+opentelemetry-exporter-otlp-proto-http = ">=1.27.0,<2.0.0"
+opentelemetry-instrumentation-aiohttp-client = ">=0.59b0"
+opentelemetry-sdk = ">=1.27.0,<2.0.0"
 pydantic = ">=2.4.2,<3.0.0"
 toml = ">=0.10.0,<0.11.0"
 websockets = ">=15.0.0,<16.0.0"
 
 [[package]]
 name = "daytona-api-client"
-version = "0.138.0"
+version = "0.142.0"
 description = "Daytona"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_api_client-0.138.0-py3-none-any.whl", hash = "sha256:7b90f9649488cc833254aef7d99423705d19730655934f87074b5d0d0bf553aa"},
-    {file = "daytona_api_client-0.138.0.tar.gz", hash = "sha256:cb13f6d4d1b8e47c872a98b3730a7a14b3e45597b54b30a22dbdb7f2539debd0"},
+    {file = "daytona_api_client-0.142.0-py3-none-any.whl", hash = "sha256:837be4d9831449c0d7720459f8cdedc16cfc5e03bb0369e98ef2ae24faeb6ea2"},
+    {file = "daytona_api_client-0.142.0.tar.gz", hash = "sha256:fdd150aa972d9396531fd6d22858ba1f8dc3181d96e730bd501fddf017101c58"},
 ]
 
 [package.dependencies]
@@ -834,14 +838,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-api-client-async"
-version = "0.138.0"
+version = "0.142.0"
 description = "Daytona"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_api_client_async-0.138.0-py3-none-any.whl", hash = "sha256:fee31ee02e59c44f5f64a2a23610ecb4a5f195542555dac30c0142385ffeb273"},
-    {file = "daytona_api_client_async-0.138.0.tar.gz", hash = "sha256:6afbcfe6d39b85084e9d0e6bb46cad04b63eea350784bbce1423f1ab21641eb1"},
+    {file = "daytona_api_client_async-0.142.0-py3-none-any.whl", hash = "sha256:c8c8053c93b00fd8abed414394ffbbf412af49627fab08704d4d179308260c7b"},
+    {file = "daytona_api_client_async-0.142.0.tar.gz", hash = "sha256:4673f47fa4085f23f196f77f601af6f9334edf779dcb69a99671d2f9aa2dc32e"},
 ]
 
 [package.dependencies]
@@ -854,14 +858,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-toolbox-api-client"
-version = "0.138.0"
+version = "0.142.0"
 description = "Daytona Toolbox API"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_toolbox_api_client-0.138.0-py3-none-any.whl", hash = "sha256:b83b126f3f475549e62e9bfe06cd45fee13dea13fb92fba1c4cc4162e1fb299f"},
-    {file = "daytona_toolbox_api_client-0.138.0.tar.gz", hash = "sha256:e0f1659b9aabdfc17085695ee5bafb9c84d9552ad56d4527261854e95974b4d0"},
+    {file = "daytona_toolbox_api_client-0.142.0-py3-none-any.whl", hash = "sha256:ae201ee75ffe9d8999c63f9b1a86e7703a74a7490a48f9de018bb6d518caca1b"},
+    {file = "daytona_toolbox_api_client-0.142.0.tar.gz", hash = "sha256:b360472f7e63be518415d9d16ea21a5322e39b4c84f6c87334b389c898ca0b8e"},
 ]
 
 [package.dependencies]
@@ -872,14 +876,14 @@ urllib3 = ">=2.1.0,<3.0.0"
 
 [[package]]
 name = "daytona-toolbox-api-client-async"
-version = "0.138.0"
+version = "0.142.0"
 description = "Daytona Toolbox API"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "daytona_toolbox_api_client_async-0.138.0-py3-none-any.whl", hash = "sha256:bec5bfe1cd7a75ce38edd7740c5b743b203883d06957fc75119ac081b35e86a9"},
-    {file = "daytona_toolbox_api_client_async-0.138.0.tar.gz", hash = "sha256:f6ad6c26aa17ae2b7a1d8a382cd0d97d0017b5f1e9b35590628f3b0fb3fdb916"},
+    {file = "daytona_toolbox_api_client_async-0.142.0-py3-none-any.whl", hash = "sha256:87c15aa98c2d0c6040c129ca10633e151b529fb79fed84c0d37a4495b2045fad"},
+    {file = "daytona_toolbox_api_client_async-0.142.0.tar.gz", hash = "sha256:7f42d3ac9bd363a0c6fb159b80b41d27785cf4d85f40ca5b142fa8003d9fc715"},
 ]
 
 [package.dependencies]
@@ -1412,14 +1416,14 @@ test = ["objgraph", "psutil", "setuptools"]
 
 [[package]]
 name = "gunicorn"
-version = "25.0.3"
+version = "25.1.0"
 description = "WSGI HTTP Server for UNIX"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "gunicorn-25.0.3-py3-none-any.whl", hash = "sha256:aca364c096c81ca11acd4cede0aaeea91ba76ca74e2c0d7f879154db9d890f35"},
-    {file = "gunicorn-25.0.3.tar.gz", hash = "sha256:b53a7fff1a07b825b962af320554de44ae77a26abfa373711ff3f83d57d3506d"},
+    {file = "gunicorn-25.1.0-py3-none-any.whl", hash = "sha256:d0b1236ccf27f72cfe14bce7caadf467186f19e865094ca84221424e839b8b8b"},
+    {file = "gunicorn-25.1.0.tar.gz", hash = "sha256:1426611d959fa77e7de89f8c0f32eed6aa03ee735f98c01efba3e281b1c47616"},
 ]
 
 [package.dependencies]
@@ -2424,6 +2428,28 @@ packaging = ">=18.0"
 wrapt = ">=1.0.0,<2.0.0"
 
 [[package]]
+name = "opentelemetry-instrumentation-aiohttp-client"
+version = "0.60b1"
+description = "OpenTelemetry aiohttp client instrumentation"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "opentelemetry_instrumentation_aiohttp_client-0.60b1-py3-none-any.whl", hash = "sha256:34c5097256a30b16c5a2a88a409ed82b92972a494c43212c85632d204a78c2a1"},
+    {file = "opentelemetry_instrumentation_aiohttp_client-0.60b1.tar.gz", hash = "sha256:d0e7d5aa057791ca4d9090b0d3c9982f253c1a24b6bc78a734fc18d8dd97927b"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.12,<2.0"
+opentelemetry-instrumentation = "0.60b1"
+opentelemetry-semantic-conventions = "0.60b1"
+opentelemetry-util-http = "0.60b1"
+wrapt = ">=1.0.0,<2.0.0"
+
+[package.extras]
+instruments = ["aiohttp (>=3.0,<4.0)"]
+
+[[package]]
 name = "opentelemetry-proto"
 version = "1.39.1"
 description = "OpenTelemetry Python Proto"
@@ -2470,6 +2496,18 @@ files = [
 [package.dependencies]
 opentelemetry-api = "1.39.1"
 typing-extensions = ">=4.5.0"
+
+[[package]]
+name = "opentelemetry-util-http"
+version = "0.60b1"
+description = "Web util for OpenTelemetry"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "opentelemetry_util_http-0.60b1-py3-none-any.whl", hash = "sha256:66381ba28550c91bee14dcba8979ace443444af1ed609226634596b4b0faf199"},
+    {file = "opentelemetry_util_http-0.60b1.tar.gz", hash = "sha256:0d97152ca8c8a41ced7172d29d3622a219317f74ae6bb3027cfbdcf22c3cc0d6"},
+]
 
 [[package]]
 name = "orjson"
@@ -2584,14 +2622,14 @@ ptyprocess = ">=0.5"
 
 [[package]]
 name = "phonenumbers"
-version = "9.0.23"
+version = "9.0.24"
 description = "Python version of Google's common library for parsing, formatting, storing and validating international phone numbers."
 optional = false
 python-versions = ">=2.5"
 groups = ["main"]
 files = [
-    {file = "phonenumbers-9.0.23-py2.py3-none-any.whl", hash = "sha256:f29651fb72ba4d22d2691bb0b432f1d2c93fd49cc7b89aa6c11bd6b0e4167412"},
-    {file = "phonenumbers-9.0.23.tar.gz", hash = "sha256:e5aa44844684ffb4928f25a7b8c31dbf6e3763138cb13edd2ab03bf6d4803d98"},
+    {file = "phonenumbers-9.0.24-py2.py3-none-any.whl", hash = "sha256:fa86ab7112ef8b286a811392311bd76bbbae7d1d271c2ed26cf73f2e9fa4d3c6"},
+    {file = "phonenumbers-9.0.24.tar.gz", hash = "sha256:97c38e4b5b8af992c75de01bd9c0f84e61701a9c900fd84f49744714910a4dc3"},
 ]
 
 [[package]]
@@ -2621,69 +2659,6 @@ files = [
 [package.extras]
 dev = ["pre-commit", "tox"]
 testing = ["coverage", "pytest", "pytest-benchmark"]
-
-[[package]]
-name = "polars"
-version = "1.38.1"
-description = "Blazingly fast DataFrame library"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-files = [
-    {file = "polars-1.38.1-py3-none-any.whl", hash = "sha256:a29479c48fed4984d88b656486d221f638cba45d3e961631a50ee5fdde38cb2c"},
-    {file = "polars-1.38.1.tar.gz", hash = "sha256:803a2be5344ef880ad625addfb8f641995cfd777413b08a10de0897345778239"},
-]
-
-[package.dependencies]
-polars-runtime-32 = "1.38.1"
-
-[package.extras]
-adbc = ["adbc-driver-manager[dbapi]", "adbc-driver-sqlite[dbapi]"]
-all = ["polars[async,cloudpickle,database,deltalake,excel,fsspec,graph,iceberg,numpy,pandas,plot,pyarrow,pydantic,style,timezone]"]
-async = ["gevent"]
-calamine = ["fastexcel (>=0.9)"]
-cloudpickle = ["cloudpickle"]
-connectorx = ["connectorx (>=0.3.2)"]
-database = ["polars[adbc,connectorx,sqlalchemy]"]
-deltalake = ["deltalake (>=1.0.0)"]
-excel = ["polars[calamine,openpyxl,xlsx2csv,xlsxwriter]"]
-fsspec = ["fsspec"]
-gpu = ["cudf-polars-cu12"]
-graph = ["matplotlib"]
-iceberg = ["pyiceberg (>=0.7.1)"]
-numpy = ["numpy (>=1.16.0)"]
-openpyxl = ["openpyxl (>=3.0.0)"]
-pandas = ["pandas", "polars[pyarrow]"]
-plot = ["altair (>=5.4.0)"]
-polars-cloud = ["polars_cloud (>=0.4.0)"]
-pyarrow = ["pyarrow (>=7.0.0)"]
-pydantic = ["pydantic"]
-rt64 = ["polars-runtime-64 (==1.38.1)"]
-rtcompat = ["polars-runtime-compat (==1.38.1)"]
-sqlalchemy = ["polars[pandas]", "sqlalchemy"]
-style = ["great-tables (>=0.8.0)"]
-timezone = ["tzdata ; platform_system == \"Windows\""]
-xlsx2csv = ["xlsx2csv (>=0.8.0)"]
-xlsxwriter = ["xlsxwriter"]
-
-[[package]]
-name = "polars-runtime-32"
-version = "1.38.1"
-description = "Blazingly fast DataFrame library"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-files = [
-    {file = "polars_runtime_32-1.38.1-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:18154e96044724a0ac38ce155cf63aa03c02dd70500efbbf1a61b08cadd269ef"},
-    {file = "polars_runtime_32-1.38.1-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:c49acac34cc4049ed188f1eb67d6ff3971a39b4af7f7b734b367119970f313ac"},
-    {file = "polars_runtime_32-1.38.1-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:fef2ef2626a954e010e006cc8e4de467ecf32d08008f130cea1c78911f545323"},
-    {file = "polars_runtime_32-1.38.1-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e8a5f7a8125e2d50e2e060296551c929aec09be23a9edcb2b12ca923f555a5ba"},
-    {file = "polars_runtime_32-1.38.1-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:10d19cd9863e129273b18b7fcaab625b5c8143c2d22b3e549067b78efa32e4fa"},
-    {file = "polars_runtime_32-1.38.1-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:61e8d73c614b46a00d2f853625a7569a2e4a0999333e876354ac81d1bf1bb5e2"},
-    {file = "polars_runtime_32-1.38.1-cp310-abi3-win_amd64.whl", hash = "sha256:08c2b3b93509c1141ac97891294ff5c5b0c548a373f583eaaea873a4bf506437"},
-    {file = "polars_runtime_32-1.38.1-cp310-abi3-win_arm64.whl", hash = "sha256:6d07d0cc832bfe4fb54b6e04218c2c27afcfa6b9498f9f6bbf262a00d58cc7c4"},
-    {file = "polars_runtime_32-1.38.1.tar.gz", hash = "sha256:04f20ed1f5c58771f34296a27029dc755a9e4b1390caeaef8f317e06fdfce2ec"},
-]
 
 [[package]]
 name = "posthog"
@@ -4291,14 +4266,14 @@ requests = ">=2.0.0"
 
 [[package]]
 name = "typer"
-version = "0.23.0"
+version = "0.23.1"
 description = "Typer, build great CLIs. Easy to code. Based on Python type hints."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "typer-0.23.0-py3-none-any.whl", hash = "sha256:79f4bc262b6c37872091072a3cb7cb6d7d79ee98c0c658b4364bdcde3c42c913"},
-    {file = "typer-0.23.0.tar.gz", hash = "sha256:d8378833e47ada5d3d093fa20c4c63427cc4e27127f6b349a6c359463087d8cc"},
+    {file = "typer-0.23.1-py3-none-any.whl", hash = "sha256:3291ad0d3c701cbf522012faccfbb29352ff16ad262db2139e6b01f15781f14e"},
+    {file = "typer-0.23.1.tar.gz", hash = "sha256:2070374e4d31c83e7b61362fd859aa683576432fd5b026b060ad6b4cd3b86134"},
 ]
 
 [package.dependencies]
@@ -4309,18 +4284,18 @@ shellingham = ">=1.3.0"
 
 [[package]]
 name = "typer-slim"
-version = "0.23.0"
+version = "0.23.1"
 description = "Typer, build great CLIs. Easy to code. Based on Python type hints."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "typer_slim-0.23.0-py3-none-any.whl", hash = "sha256:1d693daf22d998a7b1edab8413cdcb8af07254154ce3956c1664dc11b01e2f8b"},
-    {file = "typer_slim-0.23.0.tar.gz", hash = "sha256:be8b60243df27cfee444c6db1b10a85f4f3e54d940574f31a996f78aa35a8254"},
+    {file = "typer_slim-0.23.1-py3-none-any.whl", hash = "sha256:8146d5df1eb89f628191c4c604c8464fa841885d0733c58e6e700ff0228adac5"},
+    {file = "typer_slim-0.23.1.tar.gz", hash = "sha256:dfe92a6317030ee2380f65bf92e540d7c77fefcc689e10d585b4925b45b5e06a"},
 ]
 
 [package.dependencies]
-typer = ">=0.23.0"
+typer = ">=0.23.1"
 
 [[package]]
 name = "typing-extensions"
@@ -4817,4 +4792,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "cfaf862f0af564d359de82e2cecffd85b848833b4a0b2d751bd9a4b5615c2882"
+content-hash = "534aca57ec622d92005709c95b8a789f2d0f8f41ac132ab5cd640d30bff8fb15"

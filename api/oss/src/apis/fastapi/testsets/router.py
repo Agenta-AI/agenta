@@ -148,7 +148,7 @@ def _serialize_value(value: Any) -> Any:
 def _serialize_value_for_csv(value: Any) -> Any:
     """Serialize complex values to JSON strings for CSV export.
 
-    Polars cannot serialize dicts, lists, or other complex objects to CSV,
+    CSV cannot serialize dicts, lists, or other complex objects to CSV,
     so we convert them to JSON strings. This includes Pydantic models.
     """
     if value is None:
