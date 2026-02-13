@@ -579,8 +579,8 @@ class AIServicesConfig(BaseModel):
 
     api_key: str | None = os.getenv("AGENTA_AI_SERVICES_API_KEY")
     api_url: str | None = os.getenv("AGENTA_AI_SERVICES_API_URL")
-    environment: str | None = os.getenv("AGENTA_AI_SERVICES_ENVIRONMENT")
-    refine_prompt_app: str | None = os.getenv("AGENTA_AI_SERVICES_REFINE_PROMPT_APP")
+    environment_slug: str | None = os.getenv("AGENTA_AI_SERVICES_ENVIRONMENT_SLUG")
+    refine_prompt_key: str | None = os.getenv("AGENTA_AI_SERVICES_REFINE_PROMPT_KEY")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -589,8 +589,8 @@ class AIServicesConfig(BaseModel):
         required = [
             self.api_key,
             self.api_url,
-            self.environment,
-            self.refine_prompt_app,
+            self.environment_slug,
+            self.refine_prompt_key,
         ]
         return all(isinstance(v, str) and v.strip() for v in required)
 

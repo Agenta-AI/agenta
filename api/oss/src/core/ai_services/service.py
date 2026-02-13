@@ -210,8 +210,8 @@ class AIServicesService:
             )
 
         outputs, trace_id = await self.client.invoke_deployed_prompt(
-            application_slug=str(self.config.refine_prompt_app),
-            environment_slug=str(self.config.environment),
+            application_slug=str(self.config.refine_prompt_key),
+            environment_slug=str(self.config.environment_slug),
             inputs={
                 "__ag_prompt_template_json": prompt_template_json,
                 "__ag_guidelines": guidelines or "",
