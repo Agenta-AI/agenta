@@ -1,6 +1,6 @@
 import pytest
 
-from tests.legacy.conftest import *
+from tests.legacy.conftest import *  # noqa: F403
 
 
 class TestSecretsCoverage:
@@ -27,7 +27,7 @@ class TestSecretsCoverage:
         payload = valid_run_generate_payload
         service_url = setup_class_fixture["service_url"]
         headers = setup_class_fixture["headers"]
-        await set_valid_llm_keys(http_client, headers)
+        await set_valid_llm_keys(http_client, headers)  # noqa: F405
         scope_project_id = setup_class_fixture["app_variant_response"].get(
             "scope_project_id", None
         )
@@ -59,7 +59,7 @@ class TestSecretsCoverage:
         payload = valid_run_generate_payload
         service_url = setup_class_fixture["service_url"]
         headers = setup_class_fixture["headers"]
-        await set_valid_llm_keys(http_client, headers)
+        await set_valid_llm_keys(http_client, headers)  # noqa: F405
 
         # ACT
         response = await http_client.post(
@@ -85,7 +85,7 @@ class TestSecretsCoverage:
         payload = valid_run_generate_payload
         service_url = setup_class_fixture["service_url"]
         headers = setup_class_fixture["headers"]
-        await set_invalid_llm_keys(http_client, headers)
+        await set_invalid_llm_keys(http_client, headers)  # noqa: F405
 
         # ACT
         response = await http_client.post(

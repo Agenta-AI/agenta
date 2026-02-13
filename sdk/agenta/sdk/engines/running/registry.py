@@ -27,7 +27,7 @@ async def exact_match_v1(
             reference_outputs = dumps(reference_outputs, sort_keys=True)
             success = outputs == reference_outputs
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         log.error("Error in exact_match_v1", exc_info=True)
 
     return {"success": success}

@@ -9,7 +9,7 @@ import {atomFamily} from "jotai/utils"
 
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {generationLogicalTurnIdsAtom as chatLogicalIdsAtom} from "@/oss/state/generation/compat"
-import {runStatusByRowRevisionAtom, inputRowIdsAtom} from "@/oss/state/generation/entities"
+import {inputRowIdsAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 import {rowResponsesForDisplayAtomFamily} from "@/oss/state/generation/selectors"
 import {
     loadingByRowRevisionAtomFamily,

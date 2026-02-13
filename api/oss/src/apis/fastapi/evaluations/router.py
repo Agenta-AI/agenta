@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
@@ -7,7 +7,6 @@ from fastapi import APIRouter, Request, Query, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 

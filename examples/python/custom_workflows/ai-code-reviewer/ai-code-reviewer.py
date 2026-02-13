@@ -1,9 +1,6 @@
 import requests
 import re
-import sys
-from urllib.parse import urlparse
-from pydantic import BaseModel, Field
-from typing import Annotated
+from pydantic import BaseModel
 import agenta as ag
 from agenta.sdk.types import MCField
 import litellm

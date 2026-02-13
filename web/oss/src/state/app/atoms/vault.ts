@@ -17,7 +17,7 @@ import {
 } from "@/oss/services/vault/api"
 
 import {userAtom} from "../../profile/selectors/user"
-import {projectIdAtom} from "../../project"
+import {getProjectValues, projectIdAtom} from "../../project"
 
 /**
  * Atom for tracking vault key migration status
@@ -39,7 +39,13 @@ export const vaultSecretsQueryAtom = atomWithQuery((get) => {
 
     return {
         queryKey: ["vault", "secrets", user?.id, projectId],
-        queryFn: fetchVaultSecret,
+        queryFn: async () => {
+            if (!projectId) {
+                throw new Error("[vault] Missing projectId for fetchVaultSecret")
+            }
+
+            return await fetchVaultSecret({projectId})
+        },
         staleTime: 1000 * 60 * 5, // 5 minutes
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
@@ -88,7 +94,12 @@ export const customSecretsAtom = atom((get) => {
  */
 export const createVaultSecretMutationAtom = atomWithMutation(() => ({
     mutationFn: async (payload: any) => {
-        return await createVaultSecret({payload})
+        const {projectId} = getProjectValues()
+        if (!projectId) {
+            throw new Error("[vault] Missing projectId for createVaultSecret")
+        }
+
+        return await createVaultSecret({projectId, payload})
     },
     onSuccess: () => {
         // Invalidate and refetch vault secrets
@@ -101,7 +112,12 @@ export const createVaultSecretMutationAtom = atomWithMutation(() => ({
  */
 export const updateVaultSecretMutationAtom = atomWithMutation(() => ({
     mutationFn: async ({secret_id, payload}: {secret_id: string; payload: any}) => {
-        return await updateVaultSecret({secret_id, payload})
+        const {projectId} = getProjectValues()
+        if (!projectId) {
+            throw new Error("[vault] Missing projectId for updateVaultSecret")
+        }
+
+        return await updateVaultSecret({projectId, secret_id, payload})
     },
     onSuccess: () => {
         // Invalidate and refetch vault secrets
@@ -114,7 +130,12 @@ export const updateVaultSecretMutationAtom = atomWithMutation(() => ({
  */
 export const deleteVaultSecretMutationAtom = atomWithMutation(() => ({
     mutationFn: async (secret_id: string) => {
-        return await deleteVaultSecret({secret_id})
+        const {projectId} = getProjectValues()
+        if (!projectId) {
+            throw new Error("[vault] Missing projectId for deleteVaultSecret")
+        }
+
+        return await deleteVaultSecret({projectId, secret_id})
     },
     onSuccess: () => {
         // Invalidate and refetch vault secrets

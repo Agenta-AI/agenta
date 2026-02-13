@@ -33,7 +33,6 @@ from agenta.sdk.models.shared import (
     Data,
     Schema,
     Status,
-    Commit,
     AliasConfig,
     sync_alias,
 )
@@ -42,7 +41,6 @@ from agenta.sdk.models.git import (
     Artifact,
     ArtifactCreate,
     ArtifactEdit,
-    ArtifactQuery,
     ArtifactFork,
     Variant,
     VariantCreate,
@@ -69,6 +67,7 @@ class WorkflowFlags(BaseModel):
     is_custom: bool = False
     is_evaluator: bool = False
     is_human: bool = False
+    is_chat: bool = False
 
 
 class WorkflowServiceInterface(BaseModel):
@@ -324,8 +323,6 @@ class WorkflowVariantQuery(VariantQuery):
 
 
 # workflow revisions -----------------------------------------------------------
-
-from agenta.sdk.models.workflows import WorkflowRevisionData
 
 
 class WorkflowRevision(

@@ -266,7 +266,7 @@ DAYS = [1, 2, 10, 14, 15, 20, 27, 28, 29, 30, 31]
 ANCHORS = [None, 0, 1, 2, 10, 15, 20, 28, 29, 30, 31]
 
 # Days in each month for non-leap and leap years
-import calendar
+import calendar  # noqa: E402
 
 
 def days_in_month(year: int, month: int) -> int:

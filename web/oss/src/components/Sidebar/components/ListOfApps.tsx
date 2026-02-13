@@ -20,15 +20,14 @@ interface ListOfAppsProps {
 
 const ListOfApps = ({collapsed}: ListOfAppsProps) => {
     const {currentApp, apps, recentlyVisitedAppId} = useAppsData()
-    const {project} = useProjectData()
+    const {projectId} = useProjectData()
     const navigateToApp = useSetAtom(routerAppNavigationAtom)
     const {token} = theme.useToken()
 
     const [dropdownOpen, setDropdownOpen] = useState(false)
 
-    const projectId = project?.project_id
     const {data: foldersData} = useSWR(projectId ? ["folders", projectId] : null, () =>
-        queryFolders({folder: {}}),
+        queryFolders({folder: {}}, projectId),
     )
 
     const {appMenuItems, appKeyMap} = useMemo(() => {

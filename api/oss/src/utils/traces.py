@@ -408,7 +408,7 @@ def get_field_value_from_trace_tree_v2(
         return tree
 
     # Suppress all Exception and leave Exception management to the caller.
-    except Exception as e:
+    except Exception:
         log.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
         return None
 
@@ -480,7 +480,7 @@ def get_field_value_from_trace_tree_v3(trace_data: Dict[str, any], key: str):
 
         return current_node
 
-    except Exception as e:
+    except Exception:
         log.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
         return None
 
