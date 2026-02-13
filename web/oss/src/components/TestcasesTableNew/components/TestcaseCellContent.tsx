@@ -1,7 +1,5 @@
 import {memo, useId, useMemo} from "react"
 
-import {Typography} from "antd"
-
 import {
     CellContentPopover,
     ChatMessagesCellContent,
@@ -11,7 +9,8 @@ import {
     normalizeValue,
     safeJsonStringify,
     tryParseJson,
-} from "@/oss/components/CellRenderers"
+} from "@agenta/ui/cell-renderers"
+import {Typography} from "antd"
 
 const {Text} = Typography
 

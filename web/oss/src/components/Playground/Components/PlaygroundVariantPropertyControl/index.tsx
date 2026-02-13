@@ -9,8 +9,10 @@ import {
     metadataSelectorFamily,
     metadataAtom,
 } from "@/oss/lib/hooks/useStatelessVariants/state"
-import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedCustomPropertiesAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {getEnhancedRevisionById} from "@/oss/state/variant/atoms/fetcher"
 
 import {usePromptsSource} from "../../context/PromptsSource"
@@ -50,17 +52,19 @@ const PlaygroundVariantPropertyControl = ({
     )
 
     // ATOM-LEVEL: compute selector atoms (stable via useMemo), no conditional hooks
+    // Use molecule-backed atoms for single source of truth
     const propertyValueAtom = useMemo(() => {
         if (!propertyId) return nullValueAtom
         // Prompt-only: find property in prompts or custom properties for the given revision
         return atom((get) => {
             const revIdForPrompts = actualVariantId
             if (revIdForPrompts) {
-                const prompts = get(promptsAtomFamily(revIdForPrompts))
+                const prompts = get(moleculeBackedPromptsAtomFamily(revIdForPrompts))
                 const list = (prompts as any[]) || []
                 const property =
                     findPropertyInObject(list, propertyId) ||
                     findPropertyById(list as any, propertyId)
+
                 if (property) {
                     return {
                         value: (property as any)?.content?.value || (property as any)?.value,
@@ -72,7 +76,9 @@ const PlaygroundVariantPropertyControl = ({
                 // Fallback: try custom properties derived from OpenAPI spec
                 const variant = getEnhancedRevisionById(get as any, revIdForPrompts)
                 if (variant) {
-                    const customProps = get(customPropertiesByRevisionAtomFamily(revIdForPrompts))
+                    const customProps = get(
+                        moleculeBackedCustomPropertiesAtomFamily(revIdForPrompts),
+                    )
                     const values = Object.values(customProps || {}) as any[]
                     const node = values.find((n) => n?.__id === propertyId)
                     if (node) {
@@ -101,23 +107,27 @@ const PlaygroundVariantPropertyControl = ({
 
             const revIdForPrompts = actualVariantId
             if (revIdForPrompts) {
-                const prompts = get(promptsAtomFamily(revIdForPrompts))
+                // Use molecule-backed prompts for single source of truth
+                const prompts = get(moleculeBackedPromptsAtomFamily(revIdForPrompts))
                 const list = (prompts as any[]) || []
                 const metadataMap = get(metadataAtom) as Record<string, any>
                 const property =
                     findPropertyInObject(list, propertyId) ||
                     findPropertyById(list as any, propertyId)
                 const propertyMetadata = resolveMetadata(property?.__metadata)
+
                 if (propertyMetadata) return propertyMetadata
                 if (property?.__metadata) {
                     const meta = metadataMap?.[property.__metadata]
                     return meta ?? getMetadataLazy(property.__metadata)
                 }
 
-                // Fallback: custom properties metadata
+                // Fallback: custom properties metadata (molecule-backed)
                 const variant = getEnhancedRevisionById(get as any, revIdForPrompts)
                 if (variant) {
-                    const customProps = get(customPropertiesByRevisionAtomFamily(revIdForPrompts))
+                    const customProps = get(
+                        moleculeBackedCustomPropertiesAtomFamily(revIdForPrompts),
+                    )
                     const values = Object.values(customProps || {}) as any[]
                     const node = values.find((n) => n?.__id === propertyId)
                     const customMetadata = resolveMetadata(node?.__metadata)

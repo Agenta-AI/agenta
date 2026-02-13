@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status, Depends
+from fastapi import APIRouter, Request, status, Depends, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -239,7 +239,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.EDIT_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -261,7 +260,7 @@ class QueriesRouter:
         return query_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=QueryResponse())
+    @suppress_exceptions(default=QueryResponse(), exclude=[HTTPException])
     async def fetch_query(
         self,
         request: Request,
@@ -272,7 +271,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.VIEW_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -303,7 +301,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.EDIT_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -336,7 +333,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.EDIT_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -364,7 +360,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.EDIT_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -384,7 +379,7 @@ class QueriesRouter:
         return query_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=QueriesResponse())
+    @suppress_exceptions(default=QueriesResponse(), exclude=[HTTPException])
     async def query_queries(
         self,
         request: Request,
@@ -397,7 +392,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.VIEW_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -450,7 +444,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.EDIT_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -470,7 +463,7 @@ class QueriesRouter:
         return query_revision_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=QueryRevisionResponse())
+    @suppress_exceptions(default=QueryRevisionResponse(), exclude=[HTTPException])
     async def fetch_query_revision(
         self,
         request: Request,
@@ -481,7 +474,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.VIEW_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -544,7 +536,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.EDIT_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -574,7 +565,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.EDIT_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -594,7 +584,7 @@ class QueriesRouter:
         return query_revision_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=QueryRevisionsResponse())
+    @suppress_exceptions(default=QueryRevisionsResponse(), exclude=[HTTPException])
     async def query_query_revisions(
         self,
         request: Request,
@@ -641,7 +631,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.EDIT_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -661,7 +650,7 @@ class QueriesRouter:
         return query_revision_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=QueryRevisionsResponse())
+    @suppress_exceptions(default=QueryRevisionsResponse(), exclude=[HTTPException])
     async def log_query_revisions(
         self,
         request: Request,
@@ -672,7 +661,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.VIEW_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -691,7 +679,7 @@ class QueriesRouter:
         return revisions_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=QueryRevisionResponse())
+    @suppress_exceptions(default=QueryRevisionResponse(), exclude=[HTTPException])
     async def retrieve_query_revision(
         self,
         request: Request,
@@ -702,7 +690,6 @@ class QueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.VIEW_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -810,7 +797,6 @@ class SimpleQueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.EDIT_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
@@ -832,7 +818,7 @@ class SimpleQueriesRouter:
         return simple_query_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleQueryResponse())
+    @suppress_exceptions(default=SimpleQueryResponse(), exclude=[HTTPException])
     async def fetch_simple_query(
         self,
         request: Request,
@@ -952,7 +938,7 @@ class SimpleQueriesRouter:
         return simple_query_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleQueriesResponse())
+    @suppress_exceptions(default=SimpleQueriesResponse(), exclude=[HTTPException])
     async def query_simple_queries(
         self,
         *,
@@ -964,7 +950,6 @@ class SimpleQueriesRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                #
                 permission=Permission.VIEW_QUERIES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore

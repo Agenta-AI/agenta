@@ -1,10 +1,10 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Play} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {saveNewTestsetAtom} from "@/oss/state/entities/testcase"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"

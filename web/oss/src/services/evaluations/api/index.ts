@@ -95,7 +95,7 @@ export type CreateEvaluationData =
           testset_id: string
           testset_revision_id?: string
           variant_ids?: string[]
-          evaluators_configs: string[]
+          evaluator_ids: string[]
           rate_limit: LLMRunRateLimit
           lm_providers_keys?: KeyValuePair
           correct_answer_column: string
@@ -104,7 +104,7 @@ export type CreateEvaluationData =
           testset_id: string
           testset_revision_id?: string
           revisions_ids?: string[]
-          evaluators_configs: string[]
+          evaluator_ids: string[]
           rate_limit: LLMRunRateLimit
           lm_providers_keys?: KeyValuePair
           correct_answer_column: string

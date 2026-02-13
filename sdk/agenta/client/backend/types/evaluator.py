@@ -11,11 +11,13 @@ from ..core.pydantic_utilities import (
     UniversalBaseModel,
     update_forward_refs,
 )
-from .workflow_data import WorkflowData
-from .workflow_flags import WorkflowFlags
+from .evaluator_flags import EvaluatorFlags
 
 
 class Evaluator(UniversalBaseModel):
+    flags: typing.Optional[EvaluatorFlags] = None
+    tags: typing.Optional[typing.Dict[str, typing.Optional["LabelJsonOutput"]]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = None
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
     created_at: typing.Optional[dt.datetime] = None
@@ -26,11 +28,6 @@ class Evaluator(UniversalBaseModel):
     deleted_by_id: typing.Optional[str] = None
     slug: typing.Optional[str] = None
     id: typing.Optional[str] = None
-    flags: typing.Optional[WorkflowFlags] = None
-    metadata: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
-        None
-    )
-    data: typing.Optional[WorkflowData] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
@@ -44,6 +41,9 @@ class Evaluator(UniversalBaseModel):
             extra = pydantic.Extra.allow
 
 
-from .full_json_output import FullJsonOutput  # noqa: E402, F401, I001
+from .label_json_output import LabelJsonOutput  # noqa: E402, I001
+from .full_json_output import FullJsonOutput  # noqa: E402, I001
 
-update_forward_refs(Evaluator)
+update_forward_refs(
+    Evaluator, FullJsonOutput=FullJsonOutput, LabelJsonOutput=LabelJsonOutput
+)

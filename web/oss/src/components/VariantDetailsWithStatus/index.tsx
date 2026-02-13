@@ -2,8 +2,7 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import {Variant} from "@/oss/lib/Types"
-
-import {variantIsDirtyAtomFamily} from "../Playground/state/atoms"
+import {revisionIsDirtyAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import EnvironmentStatus from "./components/EnvironmentStatus"
 import VariantDetails from "./components/VariantDetails"
@@ -29,7 +28,7 @@ const VariantDetailsWithStatus = ({
     showLatestTag?: boolean
     className?: string
 }) => {
-    const _isDirty = useAtomValue(variantIsDirtyAtomFamily(variant?.id || ""))
+    const _isDirty = useAtomValue(revisionIsDirtyAtomFamily(variant?.id || ""))
     const isDirty = showStable ? false : _isDirty
 
     return (

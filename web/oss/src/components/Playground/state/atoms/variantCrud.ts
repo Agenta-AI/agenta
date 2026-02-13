@@ -1,23 +1,23 @@
+import {variantsListWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {isLocalDraftId} from "@agenta/entities/shared"
+import {message} from "@agenta/ui/app-message"
 import {produce} from "immer"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {drawerVariantIdAtom} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
-import {queryClient} from "@/oss/lib/api/queryClient"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
-import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
+import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {duplicateChatHistoryForRevision} from "@/oss/state/generation/utils"
-import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
+import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {
-    promptsAtomFamily,
-    clearLocalPromptsForRevisionAtomFamily,
-    transformedPromptsAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
+    discardRevisionDraftAtom,
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
+} from "@/oss/state/newPlayground/legacyEntityBridge"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-import {variantsAtom as parentVariantsAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {VariantAPI} from "../../services/api"
 import type {
@@ -30,8 +30,11 @@ import type {
 
 import {selectedVariantsAtom} from "./core"
 import {parametersOverrideAtomFamily} from "./parametersOverride"
-import {variantByRevisionIdAtomFamily} from "./propertySelectors"
-import {invalidatePlaygroundQueriesAtom, waitForNewRevisionAfterMutationAtom} from "./queries"
+import {
+    invalidatePlaygroundQueriesAtom,
+    waitForNewRevisionAfterMutationAtom,
+    waitForRevisionRemovalAtom,
+} from "./queries"
 import {revisionListAtom} from "./variants"
 
 // Add variant mutation atom
@@ -48,10 +51,10 @@ export const addVariantMutationAtom = atom(
             const variantName = params.newVariantName
 
             // Resolve the baseline revision:
-            // 1) If revisionId provided, get directly.
+            // 1) If revisionId provided, get directly from molecule (includes draft state).
             // 2) Otherwise, derive it from the newest revision matching baseVariantName.
             let currentBaseRevision = revisionId
-                ? get(variantByRevisionIdAtomFamily(revisionId))
+                ? get(moleculeBackedVariantAtomFamily(revisionId))
                 : null
 
             if (!currentBaseRevision) {
@@ -85,9 +88,8 @@ export const addVariantMutationAtom = atom(
                 }
             }
 
-            // Build ag_config from promptsAtomFamily + baseline non-prompt params
-            // const variant = get(variantByRevisionIdAtomFamily(currentBaseRevision.id)) as any
-            const prompts = get(promptsAtomFamily(currentBaseRevision.id))
+            // Build ag_config from molecule-backed prompts + baseline non-prompt params
+            const prompts = get(moleculeBackedPromptsAtomFamily(currentBaseRevision.id))
             const variantForTransform = {
                 ...(currentBaseRevision as any),
                 prompts,
@@ -99,16 +101,33 @@ export const addVariantMutationAtom = atom(
                     appType: (get as any)(currentAppContextAtom)?.appType || undefined,
                 })?.ag_config ?? null
 
-            // Resolve baseId robustly: prefer adapted revision.baseId, fallback to parent variant
-            const parentBaseId = (() => {
-                try {
-                    const parents = get(parentVariantsAtom) as any[]
-                    const pv = parents.find((p) => p.variantId === currentBaseRevision.variantId)
-                    return pv?.baseId
-                } catch {
-                    return undefined
-                }
-            })()
+            // Resolve baseId robustly:
+            // 1. For local drafts, use stored _baseId (preserves original source's baseId)
+            // 2. Fall back to adapted revision.baseId
+            // 3. Fall back to parent variant lookup
+            const localDraftBaseId = isLocalDraftId(currentBaseRevision.id)
+                ? (currentBaseRevision as any)._baseId
+                : null
+
+            // For local drafts, use stored _sourceVariantId to look up parent variant
+            const resolvedVariantIdForLookup = isLocalDraftId(currentBaseRevision.id)
+                ? ((currentBaseRevision as any)._sourceVariantId ?? currentBaseRevision.variantId)
+                : currentBaseRevision.variantId
+
+            const parentBaseId =
+                localDraftBaseId ||
+                (() => {
+                    try {
+                        const appId = get(selectedAppIdAtom)
+                        if (!appId) return undefined
+                        const parents =
+                            get(variantsListWithDraftsAtomFamily(appId))?.data ?? ([] as any[])
+                        const pv = parents.find((p: any) => p.id === resolvedVariantIdForLookup)
+                        return pv?.baseId
+                    } catch {
+                        return undefined
+                    }
+                })()
             const resolvedBaseId = currentBaseRevision.baseId || parentBaseId
             if (!resolvedBaseId) {
                 throw new Error(
@@ -167,15 +186,13 @@ export const addVariantMutationAtom = atom(
                 set(selectedVariantsAtom, updatedVariants)
                 void writePlaygroundSelectionToQuery(updatedVariants)
 
-                // Clear draft state for the base revision used to create the new variant
+                // Clear draft state for the revision used to create the new variant
+                // Use revisionId (the local draft ID passed to the mutation) for cleanup
                 try {
-                    const baseRevisionIdForClear = (currentBaseRevision as any)?.id as
-                        | string
-                        | undefined
-                    if (baseRevisionIdForClear) {
-                        set(clearLocalPromptsForRevisionAtomFamily(baseRevisionIdForClear))
-                        set(clearLocalCustomPropsForRevisionAtomFamily(baseRevisionIdForClear))
-                        set(parametersOverrideAtomFamily(baseRevisionIdForClear), null)
+                    const revisionIdForClear = revisionId || (currentBaseRevision as any)?.id
+                    if (revisionIdForClear) {
+                        set(discardRevisionDraftAtom, revisionIdForClear)
+                        set(parametersOverrideAtomFamily(revisionIdForClear), null)
                     }
                 } catch {}
 
@@ -217,8 +234,8 @@ export const saveVariantMutationAtom = atom(
         try {
             const {variantId, config, variantName} = params
 
-            // Get current baseline revision by ID using focused selector
-            const currentVariant = get(variantByRevisionIdAtomFamily(variantId)) as
+            // Get current baseline revision by ID using molecule-backed selector (includes draft state)
+            const currentVariant = get(moleculeBackedVariantAtomFamily(variantId)) as
                 | EnhancedVariant
                 | undefined
 
@@ -294,11 +311,9 @@ export const saveVariantMutationAtom = atom(
                     targetRevisionId: newRevisionId,
                     displayedVariantsAfterSwap: updatedVariants,
                 })
-                // Clear local prompts cache for the previous revision to revert live edits
-                set(clearLocalPromptsForRevisionAtomFamily(variantId))
-                // Clear any JSON editor override for the previous revision
+                // Clear draft state for the previous revision
+                set(discardRevisionDraftAtom, variantId)
                 set(parametersOverrideAtomFamily(variantId), null)
-                set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
                 return {
                     success: true,
                     // Ensure consumers (e.g. Commit modal) get the *new revision id*
@@ -312,12 +327,9 @@ export const saveVariantMutationAtom = atom(
                 }
             }
 
-            // Clear any JSON editor override if present (no revision swap case)
-            set(parametersOverrideAtomFamily(variantId), null)
             // No revision swap detected – clear any local edits for this revision
-            set(clearLocalPromptsForRevisionAtomFamily(variantId))
+            set(discardRevisionDraftAtom, variantId)
             set(parametersOverrideAtomFamily(variantId), null)
-            set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
             return {
                 success: true,
                 // No revision swap detected; keep the current revision id stable for callers.
@@ -354,69 +366,35 @@ export const deleteVariantMutationAtom = atom(
             }
 
             const store = getDefaultStore()
-            const initialCount = initialList.length
-
-            // Setup subscription to detect when revision list reflects removal
-            const waitForRemoval = new Promise<void>((resolve) => {
-                let unsub: undefined | (() => void)
-
-                const onChange = () => {
-                    try {
-                        const list = (store as any).get(revisionListAtom) as EnhancedVariant[]
-                        const exists = Array.isArray(list)
-                            ? list.some((r) => r?.id === revisionId)
-                            : false
-                        const decreased = Array.isArray(list) ? list.length < initialCount : false
-                        if (!exists && decreased) {
-                            // Update selection: same-variant newest preferred, then global newest
-                            const allSorted = (list || []).slice().sort((a: any, b: any) => {
-                                const at = a?.updatedAtTimestamp ?? a?.createdAtTimestamp ?? 0
-                                const bt = b?.updatedAtTimestamp ?? b?.createdAtTimestamp ?? 0
-                                return bt - at
-                            })
-                            const sameVariantSorted = allSorted.filter(
-                                (r: any) => r?.variantId === (currentRevision as any)?.variantId,
-                            )
-                            const preferred = sameVariantSorted[0]?.id || allSorted[0]?.id || null
-
-                            const currentSelected = (store as any).get(selectedVariantsAtom) || []
-                            let nextSelected = currentSelected.filter(
-                                (id: string) => id !== revisionId,
-                            )
-                            if (nextSelected.length === 0 && preferred) nextSelected = [preferred]
-                            void writePlaygroundSelectionToQuery(nextSelected)
-                            ;(store as any).set(drawerVariantIdAtom, nextSelected[0] ?? null)
-                            message.success("Revision deleted successfully")
-
-                            if (unsub) unsub()
-                            resolve()
-                        }
-                    } catch (e) {
-                        // ignore
-                    }
-                }
-
-                // If store.sub is available, use it; otherwise poll
-                if ((store as any).sub) {
-                    unsub = (store as any).sub(revisionListAtom, onChange)
-                } else {
-                    const iv = setInterval(onChange, 200)
-                    unsub = () => clearInterval(iv)
-                }
-            })
+            const variantId = (currentRevision as any).variantId
 
             // Perform server-side revision delete
-            await deleteSingleVariantRevision((currentRevision as any).variantId, revisionId)
+            await deleteSingleVariantRevision(variantId, revisionId)
 
-            // Invalidate and refetch variant-related queries (do not end mutation yet)
-            await Promise.all([
-                queryClient.invalidateQueries({queryKey: ["variants"]}),
-                queryClient.invalidateQueries({queryKey: ["variantRevisions"]}),
-            ])
+            // API call succeeded - the deletion is complete on the server
+            // Now invalidate queries and update UI state
 
-            // Wait until the list reflects the removal and selection was updated
-            await waitForRemoval
+            // Invalidate and refetch all playground-related queries
+            // This includes the entity package query keys that feed into playgroundRevisionListAtom
+            await set(invalidatePlaygroundQueriesAtom)
 
+            // Wait briefly for the revision to be removed from the list (best effort)
+            const {newSelectedId} = await set(waitForRevisionRemovalAtom, {
+                revisionId,
+                variantId,
+                timeoutMs: 5_000,
+            })
+
+            // Update selection: remove deleted revision, prefer same-variant newest
+            const currentSelected = store.get(selectedVariantsAtom) || []
+            let nextSelected = currentSelected.filter((id: string) => id !== revisionId)
+            if (nextSelected.length === 0 && newSelectedId) {
+                nextSelected = [newSelectedId]
+            }
+            void writePlaygroundSelectionToQuery(nextSelected)
+            store.set(drawerVariantIdAtom, nextSelected[0] ?? null)
+
+            // Always return success since the API call succeeded
             return {
                 success: true,
                 message: "Revision deleted successfully",

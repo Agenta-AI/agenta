@@ -240,7 +240,12 @@ const SingleView = ({
                         </TestsetDrawerButton>
                     </div>
                     {!isBusy ? (
-                        <RunButton onClick={runRow} disabled={!!isRunning} className="flex" />
+                        <RunButton
+                            onClick={runRow}
+                            disabled={!!isRunning}
+                            className="flex"
+                            data-tour="run-button"
+                        />
                     ) : (
                         <RunButton isCancel onClick={cancelRow} className="flex" />
                     )}

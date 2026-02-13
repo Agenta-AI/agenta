@@ -559,6 +559,15 @@ async def create_workspace_db_object(
         user_id=str(user.id),
     )
 
+    # add default human evaluator for annotation
+    # Import here to avoid circular import at module load time
+    from oss.src.core.evaluators.defaults import create_default_human_evaluator
+
+    await create_default_human_evaluator(
+        project_id=project_db.id,
+        user_id=user.id,
+    )
+
     if return_wrk_prj:
         return workspace, project_db
 

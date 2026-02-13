@@ -88,12 +88,12 @@ const GenerationCompletionRow = ({
         // In comparison view with no explicit variantId, trigger for all displayed variants
         if (!variantId && Array.isArray(displayedVariantIds) && displayedVariantIds.length > 0) {
             displayedVariantIds.forEach((vid) => {
-                triggerTest({rowId, variantId: vid} as any)
+                triggerTest({rowId, revisionId: vid} as any)
             })
             return
         }
         // Single view or explicit variant run
-        triggerTest({rowId, variantId: variantId as string})
+        triggerTest({rowId, revisionId: variantId as string})
     }, [triggerTest, rowId, variantId, displayedVariantIds])
 
     const cancelRow = useCallback(async () => {

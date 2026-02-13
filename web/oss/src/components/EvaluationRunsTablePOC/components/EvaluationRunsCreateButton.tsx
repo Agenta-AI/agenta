@@ -12,9 +12,12 @@ import {
 } from "../atoms/view"
 import type {ConcreteEvaluationRunKind} from "../types"
 
-type SupportedCreateType = Extract<ConcreteEvaluationRunKind, "auto" | "human" | "online">
+type SupportedCreateType = Extract<
+    ConcreteEvaluationRunKind,
+    "auto" | "human" | "online" | "custom"
+>
 
-const SUPPORTED_CREATE_TYPES: SupportedCreateType[] = ["auto", "human", "online"]
+const SUPPORTED_CREATE_TYPES: SupportedCreateType[] = ["auto", "human", "online", "custom"]
 
 const createTypeCopy: Record<
     SupportedCreateType,
@@ -34,6 +37,11 @@ const createTypeCopy: Record<
         title: "Live evaluation",
         description: "Send production traffic to variants and compare live metrics.",
         short: "Live",
+    },
+    custom: {
+        title: "SDK evaluation",
+        description: "Run evaluations programmatically using the Agenta SDK.",
+        short: "SDK",
     },
 }
 

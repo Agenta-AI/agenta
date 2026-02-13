@@ -75,6 +75,7 @@ export function TestsetSelector({
                             value={newTestsetName}
                             onChange={(e) => setNewTestsetName(e.target.value)}
                             placeholder="Testset name"
+                            data-tour="testset-name-input"
                         />
                         <PencilSimple size={14} className="absolute top-[8px] right-2" />
                     </div>

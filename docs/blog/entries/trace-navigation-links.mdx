@@ -1,0 +1,97 @@
+---
+title: "Navigation Links from Traces to App/Environment/Variant"
+slug: trace-navigation-links
+date: 2026-01-28
+tags: [v0.81.0]
+description: "Clickable links in observability traces to navigate directly to the application, variant, and environment that generated each trace."
+---
+
+# Navigation Links from Traces to App/Environment/Variant
+
+## Overview
+
+You can now click directly from any trace to the application, variant, version, or environment that generated it. This makes debugging much faster. Instead of manually searching for which configuration produced a specific output, you can jump there in one click.
+
+This is especially useful when you're investigating production issues. You see a problematic trace, click through to the exact prompt version, and start iterating immediately.
+
+## Key Capabilities
+
+- **Clickable Application Links**: Jump from a trace to the application that generated it
+- **Variant Navigation**: Go directly to the specific variant and version used
+- **Environment Context**: See and navigate to the environment (production, staging, development) where the trace originated
+- **Drawer Integration**: Links appear in both the trace table and the detailed drawer view
+
+## How to Add References to Your Traces
+
+For the navigation links to appear, you need to store references in your traces. Here's how to do it with the Python SDK and OpenTelemetry.
+
+### Using the Python SDK
+
+```python
+import agenta as ag
+
+ag.init()
+
+# Store references to link traces to your configuration
+ag.tracing.store_refs({
+    "application.slug": "my-chatbot",
+    "variant.slug": "gpt-4-optimized",
+    "variant.version": "3",
+    "environment.slug": "production",
+})
+
+# Your LLM calls are now linked to this configuration
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+### Using OpenTelemetry
+
+If you're using OpenTelemetry for instrumentation, add references as span attributes:
+
+```javascript
+import { trace } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('my-app');
+const span = tracer.startSpan('chat-interaction');
+
+// Add references to link the trace
+span.setAttribute('ag.refs.application.slug', 'my-chatbot');
+span.setAttribute('ag.refs.variant.slug', 'gpt-4-optimized');
+span.setAttribute('ag.refs.variant.version', '3');
+span.setAttribute('ag.refs.environment.slug', 'production');
+
+// Your code here
+span.end();
+```
+
+## Available Reference Keys
+
+You can use any combination of these reference keys:
+
+| Category | Keys |
+|----------|------|
+| Application | `application.slug`, `application.id` |
+| Variant | `variant.slug`, `variant.id`, `variant.version` |
+| Environment | `environment.slug`, `environment.id`, `environment.version` |
+
+## Use Cases
+
+### Debug Production Issues
+When a user reports a problem, find the trace and click through to see exactly which prompt version was used. No more guessing or searching through commit history.
+
+### Compare Configurations
+Filter traces by variant, then click through to compare how different configurations perform. Jump between variants to understand what changed.
+
+### Track Deployments
+See which environment generated each trace. Verify that production is running the expected version by clicking through from any trace.
+
+## Getting Started
+
+Learn more about storing references in our documentation:
+
+- [Reference Prompt Versions (Python SDK)](/observability/trace-with-python-sdk/reference-prompt-versions)
+- [Semantic Conventions (OpenTelemetry)](/observability/trace-with-opentelemetry/semantic-conventions)
+- [Observability Overview](/observability/overview)

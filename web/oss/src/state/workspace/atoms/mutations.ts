@@ -1,7 +1,7 @@
+import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {WorkspaceRole} from "@/oss/lib/Types"
 import {updateOrganization} from "@/oss/services/organization/api"
 import {updateWorkspace, fetchAllWorkspaceRoles} from "@/oss/services/workspace/api"

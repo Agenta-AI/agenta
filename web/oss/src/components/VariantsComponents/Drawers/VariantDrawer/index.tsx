@@ -132,6 +132,7 @@ const VariantDrawer = ({variants: propsVariants, type, revert, ...props}: Varian
             onClose={onClose}
             afterOpenChange={handleAfterOpenChange}
             classNames={{body: "!p-0"}}
+            data-tour="variant-drawer"
             title={
                 type === "variant" ? (
                     <VariantDrawerTitle

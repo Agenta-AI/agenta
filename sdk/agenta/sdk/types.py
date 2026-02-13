@@ -9,7 +9,30 @@ from starlette.responses import StreamingResponse
 
 
 from agenta.sdk.assets import supported_llm_models, model_metadata
-from agenta.client.backend.types import AgentaNodesResponse, AgentaNodeDto
+
+
+# SDK-internal types for inline trace responses.
+# These are defined locally since they are SDK-internal models not exposed by the API.
+
+
+class AgentaNodeDto(BaseModel):
+    """SDK-internal type for inline trace node representation.
+
+    This type accepts arbitrary fields via extra="allow" since it's
+    constructed from span dictionaries with dynamic keys.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+
+class AgentaNodesResponse(BaseModel):
+    """SDK-internal type for inline trace response."""
+
+    version: str
+    nodes: List[AgentaNodeDto] = []
+    count: Optional[int] = None
+
+    model_config = ConfigDict(extra="allow")
 
 
 @dataclass

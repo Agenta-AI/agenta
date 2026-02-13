@@ -140,9 +140,10 @@ const VariantsTable = ({
                     },
                 }}
                 pagination={false}
-                onRow={(record: any) => ({
+                onRow={(record: any, index) => ({
                     className: "variant-table-row",
                     style: {cursor: "pointer"},
+                    "data-tour": index === 0 ? "version-row" : undefined,
                     onClick: () => {
                         onRowClick(record)
                     },

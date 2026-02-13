@@ -340,9 +340,12 @@ const ListOfOrgs = ({
         </Button>
     )
 
-    const isPostSignupPage = router.pathname === "/post-signup"
+    const isPostSignupPage =
+        router.pathname === "/post-signup" || router.pathname === "/get-started"
     const canShow = Boolean(
-        (project?.project_id || effectiveSelectedId || selectedOrganization?.id) && user?.id,
+        (project?.project_id || effectiveSelectedId || selectedOrganization?.id) &&
+        user?.id &&
+        !isPostSignupPage,
     )
 
     const createMutation = useMutation({
@@ -620,6 +623,7 @@ const ListOfOrgs = ({
                                 items: organizationMenuItems,
                                 selectedKeys: selectedOrganizationKey,
                                 onClick: handleOrganizationMenuClick,
+                                className: "min-w-[150px]",
                             }}
                         >
                             <div data-org-selector>

@@ -5,5 +5,5 @@ import typing
 from .evaluator_config import EvaluatorConfig
 
 AggregatedResultEvaluatorConfig = typing.Union[
-    EvaluatorConfig, typing.Dict[str, typing.Optional[typing.Any]]
+    EvaluatorConfig, typing.Dict[str, typing.Any]
 ]

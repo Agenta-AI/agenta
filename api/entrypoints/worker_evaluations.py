@@ -168,6 +168,9 @@ evaluations_worker = EvaluationsWorker(
     evaluations_service=evaluations_service,
 )
 
+# Wire evaluations_worker into evaluations_service (circular dependency)
+evaluations_service.evaluations_worker = evaluations_worker
+
 
 def main() -> int:
     """

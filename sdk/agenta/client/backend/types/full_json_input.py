@@ -4,31 +4,11 @@ from __future__ import annotations
 
 import typing
 
-# Break recursion by using Any instead of recursive references
 FullJsonInput = typing.Union[
     str,
     int,
     float,
     bool,
-    typing.Dict[str, typing.Any],  # Use Any instead of recursive FullJsonInput
-    typing.List[typing.Any],  # Use Any instead of recursive FullJsonInput
-    None,
+    typing.Dict[str, typing.Any],
+    typing.List[typing.Any],
 ]
-
-
-# Helper function for safe conversion
-def sanitize_json_input(value: typing.Any) -> typing.Any:
-    """Convert potentially recursive structures to safe non-recursive ones"""
-    if isinstance(value, dict):
-        return {k: sanitize_json_input(v) for k, v in value.items()}
-    elif isinstance(value, list):
-        return [sanitize_json_input(item) for item in value]
-    elif hasattr(value, "model_dump"):
-        # It's a Pydantic V2 model
-        return sanitize_json_input(value.model_dump())
-    elif hasattr(value, "dict"):
-        # It's a Pydantic V1 model
-        return sanitize_json_input(value.dict())
-    else:
-        # Primitive value
-        return value

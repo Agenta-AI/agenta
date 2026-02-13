@@ -16,6 +16,10 @@ export interface OnboardingStep extends Step {
     onCleanup?: () => void
     /** Called before advancing to next step - can be async */
     onNext?: () => void | Promise<void>
+    /** Called before moving to previous step - can be async */
+    onPrev?: () => void | Promise<void>
+    /** Optional panel key for step-specific UI sync */
+    panelKey?: string
     /** Show navigation controls */
     showControls?: boolean
     /** Show skip button */
@@ -25,6 +29,27 @@ export interface OnboardingStep extends Step {
         next?: string
         previous?: string
         finish?: string
+    }
+    /** Action to perform when user clicks Next */
+    nextAction?: {
+        selector: string
+        type?: "click"
+        waitForSelector?: string
+        waitForSelectorVisible?: boolean
+        waitForHiddenSelector?: string
+        waitTimeoutMs?: number
+        waitPollInterval?: number
+        advanceOnActionClick?: boolean
+    }
+    /** Action to perform when user clicks Previous */
+    prevAction?: {
+        selector: string
+        type?: "click"
+        waitForSelector?: string
+        waitForSelectorVisible?: boolean
+        waitForHiddenSelector?: string
+        waitTimeoutMs?: number
+        waitPollInterval?: number
     }
 }
 
