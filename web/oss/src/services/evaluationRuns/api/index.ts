@@ -1,14 +1,16 @@
+import {
+    extractAllEndpointSchemas,
+    extractInputKeysFromSchema,
+    legacyAppRevisionMolecule,
+    legacyAppRevisionSchemaQueryAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {getDefaultStore} from "jotai"
 
 import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
-import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {slugify} from "@/oss/lib/utils/slugify"
-import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 
 import {CreateEvaluationRunInput, Testset} from "./types"
 
@@ -184,10 +186,11 @@ const buildMappings = (
     // Generate input mappings aligned with Playground (schema + initial prompt vars for custom; prompt tokens for non-custom)
     {
         const store = getDefaultStore()
-        const flags = store.get(variantFlagsAtomFamily({revisionId: revision.id})) as any
-        const isCustom = Boolean(flags?.isCustom)
-        const spec = store.get(appSchemaAtom) as any
-        const routePath = store.get(appUriInfoAtom)?.routePath || ""
+        const appContext = store.get(currentAppContextAtom)
+        const isCustom = appContext?.appType === "custom"
+        const schemaQuery = store.get(legacyAppRevisionSchemaQueryAtomFamily(revision.id)) as any
+        const spec = schemaQuery?.data?.openApiSchema ?? null
+        const routePath = schemaQuery?.data?.routePath || ""
 
         let variableNames: string[] = []
         if (isCustom) {
@@ -195,7 +198,8 @@ const buildMappings = (
             variableNames = spec ? extractInputKeysFromSchema(spec as any, routePath) : []
         } else {
             // Non-custom: use stable variables from saved parameters (ignore live prompt edits)
-            variableNames = store.get(stablePromptVariablesAtomFamily(revision.id)) || []
+            const inputPorts = store.get(legacyAppRevisionMolecule.atoms.inputPorts(revision.id))
+            variableNames = (inputPorts || []).map((p: any) => p.key)
         }
 
         // Only add schema-derived columns if they actually exist in the testset
@@ -210,10 +214,12 @@ const buildMappings = (
             })
         })
 
-        const req = spec ? (getRequestSchema as any)(spec, {routePath}) : undefined
+        const {primaryEndpoint} = spec
+            ? extractAllEndpointSchemas(spec as any, routePath)
+            : {primaryEndpoint: null}
         // Only add messages column if the testset actually has it
         if (
-            req?.properties?.messages &&
+            primaryEndpoint?.messagesSchema &&
             !pushedTestsetColumns.has("messages") &&
             testsetColumns.has("messages")
         ) {

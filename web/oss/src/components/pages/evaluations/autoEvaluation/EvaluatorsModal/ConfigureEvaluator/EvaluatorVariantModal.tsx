@@ -10,6 +10,11 @@ import {
     type SetStateAction,
 } from "react"
 
+import {
+    legacyAppRevisionMolecule,
+    appRevisionsWithDraftsAtomFamily,
+    variantsListWithDraftsAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {CloseCircleOutlined, CloseOutlined} from "@ant-design/icons"
 import {Play} from "@phosphor-icons/react"
 import {Button, Input, Modal, Tabs, Tag, Tooltip, Typography} from "antd"
@@ -21,12 +26,10 @@ import {createUseStyles} from "react-jss"
 import VariantsTable from "@/oss/components/VariantsComponents/Table"
 import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
-import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import type {JSSTheme, ListAppsItem, Variant} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app/hooks"
 import {revision} from "@/oss/state/entities/testset"
-import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 
 import TabLabel from "../../../NewEvaluation/assets/TabLabel"
 import SelectAppSection from "../../../NewEvaluation/Components/SelectAppSection"
@@ -177,9 +180,12 @@ const EvaluatorVariantModal = ({
     )
     const normalizedTestsetColumns = useAtomValue(testcaseColumnsAtom)
 
-    const {variants: appVariantRevisions, isLoading: variantsLoading} = useAppVariantRevisions(
-        selectedAppId || null,
-    )
+    const appVariantRevisions = useAtomValue(
+        useMemo(() => appRevisionsWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
+    ) as unknown as EnhancedVariant[]
+    const variantsLoading = useAtomValue(
+        useMemo(() => variantsListWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
+    ).isPending
 
     const {latestRevisions, revisionToVariantMap, revisionById, variantById} = useMemo(() => {
         if (!appVariantRevisions?.length) {
@@ -406,11 +412,16 @@ const EvaluatorVariantModal = ({
         onMetaChange: (id: string, meta: VariantDiagnostics) => void
     }) => {
         const revisionId = record?.id ? String(record.id) : ""
-        const stableVariablesAtom = useMemo(
-            () => stablePromptVariablesAtomFamily(revisionId || ""),
-            [revisionId],
+        const inputPorts = useAtomValue(
+            useMemo(
+                () => legacyAppRevisionMolecule.atoms.inputPorts(revisionId || ""),
+                [revisionId],
+            ),
+        ) as any[]
+        const variables = useMemo(
+            () => (inputPorts || []).map((p: any) => p.key) as string[],
+            [inputPorts],
         )
-        const variables = useAtomValue(stableVariablesAtom) as string[]
 
         const expectedVariables = useMemo(
             () =>

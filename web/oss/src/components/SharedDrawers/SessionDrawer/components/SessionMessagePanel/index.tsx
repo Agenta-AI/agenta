@@ -1,12 +1,12 @@
 import {useMemo, useRef, useState} from "react"
 
+import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Collapse, CollapseProps, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
-import EnhancedTooltip from "@/oss/components/EnhancedUIs/Tooltip"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 
 import AddToTestsetButton from "../../../AddToTestsetDrawer/components/AddToTestsetButton"

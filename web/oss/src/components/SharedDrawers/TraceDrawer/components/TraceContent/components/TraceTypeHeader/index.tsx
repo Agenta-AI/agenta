@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {DeleteOutlined} from "@ant-design/icons"
 import {SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
@@ -7,7 +8,6 @@ import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 

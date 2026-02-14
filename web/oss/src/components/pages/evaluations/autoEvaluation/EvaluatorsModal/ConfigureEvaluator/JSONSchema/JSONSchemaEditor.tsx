@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {DeleteOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {
     Button,
@@ -18,7 +19,6 @@ import {
 } from "antd"
 import {createUseStyles} from "react-jss"
 
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {JSSTheme} from "@/oss/lib/Types"
 
 import {

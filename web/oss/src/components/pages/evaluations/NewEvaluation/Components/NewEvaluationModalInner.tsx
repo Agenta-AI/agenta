@@ -1,5 +1,9 @@
 import {useCallback, memo, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
+import {
+    appRevisionsWithDraftsAtomFamily,
+    variantsListWithDraftsAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -9,7 +13,6 @@ import {FIRST_EVALUATION_TOUR_ID} from "@/oss/components/Onboarding/tours/firstE
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
-import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
 import {activeTourIdAtom, currentStepStateAtom} from "@/oss/lib/onboarding"
@@ -199,9 +202,12 @@ const NewEvaluationModalInner = ({
         [selectedAppId],
     )
 
-    const {variants: appVariantRevisions, isLoading: variantsLoading} = useAppVariantRevisions(
-        selectedAppId || null,
+    const appVariantRevisions = useAtomValue(
+        useMemo(() => appRevisionsWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
     )
+    const variantsLoading = useAtomValue(
+        useMemo(() => variantsListWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
+    ).isPending
     const filteredVariants = useMemo(() => {
         if (!selectedAppId) return []
         return appVariantRevisions || []
