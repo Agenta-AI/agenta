@@ -58,6 +58,8 @@ export interface SchemaPropertyRendererProps {
     as?: "number" | "text" | "enum" | "boolean" | "textarea"
     /** Hide the model selector in prompt controls (when shown elsewhere) */
     hideModelSelector?: boolean
+    /** Optional renderer for provider icons in tool headers */
+    renderProviderIcon?: (providerKey: string) => React.ReactNode
 }
 
 /**
@@ -217,6 +219,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
     path,
     as,
     hideModelSelector = false,
+    renderProviderIcon,
 }: SchemaPropertyRendererProps) {
     // Resolve anyOf/oneOf schemas for rendering
     const resolvedSchema = useMemo(() => resolveAnyOfSchema(schema), [schema])
@@ -364,6 +367,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     disabled={disabled}
                     className={className}
                     hideModelSelector={hideModelSelector}
+                    renderProviderIcon={renderProviderIcon}
                 />
             )
 

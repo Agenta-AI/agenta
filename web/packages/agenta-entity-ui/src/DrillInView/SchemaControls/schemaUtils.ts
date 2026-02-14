@@ -220,31 +220,30 @@ export function getResponseFormatSchema(
 export function getLLMConfigProperties(
     schema: SchemaProperty | null | undefined,
 ): Record<string, SchemaProperty> {
-    const excludeKeys = [
+    const excludeKeys = new Set([
         "messages",
         "model",
         "tools",
+        "tool_choice",
+        "toolChoice",
         "response_format",
         "responseFormat",
         "inputKeys",
+        "input_keys",
         "name",
-    ]
-    const llmConfigKeys = [
-        "temperature",
-        "max_tokens",
-        "top_p",
-        "frequency_penalty",
-        "presence_penalty",
-    ]
+        "stream",
+        "template_format",
+        "templateFormat",
+    ])
     const result: Record<string, SchemaProperty> = {}
 
     // First check llm_config schema
     const llmConfigSchema = getLLMConfigSchema(schema)
     if (llmConfigSchema?.properties) {
         const llmProps = llmConfigSchema.properties as Record<string, SchemaProperty>
-        for (const key of llmConfigKeys) {
-            if (llmProps[key] && !excludeKeys.includes(key)) {
-                result[key] = llmProps[key]
+        for (const [key, prop] of Object.entries(llmProps)) {
+            if (!excludeKeys.has(key)) {
+                result[key] = prop
             }
         }
         if (Object.keys(result).length > 0) return result
@@ -253,9 +252,9 @@ export function getLLMConfigProperties(
     // Fall back to root level
     if (!schema?.properties) return {}
     const props = schema.properties as Record<string, SchemaProperty>
-    for (const key of llmConfigKeys) {
-        if (props[key] && !excludeKeys.includes(key)) {
-            result[key] = props[key]
+    for (const [key, prop] of Object.entries(props)) {
+        if (!excludeKeys.has(key)) {
+            result[key] = prop
         }
     }
     return result

@@ -46,7 +46,7 @@ export interface ResponseFormatControlProps {
     /** Additional CSS classes */
     className?: string
     /** Size variant */
-    size?: "small" | "middle"
+    size?: "small" | "middle" | undefined
 }
 
 // ============================================================================
@@ -68,9 +68,9 @@ export const responseFormatModalOpenAtom: PrimitiveAtom<string | null> = atomWit
 // ============================================================================
 
 const RESPONSE_FORMAT_OPTIONS = [
-    {label: "Default (text)", value: "text"},
-    {label: "JSON mode", value: "json_object"},
-    {label: "JSON schema", value: "json_schema"},
+    {label: "Output type: Text", value: "text"},
+    {label: "Output type: JSON", value: "json_object"},
+    {label: "Output type: JSON Schema", value: "json_schema"},
 ]
 
 const DEFAULT_JSON_SCHEMA = {
@@ -110,7 +110,7 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
     onChange,
     disabled = false,
     className,
-    size = "small",
+    size,
 }: ResponseFormatControlProps) {
     // Modal state from atom - use separate read/write hooks for better type inference
     const openModalId = useAtomValue(responseFormatModalOpenAtom)
@@ -125,7 +125,7 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
         return JSON.stringify(DEFAULT_JSON_SCHEMA, null, 2)
     })
 
-    // Current format type
+    // Current format type - derived from prop value
     const formatType = value?.type || "text"
 
     // Parsed schema for button label
@@ -232,15 +232,17 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
                 className="min-w-[130px]"
                 popupMatchSelectWidth={false}
                 disabled={disabled}
+                style={{height: 24}}
             />
 
             {/* Schema name button (only shown for json_schema) */}
             {formatType === "json_schema" && (
                 <Button
+                    variant="outlined"
+                    color="default"
                     size={size}
                     onClick={handleOpenModal}
                     disabled={disabled}
-                    className="text-xs"
                 >
                     {((parsedSchema as Record<string, unknown> | null)?.name as string) ||
                         "Edit Schema"}
