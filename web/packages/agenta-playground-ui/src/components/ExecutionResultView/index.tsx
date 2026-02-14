@@ -62,7 +62,7 @@ export default function ExecutionResultView({
 
     const traceFooter =
         traceId && SharedGenerationResultUtils ? (
-            <div className="w-full flex items-center justify-start mt-2 gap-2 flex-wrap">
+            <div className="w-full flex items-center justify-start mt-2 gap-2 flex-nowrap overflow-hidden">
                 <SharedGenerationResultUtils traceId={traceId} />
             </div>
         ) : null

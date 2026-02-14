@@ -148,7 +148,7 @@ const ChatTurnView = ({
                         headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
                         footer={
                             traceId && SharedGenerationResultUtils ? (
-                                <div className="w-full flex items-center justify-start mt-2 gap-2 flex-wrap">
+                                <div className="w-full flex items-center justify-start mt-2 gap-2 flex-nowrap overflow-hidden">
                                     <SharedGenerationResultUtils traceId={traceId} />
                                 </div>
                             ) : null
