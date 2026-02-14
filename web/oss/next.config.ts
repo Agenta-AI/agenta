@@ -57,8 +57,6 @@ const COMMON_CONFIG: NextConfig = {
     },
     // Enable package import optimization for workspace packages and icon libraries
     experimental: {
-        // Allow CJS dependencies to consume ESM-only externals (e.g. react-syntax-highlighter -> refractor/*)
-        esmExternals: "loose",
         optimizePackageImports: [
             "@agenta/oss",
             "@agenta/shared",
