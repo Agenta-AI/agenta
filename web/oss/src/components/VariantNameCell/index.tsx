@@ -1,21 +1,13 @@
 import {memo, useCallback} from "react"
 
+import {environmentMolecule} from "@agenta/entities/environment"
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 
-import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {
-    playgroundLatestAppRevisionIdAtom,
-    playgroundRevisionDeploymentAtomFamily,
-} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import type {VariantStatusInfo} from "@/oss/components/VariantDetailsWithStatus/types"
-import {
-    moleculeBackedVariantAtomFamily,
-    revisionIsDirtyAtomFamily,
-    discardRevisionDraftAtom,
-} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 type Rev = {
     id: string
@@ -41,17 +33,17 @@ const VariantNameCell = memo(
         showStable = false,
     }: VariantNameCellProps) => {
         const resolvedRevision = useAtomValue(
-            moleculeBackedVariantAtomFamily(revisionId || (revision?.id ?? "")),
+            legacyAppRevisionMolecule.atoms.data(revisionId || (revision?.id ?? "")),
         ) as Rev
 
         const rev = resolvedRevision ?? revision
 
-        const latestIdForVariant = useAtomValue(playgroundLatestAppRevisionIdAtom)
+        const latestIdForVariant = useAtomValue(legacyAppRevisionMolecule.atoms.latestRevisionId)
         const deployedInFromStore = useAtomValue(
-            playgroundRevisionDeploymentAtomFamily((rev && rev.id) || ""),
+            environmentMolecule.atoms.revisionDeployment((rev && rev.id) || ""),
         )
 
-        const _isDirty = useAtomValue(revisionIsDirtyAtomFamily(rev?.id || ""))
+        const _isDirty = useAtomValue(legacyAppRevisionMolecule.atoms.isDirty(rev?.id || ""))
         const isDirty = showStable ? false : _isDirty
 
         const isLatestRevision =
@@ -59,20 +51,16 @@ const VariantNameCell = memo(
                 ? (rev as any).isLatestRevision
                 : rev?.id === latestIdForVariant
 
-        const discardDraft = useSetAtom(discardRevisionDraftAtom)
-        const setParamsOverride = useSetAtom(parametersOverrideAtomFamily(rev?.id || "") as any)
-
         const handleDiscardDraft = useCallback(() => {
             if (!rev?.id) return
             try {
-                discardDraft(rev.id)
-                setParamsOverride(null)
+                legacyAppRevisionMolecule.set.discard(rev.id)
                 message.success("Draft changes discarded")
             } catch (e) {
                 message.error("Failed to discard draft changes")
                 console.error(e)
             }
-        }, [rev?.id, discardDraft, setParamsOverride])
+        }, [rev?.id])
 
         if (!rev) {
             return (

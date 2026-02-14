@@ -1,6 +1,7 @@
+import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {atom, Atom} from "jotai"
 
-import {revisionListAtom} from "@/oss/components/Playground/state/atoms"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import {variantTableSelectionAtomFamily} from "../../../store/selectionAtoms"
 
@@ -111,7 +112,9 @@ export const comparisonModalCompareListAtom = atom((get) => {
     }
 
     // default to revisions list
-    return get(revisionListAtom)
+    const rawAppId = get(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
+    return appId ? get(appRevisionsWithDraftsAtomFamily(appId)) : []
 })
 
 export const comparisonModalAllVariantsAtom = atom((get) => {
@@ -119,5 +122,7 @@ export const comparisonModalAllVariantsAtom = atom((get) => {
     if (state.allVariantsAtom) return get(state.allVariantsAtom)
     const all = get(comparisonAllRevisionsAtom)
     if (all.length > 0) return all
-    return get(revisionListAtom)
+    const rawAppId = get(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
+    return appId ? get(appRevisionsWithDraftsAtomFamily(appId)) : []
 })

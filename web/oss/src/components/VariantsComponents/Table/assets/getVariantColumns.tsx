@@ -10,8 +10,9 @@ import {openDeleteVariantModalAtom} from "@/oss/components/Playground/Components
 import {openDeployVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeployVariantModal/store/deployVariantModalStore"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import VariantNameCell from "@/oss/components/VariantNameCell"
+import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 const VariantDropdown = dynamic(() => import("../../Dropdown/VariantDropdown"), {ssr: false})
 
@@ -36,16 +37,15 @@ const CreatedByCell = memo(({record}: {record: EnhancedVariant}) => {
 })
 
 const CreatedOnCell = memo(({record}: {record: EnhancedVariant}) => {
-    return <div>{record.createdAt}</div>
+    const ts = (record as any).updatedAtTimestamp ?? (record as any).createdAtTimestamp
+    const formatted = ts ? formatDate24(ts) : ""
+    return <div>{formatted}</div>
 })
 
 const ModelCell = memo(({record}: {record: EnhancedVariant}) => {
     const inlineConfig = (record.parameters as any)?.prompt?.llm_config || record.parameters || {}
     const name =
-        (record.modelName as string | undefined) ||
-        (inlineConfig && typeof inlineConfig === "object"
-            ? (inlineConfig as any)?.model
-            : undefined)
+        inlineConfig && typeof inlineConfig === "object" ? (inlineConfig as any)?.model : undefined
 
     return <div>{(typeof name === "string" && name.trim()) || "-"}</div>
 })

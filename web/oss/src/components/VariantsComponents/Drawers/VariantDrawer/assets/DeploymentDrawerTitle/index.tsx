@@ -1,19 +1,29 @@
 import {memo, useCallback} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {publishMutationAtom} from "@agenta/entities/legacyAppRevision"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
+import {atomFamily} from "jotai/utils"
 
 import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
 import {openDeploymentConfirmationModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
-import {deployedRevisionIdByEnvironmentAtomFamily} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
-import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
+import {environmentsAtom} from "@/oss/state/environment/atoms/fetcher"
 
 import {DeploymentDrawerTitleProps} from "../types"
+
+const deployedRevisionIdByEnvAtomFamily = atomFamily((envName: string) =>
+    atom<string | null>((get) => {
+        const envs = get(environmentsAtom)
+        if (!Array.isArray(envs)) return null
+        const env = envs.find((e: any) => e.name === envName || e.environment_name === envName)
+        return env?.deployed_app_variant_revision_id ?? env?.deployedAppVariantRevisionId ?? null
+    }),
+)
 
 const DeploymentDrawerTitle = ({
     variantId,
@@ -21,14 +31,12 @@ const DeploymentDrawerTitle = ({
     onToggleWidth,
     isExpanded,
 }: DeploymentDrawerTitleProps) => {
-    const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId))
+    const selectedVariant = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId))
     const [envNameParam] = useQueryParam("selectedEnvName")
     const envRevisions = useAtomValue(envRevisionsAtom)
     const envName = envNameParam || envRevisions?.name || ""
     const {isPending: isPublishing, mutateAsync: publish} = useAtomValue(publishMutationAtom)
-    const deployedRevisionId = useAtomValue(
-        deployedRevisionIdByEnvironmentAtomFamily(envName ?? ""),
-    )
+    const deployedRevisionId = useAtomValue(deployedRevisionIdByEnvAtomFamily(envName ?? ""))
     const canRevert = variantId !== deployedRevisionId
     const openDeploymentConfirmationModal = useSetAtom(openDeploymentConfirmationModalAtom)
 

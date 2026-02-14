@@ -5,7 +5,7 @@ import {TableRowSelection} from "antd/es/table/interface"
 import {atom, useAtom} from "jotai"
 
 import useURL from "@/oss/hooks/useURL"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 import ResizableTitle from "../../ResizableTitle"
 import {variantTableSelectionAtomFamily} from "../store/selectionAtoms"

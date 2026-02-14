@@ -1,5 +1,7 @@
 import {memo, useCallback, useMemo} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp, Rocket} from "@phosphor-icons/react"
 import {Button} from "antd"
@@ -8,15 +10,10 @@ import {useRouter} from "next/router"
 
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
-import {playgroundAppStatusAtom} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
-import {
-    moleculeBackedVariantAtomFamily,
-    revisionIsDirtyAtomFamily,
-} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {VariantDrawerTitleProps} from "../types"
 import {drawerVariantIsLoadingAtomFamily} from "../VariantDrawerContent"
@@ -31,7 +28,7 @@ const NavControls = memo(
     }: Pick<VariantDrawerTitleProps, "variantId" | "variantIds" | "variants" | "isLoading">) => {
         const [, updateQuery] = useQuery("replace")
         const [displayMode] = useQueryParam("displayMode")
-        const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
+        const selectedVariant = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId)) as any
         const selectedParent = useMemo(() => {
             const parentId =
                 typeof selectedVariant?._parentVariant === "string"
@@ -146,9 +143,10 @@ const TitleActions = memo(
         isLoading,
     }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "variants" | "isLoading">) => {
         const [, updateQuery] = useQuery("replace")
-        const appStatus = useAtomValue(playgroundAppStatusAtom)
-        const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
-        const isDirty = useAtomValue(revisionIsDirtyAtomFamily(variantId))
+        const entityQuery = useAtomValue(runnableBridge.query(variantId))
+        const entityReady = !entityQuery.isPending && !!entityQuery.data
+        const selectedVariant = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId)) as any
+        const isDirty = useAtomValue(legacyAppRevisionMolecule.atoms.isDirty(variantId))
         const {goToPlayground} = usePlaygroundNavigation()
         const {appURL: _appURL} = useURL()
         const _router = useRouter()
@@ -158,7 +156,7 @@ const TitleActions = memo(
                 <Button
                     className="flex items-center gap-2"
                     size="small"
-                    disabled={!appStatus || isLoading}
+                    disabled={!entityReady || isLoading}
                     onClick={() => {
                         goToPlayground(selectedVariant ?? variantId)
                     }}

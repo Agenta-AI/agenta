@@ -1,6 +1,7 @@
 // @ts-nocheck
 import {useMemo, useState} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
 import {
     ArrowRight,
@@ -13,7 +14,7 @@ import {
 } from "@phosphor-icons/react"
 import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -26,8 +27,6 @@ import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typ
 import VariantPopover from "@/oss/components/pages/overview/variants/VariantPopover"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import useStatelessVariants from "@/oss/lib/hooks/useStatelessVarziants"
-import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
 import {currentAppAtom} from "@/oss/state/app"
 
@@ -66,16 +65,19 @@ const DeploymentDrawer = ({
     }, [variants, selectedEnvironment.deployed_app_variant_id])
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
 
-    // We no longer need variant.inputParams from useVariants; keep commented for reference
-    // const {data} = useVariants(currentApp, [variant!].filter(Boolean))
-    const {specMap, uriMap} = useStatelessVariants()
+    const deployedRevisionId = selectedEnvironment?.deployed_app_variant_revision_id || ""
+    const inputPorts = useAtomValue(
+        useMemo(
+            () =>
+                deployedRevisionId
+                    ? legacyAppRevisionMolecule.atoms.inputPorts(deployedRevisionId)
+                    : atom([]),
+            [deployedRevisionId],
+        ),
+    )
 
     const params = useMemo(() => {
-        // Derive inputs from app-level OpenAPI schema
-        const vId = variant?.variantId
-        const spec = (vId && (specMap?.[vId] as any)) || undefined
-        const routePath = (vId && uriMap?.[vId]?.routePath) || ""
-        const inputKeys = spec ? extractInputKeysFromSchema(spec, routePath) : []
+        const inputKeys = (inputPorts || []).map((p: any) => p.key as string)
         const synthesized = inputKeys.map((name) => ({name, input: name === "messages"}))
 
         const built = createParams(
@@ -85,7 +87,7 @@ const DeploymentDrawer = ({
             currentApp,
         )
         return built
-    }, [variant?.variantId, specMap, uriMap, currentApp, selectedEnvironment?.name])
+    }, [inputPorts, currentApp, selectedEnvironment?.name])
 
     const invokeLlmAppCodeSnippet: Record<string, string> = {
         python: invokeLlmApppythonCode(uri!, params),

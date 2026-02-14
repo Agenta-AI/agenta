@@ -38,6 +38,8 @@ const VariantDetails = ({
         <Space size={4}>
             {variantName ? <Typography>{variantName}</Typography> : null}
             {revision !== undefined &&
+                revision !== null &&
+                revision !== "" &&
                 (showRevisionAsTag ? (
                     <Tag className={`bg-[rgba(5,23,41,0.06)]`} variant="filled">
                         v{revision}

@@ -2,24 +2,16 @@ import {useCallback, useMemo} from "react"
 
 import {
     legacyAppRevisionEntityWithBridgeAtomFamily,
+    legacyAppRevisionMolecule,
     revisionOpenApiSchemaAtomFamily,
+    derivePromptsFromOpenApiSpec,
+    deriveCustomPropertiesFromOpenApiSpec,
 } from "@agenta/entities/legacyAppRevision"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
 
 import {getYamlOrJson} from "@/oss/lib/helpers/utils"
-import {
-    deriveCustomPropertiesFromSpec,
-    derivePromptsFromSpec,
-} from "@/oss/lib/shared/variant/transformer/transformer"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {customPropertiesAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
-
-const SharedEditor = dynamic(() => import("@/oss/components/Playground/Components/SharedEditor"), {
-    ssr: false,
-})
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 export const NewVariantParametersView = ({
     selectedVariant,
@@ -34,20 +26,12 @@ export const NewVariantParametersView = ({
     const entity = useAtomValue(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId ?? ""))
     const routePath = entity?.routePath || ""
 
-    // Base parameters are derived from prompts (same structure used for prompt commits)
-    const derived = useAtomValue(transformedPromptsAtomFamily(revisionId)) as any
-    const promptsAtom = useMemo(() => moleculeBackedPromptsAtomFamily(revisionId), [revisionId])
-    const setPrompts = useSetAtom(promptsAtom)
-
-    const customPropsAtom = useMemo(
-        () =>
-            customPropertiesAtomFamily({
-                revisionId,
-                routePath,
-            }),
-        [revisionId, routePath],
+    // Entity-native ag_config from current draft state (enhanced → raw conversion)
+    const draftConfig = useAtomValue(legacyAppRevisionMolecule.atoms.draftParameters(revisionId))
+    const setPrompts = useSetAtom(legacyAppRevisionMolecule.reducers.setEnhancedPrompts)
+    const setCustomProps = useSetAtom(
+        legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties,
     )
-    const setCustomProps = useSetAtom(customPropsAtom)
 
     const configJsonString = useMemo(() => {
         // When viewing original, always show the saved revision parameters
@@ -61,16 +45,15 @@ export const NewVariantParametersView = ({
             return getYamlOrJson("JSON", fallback)
         }
 
-        const derivedConfig = derived?.ag_config
-        // Fall back to saved parameters when transformation produces empty config
-        // (e.g., drawer context where playground atoms aren't populated)
-        if (!derivedConfig || Object.keys(derivedConfig).length === 0) {
+        // Fall back to saved parameters when draft config is empty
+        // (e.g., drawer context where molecule data isn't populated)
+        if (!draftConfig || Object.keys(draftConfig).length === 0) {
             const params = (selectedVariant as any)?.parameters ?? {}
             const base = params.ag_config ?? params
             return getYamlOrJson("JSON", base)
         }
-        return getYamlOrJson("JSON", derivedConfig)
-    }, [derived?.ag_config, showOriginal, spec, selectedVariant])
+        return getYamlOrJson("JSON", draftConfig)
+    }, [draftConfig, showOriginal, spec, selectedVariant])
 
     const onChange = useCallback(
         (value: string) => {
@@ -89,20 +72,20 @@ export const NewVariantParametersView = ({
                     },
                 }
 
-                const nextPrompts = derivePromptsFromSpec(
-                    variantForDerive as any,
+                const nextPrompts = derivePromptsFromOpenApiSpec(
+                    variantForDerive.parameters as Record<string, unknown> | undefined,
                     spec as any,
                     routePath,
                 ) as any
 
-                const nextCustomProps = deriveCustomPropertiesFromSpec(
-                    variantForDerive as any,
+                const nextCustomProps = deriveCustomPropertiesFromOpenApiSpec(
+                    variantForDerive.parameters as Record<string, unknown> | undefined,
                     spec as any,
                     routePath,
                 ) as Record<string, any>
 
-                setPrompts(nextPrompts)
-                setCustomProps(nextCustomProps)
+                setPrompts(revisionId, nextPrompts)
+                setCustomProps(revisionId, nextCustomProps)
             } catch (error) {
                 // Ignore parse errors; editor will keep showing the current text
             }
