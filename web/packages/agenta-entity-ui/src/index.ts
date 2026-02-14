@@ -34,33 +34,7 @@
  * ```
  */
 
-// ============================================================================
-// PATH UTILITIES - imported from @agenta/shared
-// ============================================================================
-
-export {
-    // Types
-    type PathSegment,
-    type DataPath,
-    type PathItem,
-    // Path operations
-    getValueAtPath,
-    setValueAtPath,
-    deleteValueAtPath,
-    hasValueAtPath,
-    // Inspection
-    isExpandable,
-    getValueType,
-    getChildCount,
-    getItemsAtPath,
-    // Path utilities
-    parsePath,
-    pathToString,
-    getParentPath,
-    getLastSegment,
-    isChildPath,
-    collectPaths,
-} from "@agenta/shared/utils"
+// NOTE: Path utilities (getValueAtPath, parsePath, etc.) are available from @agenta/shared/utils
 
 // ============================================================================
 // DRILL-IN VIEW (Molecule-first API)
@@ -491,4 +465,4 @@ export {EntityTable, type EntityTableProps} from "./shared"
 // ENTITY ADAPTERS (registration for entity modals)
 // ============================================================================
 
-export {testsetModalAdapter, revisionModalAdapter} from "./adapters"
+export {testsetModalAdapter, revisionModalAdapter, variantModalAdapter} from "./adapters"

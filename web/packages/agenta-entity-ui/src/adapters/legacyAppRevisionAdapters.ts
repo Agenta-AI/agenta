@@ -295,10 +295,10 @@ const variantCommitAtom = atom(null, async (get, set, params: CommitParams): Pro
  * invalidation) that should stay in the playground layer.
  */
 const variantDeleteAtom = atom(null, async (_get, _set, _ids: string[]): Promise<void> => {
-    // Variant deletion is handled by the playground layer
-    // This is a placeholder to satisfy the adapter interface
-    console.warn(
-        "[legacyAppRevisionAdapter] Delete called but not implemented. " +
+    // Variant deletion requires complex orchestration (selection updates, query
+    // invalidation) that lives in the playground layer.
+    throw new Error(
+        "Variant deletion is not supported via the entity-ui adapter. " +
             "Use playground deleteVariantMutationAtom instead.",
     )
 })
