@@ -121,10 +121,10 @@ def list_all_demos(session: Connection) -> List[Demo]:
                     )
                 )
 
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     return demos

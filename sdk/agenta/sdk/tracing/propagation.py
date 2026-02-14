@@ -20,7 +20,7 @@ def extract(
             or None
         )
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     # --- Extract traceparent --- #
@@ -36,7 +36,7 @@ def extract(
         _context = TraceContextTextMapPropagator().extract(_carrier)
 
         traceparent = _context
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     # --- Extract baggage --- #
@@ -57,7 +57,7 @@ def extract(
                 for key, value in partial.items():
                     baggage[key] = value
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     # --- #
@@ -77,7 +77,7 @@ def inject(
     try:
         TraceContextTextMapPropagator().inject(headers, context=_context)
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     # --- Inject baggage --- #
@@ -88,7 +88,7 @@ def inject(
 
         W3CBaggagePropagator().inject(headers, context=_context)
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     # --- Inject credentials --- #

@@ -244,7 +244,7 @@ export default function VariantEndpoint() {
                                 ) : (
                                     <Tooltip
                                         placement="right"
-                                        title="Deployment History available in Cloud/Enterprise editions only"
+                                        title="Deployment History available in Cloud/EE only"
                                     >
                                         History
                                     </Tooltip>

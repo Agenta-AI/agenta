@@ -7,7 +7,6 @@ import asyncio
 import random
 import string
 import time
-from concurrent.futures import ThreadPoolExecutor
 
 load_dotenv(override=True)
 ag.init()
@@ -81,7 +80,7 @@ async def run_concurrent_batches(num_batches=100):
 
 
 if __name__ == "__main__":
-    print(f"Starting high throughput test with multiple concurrent batches...")
+    print("Starting high throughput test with multiple concurrent batches...")
     start_time = time.time()
 
     # Run the concurrent batches

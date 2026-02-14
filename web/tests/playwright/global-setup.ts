@@ -2,7 +2,7 @@
  * Automates Playwright authentication and storage setup.
  */
 
-import {chromium, FullConfig} from "@playwright/test"
+import {chromium} from "@playwright/test"
 
 import {waitForApiResponse} from "../tests/fixtures/base.fixture/apiHelpers"
 import {
@@ -20,21 +20,19 @@ import {getTestmailClient} from "../utils/testmail"
  * Handles both login and signup flows.
  * Stores authenticated state in a file to be reused by tests.
  */
-async function globalSetup(config: FullConfig) {
+async function globalSetup() {
     // Automate authentication before Playwright tests
     console.log("[global-setup] Starting global setup for authentication")
 
-    const project = config.projects.find((project) => project.name === process.env.PROJECT)
-    console.log(`[global-setup] Resolved project: ${process.env.PROJECT}`)
-    if (!project) {
-        throw new Error(`Project ${process.env.PROJECT} not found`)
-    }
-    const {baseURL, storageState} = project.use
+    const baseURL = process.env.AGENTA_WEB_URL || "http://localhost"
+    const license = process.env.AGENTA_LICENSE || "oss"
+    const storageState = "state.json"
+    console.log(`[global-setup] Base URL: ${baseURL}, License: ${license}`)
     const timeout = 60000
     const inputDelay = 100
 
-    const {email, password} = createInitialUserState({
-        name: project.name,
+    const {email} = createInitialUserState({
+        name: license,
     })
 
     console.log("[global-setup] Launching browser")
@@ -42,7 +40,7 @@ async function globalSetup(config: FullConfig) {
     const page = await browser.newPage()
 
     console.log(`[global-setup] Navigating to auth page: ${baseURL}/auth`)
-    await page.goto(`${baseURL}/auth`)
+    await page.goto(`${baseURL}/auth`, {timeout})
 
     console.log("[global-setup] Clearing local storage")
 
@@ -63,97 +61,161 @@ async function globalSetup(config: FullConfig) {
         }
     }
 
-    const timestamp = Date.now()
-    console.log(`[global-setup] Typing email: ${email}`)
-    await typeWithDelay(page, 'input[type="email"]', email)
-    const signinButton = await page.getByRole("button", {name: "Sign in"})
-
-    const hasSigninButton = await signinButton.isVisible()
-
-    if (hasSigninButton) {
-        // Password sign-in flow
-        if (!password) {
-            throw new Error("Password is required for password sign-in flow")
+    /**
+     * Handles the post-signup onboarding flow if it appears.
+     * The post-signup form requires POSTHOG_API_KEY to load the survey.
+     * Without it, the page auto-redirects to /get-started or /apps.
+     */
+    async function handlePostSignup(): Promise<void> {
+        try {
+            await page.waitForURL("**/post-signup", {waitUntil: "load", timeout: 10000})
+        } catch {
+            // No post-signup flow — already redirected to app
+            console.log("[global-setup] No post-signup redirect detected, continuing")
+            return
         }
 
-        try {
-            console.log("[global-setup] Typing password")
+        console.log("[global-setup] New user detected, on post-signup page")
+
+        // Race: the survey form loads ("Tell us about yourself") OR
+        // the page redirects away (no PostHog API key → redirects to /get-started or /apps)
+        const tellUsAboutYourselfLocator = page.getByText("Tell us about yourself")
+        const redirected = page.waitForURL(
+            (url) => !url.pathname.endsWith("/post-signup"),
+            {timeout: 15000},
+        )
+        const surveyLoaded = tellUsAboutYourselfLocator
+            .waitFor({state: "visible", timeout: 15000})
+            .then(() => "survey" as const)
+
+        const result = await Promise.race([
+            surveyLoaded,
+            redirected.then(() => "redirected" as const),
+        ])
+
+        if (result === "redirected") {
+            console.log("[global-setup] Post-signup redirected (no PostHog survey), continuing")
+            return
+        }
+
+        console.log("[global-setup] PostHog survey loaded, completing post-signup flow")
+        const isOptionVisible = await page.getByRole("option", {name: "Hobbyist"}).isVisible()
+
+        if (isOptionVisible) {
+            await selectOption(page, {text: "2-10"})
+            await selectOption(page, {text: "Hobbyist"})
+            await selectOption(page, {text: "Just exploring"})
+            await clickButton(page, "Continue")
+
+            const whatBringsYouHereLocator = page.getByText("What brings you here?")
+            await whatBringsYouHereLocator.waitFor({state: "visible"})
+
+            await selectOption(page, {text: "Evaluating LLM Applications"})
+            await selectOption(page, {text: "Github"})
+            await clickButton(page, "Continue")
+            console.log("[global-setup] Post-signup flow completed")
+            await waitForPath(page, `${baseURL}/apps`)
+        } else {
+            console.log("[global-setup] Post-signup flow not completed due to missing options")
+        }
+    }
+
+    const timestamp = Date.now()
+
+    // For OSS, use admin credentials from env vars
+    const loginEmail =
+        license === "oss" ? process.env.AGENTA_ADMIN_EMAIL || email : email
+    const adminPassword = process.env.AGENTA_ADMIN_PASSWORD
+
+    console.log(`[global-setup] Typing email: ${loginEmail}`)
+    await typeWithDelay(page, 'input[type="email"]', loginEmail)
+
+    // Detect which auth flow the page shows
+    const signinButton = page.getByRole("button", {name: "Sign in"})
+    const hasSigninButton = await signinButton.isVisible()
+
+    try {
+        if (hasSigninButton) {
+            // Password sign-in flow (OSS with pre-created admin account)
+            const password = adminPassword
+            if (!password) {
+                throw new Error(
+                    "AGENTA_ADMIN_PASSWORD is required for the password sign-in flow",
+                )
+            }
+
+            console.log("[global-setup] Password sign-in flow detected")
             await typeWithDelay(page, "input[type='password']", password)
-            console.log("[global-setup] Clicking Sign in button")
             await signinButton.click()
             console.log(`[global-setup] Waiting for navigation to: ${baseURL}/apps`)
             await waitForPath(page, `${baseURL}/apps`)
-        } catch (error) {
-            console.error("[global-setup] Error in login flow:", error)
-            throw error
-        } finally {
-            console.log("[global-setup] Saving storage state and closing browser")
-            await page.context().storageState({path: storageState as string})
-            await browser.close()
-        }
-    } else {
-        // Email verification and OTP flow
-        await clickButton(page, "Continue with email")
-        const verifyEmailLocator = page.getByText("Verify your email")
-        await verifyEmailLocator.waitFor({state: "visible"})
-        try {
-            console.log("[global-setup] Waiting for OTP email")
-            const otp = await testmail.waitForOTP(email, {
-                timeout,
-                timestamp_from: timestamp,
-            })
-            console.log("[global-setup] OTP received, preparing to input")
-            const responsePromise = waitForApiResponse<AuthResponse>(page, {
-                route: "/api/auth/signinup/code/consume",
-                validateStatus: true,
-            })
+        } else {
+            // Click the email continue button (text varies by deployment)
+            const continueWithEmail = page.getByRole("button", {name: "Continue with email"})
+            const continueButton = page.getByRole("button", {name: "Continue", exact: true})
+            if (await continueWithEmail.isVisible()) {
+                await continueWithEmail.click()
+            } else {
+                await continueButton.click()
+            }
 
-            await fillOTPDigits(otp, inputDelay)
-            console.log("[global-setup] Clicking Next button after OTP input")
-            await clickButton(page, "Next")
-            const responseData = await responsePromise
+            // Wait to see which flow appears: OTP or password signup
+            const verifyEmailLocator = page.getByText("Verify your email")
+            const passwordInput = page.locator("input[type='password']")
 
-            if (responseData.createdNewRecipeUser) {
-                console.log("[global-setup] New user detected, completing post-signup flow")
-                await page.waitForURL(`${baseURL}/post-signup`, {waitUntil: "load"})
+            // Race: whichever appears first determines the flow
+            await Promise.race([
+                verifyEmailLocator.waitFor({state: "visible", timeout}),
+                passwordInput.waitFor({state: "visible", timeout}),
+            ])
 
-                const tellUsAboutYourselfLocator = page.getByText("Tell us about yourself")
-                await tellUsAboutYourselfLocator.waitFor({state: "visible"})
-                const isOptionVisible = await page
-                    .getByRole("option", {name: "Hobbyist"})
-                    .isVisible()
+            if (await passwordInput.isVisible()) {
+                // Email + password signup/signin flow (local EE with SuperTokens)
+                console.log("[global-setup] Email + password flow detected")
+                const testPassword = "TestPass123!"
+                await typeWithDelay(page, "input[type='password']", testPassword)
+                await clickButton(page, "Continue with password")
 
-                if (isOptionVisible) {
-                    await selectOption(page, {text: "2-10"})
-                    await selectOption(page, {text: "Hobbyist"})
-                    await selectOption(page, {text: "Just exploring"})
-                    await clickButton(page, "Continue")
+                await handlePostSignup()
 
-                    const whatBringsYouHereLocator = page.getByText("What brings you here?")
-                    await whatBringsYouHereLocator.waitFor({state: "visible"})
+                // Wait for the page to settle on an authenticated URL
+                console.log("[global-setup] Waiting for authenticated page")
+                await page.waitForURL(
+                    (url) => !url.pathname.includes("/auth") && !url.pathname.endsWith("/post-signup"),
+                    {timeout},
+                )
+                console.log(`[global-setup] Settled on: ${page.url()}`)
+            } else {
+                // OTP flow (cloud EE with SuperTokens passwordless)
+                console.log("[global-setup] OTP flow detected")
+                console.log("[global-setup] Waiting for OTP email")
+                const otp = await testmail.waitForOTP(email, {
+                    timeout,
+                    timestamp_from: timestamp,
+                })
+                console.log("[global-setup] OTP received, preparing to input")
+                const responsePromise = waitForApiResponse<AuthResponse>(page, {
+                    route: "/api/auth/signinup/code/consume",
+                    validateStatus: true,
+                })
 
-                    await selectOption(page, {text: "Evaluating LLM Applications"})
-                    await selectOption(page, {
-                        text: "Github",
-                    })
-                    await clickButton(page, "Continue")
-                    console.log("[global-setup] Post-signup flow completed")
-                    console.log(`[global-setup] Waiting for navigation to: ${baseURL}/apps`)
-                    await waitForPath(page, `${baseURL}/apps`)
-                } else {
-                    console.log(
-                        "[global-setup] Post-signup flow not completed due to missing options",
-                    )
+                await fillOTPDigits(otp, inputDelay)
+                console.log("[global-setup] Clicking Next button after OTP input")
+                await clickButton(page, "Next")
+                const responseData = await responsePromise
+
+                if (responseData.createdNewRecipeUser) {
+                    await handlePostSignup()
                 }
             }
-        } catch (error) {
-            console.error("[global-setup] Error in login flow:", error)
-            throw error
-        } finally {
-            console.log("[global-setup] Saving storage state and closing browser")
-            await page.context().storageState({path: storageState as string})
-            await browser.close()
         }
+    } catch (error) {
+        console.error("[global-setup] Error in login flow:", error)
+        throw error
+    } finally {
+        console.log("[global-setup] Saving storage state and closing browser")
+        await page.context().storageState({path: storageState as string})
+        await browser.close()
     }
 }
 

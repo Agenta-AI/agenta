@@ -50,7 +50,5 @@ def generate_completion():
 
 
 if __name__ == "__main__":
-    import asyncio
-
     # asyncio.run(agenerate_completion())
     generate_completion()

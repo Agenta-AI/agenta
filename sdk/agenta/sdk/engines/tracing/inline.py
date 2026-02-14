@@ -31,11 +31,10 @@ class LifecycleDTO(BaseModel):
 ### services.observability.dtos ###
 ### --------------------------- ###
 
-from typing import List, Dict, Any, Union, Optional
+from typing import List, Dict, Any, Union, Optional  # noqa: E402
 
-from enum import Enum
-from datetime import datetime
-from uuid import UUID
+from datetime import datetime  # noqa: E402
+from uuid import UUID  # noqa: E402
 
 
 class TimeDTO(BaseModel):
@@ -218,7 +217,7 @@ class OTelSpanDTO(BaseModel):
 ### services.observability.utils ###
 ### ---------------------------- ###
 
-from typing import List, Dict, OrderedDict
+from typing import List, Dict  # noqa: E402
 
 
 def parse_span_dtos_to_span_idx(
@@ -415,7 +414,7 @@ def _connect_tree_dfs(
 ### apis.fastapi.observability.opentelemetry.semconv ###
 ### ------------------------------------------------ ###
 
-from json import loads
+from json import loads  # noqa: E402
 
 VERSION = "0.4.1"
 
@@ -525,11 +524,10 @@ CODEX = {"maps": MAPS[VERSION], "keys": KEYS[VERSION]}
 ### apis.fastapi.observability.utils ###
 ### -------------------------------- ###
 
-from typing import Optional, Union, Tuple, Any, List, Dict
-from uuid import UUID
-from collections import OrderedDict
-from json import loads, JSONDecodeError, dumps
-from copy import copy
+from typing import Optional, Union, Tuple, Any, List, Dict  # noqa: E402
+from uuid import UUID  # noqa: E402
+from collections import OrderedDict  # noqa: E402
+from copy import copy  # noqa: E402
 
 
 def _unmarshal_attributes(
@@ -698,7 +696,7 @@ def _parse_from_semconv(
 
                         attributes[new_key] = new_value
 
-                    except:  # pylint: disable=bare-except
+                    except Exception:  # pylint: disable=bare-except
                         pass
 
 
@@ -821,7 +819,7 @@ def parse_from_otel_span_dto(
     node_type = NodeType.TASK
     try:
         node_type = NodeType(types.get("node", "").lower())
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         pass
 
     node = NodeDTO(
@@ -957,11 +955,11 @@ def parse_to_agenta_span_dto(
 ########################################
 
 
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace import ReadableSpan  # noqa: E402
 
-from agenta.sdk.utils.lazy import _load_litellm
+from agenta.sdk.utils.lazy import _load_litellm  # noqa: E402
 
-from agenta.sdk.types import AgentaNodeDto, AgentaNodesResponse
+from agenta.sdk.types import AgentaNodeDto, AgentaNodesResponse  # noqa: E402
 
 
 def parse_inline_trace(
@@ -1157,5 +1155,5 @@ def calculate_costs(span_idx: Dict[str, SpanDTO]):
                 span.metrics["unit.costs.completion"] = completion_cost
                 span.metrics["unit.costs.total"] = total_cost
 
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass

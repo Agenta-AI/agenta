@@ -1,0 +1,71 @@
+---
+id: fetch-environment-variant
+title: "Fetch Environment Variant"
+description: "Fetch Environment Variant"
+sidebar_label: "Fetch Environment Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlV01z2zYQ/SuaPSUziKV4euKpqj8aN23jiZVcNBoPRK4kpCDIAAs3Kof/vbMgKJGSrNge5ZSTZXL3vd23i+WiApJLB8kUrsyDsoXJ0ZCDmYCiRCtJFeYmgwQWSOnqHrc29w/SKmkIBJTSyhwJLeNUYGSOkMAB23uVgQBlIIFS0goEWPzqlcUMErIeBbh0hbmEpAJal4ziyCqzBAGLwuaSIAHvAwop0mzQCXvwuaEZ3GRQ1zNGd2VhHDoGPB+N+E+GLrWq5MQggTufpujcwuvBx2gMAtLCEBpic1mWWqVBh+EXxz5VJ8jSskqkGoa08I1TjF0ZwiXaTrAXwUJAhgvpNUEyqsUhoQKzWX9YBEH7LF1zlfUtj4tWi42F8VoDS3RIRpZPgLSkFjI9Jck4QkaGhQ6t18WWWaZYa6lve0nvsc+LQqM0XboYED85DAOpsqnX0r76U85R/+EK8+aDp9LTa65Rg1LMv2BKvbB3rTn2HesjSV+HLNnlZ8h2EpPNkeQLk+1ktnOQesT5vP+kq9H3FLn2+juCiAoUYf5EL2mtXB/vgr7v80T9i8WsRZysT5JsD+Nv9q1Ff/69DOqyA1ELSC1Kwuxe0hPnRCYJ35AK8TzOctHADsZBLF9mP4LkUwMbSTLU+ANILhvYSNLKNV+fcLK2Yv22jrO11eukLK1aG5ZWsJOytHJtWJz2y5f26h371gJOF15YLnZP78EPaVxHDqA9D2CzmdQ1O/5yfr6/yHyWWmVhTRlcWVvYl28xGZJUmn/FAbhroIu09/Y5A3xW78zMznenaAIMXw+3PLQDbuehc3KJ2yH6uGkQYzDht9wFhmcvm7fFNHEYp/StA7NXlAvW8hsdrPx2h50GbZrwo12ncbYlair0uBSXTQmOdcm7yeR2D7Dpj35jXPPiPjiwJUP4SK8K3u6X2OzxtIIEhqXFB4X/DjubphvGzdQNq8OLfQ0CHNqH9hbgrYYEVkSlS4bDVBc+O5NLNCTPpBrKUoVD5TD1VtE6uIxvb97j+h3KDC0k01nX4I67tem/vtmmZrJU75FVjPePsadVYdV/TVPFa8eq8apDLyyKbiuMQ3CD8e0NCOA0Gv1GZ2/PRrCras+YD5pMQ1+13OE1iB0VNvmDAMzDKQNCmf+6fcGRlYWjXJoO3rEi7nzQoxrcrcNSSxXOUwijigWeQiww9O4ejtOORQYBySP3t5mAVeGIYapqLh1+srqu+fFXj5YLOYs4c5Z1WkGmHP/OIFlI7XAv4s2cglcf41F6PdjuVv1M2mKbdQhXe/4PBPyD68fvnGHsrNq+qqLxOE2xpA7M3pTkBtyckd+vJlDX/wNx3Djl
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Environment Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/preview/environments/variants/{environment_variant_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Environment Variant
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"environment_variant_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Environment Variant Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"environment_variant":{"anyOf":[{"properties":{"environment_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Environment Id"},"artifact_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Artifact Id"},"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"EnvironmentVariant"},{"type":"null"}]}},"type":"object","title":"EnvironmentVariantResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

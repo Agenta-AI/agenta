@@ -17,7 +17,6 @@ from oss.src.models.db_models import (
     AppVariantDB,
     AppVariantRevisionsDB,
     DeploymentDB,
-    VariantBaseDB,
 )
 from oss.src.models.shared_models import AppType
 from oss.src.dbs.postgres.workflows.dbes import (
@@ -31,16 +30,10 @@ from oss.src.core.applications.services import ApplicationsService
 from oss.src.core.applications.dtos import (
     Application,
     ApplicationCreate,
-    ApplicationVariant,
-    ApplicationVariantCreate,
-    ApplicationRevision,
-    ApplicationRevisionCommit,
-    ApplicationRevisionData,
     ApplicationFlags,
 )
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.shared.dtos import Reference
-from oss.src.utils.helpers import get_slug_from_name_and_id
 
 
 # Define constants

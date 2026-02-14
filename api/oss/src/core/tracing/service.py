@@ -5,7 +5,7 @@ from datetime import datetime
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.tracing.interfaces import TracingDAOInterface
-from oss.src.core.tracing.utils import parse_query, parse_ingest
+from oss.src.core.tracing.utils import parse_query
 from oss.src.core.tracing.dtos import (
     OTelLink,
     OTelFlatSpan,

@@ -1,8 +1,6 @@
 import os
 from typing import List, Dict
-from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-import litellm
 from litellm import embedding, completion, rerank
 import agenta as ag
 from pydantic import BaseModel, Field

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List, Union, Optional, Dict, Literal, Any
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
-from pydantic import BaseModel, Field, model_validator, AliasChoices
+from pydantic import Field, model_validator, AliasChoices
 
 from starlette.responses import StreamingResponse
 
@@ -519,10 +519,10 @@ class TemplateFormatError(PromptTemplateError):
         super().__init__(message)
 
 
-import re
-from typing import Any, Dict, Iterable, Tuple, Optional
+import re  # noqa: E402
+from typing import Any, Dict, Iterable, Tuple, Optional  # noqa: E402
 
-from agenta.sdk.utils.lazy import _load_jinja2, _load_jsonpath
+from agenta.sdk.utils.lazy import _load_jinja2, _load_jsonpath  # noqa: E402
 
 
 # ========= Scheme detection =========

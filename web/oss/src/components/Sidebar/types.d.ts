@@ -14,7 +14,7 @@ export interface SidebarConfig {
     isCloudFeature?: boolean
     cloudFeatureTooltip?: string
     divider?: boolean
-    header?: boolean
+    isAppSection?: boolean
     disabled?: boolean
     dataTour?: string
 }

@@ -1,10 +1,7 @@
 from uvicorn import run
-import agenta
-import baby_name  # This will register the routes with the FastAPI application
-import os
 
 try:
-    import ingest
+    import ingest  # noqa: F401
 except ImportError:
     pass
 

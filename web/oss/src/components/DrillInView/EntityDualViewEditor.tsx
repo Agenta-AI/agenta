@@ -173,13 +173,18 @@ function EntityDualViewEditorInner<TEntity>({
     const itemNavigationPrefix = useMemo(() => {
         if (!items || items.length <= 1) return null
 
+        const selectOptions = items.map((item) => ({
+            value: item.key,
+            label: item.label,
+        }))
+
         return (
             <div className="flex items-center">
                 <Select
                     size="small"
                     value={selectedItemId ?? entityId}
                     onChange={(value) => onItemChange?.(value)}
-                    options={items}
+                    options={selectOptions}
                     popupMatchSelectWidth={false}
                 />
                 <span className="text-gray-300 mx-2 text-sm">/</span>

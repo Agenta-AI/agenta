@@ -1,11 +1,7 @@
 import os
 import uuid
 import json
-from json import loads
-from traceback import format_exc
-from typing import Optional, Any
 
-import boto3
 import httpx
 import pytest
 import agenta as ag
@@ -741,7 +737,7 @@ async def deploy_variant_to_environment(
     client: AsyncClient, variant_id: str, environment_name: str, headers: dict
 ):
     response = await client.post(
-        f"environments/deploy",
+        "environments/deploy",
         json={"environment_name": environment_name, "variant_id": variant_id},
         headers=headers,
     )

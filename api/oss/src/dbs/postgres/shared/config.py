@@ -1,5 +1,3 @@
-import os
-
 from oss.src.utils.env import env
 
 POSTGRES_URI_CORE = env.postgres.uri_core

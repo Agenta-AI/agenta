@@ -7,9 +7,9 @@ from oss.src.core.shared.dtos import (
 )
 
 from oss.src.core.tracing.dtos import (
-    OTelLink,  # needed for annotations at the moment
+    OTelLink,  # noqa: F401 - needed for annotations
     OTelLinks,
-    OTelFlatSpan,  # needed for annotations at the moment
+    OTelFlatSpan,  # noqa: F401 - needed for annotations
     OTelFlatSpans,
     OTelTraceTree,
     Bucket,

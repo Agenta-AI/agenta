@@ -48,9 +48,9 @@ def upgrade():
     # Clear the config_parameters column in app_variants table (execute once)
     result = conn.execute(
         text(
-            f"""
+            """
             UPDATE app_variants
-            SET config_parameters = '{{}}'::jsonb
+            SET config_parameters = '{}'::jsonb
             """
         )
     )
