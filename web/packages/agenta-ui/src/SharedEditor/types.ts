@@ -32,6 +32,8 @@ export interface SharedEditorProps extends BaseContainerProps {
     disabled?: boolean
     editorProps?: EditorProps
     useAntdInput?: boolean
+    /** Disable root container transition classes (useful in animated parent layouts) */
+    disableContainerTransition?: boolean
     antdInputProps?: SharedAntdInputProps
     error?: boolean
 

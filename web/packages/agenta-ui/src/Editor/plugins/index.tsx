@@ -13,54 +13,90 @@ import {useAtomValue} from "jotai"
 import {markdownViewAtom} from "../state/assets/atoms"
 import type {EditorPluginsProps} from "../types"
 
+import MarkdownHoverToggleButton from "./markdown/MarkdownHoverToggleButton"
 import MarkdownPlugin from "./markdown/markdownPlugin"
 
-const CodeFoldingPlugin = lazy(() =>
+const importCodeFoldingPlugin = () =>
     import("./code/plugins/CodeFoldingPlugin").then((module) => ({
         default: module.CodeFoldingPlugin,
-    })),
-)
-const TabIndentationPlugin = lazy(() =>
+    }))
+
+const importTabIndentationPlugin = () =>
     import("@lexical/react/LexicalTabIndentationPlugin").then((module) => ({
         default: module.TabIndentationPlugin,
-    })),
-)
-const ToolbarPlugin = lazy(() =>
+    }))
+
+const importToolbarPlugin = () =>
     import("./toolbar/ToolbarPlugin").then((module) => ({
         default: module.ToolbarPlugin,
-    })),
-)
-const DebugPlugin = lazy(() =>
+    }))
+
+const importDebugPlugin = () =>
     import("./debug/DebugPlugin").then((module) => ({
         default: module.DebugPlugin,
-    })),
-)
-const SingleLinePlugin = lazy(() =>
+    }))
+
+const importSingleLinePlugin = () =>
     import("./singleline/SingleLinePlugin").then((module) => ({
         default: module.SingleLinePlugin,
-    })),
-)
-const CodeEditorPlugin = lazy(() => import("./code"))
+    }))
 
-const TokenPlugin = lazy(() =>
+const importCodeEditorPlugin = () => import("./code")
+
+const importTokenPlugin = () =>
     import("./token/TokenPlugin").then((module) => ({
         default: module.TokenPlugin,
-    })),
-)
-const AutoCloseTokenBracesPlugin = lazy(() =>
+    }))
+
+const importAutoCloseTokenBracesPlugin = () =>
     import("./token/AutoCloseTokenBracesPlugin").then((module) => ({
         default: module.AutoCloseTokenBracesPlugin,
-    })),
-)
-const TokenTypeaheadPlugin = lazy(() =>
+    }))
+
+const importTokenTypeaheadPlugin = () =>
     import("./token/TokenTypeaheadPlugin").then((module) => ({
         default: module.TokenMenuPlugin,
-    })),
-)
+    }))
+
+let preloadPromise: Promise<void> | null = null
+
+/**
+ * Preloads editor plugin chunks so first editor render avoids Suspense fallback.
+ */
+export const preloadEditorPlugins = () => {
+    if (!preloadPromise) {
+        preloadPromise = Promise.all([
+            importCodeFoldingPlugin(),
+            importTabIndentationPlugin(),
+            importToolbarPlugin(),
+            importDebugPlugin(),
+            importSingleLinePlugin(),
+            importCodeEditorPlugin(),
+            importTokenPlugin(),
+            importAutoCloseTokenBracesPlugin(),
+            importTokenTypeaheadPlugin(),
+        ])
+            .then(() => undefined)
+            .catch(() => undefined)
+    }
+
+    return preloadPromise
+}
+
+const CodeFoldingPlugin = lazy(importCodeFoldingPlugin)
+const TabIndentationPlugin = lazy(importTabIndentationPlugin)
+const ToolbarPlugin = lazy(importToolbarPlugin)
+const DebugPlugin = lazy(importDebugPlugin)
+const SingleLinePlugin = lazy(importSingleLinePlugin)
+const CodeEditorPlugin = lazy(importCodeEditorPlugin)
+const TokenPlugin = lazy(importTokenPlugin)
+const AutoCloseTokenBracesPlugin = lazy(importAutoCloseTokenBracesPlugin)
+const TokenTypeaheadPlugin = lazy(importTokenTypeaheadPlugin)
 
 const EditorPlugins = ({
     id,
     showToolbar,
+    showMarkdownToggleButton,
     singleLine,
     codeOnly,
     enableTokens,
@@ -77,17 +113,32 @@ const EditorPlugins = ({
     additionalCodePlugins = [],
     onPropertyClick,
     disableLongText,
+    loadingFallback = "skeleton",
 }: EditorPluginsProps) => {
     const markdown = useAtomValue(markdownViewAtom(id))
 
     return (
         <Suspense
             fallback={
-                <Skeleton
-                    className={clsx(["editor-skeleton", {"pl-2": codeOnly}])}
-                    title={false}
-                    paragraph={{rows: 4, width: "100%"}}
-                />
+                loadingFallback === "none" ? null : loadingFallback === "static" ? (
+                    <div
+                        className={clsx(
+                            "editor-input relative outline-none min-h-[inherit] whitespace-pre-wrap break-words",
+                            {
+                                "single-line whitespace-nowrap overflow-x-auto": singleLine,
+                                "code-only": codeOnly,
+                            },
+                        )}
+                    >
+                        {value !== undefined ? value : initialValue}
+                    </div>
+                ) : (
+                    <Skeleton
+                        className={clsx(["editor-skeleton", {"pl-2": codeOnly}])}
+                        title={false}
+                        paragraph={{rows: 4, width: "100%"}}
+                    />
+                )
             }
         >
             <RichTextPlugin
@@ -114,6 +165,9 @@ const EditorPlugins = ({
             {autoFocus ? <AutoFocusPlugin /> : null}
             <OnChangePlugin onChange={handleUpdate} ignoreSelectionChange={true} />
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
+            {showMarkdownToggleButton && !singleLine && !codeOnly ? (
+                <MarkdownHoverToggleButton id={id} />
+            ) : null}
             {enableTokens && (
                 <>
                     <TokenPlugin templateFormat={templateFormat} />

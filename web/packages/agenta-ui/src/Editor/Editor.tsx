@@ -71,6 +71,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             templateFormat,
             customRender,
             showToolbar = true,
+            showMarkdownToggleButton = false,
             enableTokens = false,
             debug = false,
             autoFocus = false,
@@ -85,6 +86,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             showLineNumbers = true,
             onPropertyClick,
             disableLongText,
+            loadingFallback = "skeleton",
             ...rest
         }: EditorProps,
         ref,
@@ -154,6 +156,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             }
 
                             if (onChange) {
+                                lastEmittedTextRef.current = result.textContent
                                 onChange(result)
                             }
                         }
@@ -311,6 +314,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         }, [editor])
 
         const lastHydratedRef = useRef<string>("")
+        const lastEmittedTextRef = useRef<string>("")
 
         // Use controlled value if provided, otherwise fall back to initialValue
         const effectiveValue = value !== undefined ? value : initialValue
@@ -326,6 +330,10 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             })
             // Skip if content already matches (no change needed)
             if (currentContent === next) return
+            // Skip re-hydration if this value is just our own change echoing back
+            // through the state management chain. This prevents cursor jumps caused
+            // by markdown round-trip differences (especially around token nodes).
+            if (next === lastEmittedTextRef.current) return
             lastHydratedRef.current = next
             editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
                 hydrateWithRemoteContent: next,
@@ -356,6 +364,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             id={id}
                             autoFocus={autoFocus}
                             showToolbar={showToolbar}
+                            showMarkdownToggleButton={showMarkdownToggleButton}
                             singleLine={singleLine}
                             codeOnly={codeOnly}
                             enableTokens={enableTokens}
@@ -371,6 +380,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             additionalCodePlugins={additionalCodePlugins}
                             onPropertyClick={onPropertyClick}
                             disableLongText={disableLongText}
+                            loadingFallback={loadingFallback}
                         />
                     ) : (
                         <FormView
@@ -407,6 +417,7 @@ export const EditorProvider = ({
     codeOnly = false,
     language,
     showToolbar = true,
+    showMarkdownToggleButton = false,
     enableTokens = false,
     autoFocus = false,
     debug = false,
@@ -485,6 +496,7 @@ const Editor = ({
     templateFormat,
     customRender,
     showToolbar = true,
+    showMarkdownToggleButton = false,
     enableTokens = false,
     autoFocus = false,
     debug = false,
@@ -498,6 +510,7 @@ const Editor = ({
     additionalCodePlugins = [],
     showLineNumbers = true,
     onPropertyClick,
+    loadingFallback = "skeleton",
     ...rest
 }: EditorProps) => {
     const {setContainerElm, dimensions: dimension} = useEditorResize({
@@ -524,6 +537,7 @@ const Editor = ({
                     language={language}
                     templateFormat={templateFormat}
                     showToolbar={showToolbar}
+                    showMarkdownToggleButton={showMarkdownToggleButton}
                     enableTokens={enableTokens}
                     debug={debug}
                     autoFocus={autoFocus}
@@ -533,6 +547,7 @@ const Editor = ({
                     additionalCodePlugins={additionalCodePlugins}
                     showLineNumbers={showLineNumbers}
                     onPropertyClick={onPropertyClick}
+                    loadingFallback={loadingFallback}
                 />
             ) : (
                 <EditorProvider
@@ -555,6 +570,7 @@ const Editor = ({
                     codeOnly={codeOnly}
                     language={language}
                     showToolbar={showToolbar}
+                    showMarkdownToggleButton={showMarkdownToggleButton}
                     enableTokens={enableTokens}
                     autoFocus={autoFocus}
                     debug={debug}
@@ -585,6 +601,7 @@ const Editor = ({
                         language={language}
                         templateFormat={templateFormat}
                         showToolbar={showToolbar}
+                        showMarkdownToggleButton={showMarkdownToggleButton}
                         enableTokens={enableTokens}
                         debug={debug}
                         autoFocus={autoFocus}
@@ -594,6 +611,7 @@ const Editor = ({
                         additionalCodePlugins={additionalCodePlugins}
                         showLineNumbers={showLineNumbers}
                         onPropertyClick={onPropertyClick}
+                        loadingFallback={loadingFallback}
                     />
                 </EditorProvider>
             )}
