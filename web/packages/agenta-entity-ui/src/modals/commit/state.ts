@@ -158,6 +158,20 @@ export const setCommitMessageAtom = atom(null, (_get, set, message: string) => {
 })
 
 /**
+ * Set loading state explicitly (for custom submit flows).
+ */
+export const setCommitLoadingAtom = atom(null, (_get, set, isLoading: boolean) => {
+    set(commitModalLoadingAtom, isLoading)
+})
+
+/**
+ * Set error state explicitly (for custom submit flows).
+ */
+export const setCommitErrorAtom = atom(null, (_get, set, error: Error | null) => {
+    set(commitModalErrorAtom, error)
+})
+
+/**
  * Execute commit operation via adapter
  *
  * Returns the result from the adapter's commitAtom (e.g., new revision ID)

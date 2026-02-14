@@ -10,7 +10,7 @@ import {lazy, Suspense} from "react"
 import {formatCount} from "@agenta/shared/utils"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {cn, textColors} from "@agenta/ui/styles"
-import {Input, Alert, Typography, Skeleton} from "antd"
+import {Input, Alert, Typography, Skeleton, Radio} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 // Lazy load DiffView to avoid bundling Lexical editor in _app chunk
@@ -31,6 +31,18 @@ const {Text} = Typography
 /** Max length for commit messages */
 const COMMIT_MESSAGE_MAX_LENGTH = 500
 
+export interface CommitModeOption {
+    id: string
+    label: string
+}
+
+export interface EntityCommitContentProps {
+    commitModes?: CommitModeOption[]
+    selectedMode?: string
+    onModeChange?: (mode: string) => void
+    extraContent?: React.ReactNode
+}
+
 /**
  * EntityCommitContent
  *
@@ -46,7 +58,12 @@ const COMMIT_MESSAGE_MAX_LENGTH = 500
  * - Without diff: Single column layout
  * - With diff: Two-column layout (form left, diff right)
  */
-export function EntityCommitContent() {
+export function EntityCommitContent({
+    commitModes,
+    selectedMode,
+    onModeChange,
+    extraContent,
+}: EntityCommitContentProps) {
     const entityName = useAtomValue(commitModalEntityNameAtom)
     const message = useAtomValue(commitModalMessageAtom)
     const error = useAtomValue(commitModalErrorAtom)
@@ -149,6 +166,29 @@ export function EntityCommitContent() {
                         showIcon
                     />
                 )}
+
+                {/* Commit mode selector (optional) */}
+                {commitModes && commitModes.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                        <label htmlFor="commit-mode" className="font-medium text-gray-700">
+                            Save mode
+                        </label>
+                        <Radio.Group
+                            id="commit-mode"
+                            value={selectedMode}
+                            onChange={(e) => onModeChange?.(e.target.value)}
+                        >
+                            {commitModes.map((mode) => (
+                                <Radio key={mode.id} value={mode.id}>
+                                    {mode.label}
+                                </Radio>
+                            ))}
+                        </Radio.Group>
+                    </div>
+                )}
+
+                {/* Additional mode-specific UI injected by consumers */}
+                {extraContent}
 
                 {/* Commit message */}
                 <div className="flex flex-col gap-2">

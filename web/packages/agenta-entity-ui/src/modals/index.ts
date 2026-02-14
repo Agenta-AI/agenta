@@ -126,10 +126,15 @@ export {
     openCommitModalAtom,
     closeCommitModalAtom,
     setCommitMessageAtom,
+    setCommitLoadingAtom,
+    setCommitErrorAtom,
     executeCommitAtom,
 } from "./commit"
 export type {
     EntityCommitModalProps,
+    CommitSubmitParams,
+    CommitSubmitResult,
+    CommitModeOption,
     UseEntityCommitReturn,
     UseBoundCommitOptions,
     UseBoundCommitReturn,
