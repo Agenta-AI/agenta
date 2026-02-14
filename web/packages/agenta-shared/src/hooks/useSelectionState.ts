@@ -39,29 +39,12 @@ export function useSelectionState(
     allIds: string[],
     selectedIds: string[] | Set<string>,
 ): UseSelectionStateResult {
-    const selectedSet = useMemo(
-        () => (selectedIds instanceof Set ? selectedIds : new Set(selectedIds)),
-        [selectedIds],
-    )
+    return useMemo(() => {
+        const selectedSet = selectedIds instanceof Set ? selectedIds : new Set(selectedIds)
+        const selectedCount = allIds.filter((id) => selectedSet.has(id)).length
+        const isAllSelected = allIds.length > 0 && selectedCount === allIds.length
+        const isSomeSelected = selectedCount > 0 && selectedCount < allIds.length
 
-    const selectedCount = useMemo(() => {
-        return allIds.filter((id) => selectedSet.has(id)).length
-    }, [allIds, selectedSet])
-
-    const isAllSelected = useMemo(
-        () => allIds.length > 0 && selectedCount === allIds.length,
-        [allIds.length, selectedCount],
-    )
-
-    const isSomeSelected = useMemo(
-        () => selectedCount > 0 && selectedCount < allIds.length,
-        [selectedCount, allIds.length],
-    )
-
-    return {
-        selectedSet,
-        isAllSelected,
-        isSomeSelected,
-        selectedCount,
-    }
+        return {selectedSet, isAllSelected, isSomeSelected, selectedCount}
+    }, [allIds, selectedIds])
 }
