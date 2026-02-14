@@ -10,8 +10,9 @@
 import {loadableController, runnableBridge, type RunnablePort} from "@agenta/entities/runnable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {atom, type Getter} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
+import {atomFamily} from "jotai-family"
 
 import {entityIdsAtom, primaryNodeAtom} from "../atoms/playground"
 import {addUserMessageAtom} from "../chat"

@@ -24,7 +24,7 @@
 import crypto from "crypto"
 
 import {atom, getDefaultStore} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import stableHash from "stable-hash"
 
 import type {EntitySchemaProperty} from "../../shared"

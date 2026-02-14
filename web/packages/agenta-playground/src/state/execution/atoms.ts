@@ -9,7 +9,7 @@
 
 import {executeRunnable} from "@agenta/entities/runnable"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {
     ExecutionMode,

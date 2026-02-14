@@ -53,7 +53,7 @@
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom, getDefaultStore} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {LegacyAppRevisionData} from "../core"
 

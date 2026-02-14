@@ -14,7 +14,8 @@ import {DownOutlined} from "@ant-design/icons"
 import {Button, Dropdown, Space} from "antd"
 import type {ButtonProps, MenuProps} from "antd"
 import {useAtom} from "jotai"
-import {atomFamily, atomWithStorage} from "jotai/utils"
+import {atomWithStorage} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 // ============================================================================
 // ATOMS

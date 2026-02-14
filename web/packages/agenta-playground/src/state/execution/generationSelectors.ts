@@ -13,7 +13,7 @@
 
 import {loadableController} from "@agenta/entities/runnable"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {entityIdsAtom} from "../atoms/playground"
 import {
