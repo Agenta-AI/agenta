@@ -1,5 +1,6 @@
-import {useEffect, useRef} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
+import {variantsListAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -10,15 +11,15 @@ import {getAllVariantParameters} from "@/oss/lib/helpers/variantHelper"
 import {GenericObject, Variant} from "@/oss/lib/Types"
 import {createNewEvaluation} from "@/oss/services/human-evaluations/api"
 import {useOrgData} from "@/oss/state/org"
-import {variantsAtom} from "@/oss/state/variant/atoms/fetcher"
 
 const EvaluationShare: React.FC = () => {
     const router = useRouter()
     const {changeSelectedOrg, selectedOrg, loading} = useOrgData()
     const called = useRef(false)
     const {baseAppURL} = useURL()
-    // variants from global store - must be at component level (React hooks rule)
-    const allVariants = useAtomValue(variantsAtom)
+    // variants from entity store - must be at component level (React hooks rule)
+    const shareAppId = (router.query.app as string) || ""
+    const allVariants = useAtomValue(useMemo(() => variantsListAtomFamily(shareAppId), [shareAppId]))
 
     useEffect(() => {
         const {app, org, variants: variantIds, testset, type} = router.query
@@ -33,8 +34,8 @@ const EvaluationShare: React.FC = () => {
                 called.current = true
 
                 const variants = variantIds
-                    .map((id) => allVariants.find((item) => item.variantId === id))
-                    .filter((item) => item !== undefined) as Variant[]
+                    .map((id) => allVariants.find((item) => item.id === id))
+                    .filter((item) => item !== undefined) as unknown as Variant[]
 
                 //get the inputs for each variant
                 const results = await Promise.all(
