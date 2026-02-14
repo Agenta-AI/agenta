@@ -1,12 +1,18 @@
-import {type FC} from "react"
+import {type FC, useEffect} from "react"
 
+import {PlaygroundUIProvider, type PlaygroundUIProviders} from "@agenta/playground-ui"
+import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
+import {preloadEditorPlugins} from "@agenta/ui"
 import {useAtomValue} from "jotai"
 
+import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
+import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
+import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
 
 import PlaygroundMainView from "./Components/MainLayout"
 import PlaygroundHeader from "./Components/PlaygroundHeader"
-import {useLocalDraftWarning} from "./hooks/useLocalDraftWarning"
+import {OSSPlaygroundEntityProvider} from "./OSSPlaygroundEntityProvider"
 import PlaygroundOnboarding from "./PlaygroundOnboarding"
 
 const Playground: FC = () => {
@@ -19,12 +25,28 @@ const Playground: FC = () => {
     // This replaces the old usePlaygroundUrlSync hook with React-free subscriptions
     useAtomValue(playgroundSyncAtom)
 
+    // Preload lazy editor plugins ASAP to reduce first-render editor suspense jank.
+    useEffect(() => {
+        void preloadEditorPlugins()
+    }, [])
+
+    const providers: PlaygroundUIProviders = {
+        SimpleSharedEditor,
+        SharedGenerationResultUtils,
+    } as PlaygroundUIProviders
+
     return (
-        <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
-            <PlaygroundOnboarding />
-            <PlaygroundHeader key={`${uri}-header`} />
-            <PlaygroundMainView key={`${uri}-main`} />
-        </div>
+        <OSSPlaygroundEntityProvider>
+            <PlaygroundUIProvider providers={providers}>
+                <OSSdrillInUIProvider>
+                    <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
+                        <PlaygroundOnboarding />
+                        <PlaygroundHeader key={`${uri}-header`} />
+                        <PlaygroundMainView key={`${uri}-main`} />
+                    </div>
+                </OSSdrillInUIProvider>
+            </PlaygroundUIProvider>
+        </OSSPlaygroundEntityProvider>
     )
 }
 

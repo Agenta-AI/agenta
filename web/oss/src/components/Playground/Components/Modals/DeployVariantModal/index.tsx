@@ -1,5 +1,6 @@
 import {useCallback, useEffect} from "react"
 
+import {publishMutationAtom} from "@agenta/entities/legacyAppRevision"
 import {message} from "@agenta/ui/app-message"
 import {Rocket} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -9,7 +10,6 @@ import router from "next/router"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 import {
     deploySelectedEnvAtom,

@@ -1,5 +1,12 @@
 import {memo, useCallback, useMemo} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {isLocalDraftId} from "@agenta/entities/shared"
+import {
+    executionController,
+    executionItemController,
+    playgroundController,
+} from "@agenta/playground"
 import {DraftTag} from "@agenta/ui/components"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
@@ -8,19 +15,9 @@ import {Button, Modal, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {removeVariantFromSelectionMutationAtom} from "@/oss/components/Playground/state/atoms/variantCrudMutations"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generationLogicalTurnIdsAtom as compatRowIdsAtom} from "@/oss/state/generation/compat"
-import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
-import {isLocalDraft, revisionIsDirtyAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import Version from "../../../../../assets/Version"
-import {
-    moleculeBackedVariantAtomFamily,
-    generationResultAtomFamily,
-    appChatModeAtom,
-} from "../../../../../state/atoms"
 
 import {useStyles} from "./styles"
 import type {VariantNavigationCardProps} from "./types"
@@ -36,10 +33,10 @@ const VariantNavigationCard = ({
     const classes = useStyles()
 
     // Use molecule-backed variant for single source of truth
-    const variant = useAtomValue(moleculeBackedVariantAtomFamily(revisionId)) as any
-    const removeVariantFromSelection = useSetAtom(removeVariantFromSelectionMutationAtom)
-    const isDirty = useAtomValue(revisionIsDirtyAtomFamily(revisionId))
-    const isLocalDraftVariant = isLocalDraft(revisionId)
+    const variant = useAtomValue(legacyAppRevisionMolecule.atoms.data(revisionId)) as any
+    const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
+    const isDirty = useAtomValue(legacyAppRevisionMolecule.atoms.isDirty(revisionId))
+    const isLocalDraftVariant = isLocalDraftId(revisionId)
 
     // Handle close with confirmation only if there are actual committable changes
     // A local draft without changes (isDirty === false) should close without confirmation
@@ -66,38 +63,27 @@ const VariantNavigationCard = ({
     const metricsAtom = useMemo(
         () =>
             atom((get) => {
-                const isChat = Boolean(get(appChatModeAtom))
-                const rowIds = (get(compatRowIdsAtom) as string[]) || []
+                // Subscribe to chat mode and run status so changes trigger recompute
+                get(executionController.selectors.isChatMode)
+                const rowIds =
+                    (get(executionItemController.selectors.generationRowIds) as string[]) || []
                 const results: any[] = []
-                // Read run status map up-front so changes trigger recompute even if other deps don't
-                const statusMap = get(runStatusByRowRevisionAtom) || {}
+                get(executionItemController.selectors.runStatusByRowRevision)
 
                 for (const rowId of rowIds) {
-                    // Try run-status map first (works for both chat and completion, including local drafts)
-                    const key = `${rowId}:${revisionId}`
-                    const statusEntry = (statusMap as any)[key]
-
-                    if (statusEntry?.resultHash) {
-                        const res = getResponseLazy(statusEntry.resultHash)
-                        if (res) {
-                            results.push(res)
-                            continue
-                        }
-                    }
-
-                    if (isChat) {
-                        // Chat mode already tried via statusMap above
-                        continue
-                    }
-
-                    // Completion: use canonical selector as fallback
-                    const {resultHash} = get(
-                        generationResultAtomFamily({variantId: revisionId, rowId}),
+                    // Read full result from package store
+                    const fullResult = get(
+                        executionItemController.selectors.fullResult({rowId, revisionId}),
                     )
-                    const res = getResponseLazy(resultHash)
-                    if (res) {
-                        results.push(res)
-                        continue
+                    if (fullResult?.output) {
+                        const output = fullResult.output
+                        if (Array.isArray(output)) {
+                            // Take the last result for metrics (most recent)
+                            const last = output[output.length - 1]
+                            if (last) results.push(last)
+                        } else {
+                            results.push(output)
+                        }
                     }
                 }
 

@@ -1,5 +1,10 @@
 import {useCallback, useMemo} from "react"
 
+import {environmentMolecule} from "@agenta/entities/environment"
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {getSourceRevisionId} from "@agenta/entities/legacyAppRevision"
+import {isLocalDraftId} from "@agenta/entities/shared"
+import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
 import {Trash} from "@phosphor-icons/react"
@@ -9,21 +14,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {
-    isLocalDraft,
-    getSourceRevisionId,
-    legacyAppRevisionMolecule,
-    moleculeBackedVariantAtomFamily,
-    discardRevisionDraftAtom,
-    revisionIsDirtyAtomFamily,
-} from "@/oss/state/newPlayground/legacyEntityBridge"
 
-import {selectedVariantsAtom, parametersOverrideAtomFamily} from "../../../state/atoms"
-import {
-    playgroundRevisionDeploymentAtomFamily,
-    playgroundLatestAppRevisionIdAtom,
-} from "../../../state/atoms/playgroundAppAtoms"
-import {switchVariantAtom} from "../../../state/atoms/urlSync"
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
@@ -45,41 +36,44 @@ const PlaygroundVariantConfigHeader = ({
     ...divProps
 }: PlaygroundVariantConfigHeaderProps & {embedded?: boolean}) => {
     const classes = useStyles()
-    const setSelectedVariants = useSetAtom(selectedVariantsAtom)
+    const setSelectedVariants = useSetAtom(playgroundController.actions.setEntityIds)
 
     // Check if this is a local draft
-    const isLocalDraftVariant = variantId ? isLocalDraft(variantId) : false
+    const isLocalDraftVariant = variantId ? isLocalDraftId(variantId) : false
 
-    // Read baseline revision directly from the source of truth (revisionListAtom)
+    // Read baseline revision directly from the source of truth (appRevisionsWithDraftsAtomFamily)
     // For local drafts, use molecule data instead
-    const baseline = useAtomValue(moleculeBackedVariantAtomFamily(variantId || ""))
+    const baseline = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId || ""))
     const moleculeData = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId || ""))
     const deployment = useAtomValue(
-        playgroundRevisionDeploymentAtomFamily((baseline?.id as string) || ""),
-    ) as any
-    const latestAppRevisionId = useAtomValue(playgroundLatestAppRevisionIdAtom)
+        environmentMolecule.atoms.revisionDeployment((baseline?.id as string) || ""),
+    )
+    const latestAppRevisionId = useAtomValue(legacyAppRevisionMolecule.atoms.latestRevisionId)
 
     // For local drafts, get data from molecule
     const effectiveData = isLocalDraftVariant ? moleculeData : baseline
     const _sourceRevisionId = isLocalDraftVariant ? getSourceRevisionId(variantId || "") : null
 
     // Extract revision display data with fallbacks for embedded usage
-    const _variantId = effectiveData?.id ?? variantId
+    const _variantId = effectiveData?.id ?? (isLocalDraftVariant ? variantId : null)
     const variantRevision = revisionOverride ?? (effectiveData as any)?.revision ?? null
     // For local drafts, strip the "(Draft)" suffix from variant name since we show DraftTag separately
     const rawVariantName =
         variantNameOverride ??
         (effectiveData as any)?.variantName ??
         (effectiveData as any)?.name ??
-        _variantId
+        "Variant"
     const displayName = isLocalDraftVariant
         ? String(rawVariantName).replace(/\s*\(Draft\)$/, "")
         : rawVariantName
+    // latestAppRevisionIdAtom is now cheap (1 API call via /preview/applications/revisions/query)
     const isLatestRevision =
         typeof (effectiveData as any)?.isLatestRevision === "boolean"
             ? (effectiveData as any).isLatestRevision
             : _variantId === latestAppRevisionId
-    const isDirty = useAtomValue(revisionIsDirtyAtomFamily((_variantId as string) || ""))
+    const hasChanges = useAtomValue(
+        legacyAppRevisionMolecule.atoms.hasChanges((_variantId as string) || ""),
+    )
     // Keep the full deployment objects so downstream components (e.g., EnvironmentStatus)
     // can access env.name and other fields.
     // Local drafts have no deployments
@@ -88,7 +82,6 @@ const PlaygroundVariantConfigHeader = ({
         : Array.isArray(deployment)
           ? (deployment as any[])
           : []
-
     // Stable minimal variant shape for presentational children
     const variantMin = useMemo(
         () => ({
@@ -99,43 +92,44 @@ const PlaygroundVariantConfigHeader = ({
         [_variantId, deployedIn, isLatestRevision],
     )
 
-    // Use the reusable switchVariant atom
-    const switchVariant = useSetAtom(switchVariantAtom)
+    const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
 
     const handleSwitchVariant = useCallback(
         (newVariantId: string) => {
-            switchVariant({
-                currentVariantId: variantId || "",
-                newVariantId,
+            switchEntity({
+                currentEntityId: variantId || "",
+                newEntityId: newVariantId,
             })
         },
-        [switchVariant, variantId],
+        [switchEntity, variantId],
     )
-
-    const discardDraft = useSetAtom(discardRevisionDraftAtom)
-    const setParamsOverride = useSetAtom(parametersOverrideAtomFamily(variantId || "") as any)
 
     const handleDiscardDraft = useCallback(() => {
         if (!variantId || !isLocalDraftVariant) return
-        // Remove from selection first
-        setSelectedVariants((prev) => prev.filter((id) => id !== variantId))
-        // Discard draft + clear parameters override
-        discardDraft(variantId)
-        setParamsOverride(null)
-    }, [variantId, isLocalDraftVariant, setSelectedVariants, discardDraft, setParamsOverride])
+        // When discarding the last entity, fall back to source revision
+        // instead of leaving the playground empty
+        setSelectedVariants((prev) => {
+            const updated = prev.filter((id) => id !== variantId)
+            if (updated.length === 0 && _sourceRevisionId) {
+                return [_sourceRevisionId]
+            }
+            return updated
+        })
+        // Discard draft
+        legacyAppRevisionMolecule.set.discard(variantId)
+    }, [variantId, isLocalDraftVariant, setSelectedVariants, _sourceRevisionId])
 
     // Discard handler for regular revisions (shown in DraftTag dropdown)
     const handleRevisionDiscardDraft = useCallback(() => {
         if (!_variantId) return
         try {
-            discardDraft(_variantId as string)
-            setParamsOverride(null)
+            legacyAppRevisionMolecule.set.discard(_variantId as string)
             message.success("Draft changes discarded")
         } catch (e) {
             message.error("Failed to discard draft changes")
             console.error(e)
         }
-    }, [_variantId, discardDraft, setParamsOverride])
+    }, [_variantId])
 
     return (
         <section
@@ -153,7 +147,7 @@ const PlaygroundVariantConfigHeader = ({
                 {!embedded && !isLocalDraftVariant && (
                     <SelectVariant
                         onChange={(value) => handleSwitchVariant?.(value)}
-                        value={_variantId}
+                        value={_variantId ?? undefined}
                     />
                 )}
                 {/* Local draft: show Draft tag then source revision info */}
@@ -190,7 +184,7 @@ const PlaygroundVariantConfigHeader = ({
                                 hideName={!embedded}
                                 variantName={displayName as any}
                                 showRevisionAsTag={true}
-                                hasChanges={isDirty}
+                                hasChanges={hasChanges}
                                 isLatest={isLatestRevision}
                                 onDiscardDraft={handleRevisionDiscardDraft}
                             />

@@ -1,19 +1,16 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
+    legacyAppRevisionMolecule,
     revisionsListWithDraftsAtomFamily,
     variantsListWithDraftsAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
+import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Spin, Typography} from "antd"
 import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
-import {
-    deleteVariantMutationAtom,
-    invalidatePlaygroundQueriesAtom,
-    moleculeBackedVariantAtomFamily,
-} from "@/oss/components/Playground/state/atoms"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {deleteSingleVariant} from "@/oss/services/playground/api"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
@@ -35,8 +32,8 @@ interface VariantGroup {
 
 const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
     const store = getDefaultStore()
-    const deleteVariant = useSetAtom(deleteVariantMutationAtom)
-    const invalidatePlaygroundQueries = useSetAtom(invalidatePlaygroundQueriesAtom)
+    const deleteRevision = useSetAtom(playgroundController.actions.deleteRevision)
+    const invalidatePlaygroundQueries = useSetAtom(playgroundController.actions.invalidateQueries)
 
     const [checking, setChecking] = useState(true)
     const [canDelete, setCanDelete] = useState<boolean | null>(null)
@@ -62,7 +59,7 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
         () =>
             uniqueRevisionIds
                 // Use molecule-backed variant for single source of truth
-                .map((id) => store.get(moleculeBackedVariantAtomFamily(id)))
+                .map((id) => store.get(legacyAppRevisionMolecule.atoms.data(id)))
                 .filter(Boolean) as any[],
         [store, uniqueRevisionIds],
     )
@@ -170,7 +167,7 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
             }
 
             for (const id of deletionPlan.revisions) {
-                const res = await deleteVariant(id)
+                const res = await deleteRevision(id)
                 if (!res?.success) {
                     throw new Error(res?.error || "Failed to delete revision")
                 }
@@ -193,7 +190,7 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
         } finally {
             setIsMutating(false)
         }
-    }, [deletionPlan, deleteVariant, invalidatePlaygroundQueries, onClose])
+    }, [deletionPlan, deleteRevision, invalidatePlaygroundQueries, onClose])
 
     // Loading state during pre-check
     if (checking) {

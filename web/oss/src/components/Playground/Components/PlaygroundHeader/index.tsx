@@ -1,8 +1,9 @@
 import {useCallback} from "react"
 
-import {MoreOutlined} from "@ant-design/icons"
-import {PencilSimple} from "@phosphor-icons/react"
-import {Button, Dropdown, Typography} from "antd"
+import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
+import {DownOutlined, MoreOutlined} from "@ant-design/icons"
+import {PencilSimple, Plus} from "@phosphor-icons/react"
+import {Button, Dropdown, Space, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -11,8 +12,6 @@ import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modal
 import {currentAppAtom} from "@/oss/state/app"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
-import {usePlaygroundLayout} from "../../hooks/usePlaygroundLayout"
-import {variantListDisplayAtom} from "../../state/atoms"
 import type {BaseContainerProps} from "../types"
 
 import RunEvaluationButton from "./RunEvaluationButton"
@@ -20,22 +19,23 @@ import {useStyles} from "./styles"
 
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
+    loading: () => (
+        <Space.Compact size="small">
+            <Button className="flex items-center gap-1" icon={<Plus size={14} />} disabled>
+                Compare
+            </Button>
+            <Button icon={<DownOutlined style={{fontSize: 10}} />} disabled />
+        </Space.Compact>
+    ),
 })
 
-interface PlaygroundHeaderProps extends BaseContainerProps {
-    isLoading?: boolean
-}
+type PlaygroundHeaderProps = BaseContainerProps
 
-const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
-    className,
-    isLoading = false,
-    ...divProps
-}) => {
+const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divProps}) => {
     const classes = useStyles()
 
     // ATOM-LEVEL OPTIMIZATION: Use focused atom subscriptions instead of full playground state
-    const {displayedVariants} = usePlaygroundLayout()
-    const variants = useAtomValue(variantListDisplayAtom) // Only essential display data
+    const {displayedEntities} = usePlaygroundLayout()
 
     const currentApp = useAtomValue(currentAppAtom)
 
@@ -76,30 +76,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
         void writePlaygroundSelectionToQuery([])
         console.warn("🚨 [PlaygroundHeader] No valid variant IDs found in selection:", value)
     }, [])
-
-    // PROGRESSIVE LOADING: Show skeleton when loading, otherwise show full header
-    if (isLoading || !variants) {
-        return (
-            <div
-                className={clsx(
-                    "flex items-center justify-between gap-4 px-2.5 py-2",
-                    classes.header,
-                    className,
-                )}
-                {...divProps}
-            >
-                <div className="flex items-center gap-2">
-                    <Typography className="text-[16px] leading-[18px] font-[600]">
-                        Playground
-                    </Typography>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-[120px] h-[24px] bg-gray-200 rounded animate-pulse" />
-                    <div className="w-[80px] h-[24px] bg-gray-200 rounded animate-pulse" />
-                </div>
-            </div>
-        )
-    }
 
     return (
         <>
@@ -147,7 +123,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
                         showAsCompare
                         multiple
                         onChange={(value) => onAddVariant(value)}
-                        value={displayedVariants}
+                        value={displayedEntities}
                     />
                 </div>
             </div>

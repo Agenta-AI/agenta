@@ -1,6 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {
+    legacyAppRevisionMolecule,
+    newestRevisionForVariantAtomFamily,
+    stripAgentaMetadataDeep,
+} from "@agenta/entities/legacyAppRevision"
+import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Checkbox, Input, Radio, RadioChangeEvent, Select, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -9,15 +14,7 @@ import DiffView from "@/oss/components/Editor/DiffView"
 import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import Version from "@/oss/components/Playground/assets/Version"
-import {
-    moleculeBackedVariantAtomFamily,
-    newestRevisionForVariantIdAtomFamily,
-    parametersOverrideAtomFamily,
-} from "@/oss/components/Playground/state/atoms"
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
-import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
-import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {revisionLabelInfoAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {CommitVariantChangesModalContentProps} from "../types"
 
@@ -29,7 +26,6 @@ const CommitVariantChangesModalContent = ({
     setNote,
     selectedCommitType,
     setSelectedCommitType,
-    commitType,
     shouldDeploy,
     onToggleDeploy,
     selectedEnvironment,
@@ -37,22 +33,20 @@ const CommitVariantChangesModalContent = ({
     isDeploymentPending,
 }: CommitVariantChangesModalContentProps) => {
     // Use molecule-backed variant for single source of truth (merged data = serverData + draft)
-    const variant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
+    const variant = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId)) as any
     // Get serverData (initial state) - this is the baseline before any edits
     const serverData = useAtomValue(
         useMemo(() => legacyAppRevisionMolecule.atoms.serverData(variantId), [variantId]),
     ) as any
     const latestRevisionForVariant = useAtomValue(
-        newestRevisionForVariantIdAtomFamily(variant?.variantId || ""),
+        newestRevisionForVariantAtomFamily(variant?.variantId || ""),
     ) as any
-    // Get current (modified) ag_config - includes local edits via molecule
-    const currentAgConfig = useAtomValue(transformedPromptsAtomFamily(variantId))?.ag_config
-    const jsonOverride = useAtomValue(parametersOverrideAtomFamily(variantId))
+    // Get current (modified) ag_config - entity-native conversion from enhanced → raw params
+    const currentAgConfig = useAtomValue(legacyAppRevisionMolecule.atoms.draftParameters(variantId))
 
-    // Use revision label API to properly handle local drafts
-    const revisionLabelInfo = useAtomValue(
-        useMemo(() => revisionLabelInfoAtomFamily(variantId), [variantId]),
-    )
+    const revisionLabel = isLocalDraftId(variantId)
+        ? formatLocalDraftLabel((variant as any)?._sourceRevision ?? null)
+        : getVersionLabel(variant?.revision)
 
     const onChange = useCallback(
         (e: RadioChangeEvent) => {
@@ -95,9 +89,7 @@ const CommitVariantChangesModalContent = ({
     }
     const targetRevision = settledTargetRevisionRef.current
     // For diff: compare serverData.parameters (original) vs currentAgConfig (current with edits)
-    // variant comes from moleculeBackedVariantAtomFamily which merges serverData + draft
-    const modifiedParams =
-        commitType === "parameters" && jsonOverride ? jsonOverride : currentAgConfig
+    const modifiedParams = currentAgConfig
     // Use serverData.parameters as the original (initial state before edits)
     // Unwrap ag_config if present (serverData.parameters may have { ag_config: {...} })
     const rawOriginalParams = serverData?.parameters
@@ -207,7 +199,7 @@ const CommitVariantChangesModalContent = ({
                                         bordered={false}
                                         className="bg-[rgba(5,23,41,0.06)]"
                                     >
-                                        {revisionLabelInfo.label}
+                                        {revisionLabel}
                                     </Tag>
                                     <ArrowRight size={14} />
                                     <Version revision={targetRevision} />

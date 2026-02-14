@@ -1,18 +1,14 @@
 import {type FC, useState, useCallback, useMemo} from "react"
 
+import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
 import groupBy from "lodash/groupBy"
 import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import {
-    revisionListAtom,
-    selectedVariantsAtom,
-    setDisplayedVariantsMutationAtom,
-} from "@/oss/components/Playground/state/atoms"
-
-import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import {CreateVariantModalProps} from "./types"
 
@@ -32,10 +28,11 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
     const [note, setNote] = useState("")
     const [isSubmitting, setIsSubmitting] = useState(false)
 
-    const revisions = useAtomValue(revisionListAtom)
-    const createVariant = useSetAtom(createVariantMutationAtom)
-    const currentSelectedVariants = useAtomValue(selectedVariantsAtom)
-    const setDisplayedVariants = useSetAtom(setDisplayedVariantsMutationAtom)
+    const rawAppId = useAtomValue(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
+    const revisions = useAtomValue(appRevisionsWithDraftsAtomFamily(appId || ""))
+    const createVariant = useSetAtom(playgroundController.actions.createVariant)
+    const currentSelectedVariants = useAtomValue(playgroundController.selectors.entityIds())
 
     const {baseVariant, variantOptions} = useMemo(() => {
         const parents = groupBy(revisions, "variantId")
@@ -68,13 +65,13 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
                 baseVariantName: baseVariant.variantName,
                 newVariantName: newVariantName,
                 note: note,
-                callback: (variant, state) => {
+                callback: (newRevision, state) => {
                     if (isCompareMode) {
                         // Add new variant to existing selection (comparison mode)
-                        state.selected = [...currentSelectedVariants, variant.id]
+                        state.selected = [...currentSelectedVariants, newRevision.id]
                     } else {
                         // Replace current selection with new variant (single mode)
-                        state.selected = [variant.id]
+                        state.selected = [newRevision.id]
                     }
                 },
             })
@@ -100,7 +97,6 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
         newVariantName,
         note,
         currentSelectedVariants,
-        setDisplayedVariants,
         propsSetIsModalOpen,
     ])
 

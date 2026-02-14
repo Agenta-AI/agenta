@@ -1,12 +1,12 @@
 import {cloneElement, isValidElement, useMemo, useState} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {CloudArrowUp} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
-import {moleculeBackedVariantAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
+import {useEnvironments} from "@/oss/state/environment/hooks/useEnvironments"
 
 import {DeployVariantButtonProps} from "./types"
 
@@ -28,7 +28,7 @@ const DeployVariantButton = ({
     } = useEnvironments()
 
     // Use molecule-backed variant for single source of truth
-    const variant = useAtomValue(moleculeBackedVariantAtomFamily(revisionId)) as any
+    const variant = useAtomValue(legacyAppRevisionMolecule.atoms.data(revisionId)) as any
 
     const {environments, variantName, revision} = useMemo(() => {
         return {
@@ -39,7 +39,7 @@ const DeployVariantButton = ({
     }, [variant, _environments])
 
     const onSuccess = async () => {
-        // Just refetch environments - the revisionListAtom will automatically update
+        // Just refetch environments - the appRevisionsWithDraftsAtomFamily will automatically update
         // when the deployment state changes through SWR revalidation
         await mutateEnv()
     }

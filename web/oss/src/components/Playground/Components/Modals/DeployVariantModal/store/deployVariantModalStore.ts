@@ -1,7 +1,6 @@
+import {publishMutationAtom} from "@agenta/entities/legacyAppRevision"
 import {atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
-
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 interface DeployVariantModalState {
     open: boolean

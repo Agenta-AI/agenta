@@ -1,13 +1,11 @@
 import {useMemo} from "react"
 
-import {useAtomValue} from "jotai"
+import {extractAllEndpointSchemas} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
+import {executionItemController, playgroundController} from "@agenta/playground"
+import {atom, useAtomValue} from "jotai"
 
-import {
-    displayedVariantsVariablesAtom,
-    schemaInputKeysAtom,
-} from "@/oss/components/Playground/state/atoms/variants"
 import {Testset} from "@/oss/lib/Types"
-import {requestSchemaMetaAtomFamily} from "@/oss/state/newPlayground/core/requestSchemaMeta"
 
 import {useInputsVsColumns} from "./useInputsVsColumns"
 
@@ -53,16 +51,44 @@ export function useTestsetInputsAnalysis(
     } = params
 
     // Resolve dynamic variables
-    const displayedVariablesFromAtoms = useAtomValue(displayedVariantsVariablesAtom)
+    const displayedVariablesFromAtoms = useAtomValue(
+        playgroundController.selectors.inputVariableNames(),
+    )
     const displayedVariables = displayedVariablesOverride ?? displayedVariablesFromAtoms
 
     // Resolve schema keys
-    const schemaInputKeysFromAtoms = useAtomValue(schemaInputKeysAtom)
+    const schemaInputKeysFromAtoms = useAtomValue(executionItemController.selectors.schemaInputKeys)
     const schemaInputKeys = schemaInputKeysOverride ?? schemaInputKeysFromAtoms
 
-    // Resolve schema meta
+    // Resolve schema meta from the primary entity's request payload
     const requestSchemaMetaFromAtom = useAtomValue(
-        useMemo(() => requestSchemaMetaAtomFamily({variant: {} as any, routePath}), [routePath]),
+        useMemo(
+            () =>
+                atom((get) => {
+                    const primaryId = get(playgroundController.selectors.primaryEntityId())
+                    const meta = {
+                        required: [] as string[],
+                        inputKeys: [] as string[],
+                        hasMessages: false,
+                    }
+                    if (!primaryId) return meta
+                    const payload = get(runnableBridge.requestPayload(primaryId)) as any
+                    if (!payload?.spec) return meta
+                    const rp = payload.routePath || routePath
+                    const {primaryEndpoint} = extractAllEndpointSchemas(payload.spec, rp)
+                    if (!primaryEndpoint) return meta
+                    const rawReqSchema = primaryEndpoint.requestSchema as any
+                    meta.required = Array.isArray(rawReqSchema?.required)
+                        ? rawReqSchema.required
+                        : []
+                    meta.inputKeys = (primaryEndpoint.requestProperties || []).filter(
+                        (k: string) => !["ag_config", "messages"].includes(k),
+                    )
+                    meta.hasMessages = Boolean(primaryEndpoint.messagesSchema)
+                    return meta
+                }),
+            [routePath],
+        ),
     )
     const requestSchemaMeta = requestSchemaMetaOverride ?? requestSchemaMetaFromAtom
 

@@ -1,37 +1,32 @@
 /**
  * SelectVariant Component
  *
- * WP-7.1: Migrated to use EntityPicker pattern with playgroundSelectionAdapter.
- * WP-7.2: Updated to use playgroundVariantMetaMapAtom for metadata (replaces optionsSelectors).
  * Uses createPlaygroundSelectionAdapter(appId) for entity-level single source of truth.
  */
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
-import {EntityPicker, TreeSelectPopupContent} from "@agenta/entity-ui/selection"
+import {
+    createLocalDraftFromRevision,
+    legacyAppRevisionMolecule,
+} from "@agenta/entities/legacyAppRevision"
+import {isLocalDraftId} from "@agenta/entities/shared"
+import {
+    createLegacyAppRevisionAdapter,
+    TreeSelectPopupContent,
+    type LegacyAppRevisionSelectionResult,
+} from "@agenta/entity-ui/selection"
+import {playgroundController} from "@agenta/playground"
 import {DraftTag} from "@agenta/ui/components"
 import {DownOutlined} from "@ant-design/icons"
-import {CopySimple, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {CopySimple, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Popover, Space, Tooltip, Typography} from "antd"
-import {getDefaultStore} from "jotai"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {currentAppAtom} from "@/oss/state/app"
-import {
-    cloneAsLocalDraft,
-    discardRevisionDraftAtom,
-    playgroundVariantMetaMapAtom,
-} from "@/oss/state/newPlayground/legacyEntityBridge"
+import {selectedAppIdAtom} from "@/oss/state/app"
 
-import {selectedVariantsAtom, parametersOverrideAtomFamily} from "../../../state/atoms"
-import {playgroundLatestAppRevisionIdAtom} from "../../../state/atoms/playgroundAppAtoms"
-import {
-    createPlaygroundSelectionAdapter,
-    type PlaygroundRevisionSelectionResult,
-} from "../../../state/atoms/playgroundSelectionAdapter"
-
+import VariantGroupTitle from "./components/VariantGroupTitle"
 import {SelectVariantProps} from "./types"
 
 const SelectVariant = ({
@@ -42,16 +37,141 @@ const SelectVariant = ({
     style,
     ...props
 }: SelectVariantProps) => {
-    const [selectedVariants, setSelectedVariants] = useAtom(selectedVariantsAtom)
-    const currentApp = useAtomValue(currentAppAtom)
-    const appId = currentApp && !(currentApp instanceof Promise) ? currentApp.app_id : ""
+    const selectedVariants = useAtomValue(playgroundController.selectors.entityIds())
+    const setSelectedVariants = useSetAtom(playgroundController.actions.setEntityIds)
+    const selectedAppId = useAtomValue(selectedAppIdAtom)
+    const appId = selectedAppId ?? ""
+    const jotaiStore = useStore()
+    const singleSelectedValue = useMemo(
+        () =>
+            typeof value === "string"
+                ? value
+                : Array.isArray(value) && typeof value[0] === "string"
+                  ? value[0]
+                  : null,
+        [value],
+    )
+    const selectedRevisionData = useAtomValue(
+        legacyAppRevisionMolecule.atoms.data(singleSelectedValue || ""),
+    )
+    const selectedRevisionQuery = useAtomValue(
+        legacyAppRevisionMolecule.atoms.query(singleSelectedValue || ""),
+    )
+    const hasSelectedDisplayName = useMemo(() => {
+        if (!singleSelectedValue) return false
+        if (isLocalDraftId(singleSelectedValue)) return true
+        const data = selectedRevisionData as {variantName?: string; name?: string} | null
+        const name = data?.variantName ?? data?.name
+        return typeof name === "string" && name.trim().length > 0
+    }, [singleSelectedValue, selectedRevisionData])
+    // Check if the selected revision exists by verifying its individual query
+    // resolved with data — avoids reading the full app revision list on mount.
+    const selectedExistsInAppList = useMemo(() => {
+        if (showAsCompare) return true
+        if (!singleSelectedValue) return false
+        if (isLocalDraftId(singleSelectedValue)) return true
+        return !selectedRevisionQuery.isError && !!selectedRevisionData
+    }, [showAsCompare, singleSelectedValue, selectedRevisionQuery.isError, selectedRevisionData])
 
-    // Get metadata map for custom rendering (replaces variantOptionsAtomFamily)
-    const metaMap = useAtomValue(playgroundVariantMetaMapAtom)
-    const latestAppRevisionId = useAtomValue(playgroundLatestAppRevisionIdAtom)
+    const selectedValueForControl = useMemo(() => {
+        if (showAsCompare) {
+            return Array.isArray(value) ? value[0] : value
+        }
+
+        if (!singleSelectedValue) return undefined
+
+        // Prevent raw UUID from showing only during pending resolution.
+        if (
+            selectedRevisionQuery.isPending &&
+            !isLocalDraftId(singleSelectedValue) &&
+            !hasSelectedDisplayName
+        ) {
+            return undefined
+        }
+        if (!selectedExistsInAppList) {
+            return undefined
+        }
+
+        return singleSelectedValue
+    }, [
+        showAsCompare,
+        value,
+        singleSelectedValue,
+        selectedRevisionQuery.isPending,
+        hasSelectedDisplayName,
+        selectedExistsInAppList,
+    ])
+
+    const selectPlaceholder =
+        !showAsCompare &&
+        !!singleSelectedValue &&
+        selectedRevisionQuery.isPending &&
+        !hasSelectedDisplayName
+            ? "Loading variant..."
+            : "Select variant"
 
     // Create adapter scoped to current app (memoized)
-    const adapter = useMemo(() => createPlaygroundSelectionAdapter(appId), [appId])
+    const adapter = useMemo(
+        () =>
+            createLegacyAppRevisionAdapter({
+                appIdAtom: selectedAppIdAtom,
+                appId,
+                includeLocalDrafts: true,
+                excludeRevisionZero: true,
+                variantOverrides: {
+                    getLabel: (v: unknown) => {
+                        const variant = v as {
+                            name?: string
+                            id?: string
+                            isLocalDraftGroup?: boolean
+                            _draftCount?: number
+                        }
+                        if (variant.isLocalDraftGroup) {
+                            return `Local Drafts (${variant._draftCount ?? 0})`
+                        }
+                        return variant.name ?? variant.id ?? "Unnamed"
+                    },
+                },
+                revisionOverrides: {
+                    getLabel: (r: unknown) => {
+                        const rev = r as {revision?: number; isLocalDraft?: boolean}
+                        if (rev.isLocalDraft) return `Draft (v${rev.revision ?? 0})`
+                        return `v${rev.revision ?? 0}`
+                    },
+                },
+                toSelection: (path, leafEntity) => {
+                    const revision = leafEntity as {
+                        id: string
+                        revision?: number
+                        isLocalDraft?: boolean
+                        variantName?: string
+                        sourceRevisionId?: string
+                    }
+                    const variant = path[0]
+
+                    return {
+                        type: "legacyAppRevision",
+                        id: revision.id,
+                        label: revision.isLocalDraft
+                            ? `Draft (${revision.variantName} v${revision.revision ?? 0})`
+                            : `${variant?.label ?? "Variant"} v${revision.revision ?? 0}`,
+                        path,
+                        metadata: {
+                            appId,
+                            appName: "",
+                            variantId: variant?.id ?? "",
+                            variantName: variant?.label ?? "",
+                            revision: revision.revision ?? 0,
+                            isLocalDraft: revision.isLocalDraft ?? false,
+                            sourceRevisionId: revision.sourceRevisionId,
+                        },
+                    } as LegacyAppRevisionSelectionResult
+                },
+                emptyMessage: "No variants found",
+                loadingMessage: "Loading variants...",
+            }),
+        [appId],
+    )
 
     // Memoize the disabled IDs set to avoid recreation on each render
     const disabledIds = useMemo(() => new Set(selectedVariants), [selectedVariants])
@@ -61,7 +181,7 @@ const SelectVariant = ({
         (revisionId: string, e: React.MouseEvent) => {
             e.stopPropagation()
             e.preventDefault()
-            const localDraftId = cloneAsLocalDraft(revisionId)
+            const localDraftId = createLocalDraftFromRevision(revisionId)
             if (localDraftId) {
                 setSelectedVariants((prev) =>
                     prev.includes(localDraftId) ? prev : [...prev, localDraftId],
@@ -71,22 +191,19 @@ const SelectVariant = ({
         [setSelectedVariants],
     )
 
-    const discardDraft = useSetAtom(discardRevisionDraftAtom)
-
     const handleDiscardLocalDraft = useCallback(
         (localDraftId: string, e: React.MouseEvent) => {
             e.stopPropagation()
             e.preventDefault()
             setSelectedVariants((prev) => prev.filter((id) => id !== localDraftId))
-            discardDraft(localDraftId)
-            getDefaultStore().set(parametersOverrideAtomFamily(localDraftId), null)
+            legacyAppRevisionMolecule.set.discard(localDraftId)
         },
-        [setSelectedVariants, discardDraft],
+        [setSelectedVariants],
     )
 
     // Handle selection from EntityPicker
     const handleSelect = useCallback(
-        (selection: PlaygroundRevisionSelectionResult) => {
+        (selection: LegacyAppRevisionSelectionResult) => {
             if (showAsCompare) {
                 // Compare mode: ADD the selected revision to the displayed list
                 // Don't add if already in the list (disabledIds check should prevent this, but be safe)
@@ -105,51 +222,20 @@ const SelectVariant = ({
     )
 
     // Custom parent title renderer (variant groups)
-    const renderParentTitle = useCallback(
-        (parent: unknown, defaultNode: React.ReactNode) => {
-            const p = parent as {
-                id?: string
-                variantId?: string
-                isLocalDraftGroup?: boolean
-                variantName?: string
-                name?: string
-            }
-            const parentId = p.variantId ?? p.id ?? ""
-            const variantMeta = metaMap.variants.get(parentId)
-
-            if (p.isLocalDraftGroup) {
-                return (
-                    <div className="flex items-center justify-between pr-0 grow">
-                        <div className="flex items-center gap-1.5">
-                            <PencilSimpleLine size={14} className="text-[#9254de]" />
-                            <Typography.Text className="font-medium text-[#9254de]">
-                                {defaultNode ?? p.variantName ?? p.name ?? "Local Drafts"}
-                            </Typography.Text>
-                        </div>
-                    </div>
-                )
-            }
-
-            return (
-                <div className="flex items-center justify-between pr-0 grow">
-                    <Typography.Text ellipsis={{tooltip: p.variantName ?? p.name}}>
-                        {defaultNode ?? p.variantName ?? p.name}
-                    </Typography.Text>
-                    <EnvironmentStatus
-                        className="mr-2"
-                        variant={{
-                            deployedIn: (variantMeta?.deployedIn ?? []) as any,
-                        }}
-                    />
-                </div>
-            )
-        },
-        [metaMap],
-    )
+    const renderParentTitle = useCallback((parent: unknown, defaultNode: React.ReactNode) => {
+        const p = parent as {
+            id?: string
+            variantId?: string
+            isLocalDraftGroup?: boolean
+            variantName?: string
+            name?: string
+        }
+        return <VariantGroupTitle parent={p} defaultNode={defaultNode} />
+    }, [])
 
     // Custom child title renderer (revisions)
     const renderChildTitle = useCallback(
-        (child: unknown, parent: unknown, defaultNode: React.ReactNode, ...rest) => {
+        (child: unknown, _parent: unknown, _defaultNode: React.ReactNode) => {
             const c = child as {
                 id: string
                 isLocalDraft?: boolean
@@ -157,20 +243,17 @@ const SelectVariant = ({
                 variantName?: string
                 revision?: number
             }
-            const revisionMeta = metaMap.revisions.get(c.id)
             const isDisabled = disabledIds.has(c.id)
 
-            if (c.isLocalDraft || revisionMeta?.isLocalDraft) {
+            if (c.isLocalDraft) {
                 return (
                     <div
                         className={`flex items-center justify-between h-[32px] pl-1.5 pr-0 group/draft ${isDisabled ? "opacity-50" : ""}`}
                     >
                         <div className="flex items-center gap-2">
-                            <Typography.Text>
-                                v{c.revision ?? revisionMeta?.revision}
-                            </Typography.Text>
+                            <Typography.Text>v{c.revision}</Typography.Text>
                             <DraftTag />
-                            {(c.isDirty || revisionMeta?.isDirty) && (
+                            {c.isDirty && (
                                 <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
                             )}
                         </div>
@@ -194,13 +277,16 @@ const SelectVariant = ({
                 >
                     <VariantDetailsWithStatus
                         className="w-full [&_.environment-badges]:mr-2"
-                        variantName={c.variantName ?? revisionMeta?.variantName ?? ""}
-                        revision={c.revision ?? revisionMeta?.revision ?? 0}
-                        variant={revisionMeta?.variant as any}
+                        variantName={c.variantName ?? ""}
+                        revision={c.revision ?? 0}
+                        variant={c as any}
                         hideName
                         showBadges
                         showLatestTag={showLatestTag}
-                        isLatest={c.id === latestAppRevisionId}
+                        isLatest={
+                            c.id ===
+                            jotaiStore.get(legacyAppRevisionMolecule.atoms.latestRevisionId)
+                        }
                     />
                     {showAsCompare && (
                         <Tooltip title="Create local copy for comparison">
@@ -218,32 +304,26 @@ const SelectVariant = ({
             )
         },
         [
-            metaMap,
             showLatestTag,
             showAsCompare,
             handleCreateLocalCopy,
             handleDiscardLocalDraft,
             disabledIds,
-            latestAppRevisionId,
+            jotaiStore,
         ],
     )
 
     const renderSelectedLabel = useCallback(
         (child: unknown, parent: unknown, _defaultNode: React.ReactNode) => {
-            const c = child as {
-                id: string
-                variantName?: string
-            }
+            const c = child as {id: string; variantName?: string}
             const p = parent as {variantName?: string; name?: string}
-            const revisionMeta = metaMap.revisions.get(c.id)
-            const variantName =
-                c.variantName ?? revisionMeta?.variantName ?? p?.variantName ?? p?.name ?? ""
+            const variantName = c.variantName ?? p?.variantName ?? p?.name ?? ""
 
             // Only show variant name inside the selector
             // Revision number and draft/dirty indicators are rendered outside by PlaygroundVariantConfigHeader
             return variantName
         },
-        [metaMap],
+        [],
     )
 
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
@@ -254,7 +334,7 @@ const SelectVariant = ({
         const lastRevisionId = Array.isArray(value) ? value[value.length - 1] : value
 
         if (lastRevisionId) {
-            const localDraftId = cloneAsLocalDraft(lastRevisionId)
+            const localDraftId = createLocalDraftFromRevision(lastRevisionId)
 
             if (localDraftId) {
                 setSelectedVariants((prev) =>
@@ -266,6 +346,39 @@ const SelectVariant = ({
     }, [value, setSelectedVariants, recordWidgetEvent])
 
     // Compare mode: Split button with tree popup content in popover
+    const [comparePopoverOpen, setComparePopoverOpen] = useState(false)
+
+    // Single-select mode state — must be declared before the early return
+    // so hooks are always called in the same order.
+    const [singlePopoverOpen, setSinglePopoverOpen] = useState(false)
+
+    const handleSingleSelect = useCallback(
+        (result: LegacyAppRevisionSelectionResult) => {
+            handleSelect(result)
+            setSinglePopoverOpen(false)
+        },
+        [handleSelect],
+    )
+
+    // Build display label from already-fetched individual revision data.
+    // Uses singleSelectedValue directly (not selectedValueForControl which
+    // may be undefined while the existence check resolves).
+    const triggerLabel = useMemo(() => {
+        if (!singleSelectedValue) return selectPlaceholder
+        if (isLocalDraftId(singleSelectedValue)) return "Draft"
+        if (selectedRevisionQuery.isPending) return "Loading..."
+        const data = selectedRevisionData as {
+            variantName?: string
+            configName?: string
+        } | null
+        return data?.variantName ?? data?.configName ?? selectPlaceholder
+    }, [
+        singleSelectedValue,
+        selectedRevisionData,
+        selectedRevisionQuery.isPending,
+        selectPlaceholder,
+    ])
+
     if (showAsCompare) {
         return (
             <Space.Compact size="small">
@@ -279,10 +392,10 @@ const SelectVariant = ({
                 </Button>
                 <Popover
                     content={
-                        <TreeSelectPopupContent<PlaygroundRevisionSelectionResult>
+                        <TreeSelectPopupContent<LegacyAppRevisionSelectionResult>
                             adapter={adapter}
                             onSelect={handleSelect}
-                            selectedValue={Array.isArray(value) ? value[0] : value}
+                            selectedValue={selectedValueForControl}
                             disabledChildIds={disabledIds}
                             renderParentTitle={renderParentTitle}
                             renderChildTitle={renderChildTitle}
@@ -291,9 +404,12 @@ const SelectVariant = ({
                             width={280}
                         />
                     }
+                    open={comparePopoverOpen}
+                    onOpenChange={setComparePopoverOpen}
                     trigger="click"
                     placement="bottomRight"
                     arrow={false}
+                    destroyTooltipOnHide
                     styles={{body: {padding: 0}}}
                 >
                     <Button icon={<DownOutlined style={{fontSize: 10}} />} />
@@ -302,24 +418,44 @@ const SelectVariant = ({
         )
     }
 
-    // Normal mode: standard picker
+    // Normal mode: Popover + trigger so TreeSelectPopupContent only mounts
+    // when the user clicks — prevents fetching all variants on mount.
     return (
         <div style={style ?? {width: 120}}>
-            <EntityPicker<PlaygroundRevisionSelectionResult>
-                variant="tree-select"
-                adapter={adapter}
-                onSelect={handleSelect}
-                selectedValue={Array.isArray(value) ? value[0] : value}
-                disabledChildIds={disabledIds}
-                renderParentTitle={renderParentTitle}
-                renderChildTitle={renderChildTitle}
-                renderSelectedLabel={renderSelectedLabel}
-                popupHeaderAction={null}
-                size="small"
-                placeholder="Select variant"
-                popupMinWidth={280}
-                maxHeight={400}
-            />
+            <Popover
+                content={
+                    <div>
+                        {singlePopoverOpen && (
+                            <TreeSelectPopupContent<LegacyAppRevisionSelectionResult>
+                                adapter={adapter}
+                                onSelect={handleSingleSelect}
+                                selectedValue={selectedValueForControl}
+                                disabledChildIds={disabledIds}
+                                renderParentTitle={renderParentTitle}
+                                renderChildTitle={renderChildTitle}
+                                renderSelectedLabel={renderSelectedLabel}
+                                maxHeight={400}
+                                width={280}
+                            />
+                        )}
+                    </div>
+                }
+                open={singlePopoverOpen}
+                onOpenChange={setSinglePopoverOpen}
+                trigger="click"
+                placement="bottomLeft"
+                arrow={false}
+                destroyTooltipOnHide
+                styles={{body: {padding: 0}}}
+            >
+                <Button
+                    size="small"
+                    className="w-full flex items-center justify-between text-left overflow-hidden"
+                >
+                    <span className="truncate text-xs">{triggerLabel}</span>
+                    <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
+                </Button>
+            </Popover>
         </div>
     )
 }

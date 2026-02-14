@@ -1,12 +1,12 @@
 import {cloneElement, isValidElement, useCallback, useState} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {FloppyDiskBack} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {revisionIsDirtyAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {CommitVariantChangesButtonProps} from "../types"
 const CommitVariantChangesModal = dynamic(() => import("../.."), {ssr: false})
@@ -17,12 +17,11 @@ const CommitVariantChangesButton = ({
     icon = true,
     children,
     onSuccess,
-    commitType,
     ...props
 }: CommitVariantChangesButtonProps) => {
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
-    const isDirty = useAtomValue(revisionIsDirtyAtomFamily(variantId || ""))
-    const disabled = !variantId || !isDirty
+    const hasChanges = useAtomValue(legacyAppRevisionMolecule.atoms.hasChanges(variantId || ""))
+    const disabled = !variantId || !hasChanges
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const handleSuccess = useCallback(
         (payload?: {revisionId?: string; variantId?: string}) => {
@@ -62,7 +61,6 @@ const CommitVariantChangesButton = ({
                 onCancel={() => setIsDeployModalOpen(false)}
                 variantId={variantId}
                 onSuccess={handleSuccess}
-                commitType={commitType}
             />
         </>
     )

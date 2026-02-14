@@ -4,7 +4,8 @@ import {memo} from "react"
 
 import clsx from "clsx"
 
-import PlaygroundVariantConfigEditors from "./assets/Editors"
+import LegacyPlaygroundConfigSection from "../LegacyPlaygroundConfigSection"
+
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
 
@@ -52,7 +53,7 @@ const PlaygroundVariantConfig: React.FC<
                 variantNameOverride={variantNameOverride}
                 revisionOverride={revisionOverride}
             />
-            <PlaygroundVariantConfigEditors variantId={variantId} />
+            <LegacyPlaygroundConfigSection revisionId={variantId} />
         </div>
     )
 }
