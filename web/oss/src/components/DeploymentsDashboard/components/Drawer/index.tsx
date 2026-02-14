@@ -1,5 +1,6 @@
 import {ComponentProps, ReactNode, useState} from "react"
 
+import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Button, Divider, Drawer} from "antd"
 import clsx from "clsx"
@@ -8,8 +9,8 @@ import {createUseStyles} from "react-jss"
 
 import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import {useAppId} from "@/oss/hooks/useAppId"
 import {JSSTheme} from "@/oss/lib/Types"
-import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 import UseApiContent from "../../assets/UseApiContent"
 import VariantUseApiContent from "../../assets/VariantUseApiContent"
@@ -99,7 +100,8 @@ const DeploymentsDrawerContent = ({
     drawerVariantId,
     mode = "deployment",
 }: DeploymentsDrawerProps) => {
-    const variants = useAtomValue(revisionListAtom) || []
+    const appId = useAppId()
+    const variants = useAtomValue(appRevisionsWithDraftsAtomFamily(appId || "")) as any[]
     const envRevisions = useAtomValue(envRevisionsAtom)
     const openSelectDeployVariantModal = useSetAtom(openSelectDeployVariantModalAtom)
     const handleOpenSelectDeployVariantModal = () =>

@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {PythonOutlined} from "@ant-design/icons"
 import {CloudArrowUp, FileCode, FileTs} from "@phosphor-icons/react"
 import {Button, Spin, Tabs, Typography} from "antd"
@@ -14,12 +15,10 @@ import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import LanguageCodeBlock from "@/oss/components/pages/overview/deployments/DeploymentDrawer/assets/LanguageCodeBlock"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
 import {currentAppAtom, useURI} from "@/oss/state/app"
-import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {deployedRevisionByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
 const ApiKeyInput = dynamic(
     () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),
@@ -48,12 +47,15 @@ const UseApiContent = ({
     const {data: uri, isLoading: isUriQueryLoading} = useURI(appId, variantId)
     const isLoading = Boolean(variantId) && isUriQueryLoading
 
-    const latestRevisionForVariant = useAtomValue(
-        deployedRevisionByEnvironmentAtomFamily(selectedEnvironment.name),
-    ) as any
-    const variableNames = useAtomValue(
-        stablePromptVariablesAtomFamily(revisionId || latestRevisionForVariant?.id || ""),
-    ) as string[]
+    const effectiveRevisionId =
+        revisionId || selectedEnvironment?.deployed_app_variant_revision_id || ""
+    const inputPorts = useAtomValue(
+        legacyAppRevisionMolecule.atoms.inputPorts(effectiveRevisionId),
+    ) as any[]
+    const variableNames = useMemo(
+        () => (inputPorts || []).map((p: any) => p.key) as string[],
+        [inputPorts],
+    )
 
     const params = useMemo(() => {
         const synthesized = variableNames.map((name) => ({name, input: name === "messages"}))
