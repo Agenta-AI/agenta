@@ -1,5 +1,7 @@
 import type {SimpleChatMessage, MessageContent, MessageContentPart} from "../types/chatMessage"
 
+import {unwrapValue} from "./_internal/unwrap"
+
 type TemplateFormat = "curly" | "fstring" | "jinja2"
 
 interface EnhancedPromptLike {
@@ -8,13 +10,6 @@ interface EnhancedPromptLike {
     template_format?: {value?: unknown} | unknown
     inputKeys?: {value?: unknown} | unknown
     input_keys?: {value?: unknown} | unknown
-}
-
-function unwrapValue<T>(value: {value?: T} | T | undefined): T | undefined {
-    if (value && typeof value === "object" && "value" in value) {
-        return (value as {value?: T}).value
-    }
-    return value as T | undefined
 }
 
 export function normalizeEnhancedMessages(configMessages: unknown[]): SimpleChatMessage[] {

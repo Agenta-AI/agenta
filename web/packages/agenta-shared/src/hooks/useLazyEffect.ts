@@ -11,7 +11,7 @@ const useLazyEffect = (cb: Callback, dep: DependencyList): void => {
 
     useEffect((...args) => {
         if (initializeRef.current) {
-            cb(args)
+            cb(...args)
         } else {
             initializeRef.current = true
         }

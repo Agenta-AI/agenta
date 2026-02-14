@@ -15,6 +15,8 @@ import type {
     SimpleChatMessage,
 } from "../types/chatMessage"
 
+import {unwrapValue, resolveField, coerceString} from "./_internal/unwrap"
+
 /**
  * Extract text content from a message content value.
  * Handles both string content and array content with text parts.
@@ -189,34 +191,6 @@ export function getAttachments(content: MessageContent): (ImageContentPart | Fil
 // Chat parsing / normalization utilities
 // ============================================================================
 
-/** Unwrap a potential `{ value: X }` enhanced wrapper, returning the inner value or the input as-is. */
-function unwrap<T>(v: unknown): T | undefined {
-    if (v && typeof v === "object" && "value" in (v as Record<string, unknown>)) {
-        return (v as Record<string, unknown>).value as T
-    }
-    return v as T | undefined
-}
-
-/** Resolve a field that may exist under `snake_case` or `camelCase` keys, each possibly wrapped. */
-function resolveField<T>(m: Record<string, unknown>, snake: string, camel: string): T | undefined {
-    return (
-        (m[snake] as T) ??
-        (m[camel] as T) ??
-        unwrap<T>(m[camel]) ??
-        unwrap<T>(m[snake]) ??
-        undefined
-    )
-}
-
-/** Coerce a resolved value to string, handling residual `{ value: X }` objects. */
-function coerceString(v: unknown): string | undefined {
-    if (v === undefined || v === null) return undefined
-    if (typeof v === "object" && v !== null && "value" in (v as Record<string, unknown>)) {
-        return String((v as Record<string, unknown>).value ?? v)
-    }
-    return String(v)
-}
-
 /**
  * Try to parse a JSON5 string into an array. Returns null if not parseable as an array.
  */
@@ -244,12 +218,12 @@ export function normalizeMessagesFromField(raw: unknown): SimpleChatMessage[] {
     if (!raw) return out
 
     const pushFrom = (m: Record<string, unknown>) => {
-        const role = String(unwrap<string>(m.role) || "user").toLowerCase()
+        const role = String(unwrapValue<string>(m.role) || "user").toLowerCase()
 
         const rc = m.content
         const content: MessageContent = Array.isArray(rc)
             ? rc
-            : (unwrap<MessageContent>(rc) ?? (typeof rc === "string" ? rc : null))
+            : (unwrapValue<MessageContent>(rc) ?? (typeof rc === "string" ? rc : null))
 
         const toolCalls = resolveField<SimpleChatMessage["tool_calls"]>(
             m,
