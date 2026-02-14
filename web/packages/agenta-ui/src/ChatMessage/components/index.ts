@@ -1,9 +1,6 @@
 export {default as ChatMessageEditor} from "./ChatMessageEditor"
 export type {ChatMessageEditorProps} from "./ChatMessageEditor"
 
-export {default as ChatInputs, getDefaultNewMessage} from "./ChatInputs"
-export type {ChatInputsProps, ChatInputMessage} from "./ChatInputs"
-
 export {
     default as ChatMessageList,
     ChatMessageList as ChatMessageListComponent,

@@ -1,8 +1,29 @@
 import React, {useEffect, useRef, useState} from "react"
 
-// Inner component so each message owns its own ref for overflow detection
+import type {SimpleChatMessage} from "@agenta/shared/types"
+import {
+    extractTextFromContent,
+    extractDisplayTextFromMessage,
+    updateTextInContent,
+    addImageToContent,
+    addFileToContent,
+    removeAttachmentFromContent,
+    getAttachments,
+} from "@agenta/shared/utils"
+import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
+import {Button, Tooltip} from "antd"
+
+import {CollapseToggleButton} from "../../components/presentational/buttons"
+import {cn, flexLayouts, gapClasses} from "../../utils/styles"
+
+import AttachmentButton from "./AttachmentButton"
+import ChatMessageEditor from "./ChatMessageEditor"
+import MarkdownToggleButton from "./MarkdownToggleButton"
+import MessageAttachments from "./MessageAttachments"
+import ToolMessageHeader from "./ToolMessageHeader"
+
 const ChatMessageItem: React.FC<{
-    msg: import("@agenta/shared/types").SimpleChatMessage
+    msg: SimpleChatMessage
     index: number
     disabled?: boolean
     messageClassName?: string
@@ -150,28 +171,6 @@ const ChatMessageItem: React.FC<{
         </div>
     )
 }
-
-import type {SimpleChatMessage} from "@agenta/shared/types"
-import {
-    extractTextFromContent,
-    extractDisplayTextFromMessage,
-    updateTextInContent,
-    addImageToContent,
-    addFileToContent,
-    removeAttachmentFromContent,
-    getAttachments,
-} from "@agenta/shared/utils"
-import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
-
-import {CollapseToggleButton} from "../../components/presentational/buttons"
-import {cn, flexLayouts, gapClasses} from "../../utils/styles"
-
-import AttachmentButton from "./AttachmentButton"
-import ChatMessageEditor from "./ChatMessageEditor"
-import MarkdownToggleButton from "./MarkdownToggleButton"
-import MessageAttachments from "./MessageAttachments"
-import ToolMessageHeader from "./ToolMessageHeader"
 
 export interface ChatMessageListProps {
     /** Array of chat messages to display */
