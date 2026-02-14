@@ -1,36 +1,13 @@
 import {devices, type Project} from "@playwright/test"
 
-import {deployments} from "./deployments"
-import {TestEnvironment} from "./testTags"
-import type PlaywrightConfig from "./types"
-
 /**
- * Base configuration for all test projects
- * Uses Chrome Desktop as the default browser
+ * Single project configuration.
+ * Base URL comes from AGENTA_WEB_URL, license from AGENTA_LICENSE.
  */
-const baseConfig = {
+export const project: Project = {
+    name: process.env.AGENTA_LICENSE || "oss",
     use: {
         ...devices["Desktop Chrome"],
+        baseURL: process.env.AGENTA_WEB_URL || "http://localhost",
     },
 }
-
-/**
- * Creates a project configuration for a specific environment
- * @param env - Target environment type
- * @returns Playwright project configuration
- */
-const createProjectConfig = (env: PlaywrightConfig.TestEnvironmentType): Project => ({
-    ...baseConfig,
-    name: env,
-    use: {...baseConfig.use, baseURL: deployments[env]},
-})
-
-// Generate project configurations for all environments
-const baseProjects = Object.keys(TestEnvironment).map((env) =>
-    createProjectConfig(env as PlaywrightConfig.TestEnvironmentType),
-)
-
-/**
- * Combined project configurations for all environments
- */
-export const allProjects = [...baseProjects]

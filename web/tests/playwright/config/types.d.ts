@@ -9,31 +9,34 @@ declare namespace PlaywrightConfig {
         (typeof import("./testTags").TestCoverage)[keyof typeof import("./testTags").TestCoverage]
     type TestPathType =
         (typeof import("./testTags").TestPath)[keyof typeof import("./testTags").TestPath]
-    type TestEnvironmentType = keyof typeof import("./testTags").TestEnvironment
-    type TestFeatureLicenseScopeType =
-        (typeof import("./testTags").TestFeatureScope)[keyof typeof import("./testTags").TestFeatureScope]
-    type TestEntitlementType =
-        (typeof import("./testTags").TestEntitlementType)[keyof typeof import("./testTags").TestEntitlementType]
-    type TestPermissionType =
-        (typeof import("./testTags").TestPermissionType)[keyof typeof import("./testTags").TestPermissionType]
+    type TestPlanType =
+        (typeof import("./testTags").TestPlanType)[keyof typeof import("./testTags").TestPlanType]
+    type TestRoleType =
+        (typeof import("./testTags").TestRoleType)[keyof typeof import("./testTags").TestRoleType]
     type TestLensType =
         (typeof import("./testTags").TestLensType)[keyof typeof import("./testTags").TestLensType]
     type TestcaseType =
         (typeof import("./testTags").TestcaseType)[keyof typeof import("./testTags").TestcaseType]
+    type TestSpeedType =
+        (typeof import("./testTags").TestSpeedType)[keyof typeof import("./testTags").TestSpeedType]
+    type TestCostType =
+        (typeof import("./testTags").TestCostType)[keyof typeof import("./testTags").TestCostType]
+    type TestLicenseType =
+        (typeof import("./testTags").TestLicenseType)[keyof typeof import("./testTags").TestLicenseType]
 
     /** Test tag system configuration */
     type TestTagType =
         | "scope"
         | "coverage"
         | "path"
-        | "env"
-        | "feature"
-        | "entitlement"
-        | "permission"
+        | "plan"
+        | "role"
         | "lens"
         | "case"
         | "speed"
-    type TestTag = TestScopeType | TestCoverageType | TestPathType | TestEnvironmentType
+        | "license"
+        | "cost"
+    type TestTag = TestScopeType | TestCoverageType | TestPathType
 
     /** Tag argument structure for CLI and test decoration */
     interface TagArgument {
@@ -43,13 +46,8 @@ declare namespace PlaywrightConfig {
 
     /** Project feature configuration for different environments */
     interface ProjectFeatureConfig {
-        // readonly features: TestFeatureScopeType[] // Available features in environment
+        // Configuration for project-specific features
     }
-
-    /** Environment-specific project configurations */
-    type EnvironmentProjectConfig = Record<TestEnvironmentType, ProjectFeatureConfig>
-    /** Deployment environment type alias */
-    type DeploymentType = TestEnvironmentType
 }
 
 export = PlaywrightConfig

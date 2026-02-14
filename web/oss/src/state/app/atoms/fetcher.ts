@@ -20,6 +20,16 @@ import {LS_APP_KEY} from "../assets/constants"
 
 const baseRouterAppIdAtom = atom<string | null>(null)
 
+const shouldResetEvaluationContextOnAppSwitch = ({
+    restPath,
+    pathname,
+}: {
+    restPath: string[]
+    pathname: string
+}) =>
+    (restPath[0] === "evaluations" && restPath[1] === "results") ||
+    pathname.includes("/evaluations/results")
+
 export const routerAppIdAtom = atom(
     (get) => {
         const derived = get(appIdentifiersAtom).appId
@@ -54,7 +64,13 @@ export const routerAppNavigationAtom = atom(null, (get, set, next: string | null
     const base = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps/${encodeURIComponent(next)}`
     const snapshot = get(appStateSnapshotAtom)
     const rest = snapshot.routeLayer === "app" ? snapshot.restPath : []
-    const href = rest.length ? `${base}/${rest.join("/")}` : `${base}/overview`
+    const nextRest = shouldResetEvaluationContextOnAppSwitch({
+        restPath: rest,
+        pathname: snapshot.pathname,
+    })
+        ? ["evaluations"]
+        : rest
+    const href = nextRest.length ? `${base}/${nextRest.join("/")}` : `${base}/overview`
     set(requestNavigationAtom, {type: "href", href, method: "push"})
 })
 

@@ -1,6 +1,4 @@
 import agenta as ag
-from pydantic import BaseModel
-from agenta.sdk.assets import supported_llm_models
 
 ag.init()
 

@@ -8,10 +8,9 @@ from pydantic import BaseModel
 from agenta.sdk.models.evaluations import (
     Origin,
     Target,
-    Link,
-    Reference,
     SimpleEvaluationData,
 )
+from agenta.sdk.models.shared import Link, Reference
 from agenta.sdk.models.workflows import (
     ApplicationRevision,
     EvaluatorRevision,
@@ -305,7 +304,7 @@ async def aevaluate(
     print(
         "────────────────────────────────────────────────────────────────────────────"
     )
-    print(f"Evaluation running...")
+    print("Evaluation running...")
     print(
         "────────────────────────────────────────────────────────────────────────────"
     )
@@ -776,7 +775,7 @@ async def aevaluate(
     print(
         "────────────────────────────────────────────────────────────────────────────"
     )
-    print(f"Evaluation finished.")
+    print("Evaluation finished.")
     print(
         "----------------------------------------------------------------------------"
     )

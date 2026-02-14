@@ -1,8 +1,6 @@
 import {Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
-import {atom} from "jotai"
-import {useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import LastTurnFooterControls from "@/oss/components/Playground/Components/ChatCommon/LastTurnFooterControls"
 import {
@@ -15,8 +13,8 @@ import {
 } from "@/oss/components/Playground/state/atoms/generationProperties"
 import {
     addChatTurnAtom,
-    runChatTurnAtom,
     cancelChatTurnAtom,
+    runChatTurnAtom,
 } from "@/oss/state/newPlayground/chat/actions"
 
 import PromptMessageConfig from "../../../PromptMessageConfig"

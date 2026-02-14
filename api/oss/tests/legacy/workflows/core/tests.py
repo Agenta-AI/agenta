@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 
-from tests.legacy.conftest import *
+from tests.legacy.conftest import *  # noqa: F403
 
 
 class TestServiceCore:
@@ -216,7 +216,7 @@ class TestServiceCore:
     ):
         # ARRANGE
         app_variant_response = setup_class_fixture
-        llm_api_keys_names = list(API_KEYS_MAPPING.keys())
+        llm_api_keys_names = list(API_KEYS_MAPPING.keys())  # noqa: F405
         headers = {"Authorization": app_variant_response.get("credentials", None)}
 
         # ACT

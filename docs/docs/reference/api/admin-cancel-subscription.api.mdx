@@ -5,7 +5,7 @@ description: "Cancel Subscription Admin Route"
 sidebar_label: "Cancel Subscription Admin Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVMtu2zAQ/BVhTy1AWG7Qk051H0CMtIgRu70YRrCm1jZTilRIKqhr6N+LJWVbipMWPUkgd4fD2RkeIODWQ7GESVkpAwI+Kq2V2cJKgK3JYVDWTEsoALngXqKRpO99s/bSqZp3QUCNDisK5BjqAAYrggKs26JRvyPEvSpBgDJQwGNDbg8CHD02ylEJRXANCfByRxVCcYCwr7nfB8dMBAQVNC/c9gCzaQltu2IYX1vjyXPn1XjMn5LO7AqYN1KS95tGZ3ddMQiQ1gQygcuxrrWSETZ/8NxzOLNp27YV8P7q6hL4B2pVJjZfnLPuP1ChdixvUIl3SQGV5j8VqPKXBdrKwS6a/e0mij0UqxWnFWUCbclBu2rFcQ2dw31P0a82EYRWQOW3fxP/G3mPW4IT2OulUYxswbvt+Wy7fiAZBoNfxnulo7u61RnmLG9S9/VrfE7yvXTYseR6sZhdAKbZDof6KTo8m/ccnsVwZHe2CeycisLOciRq60N0f9hBAXlMSL5OAcr7EclTbECAJ/d0jEnjNBSwC6H2RZ5LbZtyhFsyAUeocqwVsL89ycapsI8tk9n0hvbXhCU5KJarfsGcvZXcMiw7DQprdUOsWxfQSRN21nWBOsZzl7pYGGU2NrZ3Gk4iuWwym4IAvkZSbDx6NxrDcx0HxRwLlDEWx7PjNohnKpzuDwKoipmAQFh9OG8wM1a+QtPD+/fYBvROmgT6FfJao4oZiGQO3USX6c0DAd1MeX7Dh6+b60rAjr1QLOFwWKOn7063LS+nx45HVyqPa82u36D2dMHn9HLAm7suIG8zEC/z/En7Fx/YJ9QNV0fnPKFTfGQ0ijgOlrmk9omUVIde18WLxSgnt89u5wto2z/tnx+a
+api: eJyVVMFu2zAM/RWDpw0Q4qzYyadl3YAG3dCg6XYJgoKRmUSdbKuSXDQL9O8DJcdxmnbDTglE8un5PT7twePGQbGASVmpGgR8VlqregNLAY0hi1419bSEApAb7iXWkvS9a1dOWmW4CgIMWqzIk2WoPdRYERTQ2A3W6neEuFclCFA1FPDYkt2BAEuPrbJUQuFtSwKc3FKFUOzB7wzPO2+ZiQCvvOaDmwFgNi0hhCXDONPUjhxPXozH/FPSkV0B81ZKcm7d6uy2awYBsqk91Z7b0RitZITNHxzP7I9sQghBwMeLi3Pgn6hVmdh8tbax/4EKxrK8XiXeJXlUmv8pT5U7b9CNPKlivbtZR7FPxQqiP1G1pw1ZCMsgDmdoLe4Gin5rEkEIAiq3+Zv438k53BD0YG+3RjGyO64GNt20UZBDeRoPggDpnwcwzeqBpB/AXLKWzx7CkX/fc1yeRdQm0e/6lkeMo0XJobel+JIseO2yQ8vV3d3sDDDtx+liXMaUZPNBSrIYsOy2aT1vX0V+23CsTON8TJDfQgF5TFm+SiHMhzHLU/RAgCP7dIhaazUUsPXeuCLPpW7acoQbqj2OUOVoFHBGHMnWKr+LI5PZ9Jp2V4QlWSgWy2HDnPczbdxpW+8SGnVNrFsX8knrt43tQnmI+DZNhej+uhmaP4nksslsCgL4M5Ji49GH0Rhe6njSzNFCGTfpcHcsg3ihQv/9IICqmCvwhNWnY4GZsfIV1gO8f9t2Qq/XhLc0NxpVzFEks+8cXaR3EwR0nrJ/p49n5+tSwJZ3oVjAfr9CRz+sDoGP04PJ1pXK4Urz1q9ROzrj078+8O62C8j7DMTrPH/R7tVH+gl1y91xc57QKr4yLoo4GMtc0vhESjJ+MHX26jFKv+2zm/kdhPAHsSM2QQ==
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -62,7 +62,7 @@ Cancel Subscription Admin Route
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
 >
   
 </StatusCodes>

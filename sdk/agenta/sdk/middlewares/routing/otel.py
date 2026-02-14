@@ -1,6 +1,5 @@
 from typing import Callable
 
-from starlette.types import ASGIApp
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request
 

@@ -24,7 +24,6 @@ from oss.src.core.tracing.dtos import (
     Formatting,
     Condition,
     Filtering,
-    OTelReference,
     OTelLink,
     LogicalOperator,
     ComparisonOperator,
@@ -34,8 +33,6 @@ from oss.src.core.tracing.dtos import (
 )
 from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorFlags,
-    SimpleEvaluatorQueryFlags,
-    #
     SimpleEvaluatorData,
 )
 

@@ -1,11 +1,10 @@
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime, timezone
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
 from oss.src.core.tracing.dtos import (
-    OTelReference,
     OTelLink,
     OTelHash,
     OTelReference,
