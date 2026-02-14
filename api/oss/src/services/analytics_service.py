@@ -242,7 +242,7 @@ async def analytics_middleware(request: Request, call_next: Callable):
 
             try:
                 distinct_id = request.state.user_email
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass
 
             if distinct_id and env.posthog.api_key:
@@ -336,8 +336,6 @@ def _get_event_name_from_path(
     ):
         return "evaluation_created"
 
-    elif method == "POST" and "/human-evaluations" in path:
-        return "human_evaluation_created"
     # <----------- End of Evaluation Events ------------->
 
     # <----------- Observability Events ------------->

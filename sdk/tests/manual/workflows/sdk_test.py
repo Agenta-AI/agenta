@@ -1,5 +1,6 @@
 # - THIS WOULD BE PART OF THE BACKEND ---------------------------------- START -
 from os import getenv
+from json import dumps
 
 import agenta as ag
 
@@ -44,9 +45,6 @@ SCHEMAS = {
 }
 
 
-from json import dumps
-
-
 @ag.workflow(
     version=VERSION,
     schemas=SCHEMAS,
@@ -77,17 +75,15 @@ async def exact_match_v1(
 
 # - THIS IS THE USER'S CODE -------------------------------------------- END ---
 
-from asyncio import run as run_async
+from asyncio import run as run_async  # noqa: E402
 
-from agenta.sdk.models.workflows import (
+from agenta.sdk.models.workflows import (  # noqa: E402
     WorkflowRevision,
     WorkflowRevisionData,
     WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
     WorkflowServiceRequest,
     WorkflowServiceResponse,
     Status,
-    Data,
 )
 
 

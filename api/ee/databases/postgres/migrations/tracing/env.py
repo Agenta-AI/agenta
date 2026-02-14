@@ -1,14 +1,18 @@
-import os
 import asyncio
 from logging.config import fileConfig
 
 from sqlalchemy import pool
-from sqlalchemy.engine import Connection, create_engine
-from sqlalchemy.ext.asyncio import async_engine_from_config, create_async_engine
+from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
 from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.base import Base
+
+# Side-effect import: register SQLAlchemy model with Base.metadata
+# so Alembic autogenerate can discover it.
+import oss.src.dbs.postgres.tracing.dbes  # noqa: F401
 
 
 # this is the Alembic Config object, which provides
@@ -22,14 +26,6 @@ config.set_main_option("sqlalchemy.url", engine.postgres_uri_tracing)  # type: i
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-from oss.src.dbs.postgres.shared.base import Base
-
-import oss.src.dbs.postgres.tracing.dbes
-
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

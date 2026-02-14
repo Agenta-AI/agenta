@@ -6,9 +6,9 @@ from agenta.sdk.contexts.routing import RoutingContext
 
 # Set up mockllm to use litellm
 mockllm.litellm = litellm
-import agenta as ag
-from pydantic import BaseModel, Field
-from agenta.sdk.types import PromptTemplate, MCField
+import agenta as ag  # noqa: E402
+from pydantic import BaseModel, Field  # noqa: E402
+from agenta.sdk.types import PromptTemplate, MCField  # noqa: E402
 
 system_prompt = """
     You are a helpful assistant that answers questions based on the documentation.
@@ -70,7 +70,7 @@ def search_docs(
         List of dictionaries containing matched documents and their metadata
     """
     # Get embeddings for the query
-    config = ag.ConfigManager.get_from_route(Config)
+    config = ag.ConfigManager.get_from_route(Config)  # noqa: F841
 
     # Return dummy JSON output for testing
     formatted_results = [
@@ -139,7 +139,7 @@ if __name__ == "__main__":
     import asyncio
 
     async def main():
-        res = await generate(query="What is the capital of France?")
+        res = await generate(query="What is the capital of France?")  # noqa: F841
 
         invocation_link = ag.tracing.build_invocation_link()
 

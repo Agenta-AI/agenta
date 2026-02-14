@@ -1,4 +1,3 @@
-import uuid_utils.compat as uuid
 from sqlalchemy import Column, String, UUID
 
 from oss.src.dbs.postgres.shared.dbas import (

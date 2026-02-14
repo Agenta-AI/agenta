@@ -51,7 +51,7 @@ async def _retrieve_evaluator(
 
     response = authed_api()(
         method="POST",
-        endpoint=f"/preview/evaluators/revisions/retrieve",
+        endpoint="/preview/evaluators/revisions/retrieve",
         json=payload,
     )
 
@@ -204,7 +204,7 @@ async def aupsert(
                 evaluator_slug=evaluator_slug,
             )
 
-    except Exception as e:
+    except Exception:
         print("[ERROR]: Failed to prepare evaluator:")
         print_exc()
         return None

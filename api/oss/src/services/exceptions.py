@@ -1,7 +1,6 @@
 from http import HTTPStatus
 
 from fastapi import HTTPException
-from supertokens_python.types import APIResponse
 
 
 def code_to_phrase(status_code: int) -> str:

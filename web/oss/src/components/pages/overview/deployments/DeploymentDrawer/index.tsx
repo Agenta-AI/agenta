@@ -120,11 +120,7 @@ const DeploymentDrawer = ({
                         {selectedEnvironment.deployed_variant_name && (
                             <Space orientation="horizontal">
                                 <Tooltip
-                                    title={
-                                        isDemo()
-                                            ? ""
-                                            : "History available in Cloud/Enterprise editions only"
-                                    }
+                                    title={isDemo() ? "" : "History available in Cloud/EE only"}
                                 >
                                     <Button
                                         size="small"

@@ -3,7 +3,6 @@ from datetime import datetime
 import gzip
 import zlib
 
-from google.protobuf.json_format import MessageToDict
 
 # Use official OpenTelemetry proto definitions
 from opentelemetry.proto.trace.v1 import trace_pb2 as Trace_Proto

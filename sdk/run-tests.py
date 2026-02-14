@@ -124,7 +124,7 @@ def run_tests(
         click.echo(f"Loaded environment variables from {env_file}")
         _license = os.getenv("AGENTA_LICENSE")
         if _license in TYPES["license"]:
-            license = _license
+            license = _license  # noqa: F841
         if not api_url:
             api_url = os.getenv("AGENTA_API_URL")
         if not auth_key:

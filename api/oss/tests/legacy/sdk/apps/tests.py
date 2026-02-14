@@ -4,7 +4,7 @@ import pytest
 import agenta as ag
 from agenta.client.core.api_error import ApiError
 
-from tests.legacy.conftest import *
+from tests.legacy.conftest import *  # noqa: F403
 
 
 class TestAppsManagerCoverage:
@@ -34,7 +34,7 @@ class TestAppsManagerCoverage:
             "credentials"
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         response = await ag.AppManager.acreate(
@@ -49,7 +49,7 @@ class TestAppsManagerCoverage:
         )
 
         # CLEANUP
-        await delete_application(
+        await delete_application(  # noqa: F405
             http_client, response.app_id, {"Authorization": scope_credentials}
         )
 
@@ -68,7 +68,7 @@ class TestAppsManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         with pytest.raises(TypeError):
@@ -165,7 +165,7 @@ class TestAppsManagerCoverage:
 
         # CLEANUP
         for app_response in list_apps_response:
-            await delete_application(
+            await delete_application(  # noqa: F405
                 http_client, app_response.app_id, {"Authorization": scope_credentials}
             )
 
@@ -231,7 +231,7 @@ class TestAppsManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         response = await ag.AppManager.aupdate(
@@ -256,7 +256,7 @@ class TestAppsManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         with pytest.raises(TypeError):
@@ -308,7 +308,7 @@ class TestAppsManagerCoverage:
         # ARRANGE
         app_name = f"updated_{str(uuid.uuid4().hex[:8])}"
         app_id = setup_class_fixture["app_variant_response"].get("app_id", None)
-        initialize_agenta(api_key="xxxxx")
+        initialize_agenta(api_key="xxxxx")  # noqa: F405
 
         # ACT
         with pytest.raises(ApiError) as exc_info:
@@ -335,7 +335,7 @@ class TestAppsManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         with pytest.raises(ApiError) as exc_info:
@@ -365,7 +365,7 @@ class TestAppsManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         response = await ag.AppManager.adelete(
@@ -414,7 +414,7 @@ class TestAppsManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         with pytest.raises(ApiError) as exc_info:

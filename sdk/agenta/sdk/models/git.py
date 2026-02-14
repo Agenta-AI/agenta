@@ -1,33 +1,18 @@
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from agenta.sdk.models.shared import (
-    TraceID,
-    SpanID,
-    Link,
     Identifier,
     Slug,
     Version,
-    Reference,
     Lifecycle,
     Header,
-    Flags,
-    Tags,
-    Meta,
     Metadata,
     Data,
     Commit,
-    AliasConfig,
-    sync_alias,
 )
-
-
-from typing import Optional, List
-from uuid import UUID
-
-from pydantic import BaseModel
 
 
 # artifacts --------------------------------------------------------------------

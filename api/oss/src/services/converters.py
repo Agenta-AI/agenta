@@ -1,43 +1,17 @@
 import uuid
-from typing import List, Dict, Any
-from datetime import datetime, timezone
+from typing import List
 
-from oss.src.services import db_manager
 from oss.src.models.api.evaluation_model import (
     CorrectAnswer,
     Evaluation,
-    HumanEvaluation,
     EvaluationScenario,
-    SimpleEvaluationOutput,
     EvaluationScenarioInput,
-    HumanEvaluationScenario,
     EvaluationScenarioOutput,
 )
 from oss.src.models.db_models import (
     EvaluationDB,
-    HumanEvaluationDB,
     EvaluationScenarioDB,
-    HumanEvaluationScenarioDB,
 )
-
-
-async def human_evaluation_db_to_simple_evaluation_output(
-    human_evaluation_db: HumanEvaluationDB,
-) -> SimpleEvaluationOutput:
-    evaluation_variants = await db_manager.fetch_human_evaluation_variants(
-        human_evaluation_id=str(human_evaluation_db.id)
-    )
-    return SimpleEvaluationOutput(
-        id=str(human_evaluation_db.id),
-        app_id=str(human_evaluation_db.app_id),
-        project_id=str(human_evaluation_db.project_id),
-        status=human_evaluation_db.status,  # type: ignore
-        evaluation_type=human_evaluation_db.evaluation_type,  # type: ignore
-        variant_ids=[
-            str(evaluation_variant.variant_id)
-            for evaluation_variant in evaluation_variants
-        ],
-    )
 
 
 async def evaluation_db_to_pydantic(
@@ -72,69 +46,6 @@ async def evaluation_db_to_pydantic(
         average_cost=evaluation_db.average_cost,
         total_cost=evaluation_db.total_cost,
         average_latency=evaluation_db.average_latency,
-    )
-
-
-async def human_evaluation_db_to_pydantic(
-    evaluation_db: HumanEvaluationDB,
-) -> HumanEvaluation:
-    evaluation_variants = await db_manager.fetch_human_evaluation_variants(
-        human_evaluation_id=str(evaluation_db.id)  # type: ignore
-    )
-
-    revisions = []
-    variants_ids = []
-    variants_names = []
-    variants_revision_ids = []
-    for evaluation_variant in evaluation_variants:
-        variant_name = (
-            evaluation_variant.variant.variant_name
-            if isinstance(evaluation_variant.variant_id, uuid.UUID)
-            else str(evaluation_variant.variant_id)
-        )
-        variants_names.append(str(variant_name))
-        variants_ids.append(str(evaluation_variant.variant_id))
-        variant_revision = (
-            str(evaluation_variant.variant_revision.revision)
-            if isinstance(evaluation_variant.variant_revision_id, uuid.UUID)
-            else " None"
-        )
-        revisions.append(variant_revision)
-        variants_revision_ids.append(str(evaluation_variant.variant_revision_id))
-
-    # Fall back to created_at if no update has occurred
-    updated_at = evaluation_db.updated_at or evaluation_db.created_at
-
-    return HumanEvaluation(
-        id=str(evaluation_db.id),
-        app_id=str(evaluation_db.app_id),
-        project_id=str(evaluation_db.project_id),
-        status=evaluation_db.status,  # type: ignore
-        evaluation_type=evaluation_db.evaluation_type,  # type: ignore
-        variant_ids=variants_ids,
-        variant_names=variants_names,
-        testset_id=str(evaluation_db.testset_id),
-        testset_name=evaluation_db.testset.name,
-        variants_revision_ids=variants_revision_ids,
-        revisions=revisions,
-        created_at=str(evaluation_db.created_at) if evaluation_db.created_at else None,  # type: ignore
-        updated_at=str(updated_at) if updated_at else None,  # type: ignore
-    )
-
-
-def human_evaluation_scenario_db_to_pydantic(
-    evaluation_scenario_db: HumanEvaluationScenarioDB, evaluation_id: str
-) -> HumanEvaluationScenario:
-    return HumanEvaluationScenario(
-        id=str(evaluation_scenario_db.id),
-        evaluation_id=evaluation_id,
-        inputs=evaluation_scenario_db.inputs,  # type: ignore
-        outputs=evaluation_scenario_db.outputs,  # type: ignore
-        vote=evaluation_scenario_db.vote,  # type: ignore
-        score=evaluation_scenario_db.score,  # type: ignore
-        correct_answer=evaluation_scenario_db.correct_answer,  # type: ignore
-        is_pinned=evaluation_scenario_db.is_pinned or False,  # type: ignore
-        note=evaluation_scenario_db.note or "",  # type: ignore
     )
 
 

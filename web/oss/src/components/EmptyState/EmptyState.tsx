@@ -16,9 +16,10 @@ export interface EmptyStateProps {
     title: string
     description: string
     primaryCta: {
-        label: string
-        onClick: () => void
+        label?: string
+        onClick?: () => void
         icon?: ReactNode
+        node?: ReactNode
     }
     secondaryCta?: {
         label: string
@@ -129,15 +130,17 @@ const EmptyState = ({
 
                 {/* CTAs */}
                 <div className="mb-8 flex flex-wrap items-center justify-center gap-4">
-                    <Button
-                        type="primary"
-                        size="large"
-                        onClick={primaryCta.onClick}
-                        icon={primaryCta.icon}
-                        className="!px-8"
-                    >
-                        {primaryCta.label}
-                    </Button>
+                    {primaryCta.node ?? (
+                        <Button
+                            type="primary"
+                            size="large"
+                            onClick={primaryCta.onClick}
+                            icon={primaryCta.icon}
+                            className="!px-8"
+                        >
+                            {primaryCta.label}
+                        </Button>
+                    )}
 
                     {secondaryCta ? (
                         <Button

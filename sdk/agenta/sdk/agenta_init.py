@@ -4,7 +4,6 @@ from typing import Any, Callable, Optional
 
 import httpx
 from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
-from agenta.sdk.contexts.routing import RoutingContext
 from agenta.sdk.tracing import Tracing
 from agenta.sdk.utils.globals import set_global
 from agenta.sdk.utils.helpers import parse_url

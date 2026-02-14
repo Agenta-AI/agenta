@@ -3,10 +3,11 @@ import type {Getter, Setter} from "jotai"
 
 import {displayedVariantsVariablesAtom} from "@/oss/components/Playground/state/atoms"
 import {
+    allChatTurnIdsMapAtom,
     chatTurnIdsAtom,
     chatTurnIdsByBaselineAtom,
-    allChatTurnIdsMapAtom,
     chatTurnsByIdAtom,
+    // chatTurnsByIdAtom, // Moved
     chatTurnsByIdCacheAtom,
     runStatusByRowRevisionAtom,
 } from "@/oss/state/generation/entities"
@@ -31,7 +32,7 @@ export interface PropertyNode {
  * - Deduplicates across revisions preserving first-seen order
  */
 export function mergeRowVariables(
-    get: <T>(anAtom: {read: (get: any) => T}) => T,
+    get: Getter,
     existing: any[] | undefined,
     _revisionIds: string[],
     valueByName?: Record<string, string>,
