@@ -104,6 +104,9 @@ export type {
     ExtractTypedPathsOptions,
 } from "./utils"
 
+// Type narrowing utilities
+export {asRecord, safeStringify} from "./utils"
+
 // Chat message utilities
 export {
     extractTextFromContent,
@@ -115,6 +118,8 @@ export {
     addFileToContent,
     removeAttachmentFromContent,
     getAttachments,
+    messageHasContent,
+    messageHasToolCalls,
     tryParseArrayFromString,
     normalizeMessagesFromField,
     deriveToolViewModelFromResult,
