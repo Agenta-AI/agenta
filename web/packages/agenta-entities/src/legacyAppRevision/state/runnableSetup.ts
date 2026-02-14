@@ -11,10 +11,24 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
+import type {RequestPayloadData} from "../../runnable/types"
 import type {StoreOptions, EntitySchema} from "../../shared"
 import type {ExecutionMode} from "../core"
+import {
+    transformToRequestBody,
+    type TransformToRequestBodyParams,
+} from "../utils/requestBodyBuilder"
 
-import {legacyAppRevisionSchemaQueryAtomFamily} from "./schemaAtoms"
+import {getAllMetadata} from "./metadataAtoms"
+import {
+    legacyAppRevisionSchemaQueryAtomFamily,
+    revisionOpenApiSchemaAtomFamily,
+} from "./schemaAtoms"
+import {
+    enhancedPromptsWithFallbackAtomFamily,
+    enhancedCustomPropertiesWithFallbackAtomFamily,
+    legacyAppRevisionEntityWithBridgeAtomFamily,
+} from "./store"
 
 // ============================================================================
 // HELPERS
@@ -237,6 +251,91 @@ export const outputPortsAtomFamily = atomFamily((revisionId: string) =>
 )
 
 // ============================================================================
+// REQUEST PAYLOAD
+// ============================================================================
+
+/**
+ * Pre-built request payload for a legacy app revision.
+ *
+ * Builds the config portion of the API request body from enhanced prompts,
+ * custom properties, and metadata. The playground package merges in
+ * inputs (from loadable) and chat history (from chat state) on top.
+ */
+export const requestPayloadAtomFamily = atomFamily((revisionId: string) =>
+    atom<RequestPayloadData | null>((get) => {
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        if (!entityData) return null
+
+        const enhancedPrompts = get(enhancedPromptsWithFallbackAtomFamily(revisionId))
+        const enhancedCustomProperties = get(
+            enhancedCustomPropertiesWithFallbackAtomFamily(revisionId),
+        )
+
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        const openApiSchema = get(revisionOpenApiSchemaAtomFamily(revisionId))
+        const routePath = schemaQuery.data?.routePath || ""
+        const runtimePrefix = schemaQuery.data?.runtimePrefix || null
+        const isChat = get(isChatVariantAtomFamily(revisionId))
+        const invocationUrl = get(invocationUrlAtomFamily(revisionId))
+
+        // Use imperative getAllMetadata() to include pending microtask updates
+        const allMetadata = getAllMetadata()
+
+        // Access runtime fields not in the Zod schema via Record indexing
+        const entityRecord = entityData as Record<string, unknown>
+        const appType = typeof entityRecord.appType === "string" ? entityRecord.appType : undefined
+
+        // Build config-only request body (no inputs, no chat history)
+        const body = transformToRequestBody({
+            variant: entityData,
+            allMetadata,
+            spec: openApiSchema as TransformToRequestBodyParams["spec"],
+            routePath,
+            prompts: enhancedPrompts,
+            customProperties: enhancedCustomProperties,
+            isChat,
+            appType,
+        })
+
+        // Extract variables from the built body
+        const agConfig = (body.ag_config as Record<string, unknown>) || {}
+
+        const variables: string[] = []
+        try {
+            // Extract variable keys from prompt configs' input_keys
+            for (const val of Object.values(agConfig)) {
+                const valRecord = val as Record<string, unknown> | null
+                if (valRecord && typeof valRecord === "object" && "input_keys" in valRecord) {
+                    const keys = valRecord.input_keys
+                    if (Array.isArray(keys)) {
+                        for (const k of keys) {
+                            if (typeof k === "string" && !variables.includes(k)) {
+                                variables.push(k)
+                            }
+                        }
+                    }
+                }
+            }
+        } catch {
+            // best-effort
+        }
+
+        return {
+            ag_config: agConfig,
+            isChat,
+            appType: appType ?? null,
+            invocationUrl,
+            runtimePrefix: runtimePrefix,
+            variables,
+            spec: openApiSchema,
+            routePath: routePath || undefined,
+            isCustom: appType?.toLowerCase() === "custom" || undefined,
+            appId: entityData.appId ?? (entityRecord.app_id as string | undefined) ?? null,
+        }
+    }),
+)
+
+// ============================================================================
 // RUNNABLE EXTENSION EXPORTS
 // ============================================================================
 
@@ -255,6 +354,7 @@ export const runnableAtoms = {
     messagesSchema: messagesSchemaAtomFamily,
     runtimePrefix: runtimePrefixAtomFamily,
     routePath: routePathAtomFamily,
+    requestPayload: requestPayloadAtomFamily,
 }
 
 /**

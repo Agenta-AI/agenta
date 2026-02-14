@@ -138,6 +138,20 @@ export type ConfigMetadata =
  * This is safe to read/write from any context including Jotai atom getters.
  */
 const metadataStore = new Map<string, ConfigMetadata>()
+const metadataDebugSignatureByKey = new Map<string, string>()
+
+function logLegacyMetadataDebug(
+    stage: string,
+    info: Record<string, unknown>,
+    dedupeKey?: string,
+): void {
+    if (process.env.NODE_ENV === "production") return
+
+    const key = dedupeKey ?? stage
+    const signature = JSON.stringify(info)
+    if (metadataDebugSignatureByKey.get(key) === signature) return
+    metadataDebugSignatureByKey.set(key, signature)
+}
 
 /**
  * Jotai atom facade for backward compatibility.
@@ -204,10 +218,20 @@ export const metadataSelectorFamily = atomFamily((hash: string | undefined) =>
  * Safe to call from any context including Jotai atom getters.
  */
 export const updateMetadataAtom = (metadata: Record<string, ConfigMetadata>) => {
+    const beforeSize = metadataStore.size
     for (const [key, value] of Object.entries(metadata)) {
         metadataStore.set(key, value)
     }
     scheduleVersionBump()
+    logLegacyMetadataDebug(
+        "batch-update",
+        {
+            updates: Object.keys(metadata).length,
+            sizeBefore: beforeSize,
+            sizeAfter: metadataStore.size,
+        },
+        `batch-update:${beforeSize}:${metadataStore.size}:${Object.keys(metadata).length}`,
+    )
 }
 
 /**
@@ -218,13 +242,31 @@ export const getMetadataLazy = <T extends ConfigMetadata>(hash?: string | T): T 
     if (typeof hash !== "string") {
         return hash as T
     }
-    return (metadataStore.get(hash) as T) || null
+
+    const result = (metadataStore.get(hash) as T) || null
+    logLegacyMetadataDebug(
+        "lookup",
+        {
+            hash,
+            hit: Boolean(result),
+            size: metadataStore.size,
+        },
+        `lookup:${hash}`,
+    )
+    return result
 }
 
 /**
  * Get all metadata as a Record (synchronous, for use anywhere).
  */
 export const getAllMetadata = (): Record<string, ConfigMetadata> => {
+    logLegacyMetadataDebug(
+        "snapshot",
+        {
+            size: metadataStore.size,
+        },
+        "snapshot-size",
+    )
     return Object.fromEntries(metadataStore)
 }
 
@@ -490,8 +532,21 @@ export function hashMetadata(schema: EntitySchemaProperty, key: string): string 
 
         const weakHash = stableHash(metadata)
         const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
+        const existed = metadataStore.has(hash)
         metadataStore.set(hash, metadata)
         scheduleVersionBump()
+        logLegacyMetadataDebug(
+            "hash-store",
+            {
+                hash,
+                key,
+                metadataType: metadata.type,
+                source: "const-discriminated-anyof",
+                existed,
+                size: metadataStore.size,
+            },
+            `hash-store:${hash}`,
+        )
 
         return hash
     }
@@ -521,8 +576,21 @@ export function hashMetadata(schema: EntitySchemaProperty, key: string): string 
 
         const weakHash = stableHash(metadata)
         const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
+        const existed = metadataStore.has(hash)
         metadataStore.set(hash, metadata)
         scheduleVersionBump()
+        logLegacyMetadataDebug(
+            "hash-store",
+            {
+                hash,
+                key,
+                metadataType: metadata.type,
+                source: "array",
+                existed,
+                size: metadataStore.size,
+            },
+            `hash-store:${hash}`,
+        )
 
         return hash
     }
@@ -555,8 +623,21 @@ export function hashMetadata(schema: EntitySchemaProperty, key: string): string 
 
         const weakHash = stableHash(metadata)
         const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
+        const existed = metadataStore.has(hash)
         metadataStore.set(hash, metadata)
         scheduleVersionBump()
+        logLegacyMetadataDebug(
+            "hash-store",
+            {
+                hash,
+                key,
+                metadataType: metadata.type,
+                source: "object",
+                existed,
+                size: metadataStore.size,
+            },
+            `hash-store:${hash}`,
+        )
 
         return hash
     }
@@ -598,8 +679,21 @@ export function hashMetadata(schema: EntitySchemaProperty, key: string): string 
 
     const weakHash = stableHash(metadata)
     const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
+    const existed = metadataStore.has(hash)
     metadataStore.set(hash, metadata)
     scheduleVersionBump()
+    logLegacyMetadataDebug(
+        "hash-store",
+        {
+            hash,
+            key,
+            metadataType: metadata.type,
+            source: "primitive",
+            existed,
+            size: metadataStore.size,
+        },
+        `hash-store:${hash}`,
+    )
 
     return hash
 }
@@ -618,3 +712,38 @@ function hashMetadataToObject(schema: EntitySchemaProperty, key: string): Config
  * Alias for hashMetadata for compatibility.
  */
 export const hashAndStoreMetadata = hashMetadata
+
+/**
+ * Hash an already-created ConfigMetadata object and store it.
+ * Returns the hash string for use as __metadata.
+ *
+ * Unlike hashMetadata (which takes a raw schema and converts it),
+ * this function takes a ConfigMetadata that was already built.
+ * If given a string, returns it as-is (already hashed).
+ */
+export function hashConfigMetadata(metadata: ConfigMetadata | string): string {
+    if (typeof metadata === "string") return metadata
+    const weakHash = stableHash(metadata)
+    const hash = crypto.createHash("MD5").update(weakHash).digest("hex")
+    const existed = metadataStore.has(hash)
+    metadataStore.set(hash, metadata)
+    scheduleVersionBump()
+    logLegacyMetadataDebug(
+        "hash-config-store",
+        {
+            hash,
+            metadataType: metadata.type,
+            existed,
+            size: metadataStore.size,
+        },
+        `hash-config-store:${hash}`,
+    )
+    return hash
+}
+
+/**
+ * Type guard to check if metadata is ObjectMetadata.
+ */
+export function isObjectMetadata(metadata: ConfigMetadata): metadata is ObjectMetadata {
+    return metadata?.type === "object"
+}

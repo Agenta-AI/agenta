@@ -194,6 +194,9 @@ export function applyLegacyAppRevisionDraftPatch(
     const serverData = store.get(legacyAppRevisionServerDataSelectorFamily(revisionId))
 
     if (!serverData) {
+        if (process.env.NODE_ENV !== "production") {
+            console.warn("[applyDraftPatch] no serverData for", revisionId)
+        }
         // Server data not available yet - cannot apply patch
         return false
     }

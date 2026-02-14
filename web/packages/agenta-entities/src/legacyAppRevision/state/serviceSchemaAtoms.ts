@@ -29,6 +29,7 @@ import {
     appsListAtom,
     appsQueryAtom,
     legacyAppRevisionEntityWithBridgeAtomFamily,
+    legacyAppRevisionQueryAtomFamily,
     revisionsQueryAtomFamily,
 } from "./store"
 
@@ -132,6 +133,7 @@ type ServiceTypeLookup =
 const resolvedAppIdForRevisionAtomFamily = atomFamily((revisionId: string) =>
     atom<{appId: string | undefined; isPending: boolean}>((get) => {
         const entity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        const queryState = get(legacyAppRevisionQueryAtomFamily(revisionId))
         if (entity?.appId) {
             return {appId: entity.appId, isPending: false}
         }
@@ -154,8 +156,15 @@ const resolvedAppIdForRevisionAtomFamily = atomFamily((revisionId: string) =>
             }
         }
 
-        // No entity at all — still pending; entity exists but no variantId — unknown
-        return {appId: undefined, isPending: !entity}
+        // No entity at all:
+        // - query pending => still loading
+        // - query resolved empty/error => not pending (unknown appId)
+        // Entity exists but no variantId => not pending (unknown appId)
+        if (!entity) {
+            return {appId: undefined, isPending: queryState.isPending}
+        }
+
+        return {appId: undefined, isPending: false}
     }),
 )
 

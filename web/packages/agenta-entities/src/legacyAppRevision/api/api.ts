@@ -226,8 +226,8 @@ export async function fetchOssRevision(
 /**
  * Fetch a single revision by its ID
  *
- * Uses: POST /variants/revisions/query/
- * Also fetches variant detail to get URI for schema fetching.
+ * Uses: POST /preview/applications/revisions/query (preferred, returns variant_id + uri)
+ * Falls back to: POST /variants/revisions/query/ (legacy, variant_id may be null)
  *
  * @param revisionId - The revision ID (UUID)
  * @param projectId - The project ID
@@ -239,6 +239,49 @@ export async function fetchOssRevisionById(
 ): Promise<LegacyAppRevisionData | null> {
     if (!revisionId || !projectId) return null
 
+    // Try preview endpoint first — returns variant_id, application_id, uri
+    try {
+        const previewResponse = await axios.post(
+            `${getAgentaApiUrl()}/preview/applications/revisions/query`,
+            {
+                application_revision_refs: [{id: revisionId}],
+            },
+            {params: {project_id: projectId}},
+        )
+
+        const previewRevisions = previewResponse.data?.application_revisions
+        if (Array.isArray(previewRevisions) && previewRevisions.length > 0) {
+            const rev = previewRevisions[0]
+            const parameters = rev.data?.parameters ?? rev.config?.parameters ?? {}
+            const revisionParameters = extractRevisionParameters(parameters)
+            const uri = rev.data?.uri ?? rev.data?.url
+            const uriInfo = parseRevisionUri(uri)
+
+            return {
+                id: rev.id,
+                variantId: rev.variant_id ?? rev.application_variant_id ?? undefined,
+                appId: rev.application_id ?? rev.artifact_id ?? undefined,
+                revision: Number(rev.version) || 1,
+                variantName: rev.name,
+                configName: rev.name,
+                parameters: revisionParameters,
+                modifiedBy: rev.author,
+                commitMessage: rev.message,
+                createdAt: rev.created_at,
+                uri,
+                runtimePrefix: uriInfo?.runtimePrefix,
+                routePath: uriInfo?.routePath,
+            }
+        }
+    } catch (previewError) {
+        // Preview endpoint not available — fall back to legacy
+        console.debug(
+            "[fetchOssRevisionById] Preview endpoint failed, falling back to legacy",
+            previewError,
+        )
+    }
+
+    // Fallback: legacy endpoint
     try {
         const response = await axios.post<RevisionsQueryResponse>(
             `${getAgentaApiUrl()}/variants/revisions/query/`,
@@ -261,18 +304,16 @@ export async function fetchOssRevisionById(
         if (variantId) {
             const variantDetail = await fetchVariantDetail(variantId, projectId)
             if (variantDetail) {
-                const result = transformApiRevision(apiRevision, {
+                return transformApiRevision(apiRevision, {
                     variantId,
                     appId: variantDetail.appId,
                     variantName: variantDetail.name,
                     appName: variantDetail.appName,
                     uri: variantDetail.uri,
                 })
-                return result
             }
         }
 
-        // Fallback: return with variantId from API response if available
         return transformApiRevision(apiRevision, {variantId: variantId || undefined})
     } catch (error) {
         console.error("[fetchOssRevisionById] Failed to fetch revision", {
@@ -493,6 +534,47 @@ export async function fetchOssRevisionEnriched(
 }
 
 // ============================================================================
+// LIGHTWEIGHT LATEST REVISION
+// ============================================================================
+
+/**
+ * Fetch the latest (most recently updated) server revision ID for an app.
+ *
+ * Uses the preview applications revisions query endpoint with windowing
+ * to return only the single most recent revision — **one API call** instead
+ * of fetching all variants and all their revisions.
+ *
+ * @param appId - The application ID
+ * @param projectId - The project ID
+ * @returns The latest revision ID, or null if none found
+ */
+export async function fetchLatestRevisionId(
+    appId: string,
+    projectId: string,
+): Promise<string | null> {
+    if (!appId || !projectId) return null
+
+    try {
+        const response = await axios.post(
+            `${getAgentaApiUrl()}/preview/applications/revisions/query`,
+            {
+                application_refs: [{id: appId}],
+                windowing: {limit: 1, order: "descending"},
+            },
+            {params: {project_id: projectId}},
+        )
+
+        const revisions = response.data?.application_revisions
+        if (!Array.isArray(revisions) || revisions.length === 0) return null
+
+        return revisions[0].id ?? null
+    } catch (error) {
+        console.error("[fetchLatestRevisionId] Failed:", error)
+        return null
+    }
+}
+
+// ============================================================================
 // LIST API FUNCTIONS
 // ============================================================================
 
@@ -577,7 +659,7 @@ export async function fetchRevisionsList(
         if (!data || !Array.isArray(data)) return []
 
         const context = variantDetail
-            ? {appId: variantDetail.appId, uri: variantDetail.uri}
+            ? {appId: variantDetail.appId, uri: variantDetail.uri, variantName: variantDetail.name}
             : undefined
 
         // Transform using shared utility
@@ -658,15 +740,187 @@ export async function fetchRevisionSchema(
 }
 
 // ============================================================================
+// RECURSIVE URI PROBING
+// ============================================================================
+
+/**
+ * Normalize a URI for probing: resolve relative paths, strip trailing slashes
+ * and trailing /openapi.json segments.
+ *
+ * Returns `null` when the URI is invalid or unresolvable.
+ */
+function normalizeUriForProbing(uri: string): string | null {
+    let normalized = uri
+
+    // Resolve relative URIs using window origin when available
+    if (typeof normalized === "string" && normalized.startsWith("/")) {
+        const origin = (globalThis as unknown as {location?: {origin?: string}})?.location?.origin
+        if (origin) {
+            normalized = `${origin}${normalized}`
+        }
+    }
+
+    // Trim trailing slashes
+    normalized = normalized.replace(/\/+$/, "")
+
+    // Strip trailing /openapi.json if present
+    if (normalized.endsWith("/openapi.json")) {
+        normalized = normalized.replace(/\/openapi\.json$/, "")
+    }
+
+    if (!normalized || typeof normalized !== "string") return null
+
+    // Guard: avoid fetching protocol-only strings like "http:" which produce invalid URLs
+    if (!normalized.includes("//")) return null
+
+    return normalized
+}
+
+/**
+ * Recursively probe a URI by stripping path segments until a given
+ * endpoint responds successfully. Used for custom workflows where
+ * the URI contains embedded route-path segments.
+ *
+ * Example: Given "https://host/my-app/v1" and endpoint "/openapi.json",
+ * tries: https://host/my-app/v1/openapi.json → 404
+ *        https://host/my-app/openapi.json → 404
+ *        https://host/openapi.json → 200 → returns {runtimePrefix: "https://host", routePath: "my-app/v1"}
+ *
+ * @param uri - The base URI to probe
+ * @param options - Optional endpoint, signal and projectId
+ * @returns Probe result with routePath and runtimePrefix, or null if not found
+ */
+export async function probeEndpointPath(
+    uri: string,
+    options?: {
+        endpoint?: string
+        signal?: AbortSignal
+        projectId?: string | null
+    },
+): Promise<{routePath: string; runtimePrefix: string; status?: boolean} | null> {
+    const endpoint = options?.endpoint ?? "/openapi.json"
+    const projectId = options?.projectId ?? undefined
+
+    const normalized = normalizeUriForProbing(uri)
+    if (!normalized) return null
+
+    const recurse = async (
+        current: string,
+        removedPaths: string,
+    ): Promise<{routePath: string; runtimePrefix: string; status?: boolean} | null> => {
+        try {
+            const url = `${current}${endpoint}`
+            const response = await axios.get(url, {
+                params: projectId ? {project_id: projectId} : undefined,
+                signal: options?.signal,
+                validateStatus: () => true, // Don't throw on non-2xx
+            })
+
+            if (response.status >= 200 && response.status < 300 && response.data) {
+                return {
+                    routePath: removedPaths,
+                    runtimePrefix: current,
+                    status: true,
+                }
+            }
+        } catch {
+            // Network error or abort — fall through to retry with shorter path
+        }
+
+        // Strip one path segment and retry
+        const parts = current.split("/")
+        const popped = parts.pop()
+
+        const newPath = parts.join("/")
+        // Guard against pathological recursion (protocol-only like "http:" or empty)
+        if (!newPath || newPath.endsWith(":") || newPath === "http:" || newPath === "https:") {
+            return null
+        }
+
+        return recurse(
+            newPath,
+            popped ? (removedPaths ? `${popped}/${removedPaths}` : popped) : removedPaths,
+        )
+    }
+
+    return recurse(normalized, "")
+}
+
+/**
+ * Fetch revision schema with recursive URI probing.
+ *
+ * Like fetchRevisionSchema, but when the initial URI doesn't respond,
+ * recursively strips path segments to discover the correct runtimePrefix
+ * and routePath. The schema is fetched and dereferenced from the
+ * discovered endpoint.
+ *
+ * @param uri - The base URI to probe and fetch schema from
+ * @param projectId - Optional project ID for auth
+ * @returns Schema result with runtimePrefix and routePath, or null
+ */
+export async function fetchRevisionSchemaWithProbe(
+    uri: string,
+    projectId?: string | null,
+): Promise<{schema: OpenAPISpec | null; runtimePrefix: string; routePath?: string} | null> {
+    const normalized = normalizeUriForProbing(uri)
+    if (!normalized) return null
+
+    const recurse = async (
+        current: string,
+        removed: string,
+    ): Promise<{schema: OpenAPISpec | null; runtimePrefix: string; routePath?: string} | null> => {
+        try {
+            const url = `${current}/openapi.json`
+            const response = await axios.get<OpenAPISpec>(url, {
+                params: projectId ? {project_id: projectId} : undefined,
+                validateStatus: () => true, // Don't throw on non-2xx
+            })
+
+            if (response.status >= 200 && response.status < 300 && response.data) {
+                const {schema: dereferencedSchema, errors} = await dereferenceSchema(response.data)
+
+                if (errors && errors.length > 0) {
+                    console.warn(
+                        "[fetchRevisionSchemaWithProbe] Schema dereference warnings:",
+                        errors,
+                    )
+                }
+
+                return {
+                    schema: dereferencedSchema,
+                    runtimePrefix: current,
+                    routePath: removed || undefined,
+                }
+            }
+        } catch {
+            // Network error — fall through to retry with shorter path
+        }
+
+        // Strip one path segment and retry
+        const parts = current.split("/")
+        const popped = parts.pop()
+
+        const newPath = parts.join("/")
+        if (!newPath || newPath.endsWith(":") || newPath === "http:" || newPath === "https:") {
+            return null
+        }
+
+        return recurse(newPath, popped ? (removed ? `${popped}/${removed}` : popped) : removed)
+    }
+
+    return recurse(normalized, "")
+}
+
+// ============================================================================
 // SCHEMA BUILDING
 // ============================================================================
 
-// Re-use schema building utilities from appRevision
+// Re-use pure schema building utilities from appRevision (no network deps)
 export {
     buildRevisionSchemaState,
     extractEndpointSchema,
     extractAllEndpointSchemas,
     constructEndpointPath,
-} from "../../appRevision/api/schema"
+} from "../../appRevision/api/schemaUtils"
 
 // Validation utilities imported from shared/utils/revisionUtils

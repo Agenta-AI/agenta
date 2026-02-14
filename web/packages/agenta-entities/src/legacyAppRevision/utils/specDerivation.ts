@@ -14,7 +14,9 @@
 
 import {generateId} from "@agenta/shared/utils"
 
+import type {OpenAPISpec} from "../../appRevision/api/schemaUtils"
 import type {EntitySchema, EntitySchemaProperty} from "../../shared"
+import {extractAllEndpointSchemas} from "../api"
 import {
     hashMetadata as hashAndStoreMetadata,
     updateMetadataAtom,
@@ -129,7 +131,7 @@ function hashAndStoreRawMetadata(metadata: Record<string, unknown>): string {
 
 /**
  * Static schema for tool configuration - used to generate metadata hash.
- * This matches the schema used when adding tools via addPromptToolMutationAtomFamily.
+ * This matches the schema used when adding tools
  */
 const TOOL_CONFIGURATION_SCHEMA = {
     type: "object",
@@ -723,4 +725,54 @@ export function preheatSchemaMetadata(agConfigSchema: EntitySchema | null): void
             }
         }
     })
+}
+
+// ============================================================================
+// OPENAPI SPEC CONVENIENCE WRAPPERS
+// ============================================================================
+
+/**
+ * Extract the ag_config parameters from a raw parameters object.
+ * Unwraps `ag_config` or `agConfig` wrapper if present.
+ */
+export function extractVariantParameters(
+    parameters: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+    if (!parameters) return {}
+    const agConfig = parameters.ag_config ?? parameters.agConfig
+    return agConfig && typeof agConfig === "object" && !Array.isArray(agConfig)
+        ? (agConfig as Record<string, unknown>)
+        : parameters
+}
+
+/**
+ * Derive enhanced prompts from an OpenAPI spec + raw parameters.
+ *
+ * Combines `extractAllEndpointSchemas` + `extractVariantParameters` + `deriveEnhancedPrompts`
+ * in a single call. This is the entity-native replacement for the OSS `derivePromptsFromSpec`.
+ */
+export function derivePromptsFromOpenApiSpec(
+    parameters: Record<string, unknown> | undefined,
+    openApiSpec: OpenAPISpec,
+    routePath?: string,
+): EnhancedPrompt[] {
+    const {primaryAgConfigSchema} = extractAllEndpointSchemas(openApiSpec, routePath)
+    const extracted = extractVariantParameters(parameters)
+    return deriveEnhancedPrompts(primaryAgConfigSchema, extracted)
+}
+
+/**
+ * Derive enhanced custom properties from an OpenAPI spec + raw parameters.
+ *
+ * Combines `extractAllEndpointSchemas` + `extractVariantParameters` + `deriveEnhancedCustomProperties`
+ * in a single call. This is the entity-native replacement for the OSS `deriveCustomPropertiesFromSpec`.
+ */
+export function deriveCustomPropertiesFromOpenApiSpec(
+    parameters: Record<string, unknown> | undefined,
+    openApiSpec: OpenAPISpec,
+    routePath?: string,
+): Record<string, EnhancedCustomProperty> {
+    const {primaryAgConfigSchema} = extractAllEndpointSchemas(openApiSpec, routePath)
+    const extracted = extractVariantParameters(parameters)
+    return deriveEnhancedCustomProperties(primaryAgConfigSchema, extracted)
 }

@@ -124,6 +124,9 @@ export {
     extractEndpointSchema,
     extractAllEndpointSchemas,
     constructEndpointPath,
+    // URI probing functions
+    probeEndpointPath,
+    fetchRevisionSchemaWithProbe,
     // Validation
     isValidUUID,
     // Types
@@ -209,6 +212,8 @@ export {
     LOCAL_DRAFTS_VARIANT_ID,
     variantsListWithDraftsAtomFamily,
     revisionsListWithDraftsAtomFamily,
+    appRevisionsWithDraftsAtomFamily,
+    latestServerRevisionIdAtomFamily,
     type VariantListItemWithDrafts,
     type RevisionListItemWithDrafts,
     // Mutations
@@ -223,12 +228,24 @@ export {
     setEnhancedCustomPropertiesAtom,
     mutateEnhancedCustomPropertiesAtom,
     updatePropertyAtom,
+    // Read utilities
+    findPropertyInObject,
+    findPropertyInArray,
+    findPropertyByIdAtomFamily,
+    // Template format
+    revisionTemplateFormatAtomFamily,
+    sanitizeTemplateFormat,
+    getTemplateFormatNode,
+    getTemplateFormatValue,
+    getTemplateFormatPropertyId,
+    DEFAULT_TEMPLATE_FORMAT,
+    type PromptTemplateFormat,
+    // Per-prompt variables
+    revisionPromptVariablesAtomFamily,
     // Override functions
     setAppsListAtom,
     setVariantsListAtomFamily,
     setRevisionsListAtomFamily,
-    // Cache reactivity
-    revisionCacheVersionAtom,
 } from "./state"
 
 // Re-export schema atoms
@@ -253,17 +270,84 @@ export {
     serviceSchemaMetadataWarmerAtom,
 } from "./state"
 
+// ============================================================================
+// TYPES - Enhanced Value Pattern & Schema Types
+// ============================================================================
+
+export type {
+    // Enhanced value pattern
+    Merge,
+    Common,
+    EnhancedConfigValue,
+    EnhancedArrayValue,
+    StartsWith__,
+    EnhancedObjectConfig,
+    Enhanced,
+    // Schema types
+    Base,
+    CompoundOption,
+    SchemaType,
+    BaseSchema,
+    BaseSchemaProperties,
+    WithEnum,
+    SchemaProperty,
+    ObjectSchema,
+    PrimitiveSchema,
+    ArraySchema,
+    AnyOfSchema,
+    ObjectWithConstSchema,
+    ConstDiscriminatedSchema,
+    PrimitiveSchemaType,
+    ExtractedSchema,
+    OpenAPISpecStrict,
+} from "./types"
+
 // Re-export spec derivation utilities (pure functions)
 export {
     deriveEnhancedPrompts,
     deriveEnhancedCustomProperties,
+    // OpenAPI spec convenience wrappers
+    extractVariantParameters,
+    derivePromptsFromOpenApiSpec,
+    deriveCustomPropertiesFromOpenApiSpec,
+    // Detection helpers
     isPromptLikeStructure,
     isPromptLikeSchema,
     isPromptProperty,
     enhanceToolsArray,
+    // Parameter conversion helpers
+    enhancedPromptsToParameters,
+    enhancedCustomPropertiesToParameters,
+    // Metadata helpers
+    extractObjectSchemaFromMetadata,
+    createObjectFromMetadata,
+    // Value extraction
+    extractValueByMetadata,
+    stripAgentaMetadataDeep,
+    stripEnhancedWrappers,
+    toSnakeCase,
+    // Input helpers
+    extractInputKeysFromSchema,
+    extractInputValues,
+    // Request body builder
+    transformToRequestBody,
+    toRequestBodyCompletion,
+    toRequestBodyChat,
+    // Request body types
+    type TransformVariantInput,
+    type TransformMessage,
+    type TransformToRequestBodyParams,
+    // Message from schema
+    createMessageFromSchema,
+    setMessageSchemaMetadataAccessor,
 } from "./utils"
 
-// Re-export metadata atoms
+/**
+ * Re-export metadata atoms.
+ *
+ * @deprecated Prefer using `legacyAppRevisionMolecule.metadata.*` for metadata
+ * access. These raw exports are kept for backward compatibility during migration.
+ */
 export {
     // Atoms
     metadataAtom,
@@ -274,6 +358,8 @@ export {
     getAllMetadata,
     hashMetadata,
     hashAndStoreMetadata,
+    hashConfigMetadata,
+    isObjectMetadata,
     // Types
     type ConfigMetadata,
     type BaseMetadata,
@@ -282,6 +368,9 @@ export {
     type BooleanMetadata,
     type ArrayMetadata,
     type ObjectMetadata,
+    type BaseOption,
+    type OptionGroup,
+    type SelectOptions,
 } from "./state/metadataAtoms"
 
 // Re-export runnable extension
@@ -307,6 +396,7 @@ export {
     clearCommitCallbacks,
     // Utilities
     newestRevisionForVariantAtomFamily,
+    waitForNewRevision,
     // Types
     type CommitRevisionParams,
     type CommitRevisionResult,
@@ -316,29 +406,72 @@ export {
 } from "./state"
 
 // ============================================================================
+// CREATE VARIANT
+// ============================================================================
+
+export {
+    createVariantAtom,
+    registerCreateVariantCallbacks,
+    clearCreateVariantCallbacks,
+    type CreateVariantParams,
+    type CreateVariantResult,
+    type CreateVariantError,
+    type CreateVariantOutcome,
+    type CreateVariantCallbacks,
+} from "./state"
+
+// ============================================================================
+// DELETE REVISION
+// ============================================================================
+
+export {
+    deleteRevisionAtom,
+    registerDeleteRevisionCallbacks,
+    clearDeleteRevisionCallbacks,
+    type DeleteRevisionParams,
+    type DeleteRevisionResult,
+    type DeleteRevisionError,
+    type DeleteRevisionOutcome,
+    type DeleteRevisionCallbacks,
+} from "./state"
+
+// ============================================================================
+// DEPLOY (LEGACY-COMPAT)
+// ============================================================================
+
+export {
+    publishMutationAtom,
+    type PublishPayload,
+    type PublishRevisionPayload,
+    type PublishVariantPayload,
+} from "./state"
+
+// ============================================================================
+// ENTITY QUERY INVALIDATION
+// ============================================================================
+
+export {invalidateEntityQueries} from "./state"
+
+// ============================================================================
 // LOCAL DRAFTS - Entity-level local draft management
 // ============================================================================
 
 export {
-    // Atoms
+    // Atom families (preferred — explicit app scoping)
+    localDraftIdsAtomFamily,
+    localDraftsListAtomFamily,
+    // Backward-compat global atoms (use families when appId is available)
     localDraftIdsAtom,
-    localDraftsListAtom,
-    hasLocalDraftsAtom,
     hasUnsavedLocalDraftsAtom,
-    // Write atoms
-    createLocalDraftAtom,
-    discardLocalDraftAtom,
-    discardAllLocalDraftsAtom,
+    // App-scoped latest revision
+    latestAppRevisionIdAtom,
     // Imperative functions
     createLocalDraftFromRevision,
-    discardLocalDraft,
-    discardAllLocalDrafts,
-    cleanupStaleLocalDrafts,
-    // App scoping setup
-    setCurrentAppIdAtom,
+    getSourceRevisionId,
+    // App ID registration (called from OSS bridge)
+    registerAppIdAtom,
     // Re-exports
     isLocalDraftId,
     extractSourceIdFromDraft,
-    // Types
-    type LocalDraftEntry,
+    isLocalDraftsGroupId,
 } from "./state"
