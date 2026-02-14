@@ -3,3 +3,4 @@
  */
 
 export {useDebounceInput} from "./useDebounceInput"
+export {default as useLazyEffect} from "./useLazyEffect"
