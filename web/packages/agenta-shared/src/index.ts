@@ -167,7 +167,9 @@ export type {
 export {MESSAGE_CONTENT_SCHEMA, CHAT_MESSAGE_SCHEMA, CHAT_MESSAGES_ARRAY_SCHEMA} from "./schemas"
 
 // Hooks
-export {useDebounceInput, useLazyEffect} from "./hooks"
+export {useDebounceInput, useLazyEffect, useSelectionState, useRunAllShortcut} from "./hooks"
+export type {UseSelectionStateResult} from "./hooks"
+export type {UseRunAllShortcutParams} from "./hooks"
 
 // Formatting utilities
 export {
@@ -196,6 +198,10 @@ export {isBase64, dataUriToObjectUrl, isUrl} from "./utils"
 
 // Value extraction utilities (strip enhanced wrappers / metadata)
 export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./utils"
+
+// Status inference utilities
+export {toFiniteNumber, getStatusLabel, getStatusColor, inferStatusFromSummary} from "./utils"
+export type {ExecutionStatus, ExecutionSummary} from "./utils"
 
 // Mapping utilities for input/output mappings
 export {

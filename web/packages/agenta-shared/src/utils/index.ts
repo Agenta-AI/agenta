@@ -131,6 +131,15 @@ export {isBase64, dataUriToObjectUrl, isUrl} from "./dataUri"
 // Value extraction utilities (strip enhanced wrappers / metadata)
 export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./valueExtraction"
 
+// Status inference utilities
+export {
+    toFiniteNumber,
+    getStatusLabel,
+    getStatusColor,
+    inferStatusFromSummary,
+} from "./statusInference"
+export type {ExecutionStatus, ExecutionSummary} from "./statusInference"
+
 // Mapping utilities for input/output mappings
 export {
     determineMappingStatus,
