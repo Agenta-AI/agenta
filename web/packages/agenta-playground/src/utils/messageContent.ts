@@ -10,14 +10,9 @@
  * a specific entity system.
  */
 
-import {generateId} from "@agenta/shared/utils"
+import {asRecord, generateId} from "@agenta/shared/utils"
 
 type AnyObj = Record<string, unknown>
-
-const asRecord = (value: unknown): AnyObj | null => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return null
-    return value as AnyObj
-}
 
 const getNodeType = (part: unknown): string | undefined => {
     const partRec = asRecord(part)

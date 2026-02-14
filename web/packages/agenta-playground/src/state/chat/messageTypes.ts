@@ -240,7 +240,6 @@ export type {SimpleChatMessage}
 
 /**
  * @deprecated Use `SimpleChatMessage` from `@agenta/shared/types` instead.
- * Kept as an alias for backward compatibility during migration.
  */
 export type ChatMessageNode = SimpleChatMessage
 

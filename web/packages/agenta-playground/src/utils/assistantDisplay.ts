@@ -7,6 +7,8 @@
  * non-React contexts.
  */
 
+import {asRecord, safeStringify} from "@agenta/shared/utils"
+
 import {getTextContent} from "./messageContent"
 
 // ============================================================================
@@ -21,19 +23,6 @@ export interface ToolCallView {
 // ============================================================================
 // ASSISTANT DISPLAY VALUE
 // ============================================================================
-
-function safeStringify(value: unknown): string {
-    try {
-        return JSON.stringify(value, null, 2)
-    } catch {
-        return String(value ?? "")
-    }
-}
-
-const asRecord = (value: unknown): Record<string, unknown> | null => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return null
-    return value as Record<string, unknown>
-}
 
 function formatToolCall(toolCall: unknown): string {
     const toolCallRec = asRecord(toolCall)
