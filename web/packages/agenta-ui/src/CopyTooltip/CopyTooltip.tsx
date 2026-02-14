@@ -1,7 +1,7 @@
 import {cloneElement, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {MouseEvent} from "react"
 
-import {CheckCircleFilled} from "@ant-design/icons"
+import {CheckCircle} from "@phosphor-icons/react"
 import {Tooltip} from "antd"
 import clsx from "clsx"
 
@@ -41,7 +41,7 @@ const CopyTooltip = ({
 
     const tooltipDisplay = isCopied ? (
         <div className="flex items-center gap-1">
-            <CheckCircleFilled style={{color: "green"}} />
+            <CheckCircle size={14} weight="fill" color="green" />
             <span>Copied to clipboard</span>
         </div>
     ) : (
