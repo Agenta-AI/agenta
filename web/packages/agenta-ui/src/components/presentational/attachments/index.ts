@@ -19,3 +19,5 @@ export {
     default as AttachmentGridDefault,
     type AttachmentGridProps,
 } from "./AttachmentGrid"
+export {default as ImagePreview, type ImagePreviewProps} from "./ImagePreview"
+export {default as ImageWithFallback, type ImageWithFallbackProps} from "./ImageWithFallback"

@@ -69,3 +69,4 @@ export {
 export {DropdownButton, type DropdownButtonProps, type DropdownButtonOption} from "./DropdownButton"
 
 export {DraftTag, type DraftTagProps} from "./DraftTag"
+export {HeightCollapse, type HeightCollapseProps} from "./HeightCollapse"
