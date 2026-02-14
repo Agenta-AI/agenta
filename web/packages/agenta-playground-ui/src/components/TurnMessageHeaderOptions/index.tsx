@@ -191,15 +191,17 @@ const TurnMessageHeaderOptions = ({
         >
             {repetitionProps && renderRepetitionNav && renderRepetitionNav(repetitionProps)}
 
-            <Tooltip title="Expand results">
-                <Button
-                    icon={<ArrowsOutLineHorizontal size={12} />}
-                    size="small"
-                    type="text"
-                    className="!w-5 !h-5"
-                    onClick={onViewAllRepeats}
-                />
-            </Tooltip>
+            {onViewAllRepeats && (
+                <Tooltip title="Expand results">
+                    <Button
+                        icon={<ArrowsOutLineHorizontal size={12} />}
+                        size="small"
+                        type="text"
+                        onClick={onViewAllRepeats}
+                        disabled={!resultHashes || resultHashes.length === 0}
+                    />
+                </Tooltip>
+            )}
 
             {onRerun ? (
                 <Tooltip title="Re-run">
