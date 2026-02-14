@@ -24,8 +24,10 @@
 import type {ReactNode} from "react"
 
 import {DrillInUIProvider} from "@agenta/entity-ui/drill-in"
+import {EditorProvider} from "@agenta/ui/editor"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 
-import SelectLLMProvider from "@/oss/components/SelectLLMProvider"
+import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
 
 interface OSSdrillInUIProviderProps {
     children: ReactNode
@@ -34,17 +36,22 @@ interface OSSdrillInUIProviderProps {
 /**
  * OSS-specific UI provider for DrillInView components.
  *
- * Injects only the truly app-specific components:
- * - SelectLLMProvider: Model selection dropdown with vault/secrets integration
+ * Injects:
+ * - llmProviderConfig: vault secrets as extra option groups + "Add provider" footer
+ * - EditorProvider / SharedEditor: rich text editor components
  *
- * All other UI components (Editor, ChatMessage, FieldHeader, etc.) are imported
+ * All other UI components (ChatMessage, FieldHeader, etc.) are imported
  * directly from @agenta/ui in the entities package.
  */
 export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
+    const llmProviderConfig = useLLMProviderConfig()
+
     return (
         <DrillInUIProvider
             components={{
-                SelectLLMProvider,
+                llmProviderConfig,
+                EditorProvider,
+                SharedEditor,
             }}
         >
             {children}

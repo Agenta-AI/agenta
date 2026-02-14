@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {SharedEditor} from "@agenta/ui/shared-editor"
+
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import {DrillInProvider} from "@/oss/components/Editor/plugins/code/context/DrillInContext"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 
 interface JsonEditorWithLocalStateProps {
     initialValue: string

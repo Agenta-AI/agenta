@@ -1,14 +1,15 @@
 import React, {useEffect, useMemo, useState} from "react"
 
+import {SelectLLMProviderBase, type ProviderGroup} from "@agenta/ui/select-llm-provider"
+import {capitalize} from "@agenta/ui/select-llm-provider"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
 import {Button, Form, Input, Typography} from "antd"
 import {useWatch} from "antd/lib/form/Form"
 
-import SelectLLMProvider from "@/oss/components/SelectLLMProvider"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-import {PROVIDER_KINDS, SecretDTOProvider} from "@/oss/lib/Types"
+import {PROVIDER_KINDS, PROVIDER_LABELS, SecretDTOProvider} from "@/oss/lib/Types"
 
 import LabelInput from "../../../assets/LabelInput"
 
@@ -113,6 +114,18 @@ const ConfigureProviderDrawerContent = ({
         [standardProviders],
     )
 
+    // Build provider options for SelectLLMProviderBase
+    const providerOptions = useMemo<ProviderGroup[]>(() => {
+        const allProviders = [...new Set([...standardProviders, ...customProviders])]
+        return allProviders.map((key) => {
+            const label = PROVIDER_LABELS[key] ?? capitalize(key)
+            return {
+                label,
+                options: [{label, value: key, key}],
+            }
+        })
+    }, [standardProviders, customProviders])
+
     const providerValue = useWatch("provider", form) || ""
     const normalizedProviderKind = useMemo(() => {
         if (!providerValue || typeof providerValue !== "string") {
@@ -190,7 +203,7 @@ const ConfigureProviderDrawerContent = ({
                         Provider<span aria-hidden> *</span>
                     </Text>
                     <Form.Item name="provider" className="mb-0" rules={[{required: true}]}>
-                        <SelectLLMProvider />
+                        <SelectLLMProviderBase options={providerOptions} />
                     </Form.Item>
                 </div>
 

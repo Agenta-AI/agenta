@@ -1,8 +1,10 @@
 import {memo, useCallback, useEffect, useState} from "react"
 
-import {ChatMessageList, SimpleChatMessage} from "@/oss/components/ChatMessageEditor"
+import type {SimpleChatMessage} from "@agenta/shared/types"
+import {ChatMessageList} from "@agenta/ui/chat-message"
+import {SharedEditor} from "@agenta/ui/shared-editor"
+
 import {EditorProvider} from "@/oss/components/Editor/Editor"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 
 // JSON Editor wrapper that manages local state to prevent breaking on invalid JSON
 const JsonEditorWithLocalState = ({
