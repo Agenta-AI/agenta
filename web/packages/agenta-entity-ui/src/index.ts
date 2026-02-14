@@ -36,6 +36,8 @@
 
 // NOTE: Path utilities (getValueAtPath, parsePath, etc.) are available from @agenta/shared/utils
 
+export {SharedGenerationResultUtils, type SharedGenerationResultUtilsProps} from "./shared"
+
 // ============================================================================
 // DRILL-IN VIEW (Molecule-first API)
 // ============================================================================
@@ -168,6 +170,9 @@ export {
     PromptSchemaControl,
     isPromptSchema,
     isPromptValue,
+    ToolItemControl,
+    TOOL_PROVIDERS_META,
+    TOOL_SPECS,
     ObjectSchemaControl,
     CollapsibleObjectControl,
     SchemaPropertyRenderer,
@@ -195,6 +200,9 @@ export {
     type ResponseFormatValue,
     type ResponseFormatControlProps,
     type PromptSchemaControlProps,
+    type ToolItemControlProps,
+    type ToolObj,
+    type ToolFunction,
     type ObjectSchemaControlProps,
     type SchemaPropertyRendererProps,
 } from "./DrillInView"
@@ -264,6 +272,9 @@ export {
     type UseBoundCommitOptions,
     type UseBoundCommitReturn,
     type EntityCommitModalProps,
+    type CommitSubmitParams,
+    type CommitSubmitResult,
+    type CommitModeOption,
     // Commit modal state atoms
     commitModalOpenAtom,
     commitModalEntityAtom,
@@ -278,6 +289,8 @@ export {
     closeCommitModalAtom,
     resetCommitModalAtom,
     setCommitMessageAtom,
+    setCommitLoadingAtom,
+    setCommitErrorAtom,
     executeCommitAtom,
     // Save modal components
     EntitySaveModal,

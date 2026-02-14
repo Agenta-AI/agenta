@@ -26,10 +26,12 @@
 
 import {
     legacyAppRevisionMolecule,
+    fetchOssRevisionById,
     type LegacyAppRevisionData,
     type CommitRevisionParams,
 } from "@agenta/entities/legacyAppRevision"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
 import {
@@ -249,9 +251,17 @@ const variantCommitAtom = atom(null, async (get, set, params: CommitParams): Pro
         throw new Error(`Entity not found: ${id}`)
     }
 
-    // Extract variantId - required for the API call
-    // The variantId should be present in entity data via revision list enrichment
-    const variantId = data.variantId
+    // Extract variantId - required for the API call.
+    // Bridge data from playground sync may lack variantId. If missing,
+    // fetch it directly from the API as a fallback.
+    let variantId = data.variantId
+    if (!variantId) {
+        const projectId = get(projectIdAtom)
+        if (projectId) {
+            const fetched = await fetchOssRevisionById(id, projectId)
+            variantId = fetched?.variantId
+        }
+    }
     if (!variantId) {
         throw new Error(`No variantId found for entity: ${id}`)
     }

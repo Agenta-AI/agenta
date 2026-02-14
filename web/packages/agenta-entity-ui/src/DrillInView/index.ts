@@ -230,6 +230,11 @@ export {
     PromptSchemaControl,
     isPromptSchema,
     isPromptValue,
+    // Tool controls
+    ToolItemControl,
+    ToolSelectorPopover,
+    TOOL_PROVIDERS_META,
+    TOOL_SPECS,
     // Composite controls
     ObjectSchemaControl,
     CollapsibleObjectControl,
@@ -260,6 +265,10 @@ export type {
     ResponseFormatValue,
     ResponseFormatControlProps,
     PromptSchemaControlProps,
+    ToolItemControlProps,
+    ToolSelectorPopoverProps,
+    ToolObj,
+    ToolFunction,
     ObjectSchemaControlProps,
     SchemaPropertyRendererProps,
 } from "./SchemaControls"

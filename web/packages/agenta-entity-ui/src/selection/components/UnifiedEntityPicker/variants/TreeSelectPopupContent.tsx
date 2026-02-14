@@ -144,8 +144,8 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
             {/* Custom header */}
             {popupHeader}
 
-            {/* Loading state */}
-            {(isLoadingParents || isLoadingChildren) && (
+            {/* Loading state — only shown when no tree data is available yet */}
+            {(isLoadingParents || isLoadingChildren) && treeData.length === 0 && (
                 <div className="flex items-center justify-center py-4">
                     <Spin size="small" />
                     <span className="ml-2 text-sm text-gray-500">{displayLoadingMessage}</span>
