@@ -69,14 +69,21 @@ export function getStatusLabel(status?: string): ExecutionStatus | null {
     return null
 }
 
+export type StatusSeverity = "success" | "error" | "default"
+
 /**
- * Map an execution status to an Ant Design-compatible color string.
+ * Map an execution status to a semantic severity level.
  */
-export function getStatusColor(status: ExecutionStatus): "success" | "error" | "default" {
+export function getStatusSeverity(status: ExecutionStatus): StatusSeverity {
     if (status === "Success") return "success"
     if (status === "Error") return "error"
     return "default"
 }
+
+/**
+ * @deprecated Use `getStatusSeverity` instead. This alias exists for backwards compatibility.
+ */
+export const getStatusColor = getStatusSeverity
 
 // ============================================================================
 // STATUS INFERENCE

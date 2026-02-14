@@ -200,8 +200,14 @@ export {isBase64, dataUriToObjectUrl, isUrl} from "./utils"
 export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./utils"
 
 // Status inference utilities
-export {toFiniteNumber, getStatusLabel, getStatusColor, inferStatusFromSummary} from "./utils"
-export type {ExecutionStatus, ExecutionSummary} from "./utils"
+export {
+    toFiniteNumber,
+    getStatusLabel,
+    getStatusColor,
+    getStatusSeverity,
+    inferStatusFromSummary,
+} from "./utils"
+export type {ExecutionStatus, ExecutionSummary, StatusSeverity} from "./utils"
 
 // Mapping utilities for input/output mappings
 export {

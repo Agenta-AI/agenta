@@ -136,9 +136,10 @@ export {
     toFiniteNumber,
     getStatusLabel,
     getStatusColor,
+    getStatusSeverity,
     inferStatusFromSummary,
 } from "./statusInference"
-export type {ExecutionStatus, ExecutionSummary} from "./statusInference"
+export type {ExecutionStatus, ExecutionSummary, StatusSeverity} from "./statusInference"
 
 // Mapping utilities for input/output mappings
 export {
