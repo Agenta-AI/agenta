@@ -49,17 +49,17 @@ export function getMappingStatus(
     const status = determineMappingStatus(mapping, isRequired)
     const config = getMappingStatusConfig(status)
 
-    // Map shared color to component color type
-    const colorMap: Record<string, MappingStatusInfo["color"]> = {
-        blue: "blue",
-        green: "green",
-        red: "red",
-        orange: "orange",
-        gray: "default",
+    // Map severity to component color type
+    const severityColorMap: Record<string, MappingStatusInfo["color"]> = {
+        info: "blue",
+        success: "green",
+        error: "red",
+        warning: "orange",
+        default: "default",
     }
 
     return {
-        color: colorMap[config.color] || "default",
+        color: severityColorMap[config.severity] || "default",
         label: config.label,
         icon: getStatusIcon(status, 12),
     }
