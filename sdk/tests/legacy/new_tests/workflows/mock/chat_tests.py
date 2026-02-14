@@ -1,6 +1,6 @@
 import pytest
 
-from tests.legacy.conftest import *
+from tests.legacy.conftest import *  # noqa: F403
 
 
 class TestMockChat:
@@ -15,7 +15,7 @@ class TestMockChat:
         # Set valid LLM keys (only when authentication is required)
         mock_response = get_mock_response
         if not mock_response:
-            await set_valid_llm_keys(client=http_client, headers=headers)
+            await set_valid_llm_keys(client=http_client, headers=headers)  # noqa: F405
 
         return {
             "app_variant_response": app_variant_response,
@@ -122,7 +122,7 @@ class TestMockChat:
             json={"input": {"messages": "What is the capital of France?"}},
             headers=headers,
         )
-        response_data = response.json()
+        response_data = response.json()  # noqa: F841
 
         # ASSERT
         assert response.status_code == 422

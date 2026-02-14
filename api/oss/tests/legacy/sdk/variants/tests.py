@@ -4,7 +4,7 @@ import pytest
 import agenta as ag
 from agenta.client.core.api_error import ApiError
 
-from tests.legacy.conftest import *
+from tests.legacy.conftest import *  # noqa: F403
 
 
 class TestVariantManagerCoverage:
@@ -43,7 +43,7 @@ class TestVariantManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
         new_variant_slug = f"{variant_slug}_{uuid.uuid4().hex[:4]}"
 
         # ACT
@@ -74,14 +74,14 @@ class TestVariantManagerCoverage:
             .get("variant", {})
             .get("variant_id", None)
         )
-        variant_revision = await fetch_variant_revision(
+        variant_revision = await fetch_variant_revision(  # noqa: F405
             http_client, headers, variant_id
         )
         scope_credentials = setup_class_fixture["app_variant_response"].get(
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         with pytest.raises(TypeError):
@@ -107,7 +107,7 @@ class TestVariantManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         with pytest.raises(ApiError) as exc_info:
@@ -189,7 +189,7 @@ class TestVariantManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         response = await ag.VariantManager.acommit(
@@ -219,14 +219,14 @@ class TestVariantManagerCoverage:
             .get("variant", {})
             .get("variant_id", None)
         )
-        variant_revision = await fetch_variant_revision(
+        variant_revision = await fetch_variant_revision(  # noqa: F405
             http_client, headers, variant_id
         )
         scope_credentials = setup_class_fixture["app_variant_response"].get(
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         with pytest.raises(TypeError):
@@ -252,7 +252,7 @@ class TestVariantManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         with pytest.raises(ApiError) as exc_info:
@@ -320,7 +320,7 @@ class TestVariantManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         response = await ag.VariantManager.alist(
@@ -344,7 +344,7 @@ class TestVariantManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         with pytest.raises(TypeError):
@@ -408,7 +408,7 @@ class TestVariantManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         response = await ag.VariantManager.adelete(
@@ -431,7 +431,7 @@ class TestVariantManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         response = await ag.VariantManager.adelete(variant_slug=str(uuid.uuid4().hex))
@@ -451,7 +451,7 @@ class TestVariantManagerCoverage:
             "credentials", ""
         )
         scope_api_key = scope_credentials.strip("ApiKey ")
-        initialize_agenta(api_key=scope_api_key)
+        initialize_agenta(api_key=scope_api_key)  # noqa: F405
 
         # ACT
         with pytest.raises(TypeError):

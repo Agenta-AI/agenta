@@ -1,6 +1,9 @@
+import asyncio
+import random
 from typing import Protocol, Any, Optional, Iterable
 from os import environ
 from contextlib import contextmanager
+from urllib.parse import urlparse
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.lazy import _load_litellm
@@ -96,6 +99,95 @@ def _has_closed_http_client_error(exc: BaseException) -> bool:
     return False
 
 
+def _get_model_from_call(
+    *, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Optional[str]:
+    model = kwargs.get("model")
+    if isinstance(model, str):
+        return model
+
+    if args and isinstance(args[0], str):
+        return args[0]
+
+    return None
+
+
+def _is_azure_call(*, args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
+    model = _get_model_from_call(args=args, kwargs=kwargs)
+    if model and model.lower().startswith("azure/"):
+        return True
+
+    # Some Azure configs might be sent as openai-compatible with an Azure base URL.
+    for k in ("api_base", "base_url", "azure_endpoint"):
+        v = kwargs.get(k)
+        if isinstance(v, str):
+            parsed = urlparse(v)
+            host = parsed.hostname
+            if host:
+                host = host.lower()
+                if host == "openai.azure.com" or host.endswith(".openai.azure.com"):
+                    return True
+
+    return False
+
+
+def _has_api_connection_error(exc: BaseException, *, litellm: Any) -> bool:
+    """True when a (LiteLLM/OpenAI) APIConnectionError is in the chain.
+
+    Azure sometimes loses the original RuntimeError in the exception chain,
+    so we also allow retrying on the mapped APIConnectionError for Azure calls.
+    """
+
+    litellm_exceptions = getattr(litellm, "exceptions", None)
+    litellm_api_conn_error = getattr(litellm_exceptions, "APIConnectionError", None)
+
+    for e in _iter_exception_chain(exc):
+        if litellm_api_conn_error is not None and isinstance(e, litellm_api_conn_error):
+            return True
+
+        # Avoid importing openai just for type checks.
+        if (
+            e.__class__.__name__ == "APIConnectionError"
+            and e.__class__.__module__.startswith("openai")
+        ):
+            return True
+
+        # Fallback: LiteLLM sometimes wraps without preserving causes.
+        msg = str(e)
+        if "APIConnectionError" in msg and "Connection error" in msg:
+            return True
+
+    return False
+
+
+def _should_retry_litellm_call(
+    *,
+    attempt: int,
+    max_retries: int,
+    exc: BaseException,
+    litellm: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> tuple[bool, Optional[str]]:
+    """Centralized retry policy for litellm calls.
+
+    Returns:
+        (should_retry, reason)
+    """
+
+    if attempt >= max_retries - 1:
+        return False, None
+
+    is_azure = _is_azure_call(args=args, kwargs=kwargs)
+    if _has_closed_http_client_error(exc):
+        return True, "closed_http_client"
+
+    if is_azure and _has_api_connection_error(exc, litellm=litellm):
+        return True, "azure_api_connection_error"
+
+    return False, None
+
+
 def _flush_litellm_client_cache(litellm: Any) -> None:
     cache = getattr(litellm, "in_memory_llm_clients_cache", None)
     if cache is None:
@@ -133,16 +225,25 @@ async def acompletion(*args, **kwargs):
         try:
             return await litellm.acompletion(*args, **kwargs)
         except Exception as e:
-            should_retry = attempt < max_retries - 1 and _has_closed_http_client_error(
-                e
+            should_retry, reason = _should_retry_litellm_call(
+                attempt=attempt,
+                max_retries=max_retries,
+                exc=e,
+                litellm=litellm,
+                args=args,
+                kwargs=kwargs,
             )
             if not should_retry:
                 raise
 
             log.warning(
-                "LiteLLM http client was closed; flushing cache and retrying (attempt %d/%d)",
+                "LiteLLM request failed with a retriable error; flushing cache and retrying (attempt %d/%d, reason=%s)",
                 attempt + 1,
                 max_retries,
+                reason,
             )
             _flush_litellm_client_cache(litellm)
+            if reason == "azure_api_connection_error":
+                # Small jitter helps avoid immediate re-failure on transient Azure network issues.
+                await asyncio.sleep(random.uniform(0.09, 0.11))
             continue

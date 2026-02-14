@@ -1,0 +1,78 @@
+---
+id: create-domain-organizations-domains-post
+title: "Create Domain"
+description: "Create a new domain for verification."
+sidebar_label: "Create Domain"
+hide_title: true
+hide_table_of_contents: true
+api: eJztV8Fy2zYQ/RXMnhnJcXviqWqcJp60scdWOp2RNR6YWElISIAGFrYVDv+9swBpkZatZHzqob5YWuwuFm/fW0ANkFx7yBdw5tbS6O+StDUelhko9IXTNX+HHN45lIRCCoP3QtlKaiNW1ok7dHqlixg2uTJXZr7RXqBRtdWGhDaatCT0gjbYxw1jRO1sgd6Lm21+Zd5ORNxIm7WQvbvDwjp1ZY4n4gMadP1yMPo24Dgb2W9orswvE3GBFJxhz5PPl6KwZqXXwSUvbTy5UMSjpppRBI9OVMGTkEoJGaPm/8y73QXZtNFW2HuDzm90PYEMbI0p56mCHIoI0nWq+9oOEe2M/rq2niADh7cBPf1u1RbyBgprCA3xR1nXZXec6VfP4Dfgiw1Wkj/VjrckjZ6/GVlhjDHbsxXkiwZoWyPk4Mlps4Y2e7SYUJbQLjMgTSUbPnNs+6TPr0t1MkjBGeNROdk4xSAgebRt1rvYm69Y9MBoh4o52SUa7DRkaUqSiAlP+XqR8BWVVVhGphZPiTWBlgvYbUguYDT42hqfED4+OuJ/4+SXoWDOrkIpLjpnyF7bQ60OIXWqGFFfhvUhr0teb7P/KB9WZZwxDUilNBtleT6AgGHf50Gf648YzERhab+2onkMbrNOoupa0nN4rqyreAWUJHxDusJBJYlpSsyIE4VaDRK9VNOzKQ8V+iWl7TYZjpDrw0QZKkMwa36gLa2g41VHm3Hn+671uI+QG51+v8qDeh0I5qli08JAsiOlthn8eny8L8a/ZalVOvZ756x7vRIVktRl1CRh5fcdSluMVn+CidoQrtFBu9z1Qzont4PW/WlTgdzxyh8U+l/ovVxHnSaXl10jGGLOq20G2tQhUb4fLNHAiqCHQZo9/b1jLB/oh3xibFL5nd+ABbsWpQ69DMVJasFzm/UuH+fz872EiR8V0sbyRdxdsrWkDeQwHd3E0+4mZvqju0PnYweDKyGHDVHt8+m0KG1QE7lGQ3Ii9VTWOsrUYxGcpm0MmZ2ffsLtR5QKHeSL5dDhkjmWWDN2e0Ra1voTbnv15TALtLGuqxK4Y1xPiuLDMXsvdq+G9w+yqkvcvQJ2DBjrY2furuUdS0GblR2SYhYPLGbnp5ABQ5NSHE3eTo72Eo+cWXKyoEE5aZlnxQjZR0whA6yi3oBQVr/tFvi03MFKmkG+7gXaPR327qlHzf//VH3+qdrRjsU8rcv4/Op603RCWYwmuX+kTPw5sGFJ5Qtomhvp8Ysr25bNtwEdq2GZwZ10Wt4wjxY87Da9Lhr4htt+khh6E0cSu5ch6eDJhObpmSJmRYE1HfRdDlR/fnY5hwxuujc13yOQg5P3PKrkPeQQX+zpcHmTbA2U0qwDD9UcUk7++xdiYIte
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Domain"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/domains"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create a new domain for verification.
+
+This endpoint initiates the domain verification process by:
+1. Creating a domain record
+2. Generating a unique verification token
+3. Returning DNS configuration instructions
+
+The user must add a DNS TXT record to verify ownership.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"domain":{"type":"string","title":"Domain"}},"type":"object","required":["domain"],"title":"OrganizationDomainCreate","description":"Request model for creating a domain."}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"id":{"type":"string","title":"Id"},"slug":{"type":"string","title":"Slug"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"flags":{"additionalProperties":true,"type":"object","title":"Flags"},"token":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Token"},"created_at":{"type":"string","format":"date-time","title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"organization_id":{"type":"string","title":"Organization Id"}},"type":"object","required":["id","slug","name","description","flags","token","created_at","updated_at","organization_id"],"title":"OrganizationDomainResponse","description":"Response model for a domain."}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

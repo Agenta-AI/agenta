@@ -166,7 +166,7 @@ async def sso_callback_redirect(
     if not is_ee():
         raise HTTPException(
             status_code=404,
-            detail="SSO/OIDC is only available in Enterprise Edition",
+            detail="SSO/OIDC is only available in EE",
         )
 
     try:

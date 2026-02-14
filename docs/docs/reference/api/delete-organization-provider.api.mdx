@@ -1,0 +1,71 @@
+---
+id: delete-organization-provider
+title: "Delete Organization Provider"
+description: "Delete an SSO provider from an organization."
+sidebar_label: "Delete Organization Provider"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VVFr2zAQ/ivmnjYQcVb25KeFNdDQjoYm20sIRZUvsTrbUiU5NDP67+NkO7abtlAYe7Kt++5099195xpStMJI7aQqIYFLzNFhxMtotbqNtFEHmaKJdkYVdKjMnpfyDyf0BBgojSZ8LFJIIA3O90PQfRcCGGhueIEOjYVkU0PJC4QERmiZAgNJiWjuMmBg8KmSBlNInKmQgRUZFhySGtxRk7t1RpZ7YOCky+ngdhAvWqTgPTvd1SXzL+5ZdtyEO7YUwmpVWrTkdTGd0mNM7qoSAq3dVXl014KBgVClw9IRnGudSxFSjx8t+dR9Jt57z+DrxcV54F88l2lT8dwYZT4QlTjRaJxs8k7RcZnTm3RY2HNArsTIysvj7S70c0wUsd6eyNLhHg34rWfdGTeGHwds3qgmQfAMCrt/j/gfaC3fI5yCvQ0NZERrsnrqt64CIZ15EQ48A+GeB2HUwyMKNwjznbh8djRKZ5h+cDaBmyb9FrftY/Qtajr0NhWXTQteu6yDXK3Xy7OAzXwU6DLVizHIzmWQQDwUmo3rF7rzcScOG9cDnXhgYNEcOtVWJocEMue0TeJY5KpKJ3yPpeMTLmOuJZAWLIrKSHcMLrPl4hqPV8hpDSSb7RCwojlsJmsMO3WDa3mNxE+r4VnlMmXaxDsVZ42XD13eqWGTZyG5aLZcAAMqo5HMdPJlMgX2QkgjMEmIizAx3d3BDOwFC6f6gQEWQT/gkBffegNlppV1BS8H8dptO1pZy35hjnKre0l/dEu3TNIMxzrnMqgslFC307EZrWELDJLzvXwaEDIPV+mWQaasozB1/cAt/jS593T8VKGhIdgyOHAj+QO1ZFNDKi29p5DseG7xnVI/3bUC+xy9VUk3KCVNyYHnFX0Bg994fOX/QovpP14/5CkswKzTQd0iZkKgdgPfs31Ngjnp+nJ+M1/Pwfu/jtOoCg==
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Organization Provider"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/organizations/{organization_id}/providers/{provider_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete an SSO provider from an organization.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}},{"name":"provider_id","in":"path","required":true,"schema":{"type":"string","title":"Provider Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

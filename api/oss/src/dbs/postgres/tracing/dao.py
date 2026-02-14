@@ -39,7 +39,6 @@ from oss.src.dbs.postgres.tracing.mappings import (
     map_buckets,
 )
 from oss.src.dbs.postgres.tracing.utils import (
-    DEBUG_ARGS,
     TIMEOUT_STMT,
     #
     combine,

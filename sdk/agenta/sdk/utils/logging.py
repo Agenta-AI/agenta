@@ -169,8 +169,8 @@ class MultiLogger:
         self._loggers = loggers
 
     def _log(self, level: str, *args: Any, **kwargs: Any):
-        for l in self._loggers:
-            getattr(l, level)(*args, **kwargs)
+        for lgr in self._loggers:
+            getattr(lgr, level)(*args, **kwargs)
 
     def debug(self, *a, **k):
         self._log("debug", *a, **k)
@@ -197,7 +197,7 @@ class MultiLogger:
         self._log("trace", *a, **k)
 
     def bind(self, **kwargs):
-        return MultiLogger(*(l.bind(**kwargs) for l in self._loggers))
+        return MultiLogger(*(lgr.bind(**kwargs) for lgr in self._loggers))
 
 
 multi_logger = MultiLogger(*loggers)

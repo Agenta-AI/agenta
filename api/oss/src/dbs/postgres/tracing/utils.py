@@ -4,11 +4,11 @@ from datetime import datetime, timedelta, time, timezone
 from uuid import UUID
 from math import ceil, floor
 
-from sqlalchemy import case, cast, func, literal, literal_column, select, text
+from sqlalchemy import case, cast, literal, text
 from sqlalchemy import and_, or_, not_, Column, bindparam, Text
 from sqlalchemy import values, column, true
-from sqlalchemy import Integer, String, Float
-from sqlalchemy.sql import func, Select, ClauseElement, ColumnElement
+from sqlalchemy import Float
+from sqlalchemy.sql import func, Select, ClauseElement
 from sqlalchemy.types import Numeric, Boolean, Integer, String, BigInteger
 from sqlalchemy.future import select
 from sqlalchemy.sql.elements import ColumnElement
@@ -36,13 +36,6 @@ from oss.src.core.tracing.dtos import (
 from oss.src.core.tracing.dtos import (
     FilteringException,
     Fields,
-    Filtering,
-    Condition,
-    ComparisonOperator,
-    NumericOperator,
-    StringOperator,
-    ListOperator,
-    ExistenceOperator,
     Windowing,
     #
     MetricType,

@@ -9,7 +9,6 @@ Create Date: 2024-09-03 08:05:58.870573
 from typing import Sequence, Union
 
 from alembic import context
-import sqlalchemy as sa
 
 from ee.databases.postgres.migrations.core.data_migrations.workspaces import (
     create_default_project_for_workspaces,

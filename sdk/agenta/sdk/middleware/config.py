@@ -167,7 +167,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         body = {}
         try:
             body = await request.json()
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         application_id = (
@@ -208,7 +208,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         body = {}
         try:
             body = await request.json()
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         variant_id = (
@@ -258,7 +258,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         body = {}
         try:
             body = await request.json()
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=bare-except
             pass
 
         environment_id = (

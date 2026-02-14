@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import uuid
 import string
 import secrets
@@ -12,7 +11,6 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import joinedload
 
-from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import APIKeyDB, UserDB
 from oss.src.dbs.postgres.shared.engine import engine
@@ -209,7 +207,7 @@ async def use_api_key(key: str) -> Union[APIKeyDB, bool]:
             bearer_prefix.split(" ")[-1] if "Bearer" in bearer_prefix else bearer_prefix
         )
 
-    except ValueError as exc:
+    except ValueError:
         return False
 
     # Hash the raw API key
