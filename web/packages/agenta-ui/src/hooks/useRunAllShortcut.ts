@@ -1,24 +1,8 @@
-import {useEffect} from "react"
+/**
+ * useRunAllShortcut Hook
+ *
+ * Re-exported from @agenta/shared/hooks for backwards compatibility.
+ * Prefer importing from @agenta/shared/hooks directly.
+ */
 
-export interface UseRunAllShortcutParams {
-    isRunning: boolean
-    canRun?: boolean
-    onRun: () => void
-}
-
-export function useRunAllShortcut({isRunning, canRun = true, onRun}: UseRunAllShortcutParams) {
-    useEffect(() => {
-        const listener = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                e.preventDefault()
-                e.stopPropagation()
-                if (!isRunning && canRun) onRun()
-            }
-        }
-
-        document.addEventListener("keydown", listener, true)
-        return () => {
-            document.removeEventListener("keydown", listener, true)
-        }
-    }, [onRun, isRunning, canRun])
-}
+export {useRunAllShortcut, type UseRunAllShortcutParams} from "@agenta/shared/hooks"
