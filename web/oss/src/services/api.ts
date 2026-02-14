@@ -1,3 +1,4 @@
+import {probeEndpointPath} from "@agenta/entities/legacyAppRevision"
 import Session from "supertokens-auth-react/recipe/session"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -20,7 +21,7 @@ import {
 } from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
-import {findCustomWorkflowPath, uriFixer} from "../lib/shared/variant"
+import {uriFixer} from "../lib/shared/variant"
 import {constructPlaygroundTestUrl} from "../lib/shared/variant/stringUtils"
 
 //Prefix convention:
@@ -365,7 +366,7 @@ export const fetchAppContainerURL = async (
                 _ignoreError: true,
             } as any,
         )
-        const uriObject = await findCustomWorkflowPath(data.uri)
+        const uriObject = await probeEndpointPath(data.uri)
         if (uriObject) {
             return constructPlaygroundTestUrl(uriObject, "", true)
         } else {

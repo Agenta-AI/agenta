@@ -47,21 +47,26 @@ export enum ServiceType {
 export const createApp = async ({
     templateKey,
     appName,
+    folderId,
 }: {
     appName: string
     templateKey: ServiceType
+    folderId?: string | null
 }) => {
     const {selectedOrg} = getOrgValues()
     const {projectId} = getProjectValues()
     const url = new URL(`${getAgentaApiUrl()}/apps?project_id=${projectId}`)
+    const payload: Record<string, unknown> = {
+        app_name: appName,
+        template_key: templateKey,
+        organization_id: selectedOrg?.id,
+        workspace_id: selectedOrg?.default_workspace.id,
+    }
+    if (folderId !== undefined) payload.folder_id = folderId
+
     const response = await fetchJson(url, {
         method: "POST",
-        body: JSON.stringify({
-            app_name: appName,
-            template_key: templateKey,
-            organization_id: selectedOrg?.id,
-            workspace_id: selectedOrg?.default_workspace.id,
-        }),
+        body: JSON.stringify(payload),
     })
     return response
 }
@@ -182,7 +187,7 @@ export const updateAppFolder = async (
 
 export const createAndStartTemplate = async ({
     appName,
-    providerKey,
+    providerKey: _providerKey,
     templateKey,
     serviceUrl,
     folderId,
@@ -201,47 +206,70 @@ export const createAndStartTemplate = async ({
         appId?: string,
     ) => void
 }) => {
-    // Import the atom-based app creation system
-    const {getDefaultStore} = await import("jotai")
-    const {createAppMutationAtom} = await import("@/oss/components/Playground/state/atoms")
-    const store = getDefaultStore()
-
     try {
-        // Use the atom-based app creation system
-        const result = await store.set(createAppMutationAtom, {
+        onStatusChange?.("creating_app")
+
+        const app = await createApp({
             appName,
             templateKey,
-            serviceUrl,
-            providerKey,
             folderId,
-            isCustomWorkflow,
-            onStatusChange,
         })
 
+        onStatusChange?.("starting_app")
+
+        const variant = await (async () => {
+            if (templateKey === ServiceType.Custom && serviceUrl) {
+                return createVariant({
+                    appId: app.app_id,
+                    serviceUrl,
+                    isCustomWorkflow,
+                })
+            }
+            return createVariant({
+                appId: app.app_id,
+                templateKey,
+            })
+        })()
+
+        onStatusChange?.("success", undefined, app.app_id)
+
         const baseAppURL = (await waitForValidURL({requireApp: true}))?.baseAppURL
-        if (!result.success) {
-            // If the atom-based creation failed, propagate the error
-            onStatusChange?.("error", new Error(result.error || "App creation failed"))
-        } else if (result.appId && result.revisionId) {
+        const revisionId =
+            variant?.id ??
+            variant?.revision_id ??
+            variant?.revisionId ??
+            variant?.latest_revision_id ??
+            undefined
+
+        if (app?.app_id && revisionId) {
             await Router.push({
-                pathname: `${baseAppURL}/${result.appId}/playground`,
+                pathname: `${baseAppURL}/${app.app_id}/playground`,
                 query: {
-                    revisions: buildRevisionsQueryParam([result.revisionId]),
+                    revisions: buildRevisionsQueryParam([revisionId]),
                 },
             })
-        } else if (result.appId) {
-            // Navigate to the newly created app's playground using Next.js router
+        } else if (app?.app_id) {
             if (typeof window !== "undefined") {
                 try {
-                    await Router.push(`${baseAppURL}/${result.appId}/playground`)
+                    await Router.push(`${baseAppURL}/${app.app_id}/playground`)
                 } catch (navigationError) {
                     console.error("❌ [createAndStartTemplate] Navigation failed:", navigationError)
-                    // Don't fail the entire operation if navigation fails
                 }
             }
         }
-    } catch (error) {
-        // Fallback to original implementation if atom system fails
-        console.warn("Atom-based app creation failed, falling back to direct API:", error)
+    } catch (error: any) {
+        if (error?.status === 400 || error?.response?.status === 400) {
+            onStatusChange?.("bad_request", error)
+            return
+        }
+        if (error?.status === 403 || error?.response?.status === 403) {
+            onStatusChange?.("error", error)
+            return
+        }
+        if (error?.code === "ECONNABORTED" || /timeout/i.test(error?.message || "")) {
+            onStatusChange?.("timeout", error)
+            return
+        }
+        onStatusChange?.("error", error)
     }
 }

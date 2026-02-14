@@ -4,7 +4,7 @@ import type {StaticImageData} from "next/image"
 import type {AgentaNodeDTO} from "@/oss/services/observability/types"
 
 import type {EvaluationFlow, EvaluationType} from "./enums"
-import {VariantParameters} from "./shared/variant/transformer/types"
+import {VariantParameters} from "./shared/variant/types"
 
 // Type utility to convert snake_case object properties to camelCase
 export type SnakeToCamelCaseKeys<T> = T extends readonly any[]

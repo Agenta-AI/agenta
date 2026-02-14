@@ -1,6 +1,5 @@
+import {getDefaultNewMessage} from "@agenta/ui/chat-message"
 import {v4 as uuidv4} from "uuid"
-
-import {getDefaultNewMessage} from "@/oss/components/ChatInputs/ChatInputs"
 
 import {ChatRole, GenericObject, KeyValuePair} from "../Types"
 

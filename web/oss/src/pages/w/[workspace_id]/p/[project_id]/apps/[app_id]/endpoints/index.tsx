@@ -1,6 +1,10 @@
 // @ts-nocheck
-import {useEffect, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
+import {
+    variantsListAtomFamily,
+    variantsListQueryStateAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
 import {Alert, Collapse, CollapseProps, Empty, Radio, Tabs, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -18,7 +22,6 @@ import DynamicCodeBlock from "@/oss/components/DynamicCodeBlock/DynamicCodeBlock
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {
     Environment,
     GenericObject,
@@ -28,8 +31,7 @@ import {
     Variant,
 } from "@/oss/lib/Types"
 import {fetchAppContainerURL} from "@/oss/services/api"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
-import {currentAppAtom} from "@/oss/state/app"
+import {useEnvironments} from "@/oss/state/environment/hooks/useEnvironments"
 
 const DeploymentHistory: any = dynamic(
     () => import("@/oss/components/DeploymentHistory/DeploymentHistory"),
@@ -99,7 +101,6 @@ export default function VariantEndpoint() {
     const appId = router.query.app_id as string
     const [tab, setTab] = useQueryParam("tab", "overview")
     const isOss = !isDemo()
-    const currentApp = useAtomValue(currentAppAtom)
 
     // Load URL for the given environment
     const [uri, setURI] = useState<string | null>(null)
@@ -133,9 +134,10 @@ export default function VariantEndpoint() {
         loadURL(chosenEnvironment)
     }
 
-    const {data, isLoading, error} = useVariants(currentApp)
-
-    const variants = data?.variants
+    const variants = useAtomValue(useMemo(() => variantsListAtomFamily(appId || ""), [appId]))
+    const isLoading = useAtomValue(
+        useMemo(() => variantsListQueryStateAtomFamily(appId || ""), [appId]),
+    ).isPending
 
     // Set the variant to the variant deployed in the selected environment
     const [variant, setVariant] = useState<Variant | null>(null)
@@ -162,11 +164,6 @@ export default function VariantEndpoint() {
     }
     if (!variant) {
         return <Empty style={{margin: "50px 0"}} description={"No variants available"} />
-    }
-    if (error) {
-        return (
-            <ResultComponent status={"error"} title={error?.message || "Error loading variant"} />
-        )
     }
 
     const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")

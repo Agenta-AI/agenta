@@ -1,15 +1,11 @@
+import {fetchRevisionSchemaWithProbe} from "@agenta/entities/legacyAppRevision"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai/utils"
-import {atomWithQuery} from "jotai-tanstack-query"
-import {queryClientAtom} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {adaptRevisionToVariant} from "@/oss/lib/shared/variant"
-import {fetchOpenApiSchemaJson} from "@/oss/lib/shared/variant/transformer"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types/transformedVariant"
-import {
-    RevisionObject,
-    ParentVariantObject,
-} from "@/oss/lib/shared/variant/transformer/types/variant"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types/enhancedVariant"
+import {RevisionObject, ParentVariantObject} from "@/oss/lib/shared/variant/types/variantConfig"
 import {fetchVariantConfig, VariantConfigResponse} from "@/oss/services/variantConfigs/api"
 import {appsAtom} from "@/oss/state/app/selectors/app"
 
@@ -100,32 +96,12 @@ export const projectVariantSchemaQueryFamily = atomFamily((url: string | null) =
     atomWithQuery<{schema: any; runtimePrefix: string; routePath?: string} | null>((get) => {
         const enabled = Boolean(url)
 
-        const fetchRecursive = async (
-            current: string,
-            removed = "",
-        ): Promise<{schema: any; runtimePrefix: string; routePath?: string}> => {
-            const result = await fetchOpenApiSchemaJson(current)
-            if (result.schema) {
-                return {
-                    runtimePrefix: current,
-                    routePath: removed || undefined,
-                    schema: result.schema,
-                }
-            }
-            const parts = current.split("/")
-            const popped = parts.pop()!
-            if (parts.length === 0) {
-                throw new Error("openapi.json not found")
-            }
-            return fetchRecursive(parts.join("/"), removed ? `${popped}/${removed}` : popped)
-        }
-
         return {
             queryKey: ["projectVariantSchema", url ?? ""],
             queryFn: async () => {
                 if (!url) return null
                 try {
-                    return await fetchRecursive(url)
+                    return await fetchRevisionSchemaWithProbe(url)
                 } catch (error) {
                     console.warn("[projectVariantSchema] Failed to fetch schema for", url, error)
                     return null

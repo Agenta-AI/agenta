@@ -2,8 +2,11 @@ import {PropsWithChildren} from "react"
 
 import {appRevisionSelectionConfig} from "@agenta/entities/appRevision"
 import {testsetSelectionConfig} from "@agenta/entities/testset"
-// Register entity modal adapters (auto-registers on import)
-import "@agenta/entity-ui/adapters"
+import {
+    revisionModalAdapter,
+    testsetModalAdapter,
+    variantModalAdapter,
+} from "@agenta/entity-ui/adapters"
 import {initializeSelectionSystem} from "@agenta/entity-ui/selection"
 import {useQueryClient} from "@tanstack/react-query"
 import {Provider, getDefaultStore} from "jotai"
@@ -21,6 +24,11 @@ initializeSelectionSystem({
     testset: testsetSelectionConfig,
     appRevision: appRevisionSelectionConfig,
 })
+
+// Explicitly reference modal adapters so registration is not tree-shaken.
+void testsetModalAdapter
+void revisionModalAdapter
+void variantModalAdapter
 
 const HydrateAtoms = ({children}: PropsWithChildren) => {
     const queryClient = useQueryClient()
