@@ -158,6 +158,20 @@ export {legacyAppRevisionMolecule as legacyAppRevision} from "./legacyAppRevisio
  */
 export {traceSpanMolecule as traceSpan} from "./trace"
 
+/**
+ * Environment entity controller.
+ * Manages environment state with deployment and guard operations.
+ *
+ * Uses the new git-based SimpleEnvironment API (PR #3627).
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(environment.data(envId))
+ * const envBySlug = environment.get.bySlug('production')
+ * ```
+ */
+export {environmentMolecule as environment} from "./environment"
+
 // ============================================================================
 // BRIDGES (Unified Cross-Entity Access)
 // ============================================================================
@@ -198,6 +212,7 @@ export type {Revision, Testset} from "./testset"
 export type {AppRevisionData} from "./appRevision"
 export type {LegacyAppRevisionData} from "./legacyAppRevision"
 export type {TraceSpan} from "./trace"
+export type {Environment, EnvironmentRevision, EnvironmentRevisionData} from "./environment"
 
 // Public API interfaces
 export type {

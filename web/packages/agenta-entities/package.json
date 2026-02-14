@@ -2,7 +2,10 @@
     "name": "@agenta/entities",
     "version": "0.75.0",
     "private": true,
-    "sideEffects": false,
+    "sideEffects": [
+        "./src/legacyAppRevision/snapshotAdapter.ts",
+        "./src/appRevision/snapshotAdapter.ts"
+    ],
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "scripts": {
@@ -16,13 +19,17 @@
         "./shared/user": "./src/shared/user/index.ts",
         "./appRevision": "./src/appRevision/index.ts",
         "./appRevision/state": "./src/appRevision/state/index.ts",
+        "./appRevision/snapshotAdapter": "./src/appRevision/snapshotAdapter.ts",
         "./legacyAppRevision": "./src/legacyAppRevision/index.ts",
+        "./legacyAppRevision/metadata": "./src/legacyAppRevision/state/metadataAtoms.ts",
+        "./legacyAppRevision/snapshotAdapter": "./src/legacyAppRevision/snapshotAdapter.ts",
         "./evaluatorRevision": "./src/evaluatorRevision/index.ts",
         "./loadable": "./src/loadable/index.ts",
         "./runnable": "./src/runnable/index.ts",
         "./trace": "./src/trace/index.ts",
         "./testset": "./src/testset/index.ts",
-        "./testcase": "./src/testcase/index.ts"
+        "./testcase": "./src/testcase/index.ts",
+        "./environment": "./src/environment/index.ts"
     },
     "dependencies": {
         "@agenta/shared": "workspace:../agenta-shared",
