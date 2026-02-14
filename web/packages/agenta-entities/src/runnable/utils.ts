@@ -4,6 +4,8 @@
  * Chain execution and input mapping utilities for runnables.
  */
 
+import {getValueAtPath} from "@agenta/shared/utils"
+
 import type {
     RunnableType,
     RunnableData,
@@ -211,20 +213,6 @@ export function resolveInputsFromMappings(
     }
 
     return result
-}
-
-/**
- * Get value at a path in an object
- */
-function getValueAtPath(obj: unknown, path: string[]): unknown {
-    let current = obj
-    for (const key of path) {
-        if (current == null || typeof current !== "object") {
-            return undefined
-        }
-        current = (current as Record<string, unknown>)[key]
-    }
-    return current
 }
 
 // ============================================================================
