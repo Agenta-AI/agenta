@@ -1254,6 +1254,7 @@ const linkToRunnableAtom = atom(
             linkedRunnableId: runnableId,
         })
 
+        // Check columns after linking
         // Add initial empty row if needed (via testcaseMolecule)
         if (shouldAddRow) {
             set(addRowAtom, loadableId, {})
@@ -1462,6 +1463,21 @@ const extractMetricValue = (
 }
 
 /**
+ * Compute duration in milliseconds from span timestamps when explicit metrics are absent.
+ */
+const deriveDurationFromSpanTimes = (rootSpan: TraceSpan | null): number | undefined => {
+    if (!rootSpan?.start_time || !rootSpan?.end_time) return undefined
+
+    const start = new Date(rootSpan.start_time).getTime()
+    const end = new Date(rootSpan.end_time).getTime()
+
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return undefined
+    if (end < start) return undefined
+
+    return end - start
+}
+
+/**
  * Single source of truth for trace-derived data.
  * Provides both paths (for output mapping) and metrics (for result utils display).
  *
@@ -1508,15 +1524,17 @@ export const traceDataSummaryAtomFamily = atomFamily((traceId: string | null) =>
         }
 
         // Extract metrics
+        const durationFromMetrics = extractMetricValue(
+            agData,
+            rootSpan,
+            "metrics.duration.cumulative.total",
+            "metrics.acc.duration.total",
+            "metrics.unit.duration.total",
+            "ag.metrics.duration.cumulative.total",
+        )
+
         const metrics: TraceMetrics = {
-            durationMs: extractMetricValue(
-                agData,
-                rootSpan,
-                "metrics.duration.cumulative.total",
-                "metrics.acc.duration.total",
-                "metrics.unit.duration.total",
-                "ag.metrics.duration.cumulative.total",
-            ),
+            durationMs: durationFromMetrics ?? deriveDurationFromSpanTimes(rootSpan),
             totalTokens: extractMetricValue(
                 agData,
                 rootSpan,
@@ -2208,6 +2226,13 @@ export const testsetLoadable = {
                 return get(connectedRowsAtomFamily(loadableId))
             }),
 
+        /** Single row for a loadable by row ID */
+        row: (loadableId: string, rowId: string) =>
+            atom((get) => {
+                const rows = get(connectedRowsAtomFamily(loadableId))
+                return rows.find((row) => row.id === rowId) ?? null
+            }),
+
         /** Columns for a loadable - derives from linked runnable when linked */
         columns: (loadableId: string) => loadableColumnsFromRunnableAtomFamily(loadableId),
 
@@ -2444,6 +2469,9 @@ export const testsetLoadable = {
 const unifiedSelectors = {
     /** Rows for a loadable - dispatches to appropriate entity */
     rows: (loadableId: string) => testsetLoadable.selectors.rows(loadableId),
+
+    /** Single row for a loadable by row ID */
+    row: (loadableId: string, rowId: string) => testsetLoadable.selectors.row(loadableId, rowId),
 
     /** Columns for a loadable - derives from linked runnable */
     columns: (loadableId: string) => testsetLoadable.selectors.columns(loadableId),

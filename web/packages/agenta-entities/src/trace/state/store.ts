@@ -401,20 +401,11 @@ export const spanQueryAtomFamily = atomFamily((spanId: string) =>
         // Try to find in any cached trace data
         const cachedData = spanId ? findSpanInCache(queryClient, spanId) : undefined
 
-        console.log("[spanQueryAtomFamily] Query config:", {
-            spanId,
-            projectId,
-            hasCachedData: !!cachedData,
-            enabled: Boolean(projectId && spanId),
-        })
-
         return {
             queryKey: ["span", projectId, spanId],
             queryFn: async (): Promise<TraceSpan | null> => {
-                console.log("[spanQueryAtomFamily] Fetching span:", {spanId, projectId})
                 if (!projectId || !spanId) return null
                 const result = await spanBatchFetcher({projectId, spanId})
-                console.log("[spanQueryAtomFamily] Fetch result:", {spanId, hasResult: !!result})
                 // Throw if not found - triggers retry (span may not be ingested yet)
                 if (!result) {
                     throw new SpanNotFoundError(spanId)

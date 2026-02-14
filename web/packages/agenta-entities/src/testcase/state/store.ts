@@ -122,7 +122,7 @@ export const clearNewEntityIdsAtom = atom(null, (_get, set) => {
 const deletedEntityIdsBaseAtom = atom<Set<string>>(new Set<string>())
 export const deletedEntityIdsAtom = atom((get) => get(deletedEntityIdsBaseAtom))
 
-export const markDeletedAtom = atom(null, (get, set, id: string) => {
+export const markDeletedAtom = atom(null, (_get, set, id: string) => {
     set(deletedEntityIdsBaseAtom, (prev) => new Set([...prev, id]))
 })
 
