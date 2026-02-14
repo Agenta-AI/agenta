@@ -19,4 +19,5 @@ export {
     type CommitVariantChangesButtonProps,
     type SettingsPreset,
     type SaveModeConfig,
+    type SimpleSharedEditorProps,
 } from "./PlaygroundUIContext"

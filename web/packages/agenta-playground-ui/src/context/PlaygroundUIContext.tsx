@@ -8,7 +8,7 @@
  * @example
  * ```tsx
  * // In OSS app
- * import { PlaygroundUIProvider, PlaygroundContent } from "@agenta/playground"
+ * import { PlaygroundUIProvider } from "@agenta/playground-ui"
  * import { EntityDrillInView } from "@/oss/components/DrillInView"
  *
  * export function PlaygroundTest() {
@@ -58,29 +58,8 @@ export interface EntityDrillInViewProps {
  */
 export interface SharedGenerationResultUtilsProps {
     traceId?: string | null
-    tree?: {
-        nodes?: {
-            metrics?: {
-                acc?: {
-                    duration?: {total?: number}
-                    tokens?: {total?: number; prompt?: number; completion?: number}
-                    costs?: {total?: number}
-                }
-                unit?: {
-                    duration?: {total?: number}
-                    tokens?: {total?: number; prompt?: number; completion?: number}
-                    costs?: {total?: number}
-                }
-            }
-            status?: string
-        }[]
-        trace_id?: string
-    } | null
     showStatus?: boolean
     className?: string
-    showTraceButton?: boolean
-    hideMetrics?: boolean
-    onAddToTestset?: () => void
 }
 
 /**
@@ -110,13 +89,11 @@ export interface LoadTestsetModalProps extends ModalProps {
  * with OSS implementations that handle onClick internally.
  */
 export interface CommitVariantChangesButtonProps extends ButtonProps {
-    variantId: string
+    entityId: string
     label?: ReactNode
     icon?: boolean
     children?: ReactNode
-    onSuccess?: (props: {revisionId?: string; variantId?: string}) => void
-    /** Commit type - matches OSS implementation's "prompt" | "parameters" union */
-    commitType?: "prompt" | "parameters"
+    onSuccess?: (props: {revisionId?: string; entityId?: string}) => void
 }
 
 // SettingsPreset type is imported from @agenta/entities/runnable
@@ -140,6 +117,27 @@ export interface SaveModeConfig {
 }
 
 // ============================================================================
+// PROP TYPES FOR FOCUS DRAWER INJECTABLE COMPONENTS
+// ============================================================================
+
+/**
+ * Props for SimpleSharedEditor component
+ * Editor with header, minimize/expand, and format controls
+ */
+export interface SimpleSharedEditorProps {
+    value?: string
+    initialValue?: string
+    editorType?: string
+    headerName?: string | ReactNode
+    headerClassName?: string
+    isJSON?: boolean
+    isMinimizeVisible?: boolean
+    isFormatVisible?: boolean
+    defaultMinimized?: boolean
+    minimizedHeight?: number
+}
+
+// ============================================================================
 // CONTEXT DEFINITION
 // ============================================================================
 
@@ -160,6 +158,9 @@ export interface PlaygroundUIProviders {
 
     /** CommitVariantChangesButton for saving variants */
     CommitVariantChangesButton: ComponentType<CommitVariantChangesButtonProps>
+
+    /** SimpleSharedEditor for displaying editable content blocks */
+    SimpleSharedEditor?: ComponentType<SimpleSharedEditorProps>
 
     /**
      * Initialize save mode for the LoadTestsetModal.

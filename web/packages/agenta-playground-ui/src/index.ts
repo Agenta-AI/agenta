@@ -61,6 +61,7 @@ export {
     type CommitVariantChangesButtonProps,
     type SettingsPreset,
     type SaveModeConfig,
+    type SimpleSharedEditorProps,
 } from "./context"
 
 // ============================================================================
@@ -68,70 +69,24 @@ export {
 // ============================================================================
 
 export {
-    // Main orchestrator
-    PlaygroundContent,
-    // Main panels
-    ConfigPanel,
-    TestcasePanel,
-    RunnableColumnsLayout,
-    RunnableEntityPanel,
-    ConfigurationSection,
     EmptyState,
-    LoadEvaluatorPresetModal,
     // Entity selector
     EntitySelectorProvider,
     EntitySelector,
     EntitySelectorModal,
     useEntitySelector,
-    // Input mapping
-    InputMappingModalWrapper,
-    useMappingState,
-    getMappingStatus,
-    extractPathsFromValue,
-    buildAvailablePaths,
-    MappingLegend,
-    ObjectMappingRow,
-    PathSelector,
-    ScalarMappingRow,
-    TestRunPreview,
-    // Loadable panel
-    LoadableEntityPanel,
-    LoadableRowCard,
-    // Testset selection modal (entity-based)
-    TestsetSelectionModal,
-    useTestsetSelection,
-    TestcaseTable,
-    SelectionSummary,
-    // Execution metrics display
-    ExecutionMetrics,
-    // Types
-    type ConfigPanelProps,
-    type OutputReceiverInfo,
-    type ConfigurationSectionProps,
-    type RunnableEntityPanelProps,
-    type RunnableColumnsLayoutProps,
-    type RunnableNode,
-    type TestcasePanelProps,
-    type LoadableEntityPanelProps,
-    type LoadableRowCardProps,
-    type InputMappingModalProps,
-    type InputMappingModalWrapperProps,
-    type EntityInfo,
-    type PathInfo,
-    type MappingStatusInfo,
     type EntitySelectorConfig,
     type EntitySelection,
     type EntityType,
-    type LoadEvaluatorPresetModalProps,
-    // Testset selection modal types
-    type TestsetSelectionModalProps,
-    type TestsetSelectionMode,
-    type TestsetSelectionPayload,
-    type TestcaseTableProps,
-    type SelectionSummaryProps,
-    // Execution metrics types
-    type ExecutionMetricsProps,
-    type InlineTreeData,
+    // Tool call view
+    ToolCallView,
+    ToolCallViewHeader,
+    createToolCallPayloads,
+    // Chat controls
+    ControlsBar,
+    type ControlsBarProps,
+    // Focus drawer
+    PlaygroundFocusDrawer,
 } from "./components"
 
 // ============================================================================
@@ -139,16 +94,3 @@ export {
 // ============================================================================
 
 export type {ChainExecutionResult, ChainNodeInfo} from "./components/types"
-
-// ============================================================================
-// NOTE: State is NOT exported from this package
-// ============================================================================
-//
-// For state management, import from @agenta/playground:
-//
-//   import { playgroundController, outputConnectionController } from "@agenta/playground"
-//   import { useAtomValue, useSetAtom } from "jotai"
-//
-//   const nodes = useAtomValue(playgroundController.selectors.nodes())
-//   const dispatch = useSetAtom(playgroundController.actions.dispatch)
-//

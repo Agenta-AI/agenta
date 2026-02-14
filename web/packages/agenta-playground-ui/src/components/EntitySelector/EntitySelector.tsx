@@ -70,7 +70,7 @@ function AppRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection)
                 metadata: {
                     appId: selection.metadata.appId,
                     appName: selection.metadata.appName,
-                    variantId: selection.metadata.variantId,
+                    entityId: selection.metadata.variantId,
                     variantName: selection.metadata.variantName,
                 },
             })
@@ -317,8 +317,8 @@ export function EntitySelectorProvider({children}: {children: ReactNode}) {
 
     // Use controller actions - but don't use the return value for Promises
     // (Jotai's useSetAtom doesn't properly forward Promise return values)
-    const setModalOpen = useSetAtom(useMemo(() => entitySelectorController.selectors.isOpen(), []))
-    const setConfig = useSetAtom(useMemo(() => entitySelectorController.selectors.config(), []))
+    const setModalOpen = useSetAtom(entitySelectorController.actions.setOpen)
+    const setConfig = useSetAtom(entitySelectorController.actions.setConfig)
 
     const open = useCallback(
         (config: EntitySelectorConfig = {}): Promise<EntitySelection | null> => {
