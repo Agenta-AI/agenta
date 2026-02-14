@@ -1,6 +1,5 @@
 from sqlalchemy import (
     Column,
-    ForeignKey,
     UniqueConstraint,
     Index,
     Enum,

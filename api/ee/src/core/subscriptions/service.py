@@ -1,9 +1,7 @@
 from typing import Optional
-from json import loads
 from uuid import getnode
 from datetime import datetime, timezone, timedelta
 
-from os import environ
 
 import stripe
 
@@ -21,7 +19,6 @@ from ee.src.core.subscriptions.types import (
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
 from ee.src.core.entitlements.service import EntitlementsService
-from oss.src.utils.caching import invalidate_cache
 from ee.src.core.meters.service import MetersService
 
 log = get_module_logger(__name__)

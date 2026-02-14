@@ -1,7 +1,7 @@
 import pytest
 
-from tests.management.config.fixtures import *
-from tests.management.deployment.fixtures import *
+from tests.management.config.fixtures import *  # noqa: F403
+from tests.management.deployment.fixtures import *  # noqa: F403
 
 
 @pytest.mark.usefixtures("create_app_from_template")

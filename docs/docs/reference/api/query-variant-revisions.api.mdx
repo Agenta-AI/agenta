@@ -1,0 +1,80 @@
+---
+id: query-variant-revisions
+title: "Query Variant Revisions"
+description: "Query variant revisions by their IDs."
+sidebar_label: "Query Variant Revisions"
+hide_title: true
+hide_table_of_contents: true
+api: eJztV9ty2zYQ/RXMPtOW41taPlW2MxNPmsax3bzIGg1ELkUkIMAAS9uqRv/eWYCUKMmXjKeP9YtJcHGwl7MHqwWQnHlIR/BNOiUNeRgnkKPPnKpJWQMpfG3QzcV9/C4c3iuvrPFiOhdUonLi8sLv35k7c1sqL9DktVWGhNTaPngxlZSVokDKSmVmwhaiajSpWmMPSpKwJsPkzjyUKiuF8qKyDgUWhcoUGhJUSiMq+YMxlMnVvcobqYXDnw16iucP3cynd0YIIWo511bmqbiOBiKzhqQyvF0rT+xHdzz7L8hGHxnnGqlxpoO67rwMebhGX1vjkZHjUx+aSn5tOHqT7xzkIQFbo5Oc2MscUvjJkJM2tZO+XRvYmc3nkC6Az0BD/CjrWqssYAy+e67QAnxWYiX5qXZ8Ain0/NYhTlQe3hVhFR5oXiOk4MkpM4MECusqSZBC06gclklnIJ2Tc0iAFGl+v17lLPewXNvZ6XfMqPVbOcyZUhunj3dBuoyGSGGbdl3lKpujFoV1ImSL07zBwcsL9mTZP5pcg2EhVihEfHhwwP82z7hpsgy9Lxq9Kickb012KHwvucoQztD1snceLDjQQjaaID0IXnZV7xdoE1rlwRkz/1JAOtou3zJZrZhGa1j2cn0Zqtkx7O04rTyIiNf5/GK0XZl5Q2VzVSjMJ9P5Wz343EKIszkjZtYUavZUFXh9YmSFTxF9XQo2E3+x2TKBWjpZIaELGDLPFZdc6qseNrNql/Ad4NUa4bW+6Ls43nbp4ixE51AS5hNJLwYRrcSQYkaqStGkQu/lDN+a5vOAIj63KL/a47CqyIbzPeBhXbck6hPjFZ3x/W4ZjZ/y5jlVWbXztqy0sr3WldVFEASGxWSZwPHh4a5efJNa5UENxAfnrHu7WORIUukXWl7bbOPrL9Sya8Hl+PnE/mmjg6Ep/ewldq0o0IE9bxqSIW756zIBZeom8rYTobDAFKXHHsxOCc85l4/0Kuk4N9H91m5DqLoSxQo9n4qLWIKXOPXx9vZqBzDyo0IqLd/htQ2XVy2phBQGrdT6wUrXB5FWCXh090FhRgtonIYUSqLap4NBpm2T78sZGpL7Ug1krUJTeswap2getgyvLj/h/CPKHF1ohp7BDdMsEmfTbJVsWatPyF5EZYRhQ6V16p/IBi4a+xN3cXxM4Ov1EPLhUVa1xt2hYgRHhfztpDg93jt5/+793vHJ6eHe9KjI9g6z30+PitNTWchTGAdeFLZPi2GIVwyvLiEBzkxssoP9d/sHO327YRxGrixwrAsnfIZkK7GrlEICWIWOA0JZ/bH+wMFyDStpenhx6O1uvU056rnVm8z+n5P/yzm5ZS3LwaDWUgXBCrVdtK026qaaOC6vt8Z2GydQcmemI1gsptLj304vl7wcv6ejcTsXTZmMIyZo2fXWAn7gvBMkQ3tB2dhcN7GXtoSeRTjuGGYZ1vSi7bgnHldfbm4hgWk75vOdBCk4+cAxyQdIIfxmoG4+DGsL0NLMmnDJQ8Tkv38BuFLPvg==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Query Variant Revisions"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/variants/revisions/query"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Query variant revisions by their IDs.
+
+This endpoint allows batch fetching of multiple revisions at once,
+which is more efficient than making individual requests.
+
+Args:
+    payload: Request containing list of revision IDs to fetch
+
+Returns:
+    RevisionsQueryResponse: Response containing the count and list of revisions
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"revision_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Revision Ids"}},"type":"object","required":["revision_ids"],"title":"RevisionsQueryRequest","description":"Request model for querying revisions by IDs"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"revisions":{"items":{"properties":{"id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Id"},"variant_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Variant Id"},"revision":{"type":"integer","title":"Revision"},"modified_by":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Modified By"},"config":{"properties":{"config_name":{"type":"string","title":"Config Name"},"parameters":{"additionalProperties":true,"type":"object","title":"Parameters"}},"type":"object","required":["config_name"],"title":"ConfigDB"},"created_at":{"type":"string","title":"Created At"},"commit_message":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Commit Message"}},"type":"object","required":["revision","config","created_at"],"title":"AppVariantRevision"},"type":"array","title":"Revisions","default":[]}},"type":"object","title":"RevisionsQueryResponse","description":"Response model for revision query"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -3,16 +3,16 @@
 
 import {generateId} from "@agenta/shared/utils"
 import {produce} from "immer"
-import {atom, getDefaultStore} from "jotai"
+import {atom, getDefaultStore, Getter} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
 import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {
+    displayedVariantsAtom,
     displayedVariantsVariablesAtom,
     isComparisonViewAtom,
 } from "@/oss/components/Playground/state/atoms/variants"
-import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms/variants"
 import {mergedMetadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {buildUserMessage} from "@/oss/state/newPlayground/helpers/messageFactory"
 
@@ -88,17 +88,33 @@ export const chatTurnIdsAtom = atom(
         const baselineList = (baseline && byBaseline[baseline]) || []
         if (Array.isArray(baselineList) && baselineList.length > 0) {
             // Seed per-set entry from baseline-scoped history
-            getDefaultStore().set(allChatTurnIdsMapAtom, {...map, [key]: baselineList})
+            queueMicrotask(() => {
+                getDefaultStore().set(allChatTurnIdsMapAtom, (prev) => {
+                    const current = prev[key]
+                    if (current) return prev // Already updated
+                    return {...prev, [key]: baselineList}
+                })
+            })
             return baselineList
         }
 
         // Nothing yet: initialize a first logical id and seed both map and master
         const generated = `lt-${generateId()}`
         const nextList = [generated]
-        if (baseline) {
-            getDefaultStore().set(chatTurnIdsByBaselineAtom, {...byBaseline, [baseline]: nextList})
-        }
-        getDefaultStore().set(allChatTurnIdsMapAtom, {...map, [key]: nextList})
+        queueMicrotask(() => {
+            const store = getDefaultStore()
+            if (baseline) {
+                store.set(chatTurnIdsByBaselineAtom, (prev) => ({
+                    ...prev,
+                    [baseline]: nextList,
+                }))
+            }
+            store.set(allChatTurnIdsMapAtom, (prev) => {
+                const current = prev[key]
+                if (current) return prev
+                return {...prev, [key]: nextList}
+            })
+        })
         return [generated]
     },
     (get, set, update: string[] | ((prev: string[]) => string[] | void)) => {
@@ -355,38 +371,8 @@ export const chatTurnsByIdFamilyAtom = atomFamily((rowId: string) =>
     ),
 )
 
-export const chatTurnsByIdAtom = atom(
-    (get) => {
-        // React to visible row structure
-        const logicalIds = (get(generationRowIdsAtom) as string[]) || []
-        const base = get(chatTurnsByIdStorageAtom) || {}
-        const cache = get(chatTurnsByIdCacheAtom) || {}
-        const merged: Record<string, ChatTurn> = {...base, ...cache}
-
-        // Pull any family-cached entries for the visible ids
-        for (const id of logicalIds) {
-            try {
-                const val = get(chatTurnsByIdFamilyAtom(id)) as any
-                if (val) merged[id] = val as ChatTurn
-            } catch {}
-        }
-        return merged
-    },
-    (get, set, update: Record<string, ChatTurn> | ((prev: Record<string, ChatTurn>) => any)) => {
-        // Forward writes to backing storage to preserve existing mutation behavior
-        if (typeof update === "function") {
-            set(chatTurnsByIdStorageAtom, update as any)
-        } else {
-            set(chatTurnsByIdStorageAtom, update)
-        }
-    },
-)
-
 // Helper: synthesize an InputRow with variables seeded from prompt variables
-function synthesizeInputRow(
-    rowId: string,
-    get: <T>(anAtom: {read: (get: any) => T}) => T,
-): InputRow {
+function synthesizeInputRow(rowId: string, get: Getter): InputRow {
     // Determine target revision ids to seed
     // const idx = get(rowIdIndexAtom)
     // const latest = idx?.[rowId]?.latestRevisionId as string | undefined
@@ -564,6 +550,33 @@ export const inputRowsByIdComputedAtom = atom((get) => {
     }
     return merged
 })
+
+export const chatTurnsByIdAtom = atom(
+    (get) => {
+        // React to visible row structure
+        const logicalIds = (get(generationRowIdsAtom) as string[]) || []
+        const base = get(chatTurnsByIdStorageAtom) || {}
+        const cache = get(chatTurnsByIdCacheAtom) || {}
+        const merged: Record<string, ChatTurn> = {...base, ...cache}
+
+        // Pull any family-cached entries for the visible ids
+        for (const id of logicalIds) {
+            try {
+                const val = get(chatTurnsByIdFamilyAtom(id)) as any
+                if (val) merged[id] = val as ChatTurn
+            } catch {}
+        }
+        return merged
+    },
+    (get, set, update: Record<string, ChatTurn> | ((prev: Record<string, ChatTurn>) => any)) => {
+        // Forward writes to backing storage to preserve existing mutation behavior
+        if (typeof update === "function") {
+            set(chatTurnsByIdStorageAtom, update as any)
+        } else {
+            set(chatTurnsByIdStorageAtom, update)
+        }
+    },
+)
 
 // Indexes for bridging legacy rowIds to normalized context during migration
 export interface RowIdIndexEntry {

@@ -27,8 +27,8 @@ import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 import {createEntityDraftState, normalizeValueForComparison} from "../../shared"
 import {fetchAllPreviewTraces} from "../api"
 import {isSpansResponse} from "../api/helpers"
-import {traceSpanSchema, type TraceSpan} from "../core"
 import type {SpanRequest, TraceRequest, TracesApiResponse} from "../core"
+import {traceSpanSchema, type TraceSpan} from "../core"
 import {extractAgData, extractInputs, extractOutputs} from "../utils"
 
 // ============================================================================
@@ -87,11 +87,13 @@ const spanBatchFetcher = createBatchFetcher<
                 try {
                     // Build filter for span_ids
                     const filter = {
-                        conditions: spanIds.map((spanId) => ({
-                            field: "span_id",
-                            operator: "is",
-                            value: spanId,
-                        })),
+                        conditions: [
+                            {
+                                field: "span_id",
+                                operator: "in",
+                                value: spanIds,
+                            },
+                        ],
                     }
 
                     const data = await fetchAllPreviewTraces(

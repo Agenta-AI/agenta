@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 
-from tests.management.deployment.fixtures import *
+from tests.management.deployment.fixtures import *  # noqa: F403
 
 
 @pytest.mark.usefixtures("create_app_from_template")

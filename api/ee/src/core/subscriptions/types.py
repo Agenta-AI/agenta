@@ -1,6 +1,5 @@
 from typing import Optional
 
-from os import environ
 
 from uuid import UUID
 from enum import Enum

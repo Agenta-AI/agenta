@@ -1,6 +1,6 @@
 import uuid
 import traceback
-from typing import Optional, Dict, List
+from typing import Dict, List
 
 
 import click

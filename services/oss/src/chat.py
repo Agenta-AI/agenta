@@ -19,7 +19,7 @@ class ChatConfig(BaseModel):
     )
 
 
-@chat_route("/", config_schema=ChatConfig)
+@chat_route("/", config_schema=ChatConfig, flags={"is_chat": True})
 async def chat(
     inputs: Optional[Dict[str, str]] = None,
     messages: Optional[List[Message]] = None,

@@ -16,12 +16,9 @@ import asyncio
 import json
 import logging
 import os
-import uuid
 from typing import AsyncGenerator
-from datetime import datetime
 
 import agenta as ag
-from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -55,7 +52,7 @@ async def streaming_generator_with_broken_decorator(
     config = StreamConfig()
 
     # The decorator will close the span here, before any yields
-    logger.info(f"🚨 Starting generator (decorator will close span immediately)")
+    logger.info("🚨 Starting generator (decorator will close span immediately)")
 
     words = text.split()
     for i, word in enumerate(words[: config.max_tokens]):

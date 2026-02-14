@@ -520,14 +520,14 @@ class instrument:  # pylint: disable=invalid-name
         if self.redact is not None:
             try:
                 io = self.redact(name, field, io)
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 if self.redact_on_error:
                     io = {}
 
         if ag.tracing.redact is not None:
             try:
                 io = ag.tracing.redact(name, field, io)
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 if ag.tracing.redact_on_error:
                     io = {}
 
