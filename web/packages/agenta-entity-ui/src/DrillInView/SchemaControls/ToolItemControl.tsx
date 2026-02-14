@@ -18,6 +18,7 @@
 
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {safeStringify} from "@agenta/shared/utils"
 import {CollapseToggleButton} from "@agenta/ui/components/presentational"
 import {CopySimple, MinusCircle} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
@@ -30,14 +31,6 @@ import {TOOL_PROVIDERS_META, TOOL_SPECS, type ToolObj} from "./toolUtils"
 // ============================================================================
 // JSON HELPERS
 // ============================================================================
-
-function safeStringify(obj: unknown): string {
-    try {
-        return JSON.stringify(obj, null, 2)
-    } catch {
-        return ""
-    }
-}
 
 /** Stable stringify — sorts keys recursively for reliable deep comparison */
 function stableStringify(input: unknown): string {
