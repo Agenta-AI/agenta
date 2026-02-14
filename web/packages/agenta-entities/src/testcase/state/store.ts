@@ -88,7 +88,6 @@ export const setTestcaseIdsAtom = atom(null, (get, set, ids: string[]) => {
  * Reset testcase IDs (called when revision changes)
  */
 export const resetTestcaseIdsAtom = atom(null, (_get, set) => {
-    console.log("[testcase:store] resetTestcaseIds")
     set(testcaseIdsAtom, [])
 })
 
@@ -101,13 +100,11 @@ export const newEntityIdsAtom = atom((get) => get(newEntityIdsBaseAtom))
 
 export const addNewEntityIdAtom = atom(null, (get, set, id: string) => {
     const prev = get(newEntityIdsBaseAtom)
-    console.log("[testcase:store] addNewEntityId:", id, "prev:", prev.length)
     set(newEntityIdsBaseAtom, [...prev, id])
 })
 
 export const removeNewEntityIdAtom = atom(null, (get, set, id: string) => {
     const prev = get(newEntityIdsBaseAtom)
-    console.log("[testcase:store] removeNewEntityId:", id, "prev:", prev.length)
     set(
         newEntityIdsBaseAtom,
         prev.filter((i) => i !== id),

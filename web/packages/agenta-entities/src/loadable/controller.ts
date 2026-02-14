@@ -190,20 +190,6 @@ const connectedRowsAtomFamily = atomFamily((loadableId: string) =>
         const hiddenIds = state.hiddenTestcaseIds
         const displayRowIds = allDisplayRowIds.filter((id) => !hiddenIds.has(id))
 
-        console.log(
-            "[loadable:connectedRows] loadableId:",
-            loadableId,
-            "allDisplayRowIds:",
-            allDisplayRowIds.length,
-            "visible:",
-            displayRowIds.length,
-            "expectedColumns:",
-            expectedColumns.map((c) => c.key),
-            "linkedRunnable:",
-            state.linkedRunnableType,
-            state.linkedRunnableId,
-        )
-
         // Get original server keys from first row to filter out stale draft columns
         // This handles the case where a variable is added, used, then removed
         // Note: Testcase uses nested format - data fields are in testcase.data
@@ -872,16 +858,6 @@ const connectToSourceAtom = atom(
         sourceName?: string,
         testcases?: {id: string; [key: string]: unknown}[],
     ) => {
-        console.log(
-            "[loadable:connectToSource] loadableId:",
-            loadableId,
-            "sourceId:",
-            sourceId,
-            "sourceName:",
-            sourceName,
-            "testcases:",
-            testcases?.length ?? 0,
-        )
         const state = get(loadableStateAtomFamily(loadableId))
         const queryClient = get(queryClientAtom)
         const projectId = get(projectIdAtom)
@@ -932,7 +908,6 @@ const connectToSourceAtom = atom(
  * After disconnect, the loadable will have empty local rows.
  */
 const disconnectAtom = atom(null, (get, set, loadableId: string) => {
-    console.log("[loadable:disconnect] loadableId:", loadableId)
     const state = get(loadableStateAtomFamily(loadableId))
     set(loadableStateAtomFamily(loadableId), {
         ...state,
@@ -1272,23 +1247,6 @@ const linkToRunnableAtom = atom(
         const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
         const shouldAddRow = displayRowIds.length === 0 && !state.connectedSourceId
 
-        console.log(
-            "[linkToRunnable] loadableId:",
-            loadableId,
-            "runnableType:",
-            runnableType,
-            "runnableId:",
-            runnableId,
-        )
-        console.log(
-            "[linkToRunnable] displayRowIds:",
-            displayRowIds.length,
-            "connectedSourceId:",
-            state.connectedSourceId,
-            "shouldAddRow:",
-            shouldAddRow,
-        )
-
         // Update linked runnable immediately
         set(loadableStateAtomFamily(loadableId), {
             ...state,
@@ -1299,13 +1257,8 @@ const linkToRunnableAtom = atom(
         // Check columns after linking
         // Add initial empty row if needed (via testcaseMolecule)
         if (shouldAddRow) {
-            console.log("[linkToRunnable] adding initial empty row")
             set(addRowAtom, loadableId, {})
         }
-
-        // Verify rows after
-        const rowsAfter = get(testcaseMolecule.atoms.displayRowIds)
-        console.log("[linkToRunnable] rows after:", rowsAfter.length, rowsAfter)
 
         // Output mapping initialization happens reactively via autoInitOutputMappingsEffectAtomFamily
         // when the schema loads. No polling needed.

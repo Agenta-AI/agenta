@@ -345,8 +345,7 @@ export {
 /**
  * Re-export metadata atoms.
  *
- * @deprecated Prefer using `legacyAppRevisionMolecule.metadata.*` for metadata
- * access. These raw exports are kept for backward compatibility during migration.
+ * @deprecated Prefer using `legacyAppRevisionMolecule.metadata.*` for metadata access.
  */
 export {
     // Atoms

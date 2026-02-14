@@ -428,7 +428,6 @@ type TestcaseCreateInput = Partial<Testcase> | {data?: Record<string, unknown>}
  * @returns {id: string, data: Testcase} | null if validation fails
  */
 const addTestcaseAtom = atom(null, (_get, set, initialData?: TestcaseCreateInput) => {
-    console.log("[testcase:add] initialData:", initialData)
     // createLocalTestcase accepts nested Testcase format with data property
     const result = createLocalTestcase(initialData as Partial<Testcase>)
 
@@ -438,7 +437,6 @@ const addTestcaseAtom = atom(null, (_get, set, initialData?: TestcaseCreateInput
     }
 
     const testcase = result.data
-    console.log("[testcase:add] created:", testcase.id, "data:", testcase.data)
 
     // Add to new IDs tracking
     set(addNewEntityIdAtom, testcase.id)
@@ -456,7 +454,6 @@ const addTestcaseAtom = atom(null, (_get, set, initialData?: TestcaseCreateInput
  */
 const deleteTestcasesAtom = atom(null, (_get, set, ids: string | string[]) => {
     const idsArray = Array.isArray(ids) ? ids : [ids]
-    console.log("[testcase:delete] ids:", idsArray)
     for (const id of idsArray) {
         // For new entities, remove them completely instead of soft delete
         if (id.startsWith("new-") || id.startsWith("local-")) {
@@ -474,7 +471,6 @@ const deleteTestcasesAtom = atom(null, (_get, set, ids: string | string[]) => {
  * @returns Number of testcases successfully added
  */
 const appendTestcasesAtom = atom(null, (_get, set, rows: Record<string, unknown>[]) => {
-    console.log("[testcase:append] rows:", rows.length)
     let count = 0
     for (const row of rows) {
         // createLocalTestcase accepts nested Testcase format

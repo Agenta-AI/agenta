@@ -1011,7 +1011,7 @@ export const legacyAppRevisionEnrichedDataFamily = atomFamily((revisionId: strin
 )
 
 /**
- * Legacy server data storage - kept for backward compatibility during migration.
+ * Legacy server data storage for backward compatibility.
  */
 export const legacyAppRevisionServerDataAtomFamily = atomFamily((_revisionId: string) =>
     atom<LegacyAppRevisionData | null>(null),
