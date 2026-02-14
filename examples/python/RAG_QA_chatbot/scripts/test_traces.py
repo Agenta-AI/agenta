@@ -28,9 +28,9 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-import agenta as ag
-import litellm
-from backend.rag import retrieve, generate
+import agenta as ag  # noqa: E402
+import litellm  # noqa: E402
+from backend.rag import retrieve, generate  # noqa: E402
 
 # Initialize Agenta
 ag.init()

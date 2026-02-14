@@ -1,6 +1,6 @@
 from typing import Optional, Callable, Any
 
-from .utils.preinit import PreInitObject  # always the first import!
+from .utils.preinit import PreInitObject  # always the first import!  # noqa: F401
 
 __all__ = [
     # Decorators
@@ -60,8 +60,8 @@ from .types import (
     FileInputURL,
     BinaryParam,
     Prompt,
-    AgentaNodeDto,
-    AgentaNodesResponse,
+    AgentaNodeDto,  # noqa: F401
+    AgentaNodesResponse,  # noqa: F401
 )
 
 from .tracing import Tracing, get_tracer

@@ -1,1 +1,1 @@
-from .litellm import litellm_handler
+from .litellm import litellm_handler  # noqa: F401

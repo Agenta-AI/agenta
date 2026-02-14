@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -19,7 +19,6 @@ from oss.src.core.evaluations.types import EvaluationClosedConflict
 from oss.src.core.evaluations.types import (
     EvaluationStatus,
     EvaluationRunFlags,
-    EvaluationRunQueryFlags,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
@@ -206,7 +205,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id == run_id,
             )
 
@@ -239,7 +238,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
@@ -273,7 +272,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id == run.id,
             )
 
@@ -334,7 +333,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
@@ -404,7 +403,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id == run_id,
             )
 
@@ -436,7 +435,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationRunDBE).filter(
+            stmt = stmt.filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
@@ -472,9 +471,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id == run_id,
             )
 
@@ -496,7 +492,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     mode="json",
                 )
 
-            # run_dbe.flags["is_closed"] = True  # type: ignore
+            run_dbe.flags["is_closed"] = True  # type: ignore
             flag_modified(run_dbe, "flags")
 
             run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore
@@ -523,9 +519,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
@@ -544,7 +537,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         mode="json",
                     )
 
-                # run_dbe.flags["is_closed"] = True  # type: ignore
+                run_dbe.flags["is_closed"] = True  # type: ignore
                 flag_modified(run_dbe, "flags")
 
                 run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore
@@ -574,9 +567,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id == run_id,
             )
 
@@ -621,9 +611,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
@@ -703,10 +690,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationRunDBE.tags.contains(run.tags),
                     )
 
-                if run.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationRunDBE.meta.contains(run.meta),
-                    )
+                # meta is JSON (not JSONB) — containment (@>) is not supported
+                # if run.meta is not None:
+                #     stmt = stmt.filter(
+                #         EvaluationRunDBE.meta.contains(run.meta),
+                #     )
 
                 if run.status is not None:
                     stmt = stmt.filter(
@@ -931,7 +919,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id == scenario_id,
             )
 
@@ -964,7 +952,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id.in_(scenario_ids),
             )
 
@@ -998,7 +986,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id == scenario.id,
             )
 
@@ -1055,7 +1043,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id.in_(scenario_ids),
             )
 
@@ -1119,7 +1107,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id == scenario_id,
             )
 
@@ -1163,7 +1151,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationScenarioDBE).filter(
+            stmt = stmt.filter(
                 EvaluationScenarioDBE.id.in_(scenario_ids),
             )
 
@@ -1258,10 +1246,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationScenarioDBE.tags.contains(scenario.tags),
                     )
 
-                if scenario.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.meta.contains(scenario.meta),
-                    )
+                # meta is JSON (not JSONB) — containment (@>) is not supported
+                # if scenario.meta is not None:
+                #     stmt = stmt.filter(
+                #         EvaluationScenarioDBE.meta.contains(scenario.meta),
+                #     )
 
                 if scenario.status is not None:
                     stmt = stmt.filter(
@@ -1419,7 +1408,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationResultDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationResultDBE).filter(
+            stmt = stmt.filter(
                 EvaluationResultDBE.id == result_id,
             )
 
@@ -1452,7 +1441,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationResultDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationResultDBE).filter(
+            stmt = stmt.filter(
                 EvaluationResultDBE.id.in_(result_ids),
             )
 
@@ -1486,7 +1475,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationResultDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationResultDBE).filter(
+            stmt = stmt.filter(
                 EvaluationResultDBE.id == result.id,
             )
 
@@ -1544,7 +1533,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationResultDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationResultDBE).filter(
+            stmt = stmt.filter(
                 EvaluationResultDBE.id.in_(result_ids),
             )
 
@@ -1609,7 +1598,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationResultDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationResultDBE).filter(
+            stmt = stmt.filter(
                 EvaluationResultDBE.id == result_id,
             )
 
@@ -1654,7 +1643,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationResultDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationResultDBE).filter(
+            stmt = stmt.filter(
                 EvaluationResultDBE.id.in_(result_ids),
             )
 
@@ -1778,10 +1767,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationResultDBE.tags.contains(result.tags),
                     )
 
-                if result.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.meta.contains(result.meta),
-                    )
+                # meta is JSON (not JSONB) — containment (@>) is not supported
+                # if result.meta is not None:
+                #     stmt = stmt.filter(
+                #         EvaluationResultDBE.meta.contains(result.meta),
+                #     )
 
                 if result.status is not None:
                     stmt = stmt.filter(
@@ -2013,7 +2003,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationMetricsDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationMetricsDBE).filter(
+            stmt = stmt.filter(
                 EvaluationMetricsDBE.id.in_(metrics_ids),
             )
 
@@ -2049,7 +2039,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationMetricsDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationMetricsDBE).filter(
+            stmt = stmt.filter(
                 EvaluationMetricsDBE.id.in_(metrics_ids),
             )
 
@@ -2117,7 +2107,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationMetricsDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationMetricsDBE).filter(
+            stmt = stmt.filter(
                 EvaluationMetricsDBE.id.in_(metrics_ids),
             )
 
@@ -2233,10 +2223,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationMetricsDBE.tags.contains(metric.tags),
                     )
 
-                if metric.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.meta.contains(metric.meta),
-                    )
+                # meta is JSON (not JSONB) — containment (@>) is not supported
+                # if metric.meta is not None:
+                #     stmt = stmt.filter(
+                #         EvaluationMetricsDBE.meta.contains(metric.meta),
+                #     )
 
                 if metric.status is not None:
                     stmt = stmt.filter(
@@ -2412,7 +2403,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationQueueDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationQueueDBE).filter(
+            stmt = stmt.filter(
                 EvaluationQueueDBE.id == queue_id,
             )
 
@@ -2445,7 +2436,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationQueueDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationQueueDBE).filter(
+            stmt = stmt.filter(
                 EvaluationQueueDBE.id.in_(queue_ids),
             )
 
@@ -2479,7 +2470,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationQueueDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationQueueDBE).filter(
+            stmt = stmt.filter(
                 EvaluationQueueDBE.id == queue.id,
             )
 
@@ -2535,7 +2526,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationQueueDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationQueueDBE).filter(
+            stmt = stmt.filter(
                 EvaluationQueueDBE.id.in_(queue_ids),
             )
 
@@ -2599,7 +2590,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationQueueDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationQueueDBE).filter(
+            stmt = stmt.filter(
                 EvaluationQueueDBE.id == queue_id,
             )
 
@@ -2631,7 +2622,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationQueueDBE.project_id == project_id,
             )
 
-            stmt = select(EvaluationQueueDBE).filter(
+            stmt = stmt.filter(
                 EvaluationQueueDBE.id.in_(queue_ids),
             )
 
@@ -2692,10 +2683,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationQueueDBE.tags.contains(queue.tags),
                     )
 
-                if queue.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationQueueDBE.meta.contains(queue.meta),
-                    )
+                # meta is JSON (not JSONB) — containment (@>) is not supported
+                # if queue.meta is not None:
+                #     stmt = stmt.filter(
+                #         EvaluationQueueDBE.meta.contains(queue.meta),
+                #     )
 
                 if queue.name is not None:
                     stmt = stmt.filter(
@@ -2750,7 +2742,7 @@ async def _get_run_flags(
     stmt = select(EvaluationRunDBE.flags).filter(
         EvaluationRunDBE.project_id == project_id,
     )
-    stmt = select(EvaluationRunDBE.flags).filter(
+    stmt = stmt.filter(
         EvaluationRunDBE.id == run_id,
     )
 

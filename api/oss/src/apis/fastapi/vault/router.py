@@ -97,19 +97,6 @@ class VaultRouter:
 
     @intercept_exceptions()
     async def list_secrets(self, request: Request):
-        cache_key = {}
-
-        secrets_dtos = await get_cache(
-            project_id=request.state.project_id,
-            namespace="list_secrets",
-            key=cache_key,
-            model=SecretResponseDTO,
-            is_list=True,
-        )
-
-        if secrets_dtos is not None:
-            return secrets_dtos
-
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
@@ -123,6 +110,19 @@ class VaultRouter:
                     {"detail": error_msg},
                     status_code=403,
                 )
+
+        cache_key = {}
+
+        secrets_dtos = await get_cache(
+            project_id=request.state.project_id,
+            namespace="list_secrets",
+            key=cache_key,
+            model=SecretResponseDTO,
+            is_list=True,
+        )
+
+        if secrets_dtos is not None:
+            return secrets_dtos
 
         secrets_dtos = await self.service.list_secrets(
             project_id=UUID(request.state.project_id),

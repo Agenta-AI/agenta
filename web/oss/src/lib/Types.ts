@@ -3,7 +3,6 @@ import type {StaticImageData} from "next/image"
 
 import type {AgentaNodeDTO} from "@/oss/services/observability/types"
 
-import type {EvaluationFlow, EvaluationType} from "./enums"
 import {VariantParameters} from "./shared/variant/transformer/types"
 
 // Type utility to convert snake_case object properties to camelCase
@@ -196,110 +195,6 @@ export interface LLMRunRateLimit {
     delay_between_batches: number
 }
 
-export interface Evaluation {
-    id: string
-    createdAt: string
-    createdAtTimestamp: number
-    createdBy: string
-    user: {
-        id: string
-        username: string
-    }
-    variants: Variant[]
-    evaluationType: EvaluationType
-    status: EvaluationFlow
-    testset: {
-        _id: string
-        testsetChatColumn: string
-    } & Testset
-    appName: string
-    llmAppPromptTemplate?: string
-    evaluationTypeSettings: {
-        similarityThreshold: number
-        regexPattern: string
-        regexShouldMatch: boolean
-        webhookUrl: string
-        customCodeEvaluationId?: string
-        llmAppPromptTemplate?: string
-        evaluationPromptTemplate?: string
-    }
-    revisions: string[]
-    variant_revision_ids: string[]
-}
-
-export interface EvaluationScenario {
-    id: string
-    evaluation_id: string
-    inputs: {input_name: string; input_value: string}[]
-    outputs: {variant_id: string; variant_output: string}[]
-    correctAnswer: string | null
-    vote?: string | null
-    score?: string | number | null
-    isPinned: boolean
-    note: string
-}
-
-//TODO: modify this to accomodate results of other evaluation types
-// currently only used for human_a_b_testing
-export interface EvaluationResult {
-    votes_data: {
-        nb_of_rows: number
-        flag_votes: {
-            number_of_votes: number
-            percentage: number
-        }
-        positive_votes: {
-            number_of_votes: number
-            percentage: number
-        }
-        variants: string[]
-        variant_names: string[]
-        variants_votes_data: Record<
-            string,
-            {
-                number_of_votes: number
-                percentage: number
-            }
-        >
-    }
-}
-
-export interface CreateCustomEvaluation {
-    evaluation_name: string
-    python_code: string
-    app_id: string
-}
-
-export interface CreateCustomEvaluationSuccessResponse {
-    status: string
-    message: string
-    evaluation_id: string
-}
-
-export interface ExecuteCustomEvalCode {
-    evaluation_id: string
-    inputs: object[]
-    outputs: object[]
-    variant_id: string
-    correct_answer: string
-    app_id: string
-}
-
-export interface SingleCustomEvaluation {
-    id: string
-    app_name: string
-    evaluation_name: string
-}
-
-export interface AICritiqueCreate {
-    correct_answer: string
-    llm_app_prompt_template?: string
-    inputs: object[]
-    outputs: object[]
-    evaluation_prompt_template: string
-    open_ai_key: string
-}
-
 export interface Parameter {
     name: string
     type: string
@@ -322,56 +217,9 @@ export interface IPromptRevisions {
     revision: number
 }
 
-export interface EvaluationResponseType {
-    id: string
-    variant_ids: string[]
-    variant_names: string[]
-    votes_data: {
-        variants_votes_data: {
-            number_of_votes: number
-            percentage: number
-        }
-        flag_votes: {number_of_votes: number; percentage: number}
-    }
-    app_id: string
-    status: string
-    evaluation_type: string
-    variants_revision_ids: string[]
-    revisions: string[] // The revision number
-    evaluation_type_settings: {
-        similarity_threshold: number
-        regex_pattern: string
-        regex_should_match: boolean
-        webhook_url: string
-        custom_code_evaluation_id?: string
-        llm_app_prompt_template?: string
-    }
-    testset_name: string
-    testset_id: string
-    created_at: string
-    user_username: string
-    user_id: string
-}
-
 export interface LanguageItem {
     displayName: string
     languageKey: string
-}
-
-export interface ResultsTableDataType {
-    id: string
-    variants: string[]
-    votesData?: {
-        variants_votes_data: {
-            number_of_votes: number
-            percentage: number
-        }
-        flag_votes: {number_of_votes: number; percentage: number}
-    }
-    scoresData?: any
-    evaluationType: EvaluationType
-    createdAt?: string
-    avgScore?: number
 }
 
 /**
@@ -543,38 +391,6 @@ export interface Environment {
     revision: string | null
 }
 
-export interface VariantVotesData {
-    number_of_votes: number
-    percentage: number
-}
-export interface HumanEvaluationListTableDataType {
-    key: string
-    variants: string[]
-    testset: {
-        _id: string
-        name: string
-    }
-    evaluationType: string
-    status: EvaluationFlow
-    votesData: {
-        nb_of_rows: number
-        variants: string[]
-        flag_votes: {
-            number_of_votes: number
-            percentage: number
-        }
-        positive_votes: {
-            number_of_votes: number
-            percentage: number
-        }
-        variants_votes_data: Record<string, VariantVotesData>
-    }
-    createdAt: string
-    revisions: string[]
-    variant_revision_ids: string[]
-    variantNames: string[]
-}
-
 export type FilterValue =
     | string
     | number
@@ -677,32 +493,6 @@ export interface APIKey {
     created_at: string
     last_used_at: string
     expiration_date: string | null
-}
-
-export interface SingleModelEvaluationListTableDataType {
-    id: string
-    key: string
-    variants: Variant[]
-    testset: {
-        _id: string
-        name: string
-    }
-    evaluationType: string
-    status: EvaluationFlow
-    scoresData: {
-        nb_of_rows: number
-        wrong?: GenericObject[]
-        correct?: GenericObject[]
-        true?: GenericObject[]
-        false?: GenericObject[]
-        variant: string[]
-    }
-    avgScore: number
-    custom_code_eval_id: string
-    resultsData: Record<string, number>
-    createdAt: string
-    revisions: string[]
-    variant_revision_ids: string[]
 }
 
 export interface FuncResponse {

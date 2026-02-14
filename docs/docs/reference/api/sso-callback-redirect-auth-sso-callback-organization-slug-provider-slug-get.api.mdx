@@ -1,0 +1,83 @@
+---
+id: sso-callback-redirect-auth-sso-callback-organization-slug-provider-slug-get
+title: "Sso Callback Redirect"
+description: "Custom SSO callback endpoint that redirects to SuperTokens."
+sidebar_label: "Sso Callback Redirect"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVk1v20YQ/SuLOdkAITluTjzVdY3ESAobltOLLRDr5YjcmNpldoauVYL/vZglKYmWHaAt2lNOonbn8828mW2BdUGQ3sFZwyUsE8iRTLA1W+8ghfOG2K/VYnGljK6qB20eFbq89tax4lKzCpjbgIZJsVeLpsZw6x/R0eze3bvb0tJWPr1372bqzBismZSpUDv15eazqjWXqZrrhss5kZ+PjuatD4V29k8twWRUNUU3b+vgn2yOof9/705n6ndd2VwzkuIS1b6S0i5Xo4bCZ0t8736aqV8aW+W0H67i0ob8WgfeXOapIvLpK+7TA/fvZ+rmDQS2iI3J7RLbd9YJUNNI0KlSu7xC6jG7eDaldgUq43NUKx8U96JHDVlXKN8ElW+cXluzy9Z4t7LFcUToA7JqCIOybuUjAue6qqIe2cJl1mVNrfwThmBzVEcmYMRTdDKbo2PLm0TpPJ+eWYxJExJZ744ncMjFKnjH6HL1h+VyFFPG+0eLkICvMUR0L3NIgchnI0TZ2FaZIJdNrrKDumRZNqlLlhXIkECtg14jY5AOb8HpNUIKB+qQgJVml0aEBAJ+a2zAHFIODSZApsS1hrQF3tRigDhYJ1psuZKDq/2WW4jFrku2/iah/Wtf12N9Bz9LMUK1d4QkeqcnJ/IzpfGiMQaJVk2lbgZhSMDE4rCI67qurIkJzL+S6LS7WLqu6xJ4f3p6aHignuR9EYIPf8Oq4FJjkB7q7bK2lXxZxjUdClTeTG6121ytYl2nUAnyw4l1jAUG6JZdMp7pEPRmD8/Pvg8QugTWVHwP+t+QSBcIW2Nvi0Yw1K3cdlLxuomAjNeX8aBLwPDznhn/8BUN75k5FyyfWdrpQGbXOncRmz78QW65s7ErUV+ht6H4tS/Ba85GkY+3t9cHBvv+WCOXXng8co9LSOGfjXVIgDA8jcRtQgUplMw1pfO5qXyTz3SBjvVM27muLQgNCE0TLG+iytn15SfcfESdY4D0brkvsJAW7JtqKrYthK7tJxRoBgrLcvRhCHmkcNlrdbHAK79f37MYnDq7voQEJI2eLSezd7MTeLljJ8LCHm1is4y+4zUkL1DY5g8J4DpSBxj1+ufdhURWe+K1dnv2FuTj9I+7fBzWL4NqdzT+8Qb48Qb4D98AA+NkzM3rSts4iGOrt8MMuQNBTkYCeWHIgCAkkL62ytPpvl0mUHpiMdO2D5rwS6i6To6/NRhkWCwTeNLB6geh7l0LuSX5ziFd6YrwO8w4uhlm8LF6K5NxoDiZJk+6auQfJPCIm1efIrK9/scApljFPVmOM7MdZHq27mkfrHUZrtvx/+HiFrruL7kFYhA=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Sso Callback Redirect"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/auth/sso/callback/{organization_slug}/{provider_slug}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Custom SSO callback endpoint that redirects to SuperTokens.
+
+This endpoint:
+1. Accepts clean URL path: /auth/sso/callback/\{organization_slug\}/\{provider_slug\}
+2. Validates the organization and provider exist
+3. Builds SuperTokens thirdPartyId: sso:\{organization_slug\}:\{provider_slug\}
+4. Redirects to SuperTokens callback: /auth/callback/\{thirdPartyId\}
+
+SuperTokens then handles:
+1. Exchange code for tokens (using our dynamic provider config)
+2. Get user info
+3. Call our sign_in_up override (creates user_identity, adds user_identities to session)
+4. Redirect to frontend with session cookie
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"organization_slug","in":"path","required":true,"schema":{"type":"string","title":"Organization Slug"}},{"name":"provider_slug","in":"path","required":true,"schema":{"type":"string","title":"Provider Slug"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

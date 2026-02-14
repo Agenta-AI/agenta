@@ -6,7 +6,6 @@ documentation regardless of test filters.
 """
 
 import json
-import os
 
 
 def generate_specifications():

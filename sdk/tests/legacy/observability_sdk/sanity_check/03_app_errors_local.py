@@ -190,7 +190,7 @@ async def errors(topic: str, genre: str, count: int = 5):
     multiple_calls_results = [
         multiple_calls_function(i) for i in range(3)
     ]  # Called multiple times
-    exception_result = await exception_func()
+    exception_result = await exception_func()  # noqa: F841
     return f"""Results:
 Embedding: {result}
 Agent: {agent_result}

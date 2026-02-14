@@ -1,0 +1,71 @@
+---
+id: fetch-application-variant
+title: "Fetch Application Variant"
+description: "Fetch Application Variant"
+sidebar_label: "Fetch Application Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1V9tuGzcQ/ZXFvDQBGMs1+rRAgaq+1G7axoid9MEQjNHuSMuEewk5tKMK++8FuVyJkla+wXmyJc2cGZ45nBkugXFuIL2BcdMomSHLujIwEVA3pP2nixxSmBFnxS2ubW7vUEusGAQ0qLEkJu1wllBhSZDCgO2tzEGArCCFBrkAAZq+Wakph5S1JQEmK6hESJfAi8ahGNaymoOAWa1LZEjBWo/CkpUziNJOPndhkosc2nbi0E1TV4aMAzw6PHR/cjKZlo2zhxSubJaRMTOrko/BGARkdcVUsTOPTjH6YpzPMkqy0Y4lll2ErLadU8hdVkxz0lGyx95CQE4ztIohPWzFEFE+crX4MPOEbkaJzWW+afkwaa1YWVRWKXAUDdHo6BNwX+uvM1Xfv2KQfwNkiICa5Qwzfs1jBMgQYaa8uPeTKc1tZg3XZVS2aV0rwioq24VJjjurqHQzVIZa4SDoDpVFrvVjKKcrw2GgwpZYPQZy7o2GAbIC+dGjOJsd91b0TvX0C2U8fMXOPKFi6xbF4vGUJ++SmJZfz1yIpCSsTCL5J5NglUQ6Phioqctnp3iY59I5oLrcvBPb0ukPHuEGNblvhmEgkzqzCvWbv3BK6k9TV+8+WG4sv4VtcmLNbVvDDpUPKfbaHbIVUBLjCw8bnWyr82wELqeb38QcPcbImVWPECKWIJnKJ3qh1rh4kJct3+eR+rcjsxVhFD2Jsh2Mf5xvuyX1l0GdRBCtgEwTMuW3yE9sezkyvWPp89kf5biDTcaeLNvkPyLIpw42BMlJ0Q8IctLBhiA9XdPFKw6KnqzfF2FU9Hy9apSerVWUnrBXjdLTtYpilJ2/VKtXztcNk1dLz29jT5ouYX8bmgbPAlitcm3rHH85Otrd/D6jknk3sk619hP5hWtfToxS+W2ia4DbBqrONn59TgOftFs9M5o7dZegnx5mPrQ0r/uhMTindRPdb+rJSK7dr04Fleu9zrwvZhWaccbfI5idohw7Lr/zYOXXS/+N56ZLP9hFwlmXqKvQfipOuhI8pJLz6+vLHcBOH5vCOHMvnWTgWQF+SBe1ew7NqXv4cAEpjBpNd5LuR5FqzCis8ma0HH4JtSDAkL7rn01WK0ihYG5MOhplqrb5Ac6pYjxAOcJG+ktlKLNa8sK7jC8v3tPinDAnDenNJDa4cmrt9LdptqoZNvI9ORbDg21suai1/K8TVXinFZ1X67Uwq2MpjH1yyfjyAgS4Y3T8HR78fHC4uyLGxu6iYeZ11cf2P4PYYmF1fhBApb9lwITlb+sfXGZNbTgszgHvoSJuDfTAhlPrqFEo/X3yaSxDgW8gFBg2HmtuD+6LDALSPQ/eiYCiNuxglsspGvqkVdu6r79Z0q6Qk4AzdbTeLCGXxv2fh9V8J+NVn4I3H8NVepusd6vNk/TFrhY+XWXdJxDwlRb7H+m+7RS9rpbBeJxl1HAEs9MlnQBXd+SP02to2/8BRpuekQ==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Application Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/preview/applications/variants/{application_variant_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Application Variant
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"application_variant_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Application Variant Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"application_variant":{"anyOf":[{"properties":{"application_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Application Id"},"workflow_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Workflow Id"},"artifact_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Artifact Id"},"flags":{"anyOf":[{"properties":{"is_custom":{"type":"boolean","title":"Is Custom","default":false},"is_evaluator":{"type":"boolean","title":"Is Evaluator","default":false},"is_human":{"type":"boolean","title":"Is Human","default":false},"is_chat":{"type":"boolean","title":"Is Chat","default":false}},"type":"object","title":"ApplicationFlags","description":"Application flags - is_evaluator=False means it's an application."},{"type":"null"}]},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"ApplicationVariant"},{"type":"null"}]}},"type":"object","title":"ApplicationVariantResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

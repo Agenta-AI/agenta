@@ -63,16 +63,6 @@ class EvaluationScenarioOutput(BaseModel):
     latency: Optional[float] = None
 
 
-class HumanEvaluationScenarioInput(BaseModel):
-    input_name: str
-    input_value: Any
-
-
-class HumanEvaluationScenarioOutput(BaseModel):
-    variant_id: str
-    variant_output: Any
-
-
 class AppType(str, enum.Enum):
     CHAT_TEMPLATE = "TEMPLATE:simple_chat"
     COMPLETION_TEMPLATE = "TEMPLATE:simple_completion"

@@ -1,0 +1,71 @@
+---
+id: archive-simple-environment
+title: "Archive Simple Environment"
+description: "Archive Simple Environment"
+sidebar_label: "Archive Simple Environment"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNWFFv4zYM/isCn1pAdbrDngwMWHa923W37Yq215c2aBWbSXRTZE2Ss8sMv+4H7CfulwyU7UR20l7b9YDlJYlNfiQ/UjTpCryYO0iv4Y1eSVvoJWrvYMKhMGiFl4U+zSEFYbOFXOGtk0uj8Ba3wsDBCCuW6NESUAVaLBFSiGRuZQ4cpIYUjPAL4GDx91JazCH1tkQOLlvgUkBagV8b0nbeSj0HDrPCLoWHFMoyoHjpFQlE/rLTHOp6QqjOFNqhI6BXx8f0laPLrDQUCaRwUWYZOjcrFTtvhYFDVmhPoaQVCGOUzELgo0+OdKrIOWOJFi8bC1lRNkqtz1J7nKONnHwdJDjkOBOl8pAe1zwmJljU6w+zQFwffaZCZu4XkO52XgqbE4sbH6ZFoVDoyIdTx35sxSJHZkI5rGve6RXTT5j5/fy+DZ7UfGNEl0pBPSHtHR9FnktiT6iznrdbiYGnEW6bdLqyHwYyabNSCXvws5ii+skV+uhD6U3pD2EYChVEF8xQGnYC341uq33ZhA9L9OKZwUaRDYqlZ3g57V+JOfoSI29L9QVCeAXS4/KRWsJasX6Ql4Hu00j9hcisedstHkXZDsavpFvz/hl/HtRJBFFzyCwKj/mt8A8BRt0pFx6PvAz+3G/ldQPLxoGs0uRfw8jHBrY1kqPCr2DkpIFtjXR0TdfU6h9nJ/Tzx5D1wzo0+C1fL2qlY2tjpSPsRa10dG2sOFXOn1urF6Rbc3g599rIxbC/9R84FmdoUWfDHndvF7zneh91hdb9h4N71ar/Lzl94Pl63pG5r20+oY+eb5PyyMf5Oa4kUXZC6R40TzhDeySMYdtcs1lhWTSzMNvqM6qX5Ebf6Pe4dkxYZMKYI5cVBnMmc9ReziRaxw4wmSec3d3dgLGYdAA3cHd3mNzoK6FKbABymXnHihkjZb8+onDYP3/9zTZhcmZssZK51HM2K5Vi3ooMxVQq6ddpSu4wxljVfNFnaDSNbzYC0dRH9zfGDmT+XZIknFFpNb/acqU/h/wBnNuVsFJo/2J4cQDPAKyj30mSNH/q/VNd6/oL9r+rBrFtfl0oL2igK2r2hWN3ERaY6DTsY+Ap+ps1oq5J79tXr3a3jiuhZB6yyN5YW9jnrxw5eiFVmP6bSW4ooIqsd/cpk+ikHgx/0QBdNA6GMdjN9y1q28HOOTGP2tr9ooEMdkl3qfVqGiJJvOugup0qM/85gtnJyWvi8rPfm/ftonkduGncb+V6BdqlqMnQ/VScNCl4qEjeXV6e7QA29dEvjHGzVrOmqtib3lq9RL8oaPk2hWvWbL+AFEaGjg/+MWp28VHUmt2o6m/d9ahd3IGDQ7vqVvTSKkhh4b1x6WiUqaLMEzFH7UUi5EgYGc6Ww6y00q+Dyvjs9D2u36HI0UJ6PYkFLqham/rri21yJox8j8Ri+3JgXPpFYeWfTVG17wYWjVYdamFWxKUwDs6x8dkp8O3EAMfJN8nxzjOsJ0wHTWShrjrb4TbwAQub+IEDLsMpA49i+f32BnlGyVgKHeM9lMTBatLSQeU6MkrIcKCCH1Wb32to80spC4jQe2XggEO6826lS/OEw4KqJb2GqpoKhx+tqmu6/HuJljI5adv7lHi9riCXjn7n7SuBHY83jQoOztuzdMi2W2I/ki7bmlK9osc6pAAcfsP17huh0G8WXUFVrdA4y9D4SH2nPVLlbc7G2YeLS6jrfwHtJWSe
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Archive Simple Environment"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/simple/environments/{environment_id}/archive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Archive Simple Environment
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"environment_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Environment Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"environment":{"anyOf":[{"properties":{"flags":{"anyOf":[{"properties":{"is_guarded":{"type":"boolean","title":"Is Guarded","default":false}},"type":"object","title":"EnvironmentFlags"},{"type":"null"}]},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"data":{"anyOf":[{"properties":{"references":{"anyOf":[{"additionalProperties":{"additionalProperties":{"properties":{"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Reference"},"type":"object"},"type":"object"},{"type":"null"}],"title":"References"}},"type":"object","title":"EnvironmentRevisionData","description":"Per-app references for environment revision data.\n\nKeys are app-scoped identifiers (e.g., ``\"pre.revision\"``).\nValues are dicts of entity-type → Reference, providing full traceability::\n\n    {\n        \"pre.revision\": {\n            \"application\": Reference(id=..., slug=..., version=...),\n            \"application_variant\": Reference(id=..., slug=..., version=...),\n            \"application_revision\": Reference(id=..., slug=..., version=...),\n        },\n        ...\n    }"},{"type":"null"}]},"variant_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Variant Id"},"revision_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Revision Id"}},"type":"object","title":"SimpleEnvironment"},{"type":"null"}]}},"type":"object","title":"SimpleEnvironmentResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

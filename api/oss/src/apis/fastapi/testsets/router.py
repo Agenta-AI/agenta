@@ -1818,7 +1818,6 @@ class SimpleTestsetsRouter:
                 ) from e
 
         else:
-            log.error(e)
             raise HTTPException(
                 status_code=400,
                 detail="Invalid file type. Supported types are 'csv' and 'json'.",
