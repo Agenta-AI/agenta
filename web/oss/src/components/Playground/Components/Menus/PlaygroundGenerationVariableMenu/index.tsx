@@ -8,7 +8,7 @@ import TestsetDrawerButton from "../../Drawers/TestsetDrawer"
 import {PlaygroundGenerationVariableMenuProps} from "./types"
 
 const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMenuProps> = ({
-    duplicateInputRow,
+    duplicateRow,
     result,
     resultHash,
     ...props
@@ -26,7 +26,7 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
                 icon: <Copy size={14} />,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
-                    duplicateInputRow()
+                    duplicateRow()
                 },
             },
             {
@@ -45,7 +45,7 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
                 },
             },
         ],
-        [result, resultHash],
+        [duplicateRow, result, resultHash],
     )
     return (
         <Dropdown trigger={["click"]} menu={{items}} {...props}>
