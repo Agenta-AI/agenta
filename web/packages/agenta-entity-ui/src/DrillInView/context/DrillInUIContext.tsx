@@ -19,7 +19,21 @@ import {
     type ReactElement,
 } from "react"
 
-import type {ProviderGroup} from "@agenta/ui/select-llm-provider"
+/**
+ * Inline provider option/group types to avoid importing from @agenta/ui.
+ * These mirror the canonical types in @agenta/ui/select-llm-provider.
+ */
+interface LLMProviderOption {
+    label: string
+    value: string
+    key?: string
+    metadata?: Record<string, unknown>
+}
+
+interface LLMProviderGroup {
+    label?: string | null
+    options: LLMProviderOption[]
+}
 
 /**
  * Interface for injectable UI components
@@ -120,7 +134,7 @@ export interface DrillInUIComponents {
      */
     llmProviderConfig?: {
         /** Extra option groups from vault/custom secrets */
-        extraOptionGroups?: ProviderGroup[]
+        extraOptionGroups?: LLMProviderGroup[]
         /** Footer content (e.g. "Add provider" button) rendered below the dropdown */
         footerContent?: ReactElement | null
     }

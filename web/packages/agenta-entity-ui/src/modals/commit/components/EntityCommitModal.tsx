@@ -12,7 +12,7 @@ import {EnhancedModal} from "@agenta/ui/components/modal"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {revisionModalAdapter, testsetModalAdapter, variantModalAdapter} from "../../../adapters"
-import type {EntityReference} from "../../types"
+import type {EntityReference, CommitSubmitResult, CommitSubmitParams} from "../../types"
 import {
     commitModalOpenAtom,
     commitModalContextAtom,
@@ -36,17 +36,7 @@ void testsetModalAdapter
 void revisionModalAdapter
 void variantModalAdapter
 
-export interface CommitSubmitResult {
-    success: boolean
-    newRevisionId?: string
-    error?: string
-}
-
-export interface CommitSubmitParams {
-    entity: EntityReference
-    message: string
-    mode?: string
-}
+export type {CommitSubmitResult, CommitSubmitParams}
 
 export interface EntityCommitModalProps {
     /** External control - override atom state */

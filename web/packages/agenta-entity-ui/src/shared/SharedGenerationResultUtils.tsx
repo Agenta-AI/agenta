@@ -3,7 +3,7 @@ import {memo, useCallback, useMemo} from "react"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {
     getStatusLabel,
-    getStatusColor,
+    getStatusSeverity,
     inferStatusFromSummary,
     type ExecutionStatus,
 } from "@agenta/shared/utils"
@@ -98,7 +98,7 @@ const SharedGenerationResultUtils = ({
                 />
             </Tooltip>
             {showStatus && status ? (
-                <Tag color={getStatusColor(status)} className="m-0">
+                <Tag color={getStatusSeverity(status)} className="m-0">
                     {status}
                 </Tag>
             ) : null}
