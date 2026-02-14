@@ -248,14 +248,22 @@ export function normalizeMessagesFromField(raw: unknown): SimpleChatMessage[] {
     }
 
     if (Array.isArray(raw)) {
-        for (const m of raw) pushFrom(m as Record<string, unknown>)
+        for (const m of raw) {
+            if (m && typeof m === "object" && !Array.isArray(m)) {
+                pushFrom(m as Record<string, unknown>)
+            }
+        }
         return out
     }
     if (typeof raw === "string") {
         try {
             const parsed = JSON5.parse(raw)
             if (Array.isArray(parsed)) {
-                for (const m of parsed) pushFrom(m as Record<string, unknown>)
+                for (const m of parsed) {
+                    if (m && typeof m === "object" && !Array.isArray(m)) {
+                        pushFrom(m as Record<string, unknown>)
+                    }
+                }
             }
         } catch {
             // not parseable — return empty
