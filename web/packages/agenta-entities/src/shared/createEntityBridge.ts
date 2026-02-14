@@ -37,6 +37,7 @@ import type {
     LoadableRow,
     LoadableSourceConfig as _LoadableSourceConfig,
     RunnableBridge,
+    RunnableBridgeCrudActions,
     RunnableBridgeSelectors,
     RunnableData,
     RunnablePort as _RunnablePort,
@@ -506,7 +507,7 @@ export function createLoadableBridge(config: CreateLoadableBridgeConfig): Loadab
  * ```
  */
 export function createRunnableBridge(config: CreateRunnableBridgeConfig): RunnableBridge {
-    const {runnables} = config
+    const {runnables, crud} = config
 
     // Create selectors
     const selectors: RunnableBridgeSelectors = {
@@ -606,10 +607,67 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
 
         schemas: (runnableId: string) =>
             atom((get) => {
-                const data = get(selectors.data(runnableId))
-                return data?.schemas ?? null
+                for (const [_type, config] of Object.entries(runnables)) {
+                    const entity = get(config.molecule.selectors.data(runnableId))
+                    if (!entity) continue
+
+                    // Prefer entity-level schema selector when provided.
+                    if (config.schemasSelector) {
+                        return get(config.schemasSelector(runnableId))
+                    }
+
+                    const data = config.toRunnable(entity)
+                    return data?.schemas ?? null
+                }
+                return null
+            }),
+
+        executionMode: (runnableId: string) =>
+            atom<"chat" | "completion">((get) => {
+                for (const [_type, config] of Object.entries(runnables)) {
+                    const entity = get(config.molecule.selectors.data(runnableId))
+                    if (entity) {
+                        if (config.executionModeSelector) {
+                            return get(config.executionModeSelector(runnableId))
+                        }
+                        return "completion"
+                    }
+                }
+                return "completion"
+            }),
+
+        requestPayload: (runnableId: string) =>
+            atom((get) => {
+                for (const [_type, config] of Object.entries(runnables)) {
+                    const entity = get(config.molecule.selectors.data(runnableId))
+                    if (entity) {
+                        if (config.requestPayloadSelector) {
+                            return get(config.requestPayloadSelector(runnableId))
+                        }
+                        return null
+                    }
+                }
+                return null
+            }),
+
+        metadata: () =>
+            atom((get) => {
+                for (const [_type, config] of Object.entries(runnables)) {
+                    if (config.metadataSelector) {
+                        return get(config.metadataSelector())
+                    }
+                }
+                return {} as Record<string, Record<string, unknown>>
             }),
     }
+
+    // Resolve utils: first registered type that provides utils wins
+    const utils = (() => {
+        for (const [_type, config] of Object.entries(runnables)) {
+            if (config.utils) return config.utils
+        }
+        return null
+    })()
 
     return {
         // Nested API (backwards compatible)
@@ -653,7 +711,32 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
         invocationUrl: selectors.invocationUrl,
         /** Get schemas */
         schemas: selectors.schemas,
+        /** Get execution mode ("chat" or "completion") */
+        executionMode: selectors.executionMode,
+        /** Get pre-built request payload (config portion of API request body) */
+        requestPayload: selectors.requestPayload,
+        /** Get global metadata store */
+        metadata: selectors.metadata,
+
+        /** Imperative utils for value extraction and message construction */
+        utils,
+
+        /** Entity-level CRUD actions */
+        crud: crud ?? _noopCrud,
     }
+}
+
+/** No-op CRUD actions for when no crud config is provided */
+const _noopCrud: RunnableBridgeCrudActions = {
+    createVariant: atom(null, async (_get, _set, _params: unknown) => {
+        throw new Error("No CRUD actions configured on runnableBridge")
+    }),
+    commitRevision: atom(null, async (_get, _set, _params: unknown) => {
+        throw new Error("No CRUD actions configured on runnableBridge")
+    }),
+    deleteRevision: atom(null, async (_get, _set, _params: unknown) => {
+        throw new Error("No CRUD actions configured on runnableBridge")
+    }),
 }
 
 // ============================================================================

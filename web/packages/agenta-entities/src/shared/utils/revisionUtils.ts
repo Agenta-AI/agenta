@@ -251,10 +251,13 @@ export interface RevisionListItem {
     id: string
     revision: number
     variantId: string
+    variantName?: string
     appId?: string
     uri?: string
     commitMessage?: string
     createdAt?: string
+    createdAtTimestamp: number
+    updatedAtTimestamp: number
     author?: string
     parameters?: Record<string, unknown>
 }
@@ -343,21 +346,35 @@ export function transformVariantToListItem(
 }
 
 /**
+ * Safely parse an ISO date string to a numeric timestamp.
+ * Returns Date.now() when the input is missing or unparseable.
+ */
+function safeTimestamp(dateStr: string | undefined | null, fallback?: number): number {
+    if (!dateStr) return fallback ?? Date.now()
+    const ts = new Date(dateStr).valueOf()
+    return Number.isNaN(ts) ? (fallback ?? Date.now()) : ts
+}
+
+/**
  * Transform raw revision data (snake_case) to RevisionListItem (camelCase)
  */
 export function transformRevisionToListItem(
     revision: ApiRevisionListItem,
     variantId: string,
-    context?: {appId?: string; uri?: string},
+    context?: {appId?: string; uri?: string; variantName?: string},
 ): RevisionListItem {
+    const createdAtTimestamp = safeTimestamp(revision.created_at)
     return {
         id: revision.id,
         revision: revision.revision,
         variantId,
+        variantName: context?.variantName,
         appId: context?.appId,
         uri: context?.uri,
         commitMessage: revision.commit_message,
         createdAt: revision.created_at,
+        createdAtTimestamp,
+        updatedAtTimestamp: createdAtTimestamp,
         author: revision.modified_by,
         parameters: revision.config?.parameters,
     }
