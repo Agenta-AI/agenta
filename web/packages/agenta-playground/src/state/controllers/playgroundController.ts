@@ -23,14 +23,19 @@
  * ```
  */
 
-import {loadableController} from "@agenta/entities/runnable"
+import {fetchOssRevisionById} from "@agenta/entities/legacyAppRevision"
+import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
+import {outputConnectionsAtom} from "../atoms/connections"
 import {
     playgroundNodesAtom,
     selectedNodeIdAtom,
     primaryNodeAtom,
     hasMultipleNodesAtom,
+    entityIdsAtom,
+    primaryEntityIdAtom,
     connectedTestsetAtom,
     extraColumnsAtom,
     testsetModalOpenAtom,
@@ -38,7 +43,26 @@ import {
     editingConnectionIdAtom,
     playgroundDispatchAtom,
 } from "../atoms/playground"
+import {duplicateSessionResponsesWithContextAtom} from "../chat"
+import type {
+    AppRevisionCreateVariantPayload,
+    AppRevisionCommitPayload,
+    AppRevisionCrudResult,
+} from "../context"
+import {
+    displayedEntityIdsAtom,
+    resolvedEntityIdsAtom,
+    isComparisonViewAtom,
+    playgroundLayoutAtom,
+    playgroundRevisionsReadyAtom,
+    playgroundStatusAtom,
+    schemaInputKeysAtom,
+} from "../execution/displayedEntities"
+import {derivedLoadableIdAtom, inputVariableNamesAtom} from "../execution/selectors"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
+
+import {getRunnableBridge} from "./runnableBridgeAccess"
+import {getRunnableTypeResolver} from "./urlSnapshotController"
 
 // Import loadable state from entities (stays there due to entity dependencies)
 
@@ -49,7 +73,7 @@ import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
 /**
  * Payload for connecting to a testset (load mode)
  */
-export interface ConnectToTestsetPayload {
+interface ConnectToTestsetPayload {
     loadableId: string
     revisionId: string
     testcases: ({id?: string} & Record<string, unknown>)[]
@@ -61,7 +85,7 @@ export interface ConnectToTestsetPayload {
 /**
  * Payload for importing testcases (import mode - no connection)
  */
-export interface ImportTestcasesPayload {
+interface ImportTestcasesPayload {
     loadableId: string
     testcases: Record<string, unknown>[]
 }
@@ -69,7 +93,7 @@ export interface ImportTestcasesPayload {
 /**
  * Payload for adding a row with testset initialization
  */
-export interface AddRowWithInitPayload {
+interface AddRowWithInitPayload {
     loadableId: string
     data?: Record<string, unknown>
     entityLabel?: string
@@ -78,7 +102,7 @@ export interface AddRowWithInitPayload {
 /**
  * Payload for adding/removing extra columns
  */
-export interface ExtraColumnPayload {
+interface ExtraColumnPayload {
     loadableId: string
     key: string
     name?: string
@@ -87,7 +111,7 @@ export interface ExtraColumnPayload {
 /**
  * Payload for adding output mapping columns
  */
-export interface OutputMappingColumnPayload {
+interface OutputMappingColumnPayload {
     loadableId: string
     name: string
 }
@@ -135,6 +159,7 @@ const addPrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => {
     // Reset state and add the primary node
     set(playgroundNodesAtom, [node])
     set(selectedNodeIdAtom, nodeId)
+    set(outputConnectionsAtom, [])
 
     // Set up local testset with generated name from entity label
     const localTestsetName = generateLocalTestsetName(entity.label)
@@ -202,6 +227,7 @@ const removeNodeAtom = atom(null, (get, set, nodeId: string): string[] => {
     if (nodeIndex === 0) {
         set(playgroundNodesAtom, [])
         set(selectedNodeIdAtom, null)
+        set(outputConnectionsAtom, [])
         return ["__clear_all__"]
     }
 
@@ -209,6 +235,13 @@ const removeNodeAtom = atom(null, (get, set, nodeId: string): string[] => {
     set(
         playgroundNodesAtom,
         nodes.filter((n) => n.id !== nodeId),
+    )
+    set(
+        outputConnectionsAtom,
+        get(outputConnectionsAtom).filter(
+            (connection) =>
+                connection.sourceNodeId !== nodeId && connection.targetNodeId !== nodeId,
+        ),
     )
 
     // Update selection if needed
@@ -246,6 +279,7 @@ const changePrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => 
     }
 
     set(playgroundNodesAtom, [updatedNode, ...nodes.slice(1)])
+    set(outputConnectionsAtom, [])
 
     // Update local testset name if not connected to a remote testset
     const currentTestset = get(connectedTestsetAtom)
@@ -268,6 +302,14 @@ const changePrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => 
     )
 
     return nodeId
+})
+
+/**
+ * Reset playground state and clear output connections.
+ */
+const resetAllAtom = atom(null, (_get, set) => {
+    set(playgroundDispatchAtom, {type: "reset"})
+    set(outputConnectionsAtom, [])
 })
 
 /**
@@ -509,6 +551,223 @@ const addOutputMappingColumnAtom = atom(
 )
 
 // ============================================================================
+// QUERY INVALIDATION
+// ============================================================================
+
+/**
+ * Invalidate all playground-related TanStack Query caches and force refetch.
+ *
+ * This covers both legacy OSS query keys and entity package query keys
+ * (used by appRevisionsWithDraftsAtomFamily). Also bumps the entity
+ * revision cache version so cache-derived atoms re-evaluate.
+ */
+const invalidateQueriesAtom = atom(null, async () => {
+    const {queryClient} = await import("@agenta/shared/api")
+    const {legacyAppRevisionMolecule} = await import("@agenta/entities/legacyAppRevision")
+
+    const queryKeys = [
+        ["variants"],
+        ["variantRevisions"],
+        ["appVariants"],
+        ["appVariantRevisions"],
+        ["oss-variants-for-selection"],
+        ["oss-revisions-for-selection"],
+    ]
+
+    // Invalidate to mark as stale
+    await Promise.all(
+        queryKeys.map((queryKey) => queryClient.invalidateQueries({queryKey, exact: false})),
+    )
+
+    // Refetch with type: 'all' to bypass cache
+    await Promise.all(
+        queryKeys.map((queryKey) =>
+            queryClient.refetchQueries({queryKey, type: "all", exact: false}),
+        ),
+    )
+
+    // Bump the revision cache version so cache-derived atoms re-evaluate
+    legacyAppRevisionMolecule.set.invalidateCache()
+})
+
+// ============================================================================
+// CRUD ACTIONS (delegate to runnableBridge entity-level actions)
+// ============================================================================
+
+const controllerCreateVariantAtom = atom(
+    null,
+    async (_get, set, payload: AppRevisionCreateVariantPayload): Promise<AppRevisionCrudResult> => {
+        const bridge = getRunnableBridge()
+        return set(bridge.crud.createVariant, payload)
+    },
+)
+
+const controllerCommitRevisionAtom = atom(
+    null,
+    async (get, set, payload: AppRevisionCommitPayload): Promise<AppRevisionCrudResult> => {
+        const bridge = getRunnableBridge()
+        const runnableData = get(bridge.selectors.data(payload.revisionId)) as
+            | ({configuration?: Record<string, unknown>; variantId?: string} & Record<
+                  string,
+                  unknown
+              >)
+            | null
+
+        // Resolve variantId: payload → bridge data → direct API fetch
+        let variantId = payload.variantId ?? runnableData?.variantId
+        if (!variantId) {
+            const projectId = get(projectIdAtom)
+            if (projectId) {
+                const fetched = await fetchOssRevisionById(payload.revisionId, projectId)
+                variantId = fetched?.variantId
+            }
+        }
+
+        return set(bridge.crud.commitRevision, {
+            ...payload,
+            commitMessage: payload.commitMessage ?? payload.note,
+            parameters: payload.parameters ?? runnableData?.configuration ?? {},
+            variantId,
+        })
+    },
+)
+
+const controllerDeleteRevisionAtom = atom(
+    null,
+    async (_get, set, revisionId: string): Promise<AppRevisionCrudResult> => {
+        const bridge = getRunnableBridge()
+        return set(bridge.crud.deleteRevision, revisionId)
+    },
+)
+
+// ============================================================================
+// SELECTION CHANGE CALLBACK
+// ============================================================================
+
+/**
+ * Callback invoked after any controller action mutates the entity selection.
+ * OSS registers this to handle URL sync, drawer state, and entity cleanup.
+ *
+ * @param entityIds - The new set of displayed entity IDs after the mutation
+ * @param removed  - Entity IDs that were removed (if any)
+ */
+type SelectionChangeCallback = (entityIds: string[], removed: string[]) => void
+
+let _onSelectionChange: SelectionChangeCallback | null = null
+
+/**
+ * Register a callback for selection change side-effects (URL sync, drawer state, etc.).
+ * Call from the OSS/EE layer during initialization.
+ */
+export function setOnSelectionChangeCallback(cb: SelectionChangeCallback | null): void {
+    _onSelectionChange = cb
+}
+
+/** @internal */
+export function getOnSelectionChangeCallback(): SelectionChangeCallback | null {
+    return _onSelectionChange
+}
+
+// ============================================================================
+// SELECTION ACTIONS
+// ============================================================================
+
+/**
+ * Set entity IDs directly (replaces the old OSS selectedVariantsAtom bridge).
+ * Takes string[] or updater function, creates/reuses PlaygroundNode objects.
+ */
+const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]) => string[])) => {
+    const currentNodes = get(playgroundNodesAtom)
+    const currentIds = currentNodes.map((n) => n.entityId)
+    const rawValue = typeof next === "function" ? next(currentIds) : next
+    const seen = new Set<string>()
+    const newIds = rawValue.filter((id) => {
+        if (seen.has(id)) return false
+        seen.add(id)
+        return true
+    })
+    const existingByEntityId = new Map(currentNodes.map((n) => [n.entityId, n]))
+    const resolver = getRunnableTypeResolver()
+    const newNodes: PlaygroundNode[] = newIds.map((entityId) => {
+        const existing = existingByEntityId.get(entityId)
+        if (existing) return existing
+        return {
+            id: `node-${entityId}`,
+            entityType: resolver?.getType(entityId) ?? "legacyAppRevision",
+            entityId,
+            label: entityId,
+            depth: 0,
+        }
+    })
+    set(playgroundNodesAtom, newNodes)
+
+    // Ensure primary runnable is linked so loadable-derived columns/rows
+    // (including initial variable row) are initialized for the current selection.
+    const primary = newNodes[0]
+    if (primary) {
+        const loadableId = `testset:${primary.entityType}:${primary.entityId}`
+        set(
+            loadableController.actions.linkToRunnable,
+            loadableId,
+            primary.entityType as RunnableType,
+            primary.entityId,
+        )
+    }
+})
+
+/**
+ * Remove an entity from the displayed selection.
+ * Notifies the registered selection change callback for OSS-specific side-effects
+ * (URL sync, drawer state, entity cleanup).
+ */
+const removeEntityAtom = atom(null, (get, set, entityId: string) => {
+    const current = get(entityIdsAtom)
+    let updated = current.filter((id) => id !== entityId)
+
+    // Prevent empty playground: if removing the last entity and it's a local draft,
+    // fall back to its source revision
+    if (updated.length === 0) {
+        const resolver = getRunnableTypeResolver()
+        const runnableType = resolver?.getType(entityId)
+        if (runnableType) {
+            const adapter = snapshotAdapterRegistry.get(runnableType)
+            if (adapter?.isLocalDraftId(entityId)) {
+                const sourceId = adapter.extractSourceId(entityId)
+                if (sourceId) {
+                    updated = [sourceId]
+                }
+            }
+        }
+    }
+
+    set(setEntityIdsAtom, updated)
+    _onSelectionChange?.(updated, [entityId])
+})
+
+/**
+ * Switch one entity for another in the displayed selection.
+ * Handles both single and comparison mode. Duplicates chat history
+ * from the old entity to the new one.
+ */
+const switchEntityAtom = atom(
+    null,
+    (get, set, {currentEntityId, newEntityId}: {currentEntityId: string; newEntityId: string}) => {
+        const current = get(entityIdsAtom)
+        const updated =
+            current.length > 1
+                ? current.map((id) => (id === currentEntityId ? newEntityId : id))
+                : [newEntityId]
+
+        set(duplicateSessionResponsesWithContextAtom, {
+            sourceRevisionId: currentEntityId,
+            targetRevisionId: newEntityId,
+        })
+        set(setEntityIdsAtom, updated)
+        _onSelectionChange?.(updated, [currentEntityId])
+    },
+)
+
+// ============================================================================
 // CONTROLLER EXPORT
 // ============================================================================
 
@@ -544,6 +803,39 @@ export const playgroundController = {
 
         /** ID of connection being edited */
         editingConnectionId: () => editingConnectionIdAtom,
+
+        /** Entity IDs from all nodes */
+        entityIds: () => entityIdsAtom,
+
+        /** Primary entity ID */
+        primaryEntityId: () => primaryEntityIdAtom,
+
+        /** Loadable ID for primary node */
+        loadableId: () => derivedLoadableIdAtom,
+
+        /** Displayed entity IDs (validated against revisions) */
+        displayedEntityIds: () => displayedEntityIdsAtom,
+
+        /** Resolved entity IDs (ready for render, excludes pending IDs) */
+        resolvedEntityIds: () => resolvedEntityIdsAtom,
+
+        /** Whether comparison mode is active (validated) */
+        isComparisonView: () => isComparisonViewAtom,
+
+        /** Composite layout state */
+        playgroundLayout: () => playgroundLayoutAtom,
+
+        /** Whether playground revisions have finished loading */
+        revisionsReady: () => playgroundRevisionsReadyAtom,
+
+        /** Schema-derived input keys */
+        schemaInputKeys: () => schemaInputKeysAtom,
+
+        /** High-level playground lifecycle status: "idle" | "loading" | "ready" | "empty" */
+        status: () => playgroundStatusAtom,
+
+        /** Variable names derived from entity input ports */
+        inputVariableNames: () => inputVariableNamesAtom,
     },
 
     /**
@@ -587,6 +879,34 @@ export const playgroundController = {
         // WP4: Output mapping column action
         /** Add an output mapping column (loadable only, not extraColumns) */
         addOutputMappingColumn: addOutputMappingColumnAtom,
+
+        /** Set entity IDs (replaces OSS selectedVariantsAtom bridge) */
+        setEntityIds: setEntityIdsAtom,
+
+        /** Remove an entity from the displayed selection */
+        removeEntity: removeEntityAtom,
+
+        /** Switch one entity for another in the displayed selection */
+        switchEntity: switchEntityAtom,
+
+        /** Invalidate all playground-related query caches and force refetch */
+        invalidateQueries: invalidateQueriesAtom,
+
+        // CRUD actions (delegate to registered provider)
+        /** Create a new variant */
+        createVariant: controllerCreateVariantAtom,
+
+        /** Commit (save) a revision */
+        commitRevision: controllerCommitRevisionAtom,
+
+        /** Delete a revision */
+        deleteRevision: controllerDeleteRevisionAtom,
+
+        /** Reset playground state and clear all output connections */
+        resetAll: resetAllAtom,
+
+        /** Duplicate session responses from one entity to another */
+        duplicateSessionResponses: duplicateSessionResponsesWithContextAtom,
     },
 
     /**

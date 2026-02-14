@@ -9,23 +9,13 @@
  * @module execution/reducer
  */
 
-import {
-    executeRunnable,
-    resolveChainInputs,
-    computeTopologicalOrder,
-    runnableBridge,
-    type RunnableType,
-    type RunnableData,
-    type ExecutionResult,
-    type StageExecutionResult,
-    type EntitySelection,
-} from "@agenta/entities/runnable"
-import {atom, type Setter} from "jotai"
-import {getDefaultStore} from "jotai/vanilla"
+import {loadableController} from "@agenta/entities/runnable"
+import {testcaseMolecule} from "@agenta/entities/testcase"
+import {atom} from "jotai"
 
 import {outputConnectionsAtom} from "../atoms"
 import {playgroundNodesAtom, primaryNodeAtom} from "../atoms/playground"
-import type {OutputConnection, PlaygroundNode} from "../types"
+import type {OutputConnection} from "../types"
 
 import {
     executionStateAtomFamily,
@@ -37,7 +27,13 @@ import {
     resultsByKeyAtomFamily,
     buildResultKey,
     activeSessionsAtomFamily,
+    executionConcurrencyAtom,
+    repetitionCountAtom,
+    repetitionIndexAtomFamily,
 } from "./atoms"
+import {createExecutionItemHandle} from "./executionItems"
+import {runSessionsWithExecutionItems} from "./executionRunner"
+import {derivedLoadableIdAtom} from "./selectors"
 import type {
     ExecutionSession,
     ExecutionStep,
@@ -47,6 +43,7 @@ import type {
     AddStepPayload,
     CancelStepPayload,
     ExecutionInput,
+    SessionExecutionOptions,
 } from "./types"
 
 // ============================================================================
@@ -363,23 +360,21 @@ export const failRunAtom = atom(
 
 /**
  * Cancel a run
+ *
+ * Aborts the in-flight HTTP request (via AbortController) and sets
+ * the result status to "cancelled". Also calls adapter.cancel() if provided.
  */
 export const cancelRunAtom = atom(
     null,
     (get, set, payload: {loadableId: string; stepId: string; sessionId: string}) => {
         const {loadableId, stepId, sessionId} = payload
-        const resultsByKey = {...get(resultsByKeyAtomFamily(loadableId))}
-        const key = buildResultKey(stepId, sessionId)
-        const existing = resultsByKey[key]
-
-        if (existing && (existing.status === "running" || existing.status === "pending")) {
-            resultsByKey[key] = {
-                ...existing,
-                status: "cancelled",
-                completedAt: Date.now(),
-            }
-            set(resultsByKeyAtomFamily(loadableId), resultsByKey)
-        }
+        const revisionId = sessionId.startsWith("sess:") ? sessionId.slice(5) : sessionId
+        const handle = createExecutionItemHandle({
+            loadableId,
+            rowId: stepId,
+            revisionId,
+        })
+        handle.cancel({get, set})
     },
 )
 
@@ -415,205 +410,12 @@ export const updateChainProgressAtom = atom(
     },
 )
 
-// ============================================================================
-// COMPOUND EXECUTION ACTIONS
-// ============================================================================
-
-interface RunnableNode {
-    id: string
-    entity: EntitySelection
-    depth: number
-}
-
-/**
- * Convert PlaygroundNode to RunnableNode format
- */
-function toRunnableNode(node: PlaygroundNode): RunnableNode {
-    return {
-        id: node.id,
-        entity: {
-            type: node.entityType as EntitySelection["type"],
-            id: node.entityId,
-            label: node.label,
-        },
-        depth: "depth" in node && typeof node.depth === "number" ? node.depth : 0,
-    }
-}
-
-/**
- * Get expected input keys for a runnable
- */
-function getExpectedInputKeys(runnableId: string): Set<string> {
-    const store = getDefaultStore()
-    const inputPortsAtom = runnableBridge.inputPorts(runnableId)
-    const inputPorts = store.get(inputPortsAtom)
-    return new Set(inputPorts.map((input) => input.key))
-}
-
-/**
- * Execute a step for a single session (handles chain execution)
- */
-async function executeStepForSession(
-    loadableId: string,
-    stepId: string,
-    session: ExecutionSession,
-    data: Record<string, unknown>,
-    nodes: PlaygroundNode[],
-    primaryNode: PlaygroundNode,
-    allConnections: OutputConnection[],
-    set: Setter,
-): Promise<void> {
-    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-
-    // Start the run
-    set(startRunAtom, {loadableId, stepId, sessionId: session.id, runId})
-
-    try {
-        // Convert nodes to RunnableNode format
-        const runnableNodes = nodes.map(toRunnableNode)
-
-        // Check if we have downstream nodes (chain execution)
-        const downstreamConnections = allConnections.filter(
-            (c) => c.sourceNodeId === primaryNode.id,
-        )
-        const isChain = downstreamConnections.length > 0
-
-        // Build execution order for chain
-        const executionOrder = isChain
-            ? computeTopologicalOrder(
-                  runnableNodes.map((n) => ({nodeId: n.id})),
-                  allConnections,
-                  primaryNode.id,
-              )
-            : [primaryNode.id]
-
-        const totalStages = executionOrder?.length || 1
-        const chainResults: Record<string, StageExecutionResult> = {}
-        const nodeResults: Record<string, ExecutionResult> = {}
-
-        // Get expected input keys for primary node
-        const expectedInputKeys = getExpectedInputKeys(primaryNode.entityId)
-
-        // Execute each node in order
-        for (let stageIndex = 0; stageIndex < (executionOrder?.length || 1); stageIndex++) {
-            const nodeId = executionOrder?.[stageIndex] || primaryNode.id
-            const node = runnableNodes.find((n) => n.id === nodeId)
-
-            if (!node) continue
-
-            const nodeLabel = node.entity.label || `Stage ${stageIndex + 1}`
-
-            // Update progress
-            set(updateChainProgressAtom, {
-                loadableId,
-                stepId,
-                sessionId: session.id,
-                chainProgress: {
-                    currentStage: stageIndex + 1,
-                    totalStages,
-                    currentNodeId: nodeId,
-                    currentNodeLabel: nodeLabel,
-                    currentNodeType: node.entity.type,
-                },
-                chainResults,
-            })
-
-            // Resolve inputs for this node
-            let nodeInputs: Record<string, unknown>
-            if (nodeId === primaryNode.id) {
-                // Primary node uses testcase data, filtered to only expected inputs
-                nodeInputs = Object.fromEntries(
-                    Object.entries(data).filter(([key]) => expectedInputKeys.has(key)),
-                )
-            } else {
-                // Downstream nodes resolve inputs from upstream results
-                nodeInputs = resolveChainInputs(allConnections, nodeId, nodeResults, data)
-            }
-
-            // Get runnable data from bridge
-            const dataAtom = runnableBridge.data(node.entity.id)
-            const store = getDefaultStore()
-            const runnableData = store.get(dataAtom) as RunnableData | null
-
-            if (!runnableData) {
-                throw new Error(`No runnable data for ${node.entity.type}:${node.entity.id}`)
-            }
-
-            // Execute the node
-            const result = await executeRunnable(node.entity.type as RunnableType, runnableData, {
-                inputs: nodeInputs,
-            })
-
-            if (!result) {
-                throw new Error(`Execution returned null for node ${nodeId}`)
-            }
-
-            // Store result
-            nodeResults[nodeId] = result
-            chainResults[nodeId] = {
-                executionId: result.executionId,
-                nodeId,
-                nodeLabel,
-                nodeType: node.entity.type,
-                stageIndex,
-                status: result.status,
-                startedAt: result.startedAt,
-                completedAt: result.completedAt,
-                output: result.output,
-                structuredOutput: result.structuredOutput,
-                error: result.error,
-                traceId: result.trace?.id || null,
-                metrics: result.metrics,
-            }
-
-            // Stop on error
-            if (result.status === "error") {
-                set(failRunAtom, {
-                    loadableId,
-                    stepId,
-                    sessionId: session.id,
-                    error: result.error || {message: "Execution failed"},
-                })
-                return
-            }
-        }
-
-        // Get primary node result for final output
-        const primaryResult = nodeResults[primaryNode.id]
-
-        // Complete the run
-        set(completeRunAtom, {
-            loadableId,
-            stepId,
-            sessionId: session.id,
-            result: {
-                runId,
-                output: primaryResult?.output,
-                structuredOutput: primaryResult?.structuredOutput,
-                metrics: primaryResult?.metrics,
-                traceId: primaryResult?.trace?.id || null,
-                isChain,
-                totalStages,
-                chainResults,
-            },
-        })
-    } catch (error) {
-        set(failRunAtom, {
-            loadableId,
-            stepId,
-            sessionId: session.id,
-            error: {
-                message: error instanceof Error ? error.message : String(error),
-            },
-        })
-    }
-}
-
 /**
  * Run a step across sessions
  *
  * This is the main execution action that supports multi-session compare mode.
- * It executes the step for each active session (or specified sessions) in parallel.
+ * It executes the step for each active session (or specified sessions) in parallel,
+ * limited by executionConcurrencyAtom (default 6).
  *
  * @example
  * const runStep = useSetAtom(runStepAtom)
@@ -626,7 +428,13 @@ async function executeStepForSession(
 export const runStepAtom = atom(
     null,
     async (get, set, payload: {loadableId: string} & RunStepPayload) => {
-        const {loadableId, stepId, sessionIds: specifiedSessionIds, data = {}} = payload
+        const {
+            loadableId,
+            stepId,
+            sessionIds: specifiedSessionIds,
+            data = {},
+            sessionOptions,
+        } = payload
 
         const primaryNode = get(primaryNodeAtom)
         if (!primaryNode) return
@@ -642,21 +450,52 @@ export const runStepAtom = atom(
 
         if (sessionsToRun.length === 0) return
 
-        // Execute all sessions in parallel
-        await Promise.all(
-            sessionsToRun.map((session) =>
-                executeStepForSession(
-                    loadableId,
-                    stepId,
-                    session,
-                    data,
-                    nodes,
-                    primaryNode,
-                    allConnections,
-                    set,
-                ),
-            ),
-        )
+        // Read repetition count (disabled in compare mode — multiple sessions)
+        const rawRepetitions = get(repetitionCountAtom)
+        const repetitions = sessionsToRun.length > 1 ? 1 : rawRepetitions
+
+        await runSessionsWithExecutionItems({
+            get,
+            set,
+            loadableId,
+            stepId,
+            sessions: sessionsToRun,
+            data,
+            nodes,
+            primaryNode,
+            allConnections,
+            sessionOptions,
+            repetitionCount: repetitions,
+            concurrency: get(executionConcurrencyAtom),
+            createLifecycle: (session) => ({
+                onStart: ({runId}) => {
+                    set(startRunAtom, {loadableId, stepId, sessionId: session.id, runId})
+                },
+                onProgress: ({chainProgress, chainResults}) => {
+                    set(updateChainProgressAtom, {
+                        loadableId,
+                        stepId,
+                        sessionId: session.id,
+                        chainProgress,
+                        chainResults,
+                    })
+                },
+                onComplete: ({result}) => {
+                    set(completeRunAtom, {
+                        loadableId,
+                        stepId,
+                        sessionId: session.id,
+                        result,
+                    })
+                },
+                onFail: ({error}) => {
+                    set(failRunAtom, {loadableId, stepId, sessionId: session.id, error})
+                },
+                onCancel: () => {
+                    set(cancelRunAtom, {loadableId, stepId, sessionId: session.id})
+                },
+            }),
+        })
     },
 )
 
@@ -711,14 +550,6 @@ export const resetExecutionAtom = atom(null, (get, set, payload: {loadableId: st
 // ============================================================================
 
 /**
- * Derive loadableId from primary node
- */
-function deriveLoadableId(primaryNode: PlaygroundNode | null): string {
-    if (!primaryNode) return ""
-    return `testset:${primaryNode.entityType}:${primaryNode.entityId}`
-}
-
-/**
  * Context-aware payload for runStep (without loadableId)
  */
 export interface RunStepWithContextPayload {
@@ -728,6 +559,8 @@ export interface RunStepWithContextPayload {
     data?: Record<string, unknown>
     /** Optional specific session IDs (defaults to all active) */
     sessionIds?: string[]
+    /** Per-session options passed through to the adapter. Keyed by sessionId. */
+    sessionOptions?: Record<string, SessionExecutionOptions>
 }
 
 /**
@@ -744,8 +577,7 @@ export interface RunStepWithContextPayload {
 export const runStepWithContextAtom = atom(
     null,
     async (get, set, payload: RunStepWithContextPayload) => {
-        const primaryNode = get(primaryNodeAtom)
-        const loadableId = deriveLoadableId(primaryNode)
+        const loadableId = get(derivedLoadableIdAtom)
 
         if (!loadableId) {
             console.warn("runStepWithContext: No primary node available")
@@ -771,8 +603,7 @@ export const runStepWithContextAtom = atom(
  * })
  */
 export const initSessionsWithContextAtom = atom(null, (get, set, payload: InitSessionsPayload) => {
-    const primaryNode = get(primaryNodeAtom)
-    const loadableId = deriveLoadableId(primaryNode)
+    const loadableId = get(derivedLoadableIdAtom)
 
     if (!loadableId) {
         console.warn("initSessionsWithContext: No primary node available")
@@ -790,8 +621,7 @@ export const initSessionsWithContextAtom = atom(null, (get, set, payload: InitSe
  * cancelStep({ stepId: "step-123" })
  */
 export const cancelStepWithContextAtom = atom(null, (get, set, payload: CancelStepPayload) => {
-    const primaryNode = get(primaryNodeAtom)
-    const loadableId = deriveLoadableId(primaryNode)
+    const loadableId = get(derivedLoadableIdAtom)
 
     if (!loadableId) {
         console.warn("cancelStepWithContext: No primary node available")
@@ -809,8 +639,7 @@ export const cancelStepWithContextAtom = atom(null, (get, set, payload: CancelSt
  * reset()
  */
 export const resetExecutionWithContextAtom = atom(null, (get, set) => {
-    const primaryNode = get(primaryNodeAtom)
-    const loadableId = deriveLoadableId(primaryNode)
+    const loadableId = get(derivedLoadableIdAtom)
 
     if (!loadableId) {
         console.warn("resetExecutionWithContext: No primary node available")
@@ -819,3 +648,160 @@ export const resetExecutionWithContextAtom = atom(null, (get, set) => {
 
     set(resetExecutionAtom, {loadableId})
 })
+
+/**
+ * Set global repetition count.
+ * Value is clamped to [1, 10] to match UI limits.
+ */
+export const setRepetitionCountAtom = atom(null, (_get, set, count: number) => {
+    const numericCount = Number.isFinite(count) ? Math.trunc(count) : 1
+    const nextCount = Math.min(10, Math.max(1, numericCount))
+    set(repetitionCountAtom, nextCount)
+})
+
+/**
+ * Set repetition index for a row+entity pair.
+ * Value is clamped to >= 0.
+ */
+export const setRepetitionIndexAtom = atom(
+    null,
+    (
+        _get,
+        set,
+        payload: {
+            rowId: string
+            entityId: string
+            index: number
+        },
+    ) => {
+        const numericIndex = Number.isFinite(payload.index) ? Math.trunc(payload.index) : 0
+        const key = `${payload.rowId}:${payload.entityId}`
+        set(repetitionIndexAtomFamily(key), Math.max(0, numericIndex))
+    },
+)
+
+/**
+ * Clear stored execution output for a specific row+revision using context-derived loadableId.
+ * Useful when chat assistant output is manually removed from UI.
+ */
+export const clearResponseByRowRevisionWithContextAtom = atom(
+    null,
+    (
+        get,
+        set,
+        payload: {
+            rowId: string
+            revisionId: string
+        },
+    ) => {
+        const loadableId = get(derivedLoadableIdAtom)
+        if (!loadableId) return
+
+        const key = buildResultKey(payload.rowId, `sess:${payload.revisionId}`)
+        const resultsByKey = {...get(resultsByKeyAtomFamily(loadableId))}
+        const existing = resultsByKey[key]
+        if (!existing) return
+
+        resultsByKey[key] = {
+            ...existing,
+            status: "idle",
+            output: null,
+            error: undefined,
+            traceId: undefined,
+            resultHash: null,
+        }
+
+        set(resultsByKeyAtomFamily(loadableId), resultsByKey)
+    },
+)
+
+// ============================================================================
+// ROW MUTATION ACTIONS (context-aware wrappers around loadableController)
+// ============================================================================
+
+/**
+ * Add a row with automatic loadableId derivation.
+ *
+ * @example
+ * const addRow = useSetAtom(addRowWithContextAtom)
+ * addRow({ input: "test" })
+ */
+export const addRowWithContextAtom = atom(null, (get, set, data?: Record<string, unknown>) => {
+    const loadableId = get(derivedLoadableIdAtom)
+    if (!loadableId) return null
+    return set(loadableController.actions.addRow, loadableId, data) ?? null
+})
+
+/**
+ * Remove a row with automatic loadableId derivation.
+ *
+ * @example
+ * const deleteRow = useSetAtom(deleteRowWithContextAtom)
+ * deleteRow("row-123")
+ */
+export const deleteRowWithContextAtom = atom(null, (get, set, rowId: string) => {
+    const loadableId = get(derivedLoadableIdAtom)
+    if (!loadableId) return
+    set(loadableController.actions.removeRow, loadableId, rowId)
+})
+
+/**
+ * Duplicate a row with automatic loadableId derivation.
+ * Reads the source row's data and creates a new row with the same values.
+ *
+ * @example
+ * const duplicateRow = useSetAtom(duplicateRowWithContextAtom)
+ * duplicateRow("row-123")
+ */
+export const duplicateRowWithContextAtom = atom(null, (get, set, sourceRowId: string) => {
+    const loadableId = get(derivedLoadableIdAtom)
+    if (!loadableId) return null
+
+    const rows = get(loadableController.selectors.rows(loadableId))
+    const source = rows.find((row) => row.id === sourceRowId)
+    if (!source) return null
+
+    return set(loadableController.actions.addRow, loadableId, {...source.data}) ?? null
+})
+
+/**
+ * Update a single row value with automatic loadableId derivation.
+ *
+ * @example
+ * const setRowValue = useSetAtom(setRowValueWithContextAtom)
+ * setRowValue({ rowId: "row-123", key: "input", value: "new value" })
+ */
+export const setRowValueWithContextAtom = atom(
+    null,
+    (get, set, payload: {rowId: string; key: string; value: string}) => {
+        const loadableId = get(derivedLoadableIdAtom)
+        if (!loadableId) return
+        set(loadableController.actions.updateRow, loadableId, payload.rowId, {
+            [payload.key]: payload.value,
+        })
+    },
+)
+
+/**
+ * Direct testcase cell update — writes a single field to the testcase entity.
+ *
+ * Uses testcaseMolecule.actions.update which applies changes to the testcase's
+ * `data` property and handles dirty tracking automatically.
+ *
+ * This bypasses the loadable layer indirection:
+ *   OLD: setRowValueWithContext → loadableController.actions.updateRow → testcaseMolecule.actions.update
+ *   NEW: testcaseMolecule.actions.update(id, {data: {[column]: value}}) — direct
+ *
+ * @example
+ * const setCellValue = useSetAtom(setTestcaseCellValueAtom)
+ * setCellValue({ testcaseId: "tc-123", column: "input", value: "new value" })
+ */
+export const setTestcaseCellValueAtom = atom(
+    null,
+    (_get, set, payload: {testcaseId: string; column: string; value: string}) => {
+        if (!payload.testcaseId || !payload.column) return
+        set(testcaseMolecule.actions.update, payload.testcaseId, {
+            data: {[payload.column]: payload.value},
+        })
+    },
+)

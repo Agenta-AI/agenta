@@ -19,6 +19,7 @@
  * ```
  */
 
+import {appRevisionSnapshotAdapter} from "@agenta/entities/appRevision"
 import {legacyAppRevisionSnapshotAdapter} from "@agenta/entities/legacyAppRevision"
 import {
     snapshotAdapterRegistry,
@@ -38,9 +39,10 @@ import {
     SNAPSHOT_VERSION,
 } from "../../snapshot"
 
-// Explicitly register the legacyAppRevision adapter
-// Side-effect imports don't work reliably across package boundaries
+// Ensure adapters are registered before any snapshot operations.
+// Cannot rely on side-effect imports — tree-shaken by sideEffects: false.
 snapshotAdapterRegistry.register(legacyAppRevisionSnapshotAdapter)
+snapshotAdapterRegistry.register(appRevisionSnapshotAdapter)
 
 // ============================================================================
 // TYPES

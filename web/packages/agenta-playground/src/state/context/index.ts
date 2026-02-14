@@ -19,4 +19,9 @@ export type {
     SettingsPreset,
     AppRevisionRawData,
     EvaluatorRevisionRawData,
+    AppRevisionListSelectors,
+    AppRevisionActions,
+    AppRevisionCreateVariantPayload,
+    AppRevisionCommitPayload,
+    AppRevisionCrudResult,
 } from "./PlaygroundEntityContext"

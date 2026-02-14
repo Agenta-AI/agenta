@@ -68,6 +68,11 @@ export type {
     SettingsPreset,
     AppRevisionRawData,
     EvaluatorRevisionRawData,
+    AppRevisionListSelectors,
+    AppRevisionActions,
+    AppRevisionCreateVariantPayload,
+    AppRevisionCommitPayload,
+    AppRevisionCrudResult,
 } from "@agenta/entities/runnable"
 
 // ============================================================================

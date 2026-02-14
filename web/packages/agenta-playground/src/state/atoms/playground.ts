@@ -75,6 +75,17 @@ export const hasMultipleNodesAtom = atom((get) => {
     return nodes.length > 1
 })
 
+/**
+ * Entity IDs from all nodes (convenience read).
+ * Replaces the need for bridge atoms that just extract entity IDs.
+ */
+export const entityIdsAtom = atom((get) => get(playgroundNodesAtom).map((n) => n.entityId))
+
+/**
+ * Primary node's entity ID (first node)
+ */
+export const primaryEntityIdAtom = atom((get) => get(playgroundNodesAtom)[0]?.entityId ?? null)
+
 // ============================================================================
 // PLAYGROUND DISPATCH ATOM
 // ============================================================================

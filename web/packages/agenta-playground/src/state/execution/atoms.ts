@@ -7,6 +7,7 @@
  * @module execution/atoms
  */
 
+import {executeRunnable} from "@agenta/entities/runnable"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
@@ -16,8 +17,25 @@ import type {
     ExecutionStep,
     RunResult,
     ExecutionState,
+    ExecutionAdapter,
 } from "./types"
 import {createInitialExecutionState} from "./types"
+
+// ============================================================================
+// EXECUTION ADAPTER
+// ============================================================================
+
+/**
+ * Injectable execution adapter atom
+ *
+ * Stores the current execution strategy. Defaults to `executeRunnable()`
+ * from `@agenta/entities/runnable` (direct HTTP POST).
+ *
+ * Set this atom to inject a custom execution strategy (e.g., web worker).
+ */
+export const executionAdapterAtom = atom<ExecutionAdapter>({
+    execute: executeRunnable,
+})
 
 // ============================================================================
 // EXECUTION STATE ATOM FAMILY
@@ -331,3 +349,74 @@ export const isAnyExecutingAtomFamily = atomFamily((loadableId: string) =>
         )
     }),
 )
+
+// ============================================================================
+// ABORT CONTROLLER REGISTRY
+// ============================================================================
+
+/**
+ * Module-level AbortController registry
+ *
+ * Maps runId → AbortController for in-flight executions.
+ * Kept outside of Jotai atoms since AbortController is imperative
+ * and not serializable. Synchronous access is required for both
+ * registration (in executeStepForSession) and cancellation.
+ */
+const abortControllerRegistry = new Map<string, AbortController>()
+
+/** Register an AbortController for a runId */
+export function registerAbortController(runId: string, controller: AbortController): void {
+    abortControllerRegistry.set(runId, controller)
+}
+
+/** Abort and remove the controller for a runId */
+export function abortRun(runId: string): void {
+    const controller = abortControllerRegistry.get(runId)
+    if (controller) {
+        controller.abort()
+        abortControllerRegistry.delete(runId)
+    }
+}
+
+/** Remove the controller for a runId (on completion/failure) */
+export function cleanupAbortController(runId: string): void {
+    abortControllerRegistry.delete(runId)
+}
+
+// ============================================================================
+// CONCURRENCY
+// ============================================================================
+
+/**
+ * Maximum number of concurrent executions
+ *
+ * Controls how many adapter.execute() calls can run in parallel.
+ * Default: 6 (matches OSS web worker behavior).
+ */
+export const executionConcurrencyAtom = atom(6)
+
+// ============================================================================
+// REPETITION
+// ============================================================================
+
+/**
+ * Number of times to repeat each execution (for statistical runs).
+ * Default: 1 (single run).
+ */
+export const repetitionCountAtom = atom<number>(1)
+
+/**
+ * Per-row+entity repetition index for navigating between repeated results.
+ * Key format: `${rowId}:${entityId}`
+ */
+export const repetitionIndexAtomFamily = atomFamily((_key: string) => atom<number>(0))
+
+// ============================================================================
+// UI STATE
+// ============================================================================
+
+/**
+ * Whether all execution rows are collapsed (collapse-all / expand-all toggle).
+ * Toggled from ExecutionHeader, read by each ExecutionRow SingleLayout.
+ */
+export const allRowsCollapsedAtom = atom<boolean>(false)
