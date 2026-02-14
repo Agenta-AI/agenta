@@ -11,7 +11,15 @@
  * 3. If components are not provided, fallbacks are used
  */
 
-import {createContext, useContext, type ComponentType, type ReactNode} from "react"
+import {
+    createContext,
+    useContext,
+    type ComponentType,
+    type ReactNode,
+    type ReactElement,
+} from "react"
+
+import type {ProviderGroup} from "@agenta/ui/select-llm-provider"
 
 /**
  * Interface for injectable UI components
@@ -103,22 +111,19 @@ export interface DrillInUIComponents {
     }>
 
     /**
-     * SelectLLMProvider component for model selection
-     * Used by: GroupedChoiceControl, PromptSchemaControl
+     * LLM provider configuration data for model selection.
+     * Used by: GroupedChoiceControl, ConfigurationSection, LegacyPlaygroundConfigSection
+     *
+     * Instead of injecting a whole component, OSS provides:
+     * - extraOptionGroups: vault/custom secret options to merge into the dropdown
+     * - footerContent: "Add provider" button + drawer rendered in the dropdown footer
      */
-    SelectLLMProvider?: ComponentType<{
-        showGroup?: boolean
-        showAddProvider?: boolean
-        showCustomSecretsOnOptions?: boolean
-        options?: {label: string; options: {label: string; value: string}[]}[]
-        value?: string
-        onChange?: (value: string | undefined) => void
-        disabled?: boolean
-        placeholder?: string
-        className?: string
-        size?: "small" | "middle" | "large"
-        [key: string]: unknown
-    }>
+    llmProviderConfig?: {
+        /** Extra option groups from vault/custom secrets */
+        extraOptionGroups?: ProviderGroup[]
+        /** Footer content (e.g. "Add provider" button) rendered below the dropdown */
+        footerContent?: ReactElement | null
+    }
 
     /**
      * Lexical editor context hook
