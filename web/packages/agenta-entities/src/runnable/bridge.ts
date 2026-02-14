@@ -20,16 +20,40 @@
  * ```
  */
 
-import {atom} from "jotai"
+import {atom, type Atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
 import {appRevisionMolecule} from "../appRevision"
 import {evaluatorRevisionMolecule} from "../evaluatorRevision"
 import {legacyAppRevisionMolecule} from "../legacyAppRevision"
+import {
+    metadataAtom,
+    getAllMetadata,
+    getMetadataLazy,
+} from "../legacyAppRevision/state/metadataAtoms"
+import {createMessageFromSchema} from "../legacyAppRevision/utils/messageFromSchema"
+import {extractValueByMetadata} from "../legacyAppRevision/utils/valueExtraction"
 import {loadableStateAtomFamily, loadableColumnsAtomFamily} from "../loadable/store"
 import {createRunnableBridge, type RunnableData, type RunnablePort} from "../shared"
 
 import type {PathItem, RunnableType, TestsetColumn} from "./types"
+
+// ============================================================================
+// EXECUTION MODE HELPERS
+// ============================================================================
+
+/**
+ * Create an execution mode selector from a boolean isChatVariant atom.
+ * Maps `true` → "chat", `false` → "completion".
+ */
+function createExecutionModeSelector(
+    isChatVariantSelector: (id: string) => Atom<boolean>,
+): (id: string) => Atom<"chat" | "completion"> {
+    return (id: string) =>
+        atom<"chat" | "completion">((get) =>
+            get(isChatVariantSelector(id)) ? "chat" : "completion",
+        )
+}
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -122,6 +146,7 @@ interface AppRevisionEntity {
     name?: string
     variantSlug?: string
     version?: number
+    agConfig?: Record<string, unknown>
     configuration?: Record<string, unknown>
     invocationUrl?: string
     appId?: string
@@ -139,7 +164,7 @@ function appRevisionToRunnable(entity: unknown): RunnableData {
         name: e.name || e.variantSlug,
         version: e.version,
         slug: e.variantSlug,
-        configuration: e.configuration,
+        configuration: e.agConfig || e.configuration,
         invocationUrl: e.invocationUrl,
         schemas: e.schemas,
     }
@@ -168,6 +193,8 @@ interface LegacyAppRevisionEntity {
     uri?: string
     variantId?: string
     appId?: string
+    enhancedPrompts?: unknown[]
+    enhancedCustomProperties?: Record<string, unknown>
 }
 
 function legacyAppRevisionToRunnable(entity: unknown): RunnableData {
@@ -181,7 +208,11 @@ function legacyAppRevisionToRunnable(entity: unknown): RunnableData {
         invocationUrl: e.uri,
         // OSS model doesn't have structured schemas
         schemas: undefined,
-    }
+        // Pass through enhanced data so the execution pipeline can access
+        // draft-aware prompts and custom properties (e.g. tools).
+        prompts: e.enhancedPrompts,
+        customProperties: e.enhancedCustomProperties,
+    } as RunnableData
 }
 
 function getLegacyAppRevisionInputPorts(entity: unknown): RunnablePort[] {
@@ -200,6 +231,42 @@ function getLegacyAppRevisionOutputPorts(_entity: unknown): RunnablePort[] {
             type: "string",
         },
     ]
+}
+
+function getSchemaFromRevisionState(schemaState: unknown): {
+    inputSchema?: unknown
+    outputSchema?: unknown
+} | null {
+    if (!schemaState || typeof schemaState !== "object") return null
+
+    const state = schemaState as {
+        agConfigSchema?: unknown
+        outputsSchema?: unknown
+        endpoints?: {
+            test?: {inputsSchema?: unknown; outputsSchema?: unknown} | null
+            run?: {inputsSchema?: unknown; outputsSchema?: unknown} | null
+            generate?: {inputsSchema?: unknown; outputsSchema?: unknown} | null
+            generateDeployed?: {inputsSchema?: unknown; outputsSchema?: unknown} | null
+            root?: {inputsSchema?: unknown; outputsSchema?: unknown} | null
+        }
+    }
+
+    const primaryEndpoint =
+        state.endpoints?.test ??
+        state.endpoints?.run ??
+        state.endpoints?.generate ??
+        state.endpoints?.generateDeployed ??
+        state.endpoints?.root ??
+        null
+
+    const inputSchema = primaryEndpoint?.inputsSchema ?? state.agConfigSchema
+    const outputSchema = state.outputsSchema ?? primaryEndpoint?.outputsSchema
+
+    if (!inputSchema && !outputSchema) return null
+    return {
+        inputSchema: inputSchema ?? undefined,
+        outputSchema: outputSchema ?? undefined,
+    }
 }
 
 // ============================================================================
@@ -267,6 +334,40 @@ function getEvaluatorRevisionOutputPorts(entity: unknown): RunnablePort[] {
  */
 export const runnableBridge = createRunnableBridge({
     runnables: {
+        // legacyAppRevision must come before appRevision so the OSS playground
+        // (which writes to legacyAppRevision) reads its own draft-aware data.
+        // If appRevision is checked first, it returns stale server data and
+        // the legacyAppRevision requestPayloadSelector is never reached.
+        legacyAppRevision: {
+            molecule: legacyAppRevisionMolecule,
+            toRunnable: legacyAppRevisionToRunnable,
+            getInputPorts: getLegacyAppRevisionInputPorts,
+            getOutputPorts: getLegacyAppRevisionOutputPorts,
+            schemasSelector: (id: string) =>
+                atom((get) => {
+                    const schemaQuery = get(legacyAppRevisionMolecule.selectors.schemaQuery(id))
+                    return getSchemaFromRevisionState(schemaQuery.data)
+                }),
+            // Use molecule selectors for reactive derivation
+            inputPortsSelector: (id: string) => legacyAppRevisionMolecule.selectors.inputPorts(id),
+            outputPortsSelector: (id: string) =>
+                legacyAppRevisionMolecule.selectors.outputPorts(id),
+            invocationUrlSelector: (id: string) =>
+                legacyAppRevisionMolecule.atoms.invocationUrl(id),
+            executionModeSelector: createExecutionModeSelector((id: string) =>
+                legacyAppRevisionMolecule.selectors.isChatVariant(id),
+            ),
+            requestPayloadSelector: (id: string) =>
+                legacyAppRevisionMolecule.atoms.requestPayload(id),
+            metadataSelector: () =>
+                metadataAtom as unknown as Atom<Record<string, Record<string, unknown>>>,
+            utils: {
+                extractValueByMetadata,
+                getAllMetadata,
+                createMessageFromSchema,
+                getMetadataLazy,
+            },
+        },
         appRevision: {
             molecule: appRevisionMolecule,
             toRunnable: appRevisionToRunnable,
@@ -276,18 +377,9 @@ export const runnableBridge = createRunnableBridge({
             inputPortsSelector: (id: string) => appRevisionMolecule.selectors.inputPorts(id),
             outputPortsSelector: (id: string) => appRevisionMolecule.selectors.outputPorts(id),
             invocationUrlSelector: (id: string) => appRevisionMolecule.atoms.invocationUrl(id),
-        },
-        legacyAppRevision: {
-            molecule: legacyAppRevisionMolecule,
-            toRunnable: legacyAppRevisionToRunnable,
-            getInputPorts: getLegacyAppRevisionInputPorts,
-            getOutputPorts: getLegacyAppRevisionOutputPorts,
-            // Use molecule selectors for reactive derivation
-            inputPortsSelector: (id: string) => legacyAppRevisionMolecule.selectors.inputPorts(id),
-            outputPortsSelector: (id: string) =>
-                legacyAppRevisionMolecule.selectors.outputPorts(id),
-            invocationUrlSelector: (id: string) =>
-                legacyAppRevisionMolecule.atoms.invocationUrl(id),
+            executionModeSelector: createExecutionModeSelector((id: string) =>
+                appRevisionMolecule.selectors.isChatVariant(id),
+            ),
         },
         evaluatorRevision: {
             molecule: evaluatorRevisionMolecule,
@@ -301,6 +393,11 @@ export const runnableBridge = createRunnableBridge({
                 applyPreset: evaluatorRevisionMolecule.actions.applyPreset,
             },
         },
+    },
+    crud: {
+        createVariant: legacyAppRevisionMolecule.actions.createVariant,
+        commitRevision: legacyAppRevisionMolecule.actions.commit,
+        deleteRevision: legacyAppRevisionMolecule.actions.deleteRevision,
     },
 })
 

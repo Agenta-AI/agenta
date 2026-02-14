@@ -69,6 +69,68 @@ export interface EvaluatorRevisionActions {
 }
 
 // ============================================================================
+// APP REVISION LIST INTERFACES
+// ============================================================================
+
+/**
+ * List selectors for app revision entity hierarchies.
+ * Allows the playground controller to query variants/revisions
+ * without knowing the concrete data source.
+ */
+export interface AppRevisionListSelectors {
+    /** Variants for an app (includes local draft groups) */
+    variantsForApp: (appId: string) => Atom<{data: unknown[] | null}> | undefined
+    /** Revisions for a variant */
+    revisionsForVariant: (variantId: string) => Atom<unknown[]> | undefined
+    /** All revisions for an app (flattened, includes local drafts) */
+    allRevisions: (appId: string) => Atom<unknown[]>
+    /** Readiness signal — true when initial revision load is complete */
+    isReady: Atom<boolean>
+}
+
+// ============================================================================
+// APP REVISION CRUD INTERFACES
+// ============================================================================
+
+export interface AppRevisionCreateVariantPayload {
+    baseRevisionId?: string
+    baseVariantName?: string
+    newVariantName: string
+    note?: string
+    callback?: (newRevision: {id: string}, state: {selected: string[]}) => void
+}
+
+export interface AppRevisionCommitPayload {
+    revisionId: string
+    note?: string
+    commitMessage?: string
+    variantId?: string
+    parameters?: Record<string, unknown>
+}
+
+export interface AppRevisionCrudResult {
+    success: boolean
+    newRevisionId?: string
+    message?: string
+    error?: string
+}
+
+/**
+ * CRUD actions for app revision entities.
+ * OSS/EE provides concrete implementations via the provider.
+ */
+export interface AppRevisionActions {
+    createVariant: WritableAtom<
+        null,
+        [AppRevisionCreateVariantPayload],
+        Promise<AppRevisionCrudResult>
+    >
+    commitRevision: WritableAtom<null, [AppRevisionCommitPayload], Promise<AppRevisionCrudResult>>
+    deleteRevision: WritableAtom<null, [string], Promise<AppRevisionCrudResult>>
+    invalidateQueries: WritableAtom<null, [], Promise<void>>
+}
+
+// ============================================================================
 // RAW DATA TYPES
 // ============================================================================
 
@@ -121,6 +183,8 @@ export interface EvaluatorRevisionRawData {
 export interface PlaygroundEntityProviders {
     appRevision: {
         selectors: EntityRevisionSelectors<AppRevisionRawData>
+        lists?: AppRevisionListSelectors
+        actions?: AppRevisionActions
     }
     evaluatorRevision: {
         selectors: EvaluatorRevisionSelectors<EvaluatorRevisionRawData>

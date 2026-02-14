@@ -38,6 +38,7 @@ export type {
     // Entity types
     EntityType,
     RunnableType,
+    RunnableExecutionMode,
     EntitySelection,
     EntitySelectorConfig,
     // Connection types
@@ -66,6 +67,8 @@ export type {
     PathInfo,
     ExtendedPathInfo,
     PathItem,
+    // Request payload
+    RequestPayloadData,
     // State types
     PlaygroundState,
     PlaygroundAction,
@@ -110,6 +113,7 @@ export {createRunnableBridge} from "../shared"
 export type {
     RunnableBridge,
     RunnableBridgeSelectors,
+    RunnableExecutionUtils,
     RunnableTypeConfig,
     CreateRunnableBridgeConfig,
     RunnablePort,
@@ -130,7 +134,8 @@ export {
     extractTemplateVariables,
     extractTemplateVariablesFromJson,
     extractVariablesFromPrompts,
-    extractVariablesFromAgConfig,
+    extractVariablesFromEnhancedPrompt,
+    extractVariablesFromConfig,
 } from "./utils"
 export type {PathSource, ExecuteRunnableOptions} from "./utils"
 
@@ -158,4 +163,9 @@ export type {
     SettingsPreset,
     AppRevisionRawData,
     EvaluatorRevisionRawData,
+    AppRevisionListSelectors,
+    AppRevisionActions,
+    AppRevisionCreateVariantPayload,
+    AppRevisionCommitPayload,
+    AppRevisionCrudResult,
 } from "./providerTypes"

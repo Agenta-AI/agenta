@@ -24,6 +24,13 @@ export type EntityType =
 export type RunnableType = "appRevision" | "legacyAppRevision" | "evaluatorRevision"
 
 /**
+ * Execution mode for a runnable.
+ * - "chat": Interactive conversation with message history
+ * - "completion": Single input → output execution
+ */
+export type RunnableExecutionMode = "chat" | "completion"
+
+/**
  * Entity selection result from the entity selector modal
  */
 export interface EntitySelection {
@@ -376,6 +383,47 @@ export interface PathItem {
     key: string
     name: string
     value: unknown
+}
+
+// ============================================================================
+// REQUEST PAYLOAD
+// ============================================================================
+
+/**
+ * Pre-built request payload from a runnable.
+ *
+ * Contains the config portion of the API request body (ag_config) plus
+ * metadata needed by the playground to merge in inputs and chat history.
+ *
+ * Each entity type implements its own `requestPayloadSelector` that builds
+ * this from its molecule data (enhanced prompts, custom properties, metadata, etc.).
+ *
+ * The playground package then merges:
+ * - `ag_config` from here
+ * - Row data (from loadable) as `inputs`
+ * - Chat history (from chat state) as `messages`
+ */
+export interface RequestPayloadData {
+    /** The ag_config portion of the request body */
+    ag_config: Record<string, unknown>
+    /** Whether this is a chat-mode runnable */
+    isChat: boolean
+    /** Application type (e.g., "custom", "chat", "completion") */
+    appType: string | null
+    /** Full invocation URL for execution */
+    invocationUrl: string | null
+    /** Runtime prefix (base URL without route path or endpoint) */
+    runtimePrefix: string | null
+    /** Allowed input variable keys (derived from prompt templates or schema) */
+    variables: string[]
+    /** OpenAPI spec (needed for custom workflow input mapping) */
+    spec?: unknown
+    /** Route path (needed for custom workflow endpoint resolution) */
+    routePath?: string
+    /** Whether this is a custom workflow */
+    isCustom?: boolean
+    /** Application ID (needed for worker execution payload) */
+    appId?: string | null
 }
 
 // ============================================================================

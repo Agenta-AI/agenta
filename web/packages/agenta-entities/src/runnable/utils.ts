@@ -306,14 +306,14 @@ export function autoMapInputs(
  * @returns Array of unique variable names found in the string
  */
 export function extractTemplateVariables(input: string): string[] {
-    // Simple pattern: match {{ then one or more non-brace characters, then }}
-    // Excludes { and } from variable names to prevent ReDoS backtracking
-    const variablePattern = /\{\{([^{}]+)\}\}/g
+    // Pattern handles escaped braces inside {{...}} (e.g., {{var\}name}})
+    const variablePattern = /\{\{((?:\\.|[^\}\\])*)\}\}/g
     const variables: string[] = []
 
     let match: RegExpExecArray | null
     while ((match = variablePattern.exec(input)) !== null) {
-        const variable = match[1].trim()
+        // Unescape escaped characters (e.g., \} → })
+        const variable = match[1].replaceAll(/\\(.)/g, "$1").trim()
         if (variable && !variables.includes(variable)) {
             variables.push(variable)
         }
@@ -415,22 +415,127 @@ export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | un
 }
 
 /**
- * Extract template variables from agConfig prompt object
- * @param agConfig - The agConfig object containing prompt with messages
+ * Extract template variables from a single enhanced prompt.
+ * Handles the enhanced value wrapper pattern ({value, __id, __metadata}).
+ *
+ * @param prompt - Enhanced prompt object with .messages.value pattern
  * @returns Array of unique variable names
  */
-export function extractVariablesFromAgConfig(
+export function extractVariablesFromEnhancedPrompt(prompt: unknown): string[] {
+    if (!prompt || typeof prompt !== "object") return []
+
+    const p = prompt as Record<string, unknown>
+    const messagesNode = p.messages as {value?: unknown} | undefined
+    const messages = Array.isArray(messagesNode?.value)
+        ? messagesNode!.value
+        : Array.isArray(messagesNode)
+          ? messagesNode
+          : []
+
+    const variables: string[] = []
+
+    for (const message of messages) {
+        if (!message || typeof message !== "object") continue
+        const msg = message as Record<string, unknown>
+        const contentNode = msg.content as {value?: unknown} | undefined
+        const content =
+            contentNode && typeof contentNode === "object" ? contentNode.value : contentNode
+
+        if (typeof content === "string") {
+            for (const v of extractTemplateVariables(content)) {
+                if (!variables.includes(v)) variables.push(v)
+            }
+        } else if (Array.isArray(content)) {
+            for (const part of content) {
+                if (!part || typeof part !== "object") continue
+                const partObj = part as Record<string, unknown>
+                const textNode = partObj.text as {value?: unknown} | string | undefined
+                const text =
+                    textNode && typeof textNode === "object" ? (textNode.value as string) : textNode
+                if (typeof text === "string") {
+                    for (const v of extractTemplateVariables(text)) {
+                        if (!variables.includes(v)) variables.push(v)
+                    }
+                }
+            }
+        }
+    }
+
+    return variables
+}
+
+/**
+ * Extract template variables from config prompt objects.
+ *
+ * Scans all top-level prompt-like entries in config for:
+ * 1. Message content templates ({{var}})
+ * 2. llm_config.response_format JSON schemas
+ * 3. llm_config.tools — function names, descriptions, parameter schemas
+ *
+ * @param config - The config object containing prompt(s) with messages/llm_config
+ * @returns Array of unique variable names
+ */
+export function extractVariablesFromConfig(
     agConfig: Record<string, unknown> | undefined,
 ): string[] {
     if (!agConfig) return []
 
-    const prompt = agConfig.prompt as Record<string, unknown> | undefined
-    if (!prompt) return []
+    const variables: string[] = []
+    const addUnique = (v: string) => {
+        if (!variables.includes(v)) variables.push(v)
+    }
 
-    const messages = prompt.messages
-    if (!Array.isArray(messages)) return []
+    for (const value of Object.values(agConfig)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue
+        const prompt = value as Record<string, unknown>
 
-    return extractVariablesFromPrompts([{messages}])
+        // 1. Extract from messages
+        if (Array.isArray(prompt.messages)) {
+            extractVariablesFromPrompts([{messages: prompt.messages}]).forEach(addUnique)
+        }
+
+        // 2. Extract from llm_config: response_format and tools
+        const llmConfig = (prompt.llm_config ?? prompt.llmConfig) as
+            | Record<string, unknown>
+            | undefined
+        if (!llmConfig || typeof llmConfig !== "object") continue
+
+        const responseFormat = llmConfig.response_format ?? llmConfig.responseFormat
+        if (responseFormat) {
+            extractTemplateVariablesFromJson(responseFormat).forEach(addUnique)
+        }
+
+        if (Array.isArray(llmConfig.tools)) {
+            for (const tool of llmConfig.tools) {
+                if (!tool || typeof tool !== "object") continue
+                const t = tool as Record<string, unknown>
+
+                // OpenAI function tool: {function: {name, description, parameters}}
+                const fn = t.function as Record<string, unknown> | undefined
+                if (fn) {
+                    if (typeof fn.name === "string") {
+                        extractTemplateVariables(fn.name).forEach(addUnique)
+                    }
+                    if (typeof fn.description === "string") {
+                        extractTemplateVariables(fn.description).forEach(addUnique)
+                    }
+                    if (fn.parameters) {
+                        extractTemplateVariablesFromJson(fn.parameters).forEach(addUnique)
+                    }
+                }
+
+                // Generic tool: {description, parameters}
+                if (typeof t.description === "string") {
+                    extractTemplateVariables(t.description).forEach(addUnique)
+                }
+                if (t.parameters && !fn) {
+                    extractTemplateVariablesFromJson(t.parameters).forEach(addUnique)
+                }
+            }
+        }
+    }
+
+    return variables
 }
 
 // ============================================================================
@@ -440,6 +545,10 @@ export function extractVariablesFromAgConfig(
 export interface ExecuteRunnableOptions {
     inputs: Record<string, unknown>
     abortSignal?: AbortSignal
+    /** Pre-built HTTP request body — bypasses default body construction when provided */
+    rawBody?: Record<string, unknown>
+    /** HTTP headers for the request (e.g., Authorization). Merged with defaults. */
+    headers?: Record<string, string>
 }
 
 /**
@@ -459,7 +568,7 @@ export async function executeRunnable(
     data: RunnableData,
     options: ExecuteRunnableOptions,
 ): Promise<ExecutionResult> {
-    const {inputs, abortSignal} = options
+    const {inputs, abortSignal, rawBody, headers: optionHeaders} = options
     const executionId = crypto.randomUUID()
     const startedAt = new Date().toISOString()
 
@@ -478,20 +587,24 @@ export async function executeRunnable(
 
     try {
         // Build request body
-        // The API expects { inputs: { ... } } format
-        // For /test endpoint, also include ag_config to test draft changes
+        // When rawBody is provided (e.g., from transformToRequestBody), use it directly.
+        // Otherwise build the default { inputs, ag_config? } shape.
         const isTestEndpoint = data.invocationUrl.endsWith("/test")
-        const requestBody: Record<string, unknown> = {inputs}
-
-        if (isTestEndpoint && data.configuration) {
-            // Include the draft ag_config for testing uncommitted changes
-            requestBody.ag_config = data.configuration
-        }
+        const requestBody: Record<string, unknown> =
+            rawBody ??
+            (() => {
+                const body: Record<string, unknown> = {inputs}
+                if (isTestEndpoint && data.configuration) {
+                    body.ag_config = data.configuration
+                }
+                return body
+            })()
 
         const response = await fetch(data.invocationUrl, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                ...(optionHeaders ?? {}),
             },
             body: JSON.stringify(requestBody),
             signal: abortSignal,
@@ -541,15 +654,6 @@ export async function executeRunnable(
 
         // Extract trace ID from response.trace_id (at root level, not inside tree)
         const traceId = responseData?.trace_id
-
-        // Debug logging for trace ID extraction
-        console.log("[executeRunnable] API response:", {
-            executionId,
-            hasTree: !!responseData?.tree,
-            traceId,
-            spanId: responseData?.span_id,
-            responseKeys: Object.keys(responseData || {}),
-        })
 
         return {
             executionId,
