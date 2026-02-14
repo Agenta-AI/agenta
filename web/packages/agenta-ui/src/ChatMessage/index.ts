@@ -68,6 +68,8 @@ export {
 export {
     ChatMessageEditor,
     ChatMessageList,
+    ChatInputs,
+    getDefaultNewMessage,
     MarkdownToggleButton,
     ToolMessageHeader,
     MessageAttachments,
@@ -77,5 +79,7 @@ export {
 export type {
     ChatMessageEditorProps,
     ChatMessageListProps,
+    ChatInputsProps,
+    ChatInputMessage,
     SimpleDropdownSelectProps,
 } from "./components"

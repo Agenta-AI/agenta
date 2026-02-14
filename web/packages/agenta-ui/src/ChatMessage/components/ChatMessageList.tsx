@@ -1,4 +1,155 @@
-import React from "react"
+import React, {useEffect, useRef, useState} from "react"
+
+// Inner component so each message owns its own ref for overflow detection
+const ChatMessageItem: React.FC<{
+    msg: import("@agenta/shared/types").SimpleChatMessage
+    index: number
+    disabled?: boolean
+    messageClassName?: string
+    placeholder: string
+    isMinimized: boolean
+    showControls: boolean
+    showRemoveButton?: boolean
+    showCopyButton: boolean
+    allowFileUpload: boolean
+    enableTokens: boolean
+    templateFormat?: "curly" | "fstring" | "jinja2"
+    tokens?: string[]
+    loadingFallback: "skeleton" | "none" | "static"
+    ImagePreview?: React.ComponentType<{
+        src: string
+        alt: string
+        size: number
+        isValidPreview: boolean
+    }>
+    onRoleChange: (index: number, role: string) => void
+    onTextChange: (index: number, text: string) => void
+    onRemove: (index: number) => void
+    onAddImage: (index: number, url: string) => void
+    onAddFile: (index: number, data: string, name: string, format: string) => void
+    onRemoveAttachment: (msgIndex: number, attachmentIndex: number) => void
+    onToggleMinimize: (index: number) => void
+}> = ({
+    msg,
+    index,
+    disabled,
+    messageClassName,
+    placeholder,
+    isMinimized,
+    showControls,
+    showRemoveButton,
+    showCopyButton,
+    allowFileUpload,
+    enableTokens,
+    templateFormat,
+    tokens,
+    loadingFallback,
+    ImagePreview,
+    onRoleChange,
+    onTextChange,
+    onRemove,
+    onAddImage,
+    onAddFile,
+    onRemoveAttachment,
+    onToggleMinimize,
+}) => {
+    const containerRef = useRef<HTMLDivElement>(null)
+
+    const isToolResponse = msg.role === "tool"
+    const hasToolCalls = Boolean(msg.tool_calls && msg.tool_calls.length > 0)
+    const textContent = hasToolCalls
+        ? extractDisplayTextFromMessage(msg)
+        : extractTextFromContent(msg.content ?? null)
+    const attachments = getAttachments(msg.content ?? null)
+    const hasAttachmentsFlag = attachments.length > 0
+
+    return (
+        <div key={msg.id || `msg-${index}`} className={cn(flexLayouts.column)} ref={containerRef}>
+            <ChatMessageEditor
+                id={`chat-msg-${index}`}
+                role={msg.role}
+                text={textContent}
+                disabled={disabled}
+                className={cn(
+                    messageClassName,
+                    isMinimized &&
+                        "[&_.agenta-editor-wrapper]:max-h-[calc(8px+calc(2*19.88px))] [&_.agenta-editor-wrapper]:overflow-y-auto [&_.agenta-editor-wrapper]:!mb-0",
+                )}
+                placeholder={placeholder}
+                onChangeRole={(role) => onRoleChange(index, role)}
+                onChangeText={(text) => onTextChange(index, text)}
+                enableTokens={enableTokens}
+                templateFormat={templateFormat}
+                tokens={tokens}
+                loadingFallback={loadingFallback}
+                headerBottom={
+                    isToolResponse && (msg.name || msg.tool_call_id) ? (
+                        <ToolMessageHeader name={msg.name} toolCallId={msg.tool_call_id} />
+                    ) : undefined
+                }
+                headerRight={
+                    <div
+                        className={cn(
+                            flexLayouts.rowCenter,
+                            gapClasses.xs,
+                            "invisible group-hover/item:visible",
+                        )}
+                    >
+                        <MarkdownToggleButton id={`chat-msg-${index}`} />
+                        {allowFileUpload && !disabled && (
+                            <AttachmentButton
+                                onAddImage={(url) => onAddImage(index, url)}
+                                onAddFile={(data, name, format) =>
+                                    onAddFile(index, data, name, format)
+                                }
+                                disabled={disabled}
+                            />
+                        )}
+                        {showCopyButton && (
+                            <Tooltip title="Copy">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<Copy size={14} />}
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(textContent)
+                                    }}
+                                />
+                            </Tooltip>
+                        )}
+                        {(showRemoveButton ?? showControls) && !disabled && (
+                            <Tooltip title="Remove">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<MinusCircle size={14} />}
+                                    onClick={() => onRemove(index)}
+                                />
+                            </Tooltip>
+                        )}
+                        <CollapseToggleButton
+                            collapsed={isMinimized}
+                            onToggle={() => onToggleMinimize(index)}
+                            contentRef={containerRef}
+                        />
+                    </div>
+                }
+                footer={
+                    hasAttachmentsFlag ? (
+                        <MessageAttachments
+                            content={msg.content!}
+                            onRemove={(attachmentIndex) =>
+                                onRemoveAttachment(index, attachmentIndex)
+                            }
+                            disabled={disabled}
+                            ImagePreview={ImagePreview}
+                        />
+                    ) : undefined
+                }
+            />
+        </div>
+    )
+}
 
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {
@@ -10,9 +161,10 @@ import {
     removeAttachmentFromContent,
     getAttachments,
 } from "@agenta/shared/utils"
-import {MinusCircle, Plus} from "@phosphor-icons/react"
+import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 
+import {CollapseToggleButton} from "../../components/presentational/buttons"
 import {cn, flexLayouts, gapClasses} from "../../utils/styles"
 
 import AttachmentButton from "./AttachmentButton"
@@ -34,8 +186,12 @@ export interface ChatMessageListProps {
     messageClassName?: string
     /** Placeholder text for empty messages */
     placeholder?: string
-    /** Whether to show add/remove controls */
+    /** Whether to show add/remove controls (add message button + per-message remove) */
     showControls?: boolean
+    /** Whether to show per-message remove button (independent of showControls) */
+    showRemoveButton?: boolean
+    /** Whether to show per-message copy button */
+    showCopyButton?: boolean
     /** Whether to allow file uploads */
     allowFileUpload?: boolean
     /** Whether to enable variable token highlighting */
@@ -51,6 +207,10 @@ export interface ChatMessageListProps {
         size: number
         isValidPreview: boolean
     }>
+    /** Whether messages should start minimized */
+    defaultMinimized?: boolean
+    /** Suspense fallback mode for editor plugins */
+    loadingFallback?: "skeleton" | "none" | "static"
 }
 
 /**
@@ -66,12 +226,34 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     messageClassName,
     placeholder = "Enter message...",
     showControls = true,
+    showRemoveButton,
+    showCopyButton = false,
     allowFileUpload = true,
     enableTokens = false,
     templateFormat,
     tokens,
     ImagePreview,
+    defaultMinimized = false,
+    loadingFallback = "skeleton",
 }) => {
+    const [minimizedMessages, setMinimizedMessages] = useState<Record<number, boolean>>(() =>
+        defaultMinimized ? Object.fromEntries(messages.map((_, index) => [index, true])) : {},
+    )
+
+    useEffect(() => {
+        if (!defaultMinimized) return
+
+        setMinimizedMessages((prev) => {
+            const next: Record<number, boolean> = {}
+
+            for (let i = 0; i < messages.length; i += 1) {
+                next[i] = prev[i] ?? true
+            }
+
+            return next
+        })
+    }, [defaultMinimized, messages.length])
+
     const handleRoleChange = (index: number, role: string) => {
         const updated = [...messages]
         updated[index] = {...updated[index], role}
@@ -127,82 +309,35 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
     return (
         <div className={cn(flexLayouts.column, gapClasses.sm, className)}>
-            {messages.map((msg, index) => {
-                // Check message type
-                const isToolResponse = msg.role === "tool"
-                const hasToolCalls = Boolean(msg.tool_calls && msg.tool_calls.length > 0)
-
-                // Get text content - for assistant with tool_calls, show formatted tool calls
-                const textContent = hasToolCalls
-                    ? extractDisplayTextFromMessage(msg)
-                    : extractTextFromContent(msg.content ?? null)
-
-                const attachments = getAttachments(msg.content ?? null)
-                const hasAttachmentsFlag = attachments.length > 0
-
-                return (
-                    <div key={msg.id || `msg-${index}`} className={cn(flexLayouts.column)}>
-                        <ChatMessageEditor
-                            id={`chat-msg-${index}`}
-                            role={msg.role}
-                            text={textContent}
-                            disabled={disabled}
-                            className={messageClassName}
-                            placeholder={placeholder}
-                            onChangeRole={(role) => handleRoleChange(index, role)}
-                            onChangeText={(text) => handleTextChange(index, text)}
-                            enableTokens={enableTokens}
-                            templateFormat={templateFormat}
-                            tokens={tokens}
-                            headerBottom={
-                                // Show tool info header for tool response messages
-                                isToolResponse && (msg.name || msg.tool_call_id) ? (
-                                    <ToolMessageHeader
-                                        name={msg.name}
-                                        toolCallId={msg.tool_call_id}
-                                    />
-                                ) : undefined
-                            }
-                            headerRight={
-                                <div className={cn(flexLayouts.rowCenter, gapClasses.xs)}>
-                                    <MarkdownToggleButton id={`chat-msg-${index}`} />
-                                    {allowFileUpload && !disabled && (
-                                        <AttachmentButton
-                                            onAddImage={(url) => handleAddImage(index, url)}
-                                            onAddFile={(data, name, format) =>
-                                                handleAddFile(index, data, name, format)
-                                            }
-                                            disabled={disabled}
-                                        />
-                                    )}
-                                    {showControls && !disabled && (
-                                        <Tooltip title="Remove">
-                                            <Button
-                                                type="text"
-                                                size="small"
-                                                icon={<MinusCircle size={14} />}
-                                                onClick={() => handleRemoveMessage(index)}
-                                            />
-                                        </Tooltip>
-                                    )}
-                                </div>
-                            }
-                            footer={
-                                hasAttachmentsFlag ? (
-                                    <MessageAttachments
-                                        content={msg.content!}
-                                        onRemove={(attachmentIndex) =>
-                                            handleRemoveAttachment(index, attachmentIndex)
-                                        }
-                                        disabled={disabled}
-                                        ImagePreview={ImagePreview}
-                                    />
-                                ) : undefined
-                            }
-                        />
-                    </div>
-                )
-            })}
+            {messages.map((msg, index) => (
+                <ChatMessageItem
+                    key={msg.id || `msg-${index}`}
+                    msg={msg}
+                    index={index}
+                    disabled={disabled}
+                    messageClassName={messageClassName}
+                    placeholder={placeholder}
+                    isMinimized={minimizedMessages[index] ?? false}
+                    showControls={showControls}
+                    showRemoveButton={showRemoveButton}
+                    showCopyButton={showCopyButton}
+                    allowFileUpload={allowFileUpload}
+                    enableTokens={enableTokens}
+                    templateFormat={templateFormat}
+                    tokens={tokens}
+                    loadingFallback={loadingFallback}
+                    ImagePreview={ImagePreview}
+                    onRoleChange={handleRoleChange}
+                    onTextChange={handleTextChange}
+                    onRemove={handleRemoveMessage}
+                    onAddImage={handleAddImage}
+                    onAddFile={handleAddFile}
+                    onRemoveAttachment={handleRemoveAttachment}
+                    onToggleMinimize={(i) =>
+                        setMinimizedMessages((prev) => ({...prev, [i]: !prev[i]}))
+                    }
+                />
+            ))}
             {showControls && !disabled && (
                 <Button
                     variant="outlined"
