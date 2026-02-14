@@ -5,6 +5,8 @@
  * text extraction, content updates, and attachment management.
  */
 
+import JSON5 from "json5"
+
 import type {
     MessageContent,
     TextContentPart,
@@ -181,4 +183,156 @@ export function getAttachments(content: MessageContent): (ImageContentPart | Fil
         (part): part is ImageContentPart | FileContentPart =>
             part.type === "image_url" || part.type === "file",
     )
+}
+
+// ============================================================================
+// Chat parsing / normalization utilities
+// ============================================================================
+
+/** Unwrap a potential `{ value: X }` enhanced wrapper, returning the inner value or the input as-is. */
+function unwrap<T>(v: unknown): T | undefined {
+    if (v && typeof v === "object" && "value" in (v as Record<string, unknown>)) {
+        return (v as Record<string, unknown>).value as T
+    }
+    return v as T | undefined
+}
+
+/** Resolve a field that may exist under `snake_case` or `camelCase` keys, each possibly wrapped. */
+function resolveField<T>(m: Record<string, unknown>, snake: string, camel: string): T | undefined {
+    return (
+        (m[snake] as T) ??
+        (m[camel] as T) ??
+        unwrap<T>(m[camel]) ??
+        unwrap<T>(m[snake]) ??
+        undefined
+    )
+}
+
+/** Coerce a resolved value to string, handling residual `{ value: X }` objects. */
+function coerceString(v: unknown): string | undefined {
+    if (v === undefined || v === null) return undefined
+    if (typeof v === "object" && v !== null && "value" in (v as Record<string, unknown>)) {
+        return String((v as Record<string, unknown>).value ?? v)
+    }
+    return String(v)
+}
+
+/**
+ * Try to parse a JSON5 string into an array. Returns null if not parseable as an array.
+ */
+export function tryParseArrayFromString(s: string): unknown[] | null {
+    try {
+        const t = s.trim()
+        if (!t.startsWith("[") && !t.startsWith("{")) return null
+        const parsed = JSON5.parse(s)
+        return Array.isArray(parsed) ? parsed : null
+    } catch {
+        return null
+    }
+}
+
+/**
+ * Normalize a single row's messages field (array or JSON string) into a
+ * typed `SimpleChatMessage[]`.
+ *
+ * Handles both the standard OpenAI/Anthropic shape **and** the internal
+ * property-object shape used by the playground (where values are wrapped in
+ * `{ value: … }` objects).
+ */
+export function normalizeMessagesFromField(raw: unknown): SimpleChatMessage[] {
+    const out: SimpleChatMessage[] = []
+    if (!raw) return out
+
+    const pushFrom = (m: Record<string, unknown>) => {
+        const role = String(unwrap<string>(m.role) || "user").toLowerCase()
+
+        const rc = m.content
+        const content: MessageContent = Array.isArray(rc)
+            ? rc
+            : (unwrap<MessageContent>(rc) ?? (typeof rc === "string" ? rc : null))
+
+        const toolCalls = resolveField<SimpleChatMessage["tool_calls"]>(
+            m,
+            "tool_calls",
+            "toolCalls",
+        )
+        const functionCall = resolveField<SimpleChatMessage["function_call"]>(
+            m,
+            "function_call",
+            "functionCall",
+        )
+        const toolCallId = coerceString(resolveField(m, "tool_call_id", "toolCallId"))
+        const name = coerceString(resolveField(m, "name", "tool_name"))
+
+        const payload: SimpleChatMessage = {role, content}
+        if (toolCalls !== undefined) payload.tool_calls = toolCalls
+        if (functionCall !== undefined) payload.function_call = functionCall
+        if (toolCallId !== undefined) payload.tool_call_id = toolCallId
+        if (name !== undefined) payload.name = name
+
+        out.push(payload)
+    }
+
+    if (Array.isArray(raw)) {
+        for (const m of raw) pushFrom(m as Record<string, unknown>)
+        return out
+    }
+    if (typeof raw === "string") {
+        try {
+            const parsed = JSON5.parse(raw)
+            if (Array.isArray(parsed)) {
+                for (const m of parsed) pushFrom(m as Record<string, unknown>)
+            }
+        } catch {
+            // not parseable — return empty
+        }
+    }
+    return out
+}
+
+/**
+ * Derive a unified view model for rendering generation responses.
+ *
+ * Returns a potential `toolData` array (for ToolCallView), a `displayValue`
+ * string for the editor, and an `isJSON` flag for syntax highlighting.
+ */
+export function deriveToolViewModelFromResult(result: unknown): {
+    toolData: unknown[] | null
+    isJSON: boolean
+    displayValue: string
+} {
+    const rawData = (result as Record<string, unknown>)?.response as
+        | Record<string, unknown>
+        | undefined
+    const dataField = rawData?.data
+    const contentCandidate =
+        typeof dataField === "string"
+            ? dataField
+            : dataField && typeof dataField === "object"
+              ? ((dataField as Record<string, unknown>).content ??
+                (dataField as Record<string, unknown>).data ??
+                "")
+              : ""
+
+    // Tool-call candidates
+    let arr: unknown[] | null = null
+    if (typeof contentCandidate === "string") arr = tryParseArrayFromString(contentCandidate)
+    if (!arr && Array.isArray(contentCandidate)) arr = contentCandidate
+    if (!arr && typeof dataField === "string") arr = tryParseArrayFromString(dataField)
+    if (!arr && Array.isArray(dataField)) arr = dataField
+
+    // Fallback editor content
+    let isJSON = false
+    let displayValue =
+        typeof contentCandidate === "string" ? contentCandidate : String(contentCandidate ?? "")
+    if (typeof contentCandidate === "string") {
+        try {
+            const parsed = JSON5.parse(contentCandidate)
+            isJSON = true
+            displayValue = JSON.stringify(parsed, null, 2)
+        } catch {
+            isJSON = false
+        }
+    }
+    return {toolData: arr, isJSON, displayValue}
 }
