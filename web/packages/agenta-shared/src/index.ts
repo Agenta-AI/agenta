@@ -45,6 +45,7 @@ export {
     createAxiosInstance,
     configureAxios,
     resetAxiosConfig,
+    queryClient,
 } from "./api"
 export type {AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosInterceptorConfig} from "./api"
 
@@ -114,6 +115,11 @@ export {
     addFileToContent,
     removeAttachmentFromContent,
     getAttachments,
+    tryParseArrayFromString,
+    normalizeMessagesFromField,
+    deriveToolViewModelFromResult,
+    normalizeEnhancedMessages,
+    extractPromptTemplateContext,
 } from "./utils"
 
 // Logger utilities
@@ -161,7 +167,7 @@ export type {
 export {MESSAGE_CONTENT_SCHEMA, CHAT_MESSAGE_SCHEMA, CHAT_MESSAGES_ARRAY_SCHEMA} from "./schemas"
 
 // Hooks
-export {useDebounceInput} from "./hooks"
+export {useDebounceInput, useLazyEffect} from "./hooks"
 
 // Formatting utilities
 export {
@@ -181,6 +187,15 @@ export type {FormatterOptions, Formatter} from "./utils"
 
 // Pluralization utilities
 export {pluralize, formatCount} from "./utils"
+
+// ID generation utilities
+export {generateId} from "./utils"
+
+// Data URI / Base64 / URL detection utilities
+export {isBase64, dataUriToObjectUrl, isUrl} from "./utils"
+
+// Value extraction utilities (strip enhanced wrappers / metadata)
+export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./utils"
 
 // Mapping utilities for input/output mappings
 export {

@@ -55,7 +55,11 @@ export {
     addFileToContent,
     removeAttachmentFromContent,
     getAttachments,
+    tryParseArrayFromString,
+    normalizeMessagesFromField,
+    deriveToolViewModelFromResult,
 } from "./chatMessage"
+export {normalizeEnhancedMessages, extractPromptTemplateContext} from "./chatPrompts"
 
 // Logger utilities
 export {createLogger} from "./createLogger"
@@ -120,6 +124,12 @@ export {pluralize, formatCount} from "./pluralize"
 
 // ID generation utilities
 export {generateId} from "./generateId"
+
+// Data URI / Base64 / URL detection utilities
+export {isBase64, dataUriToObjectUrl, isUrl} from "./dataUri"
+
+// Value extraction utilities (strip enhanced wrappers / metadata)
+export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./valueExtraction"
 
 // Mapping utilities for input/output mappings
 export {
