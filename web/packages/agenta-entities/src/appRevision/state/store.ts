@@ -17,8 +17,9 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {extractVariablesFromAgConfig} from "../../runnable/utils"
+import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {QueryState} from "../../shared"
+import {isLocalDraftId, isPlaceholderId} from "../../shared"
 import {
     fetchVariantsList,
     fetchRevisionsList,
@@ -62,7 +63,9 @@ export interface AppRevisionInputPort {
 const directQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery<AppRevisionData | null>((get) => {
         const projectId = get(projectIdAtom)
-        const enabled = !!revisionId && !!projectId
+        const isLocal = isLocalDraftId(revisionId)
+        const isPlaceholder = isPlaceholderId(revisionId)
+        const enabled = !!revisionId && !!projectId && !isLocal && !isPlaceholder
 
         return {
             queryKey: ["appRevision", revisionId, projectId],
@@ -200,7 +203,7 @@ export const appRevisionInputPortsAtomFamily = atomFamily((revisionId: string) =
         if (!data) return []
 
         const agConfig = data.agConfig as Record<string, unknown> | undefined
-        const dynamicKeys = extractVariablesFromAgConfig(agConfig)
+        const dynamicKeys = extractVariablesFromConfig(agConfig)
 
         return dynamicKeys.map((key) => ({
             key,

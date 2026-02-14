@@ -33,6 +33,8 @@ import {
     // Enhanced variant types
     type EnhancedVariantLike,
     extractUriFromEnhanced,
+    isLocalDraftId,
+    isPlaceholderId,
 } from "../../shared"
 import type {AppRevisionData, PromptConfig} from "../core"
 
@@ -461,6 +463,7 @@ export async function fetchRevisionConfig(
     projectId: string,
 ): Promise<AppRevisionData | null> {
     if (!revisionId || !projectId) return null
+    if (isLocalDraftId(revisionId) || isPlaceholderId(revisionId)) return null
 
     try {
         const response = await axios.post<ApiConfigResponse>(

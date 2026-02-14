@@ -259,6 +259,8 @@ export interface RevisionSchemaState {
     }
     /** Available endpoint names */
     availableEndpoints?: string[]
+    /** Primary endpoint schema (first available in priority: test > run > generate > generateDeployed > root) */
+    primaryEndpoint?: EndpointSchema | null
     /** Is this a chat variant (has messages) */
     isChatVariant?: boolean
     /** Runtime prefix URL */
