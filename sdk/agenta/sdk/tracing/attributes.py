@@ -1,4 +1,4 @@
-from json import loads, dumps
+from json import dumps
 from typing import Optional, Union, Sequence, Any, Dict
 
 Primitive = Union[str, int, float, bool, bytes]

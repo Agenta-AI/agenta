@@ -1,9 +1,8 @@
 import os
-from typing import Annotated
 
 import agenta as ag
 from agenta.sdk.managers.config import ConfigManager
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 os.environ["AGENTA_MODE"] = "true"
 

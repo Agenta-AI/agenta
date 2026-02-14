@@ -40,7 +40,7 @@ async def get_all_workspace_permissions() -> List[Permission]:
     try:
         workspace_permissions = await workspace_manager.get_all_workspace_permissions()
         return sorted(workspace_permissions)
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while fetching workspace permissions",
             exc_info=True,
@@ -100,7 +100,7 @@ async def assign_role_to_user(
         return create_user_role
     except HTTPException as ex:
         raise ex
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while assigning role to user",
             exc_info=True,
@@ -167,7 +167,7 @@ async def unassign_role_from_user(
         return delete_user_role
     except HTTPException as ex:
         raise ex
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while unassigning role from user",
             exc_info=True,

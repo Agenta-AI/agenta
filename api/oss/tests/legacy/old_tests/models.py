@@ -14,9 +14,7 @@ if is_ee():
         AppDB,
         EvaluationDB,
         DeploymentDB,
-        HumanEvaluationDB,
         EvaluationScenarioDB,
-        HumanEvaluationScenarioDB,
     )
     from ee.src.models.db_models import (
         OrganizationMemberDB,
@@ -33,9 +31,7 @@ else:
         AppDB,
         EvaluationDB,
         DeploymentDB,
-        HumanEvaluationDB,
         EvaluationScenarioDB,
-        HumanEvaluationScenarioDB,
     )
 
 from oss.src.models.db_models import (
@@ -61,10 +57,8 @@ models: List[Base] = [
     AppEnvironmentDB,
     AppEnvironmentRevisionDB,
     EvaluatorConfigDB,
-    HumanEvaluationDB,
     EvaluationScenarioDB,
     AppVariantRevisionsDB,
-    HumanEvaluationScenarioDB,
 ]
 
 if is_ee():

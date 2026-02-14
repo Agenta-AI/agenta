@@ -13,10 +13,7 @@ from oss.src.core.git.dtos import (
     VariantCreate,
     VariantEdit,
     VariantQuery,
-    VariantFork,
-    #
     RevisionCreate,
-    RevisionEdit,
     RevisionQuery,
     RevisionCommit,
 )
@@ -52,14 +49,8 @@ from oss.src.core.testsets.dtos import (
     TestsetRevisionCommit,
 )
 from oss.src.apis.fastapi.testsets.utils import (
-    csv_file_to_json_array,
-    json_file_to_json_array,
     json_array_to_json_object,
-    json_array_to_csv_file,
-    json_array_to_json_file,
     validate_testset_limits,
-    TESTSETS_SIZE_EXCEPTION,
-    TESTSETS_SIZE_LIMIT,
 )
 
 log = get_module_logger(__name__)
@@ -840,11 +831,14 @@ class TestsetsService:
         testset_revisions_log: TestsetRevisionsLog,
         #
         include_testcases: Optional[bool] = None,
+        include_archived: bool = False,
     ) -> List[TestsetRevision]:
         revisions = await self.testsets_dao.log_revisions(
             project_id=project_id,
             #
             revisions_log=testset_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         if not revisions:
@@ -1044,7 +1038,7 @@ class SimpleTestsetsService:
                     i
                 ].data = testcase_data
 
-        except Exception as e:
+        except Exception:
             return None
 
         try:
@@ -1052,7 +1046,7 @@ class SimpleTestsetsService:
                 testcases=simple_testset_create_request.testset.data.testcases,
             )
 
-        except Exception as e:
+        except Exception:
             return None
 
         testset_create = TestsetCreate(
@@ -1210,7 +1204,7 @@ class SimpleTestsetsService:
                     i
                 ].data = testcase_data
 
-        except Exception as e:
+        except Exception:
             return None
 
         try:
@@ -1218,7 +1212,7 @@ class SimpleTestsetsService:
                 testcases=testcases,
             )
 
-        except Exception as e:
+        except Exception:
             return None
 
         testset_ref = Reference(

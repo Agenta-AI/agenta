@@ -1,4 +1,3 @@
-import json
 from uuid import UUID
 
 from oss.src.dbs.postgres.secrets.dbes import SecretsDBE

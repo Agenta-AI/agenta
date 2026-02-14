@@ -11,7 +11,6 @@ import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {waitForValidURL} from "@/oss/state/url"
 
-import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 
 import {getErrorMessage} from "./errorHandler"
@@ -42,23 +41,6 @@ export const renameVariablesCapitalizeAll = (name: string) => {
         words[i] = words[i].charAt(0).toUpperCase() + words[i].slice(1)
     }
     return words.join(" ")
-}
-
-export const EvaluationTypeLabels: Record<EvaluationType, string> = {
-    [EvaluationType.auto_exact_match]: "Exact Match",
-    [EvaluationType.auto_similarity_match]: "Similarity Match",
-    [EvaluationType.auto_ai_critique]: "AI Critic",
-    [EvaluationType.human_a_b_testing]: "A/B Test",
-    [EvaluationType.human_scoring]: "Scoring single variant",
-    [EvaluationType.custom_code_run]: "Custom Code Run",
-    [EvaluationType.auto_regex_test]: "Regex Test",
-    [EvaluationType.field_match_test]: "JSON Field Match",
-    [EvaluationType.auto_json_diff]: "JSON Diff Match",
-    [EvaluationType.auto_semantic_similarity]: "Semantic Similarity Match",
-    [EvaluationType.auto_webhook_test]: "Webhook Test",
-    [EvaluationType.single_model_test]: "Single Model Test",
-    // [EvaluationType.rag_faithfulness]: "RAG Faithfulness",
-    // [EvaluationType.rag_context_relevancy]: "RAG Context Relevancy",
 }
 
 export const apiKeyObject = (apiKeys: LlmProvider[]) => {

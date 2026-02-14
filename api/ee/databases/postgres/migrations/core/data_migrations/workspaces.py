@@ -128,7 +128,7 @@ def create_default_project_memberships(session: Connection):
                     select(ProjectDB)
                     .where(
                         ProjectDB.workspace_id == workspace_member.workspace_id,
-                        ProjectDB.is_default == True,
+                        ProjectDB.is_default == True,  # noqa: E712
                     )
                     .limit(1)
                 )
@@ -194,7 +194,7 @@ def remove_default_projects_from_workspaces(session: Connection):
         stmt = (
             select(func.count())
             .select_from(ProjectDB)
-            .where(ProjectDB.is_default == True)
+            .where(ProjectDB.is_default == True)  # noqa: E712
         )
         result = session.execute(stmt).scalar()
         TOTAL_PROJECTS = result if result is not None else 0
@@ -204,7 +204,7 @@ def remove_default_projects_from_workspaces(session: Connection):
             # Retrieve a batch of workspaces with a default project
             projects_to_delete = session.execute(
                 select(ProjectDB)
-                .where(ProjectDB.is_default == True)
+                .where(ProjectDB.is_default == True)  # noqa: E712
                 .offset(offset)
                 .limit(BATCH_SIZE)  # type: ignore
             ).fetchall()

@@ -3,7 +3,7 @@ async def create_application(client, app_name: str, headers: dict):
     Factory fixture to create a new application.
     """
 
-    response = await client.post(f"apps/", json={"app_name": app_name}, headers=headers)
+    response = await client.post("apps/", json={"app_name": app_name}, headers=headers)
     response.raise_for_status()
     response_data = response.json()
 

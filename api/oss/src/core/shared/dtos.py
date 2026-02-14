@@ -3,8 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-
-from agenta.sdk.models.shared import (
+from agenta.sdk.models.shared import (  # noqa: F401
     BoolJson,
     StringJson,
     FullJson,

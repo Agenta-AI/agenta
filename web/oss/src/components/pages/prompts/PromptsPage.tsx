@@ -11,8 +11,10 @@ import {getTemplateKey, timeout} from "@/oss/components/pages/app-management/ass
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import DeleteAppModal from "@/oss/components/pages/app-management/modals/DeleteAppModal"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
-import EditAppModal from "@/oss/components/pages/app-management/modals/EditAppModal"
-import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
+// TEMPORARY: Disabling name editing
+// import EditAppModal from "@/oss/components/pages/app-management/modals/EditAppModal"
+// TEMPORARY: Disabling name editing
+// import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
@@ -101,7 +103,8 @@ const PromptsPage = () => {
     const [isMovingItem, setIsMovingItem] = useState(false)
     const [isDeletingFolder, setIsDeletingFolder] = useState(false)
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
-    const openEditAppModal = useSetAtom(openEditAppModalAtom)
+    // TEMPORARY: Disabling name editing
+    // const openEditAppModal = useSetAtom(openEditAppModalAtom)
     const setPromptsTableMeta = useSetAtom(promptsTableMetaAtom)
 
     useBreadcrumbsEffect({breadcrumbs: {prompts: {label: "prompts"}}}, [])
@@ -110,7 +113,9 @@ const PromptsPage = () => {
         data: foldersData,
         isLoading: isLoadingFolders,
         mutate,
-    } = useSWR(projectId ? ["folders", projectId] : null, () => queryFolders({folder: {}}))
+    } = useSWR(projectId ? ["folders", projectId] : null, () =>
+        queryFolders({folder: {}}, projectId),
+    )
 
     const {
         currentFolderId,
@@ -768,7 +773,8 @@ const PromptsPage = () => {
         onDeleteFolder: handleOpenDeleteModal,
         onMoveItem: handleOpenMoveModal,
         onOpenAppOverview: handleOpenAppOverview,
-        onOpenEditAppModal: openEditAppModal,
+        // TEMPORARY: Disabling name editing
+        // onOpenEditAppModal: openEditAppModal,
         onOpenDeleteAppModal: openDeleteAppModal,
         getAppTypeIcon: renderAppTypeIcon,
     })
@@ -877,7 +883,8 @@ const PromptsPage = () => {
             />
 
             <DeleteAppModal />
-            <EditAppModal />
+            {/* TEMPORARY: Disabling name editing */}
+            {/* <EditAppModal /> */}
         </PageLayout>
     )
 }

@@ -667,8 +667,8 @@ async def delete_organization_domain(
                 status_code=403,
             )
 
-        domains_dao = OrganizationDomainsDAO()
         # TODO: Implement delete method in DAO
+        # domains_dao = OrganizationDomainsDAO()
         # await domains_dao.delete(UUID(domain_id))
 
         return JSONResponse(

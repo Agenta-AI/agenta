@@ -1,1 +1,1 @@
-from .tracing import Tracing, get_tracer
+from .tracing import Tracing, get_tracer  # noqa: F401

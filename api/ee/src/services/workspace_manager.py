@@ -1,5 +1,3 @@
-import asyncio
-
 from typing import List
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
@@ -23,7 +21,6 @@ from ee.src.models.api.workspace_models import (
     CreateWorkspace,
     UpdateWorkspace,
 )
-from oss.src.models.db_models import InvitationDB
 from oss.src.services.organization_service import (
     create_invitation,
     check_existing_invitation,
@@ -252,7 +249,7 @@ async def invite_user_to_workspace(
             {"message": "Invited users to organization"}, status_code=200
         )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while inviting user to workspace",
             exc_info=True,
@@ -331,7 +328,7 @@ async def resend_user_workspace_invite(
                 {"detail": "Failed to invite user to organization"}, status_code=400
             )
 
-    except Exception as e:
+    except Exception:
         log.error(
             "Unexpected error while resending user workspace invite",
             exc_info=True,
