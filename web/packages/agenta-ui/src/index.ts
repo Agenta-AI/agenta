@@ -191,6 +191,7 @@ export {
     Editor,
     EditorProvider,
     DiffView,
+    preloadEditorPlugins,
     // Re-exports from Lexical
     useLexicalComposerContext,
     ON_HYDRATE_FROM_REMOTE_CONTENT,
@@ -284,6 +285,12 @@ export {
 // ============================================================================
 
 export {useSelectionState, type UseSelectionStateResult} from "./hooks"
+
+// ============================================================================
+// COPY TOOLTIP - Tooltip with click-to-copy functionality
+// ============================================================================
+
+export {CopyTooltip, type CopyTooltipProps} from "./CopyTooltip"
 
 // ============================================================================
 // CELL RENDERERS - Smart cell content rendering for tables

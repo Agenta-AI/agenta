@@ -27,7 +27,8 @@
         "./components/modal": "./src/components/modal/index.ts",
         "./styles": "./src/utils/styles.ts",
         "./utils": "./src/utils/index.ts",
-        "./hooks": "./src/hooks/index.ts"
+        "./hooks": "./src/hooks/index.ts",
+        "./copy-tooltip": "./src/CopyTooltip/index.ts"
     },
     "peerDependencies": {
         "@lexical/code": ">=0.38.0",
