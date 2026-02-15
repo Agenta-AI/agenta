@@ -1,5 +1,7 @@
 from uuid import uuid4
 
+import pytest
+
 from utils.polling import wait_for_response
 
 
