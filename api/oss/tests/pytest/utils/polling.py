@@ -72,10 +72,10 @@ def wait_for_response(
 
     Uses exponential backoff to reduce API calls while providing sufficient wait time:
     - With max_retries=15, initial_delay=0.5s, max_delay=8s:
-      - Delays: 0.5s, 0.5s, 1s, 2s, 4s, 8s, 8s, 8s, 8s...
-      - Total API calls: 15 (vs 30 with fixed 1s delay)
-      - Total wait time: ~32 seconds
-      - Rate: ~28 req/min (vs 60 req/min with fixed delay)
+      - Delays: 0.5s, 1s, 2s, 4s, 8s, 8s, 8s, 8s, 8s...
+      - Total API calls: 15
+      - Total wait time: ~88 seconds
+      - Average rate: ~10 req/min
 
     Args:
         authed_api: Authenticated API client fixture
