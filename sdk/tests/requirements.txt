@@ -4,4 +4,6 @@ requests>=2.32.4
 pytest
 pytest-asyncio
 pytest-cov
+pytest-html
 pytest-mock
+pytest-xdist

@@ -48,6 +48,8 @@ web/ee/public/__env.js
 web/oss/public/__env.js
 
 web/oss/tests/datalayer/results
+api/tests/results/
+sdk/tests/results/
 .*
 !api/.dockerignore
 !services/.dockerignore
