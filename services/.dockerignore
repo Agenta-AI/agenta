@@ -1,0 +1,46 @@
+# Version control
+.git
+.github
+.gitignore
+
+# Python caches and artifacts
+.pytest_cache
+.ruff_cache
+.mypy_cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist/
+build/
+.eggs/
+
+# Environment and secrets
+.env
+.env.*
+
+# Test and coverage
+.pytest_cache
+.coverage
+htmlcov
+oss/tests
+ee/tests
+
+# Documentation
+*.md
+docs/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log

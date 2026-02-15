@@ -1,0 +1,392 @@
+name: agenta-ee-gh-local
+
+services:
+    web:
+        # === ACTIVATION =========================================== #
+        profiles:
+            - with-web
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../web
+            dockerfile: ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command: sh -c "node ./ee/server.js"
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        # === LABELS =============================================== #
+        labels:
+            - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+            - "traefik.http.routers.web.entrypoints=web"
+            - "traefik.http.services.web.loadbalancer.server.port=3000"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    api:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command: >
+            newrelic-admin run-program gunicorn entrypoints.routers:app
+            --bind 0.0.0.0:8000
+            --worker-class uvicorn.workers.UvicornWorker
+            --workers 2
+            --max-requests 10000
+            --max-requests-jitter 1000
+            --timeout 60
+            --graceful-timeout 60
+            --log-level info
+            --access-logfile -
+            --error-logfile -
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - SCRIPT_NAME=/api
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            supertokens:
+                condition: service_healthy
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LABELS =============================================== #
+        labels:
+            - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
+            - "traefik.http.routers.api.entrypoints=web"
+            - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
+            - "traefik.http.middlewares.api-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.api.middlewares=api-strip"
+            - "traefik.http.services.api.loadbalancer.server.port=8000"
+            - "traefik.http.routers.api.service=api"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    worker-evaluations:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "-m",
+                "entrypoints.worker_evaluations",
+            ]
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    worker-tracing:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "-m",
+                "entrypoints.worker_tracing",
+            ]
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    cron:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command: cron -f
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            - postgres
+            - api
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    alembic:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command: sh -c "python -m ee.databases.postgres.migrations.runner"
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+    services:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../services
+            dockerfile: ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command: >
+            newrelic-admin run-program gunicorn entrypoints.main:app
+            --bind 0.0.0.0:80
+            --worker-class uvicorn.workers.UvicornWorker
+            --workers 2
+            --max-requests 10000
+            --max-requests-jitter 1000
+            --timeout 60
+            --graceful-timeout 60
+            --log-level info
+            --access-logfile -
+            --error-logfile -
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - SCRIPT_NAME=/services
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === LABELS =============================================== #
+        labels:
+            - "traefik.http.routers.services.rule=PathPrefix(`/services/`)"
+            - "traefik.http.routers.services.entrypoints=web"
+            - "traefik.http.middlewares.services-strip.stripprefix.prefixes=/services"
+            - "traefik.http.middlewares.services-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.services.middlewares=services-strip"
+            - "traefik.http.services.services.loadbalancer.server.port=80"
+            - "traefik.http.routers.services.service=services"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    postgres:
+        # === IMAGE ================================================ #
+        image: postgres:16
+        # === STORAGE ============================================== #
+        volumes:
+            - postgres-data:/var/lib/postgresql/data/
+            - ../../../api/ee/databases/postgres/init-db-ee.sql:/docker-entrypoint-initdb.d/init-db.sql
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-username}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        ports:
+            - "${POSTGRES_PORT:-5432}:5432"
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U username -d agenta_ee_core"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    redis-volatile:
+        # === IMAGE ================================================ #
+        image: redis:8
+        # === EXECUTION ============================================ #
+        command: >
+            redis-server
+            --appendonly no
+            --save ""
+            --maxmemory 512mb
+            --maxmemory-policy volatile-lru
+            --port 6379
+        # === STORAGE ============================================== #
+        volumes:
+            - redis-volatile-data:/data
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        # === LABELS =============================================== #
+        labels:
+            - "traefik.enable=false"
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
+    redis-durable:
+        # === IMAGE ================================================ #
+        image: redis:8
+        # === EXECUTION ============================================ #
+        command: >
+            redis-server
+            --appendonly yes
+            --appendfsync no
+            --save ""
+            --maxmemory 512mb
+            --maxmemory-policy noeviction
+            --port 6381
+        # === STORAGE ============================================== #
+        volumes:
+            - redis-durable-data:/data
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        # === LABELS =============================================== #
+        labels:
+            - "traefik.enable=false"
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "redis-cli", "-p", "6381", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
+    traefik:
+        # === IMAGE ================================================ #
+        image: traefik:2
+        # === EXECUTION ============================================ #
+        command:
+            - --api.dashboard=true
+            - --api.insecure=true
+            - --providers.docker
+            - --entrypoints.web.address=:80
+        # === STORAGE ============================================== #
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        ports:
+            - "${TRAEFIK_PORT:-80}:80"
+            - "${TRAEFIK_UI_PORT:-8080}:8080"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    supertokens:
+        # === IMAGE ================================================ #
+        image: registry.supertokens.io/supertokens/supertokens-postgresql
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS:-postgresql://username:password@postgres:5432/agenta_ee_supertokens}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: >
+                bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    stripe:
+        # === IMAGE ================================================ #
+        image: stripe/stripe-cli:latest
+        # === EXECUTION ============================================ #
+        command:
+            [
+                listen,
+                --forward-to,
+                http://api:8000/billing/stripe/events/,
+                --events,
+                "customer.subscription.created,customer.subscription.deleted,invoice.updated,invoice.upcoming,invoice.payment_failed,invoice.payment_succeeded",
+            ]
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+networks:
+    agenta-ee-gh-network:
+
+volumes:
+    postgres-data:
+    redis-volatile-data:
+    redis-durable-data:

@@ -3,8 +3,10 @@ from uuid import uuid4, UUID
 from json import loads, JSONDecodeError
 from io import BytesIO
 
+import csv
+from io import StringIO
+
 import orjson
-import polars as pl
 from pydantic import ValidationError
 
 from fastapi.responses import StreamingResponse
@@ -146,7 +148,7 @@ def _serialize_value(value: Any) -> Any:
 def _serialize_value_for_csv(value: Any) -> Any:
     """Serialize complex values to JSON strings for CSV export.
 
-    Polars cannot serialize dicts, lists, or other complex objects to CSV,
+    CSV cannot serialize dicts, lists, or other complex objects to CSV,
     so we convert them to JSON strings. This includes Pydantic models.
     """
     if value is None:
@@ -1139,7 +1141,20 @@ class TestsetsRouter:
             buffer = BytesIO()
             _drop_empty_export_columns(testcases_data)
             csv_data = _prepare_testcases_for_csv(testcases_data)
-            pl.DataFrame(csv_data).write_csv(buffer)
+            if csv_data:
+                # Collect all unique keys from all rows to handle heterogeneous data
+                all_keys = set()
+                for row in csv_data:
+                    all_keys.update(row.keys())
+                fieldnames = sorted(all_keys)  # Sort for consistent column order
+
+                text_buf = StringIO()
+                writer = csv.DictWriter(
+                    text_buf, fieldnames=fieldnames, extrasaction="ignore"
+                )
+                writer.writeheader()
+                writer.writerows(csv_data)
+                buffer = BytesIO(text_buf.getvalue().encode("utf-8"))
             buffer.seek(0)
 
             return StreamingResponse(
@@ -2091,8 +2106,20 @@ class SimpleTestsetsRouter:
             buffer = BytesIO()
             _drop_empty_export_columns(testcases_data)
             csv_data = _prepare_testcases_for_csv(testcases_data)
-            df = pl.DataFrame(csv_data)
-            df.write_csv(buffer)
+            if csv_data:
+                # Collect all unique keys from all rows to handle heterogeneous data
+                all_keys = set()
+                for row in csv_data:
+                    all_keys.update(row.keys())
+                fieldnames = sorted(all_keys)  # Sort for consistent column order
+
+                text_buf = StringIO()
+                writer = csv.DictWriter(
+                    text_buf, fieldnames=fieldnames, extrasaction="ignore"
+                )
+                writer.writeheader()
+                writer.writerows(csv_data)
+                buffer = BytesIO(text_buf.getvalue().encode("utf-8"))
             buffer.seek(0)
 
             return StreamingResponse(

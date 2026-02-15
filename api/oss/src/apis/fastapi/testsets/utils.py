@@ -2,11 +2,13 @@ from typing import Dict, Any, Optional, Literal, List
 from uuid import UUID
 from datetime import datetime
 from json import dumps
-from io import BytesIO
 from hashlib import blake2b as digest
+from copy import deepcopy
+
+import csv
+from io import StringIO
 
 import orjson as oj
-import polars as pl
 
 from fastapi import HTTPException, Query
 
@@ -814,16 +816,30 @@ async def csv_file_to_json_array(
         list: A list of dictionaries representing the CSV rows.
     """
     try:
-        try:
-            data = await csv_file.read()
-            df = pl.read_csv(
-                BytesIO(data), infer_schema_length=0
-            )  # infer_schema_length=0 reads all as strings
-            return df.to_dicts()
-        except Exception as e:
-            log.error("[TESTSETS] Could not read CSV file", exc_info=True)
-            raise e
+        data = await csv_file.read()
+        text = data.decode("utf-8-sig")
+        reader = csv.DictReader(StringIO(text))
+        rows = list(reader)
 
+        # Apply type conversion if specified, preserving original values on failure
+        if column_types:
+            for row in rows:
+                for col, dtype in column_types.items():
+                    if col in row:
+                        value = row[col]
+                        if value is None or value == "":
+                            continue
+                        try:
+                            row[col] = dtype(value)
+                        except (ValueError, TypeError):
+                            log.warning(
+                                "[TESTSETS] Failed to cast column '%s' value '%s' using %s",
+                                col,
+                                value,
+                                getattr(dtype, "__name__", str(dtype)),
+                            )
+
+        return rows
     except Exception as e:
         log.error("[TESTSETS] Could not read CSV file", exc_info=True)
         raise e
@@ -848,16 +864,37 @@ def json_array_to_csv_file(
         return None
 
     try:
-        df = pl.DataFrame(json_array)
+        # Create a deep copy to avoid mutating the original input
+        processed_array = deepcopy(json_array)
 
         # Apply type conversion if specified
         if column_types:
-            for col, dtype in column_types.items():
-                if col in df.columns:
-                    df = df.with_columns(pl.col(col).cast(dtype))
+            for row in processed_array:
+                for col, dtype in column_types.items():
+                    if col in row:
+                        value = row[col]
+                        if value is None or value == "":
+                            continue
+                        try:
+                            row[col] = dtype(value)
+                        except (ValueError, TypeError):
+                            log.warning(
+                                "[TESTSETS] Failed to cast column '%s' value '%s' using %s",
+                                col,
+                                value,
+                                getattr(dtype, "__name__", str(dtype)),
+                            )
 
-        # Write directly to CSV using Polars
-        df.write_csv(output_csv_file)
+        # Collect all unique keys from all rows to handle heterogeneous data
+        all_keys = set()
+        for row in processed_array:
+            all_keys.update(row.keys())
+        fieldnames = sorted(all_keys)  # Sort for consistent column order
+
+        with open(output_csv_file, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(processed_array)
 
     except Exception as e:
         log.error("[TESTSETS] Could not convert JSON array to CSV file", exc_info=True)
