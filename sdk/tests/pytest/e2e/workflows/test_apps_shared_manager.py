@@ -240,7 +240,7 @@ class TestAppManagerAsync:
         assert_not_none(result, "alist() should return a response")
         assert isinstance(result, list), "alist() should return a list"
 
-    @pytest.mark.skip(reason="TEMPORARY: Renaming applications is disabled in the API")
+    @pytest.mark.xfail(reason="TEMPORARY: Renaming applications is disabled in the API")
     async def test_aupdate_app(self, agenta_init, test_app):
         """Test updating an app via AppManager.aupdate()."""
         new_slug = generate_unique_slug("async-updated")
