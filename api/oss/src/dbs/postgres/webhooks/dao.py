@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.webhooks.dbes import (
@@ -22,6 +22,7 @@ from oss.src.core.webhooks.dtos import (
     CreateWebhookSubscriptionDTO,
     UpdateWebhookSubscriptionDTO,
     WebhookSubscriptionResponseDTO,
+    WebhookSubscriptionQueryDTO,
     WebhookDeliveryResponseDTO,
 )
 from oss.src.core.webhooks.config import WEBHOOK_MAX_RETRIES
@@ -99,6 +100,72 @@ class WebhooksDAO(WebhooksDAOInterface):
                 for dbe in subscription_dbes
             ]
 
+    async def query_subscriptions(
+        self,
+        workspace_id: UUID,
+        filters: Optional[WebhookSubscriptionQueryDTO] = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> tuple[List[WebhookSubscriptionResponseDTO], int]:
+        async with engine.core_session() as session:
+            # Build shared WHERE conditions
+            conditions = [
+                WebhookSubscriptionDBE.workspace_id == workspace_id,
+                WebhookSubscriptionDBE.archived_at.is_(None),
+            ]
+
+            if filters:
+                if filters.is_active is not None:
+                    conditions.append(
+                        WebhookSubscriptionDBE.is_active == filters.is_active
+                    )
+                if filters.events:
+                    conditions.append(
+                        WebhookSubscriptionDBE.events.overlap(filters.events)
+                    )
+                if filters.created_after is not None:
+                    conditions.append(
+                        WebhookSubscriptionDBE.created_at >= filters.created_after
+                    )
+                if filters.created_before is not None:
+                    conditions.append(
+                        WebhookSubscriptionDBE.created_at <= filters.created_before
+                    )
+
+            # Efficient direct count
+            count_stmt = select(func.count(WebhookSubscriptionDBE.id)).where(
+                *conditions
+            )
+            total = (await session.execute(count_stmt)).scalar() or 0
+
+            # Dynamic sort
+            sort_column = getattr(
+                WebhookSubscriptionDBE,
+                filters.sort_by if filters else "created_at",
+                WebhookSubscriptionDBE.created_at,
+            )
+            order = (
+                sort_column.desc()
+                if (not filters or filters.sort_order == "desc")
+                else sort_column.asc()
+            )
+
+            # Data query with sort + pagination
+            data_stmt = (
+                select(WebhookSubscriptionDBE)
+                .where(*conditions)
+                .order_by(order)
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(data_stmt)
+            dtos = [
+                map_subscription_dbe_to_dto(subscription_dbe=dbe)
+                for dbe in result.scalars().all()
+            ]
+
+            return dtos, total
+
     async def update_subscription(
         self,
         workspace_id: UUID,
@@ -124,9 +191,9 @@ class WebhooksDAO(WebhooksDAOInterface):
 
             return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
-    async def delete_subscription(
+    async def archive_subscription(
         self, workspace_id: UUID, subscription_id: UUID
-    ) -> bool:
+    ) -> Optional[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
             stmt = select(WebhookSubscriptionDBE).filter_by(
                 id=subscription_id, workspace_id=workspace_id, archived_at=None
@@ -135,11 +202,13 @@ class WebhooksDAO(WebhooksDAOInterface):
             subscription_dbe = result.scalar_one_or_none()
 
             if not subscription_dbe:
-                return False
+                return None
 
             subscription_dbe.archived_at = datetime.now(timezone.utc)
             await session.commit()
-            return True
+            await session.refresh(subscription_dbe)
+
+            return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
     async def get_active_subscriptions_for_event(
         self, workspace_id: UUID, event_type: str

@@ -8,6 +8,7 @@ from oss.src.core.webhooks.dtos import (
     CreateWebhookSubscriptionDTO,
     UpdateWebhookSubscriptionDTO,
     WebhookSubscriptionResponseDTO,
+    WebhookSubscriptionQueryDTO,
     WebhookDeliveryResponseDTO,
 )
 
@@ -43,6 +44,15 @@ class WebhooksDAOInterface:
     ) -> List[WebhookSubscriptionResponseDTO]:
         raise NotImplementedError
 
+    async def query_subscriptions(
+        self,
+        workspace_id: UUID,
+        filters: Optional[WebhookSubscriptionQueryDTO] = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> tuple[List[WebhookSubscriptionResponseDTO], int]:
+        raise NotImplementedError
+
     async def update_subscription(
         self,
         workspace_id: UUID,
@@ -51,9 +61,9 @@ class WebhooksDAOInterface:
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         raise NotImplementedError
 
-    async def delete_subscription(
+    async def archive_subscription(
         self, workspace_id: UUID, subscription_id: UUID
-    ) -> bool:
+    ) -> Optional[WebhookSubscriptionResponseDTO]:
         raise NotImplementedError
 
     # Event operations

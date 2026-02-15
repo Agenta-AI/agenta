@@ -63,3 +63,14 @@ class WebhookDeliveryResponseDTO(BaseModel):
     created_at: datetime
     delivered_at: Optional[datetime]
     failed_at: Optional[datetime]
+
+
+class WebhookSubscriptionQueryDTO(BaseModel):
+    """Filter criteria for querying webhook subscriptions."""
+
+    is_active: Optional[bool] = None
+    events: Optional[List[str]] = None
+    created_after: Optional[datetime] = None
+    created_before: Optional[datetime] = None
+    sort_by: str = "created_at"
+    sort_order: str = "desc"

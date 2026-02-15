@@ -13,11 +13,14 @@ from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.webhooks.dtos import (
     CreateWebhookSubscriptionDTO,
     UpdateWebhookSubscriptionDTO,
+    WebhookSubscriptionQueryDTO,
 )
 from oss.src.apis.fastapi.webhooks.models import (
     CreateWebhookSubscriptionRequest,
     UpdateWebhookSubscriptionRequest,
     WebhookSubscriptionResponse,
+    WebhookSubscriptionQueryRequest,
+    WebhookSubscriptionsResponse,
     TestWebhookRequest,
     TestWebhookResponse,
 )
@@ -48,6 +51,21 @@ class WebhooksRouter:
             operation_id="list_webhook_subscriptions",
             response_model=List[WebhookSubscriptionResponse],
         )
+        # /query and /test MUST be registered before /{subscription_id}
+        self.router.add_api_route(
+            "/query",
+            self.query_subscriptions,
+            methods=["POST"],
+            operation_id="query_webhook_subscriptions",
+            response_model=WebhookSubscriptionsResponse,
+        )
+        self.router.add_api_route(
+            "/test",
+            self.test_webhook,
+            methods=["POST"],
+            operation_id="test_webhook",
+            response_model=TestWebhookResponse,
+        )
         self.router.add_api_route(
             "/{subscription_id}",
             self.get_subscription,
@@ -63,18 +81,11 @@ class WebhooksRouter:
             response_model=WebhookSubscriptionResponse,
         )
         self.router.add_api_route(
-            "/{subscription_id}",
-            self.delete_subscription,
-            methods=["DELETE"],
-            operation_id="delete_webhook_subscription",
-            status_code=status.HTTP_204_NO_CONTENT,
-        )
-        self.router.add_api_route(
-            "/test",
-            self.test_webhook,
+            "/{subscription_id}/archive",
+            self.archive_subscription,
             methods=["POST"],
-            operation_id="test_webhook",
-            response_model=TestWebhookResponse,
+            operation_id="archive_webhook_subscription",
+            response_model=WebhookSubscriptionResponse,
         )
 
     @intercept_exceptions()
@@ -126,6 +137,47 @@ class WebhooksRouter:
         return [
             WebhookSubscriptionResponse(**dto.model_dump()) for dto in subscription_dtos
         ]
+
+    @intercept_exceptions()
+    async def query_subscriptions(
+        self, request: Request, body: WebhookSubscriptionQueryRequest
+    ) -> WebhookSubscriptionsResponse:
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=str(request.state.user_id),
+                project_id=str(request.state.project_id),
+                permission=Permission.VIEW_WEBHOOKS,
+            )
+            if not has_permission:
+                return JSONResponse(
+                    {"detail": "You do not have access to perform this action"},
+                    status_code=status.HTTP_403_FORBIDDEN,
+                )
+
+        filters = WebhookSubscriptionQueryDTO(
+            is_active=body.is_active,
+            events=body.events,
+            created_after=body.created_after,
+            created_before=body.created_before,
+            sort_by=body.sort_by or "created_at",
+            sort_order=body.sort_order or "desc",
+        )
+
+        subscriptions, total = await self.service.query_subscriptions(
+            workspace_id=UUID(request.state.workspace_id),
+            filters=filters,
+            offset=body.offset,
+            limit=body.limit,
+        )
+
+        return WebhookSubscriptionsResponse(
+            count=total,
+            data=[
+                WebhookSubscriptionResponse(**dto.model_dump()) for dto in subscriptions
+            ],
+            offset=body.offset,
+            limit=body.limit,
+        )
 
     @intercept_exceptions()
     async def get_subscription(self, request: Request, subscription_id: UUID):
@@ -189,7 +241,7 @@ class WebhooksRouter:
         return WebhookSubscriptionResponse(**subscription_dto.model_dump())
 
     @intercept_exceptions()
-    async def delete_subscription(self, request: Request, subscription_id: UUID):
+    async def archive_subscription(self, request: Request, subscription_id: UUID):
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
@@ -202,10 +254,17 @@ class WebhooksRouter:
                     status_code=status.HTTP_403_FORBIDDEN,
                 )
 
-        await self.service.delete_subscription(
+        subscription_dto = await self.service.archive_subscription(
             subscription_id=subscription_id,
             workspace_id=UUID(request.state.workspace_id),
         )
+        if not subscription_dto:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Webhook subscription not found",
+            )
+
+        return WebhookSubscriptionResponse(**subscription_dto.model_dump())
 
     @intercept_exceptions()
     async def test_webhook(self, request: Request, body: TestWebhookRequest):

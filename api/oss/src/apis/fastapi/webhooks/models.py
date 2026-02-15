@@ -42,6 +42,7 @@ class WebhookSubscriptionResponse(BaseModel):
     meta: Optional[dict]
     created_at: datetime
     updated_at: datetime
+    archived_at: Optional[datetime] = None
     created_by_id: Optional[UUID]
 
 
@@ -83,3 +84,31 @@ class TestWebhookResponse(BaseModel):
     test_secret: str
     signature_format: str
     signing_payload: Optional[str] = None
+
+
+# Query Models
+class WebhookSubscriptionQueryRequest(BaseModel):
+    """POST /webhooks/query request body."""
+
+    # Filters (workspace_id always from request.state, never from body)
+    is_active: Optional[bool] = None
+    events: Optional[List[str]] = None
+    created_after: Optional[datetime] = None
+    created_before: Optional[datetime] = None
+    # Sorting
+    sort_by: Optional[str] = Field(
+        default="created_at", pattern="^(created_at|updated_at|name)$"
+    )
+    sort_order: Optional[str] = Field(default="desc", pattern="^(asc|desc)$")
+    # Pagination (with defaults)
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=20, ge=1, le=100)
+
+
+class WebhookSubscriptionsResponse(BaseModel):
+    """Envelope response for subscription queries."""
+
+    count: int = 0
+    data: List[WebhookSubscriptionResponse] = []
+    offset: int = 0
+    limit: int = 20

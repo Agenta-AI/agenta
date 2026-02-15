@@ -11,6 +11,7 @@ from oss.src.core.webhooks.dtos import (
     CreateWebhookSubscriptionDTO,
     UpdateWebhookSubscriptionDTO,
     WebhookSubscriptionResponseDTO,
+    WebhookSubscriptionQueryDTO,
 )
 
 if TYPE_CHECKING:
@@ -49,6 +50,20 @@ class WebhooksService:
     ) -> List[WebhookSubscriptionResponseDTO]:
         return await self.dao.list_subscriptions(workspace_id=workspace_id)
 
+    async def query_subscriptions(
+        self,
+        workspace_id: UUID,
+        filters: Optional[WebhookSubscriptionQueryDTO] = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> tuple[List[WebhookSubscriptionResponseDTO], int]:
+        return await self.dao.query_subscriptions(
+            workspace_id=workspace_id,
+            filters=filters,
+            offset=offset,
+            limit=limit,
+        )
+
     async def get_subscription(
         self, workspace_id: UUID, subscription_id: UUID
     ) -> Optional[WebhookSubscriptionResponseDTO]:
@@ -68,10 +83,10 @@ class WebhooksService:
             payload=payload,
         )
 
-    async def delete_subscription(
+    async def archive_subscription(
         self, workspace_id: UUID, subscription_id: UUID
-    ) -> bool:
-        return await self.dao.delete_subscription(
+    ) -> Optional[WebhookSubscriptionResponseDTO]:
+        return await self.dao.archive_subscription(
             workspace_id=workspace_id, subscription_id=subscription_id
         )
 
