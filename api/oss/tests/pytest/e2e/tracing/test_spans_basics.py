@@ -2,7 +2,7 @@ import time
 from uuid import uuid4
 
 
-def _wait_for_spans(authed_api, *, max_retries=15, delay=0.5):
+def _wait_for_spans(authed_api, *, max_retries=30, delay=1.0):
     """Poll until spans appear in the DB."""
     resp = None
     for _ in range(max_retries):

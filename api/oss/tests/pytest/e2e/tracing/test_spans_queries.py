@@ -8,7 +8,7 @@ import pytest
 TRACE_ID = uuid4().hex
 
 
-def _wait_for_spans(authed_api, trace_id, *, expected=1, max_retries=15, delay=0.5):
+def _wait_for_spans(authed_api, trace_id, *, expected=1, max_retries=30, delay=1.0):
     """Poll until spans with the given trace_id appear in the DB."""
     resp = None
     for _ in range(max_retries):
@@ -136,7 +136,10 @@ def mock_data(authed_api):
     response = response.json()
     assert response["count"] == 2
 
-    _wait_for_spans(authed_api, trace_id, expected=2)
+    # Wait for spans to be ingested and verify they're available
+    wait_response = _wait_for_spans(authed_api, trace_id, expected=2)
+    assert wait_response.status_code == 200, f"Failed to wait for spans: {wait_response.status_code}"
+    assert wait_response.json().get("count", 0) >= 2, f"Expected at least 2 spans, got {wait_response.json().get('count', 0)}"
     # --------------------------------------------------------------------------
 
     _mock_data = {"spans": spans, "trace_id": trace_id}
