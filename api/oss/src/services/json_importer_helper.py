@@ -14,4 +14,6 @@ def get_json(json_path: str):
             json_data = json.loads(f.read())
         except json.JSONDecodeError as e:
             raise ValueError(f"Could not parse JSON file: {json_path}") from e
+        except Exception as e:
+            raise ValueError(f"Could not read JSON file: {json_path}") from e
     return json_data
