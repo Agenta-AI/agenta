@@ -61,7 +61,8 @@ const OnboardingCard = ({
     const dragStartRef = useRef({x: 0, y: 0, offsetX: 0, offsetY: 0})
     const clampRafRef = useRef<number | null>(null)
     const clampTimeoutsRef = useRef<number[]>([])
-    const lastScrollStepRef = useRef<number | null>(null)
+    const autoScrollRef = useRef(false)
+    const autoScrollTimeoutRef = useRef<number | null>(null)
     const autoAdvanceTriggeredRef = useRef(false)
     const viewPadding = 12
 
@@ -97,9 +98,65 @@ const OnboardingCard = ({
         }
     }, [step?.selector])
 
+    const isTargetInViewport = useCallback(
+        (rect: DOMRect) => {
+            const maxX = window.innerWidth - viewPadding
+            const maxY = window.innerHeight - viewPadding
+            return (
+                rect.right > viewPadding &&
+                rect.left < maxX &&
+                rect.bottom > viewPadding &&
+                rect.top < maxY
+            )
+        },
+        [viewPadding],
+    )
+
+    const ensureTargetInView = useCallback(() => {
+        if (typeof window === "undefined") return false
+        const target = getTargetElement()
+        if (!target || !(target instanceof HTMLElement)) return false
+
+        const rect = target.getBoundingClientRect()
+        if (isTargetInViewport(rect)) return false
+        if (autoScrollRef.current) return true
+
+        autoScrollRef.current = true
+        target.scrollIntoView({block: "center", inline: "center", behavior: "smooth"})
+        if (autoScrollTimeoutRef.current) {
+            window.clearTimeout(autoScrollTimeoutRef.current)
+        }
+
+        const startedAt = window.performance.now()
+        const releaseAutoScroll = () => {
+            autoScrollRef.current = false
+            autoScrollTimeoutRef.current = null
+        }
+        const settleAutoScroll = () => {
+            if (!autoScrollRef.current) return
+            const latestTarget = getTargetElement()
+            if (!latestTarget || !(latestTarget instanceof HTMLElement)) {
+                releaseAutoScroll()
+                return
+            }
+            if (isTargetInViewport(latestTarget.getBoundingClientRect())) {
+                releaseAutoScroll()
+                return
+            }
+            if (window.performance.now() - startedAt > 1600) {
+                releaseAutoScroll()
+                return
+            }
+            autoScrollTimeoutRef.current = window.setTimeout(settleAutoScroll, 60)
+        }
+        autoScrollTimeoutRef.current = window.setTimeout(settleAutoScroll, 60)
+        return true
+    }, [getTargetElement, isTargetInViewport])
+
     const adjustIntoView = useCallback(() => {
         if (isDraggingRef.current) return
         if (!cardRef.current || typeof window === "undefined") return
+        ensureTargetInView()
 
         const rect = cardRef.current.getBoundingClientRect()
         const maxX = window.innerWidth - viewPadding
@@ -121,21 +178,8 @@ const OnboardingCard = ({
 
         if (dx === 0 && dy === 0) return
 
-        if (lastScrollStepRef.current !== currentStep) {
-            const target = getTargetElement()
-            if (target) {
-                lastScrollStepRef.current = currentStep
-                target.scrollIntoView({
-                    block: "center",
-                    inline: "center",
-                    behavior: "smooth",
-                })
-                return
-            }
-        }
-
         setAutoOffset((prev) => ({x: prev.x + dx, y: prev.y + dy}))
-    }, [currentStep, getTargetElement, viewPadding])
+    }, [ensureTargetInView, viewPadding])
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
@@ -169,7 +213,11 @@ const OnboardingCard = ({
     useEffect(() => {
         setUserOffset({x: 0, y: 0})
         setAutoOffset({x: 0, y: 0})
-        lastScrollStepRef.current = null
+        autoScrollRef.current = false
+        if (autoScrollTimeoutRef.current) {
+            window.clearTimeout(autoScrollTimeoutRef.current)
+            autoScrollTimeoutRef.current = null
+        }
     }, [currentStep])
 
     const startClampPasses = useCallback(() => {
@@ -198,6 +246,10 @@ const OnboardingCard = ({
             }
             clampTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
             clampTimeoutsRef.current = []
+            if (autoScrollTimeoutRef.current) {
+                window.clearTimeout(autoScrollTimeoutRef.current)
+                autoScrollTimeoutRef.current = null
+            }
         }
     }, [currentStep, step, startClampPasses])
 
@@ -220,6 +272,112 @@ const OnboardingCard = ({
     useEffect(() => {
         if (!step) return
 
+        const getScrollParents = (element: Element) => {
+            const parents: Element[] = []
+            let current: Element | null = element
+
+            while (current && current !== document.body && current !== document.documentElement) {
+                const style = window.getComputedStyle(current)
+                const overflowY = style.overflowY
+                const overflowX = style.overflowX
+                if (
+                    overflowY === "auto" ||
+                    overflowY === "scroll" ||
+                    overflowX === "auto" ||
+                    overflowX === "scroll"
+                ) {
+                    parents.push(current)
+                }
+                current = current.parentElement
+            }
+
+            const rootScroller = document.scrollingElement || document.documentElement
+            if (rootScroller) {
+                parents.push(rootScroller)
+            }
+
+            return parents
+        }
+
+        const target = getTargetElement()
+        const scrollParents = target ? getScrollParents(target) : []
+        const scrollPositions = new Map<Element, {top: number; left: number}>()
+        scrollParents.forEach((parent) => {
+            const el = parent as HTMLElement
+            scrollPositions.set(parent, {top: el.scrollTop, left: el.scrollLeft})
+        })
+
+        const preventScroll = (event: Event) => {
+            event.preventDefault()
+        }
+
+        const isTextInputTarget = (element: Element | null) => {
+            if (!element) return false
+            if (element instanceof HTMLTextAreaElement) return true
+            if (element instanceof HTMLInputElement) {
+                const nonTextTypes = new Set([
+                    "button",
+                    "checkbox",
+                    "color",
+                    "file",
+                    "image",
+                    "radio",
+                    "range",
+                    "reset",
+                    "submit",
+                ])
+                return !nonTextTypes.has(element.type)
+            }
+            const htmlElement = element as HTMLElement
+            if (htmlElement.isContentEditable) return true
+            return Boolean(element.closest("input, textarea, [contenteditable='true']"))
+        }
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (isTextInputTarget(event.target as Element | null)) return
+            const blockedKeys = [
+                "ArrowUp",
+                "ArrowDown",
+                "PageUp",
+                "PageDown",
+                "Home",
+                "End",
+                " ",
+                "Spacebar",
+            ]
+            if (blockedKeys.includes(event.key)) {
+                event.preventDefault()
+            }
+        }
+
+        const handleScroll = (event: Event) => {
+            const targetEl = event.target as Element | null
+            if (!targetEl) return
+            const saved = scrollPositions.get(targetEl)
+            if (!saved) return
+            const el = targetEl as HTMLElement
+
+            // Allow onboarding-driven scrollIntoView and update the lock baseline.
+            if (autoScrollRef.current) {
+                scrollPositions.set(targetEl, {top: el.scrollTop, left: el.scrollLeft})
+                return
+            }
+
+            if (el.scrollTop !== saved.top) {
+                el.scrollTop = saved.top
+            }
+            if (el.scrollLeft !== saved.left) {
+                el.scrollLeft = saved.left
+            }
+        }
+
+        window.addEventListener("wheel", preventScroll, {passive: false})
+        window.addEventListener("touchmove", preventScroll, {passive: false})
+        window.addEventListener("keydown", handleKeyDown)
+        scrollParents.forEach((parent) =>
+            parent.addEventListener("scroll", handleScroll, {passive: false}),
+        )
+
         setCurrentStepState({step, currentStep, totalSteps})
         step.onEnter?.()
         autoAdvanceTriggeredRef.current = false
@@ -227,8 +385,12 @@ const OnboardingCard = ({
         return () => {
             step.onExit?.()
             step.onCleanup?.()
+            window.removeEventListener("wheel", preventScroll)
+            window.removeEventListener("touchmove", preventScroll)
+            window.removeEventListener("keydown", handleKeyDown)
+            scrollParents.forEach((parent) => parent.removeEventListener("scroll", handleScroll))
         }
-    }, [step, currentStep, totalSteps, setCurrentStepState])
+    }, [getTargetElement, step, currentStep, totalSteps, setCurrentStepState])
 
     useEffect(() => {
         if (!hasValidStep) {

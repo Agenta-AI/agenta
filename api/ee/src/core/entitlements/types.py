@@ -104,6 +104,7 @@ class Throttle(BaseModel):
 ENDPOINTS = {
     Category.CORE_FAST: [
         (Method.POST, "*/retrieve"),
+        (Method.POST, "/variants/configs/fetch"),
     ],
     Category.CORE_SLOW: [
         # None defined yet
