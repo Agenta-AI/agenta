@@ -1,16 +1,6 @@
-import time
 from uuid import uuid4
 
-
-def _wait_for_spans(authed_api, *, max_retries=30, delay=1.0):
-    """Poll until spans appear in the DB."""
-    resp = None
-    for _ in range(max_retries):
-        resp = authed_api("POST", "/preview/tracing/spans/query")
-        if resp.status_code == 200 and resp.json()["count"] != 0:
-            return resp
-        time.sleep(delay)
-    return resp
+from utils.polling import wait_for_response
 
 
 class TestSpansBasics:
@@ -222,7 +212,12 @@ class TestSpansBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = _wait_for_spans(authed_api)
+        response = wait_for_response(
+            authed_api,
+            "POST",
+            "/preview/tracing/spans/query",
+            condition_fn=lambda r: r.json().get("count", 0) > 0,
+        )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
