@@ -201,17 +201,17 @@ class TestEvaluatorsBasics:
         assert response.status_code == 200
 
         evaluator_id = response.json()["evaluator"]["id"]
+        original_evaluator_name = response.json()["evaluator"]["name"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        evaluator_slug = uuid4()
+        new_evaluator_slug = uuid4()
 
         _format = {
             "type": "object",
             "properties": {
                 "inactive": {"type": "boolean"},
             },
-            "required": ["id", "name"],
         }
 
         response = authed_api(
@@ -220,8 +220,8 @@ class TestEvaluatorsBasics:
             json={
                 "evaluator": {
                     "id": evaluator_id,
-                    "slug": f"evaluator-{evaluator_slug}",
-                    "name": f"Evaluator {evaluator_slug}",
+                    "slug": f"evaluator-{new_evaluator_slug}",
+                    "name": original_evaluator_name,
                     "description": "Evaluator Description",
                     "flags": {
                         "is_custom": False,

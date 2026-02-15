@@ -141,6 +141,7 @@ class TestAppManagerSync:
             f"Created app {test_app['app_id']} should be in the list"
         )
 
+    @pytest.mark.xfail(reason="TEMPORARY: Renaming applications is disabled in the API")
     def test_update_app(self, agenta_init, test_app):
         """Test updating an app via AppManager.update()."""
         new_slug = generate_unique_slug("updated")
@@ -191,9 +192,9 @@ class TestAppManagerSync:
             list_result = AppManager.list()
             assert isinstance(list_result, list)
 
-            # Update
-            new_slug = generate_unique_slug("workflow-updated")
-            AppManager.update(app_id=app_id, app_slug=new_slug)
+            # Update - TEMPORARY: Skipping rename test due to API restriction
+            # new_slug = generate_unique_slug("workflow-updated")
+            # AppManager.update(app_id=app_id, app_slug=new_slug)
 
             # Delete
             AppManager.delete(app_id=app_id)
@@ -239,6 +240,7 @@ class TestAppManagerAsync:
         assert_not_none(result, "alist() should return a response")
         assert isinstance(result, list), "alist() should return a list"
 
+    @pytest.mark.xfail(reason="TEMPORARY: Renaming applications is disabled in the API")
     async def test_aupdate_app(self, agenta_init, test_app):
         """Test updating an app via AppManager.aupdate()."""
         new_slug = generate_unique_slug("async-updated")
