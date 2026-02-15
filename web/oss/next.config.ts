@@ -89,9 +89,12 @@ const COMMON_CONFIG: NextConfig = {
                   "rc-table",
                   "@ant-design/icons",
                   "@ant-design/icons-svg",
+                  "@ant-design/x",
               ]
             : []),
     ],
+    // Configure ESM packages that need special handling
+    serverExternalPackages: ["mermaid", "refractor"],
     ...(!isDevelopment
         ? {
               webpack: (config, {webpack, isServer}) => {
@@ -114,6 +117,23 @@ const COMMON_CONFIG: NextConfig = {
                       test: /\.d\.ts$/,
                       loader: "swc-loader",
                   })
+
+                  // Mark ESM packages as external on server side to avoid bundling issues
+                  if (isServer) {
+                      config.externals = config.externals || []
+                      if (Array.isArray(config.externals)) {
+                          config.externals.push("mermaid")
+                          // Handle all refractor language imports as external
+                          config.externals.push(
+                              ({request}: {request?: string}, callback: (err?: Error | null, result?: string) => void) => {
+                                  if (request && request.startsWith("refractor/")) {
+                                      return callback(null, `commonjs ${request}`)
+                                  }
+                                  callback()
+                              },
+                          )
+                      }
+                  }
 
                   if (!isServer) {
                       config.plugins.push(
