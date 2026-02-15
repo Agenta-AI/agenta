@@ -115,6 +115,19 @@ const COMMON_CONFIG: NextConfig = {
                       loader: "swc-loader",
                   })
 
+                  // Ignore problematic ESM imports from @ant-design/x that we don't use
+                  // This prevents build errors for mermaid and refractor packages
+                  config.plugins.push(
+                      new webpack.IgnorePlugin({
+                          resourceRegExp: /^mermaid$/,
+                          contextRegExp: /@ant-design[\\/]x/,
+                      }),
+                      new webpack.IgnorePlugin({
+                          resourceRegExp: /^refractor\/.+$/,
+                          contextRegExp: /react-syntax-highlighter/,
+                      }),
+                  )
+
                   if (!isServer) {
                       config.plugins.push(
                           new webpack.DefinePlugin({
