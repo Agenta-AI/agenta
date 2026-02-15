@@ -40,7 +40,6 @@ class WebhookSubscription(WebhookSubscriptionBase):
 class WebhookDelivery(BaseModel):
     id: UUID
     subscription_id: UUID
-    event_id: Optional[UUID]
     event_type: str
     payload: dict
     status: str

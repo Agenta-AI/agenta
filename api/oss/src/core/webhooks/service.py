@@ -79,12 +79,9 @@ class WebhooksService:
         self, workspace_id: UUID, event_type: str, payload: dict
     ) -> None:
         """
-        Triggers a webhook event: records it, finds subscribers, and enqueues delivery tasks.
+        Triggers a webhook event: finds subscribers and enqueues delivery tasks.
         """
-        # 1. Archive event
-        event = await self.dao.create_event(workspace_id, event_type, payload)
-
-        # 2. Get subscribers
+        # 1. Get subscribers
         subscriptions = await self.dao.get_active_subscriptions_for_event(
             workspace_id, event_type
         )
@@ -95,18 +92,17 @@ class WebhooksService:
 
         if not self.webhooks_worker:
             log.warning(
-                f"WebhooksWorker is not configured. Skipping delivery for event {event.id}"
+                f"WebhooksWorker is not configured. Skipping delivery for event type {event_type}"
             )
             return
 
-        # 3. Create deliveries and queue tasks
+        # 2. Create deliveries and queue tasks
         for sub in subscriptions:
             try:
                 delivery = await self.dao.create_delivery(
                     subscription_id=sub.id,
                     event_type=event_type,
                     payload=payload,
-                    event_id=event.id,
                 )
 
                 await self.webhooks_worker.deliver_webhook.kiq(delivery_id=delivery.id)

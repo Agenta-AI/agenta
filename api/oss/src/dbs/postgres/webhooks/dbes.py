@@ -5,12 +5,11 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from oss.src.dbs.postgres.shared.base import Base
+from oss.src.core.webhooks.config import WEBHOOK_MAX_RETRIES
 from oss.src.dbs.postgres.webhooks.dbas import (
     WebhookSubscriptionDBA,
-    WebhookEventDBA,
     WebhookDeliveryDBA,
 )
-from oss.src.core.webhooks.config import WEBHOOK_MAX_RETRIES
 
 
 class WebhookSubscriptionDBE(Base, WebhookSubscriptionDBA):
@@ -37,12 +36,6 @@ class WebhookSubscriptionDBE(Base, WebhookSubscriptionDBA):
     )
 
 
-class WebhookEventDBE(Base, WebhookEventDBA):
-    """Webhook event DB entity."""
-
-    __tablename__ = "webhook_events"
-
-
 class WebhookDeliveryDBE(Base, WebhookDeliveryDBA):
     """Webhook delivery DB entity."""
 
@@ -53,11 +46,6 @@ class WebhookDeliveryDBE(Base, WebhookDeliveryDBA):
         ForeignKey("webhook_subscriptions.id", ondelete="CASCADE"),
         nullable=False,
     )
-    event_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("webhook_events.id", ondelete="SET NULL"),
-        nullable=True,
-    )
 
     # Set default for max_attempts from config
     def __init__(self, *args, **kwargs):
@@ -66,8 +54,5 @@ class WebhookDeliveryDBE(Base, WebhookDeliveryDBA):
         super().__init__(*args, **kwargs)
 
     subscription = relationship(
-        "oss.src.models.db_models.WebhookSubscriptionDB",
-    )
-    event = relationship(
-        "oss.src.models.db_models.WebhookEventDB",
+        "WebhookSubscriptionDBE",
     )

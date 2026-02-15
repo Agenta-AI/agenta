@@ -34,28 +34,6 @@ class WebhookSubscriptionDBA:
     archived_at = Column(DateTime(timezone=True), nullable=True)
 
 
-class WebhookEventDBA:
-    """Abstract base for webhook event."""
-
-    __abstract__ = True
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    event_type = Column(String(100), nullable=False)
-    workspace_id = Column(UUID(as_uuid=True), nullable=False)
-    payload = Column(JSONB, nullable=False)
-    created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    processed = Column(Boolean, default=False, nullable=False)
-    processed_at = Column(DateTime(timezone=True), nullable=True)
-
-
 class WebhookDeliveryDBA:
     """Abstract base for webhook delivery."""
 

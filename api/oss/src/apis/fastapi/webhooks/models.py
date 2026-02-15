@@ -50,7 +50,6 @@ class WebhookDeliveryResponse(BaseModel):
 
     id: UUID
     subscription_id: UUID
-    event_id: Optional[UUID]
     event_type: str
     payload: dict
     status: str

@@ -24,7 +24,7 @@ import oss.src.dbs.postgres.workflows.dbes  # noqa: F401
 import ee.src.dbs.postgres.meters.dbes  # noqa: F401
 import ee.src.dbs.postgres.organizations.dbes  # noqa: F401
 import ee.src.dbs.postgres.subscriptions.dbes  # noqa: F401
-
+import oss.src.dbs.postgres.webhooks.dbes  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -36,6 +36,7 @@ config.set_main_option("sqlalchemy.url", engine.postgres_uri_core)  # type: igno
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
 
 target_metadata = Base.metadata
 

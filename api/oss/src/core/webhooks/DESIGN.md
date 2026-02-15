@@ -25,24 +25,23 @@ The webhook system implements an event-driven, asynchronous architecture for del
 │  │                     WebhooksService                              │    │
 │  │                                                                  │    │
 │  │  trigger_event(workspace_id, event_type, payload):              │    │
-│  │    1. Create WebhookEventDB (outbox pattern)                    │    │
-│  │    2. Find active subscriptions for event_type                  │    │
-│  │    3. Create WebhookDeliveryDB for each subscription            │    │
-│  │    4. Enqueue delivery task to worker                           │    │
+│  │    1. Find active subscriptions for event_type                  │    │
+│  │    2. Create WebhookDeliveryDB for each subscription            │    │
+│  │    3. Enqueue delivery task to worker                           │    │
 │  └──────────────────────────────┬───────────────────────────────────┘   │
 └─────────────────────────────────┼───────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         Persistence Layer                                │
-│  ┌──────────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
-│  │webhook_subscriptions │  │ webhook_events   │  │webhook_deliveries│  │
-│  │                      │  │                  │  │                  │  │
-│  │ - workspace_id       │  │ - event_type     │  │ - subscription_id│  │
-│  │ - url                │  │ - payload        │  │ - status         │  │
-│  │ - events[]           │  │ - processed      │  │ - attempts       │  │
-│  │ - secret (HMAC)      │  │ - created_at     │  │ - next_retry_at  │  │
-│  │ - is_active          │  │                  │  │ - response_*     │  │
-│  └──────────────────────┘  └──────────────────┘  └──────────────────┘  │
+│  ┌──────────────────────┐  ┌──────────────────┐                       │
+│  │webhook_subscriptions │  │webhook_deliveries│                       │
+│  │                      │  │                  │                       │
+│  │ - workspace_id       │  │ - subscription_id│                       │
+│  │ - url                │  │ - status         │                       │
+│  │ - events[]           │  │ - attempts       │                       │
+│  │ - secret (HMAC)      │  │ - next_retry_at  │                       │
+│  │ - is_active          │  │ - response_*     │                       │
+│  └──────────────────────┘  └──────────────────┘                       │
 │                          PostgreSQL                                      │
 └─────────────────────────────────────────────────────────────────────────┘
                                   ↓
@@ -129,27 +128,7 @@ The webhook system implements an event-driven, asynchronous architecture for del
 
 ## Design Patterns
 
-### 1. Outbox Pattern
-
-**Implementation**: `webhook_events` table
-
-**Purpose**: Ensures events are durably recorded before async processing
-
-**Flow**:
-```
-1. Event occurs (e.g., config deployed)
-2. WebhookEventDB row created in same transaction
-3. Event marked as processed after deliveries enqueued
-4. Survives process crashes and database failures
-```
-
-**Trade-offs**:
-- ✓ Durability: No event loss even if worker crashes
-- ✓ Auditability: Complete event history in database
-- ✗ Storage overhead: Events never deleted (no retention policy)
-- ✗ Processing overhead: Additional database write per event
-
-### 2. Circuit Breaker Pattern
+### 1. Circuit Breaker Pattern
 
 **Implementation**: `CircuitBreaker` class (in-memory state)
 
@@ -172,7 +151,7 @@ HALF_OPEN (allow 1 test)
 - ✗ No distributed coordination (multiple workers have separate state)
 - ✗ No alerting when circuit opens
 
-### 3. Exponential Backoff with Jitter
+### 2. Exponential Backoff with Jitter
 
 **Implementation**: `calculate_next_retry` in `utils.py`
 
@@ -186,7 +165,7 @@ HALF_OPEN (allow 1 test)
 - ✗ Delays can extend to 10 minutes (long wait for final attempt)
 - ✗ No adaptive backoff (fixed parameters)
 
-### 4. Lazy Initialization
+### 3. Lazy Initialization
 
 **Implementation**: `trigger.py` lazy imports
 
@@ -217,12 +196,10 @@ User → Frontend → API (/POST /webhooks)
 Event occurs (e.g., config deployed)
     → variants_router.py calls trigger_webhook()
     → WebhooksService.trigger_event()
-    → Insert webhook_events row (outbox)
     → Query active subscriptions matching event_type
     → For each subscription:
         → Insert webhook_deliveries row (status=pending)
         → Enqueue deliver_webhook task to Redis Stream
-    → Mark event as processed
 ```
 
 ### 3. Delivery Attempt
@@ -345,10 +322,9 @@ TTL: 10 minutes
 
 The webhook system implements a production-capable event notification architecture with focus on reliability and simplicity. The design prioritizes:
 
-1. **Event durability** via outbox pattern
-2. **Fault tolerance** via automatic retries and circuit breaking
-3. **Security** via HMAC signing
-4. **Workspace isolation** for multi-tenancy
+1. **Fault tolerance** via automatic retries and circuit breaking
+2. **Security** via HMAC signing
+3. **Workspace isolation** for multi-tenancy
 
 Current limitations center on observability, performance optimization, and feature completeness. The modular architecture allows incremental enhancement without major refactoring.
 

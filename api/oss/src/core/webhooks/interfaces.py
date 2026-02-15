@@ -8,7 +8,6 @@ from oss.src.core.webhooks.dtos import (
     CreateWebhookSubscriptionDTO,
     UpdateWebhookSubscriptionDTO,
     WebhookSubscriptionResponseDTO,
-    WebhookEventResponseDTO,
     WebhookDeliveryResponseDTO,
 )
 
@@ -58,14 +57,6 @@ class WebhooksDAOInterface:
         raise NotImplementedError
 
     # Event operations
-    async def create_event(
-        self,
-        workspace_id: UUID,
-        event_type: str,
-        payload: dict,
-    ) -> WebhookEventResponseDTO:
-        raise NotImplementedError
-
     async def get_active_subscriptions_for_event(
         self, workspace_id: UUID, event_type: str
     ) -> List[WebhookSubscriptionResponseDTO]:
@@ -77,7 +68,6 @@ class WebhooksDAOInterface:
         subscription_id: UUID,
         event_type: str,
         payload: dict,
-        event_id: Optional[UUID] = None,
     ) -> WebhookDeliveryResponseDTO:
         raise NotImplementedError
 

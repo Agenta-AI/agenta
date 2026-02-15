@@ -10,13 +10,11 @@ from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.webhooks.dbes import (
     WebhookSubscriptionDBE,
     WebhookDeliveryDBE,
-    WebhookEventDBE,
 )
 from oss.src.dbs.postgres.webhooks.mappings import (
     map_subscription_dto_to_dbe,
     map_subscription_dbe_to_dto,
     map_subscription_dto_to_dbe_update,
-    map_event_dbe_to_dto,
     map_delivery_dbe_to_dto,
 )
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
@@ -24,7 +22,6 @@ from oss.src.core.webhooks.dtos import (
     CreateWebhookSubscriptionDTO,
     UpdateWebhookSubscriptionDTO,
     WebhookSubscriptionResponseDTO,
-    WebhookEventResponseDTO,
     WebhookDeliveryResponseDTO,
 )
 from oss.src.core.webhooks.config import WEBHOOK_MAX_RETRIES
@@ -144,25 +141,6 @@ class WebhooksDAO(WebhooksDAOInterface):
             await session.commit()
             return True
 
-    async def create_event(
-        self,
-        workspace_id: UUID,
-        event_type: str,
-        payload: dict,
-    ) -> WebhookEventResponseDTO:
-        event_dbe = WebhookEventDBE(
-            workspace_id=workspace_id,
-            event_type=event_type,
-            payload=payload,
-        )
-
-        async with engine.core_session() as session:
-            session.add(event_dbe)
-            await session.commit()
-            await session.refresh(event_dbe)
-
-        return map_event_dbe_to_dto(event_dbe=event_dbe)
-
     async def get_active_subscriptions_for_event(
         self, workspace_id: UUID, event_type: str
     ) -> List[WebhookSubscriptionResponseDTO]:
@@ -184,11 +162,9 @@ class WebhooksDAO(WebhooksDAOInterface):
         subscription_id: UUID,
         event_type: str,
         payload: dict,
-        event_id: Optional[UUID] = None,
     ) -> WebhookDeliveryResponseDTO:
         delivery_dbe = WebhookDeliveryDBE(
             subscription_id=subscription_id,
-            event_id=event_id,
             event_type=event_type,
             payload=payload,
             status="pending",

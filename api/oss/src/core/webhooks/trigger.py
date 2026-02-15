@@ -83,11 +83,10 @@ async def trigger_webhook(
     Trigger a webhook event for the given workspace.
 
     This is the primary API for triggering webhooks from anywhere in the backend.
-    It handles all dependencies internally (DAO, worker) and follows the outbox pattern:
-    1. Records event in database
-    2. Finds active subscriptions for this event type
-    3. Creates delivery records
-    4. Enqueues delivery tasks to the worker
+    It handles all dependencies internally (DAO, worker):
+    1. Finds active subscriptions for this event type
+    2. Creates delivery records
+    3. Enqueues delivery tasks to the worker
 
     Args:
         workspace_id: Workspace triggering the webhook
@@ -114,11 +113,7 @@ async def trigger_webhook(
         dao = _get_dao()
         worker = _get_worker()
 
-        # 1. Archive event
-        event = await dao.create_event(workspace_id, event_type, payload)
-        log.info(f"Created webhook event {event.id} for workspace {workspace_id}")
-
-        # 2. Get active subscriptions
+        # 1. Get active subscriptions
         subscriptions = await dao.get_active_subscriptions_for_event(
             workspace_id, event_type
         )
@@ -131,18 +126,17 @@ async def trigger_webhook(
 
         if not worker:
             log.warning(
-                f"WebhooksWorker not available. Skipping delivery for event {event.id}"
+                f"WebhooksWorker not available. Skipping delivery for event {event_type}"
             )
             return
 
-        # 3. Create deliveries and enqueue tasks
+        # 2. Create deliveries and enqueue tasks
         for sub in subscriptions:
             try:
                 delivery = await dao.create_delivery(
                     subscription_id=sub.id,
                     event_type=event_type,
                     payload=payload,
-                    event_id=event.id,
                 )
 
                 await worker.deliver_webhook.kiq(delivery_id=delivery.id)

@@ -80,10 +80,9 @@ async def deliver_webhook(
     headers = {
         "Content-Type": "application/json",
         "X-Agenta-Signature": f"t={timestamp},v1={signature}",
-        "X-Agenta-Event-ID": str(delivery.event_id)
-        if delivery.event_id
-        else str(delivery.id),
+        "X-Agenta-Delivery-ID": str(delivery.id),
         "User-Agent": "Agenta-Webhook/1.0",
+        "X-Agenta-Event-Type": delivery.event_type,
     }
 
     try:

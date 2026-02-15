@@ -45,24 +45,11 @@ class WebhookSubscriptionResponseDTO(BaseModel):
     archived_at: Optional[datetime] = None
 
 
-class WebhookEventResponseDTO(BaseModel):
-    """DTO for webhook event responses."""
-
-    id: UUID
-    workspace_id: UUID
-    event_type: str
-    payload: dict
-    created_at: datetime
-    processed: bool
-    processed_at: Optional[datetime]
-
-
 class WebhookDeliveryResponseDTO(BaseModel):
     """DTO for webhook delivery responses."""
 
     id: UUID
     subscription_id: UUID
-    event_id: Optional[UUID]
     event_type: str
     payload: dict
     status: str

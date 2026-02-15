@@ -4,14 +4,12 @@ from uuid import UUID
 
 from oss.src.dbs.postgres.webhooks.dbes import (
     WebhookSubscriptionDBE,
-    WebhookEventDBE,
     WebhookDeliveryDBE,
 )
 from oss.src.core.webhooks.dtos import (
     CreateWebhookSubscriptionDTO,
     UpdateWebhookSubscriptionDTO,
     WebhookSubscriptionResponseDTO,
-    WebhookEventResponseDTO,
     WebhookDeliveryResponseDTO,
 )
 
@@ -75,20 +73,6 @@ def map_subscription_dto_to_dbe_update(
             setattr(subscription_dbe, key, value)
 
 
-# Event mappings
-def map_event_dbe_to_dto(*, event_dbe: WebhookEventDBE) -> WebhookEventResponseDTO:
-    """Map WebhookEventDBE to response DTO."""
-    return WebhookEventResponseDTO(
-        id=event_dbe.id,
-        workspace_id=event_dbe.workspace_id,
-        event_type=event_dbe.event_type,
-        payload=event_dbe.payload,
-        created_at=event_dbe.created_at,
-        processed=event_dbe.processed,
-        processed_at=event_dbe.processed_at,
-    )
-
-
 # Delivery mappings
 def map_delivery_dbe_to_dto(
     *, delivery_dbe: WebhookDeliveryDBE
@@ -97,7 +81,6 @@ def map_delivery_dbe_to_dto(
     return WebhookDeliveryResponseDTO(
         id=delivery_dbe.id,
         subscription_id=delivery_dbe.subscription_id,
-        event_id=delivery_dbe.event_id,
         event_type=delivery_dbe.event_type,
         payload=delivery_dbe.payload,
         status=delivery_dbe.status,

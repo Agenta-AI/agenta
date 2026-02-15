@@ -35,22 +35,6 @@ Stores user-configured webhook endpoints.
 
 **Index**: `ix_webhook_subscriptions_workspace_id` (filtered on `archived_at IS NULL`)
 
-### webhook_events
-
-Event outbox/audit log implementing the outbox pattern.
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | UUID | PRIMARY KEY | Unique identifier |
-| workspace_id | UUID | NOT NULL | Workspace context |
-| event_type | VARCHAR(100) | NOT NULL | Event type identifier |
-| payload | JSONB | NOT NULL | Event data |
-| created_at | TIMESTAMP | NOT NULL | Event creation time |
-| processed | BOOLEAN | DEFAULT FALSE | Processing status |
-| processed_at | TIMESTAMP | | Processing completion time |
-
-**Index**: `ix_webhook_events_unprocessed` (filtered on `processed = false`)
-
 ### webhook_deliveries
 
 Delivery attempt history and status tracking.
