@@ -141,7 +141,7 @@ class TestAppManagerSync:
             f"Created app {test_app['app_id']} should be in the list"
         )
 
-    @pytest.mark.skip(reason="TEMPORARY: Renaming applications is disabled in the API")
+    @pytest.mark.xfail(reason="TEMPORARY: Renaming applications is disabled in the API")
     def test_update_app(self, agenta_init, test_app):
         """Test updating an app via AppManager.update()."""
         new_slug = generate_unique_slug("updated")
