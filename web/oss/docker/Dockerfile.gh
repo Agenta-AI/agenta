@@ -1,47 +1,60 @@
 FROM node:20.18.0-slim AS base
 
-ENV TURBO_TELEMETRY_DISABLED=1
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
+WORKDIR /app
 
-RUN apt-get update && apt-get install -y jq
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    TURBO_TELEMETRY_DISABLED=1 \
+    PNPM_HOME="/pnpm" \
+    PATH="/pnpm:$PATH"
 
-COPY . .
-RUN PNPM_VERSION=$(cat package.json | jq -r '.packageManager | split("@")[1]') && \
-    npm install -g pnpm@${PNPM_VERSION}
+RUN npm install -g corepack@0.31.0 && \
+    corepack enable
 
-RUN pnpm add -g turbo
-RUN turbo prune @agenta/oss --docker
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 
-# BUILDER ---------------------------------------------------------------------
+RUN PNPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]") && \
+    corepack prepare "pnpm@${PNPM_VERSION}" --activate
+
 
 FROM base AS builder
 
-WORKDIR /app
-
 ENV NODE_OPTIONS="--max_old_space_size=4096"
 
-COPY --from=base ./out/json/ .
-COPY ./.husky /app/.husky
+# Copy package.json files first (changes less frequently than source)
+COPY oss/package.json ./oss/package.json
+COPY --parents packages/*/package.json ./
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store yes | pnpm install --frozen-lockfile
-COPY --from=base /out/full/ .
-COPY --from=base /packages/tsconfig.base.json /app/packages/tsconfig.base.json
-COPY --from=base /packages/css-modules.d.ts /app/packages/css-modules.d.ts
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
-RUN npx next telemetry disable
+# Copy source code last (changes more frequently)
+COPY packages/ ./packages/
+COPY oss/ ./oss/
 
 RUN --mount=type=cache,id=nextjs-oss,target=/app/oss/.next/cache \
     pnpm turbo run build --filter=@agenta/oss
 
-# RUNNER ----------------------------------------------------------------------
 
-FROM base AS runner
+FROM node:20.18.0-slim AS runner
+
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION=0.0.0
 
 WORKDIR /app
 
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production
+
 COPY --from=builder /app/oss/.next/standalone /app
-COPY ../entrypoint.sh /app/entrypoint.sh
+COPY --from=builder /app/oss/.next/static /app/oss/.next/static
+COPY --from=builder /app/oss/public /app/oss/public
+COPY ./entrypoint.sh /app/entrypoint.sh
+
+LABEL org.opencontainers.image.title="agenta-web" \
+    org.opencontainers.image.description="Agenta Web OSS GH runtime image" \
+    org.opencontainers.image.version="${VERSION}" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.created="${BUILD_DATE}"
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 EXPOSE 3000
