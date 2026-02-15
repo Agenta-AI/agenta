@@ -103,18 +103,77 @@ export const isChatMessagesArray = (value: unknown): boolean => {
 /**
  * Extract chat messages array from various formats
  */
-const CHAT_ARRAY_KEYS = [
-    "messages",
-    "message_history",
-    "history",
-    "chat",
-    "conversation",
-    "logs",
-    "responses",
-    "output_messages",
-]
+export type ChatExtractionPreference = "input" | "output"
 
-export const extractChatMessages = (value: unknown): unknown[] | null => {
+interface ExtractChatMessagesOptions {
+    prefer?: ChatExtractionPreference
+}
+
+const INPUT_KEYS = ["prompt", "input_messages"]
+const OUTPUT_KEYS = ["completion", "output_messages", "responses"]
+const NEUTRAL_KEYS = ["messages", "message_history", "history", "chat", "conversation", "logs"]
+
+const getOrderedKeys = (prefer?: ChatExtractionPreference): string[] => {
+    if (prefer === "input") {
+        return [...INPUT_KEYS, ...NEUTRAL_KEYS, ...OUTPUT_KEYS]
+    }
+    if (prefer === "output") {
+        return [...OUTPUT_KEYS, ...NEUTRAL_KEYS, ...INPUT_KEYS]
+    }
+    return [...NEUTRAL_KEYS, ...INPUT_KEYS, ...OUTPUT_KEYS]
+}
+
+const getOrderedWrappers = (
+    obj: Record<string, unknown>,
+    prefer?: ChatExtractionPreference,
+): unknown[] => {
+    const data =
+        obj.data && typeof obj.data === "object" && !Array.isArray(obj.data)
+            ? (obj.data as Record<string, unknown>)
+            : undefined
+
+    const inputFirst = [
+        obj.inputs,
+        data?.inputs,
+        obj.request,
+        obj.data,
+        obj.outputs,
+        data?.outputs,
+        obj.response,
+    ]
+
+    const outputFirst = [
+        obj.outputs,
+        data?.outputs,
+        obj.response,
+        obj.data,
+        obj.inputs,
+        data?.inputs,
+        obj.request,
+    ]
+
+    const neutral = [
+        obj.data,
+        obj.inputs,
+        obj.outputs,
+        data?.inputs,
+        data?.outputs,
+        obj.request,
+        obj.response,
+    ]
+
+    if (prefer === "input") return inputFirst
+    if (prefer === "output") return outputFirst
+    return neutral
+}
+
+export const extractChatMessages = (
+    value: unknown,
+    options?: ExtractChatMessagesOptions,
+    depth = 0,
+    seen: WeakSet<object> = new WeakSet(),
+): unknown[] | null => {
+    if (depth > 3) return null
     if (!value) return null
 
     // Direct array - check if it looks like chat messages
@@ -128,16 +187,34 @@ export const extractChatMessages = (value: unknown): unknown[] | null => {
 
     if (typeof value !== "object") return null
 
-    // Object with known chat array keys - less strict, just check if array exists
-    for (const key of CHAT_ARRAY_KEYS) {
-        const arr = (value as Record<string, unknown>)[key]
-        if (Array.isArray(arr)) {
+    const obj = value as Record<string, unknown>
+
+    if (seen.has(obj)) return null
+    seen.add(obj)
+
+    const orderedKeys = getOrderedKeys(options?.prefer)
+
+    // Object with known chat array keys - validate shape before accepting
+    for (const key of orderedKeys) {
+        const arr = obj[key]
+        if (Array.isArray(arr) && isChatMessagesArray(arr)) {
             return arr
         }
     }
 
+    // Common wrappers used by tracing payloads
+    // e.g. {inputs: {prompt: [...]}} or {data: {outputs: {completion: [...]}}}
+    const nestedCandidates = getOrderedWrappers(obj, options?.prefer)
+
+    for (const candidate of nestedCandidates) {
+        const nested = extractChatMessages(candidate, options, depth + 1, seen)
+        if (nested) {
+            return nested
+        }
+    }
+
     // OpenAI choices format
-    const choices = (value as Record<string, unknown>).choices
+    const choices = obj.choices
     if (Array.isArray(choices)) {
         const messages = choices
             .map((choice: unknown) => {
@@ -145,7 +222,7 @@ export const extractChatMessages = (value: unknown): unknown[] | null => {
                 return c?.message || c?.delta
             })
             .filter(Boolean)
-        if (messages.length) {
+        if (messages.length && isChatMessagesArray(messages)) {
             return messages
         }
     }

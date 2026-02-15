@@ -1,9 +1,9 @@
+import {SmartCellContent} from "@agenta/ui/cell-renderers"
 import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 
 import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
-import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
+import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
     getCost,
@@ -13,6 +13,7 @@ import {
     getTraceOutputs,
 } from "@/oss/state/newObservability"
 
+import LastInputMessageCell from "../components/common/LastInputMessageCell"
 import CostCell from "../components/CostCell"
 import DurationCell from "../components/DurationCell"
 import EvaluatorMetricsCell from "../components/EvaluatorMetricsCell"
@@ -58,6 +59,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
+            onCell: () => ({
+                style: {verticalAlign: "middle"},
+            }),
             fixed: "left",
             render: (_, record) => <NodeNameCell name={record.span_name} type={record.span_type} />,
         },
@@ -83,9 +87,10 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                 const inputs = getTraceInputs(record)
                 const {data: sanitizedInputs} = sanitizeDataWithBlobUrls(inputs)
                 return (
-                    <TruncatedTooltipTag
-                        children={inputs ? getStringOrJson(sanitizedInputs) : ""}
-                        placement="bottom"
+                    <LastInputMessageCell
+                        value={sanitizedInputs}
+                        keyPrefix={`trace-input-${record.span_id}`}
+                        className="h-[112px] overflow-hidden"
                     />
                 )
             },
@@ -97,10 +102,14 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
             render: (_, record) => {
                 const outputs = getTraceOutputs(record)
+                const {data: sanitizedOutputs} = sanitizeDataWithBlobUrls(outputs)
                 return (
-                    <TruncatedTooltipTag
-                        children={outputs ? getStringOrJson(outputs) : ""}
-                        placement="bottom"
+                    <SmartCellContent
+                        value={sanitizedOutputs}
+                        keyPrefix={`trace-output-${record.span_id}`}
+                        maxLines={4}
+                        chatPreference="output"
+                        className="h-[112px] overflow-hidden"
                     />
                 )
             },

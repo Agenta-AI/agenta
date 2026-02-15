@@ -8,7 +8,13 @@ import CellContentPopover from "./CellContentPopover"
 import ChatMessagesCellContent from "./ChatMessagesCellContent"
 import JsonCellContent from "./JsonCellContent"
 import TextCellContent from "./TextCellContent"
-import {extractChatMessages, normalizeValue, safeJsonStringify, tryParseJson} from "./utils"
+import {
+    extractChatMessages,
+    normalizeValue,
+    safeJsonStringify,
+    tryParseJson,
+    type ChatExtractionPreference,
+} from "./utils"
 
 const {Text} = Typography
 
@@ -27,6 +33,8 @@ interface SmartCellContentProps {
     className?: string
     /** Whether to show popover on hover */
     showPopover?: boolean
+    /** Hint for chat extraction direction in mixed payloads */
+    chatPreference?: ChatExtractionPreference
 }
 
 /**
@@ -51,6 +59,7 @@ const SmartCellContent = memo(
         maxLines: maxLinesProp,
         className = "",
         showPopover = true,
+        chatPreference,
     }: SmartCellContentProps) => {
         // Get maxLines from context if not provided via prop
         const rowHeightContext = useRowHeightContext()
@@ -60,7 +69,10 @@ const SmartCellContent = memo(
         const {parsed: jsonValue, isJson} = useMemo(() => tryParseJson(value), [value])
 
         // Check for chat messages
-        const chatMessages = useMemo(() => extractChatMessages(jsonValue), [jsonValue])
+        const chatMessages = useMemo(
+            () => extractChatMessages(jsonValue, {prefer: chatPreference}),
+            [jsonValue, chatPreference],
+        )
         const isChatMessages = chatMessages !== null && chatMessages.length > 0
 
         // Get display value for plain text
@@ -89,9 +101,11 @@ const SmartCellContent = memo(
             const cellContent = (
                 <div className={`cursor-pointer ${className}`}>
                     <ChatMessagesCellContent
-                        value={value}
+                        value={jsonValue}
                         keyPrefix={keyPrefix}
+                        chatPreference={chatPreference}
                         maxLines={4}
+                        maxTotalLines={maxLines}
                         truncate
                     />
                 </div>
@@ -103,8 +117,9 @@ const SmartCellContent = memo(
                 <CellContentPopover
                     fullContent={
                         <ChatMessagesCellContent
-                            value={value}
+                            value={jsonValue}
                             keyPrefix={`${keyPrefix}-popover`}
+                            chatPreference={chatPreference}
                             truncate={false}
                         />
                     }

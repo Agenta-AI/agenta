@@ -1,8 +1,8 @@
+import {SmartCellContent} from "@agenta/ui/cell-renderers"
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
-import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
+import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {
     sessionLastOutputAtomFamily,
     sessionsLoadingAtom,
@@ -15,13 +15,14 @@ export const LastOutputCell = ({sessionId}: {sessionId: string}) => {
     if (isLoading) return <Skeleton active paragraph={{rows: 0}} />
     if (lastOutput === undefined) return ""
 
+    const {data: sanitized} = sanitizeDataWithBlobUrls(lastOutput)
     return (
-        <TruncatedTooltipTag
-            children={lastOutput ? getStringOrJson(lastOutput) : ""}
-            placement="bottom"
-            tagProps={{
-                className: "max-w-[300px] truncate",
-            }}
+        <SmartCellContent
+            value={sanitized}
+            keyPrefix={`session-${sessionId}-output`}
+            maxLines={4}
+            chatPreference="output"
+            className="max-w-[300px] h-[112px] overflow-hidden"
         />
     )
 }

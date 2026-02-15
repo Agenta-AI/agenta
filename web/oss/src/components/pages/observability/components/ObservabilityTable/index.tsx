@@ -231,6 +231,7 @@ const ObservabilityTable = () => {
             ) : (
                 <div className="flex flex-col gap-2">
                     <Table
+                        className="[&_.ant-table-tbody_.ant-table-cell]:align-top"
                         rowSelection={{
                             type: "checkbox",
                             columnWidth: 48,
