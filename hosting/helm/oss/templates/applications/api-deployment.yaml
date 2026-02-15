@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenta-oss.fullname" . }}-api
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "agenta-oss.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "agenta-oss.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        {{- include "agenta-oss.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 3000
+        fsGroup: 2000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: "{{ .Values.images.api.repository }}:{{ .Values.images.api.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.images.api.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - "uvicorn"
+            - "entrypoint:app"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8000"
+            - "--reload"
+            - "--root-path"
+            - "/api"
+          envFrom:
+            - configMapRef:
+                name: {{ include "agenta-oss.fullname" . }}-config
+          env:
+            - name: AGENTA_AUTH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta-oss.fullname" . }}-secret
+                  key: AGENTA_AUTH_KEY
+            - name: AGENTA_CRYPT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta-oss.fullname" . }}-secret
+                  key: AGENTA_CRYPT_KEY
+          ports:
+            - containerPort: 8000
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources.api | nindent 12 }}

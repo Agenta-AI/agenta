@@ -1,0 +1,209 @@
+# Global settings
+global:
+  namespace: agenta-oss
+  imagePullSecrets: []
+
+# External URLs - MUST be updated for your environment
+externalUrls:
+  # Set these to your actual external IP or domain
+  api: "http://REPLACE_WITH_EXTERNAL_IP/api"
+  web: "http://REPLACE_WITH_EXTERNAL_IP"
+  services: "http://REPLACE_WITH_EXTERNAL_IP/services"
+
+# Internal URLs - for service-to-service communication (will be templated)
+internalUrls:
+  api: ""  # Will be set to http://{{ release-name }}-agenta-oss-api:8000
+
+# Application images
+images:
+  web:
+    repository: ghcr.io/agenta-ai/agenta-web
+    tag: latest
+    pullPolicy: IfNotPresent
+  api: 
+    repository: ghcr.io/agenta-ai/agenta-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  chat:
+    repository: ghcr.io/agenta-ai/agenta-chat
+    tag: latest
+    pullPolicy: IfNotPresent
+  completion:
+    repository: ghcr.io/agenta-ai/agenta-completion
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# Resource limits and requests - Production-ready specifications
+resources:
+  # API service handles main application logic and database operations
+  api:
+    limits:
+      cpu: 2000m      # 2 CPUs for production workloads
+      memory: 2Gi     # 2GB for API processing and caching
+    requests:
+      cpu: 500m       # 0.5 CPU baseline
+      memory: 512Mi   # 512MB baseline
+  # Web frontend serves UI and handles user requests (Next.js with SSR)
+  web:
+    limits:
+      cpu: 2000m      # 2 CPUs for Next.js SSR, bundling, and concurrent requests
+      memory: 3Gi     # 3GB for Node.js heap, SSR caching, and asset compilation
+    requests:
+      cpu: 500m       # 0.5 CPU baseline for Next.js startup and idle
+      memory: 512Mi   # 512MB baseline for Next.js runtime
+  # Chat service handles LLM chat interactions
+  chat:
+    limits:
+      cpu: 1000m      # 1 CPU for chat processing
+      memory: 1Gi     # 1GB for chat context and processing
+    requests:
+      cpu: 200m       # 0.2 CPU baseline
+      memory: 256Mi   # 256MB baseline
+  # Completion service handles LLM completions
+  completion:
+    limits:
+      cpu: 1000m      # 1 CPU for completion processing
+      memory: 1Gi     # 1GB for completion context and processing
+    requests:
+      cpu: 200m       # 0.2 CPU baseline
+      memory: 256Mi   # 256MB baseline
+  # Worker processes background tasks and queues
+  worker:
+    limits:
+      cpu: 1000m      # 1 CPU for background processing
+      memory: 1Gi     # 1GB for task processing
+    requests:
+      cpu: 200m       # 0.2 CPU baseline
+      memory: 256Mi   # 256MB baseline
+
+# Application configuration
+config:
+  license: "oss"
+  telemetryEnabled: true
+  autoMigrations: true
+  serviceMiddlewareCacheEnabled: true
+
+# Secrets configuration (base64 encoded)
+secrets:
+  agentaAuthKey: "cmVwbGFjZS1tZQ=="  # replace-me
+  agentaCryptKey: "cmVwbGFjZS1tZQ=="  # replace-me
+
+# PostgreSQL configuration (using Bitnami chart)
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "password"
+    username: "username"
+    password: "password"
+    database: "agenta_oss_core"
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    initdb:
+      scripts:
+        init-db.sql: |
+          -- Create additional databases
+          CREATE DATABASE agenta_oss_tracing;
+          CREATE DATABASE agenta_oss_supertokens;
+    # Production-ready PostgreSQL resources
+    resources:
+      limits:
+        cpu: 2000m      # 2 CPUs for database operations
+        memory: 4Gi     # 4GB for database caching and operations
+      requests:
+        cpu: 500m       # 0.5 CPU baseline
+        memory: 1Gi     # 1GB baseline
+
+# Redis configuration (using Bitnami chart)
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 1Gi
+    # Production-ready Redis resources  
+    resources:
+      limits:
+        cpu: 1000m      # 1 CPU for Redis operations
+        memory: 1536Mi  # 1.5GB for Redis caching (following Langfuse spec)
+      requests:
+        cpu: 200m       # 0.2 CPU baseline
+        memory: 512Mi   # 512MB baseline
+  replica:
+    # Replica resources
+    resources:
+      limits:
+        cpu: 500m       # 0.5 CPU for replicas
+        memory: 768Mi   # 768MB for replicas
+      requests:
+        cpu: 100m       # 0.1 CPU baseline
+        memory: 256Mi   # 256MB baseline
+
+# RabbitMQ configuration (using Bitnami chart)
+rabbitmq:
+  enabled: true
+  auth:
+    username: "guest"
+    password: "guest"
+  persistence:
+    enabled: true
+    size: 1Gi
+  # Production-ready RabbitMQ resources
+  resources:
+    limits:
+      cpu: 1000m      # 1 CPU for message queuing
+      memory: 1Gi     # 1GB for queue management
+    requests:
+      cpu: 200m       # 0.2 CPU baseline
+      memory: 256Mi   # 256MB baseline
+
+# SuperTokens configuration (custom deployment)
+supertokens:
+  enabled: true
+  image:
+    repository: "registry.supertokens.io/supertokens/supertokens-postgresql"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m       # 0.5 CPU for auth service
+      memory: 512Mi   # 512MB for auth operations
+    requests:
+      cpu: 100m       # 0.1 CPU baseline
+      memory: 128Mi   # 128MB baseline
+
+# Resource Quota configuration for namespace-level limits
+resourceQuota:
+  enabled: true
+  requests:
+    cpu: "8"          # Total CPU requests allowed (8 CPUs)
+    memory: "16Gi"    # Total memory requests allowed (16GB)
+    storage: "100Gi"  # Total storage requests allowed (100GB)
+  limits:
+    cpu: "20"         # Total CPU limits allowed (20 CPUs)
+    memory: "32Gi"    # Total memory limits allowed (32GB)
+  count:
+    pods: "50"                      # Maximum number of pods
+    services: "20"                  # Maximum number of services
+    secrets: "20"                   # Maximum number of secrets
+    configmaps: "20"                # Maximum number of configmaps
+    persistentvolumeclaims: "10"    # Maximum number of PVCs
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  host: ""  # Leave empty for IP-based access, set to domain for host-based routing
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: "agenta-tls"
+
+# Feature flags
+features:
+  telemetry: true
+  demos: false
+  migrations: true

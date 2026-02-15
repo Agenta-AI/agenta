@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: agenta-oss
+  labels:
+    app: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/agenta-ai/agenta-api:latest
+          command:
+            - "celery"
+            - "-A"
+            - "entrypoint.celery_app"
+            - "worker"
+            - "--concurrency=1"
+            - "--max-tasks-per-child=1"
+            - "--prefetch-multiplier=1"
+          envFrom:
+            - configMapRef:
+                name: agenta-config
+            - secretRef:
+                name: agenta-secret

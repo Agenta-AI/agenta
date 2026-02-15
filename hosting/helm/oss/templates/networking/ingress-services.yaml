@@ -1,0 +1,68 @@
+{{- if .Values.ingress.enabled }}
+# API and Services - with path rewriting
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "agenta-oss.fullname" . }}-services
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "agenta-oss.labels" . | nindent 4 }}
+    app.kubernetes.io/component: services-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | default "agenta.local" }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+  - {{- if .Values.ingress.host }}
+    host: {{ .Values.ingress.host }}
+    {{- end }}
+    http:
+      paths:
+      # API endpoints
+      - path: /api/(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "agenta-oss.fullname" . }}-api
+            port:
+              number: 8000
+      # Chat service
+      - path: /services/chat/(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "agenta-oss.fullname" . }}-chat
+            port:
+              number: 80
+      # Completion service
+      - path: /services/completion/(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "agenta-oss.fullname" . }}-completion
+            port:
+              number: 80
+      # SuperTokens auth
+      - path: /auth/(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: {{ include "agenta-oss.fullname" . }}-supertokens
+            port:
+              number: 3567
+{{- end }}

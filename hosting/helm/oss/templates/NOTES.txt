@@ -1,0 +1,59 @@
+🎉 Agenta OSS has been successfully deployed!
+
+{{- if .Values.ingress.enabled }}
+{{- if .Values.ingress.host }}
+
+🌐 Access Agenta at:
+   https://{{ .Values.ingress.host }}/apps
+
+{{- else }}
+
+🌐 To access Agenta:
+   1. Get the external IP of your ingress controller:
+      kubectl get service ingress-nginx-controller -n ingress-nginx
+
+   2. Access Agenta at: http://<EXTERNAL-IP>/apps
+
+{{- end }}
+{{- else }}
+
+🌐 To access Agenta (ingress disabled):
+   1. Port forward to the web service:
+      kubectl port-forward -n {{ .Values.global.namespace }} service/{{ include "agenta-oss.fullname" . }}-web 3000:3000
+
+   2. Access Agenta at: http://localhost:3000/apps
+
+{{- end }}
+
+📊 Service Status:
+   kubectl get pods -n {{ .Values.global.namespace }}
+
+🔍 Check logs:
+   kubectl logs -n {{ .Values.global.namespace }} deployment/{{ include "agenta-oss.fullname" . }}-api
+   kubectl logs -n {{ .Values.global.namespace }} deployment/{{ include "agenta-oss.fullname" . }}-web
+
+🧪 Run connection tests:
+   helm test {{ .Release.Name }} -n {{ .Values.global.namespace }}
+
+📚 Configuration:
+   - License: {{ .Values.config.license }}
+   - External API URL: {{ .Values.externalUrls.api }}
+   - External Web URL: {{ .Values.externalUrls.web }}
+   
+{{- if .Values.postgresql.enabled }}
+   - PostgreSQL: {{ include "agenta-oss.fullname" . }}-postgresql
+{{- end }}
+{{- if .Values.redis.enabled }}
+   - Redis: {{ include "agenta-oss.fullname" . }}-redis-master
+{{- end }}
+{{- if .Values.rabbitmq.enabled }}
+   - RabbitMQ: {{ include "agenta-oss.fullname" . }}-rabbitmq
+{{- end }}
+
+⚠️  IMPORTANT: Update the external URLs in your values.yaml file:
+   externalUrls:
+     api: "http://YOUR_EXTERNAL_IP/api"
+     web: "http://YOUR_EXTERNAL_IP"
+     services: "http://YOUR_EXTERNAL_IP/services"
+
+🚀 Happy LLMOps with Agenta!
