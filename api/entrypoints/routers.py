@@ -103,6 +103,9 @@ from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 
+from oss.src.core.ai_services.service import AIServicesService
+from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
+
 
 from oss.src.routers import (
     admin_router,
@@ -431,6 +434,13 @@ annotations = AnnotationsRouter(
     annotations_service=annotations_service,
 )
 
+# AI SERVICES ------------------------------------------------------------------
+
+ai_services_service = AIServicesService.from_env()
+ai_services = AIServicesRouter(
+    ai_services_service=ai_services_service,
+)
+
 # MOUNTING ROUTERS TO APP ROUTES -----------------------------------------------
 
 app.include_router(
@@ -530,6 +540,12 @@ app.include_router(
     router=workflows.router,
     prefix="/preview/workflows",
     tags=["Workflows"],
+)
+
+app.include_router(
+    router=ai_services.router,
+    prefix="/ai/services",
+    tags=["AI Services"],
 )
 
 app.include_router(

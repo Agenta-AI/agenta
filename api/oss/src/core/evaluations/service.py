@@ -123,6 +123,8 @@ DEFAULT_METRICS = [
     },
 ]
 
+METRICS_STEP_TYPES = {"invocation", "annotation"}
+
 DEFAULT_REFRESH_INTERVAL = 1  # minute(s)
 
 
@@ -887,8 +889,14 @@ class EvaluationsService:
             log.warning("run or run.data or run.data.steps not found")
             return []
 
+        step_types_by_key: Dict[str, str] = {
+            step.key: step.type
+            for step in run.data.steps
+            if step.type in METRICS_STEP_TYPES
+        }
+
         steps_metrics_keys: Dict[str, List[Dict[str, str]]] = {
-            step.key: [] for step in run.data.steps if step.type == "annotation"
+            step_key: [] for step_key in step_types_by_key
         }
 
         if not steps_metrics_keys:
@@ -929,6 +937,9 @@ class EvaluationsService:
         inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
 
         for step in run.data.steps:
+            if step.type not in METRICS_STEP_TYPES:
+                continue
+
             steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
 
             if step.type == "annotation":
@@ -1051,11 +1062,6 @@ class EvaluationsService:
                         path=metric.get("path") or "*",
                     )
                     for metric in step_metrics_keys
-                ] + [
-                    MetricSpec(
-                        type=MetricType.JSON,
-                        path="attributes.ag",
-                    )
                 ]
 
                 # log.info(f"[METRICS] Step '{step_key}': {len(specs)} metric specs")

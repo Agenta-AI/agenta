@@ -1,0 +1,36 @@
+{
+  "name": "RefinedPromptTemplate",
+  "description": "The refined prompt template. refined_prompt is the full prompt template JSON stringified. messages is a copy of just the messages array for quick verification.",
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "refined_prompt": {
+        "type": "string",
+        "description": "The full refined prompt template as a stringified JSON object. Must contain the same structure as the input (messages array with same count, roles, order). Only message content fields should be refined."
+      },
+      "messages": {
+        "type": "array",
+        "description": "The refined messages array (same count and roles as input). This is a copy of the messages from refined_prompt for verification.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": {
+              "type": "string",
+              "enum": ["system", "developer", "user", "assistant"],
+              "description": "Message role. Must match the original."
+            },
+            "content": {
+              "type": "string",
+              "description": "Refined message content."
+            }
+          },
+          "required": ["role", "content"]
+        }
+      }
+    },
+    "required": ["refined_prompt", "messages"]
+  },
+  "strict": true
+}

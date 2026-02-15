@@ -126,10 +126,30 @@ const OnboardingCard = ({
         if (autoScrollTimeoutRef.current) {
             window.clearTimeout(autoScrollTimeoutRef.current)
         }
-        autoScrollTimeoutRef.current = window.setTimeout(() => {
+
+        const startedAt = window.performance.now()
+        const releaseAutoScroll = () => {
             autoScrollRef.current = false
             autoScrollTimeoutRef.current = null
-        }, 320)
+        }
+        const settleAutoScroll = () => {
+            if (!autoScrollRef.current) return
+            const latestTarget = getTargetElement()
+            if (!latestTarget || !(latestTarget instanceof HTMLElement)) {
+                releaseAutoScroll()
+                return
+            }
+            if (isTargetInViewport(latestTarget.getBoundingClientRect())) {
+                releaseAutoScroll()
+                return
+            }
+            if (window.performance.now() - startedAt > 1600) {
+                releaseAutoScroll()
+                return
+            }
+            autoScrollTimeoutRef.current = window.setTimeout(settleAutoScroll, 60)
+        }
+        autoScrollTimeoutRef.current = window.setTimeout(settleAutoScroll, 60)
         return true
     }, [getTargetElement, isTargetInViewport])
 
@@ -336,6 +356,13 @@ const OnboardingCard = ({
             const saved = scrollPositions.get(targetEl)
             if (!saved) return
             const el = targetEl as HTMLElement
+
+            // Allow onboarding-driven scrollIntoView and update the lock baseline.
+            if (autoScrollRef.current) {
+                scrollPositions.set(targetEl, {top: el.scrollTop, left: el.scrollLeft})
+                return
+            }
+
             if (el.scrollTop !== saved.top) {
                 el.scrollTop = saved.top
             }
