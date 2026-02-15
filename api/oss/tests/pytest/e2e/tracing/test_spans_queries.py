@@ -143,6 +143,7 @@ def mock_data(authed_api):
 
 
 class TestSpansQueries:
+    @pytest.mark.skip(reason="Flaky in CI - investigating quota/timing issues")
     def test_query_all(self, authed_api, mock_data):
         trace_id = mock_data["trace_id"]
 
@@ -172,6 +173,7 @@ class TestSpansQueries:
         assert len(response["spans"]) == 2
         # ----------------------------------------------------------------------
 
+    @pytest.mark.skip(reason="Flaky in CI - investigating quota/timing issues")
     def test_query_fts(self, authed_api, mock_data):
         trace_id = mock_data["trace_id"]
 

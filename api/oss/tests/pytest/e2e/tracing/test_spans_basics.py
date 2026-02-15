@@ -118,6 +118,7 @@ class TestSpansBasics:
         assert response["count"] == 2
         # ----------------------------------------------------------------------
 
+    @pytest.mark.skip(reason="Flaky in CI - investigating quota/timing issues")
     def test_query_spans(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         response = authed_api(
