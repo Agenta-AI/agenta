@@ -15,6 +15,7 @@ import httpx
 from pydantic import BaseModel, Field
 
 from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.helpers import apply_replacements_with_tracking
 from agenta.sdk.utils.lazy import (
     _load_jinja2,
     _load_jsonpath,
@@ -289,9 +290,13 @@ def _format_with_template(
 
         replacements, _unresolved = build_replacements(original_placeholders, kwargs)
 
-        result = apply_replacements(content, replacements)
+        result, successfully_replaced = apply_replacements_with_tracking(
+            content, replacements
+        )
 
-        truly_unreplaced = compute_truly_unreplaced(original_placeholders, result)
+        # Only the placeholders that were NOT successfully replaced are errors
+        # This avoids false positives when substituted values contain {{...}} patterns
+        truly_unreplaced = original_placeholders - successfully_replaced
 
         if truly_unreplaced:
             hint = missing_lib_hints(truly_unreplaced)

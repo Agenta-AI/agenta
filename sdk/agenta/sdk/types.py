@@ -9,6 +9,7 @@ from starlette.responses import StreamingResponse
 
 
 from agenta.sdk.assets import supported_llm_models, model_metadata
+from agenta.sdk.utils.helpers import apply_replacements_with_tracking
 
 
 # SDK-internal types for inline trace responses.
@@ -726,11 +727,13 @@ class PromptTemplate(BaseModel):
                     original_placeholders, kwargs
                 )
 
-                result = apply_replacements(content, replacements)
-
-                truly_unreplaced = compute_truly_unreplaced(
-                    original_placeholders, result
+                result, successfully_replaced = apply_replacements_with_tracking(
+                    content, replacements
                 )
+
+                # Only the placeholders that were NOT successfully replaced are errors
+                # This avoids false positives when substituted values contain {{...}} patterns
+                truly_unreplaced = original_placeholders - successfully_replaced
                 if truly_unreplaced:
                     hint = missing_lib_hints(truly_unreplaced)
                     suffix = f" Hint: {hint}" if hint else ""
