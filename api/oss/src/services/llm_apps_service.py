@@ -138,9 +138,9 @@ async def make_payload(
     Returns:
         Dict: The constructed payload for the app.
     """
-    payload = {}
-    inputs = {}
-    messages = []
+    payload: dict[str, Any] = dict()
+    inputs: dict[str, Any] = dict()
+    messages: list[Any] = list()
 
     for param in openapi_parameters:
         if param["name"] == "ag_config":
@@ -189,7 +189,22 @@ async def make_payload(
 
         if is_chat:
             messages_data = datapoint.get("messages") or datapoint.get("chat", "[]")
-            messages = json.loads(messages_data)
+            # Handle both string and object formats (backward compatibility)
+            if isinstance(messages_data, list):
+                messages = messages_data
+            elif isinstance(messages_data, str):
+                try:
+                    messages = json.loads(messages_data) if messages_data else []
+                except (json.JSONDecodeError, TypeError):
+                    log.warn(
+                        f"Failed to parse messages data, using empty list: {messages_data}"
+                    )
+                    messages = list()
+            else:
+                log.warn(
+                    f"Unexpected format for messages data, using empty list: {messages_data}"
+                )
+                messages = list()
             payload["messages"] = messages
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.warn(f"Error making payload: {e}")
