@@ -255,6 +255,12 @@ export {
 
 // Re-export spec derivation utilities (pure functions)
 export {
+    extractRawValue,
+    stripVolatileKeys,
+    enhancedPromptsToParameters,
+    enhancedCustomPropertiesToParameters,
+    areParametersDifferent,
+    resolveRootSourceId,
     deriveEnhancedPrompts,
     deriveEnhancedCustomProperties,
     isPromptLikeStructure,

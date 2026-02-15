@@ -30,9 +30,25 @@ const SaveTestsetModal: React.FC<SaveTestsetModalProps> = ({
             setSubmitLoading(true)
 
             const newRows = rows.map((row, index) => {
-                if (evaluation.testset.testsetChatColumn) {
+                // Check for messages or chat columns (prefer messages, fallback to chat)
+                const chatData =
+                    evaluation.testset.csvdata[index].messages ||
+                    evaluation.testset.csvdata[index].chat
+
+                if (chatData) {
+                    // Save chat messages as objects/dicts (parse if string for backward compatibility)
+                    let chatValue = chatData
+                    if (typeof chatData === "string") {
+                        try {
+                            chatValue = JSON.parse(chatData)
+                        } catch {
+                            // If parsing fails, keep as string (backward compatibility)
+                            chatValue = chatData
+                        }
+                    }
+                    // Always save as "messages" regardless of source column name
                     return {
-                        chat: evaluation.testset.csvdata[index].chat,
+                        messages: chatValue,
                         correct_answer: row.correctAnswer,
                         annotation: row.note,
                     }

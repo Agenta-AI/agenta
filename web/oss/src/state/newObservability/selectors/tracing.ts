@@ -42,16 +42,7 @@ export const getAgMetaConfiguration = (span?: TraceSpanNode) =>
 
 export const getAgData = (span?: TraceSpanNode) => span?.attributes?.ag?.data ?? null
 
-export const getAgDataInputs = (span?: TraceSpanNode) => {
-    const inputs = getAgData(span)?.inputs
-    if (!inputs) return null
-    if (typeof inputs !== "object" || Array.isArray(inputs)) return inputs
-
-    const {parameters, ...rest} = inputs as Record<string, unknown>
-
-    if (rest.messages) return rest
-    return rest.inputs ?? rest
-}
+export const getAgDataInputs = (span?: TraceSpanNode) => getAgData(span)?.inputs ?? null
 
 export const getAgDataOutputs = (span?: TraceSpanNode) => getAgData(span)?.outputs ?? null
 
