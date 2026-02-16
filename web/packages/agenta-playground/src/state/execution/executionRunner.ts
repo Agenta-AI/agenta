@@ -272,8 +272,9 @@ export async function executeStepForSessionWithExecutionItems(
                         upstreamResult?.output ?? upstreamResult?.structuredOutput
 
                     const evalStore = getDefaultStore()
+                    const typeScopedData = runnableBridge.forType(node.entity.type)
                     const stageRunnableData = evalStore.get(
-                        runnableBridge.data(node.entity.id as string),
+                        typeScopedData.data(node.entity.id as string),
                     ) as RunnableData | null
 
                     console.log("[chain] Fallback: buildEvaluatorExecutionInputs context:", {
@@ -303,6 +304,7 @@ export async function executeStepForSessionWithExecutionItems(
                           loadableId,
                           rowId: stepId,
                           entityId: stageRunnableId,
+                          entityType: node.entity.type,
                       })
 
             console.log("[chain] Creating execution item for node", nodeId, {

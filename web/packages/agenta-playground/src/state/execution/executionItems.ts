@@ -86,6 +86,10 @@ export interface CreateExecutionItemParams {
     loadableId: string
     rowId: string
     entityId: string
+    /** When provided, scopes bridge selectors to this entity type only.
+     *  Without this, the bridge probes all molecule types — which can
+     *  match the wrong molecule when entity IDs exist in a shared DB table. */
+    entityType?: string
     runId?: string
     messageId?: string
 }
@@ -412,19 +416,26 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
     ): ExecutionItem | null => {
         const {get, headers, repetitions, runId, inputValues, projectId, dispatchWorkerRun} =
             runParams
+
+        // When entityType is provided, use type-scoped selectors to avoid
+        // cross-contamination from the shared workflow_revisions DB table.
+        // Without scoping, legacyAppRevision can match evaluator IDs and
+        // return the wrong invocation URL (/test instead of /evaluators/{key}/run).
+        const bridge = params.entityType
+            ? runnableBridge.forType(params.entityType)
+            : runnableBridge
+
         const mode: ExecutionMode =
-            get(runnableBridge.executionMode(params.entityId)) === "chat" ? "chat" : "completion"
+            get(bridge.executionMode(params.entityId)) === "chat" ? "chat" : "completion"
         const normalizedRepetitions = resolveRequestedRepetitions(get, repetitions)
         const effectiveRunId =
             runId ?? (!forceNewRunId && params.runId ? params.runId : undefined) ?? generateId()
 
         const requestPayload = get(
-            runnableBridge.requestPayload(params.entityId),
+            bridge.requestPayload(params.entityId),
         ) as RequestPayloadData | null
-        const invocationUrl = get(runnableBridge.invocationUrl(params.entityId)) as string | null
-        const runnableData = get(
-            runnableBridge.data(params.entityId),
-        ) as TransformVariantInput | null
+        const invocationUrl = get(bridge.invocationUrl(params.entityId)) as string | null
+        const runnableData = get(bridge.data(params.entityId)) as TransformVariantInput | null
         const entityData = runnableData ?? null
 
         console.log("[executionItem.run] entityId:", params.entityId, {
@@ -433,6 +444,7 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
             requestPayload,
             runnableData,
             entityData,
+            entityType: params.entityType,
         })
 
         const allMetadata = (runnableBridge.utils?.getAllMetadata() ?? {}) as Record<
@@ -526,7 +538,7 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
             {source: "requestPayload.ag_config", value: requestPayload?.ag_config},
             {
                 source: "runnableBridge.configuration",
-                value: get(runnableBridge.configuration(params.entityId)) as unknown,
+                value: get(bridge.configuration(params.entityId)) as unknown,
             },
             {
                 source: "entityData.parameters",
