@@ -16,6 +16,7 @@ import type {ButtonProps, MenuProps} from "antd"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
+import {CheckCircle, LoaderCircle, XCircle} from "lucide-react"
 
 // ============================================================================
 // ATOMS
@@ -51,6 +52,8 @@ function useDropdownSelection(storageKey: string | undefined, defaultKey: string
 // TYPES
 // ============================================================================
 
+export type DropdownButtonOptionStatus = "idle" | "running" | "success" | "error"
+
 export interface DropdownButtonOption {
     /** Unique key for this option */
     key: string
@@ -60,6 +63,8 @@ export interface DropdownButtonOption {
     disabled?: boolean
     /** Icon to show in the dropdown (optional) */
     icon?: React.ReactNode
+    /** Execution status for this option (shows indicator in menu) */
+    status?: DropdownButtonOptionStatus
 }
 
 export interface DropdownButtonProps {
@@ -97,6 +102,8 @@ export interface DropdownButtonProps {
     storageKey?: string
     /** Default selected key when using storageKey (defaults to first option) */
     defaultSelectedKey?: string
+    /** Whether the main button shows a loading spinner */
+    loading?: boolean
 }
 
 // ============================================================================
@@ -119,6 +126,7 @@ export function DropdownButton({
     dropdownIcon,
     storageKey,
     defaultSelectedKey,
+    loading = false,
 }: DropdownButtonProps) {
     // Use atomWithStorage for persistence when storageKey is provided
     const defaultKey = defaultSelectedKey ?? options[0]?.key ?? ""
@@ -172,13 +180,25 @@ export function DropdownButton({
     // Dropdown menu items
     const menuItems: MenuProps["items"] = useMemo(
         () =>
-            options.map((option) => ({
-                key: option.key,
-                label: option.label,
-                icon: option.icon,
-                disabled: option.disabled,
-                onClick: () => handleOptionSelect(option.key),
-            })),
+            options.map((option) => {
+                const hasActiveStatus = option.status && option.status !== "idle"
+                const iconElement = hasActiveStatus ? (
+                    <OptionStatusIndicator status={option.status!} />
+                ) : (
+                    option.icon
+                )
+                return {
+                    key: option.key,
+                    label: (
+                        <span className="inline-flex items-center gap-2">
+                            {iconElement}
+                            <span>{option.label}</span>
+                        </span>
+                    ),
+                    disabled: option.disabled || option.status === "running",
+                    onClick: () => handleOptionSelect(option.key),
+                }
+            }),
         [options, handleOptionSelect],
     )
 
@@ -191,7 +211,8 @@ export function DropdownButton({
                 className="flex items-center gap-1"
                 onClick={handleMainClick}
                 disabled={disabled}
-                icon={icon}
+                loading={loading}
+                icon={loading ? undefined : icon}
             >
                 {effectiveLabel}
             </Button>
@@ -205,6 +226,23 @@ export function DropdownButton({
             </Dropdown>
         </Space.Compact>
     )
+}
+
+// ============================================================================
+// STATUS INDICATOR
+// ============================================================================
+
+function OptionStatusIndicator({status}: {status: DropdownButtonOptionStatus}) {
+    switch (status) {
+        case "running":
+            return <LoaderCircle size={14} className="animate-spin text-blue-500" />
+        case "success":
+            return <CheckCircle size={14} className="text-green-500" />
+        case "error":
+            return <XCircle size={14} className="text-red-500" />
+        default:
+            return null
+    }
 }
 
 export default DropdownButton

@@ -66,7 +66,12 @@ export {
     type CopyOption,
 } from "./CopyButtonDropdown"
 
-export {DropdownButton, type DropdownButtonProps, type DropdownButtonOption} from "./DropdownButton"
+export {
+    DropdownButton,
+    type DropdownButtonProps,
+    type DropdownButtonOption,
+    type DropdownButtonOptionStatus,
+} from "./DropdownButton"
 
 export {DraftTag, type DraftTagProps} from "./DraftTag"
 export {HeightCollapse, type HeightCollapseProps} from "./HeightCollapse"
