@@ -1,8 +1,8 @@
 import {
     resolveChainInputs,
     computeTopologicalOrder,
+    buildEvaluatorExecutionInputs,
     runnableBridge,
-    type RunnableType,
     type RunnableData,
     type ExecutionResult,
     type StageExecutionResult,
@@ -13,7 +13,12 @@ import {getDefaultStore} from "jotai/vanilla"
 
 import type {OutputConnection, PlaygroundNode} from "../types"
 
-import {executionAdapterAtom, registerAbortController, cleanupAbortController} from "./atoms"
+import {
+    registerAbortController,
+    cleanupAbortController,
+    buildResultKey,
+    resultsByKeyAtomFamily,
+} from "./atoms"
 import {createExecutionItemHandle} from "./executionItems"
 import type {ExecutionSession, RunResult, SessionExecutionOptions} from "./types"
 
@@ -72,11 +77,14 @@ interface ExecuteStepForSessionParams {
     session: ExecutionSession
     data: Record<string, unknown>
     nodes: PlaygroundNode[]
-    primaryNode: PlaygroundNode
     allConnections: OutputConnection[]
     sessionOptions?: Record<string, SessionExecutionOptions>
     repetitionCount?: number
     lifecycle: ExecutionSessionLifecycleCallbacks
+    /** When set, only execute this specific node instead of the full chain */
+    targetNodeId?: string
+    /** Cached chain results from a previous run (used to resolve inputs for targeted execution) */
+    cachedChainResults?: Record<string, ExecutionResult>
 }
 
 export async function executeStepForSessionWithExecutionItems(
@@ -90,19 +98,25 @@ export async function executeStepForSessionWithExecutionItems(
         session,
         data,
         nodes,
-        primaryNode,
         allConnections,
         sessionOptions,
         repetitionCount = 1,
         lifecycle,
     } = params
 
+    const runnableNodes = nodes.map(toRunnableNode)
+    const rootNode = runnableNodes.find((n) => n.depth === 0)
+    if (!rootNode) {
+        lifecycle.onFail({error: {message: "No root node (depth 0) found"}})
+        return
+    }
+
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     const perSession = sessionOptions?.[session.id]
-    const primaryExecutionHandle = createExecutionItemHandle({
+    const rootExecutionHandle = createExecutionItemHandle({
         loadableId,
         rowId: stepId,
-        revisionId: session.runnableId,
+        entityId: session.runnableId,
         runId,
     })
 
@@ -111,32 +125,111 @@ export async function executeStepForSessionWithExecutionItems(
     lifecycle.onStart({runId})
 
     try {
-        const runnableNodes = nodes.map(toRunnableNode)
-        const downstreamConnections = allConnections.filter(
-            (c) => c.sourceNodeId === primaryNode.id,
-        )
+        const downstreamConnections = allConnections.filter((c) => c.sourceNodeId === rootNode.id)
         const isChain = downstreamConnections.length > 0
         const executionOrder = isChain
             ? computeTopologicalOrder(
                   runnableNodes.map((n) => ({nodeId: n.id})),
                   allConnections,
-                  primaryNode.id,
+                  rootNode.id,
               )
-            : [primaryNode.id]
+            : [rootNode.id]
+        const stageOrder = executionOrder
 
-        const totalStages = executionOrder?.length || 1
+        const totalStages = stageOrder?.length || 1
         const chainResults: Record<string, StageExecutionResult> = {}
         const nodeResults: Record<string, ExecutionResult> = {}
 
-        for (let stageIndex = 0; stageIndex < (executionOrder?.length || 1); stageIndex++) {
+        // Seed nodeResults with cached results from previous runs when doing targeted execution.
+        // If cachedChainResults were explicitly provided, use them.
+        // Otherwise, self-resolve from existing execution state (the root result's chainResults).
+        if (params.targetNodeId) {
+            let resolvedCache = params.cachedChainResults
+            if (!resolvedCache) {
+                const rootResultKey = buildResultKey(stepId, session.id)
+                const allResults = get(resultsByKeyAtomFamily(loadableId))
+                const prevRootResult = allResults[rootResultKey] as RunResult | undefined
+
+                console.log("[chain:targeted] Cache resolution:", {
+                    targetNodeId: params.targetNodeId,
+                    rootResultKey,
+                    hasRootResult: !!prevRootResult,
+                    rootStatus: prevRootResult?.status,
+                    hasChainResults: !!prevRootResult?.chainResults,
+                    chainResultKeys: prevRootResult?.chainResults
+                        ? Object.keys(prevRootResult.chainResults)
+                        : [],
+                })
+
+                if (prevRootResult?.chainResults) {
+                    resolvedCache = {}
+                    for (const [nid, stage] of Object.entries(prevRootResult.chainResults)) {
+                        resolvedCache[nid] = {
+                            executionId: stage.executionId,
+                            status: stage.status as "success" | "error",
+                            startedAt: stage.startedAt,
+                            completedAt: stage.completedAt,
+                            output: stage.output,
+                            structuredOutput: stage.structuredOutput,
+                            error: stage.error,
+                            trace: stage.traceId ? {id: stage.traceId} : undefined,
+                            metrics: stage.metrics,
+                        }
+                    }
+                }
+            }
+            if (resolvedCache) {
+                for (const [nid, res] of Object.entries(resolvedCache)) {
+                    nodeResults[nid] = res
+                }
+                console.log("[chain:targeted] Seeded nodeResults:", {
+                    nodeIds: Object.keys(nodeResults),
+                    statuses: Object.fromEntries(
+                        Object.entries(nodeResults).map(([k, v]) => [k, v.status]),
+                    ),
+                    hasOutput: Object.fromEntries(
+                        Object.entries(nodeResults).map(([k, v]) => [k, !!v.output]),
+                    ),
+                })
+            } else {
+                console.warn("[chain:targeted] No cached results found for targeted execution")
+            }
+        }
+
+        for (let stageIndex = 0; stageIndex < (stageOrder?.length || 1); stageIndex++) {
             if (abortController.signal.aborted) {
                 lifecycle.onCancel()
                 return
             }
 
-            const nodeId = executionOrder?.[stageIndex] || primaryNode.id
+            const nodeId = stageOrder?.[stageIndex] || rootNode.id
             const node = runnableNodes.find((n) => n.id === nodeId)
             if (!node) continue
+
+            // When targeting a specific node, skip non-target stages.
+            // Populate chainResults from cached data if available.
+            if (params.targetNodeId && nodeId !== params.targetNodeId) {
+                if (nodeResults[nodeId]) {
+                    const cachedResult = nodeResults[nodeId]
+                    const nodeLabel = node.entity.label || `Stage ${stageIndex + 1}`
+                    chainResults[nodeId] = {
+                        executionId: cachedResult.executionId,
+                        nodeId,
+                        nodeLabel,
+                        nodeType: node.entity.type,
+                        stageIndex,
+                        status: cachedResult.status,
+                        startedAt: cachedResult.startedAt,
+                        completedAt: cachedResult.completedAt,
+                        output: cachedResult.output,
+                        structuredOutput: cachedResult.structuredOutput,
+                        error: cachedResult.error,
+                        traceId: cachedResult.trace?.id || null,
+                        metrics: cachedResult.metrics,
+                    }
+                }
+                continue
+            }
 
             const nodeLabel = node.entity.label || `Stage ${stageIndex + 1}`
 
@@ -151,24 +244,75 @@ export async function executeStepForSessionWithExecutionItems(
                 chainResults,
             })
 
-            const nodeInputs =
-                nodeId === primaryNode.id
-                    ? {...data}
-                    : resolveChainInputs(allConnections, nodeId, nodeResults, data)
+            let nodeInputs: Record<string, unknown>
+            if (node.depth === 0) {
+                nodeInputs = {...data}
+                console.log("[chain] Root node inputs (testcase data):", nodeInputs)
+            } else {
+                // Try resolveChainInputs first (uses inputMappings from connection config)
+                const resolved = resolveChainInputs(allConnections, nodeId, nodeResults, data)
+
+                console.log("[chain] resolveChainInputs for node", nodeId, {
+                    resolvedKeys: Object.keys(resolved),
+                    resolved,
+                    nodeResultKeys: Object.keys(nodeResults),
+                })
+
+                if (Object.keys(resolved).length > 0) {
+                    nodeInputs = resolved
+                    console.log("[chain] Using resolveChainInputs result:", nodeInputs)
+                } else {
+                    // Fallback: inputMappings is empty (default for new connections).
+                    // Delegate to entity-owned input construction (DebugSection pattern).
+                    const upstreamNodeId = allConnections.find(
+                        (c) => c.targetNodeId === nodeId,
+                    )?.sourceNodeId
+                    const upstreamResult = upstreamNodeId ? nodeResults[upstreamNodeId] : undefined
+                    const upstreamOutput =
+                        upstreamResult?.output ?? upstreamResult?.structuredOutput
+
+                    const evalStore = getDefaultStore()
+                    const stageRunnableData = evalStore.get(
+                        runnableBridge.data(node.entity.id as string),
+                    ) as RunnableData | null
+
+                    console.log("[chain] Fallback: buildEvaluatorExecutionInputs context:", {
+                        testcaseData: data,
+                        upstreamNodeId,
+                        upstreamOutput,
+                        hasUpstreamResult: !!upstreamResult,
+                        settingsKeys: Object.keys(stageRunnableData?.configuration ?? {}),
+                        configuration: stageRunnableData?.configuration,
+                    })
+
+                    nodeInputs = buildEvaluatorExecutionInputs({
+                        testcaseData: data,
+                        upstreamOutput,
+                        settings: stageRunnableData?.configuration ?? {},
+                    })
+                    console.log("[chain] buildEvaluatorExecutionInputs result:", nodeInputs)
+                }
+            }
 
             const stageRunnableId =
-                nodeId === primaryNode.id ? session.runnableId : (node.entity.id as string)
-            const stageRunnableType = (
-                nodeId === primaryNode.id ? session.runnableType : node.entity.type
-            ) as RunnableType
+                node.depth === 0 ? session.runnableId : (node.entity.id as string)
             const stageHandle =
-                nodeId === primaryNode.id
-                    ? primaryExecutionHandle
+                node.depth === 0
+                    ? rootExecutionHandle
                     : createExecutionItemHandle({
                           loadableId,
                           rowId: stepId,
-                          revisionId: stageRunnableId,
+                          entityId: stageRunnableId,
                       })
+
+            console.log("[chain] Creating execution item for node", nodeId, {
+                stageRunnableId,
+                nodeDepth: node.depth,
+                nodeType: node.entity.type,
+                isTargeted: !!params.targetNodeId,
+                hasHeaders: !!perSession?.headers,
+                inputValueKeys: Object.keys(nodeInputs),
+            })
 
             const stageExecutionItem = stageHandle.run({
                 get,
@@ -178,34 +322,49 @@ export async function executeStepForSessionWithExecutionItems(
                 inputValues: nodeInputs,
             })
             if (!stageExecutionItem) {
+                console.error("[chain] stageHandle.run() returned null for", stageRunnableId, {
+                    nodeId,
+                    nodeType: node.entity.type,
+                    isTargeted: !!params.targetNodeId,
+                })
                 throw new Error(`Failed to build execution item for ${stageRunnableId}`)
             }
 
-            const store = getDefaultStore()
-            const runnableData = store.get(
-                runnableBridge.data(stageRunnableId),
-            ) as RunnableData | null
-            if (!runnableData) {
-                throw new Error(`No runnable data for ${stageRunnableType}:${stageRunnableId}`)
-            }
+            console.log("[chain] Execution item for node", nodeId, {
+                invocationUrl: stageExecutionItem.invocation.invocationUrl,
+                requestBody: stageExecutionItem.invocation.requestBody,
+                nodeInputs,
+            })
 
-            const adapter = store.get(executionAdapterAtom)
-            const result = await adapter.execute(stageRunnableType, runnableData, {
-                inputs: nodeInputs,
-                abortSignal: abortController.signal,
-                rawBody:
-                    nodeId === primaryNode.id && perSession?.rawBody
-                        ? perSession.rawBody
-                        : stageExecutionItem.invocation.requestBody,
+            // Use the execution item's invocationUrl and requestBody directly.
+            // This is the same URL the web worker uses (includes /test suffix),
+            // ensuring a single unified URL resolution path for all execution modes.
+            const result = await executeViaFetch({
+                invocationUrl: stageExecutionItem.invocation.invocationUrl,
+                requestBody: stageExecutionItem.invocation.requestBody,
                 headers: {
                     ...stageExecutionItem.invocation.headers,
                     ...(perSession?.headers ?? {}),
                 },
+                abortSignal: abortController.signal,
+                normalizeResponse: (responseData) =>
+                    runnableBridge.normalizeResponse(stageRunnableId, responseData),
             })
 
             if (!result) {
                 throw new Error(`Execution returned null for node ${nodeId}`)
             }
+
+            console.log("[chain] executeViaFetch result for node", nodeId, {
+                status: result.status,
+                hasOutput: !!result.output,
+                hasError: !!result.error,
+                errorMessage: result.error?.message,
+                outputPreview:
+                    typeof result.output === "string"
+                        ? result.output.slice(0, 100)
+                        : typeof result.output,
+            })
 
             nodeResults[nodeId] = result
             chainResults[nodeId] = {
@@ -230,7 +389,7 @@ export async function executeStepForSessionWithExecutionItems(
             }
         }
 
-        const primaryResult = nodeResults[primaryNode.id]
+        const primaryResult = nodeResults[rootNode.id]
         const repetitions: {
             output?: unknown
             structuredOutput?: unknown
@@ -251,16 +410,9 @@ export async function executeStepForSessionWithExecutionItems(
             for (let rep = 1; rep < repetitionCount; rep++) {
                 if (abortController.signal.aborted) break
 
-                const store2 = getDefaultStore()
-                const runnableData2 = store2.get(
-                    runnableBridge.data(session.runnableId),
-                ) as RunnableData | null
-                if (!runnableData2) break
-
-                const adapter2 = store2.get(executionAdapterAtom)
                 const perSession2 = sessionOptions?.[session.id]
                 const nodeInputs2 = {...data}
-                const repetitionItem = primaryExecutionHandle.retry({
+                const repetitionItem = rootExecutionHandle.retry({
                     get,
                     headers: perSession2?.headers ?? {},
                     repetitions: 1,
@@ -269,19 +421,15 @@ export async function executeStepForSessionWithExecutionItems(
                 if (!repetitionItem) break
 
                 try {
-                    const repResult = await adapter2.execute(
-                        session.runnableType as RunnableType,
-                        runnableData2,
-                        {
-                            inputs: nodeInputs2,
-                            abortSignal: abortController.signal,
-                            rawBody: perSession2?.rawBody ?? repetitionItem.invocation.requestBody,
-                            headers: {
-                                ...repetitionItem.invocation.headers,
-                                ...(perSession2?.headers ?? {}),
-                            },
+                    const repResult = await executeViaFetch({
+                        invocationUrl: repetitionItem.invocation.invocationUrl,
+                        requestBody: repetitionItem.invocation.requestBody,
+                        headers: {
+                            ...repetitionItem.invocation.headers,
+                            ...(perSession2?.headers ?? {}),
                         },
-                    )
+                        abortSignal: abortController.signal,
+                    })
 
                     repetitions.push({
                         output: repResult?.output,
@@ -321,6 +469,126 @@ export async function executeStepForSessionWithExecutionItems(
     }
 }
 
+// ============================================================================
+// UNIFIED FETCH EXECUTION
+// ============================================================================
+
+/**
+ * Execute a request using the execution item's pre-resolved URL and body.
+ *
+ * This is the unified execution path for both single-node and chain execution.
+ * The execution item already resolves the correct invocation URL (including /test
+ * suffix) and builds the correct request body — this function simply performs
+ * the fetch, matching what the web worker does.
+ */
+async function executeViaFetch(params: {
+    invocationUrl: string
+    requestBody: Record<string, unknown>
+    headers: Record<string, string>
+    abortSignal?: AbortSignal
+    normalizeResponse?: (responseData: unknown) => {output: unknown; trace?: {id: string}}
+}): Promise<ExecutionResult> {
+    const {invocationUrl, requestBody, headers, abortSignal, normalizeResponse} = params
+    const executionId = crypto.randomUUID()
+    const startedAt = new Date().toISOString()
+
+    console.log("[executeViaFetch] About to fetch:", {
+        invocationUrl,
+        bodyKeys: Object.keys(requestBody),
+        headerKeys: Object.keys(headers),
+        hasAbortSignal: !!abortSignal,
+    })
+
+    try {
+        const response = await fetch(invocationUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...headers,
+            },
+            body: JSON.stringify(requestBody),
+            signal: abortSignal,
+        })
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            let errorMessage = `Request failed with status ${response.status}`
+
+            try {
+                const errorData = JSON.parse(errorText)
+                if (errorData?.status?.message) {
+                    errorMessage = errorData.status.message
+                } else if (errorData?.detail?.message) {
+                    errorMessage = errorData.detail.message
+                } else if (typeof errorData?.detail === "string") {
+                    errorMessage = errorData.detail
+                }
+            } catch {
+                if (errorText) errorMessage = errorText
+            }
+
+            return {
+                executionId,
+                status: "error",
+                startedAt,
+                completedAt: new Date().toISOString(),
+                error: {message: errorMessage},
+            }
+        }
+
+        const responseData = await response.json()
+
+        // Delegate response parsing to entity-level normalizer when provided.
+        // Default: unwrap `data` field if present, extract `trace_id`.
+        const normalized = normalizeResponse
+            ? normalizeResponse(responseData)
+            : {
+                  output: responseData?.data !== undefined ? responseData.data : responseData,
+                  trace: responseData?.trace_id ? {id: responseData.trace_id as string} : undefined,
+              }
+
+        return {
+            executionId,
+            status: "success",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            output: normalized.output,
+            structuredOutput: responseData,
+            trace: normalized.trace,
+        }
+    } catch (error) {
+        console.error("[executeViaFetch] Fetch error:", {
+            invocationUrl,
+            errorName: error instanceof Error ? error.name : "unknown",
+            errorMessage: error instanceof Error ? error.message : String(error),
+        })
+
+        if (error instanceof Error && error.name === "AbortError") {
+            return {
+                executionId,
+                status: "error",
+                startedAt,
+                completedAt: new Date().toISOString(),
+                error: {message: "Execution aborted"},
+            }
+        }
+
+        return {
+            executionId,
+            status: "error",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            error: {
+                message: error instanceof Error ? error.message : "Unknown error",
+            },
+        }
+    }
+}
+
+// ============================================================================
+// MULTI-SESSION RUNNER
+// ============================================================================
+
 interface RunSessionsWithExecutionItemsParams {
     get: Getter
     set: Setter
@@ -329,12 +597,15 @@ interface RunSessionsWithExecutionItemsParams {
     sessions: ExecutionSession[]
     data: Record<string, unknown>
     nodes: PlaygroundNode[]
-    primaryNode: PlaygroundNode
     allConnections: OutputConnection[]
     sessionOptions?: Record<string, SessionExecutionOptions>
     repetitionCount?: number
     concurrency: number
     createLifecycle: (session: ExecutionSession) => ExecutionSessionLifecycleCallbacks
+    /** When set, only execute this specific node instead of the full chain */
+    targetNodeId?: string
+    /** Cached chain results from a previous run (used to resolve inputs for targeted execution) */
+    cachedChainResults?: Record<string, ExecutionResult>
 }
 
 export async function runSessionsWithExecutionItems(
@@ -348,7 +619,6 @@ export async function runSessionsWithExecutionItems(
         sessions,
         data,
         nodes,
-        primaryNode,
         allConnections,
         sessionOptions,
         repetitionCount = 1,
@@ -368,11 +638,12 @@ export async function runSessionsWithExecutionItems(
                     session,
                     data,
                     nodes,
-                    primaryNode,
                     allConnections,
                     sessionOptions,
                     repetitionCount,
                     lifecycle: createLifecycle(session),
+                    targetNodeId: params.targetNodeId,
+                    cachedChainResults: params.cachedChainResults,
                 }),
             ),
         ),

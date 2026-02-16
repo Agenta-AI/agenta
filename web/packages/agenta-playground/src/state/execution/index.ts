@@ -175,7 +175,7 @@ export {
     resetExecutionWithContextAtom,
     setRepetitionCountAtom,
     setRepetitionIndexAtom,
-    clearResponseByRowRevisionWithContextAtom,
+    clearResponseByRowEntityWithContextAtom,
     addRowWithContextAtom,
     deleteRowWithContextAtom,
     duplicateRowWithContextAtom,
@@ -202,8 +202,8 @@ export {
     pendingWebWorkerRequestsAtom,
     ignoredWebWorkerRunIdsAtom,
     // Trigger and result handler
-    triggerWebWorkerTestAtom,
-    handleWebWorkerResultAtom,
+    triggerExecutionAtom,
+    handleExecutionResultFromWorkerAtom,
 } from "./webWorkerIntegration"
 export type {ExecutionItemStepPayload, TriggerExecutionItemPayload} from "./webWorkerIntegration"
 
@@ -235,11 +235,11 @@ export {
     allResultsAtomFamily,
     completedResultsCountAtomFamily,
     executionProgressAtomFamily,
-    // Row-revision convenience selectors
-    responseByRowRevisionAtomFamily,
-    fullResultByRowRevisionAtomFamily,
+    // Row-entity convenience selectors
+    responseByRowEntityAtomFamily,
+    fullResultByRowEntityAtomFamily,
     // Run status map
-    runStatusByRowRevisionAtom,
+    runStatusByRowEntityAtom,
     // Unified row IDs
     generationRowIdsAtom,
     executionRowIdsAtom,
@@ -276,7 +276,7 @@ export {
     // Variable-input row IDs (shared variable row in chat)
     generationVariableRowIdsAtom,
     // Multi-run trigger orchestration
-    triggerWebWorkerTestsAtom,
+    triggerExecutionsAtom,
     // Mutations
     cancelTestsMutationAtom,
     clearAllRunsMutationAtom,
@@ -284,6 +284,8 @@ export {
     canRunAllChatComparisonAtom,
     // Row-level busy state
     isBusyForRowAtomFamily,
+    // Chain execution status (composite per-row chain state)
+    chainExecutionStatusAtomFamily,
     // Aggregated header data
     aggregatedHeaderDataAtom,
     // Turn-level message selectors
@@ -295,11 +297,12 @@ export {
     runAllWithContextAtom,
     // Row-level run/cancel
     runRowAtom,
+    runRowStepAtom,
     cancelRowAtom,
     // Cancel all
     cancelAllWithContextAtom,
 } from "./generationSelectors"
-export type {TriggerExecutionItemsPayload} from "./generationSelectors"
+export type {TriggerExecutionItemsPayload, ChainExecutionStatus} from "./generationSelectors"
 
 // ============================================================================
 // DISPLAYED ENTITIES (validated entity IDs, layout, readiness)

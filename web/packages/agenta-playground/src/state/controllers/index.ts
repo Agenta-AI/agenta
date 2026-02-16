@@ -27,6 +27,7 @@ export {
 export type {
     CreateSnapshotResult,
     HydrateSnapshotResult,
+    HydratedSnapshotEntity,
     SnapshotSelectionInput,
 } from "./playgroundSnapshotController"
 

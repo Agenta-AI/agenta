@@ -55,6 +55,7 @@ export {
     isPlaceholderId,
     urlSnapshotController,
     setRunnableTypeResolver,
+    getRunnableTypeResolver,
     setRunnableBridge,
 } from "./state"
 

@@ -56,6 +56,12 @@ export interface SnapshotSelectionInput {
     id: string
     /** Runnable type for this revision */
     runnableType: RunnableType
+    /** Playground entity type (e.g., "legacyAppRevision", "evaluatorRevision") */
+    entityType?: string
+    /** Node depth in the playground graph (0 = root) */
+    depth?: number
+    /** Optional display label to restore in the UI after hydration */
+    label?: string
 }
 
 /**
@@ -86,12 +92,22 @@ export interface HydrateSnapshotResult {
     ok: boolean
     /** The new selection (revision IDs to select) */
     selection?: string[]
+    /** Hydrated entity descriptors including runnable type and graph metadata */
+    entities?: HydratedSnapshotEntity[]
     /** Mapping from draftKey to source revision ID (used for patch application) */
     draftKeyToSourceRevisionId?: Record<string, string>
     /** Error message if hydration failed */
     error?: string
     /** Warnings for partial failures */
     warnings?: string[]
+}
+
+export interface HydratedSnapshotEntity {
+    id: string
+    runnableType: RunnableType
+    entityType?: string
+    depth?: number
+    label?: string
 }
 
 // ============================================================================
@@ -130,14 +146,25 @@ const createSnapshotAtom = atom(
             const drafts: SnapshotDraftEntry[] = []
             const warnings: string[] = []
 
-            for (const {id: revisionId, runnableType} of selection) {
+            for (const {id: revisionId, runnableType, entityType, depth, label} of selection) {
+                const selectionMetadata = {
+                    ...(entityType ? {entityType} : {}),
+                    ...(typeof depth === "number" ? {depth} : {}),
+                    ...(label ? {label} : {}),
+                }
+
                 // Get adapter for this runnable type
                 const adapter = snapshotAdapterRegistry.get(runnableType)
 
                 if (!adapter) {
                     warnings.push(`No adapter for runnable type: ${runnableType}`)
                     // Fall back to commit without draft check
-                    snapshotSelection.push({kind: "commit", id: revisionId, runnableType})
+                    snapshotSelection.push({
+                        kind: "commit",
+                        id: revisionId,
+                        runnableType,
+                        ...selectionMetadata,
+                    })
                     continue
                 }
 
@@ -182,7 +209,12 @@ const createSnapshotAtom = atom(
                         })
                     }
 
-                    snapshotSelection.push({kind: "draft", draftKey, runnableType})
+                    snapshotSelection.push({
+                        kind: "draft",
+                        draftKey,
+                        runnableType,
+                        ...selectionMetadata,
+                    })
                 } else {
                     // Check if committed revision has draft changes
                     const patchResult = adapter.buildDraftPatch(revisionId)
@@ -196,10 +228,20 @@ const createSnapshotAtom = atom(
                             runnableType,
                             patch: patchResult.patch,
                         })
-                        snapshotSelection.push({kind: "draft", draftKey, runnableType})
+                        snapshotSelection.push({
+                            kind: "draft",
+                            draftKey,
+                            runnableType,
+                            ...selectionMetadata,
+                        })
                     } else {
                         // No draft changes - include as commit
-                        snapshotSelection.push({kind: "commit", id: revisionId, runnableType})
+                        snapshotSelection.push({
+                            kind: "commit",
+                            id: revisionId,
+                            runnableType,
+                            ...selectionMetadata,
+                        })
                     }
                 }
             }
@@ -362,6 +404,7 @@ const hydrateSnapshotAtom = atom(
     (_get, set, snapshot: PlaygroundSnapshot): HydrateSnapshotResult => {
         try {
             const newSelection: string[] = []
+            const hydratedEntities: HydratedSnapshotEntity[] = []
             const draftKeyToSourceRevisionId: Record<string, string> = {}
             const warnings: string[] = []
 
@@ -395,9 +438,20 @@ const hydrateSnapshotAtom = atom(
 
             // PASS 2: Process each selection item
             for (const item of snapshot.selection) {
+                const itemMetadata = {
+                    ...(item.entityType ? {entityType: item.entityType} : {}),
+                    ...(typeof item.depth === "number" ? {depth: item.depth} : {}),
+                    ...(item.label ? {label: item.label} : {}),
+                }
+
                 if (item.kind === "commit") {
                     // Commit - add directly to selection
                     newSelection.push(item.id)
+                    hydratedEntities.push({
+                        id: item.id,
+                        runnableType: item.runnableType,
+                        ...itemMetadata,
+                    })
                     processedSourceIds.add(item.id)
                 } else if (item.kind === "draft") {
                     // Draft - need to create a new local draft with the patch applied
@@ -415,6 +469,11 @@ const hydrateSnapshotAtom = atom(
                         warnings.push(`No adapter for runnable type: ${draftEntry.runnableType}`)
                         // Fall back to source revision
                         newSelection.push(draftEntry.sourceRevisionId)
+                        hydratedEntities.push({
+                            id: draftEntry.sourceRevisionId,
+                            runnableType: item.runnableType,
+                            ...itemMetadata,
+                        })
                         processedSourceIds.add(draftEntry.sourceRevisionId)
                         continue
                     }
@@ -442,6 +501,11 @@ const hydrateSnapshotAtom = atom(
                             if (localDraftId) {
                                 // Successfully created local draft - add to selection
                                 newSelection.push(localDraftId)
+                                hydratedEntities.push({
+                                    id: localDraftId,
+                                    runnableType: item.runnableType,
+                                    ...itemMetadata,
+                                })
                                 draftKeyToSourceRevisionId[item.draftKey] =
                                     draftEntry.sourceRevisionId
                                 continue
@@ -454,6 +518,11 @@ const hydrateSnapshotAtom = atom(
                         const placeholderId = generatePlaceholderId(item.draftKey)
                         const selectionIndex = newSelection.length
                         newSelection.push(placeholderId)
+                        hydratedEntities.push({
+                            id: placeholderId,
+                            runnableType: item.runnableType,
+                            ...itemMetadata,
+                        })
 
                         // Queue the patch to be applied when revision data loads
                         // Mark this as needing to create a local draft
@@ -471,6 +540,11 @@ const hydrateSnapshotAtom = atom(
                         // Add source revision to selection
                         const selectionIndex = newSelection.length
                         newSelection.push(draftEntry.sourceRevisionId)
+                        hydratedEntities.push({
+                            id: draftEntry.sourceRevisionId,
+                            runnableType: item.runnableType,
+                            ...itemMetadata,
+                        })
 
                         // Queue the patch to be applied when revision data loads
                         // Don't create a local draft - just apply the patch to the source
@@ -495,6 +569,7 @@ const hydrateSnapshotAtom = atom(
             return {
                 ok: true,
                 selection: newSelection,
+                entities: hydratedEntities,
                 draftKeyToSourceRevisionId,
                 warnings: warnings.length > 0 ? warnings : undefined,
             }

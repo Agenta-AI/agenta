@@ -11,7 +11,6 @@
  *
  * // Selectors (functions that return atoms)
  * const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
- * const primaryNode = useAtomValue(useMemo(() => playgroundController.selectors.primaryNode(), []))
  *
  * // Dispatch for standard actions
  * const dispatch = useSetAtom(playgroundController.dispatch)
@@ -23,19 +22,20 @@
  * ```
  */
 
+import {evaluatorMolecule} from "@agenta/entities/evaluator"
+import {evaluatorRevisionMolecule} from "@agenta/entities/evaluatorRevision"
 import {fetchOssRevisionById} from "@agenta/entities/legacyAppRevision"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
+import {getDefaultStore} from "jotai/vanilla"
 
 import {outputConnectionsAtom} from "../atoms/connections"
 import {
     playgroundNodesAtom,
     selectedNodeIdAtom,
-    primaryNodeAtom,
     hasMultipleNodesAtom,
     entityIdsAtom,
-    primaryEntityIdAtom,
     connectedTestsetAtom,
     extraColumnsAtom,
     testsetModalOpenAtom,
@@ -206,6 +206,7 @@ const addDownstreamNodeAtom = atom(
         }
 
         set(playgroundNodesAtom, [...nodes, node])
+        _onSelectionChange?.(get(entityIdsAtom), [])
 
         return {
             nodeId,
@@ -222,12 +223,14 @@ const removeNodeAtom = atom(null, (get, set, nodeId: string): string[] => {
     const nodeIndex = nodes.findIndex((n) => n.id === nodeId)
 
     if (nodeIndex === -1) return []
+    const removedEntityId = nodes[nodeIndex]?.entityId
 
     // If removing primary node, reset everything
     if (nodeIndex === 0) {
         set(playgroundNodesAtom, [])
         set(selectedNodeIdAtom, null)
         set(outputConnectionsAtom, [])
+        _onSelectionChange?.([], removedEntityId ? [removedEntityId] : [])
         return ["__clear_all__"]
     }
 
@@ -250,7 +253,83 @@ const removeNodeAtom = atom(null, (get, set, nodeId: string): string[] => {
         set(selectedNodeIdAtom, nodes[0]?.id ?? null)
     }
 
+    _onSelectionChange?.(get(entityIdsAtom), removedEntityId ? [removedEntityId] : [])
+
     return [nodeId]
+})
+
+/**
+ * Connect a downstream node, replacing any existing node of the same entity type.
+ *
+ * This compound action atomically:
+ * 1. Removes any existing downstream node matching the entity type
+ * 2. Adds the new downstream node
+ * 3. Creates the output connection
+ *
+ * Use this instead of manually calling addDownstreamNode + addConnection
+ * to keep the UI decoupled from state management details.
+ */
+const connectDownstreamNodeAtom = atom(
+    null,
+    (
+        get,
+        set,
+        params: {sourceNodeId: string; entity: EntitySelection},
+    ): {nodeId: string; sourceNodeId: string} | null => {
+        const {sourceNodeId, entity} = params
+        const nodes = get(playgroundNodesAtom)
+
+        // Remove any existing downstream node of the same entity type
+        const existing = nodes.find((n) => n.depth > 0 && n.entityType === entity.type)
+        if (existing) {
+            set(removeNodeAtom, existing.id)
+        }
+
+        // Add the new downstream node
+        const result = set(addDownstreamNodeAtom, {sourceNodeId, entity})
+        if (!result) return null
+
+        // Create the connection
+        const connections = get(outputConnectionsAtom)
+        const connectionId = `conn-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        set(outputConnectionsAtom, [
+            ...connections,
+            {
+                id: connectionId,
+                sourceNodeId: result.sourceNodeId,
+                targetNodeId: result.nodeId,
+                sourceOutputKey: "output",
+                inputMappings: [],
+            },
+        ])
+
+        // For evaluator entities, eagerly subscribe to the appropriate molecule's
+        // query atom so the per-ID fetch fires immediately. We subscribe directly
+        // to the molecule instead of runnableBridge.data() because the bridge
+        // probes ALL registered molecules in order, which would trigger spurious
+        // fetches on unrelated molecules (e.g. legacyAppRevision).
+        if (entity.type === "evaluator" || entity.type === "evaluatorRevision") {
+            const store = getDefaultStore()
+            const molecule =
+                entity.type === "evaluatorRevision" ? evaluatorRevisionMolecule : evaluatorMolecule
+            const unsub = store.sub(molecule.selectors.data(entity.id), () => {})
+            // Unsubscribe after a generous window — the query cache keeps the data alive.
+            setTimeout(() => unsub(), 60_000)
+        }
+
+        return result
+    },
+)
+
+/**
+ * Disconnect all downstream nodes of a given entity type.
+ */
+const disconnectDownstreamNodeAtom = atom(null, (get, set, entityType: string) => {
+    const nodes = get(playgroundNodesAtom)
+    const toRemove = nodes.filter((n) => n.depth > 0 && n.entityType === entityType)
+    for (const node of toRemove) {
+        set(removeNodeAtom, node.id)
+    }
 })
 
 /**
@@ -323,15 +402,14 @@ const resetAllAtom = atom(null, (_get, set) => {
  * This ensures the playground returns to the same state as initial setup.
  */
 const disconnectAndResetToLocalAtom = atom(null, (get, set, loadableId: string) => {
-    // Get primary node for generating the local testset name
-    const primaryNode = get(primaryNodeAtom)
-    if (!primaryNode) return
+    const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
+    if (!rootNode) return
 
     // 1. Call loadable disconnect action
     set(loadableController.actions.disconnect, loadableId)
 
     // 2. Generate and set local testset name
-    const localTestsetName = generateLocalTestsetName(primaryNode.label)
+    const localTestsetName = generateLocalTestsetName(rootNode.label)
     set(connectedTestsetAtom, {
         id: null, // null id indicates it's a local (unsaved) testset
         name: localTestsetName,
@@ -783,9 +861,6 @@ export const playgroundController = {
         /** Currently selected node ID */
         selectedNodeId: () => selectedNodeIdAtom,
 
-        /** Primary node (first node) */
-        primaryNode: () => primaryNodeAtom,
-
         /** Whether there are multiple nodes */
         hasMultipleNodes: () => hasMultipleNodesAtom,
 
@@ -807,10 +882,7 @@ export const playgroundController = {
         /** Entity IDs from all nodes */
         entityIds: () => entityIdsAtom,
 
-        /** Primary entity ID */
-        primaryEntityId: () => primaryEntityIdAtom,
-
-        /** Loadable ID for primary node */
+        /** Loadable ID for root node */
         loadableId: () => derivedLoadableIdAtom,
 
         /** Displayed entity IDs (validated against revisions) */
@@ -848,6 +920,12 @@ export const playgroundController = {
 
         /** Add a downstream node (output receiver) */
         addDownstreamNode: addDownstreamNodeAtom,
+
+        /** Connect a downstream node, replacing any existing node of the same type */
+        connectDownstreamNode: connectDownstreamNodeAtom,
+
+        /** Disconnect all downstream nodes of a given entity type */
+        disconnectDownstreamNode: disconnectDownstreamNodeAtom,
 
         /** Remove a node */
         removeNode: removeNodeAtom,

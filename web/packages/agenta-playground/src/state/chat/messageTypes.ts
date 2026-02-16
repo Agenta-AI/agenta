@@ -8,7 +8,7 @@
  * ## Key concepts:
  * - Messages are ordered in `messageIds[]`
  * - User/system messages have `sessionId: "shared"` (visible to all sessions)
- * - Assistant/tool responses have `sessionId: "sess:{revisionId}"` (per-entity)
+ * - Assistant/tool responses have `sessionId: "sess:{entityId}"` (per-entity)
  * - Assistant messages link to the user message via `parentId`
  * - Tool messages link to the assistant via `tool_call_id` (already in SimpleChatMessage)
  * - UI "turns" are derived at render time by grouping on `parentId`
@@ -52,7 +52,7 @@ export interface ChatMessage extends SimpleChatMessage {
     /**
      * Which session owns this message.
      * - `"shared"` for user/system messages (visible to all sessions)
-     * - `"sess:{revisionId}"` for assistant/tool responses (per-entity)
+     * - `"sess:{entityId}"` for assistant/tool responses (per-entity)
      */
     sessionId: string
 

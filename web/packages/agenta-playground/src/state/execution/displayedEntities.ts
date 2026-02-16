@@ -23,7 +23,7 @@ import isEqual from "fast-deep-equal"
 import {atom} from "jotai"
 import {selectAtom} from "jotai/utils"
 
-import {entityIdsAtom, primaryEntityIdAtom} from "../atoms/playground"
+import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {isPlaceholderId} from "../controllers/playgroundSnapshotController"
 
 // ============================================================================
@@ -207,10 +207,12 @@ export const playgroundLayoutAtom = selectAtom(
  */
 export const schemaInputKeysAtom = selectAtom(
     atom((get) => {
-        const primaryId = get(primaryEntityIdAtom)
-        if (!primaryId) return [] as string[]
+        const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
+        if (!rootNode) return [] as string[]
 
-        const payload = get(runnableBridge.requestPayload(primaryId)) as RequestPayloadData | null
+        const payload = get(
+            runnableBridge.requestPayload(rootNode.entityId),
+        ) as RequestPayloadData | null
         return payload?.variables || ([] as string[])
     }),
     (keys) => keys,

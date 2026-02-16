@@ -96,8 +96,8 @@ import {
     renderableExecutionRowsAtom,
     renderableExecutionItemsByRowAtomFamily,
     renderableExecutionItemsByExecutionIdAtomFamily,
-    fullResultByRowRevisionAtomFamily,
-    runStatusByRowRevisionAtom,
+    fullResultByRowEntityAtomFamily,
+    runStatusByRowEntityAtom,
     isChatModeAtom,
     appTypeAtom,
     messageSchemaMetadataAtom,
@@ -132,13 +132,13 @@ import {
     initSessionsWithContextAtom,
     cancelStepWithContextAtom,
     resetExecutionWithContextAtom,
-    triggerWebWorkerTestAtom,
-    triggerWebWorkerTestsAtom,
+    triggerExecutionAtom,
+    triggerExecutionsAtom,
     cancelTestsMutationAtom,
     clearAllRunsMutationAtom,
     setRepetitionCountAtom,
     setRepetitionIndexAtom,
-    clearResponseByRowRevisionWithContextAtom,
+    clearResponseByRowEntityWithContextAtom,
 } from "../execution"
 
 // ============================================================================
@@ -238,8 +238,8 @@ export const executionController = {
         /** Variable-input row IDs (shared variable row in chat, all rows in completion) */
         generationVariableRowIds: generationVariableRowIdsAtom,
 
-        /** Run status map keyed by rowId:revisionId */
-        runStatusByRowRevision: runStatusByRowRevisionAtom,
+        /** Run status map keyed by rowId:entityId */
+        runStatusByRowEntity: runStatusByRowEntityAtom,
 
         /** Chat comparison gating: whether run-all is available */
         canRunAllChatComparison: canRunAllChatComparisonAtom,
@@ -271,12 +271,12 @@ export const executionController = {
         resolvedGenerationResult: (params: {entityId: string; rowId: string}) =>
             resolvedGenerationResultAtomFamily(params),
 
-        /** Header aggregate data for a revision */
-        generationHeaderData: (revisionId: string) => generationHeaderDataAtomFamily(revisionId),
+        /** Header aggregate data for an entity */
+        generationHeaderData: (entityId: string) => generationHeaderDataAtomFamily(entityId),
 
-        /** Full result (output/error/trace) by row+revision */
-        fullResultByRowRevision: (params: {rowId: string; revisionId: string}) =>
-            fullResultByRowRevisionAtomFamily(params),
+        /** Full result (output/error/trace) by row+entity */
+        fullResultByRowEntity: (params: {rowId: string; entityId: string}) =>
+            fullResultByRowEntityAtomFamily(params),
 
         // ----------------------------------------------------------------
         // Parameterized selectors (require explicit loadableId)
@@ -404,10 +404,10 @@ export const executionController = {
         resetWithContext: resetExecutionWithContextAtom,
 
         /** Trigger execution for an execution item (`executionId` + `step`) */
-        triggerTest: triggerWebWorkerTestAtom,
+        triggerTest: triggerExecutionAtom,
 
         /** Trigger execution for an execution step across multiple execution IDs */
-        triggerTests: triggerWebWorkerTestsAtom,
+        triggerTests: triggerExecutionsAtom,
 
         /** Cancel running tests (supports row/entity filters) */
         cancelTests: cancelTestsMutationAtom,
@@ -421,8 +421,8 @@ export const executionController = {
         /** Set repetition index for row+entity */
         setRepetitionIndex: setRepetitionIndexAtom,
 
-        /** Clear cached response for row+revision */
-        clearResponseByRowRevision: clearResponseByRowRevisionWithContextAtom,
+        /** Clear cached response for row+entity */
+        clearResponseByRowEntity: clearResponseByRowEntityWithContextAtom,
 
         /** Toggle collapse-all / expand-all for execution rows */
         setAllRowsCollapsed: allRowsCollapsedAtom,

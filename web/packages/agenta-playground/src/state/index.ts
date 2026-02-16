@@ -137,20 +137,20 @@ export {
     resetExecutionAtom,
     setRepetitionCountAtom,
     setRepetitionIndexAtom,
-    clearResponseByRowRevisionWithContextAtom,
+    clearResponseByRowEntityWithContextAtom,
     resultsByKeyAtomFamily,
     resultAtomFamily,
     buildResultKey,
 } from "./execution"
 
-// Row-revision convenience selectors
-export {responseByRowRevisionAtomFamily, fullResultByRowRevisionAtomFamily} from "./execution"
+// Row-entity convenience selectors
+export {responseByRowEntityAtomFamily, fullResultByRowEntityAtomFamily} from "./execution"
 
 // Repetition atoms
 export {repetitionCountAtom, repetitionIndexAtomFamily} from "./execution"
 
 // Run status map
-export {runStatusByRowRevisionAtom} from "./execution"
+export {runStatusByRowEntityAtom} from "./execution"
 
 // Context selectors
 export {
@@ -211,9 +211,9 @@ export {
     executionWorkerBridgeAtom,
     pendingWebWorkerRequestsAtom,
     ignoredWebWorkerRunIdsAtom,
-    triggerWebWorkerTestAtom,
-    triggerWebWorkerTestsAtom,
-    handleWebWorkerResultAtom,
+    triggerExecutionAtom,
+    triggerExecutionsAtom,
+    handleExecutionResultFromWorkerAtom,
 } from "./execution"
 
 // Chat types
@@ -345,6 +345,7 @@ export {setRunnableBridge, getRunnableBridge, resetRunnableBridge} from "./contr
 export type {
     CreateSnapshotResult,
     HydrateSnapshotResult,
+    HydratedSnapshotEntity,
     SnapshotSelectionInput,
     RunnableTypeResolver,
     BuildEncodedSnapshotResult,
@@ -365,11 +366,13 @@ export {
 export type {
     PlaygroundEntityProviders,
     EntityRevisionSelectors,
+    EvaluatorSelectors,
     EvaluatorRevisionSelectors,
     EvaluatorRevisionActions,
     EntityQueryState,
     SettingsPreset,
     AppRevisionRawData,
+    EvaluatorRawData,
     EvaluatorRevisionRawData,
     AppRevisionListSelectors,
     AppRevisionActions,
@@ -395,10 +398,8 @@ export {
     testsetModalOpenAtom,
     mappingModalOpenAtom,
     editingConnectionIdAtom,
-    primaryNodeAtom,
     hasMultipleNodesAtom,
     entityIdsAtom,
-    primaryEntityIdAtom,
     playgroundDispatchAtom,
     // Connection atoms
     outputConnectionsAtom,

@@ -15,7 +15,7 @@ import {loadableController} from "@agenta/entities/runnable"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
-import {entityIdsAtom} from "../atoms/playground"
+import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {
     sharedMessageIdsWithContextAtom,
     messagesByIdWithContextAtom,
@@ -31,7 +31,7 @@ import {
     derivedLoadableIdAtom,
     isChatModeAtom,
     executionRowIdsAtom,
-    fullResultByRowRevisionAtomFamily,
+    fullResultByRowEntityAtomFamily,
     renderableExecutionItemsAtom,
     renderableExecutionRowsAtom,
     isAnyRunningForRowAtomFamily,
@@ -44,7 +44,7 @@ import {
     executionWorkerBridgeAtom,
     pendingWebWorkerRequestsAtom,
     ignoredWebWorkerRunIdsAtom,
-    triggerWebWorkerTestAtom,
+    triggerExecutionAtom,
 } from "./webWorkerIntegration"
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
@@ -73,7 +73,7 @@ export const resolvedGenerationResultAtomFamily = atomFamily(
 
             // Single read: get the RunResult directly
             const fullResult = get(
-                fullResultByRowRevisionAtomFamily({rowId: p.rowId, revisionId: p.entityId}),
+                fullResultByRowEntityAtomFamily({rowId: p.rowId, entityId: p.entityId}),
             )
 
             const status = fullResult?.status
@@ -97,7 +97,7 @@ export const generationHeaderDataAtomFamily = atomFamily((entityId: string) =>
         let resultCount = 0
 
         for (const rowId of rowIds) {
-            const fullResult = get(fullResultByRowRevisionAtomFamily({rowId, revisionId: entityId}))
+            const fullResult = get(fullResultByRowEntityAtomFamily({rowId, entityId}))
             if (!isRunning) {
                 const status = fullResult?.status
                 if (status === "running" || status === "pending") isRunning = true
@@ -155,13 +155,13 @@ export interface TriggerExecutionItemsPayload {
     step: TriggerExecutionItemPayload["step"]
 }
 
-export const triggerWebWorkerTestsAtom = atom(
+export const triggerExecutionsAtom = atom(
     null,
     (_get, set, params: TriggerExecutionItemsPayload) => {
         const {executionIds, step} = params
         for (const executionId of executionIds) {
             if (!executionId) continue
-            set(triggerWebWorkerTestAtom, {executionId, step})
+            set(triggerExecutionAtom, {executionId, step})
         }
     },
 )
@@ -232,7 +232,7 @@ export const cancelTestsMutationAtom = atom(null, async (get, set, params: Cance
                     const handle = createExecutionItemHandle({
                         loadableId,
                         rowId: targetRowId,
-                        revisionId: targetEntityId,
+                        entityId: targetEntityId,
                     })
                     handle.cancel({get, set})
                 }
@@ -332,6 +332,109 @@ export const isBusyForRowAtomFamily = atomFamily(
 )
 
 // ============================================================================
+// CHAIN EXECUTION STATUS
+// ============================================================================
+
+/**
+ * Composite chain execution status for a row across multiple revisions.
+ *
+ * Provides a single reactive atom that tracks which node in a chain is
+ * currently running, replacing manual per-node status derivation in UI
+ * components. When any node's RunResult changes, the entire composite
+ * re-derives atomically in one render cycle.
+ */
+export interface ChainExecutionStatus {
+    /** Whether any entity in the chain is currently running */
+    isBusy: boolean
+    /** The entityId of the currently running node, or null */
+    activeEntityId: string | null
+    /** Per-entity status map: entityId → status */
+    statuses: Record<string, "idle" | "running" | "success" | "error">
+}
+
+const IDLE_CHAIN_STATUS: ChainExecutionStatus = {
+    isBusy: false,
+    activeEntityId: null,
+    statuses: {},
+}
+
+export const chainExecutionStatusAtomFamily = atomFamily(
+    ({rowId, entityIds}: {rowId: string; entityIds: string[]}) =>
+        atom<ChainExecutionStatus>((get) => {
+            if (!entityIds.length) return IDLE_CHAIN_STATUS
+
+            let isBusy = false
+            let activeEntityId: string | null = null
+            const statuses: Record<string, "idle" | "running" | "success" | "error"> = {}
+
+            // Read chainProgress from the root entity's result to determine
+            // which node is *currently* executing. Without this, all nodes
+            // are marked "running" upfront and the UI always shows step 1.
+            const rootEntityId = entityIds[0]
+            const rootResult = rootEntityId
+                ? (get(fullResultByRowEntityAtomFamily({rowId, entityId: rootEntityId})) as {
+                      status?: string
+                      chainProgress?: {currentNodeId?: string; currentNodeType?: string} | null
+                  } | null)
+                : null
+            const progressNodeType = rootResult?.chainProgress?.currentNodeType
+
+            // Build a nodeId→entityId lookup from playground nodes so we can
+            // map chainProgress.currentNodeId back to an entityId.
+            const nodes = get(playgroundNodesAtom)
+            const nodeIdToEntityId: Record<string, string> = {}
+            for (const n of nodes) {
+                nodeIdToEntityId[n.id] = n.entityId
+            }
+            const progressEntityId = rootResult?.chainProgress?.currentNodeId
+                ? nodeIdToEntityId[rootResult.chainProgress.currentNodeId]
+                : undefined
+
+            for (const entityId of entityIds) {
+                const result = get(fullResultByRowEntityAtomFamily({rowId, entityId})) as {
+                    status?: string
+                } | null
+                const rawStatus = result?.status
+                let mapped: "idle" | "running" | "success" | "error"
+
+                if (!rawStatus || rawStatus === "idle") {
+                    mapped = "idle"
+                } else if (rawStatus === "running" || rawStatus === "pending") {
+                    mapped = "running"
+                    isBusy = true
+                } else if (rawStatus === "success") {
+                    mapped = "success"
+                } else {
+                    mapped = "error"
+                }
+
+                statuses[entityId] = mapped
+            }
+
+            // Determine activeEntityId from chainProgress (preferred) or
+            // fall back to the first entity with "running" status.
+            if (isBusy && progressEntityId && statuses[progressEntityId] === "running") {
+                activeEntityId = progressEntityId
+            } else if (isBusy) {
+                // Fallback: use the node type from chainProgress to find the
+                // matching entity, or pick the first running entity.
+                if (progressNodeType) {
+                    const matchByType = nodes.find(
+                        (n) =>
+                            n.entityType === progressNodeType && statuses[n.entityId] === "running",
+                    )
+                    if (matchByType) activeEntityId = matchByType.entityId
+                }
+                if (!activeEntityId) {
+                    activeEntityId = entityIds.find((id) => statuses[id] === "running") ?? null
+                }
+            }
+
+            return {isBusy, activeEntityId, statuses}
+        }),
+)
+
+// ============================================================================
 // AGGREGATED HEADER DATA
 // ============================================================================
 
@@ -407,7 +510,7 @@ export const rerunFromTurnAtom = atom(
 
         for (const executionId of executionIds) {
             if (!executionId) continue
-            set(triggerWebWorkerTestAtom, {
+            set(triggerExecutionAtom, {
                 executionId,
                 step: {id: turnId, messageId: userMessageId},
             })
@@ -442,17 +545,17 @@ export const runAllWithContextAtom = atom(null, (get, set, params?: {entityId?: 
         const entityIds = get(entityIdsAtom)
         const targets = entityId ? [entityId] : entityIds.length > 0 ? entityIds : []
         for (const rev of targets) {
-            set(triggerWebWorkerTestAtom, {executionId: rev, step: {id: lastId}})
+            set(triggerExecutionAtom, {executionId: rev, step: {id: lastId}})
         }
     } else if (entityId) {
         const rowIds = get(executionRowIdsForEntityAtomFamily(entityId))
         for (const rid of rowIds) {
-            set(triggerWebWorkerTestAtom, {executionId: entityId, step: {id: rid}})
+            set(triggerExecutionAtom, {executionId: entityId, step: {id: rid}})
         }
     } else {
         const items = get(renderableExecutionItemsAtom)
         for (const item of items) {
-            set(triggerWebWorkerTestAtom, {
+            set(triggerExecutionAtom, {
                 executionId: item.executionId,
                 step: {id: item.rowId},
             })
@@ -470,15 +573,43 @@ export const runAllWithContextAtom = atom(null, (get, set, params?: {entityId?: 
 export const runRowAtom = atom(null, (get, set, params: {rowId: string; entityId?: string}) => {
     const {rowId, entityId} = params
     if (entityId) {
-        set(triggerWebWorkerTestAtom, {executionId: entityId, step: {id: rowId}})
+        set(triggerExecutionAtom, {executionId: entityId, step: {id: rowId}})
         return
     }
     const items = get(renderableExecutionItemsAtom)
     const entityIds = Array.from(new Set(items.map((item) => item.executionId)))
     for (const vid of entityIds) {
-        set(triggerWebWorkerTestAtom, {executionId: vid, step: {id: rowId}})
+        set(triggerExecutionAtom, {executionId: vid, step: {id: rowId}})
     }
 })
+
+/**
+ * Run a specific chain step for a single row.
+ *
+ * Always dispatches from the primary entity (so the downstream skip guard
+ * doesn't block execution). The `targetNodeId` parameter tells the runner
+ * which single stage to execute, skipping all other stages.
+ *
+ * @param rowId - The test case row to run
+ * @param entityId - Unused (kept for backward compat); primary entity is resolved internally
+ * @param targetNodeId - Entity ID of the chain node to run (resolved to node ID internally)
+ */
+export const runRowStepAtom = atom(
+    null,
+    (get, set, params: {rowId: string; entityId: string; targetNodeId: string}) => {
+        const {rowId, targetNodeId: targetEntityId} = params
+        const nodes = get(playgroundNodesAtom)
+        const rootNode = nodes.find((n) => n.depth === 0)
+        if (!rootNode) return
+
+        const targetNode = nodes.find((n) => n.entityId === targetEntityId)
+        set(triggerExecutionAtom, {
+            executionId: rootNode.entityId,
+            step: {id: rowId},
+            targetNodeId: targetNode?.id,
+        })
+    },
+)
 
 /**
  * Cancel a single row across relevant entities.

@@ -13,11 +13,13 @@ export {
 export type {
     PlaygroundEntityProviders,
     EntityRevisionSelectors,
+    EvaluatorSelectors,
     EvaluatorRevisionSelectors,
     EvaluatorRevisionActions,
     EntityQueryState,
     SettingsPreset,
     AppRevisionRawData,
+    EvaluatorRawData,
     EvaluatorRevisionRawData,
     AppRevisionListSelectors,
     AppRevisionActions,

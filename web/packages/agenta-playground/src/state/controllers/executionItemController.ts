@@ -44,8 +44,8 @@ import {
     renderableExecutionItemsByExecutionIdAtomFamily,
     executionRowIdsForEntityAtomFamily,
     resolvedGenerationResultAtomFamily,
-    fullResultByRowRevisionAtomFamily,
-    runStatusByRowRevisionAtom,
+    fullResultByRowEntityAtomFamily,
+    runStatusByRowEntityAtom,
     generationHeaderDataAtomFamily,
     rowDataWithContextAtomFamily,
     rowVariableValueAtomFamily,
@@ -55,30 +55,32 @@ import {
     repetitionIndexAtomFamily,
     allRowsCollapsedAtom,
     messageSchemaMetadataAtom,
-    triggerWebWorkerTestAtom,
-    triggerWebWorkerTestsAtom,
+    triggerExecutionAtom,
+    triggerExecutionsAtom,
     cancelTestsMutationAtom,
     clearAllRunsMutationAtom,
-    clearResponseByRowRevisionWithContextAtom,
+    clearResponseByRowEntityWithContextAtom,
     setRepetitionCountAtom,
     setRepetitionIndexAtom,
     isAnyRunningForRowAtomFamily,
-    responseByRowRevisionAtomFamily,
+    responseByRowEntityAtomFamily,
     appTypeAtom,
     executionHeadersAtom,
     executionWorkerBridgeAtom,
-    handleWebWorkerResultAtom,
+    handleExecutionResultFromWorkerAtom,
     addRowWithContextAtom,
     deleteRowWithContextAtom,
     duplicateRowWithContextAtom,
     setRowValueWithContextAtom,
     isBusyForRowAtomFamily,
+    chainExecutionStatusAtomFamily,
     aggregatedHeaderDataAtom,
     assistantForTurnAtomFamily,
     toolsForTurnAtomFamily,
     rerunFromTurnAtom,
     runAllWithContextAtom,
     runRowAtom,
+    runRowStepAtom,
     cancelRowAtom,
     cancelAllWithContextAtom,
     testcaseCellValueAtomFamily,
@@ -133,22 +135,22 @@ export const executionItemController = {
         resolvedResult: (params: {entityId: string; rowId: string}) =>
             resolvedGenerationResultAtomFamily(params),
 
-        /** Full result (output/error/trace) by row+revision */
-        fullResult: (params: {rowId: string; revisionId: string}) =>
-            fullResultByRowRevisionAtomFamily(params),
+        /** Full result (output/error/trace) by row+entity */
+        fullResult: (params: {rowId: string; entityId: string}) =>
+            fullResultByRowEntityAtomFamily(params),
 
-        /** Run status map keyed by rowId:revisionId */
-        runStatusByRowRevision: runStatusByRowRevisionAtom,
+        /** Run status map keyed by rowId:entityId */
+        runStatusByRowEntity: runStatusByRowEntityAtom,
 
-        /** Response data (output only) by row+revision */
-        responseByRowRevision: (params: {rowId: string; revisionId: string}) =>
-            responseByRowRevisionAtomFamily(params),
+        /** Response data (output only) by row+entity */
+        responseByRowEntity: (params: {rowId: string; entityId: string}) =>
+            responseByRowEntityAtomFamily(params),
 
         /** App type: "chat" | "completion" | undefined while loading */
         appType: appTypeAtom,
 
-        /** Header aggregate data for a revision */
-        headerData: (revisionId: string) => generationHeaderDataAtomFamily(revisionId),
+        /** Header aggregate data for an entity */
+        headerData: (entityId: string) => generationHeaderDataAtomFamily(entityId),
 
         // ----------------------------------------------------------------
         // Per-item inputs
@@ -216,6 +218,10 @@ export const executionItemController = {
         isBusyForRow: (params: {rowId: string; entityId?: string}) =>
             isBusyForRowAtomFamily(params),
 
+        /** Composite chain execution status for a row across ordered entities */
+        chainExecutionStatus: (params: {rowId: string; entityIds: string[]}) =>
+            chainExecutionStatusAtomFamily(params),
+
         /** Aggregated header data across all displayed entities (comparison view) */
         aggregatedHeaderData: aggregatedHeaderDataAtom,
 
@@ -237,10 +243,10 @@ export const executionItemController = {
         // ----------------------------------------------------------------
 
         /** Trigger execution for a single execution item */
-        triggerTest: triggerWebWorkerTestAtom,
+        triggerTest: triggerExecutionAtom,
 
         /** Trigger execution for a step across multiple execution IDs */
-        triggerTests: triggerWebWorkerTestsAtom,
+        triggerTests: triggerExecutionsAtom,
 
         /** Cancel running tests (supports row/entity filters) */
         cancelTests: cancelTestsMutationAtom,
@@ -257,14 +263,17 @@ export const executionItemController = {
         /** Run a single row (across all variants or a specific entity) */
         runRow: runRowAtom,
 
+        /** Run a specific chain step for a single row */
+        runRowStep: runRowStepAtom,
+
         /** Cancel a single row (across all variants or a specific entity) */
         cancelRow: cancelRowAtom,
 
         /** Re-run from a specific chat turn (truncate + trigger) */
         rerunFromTurn: rerunFromTurnAtom,
 
-        /** Clear cached response for row+revision */
-        clearResponse: clearResponseByRowRevisionWithContextAtom,
+        /** Clear cached response for row+entity */
+        clearResponse: clearResponseByRowEntityWithContextAtom,
 
         // ----------------------------------------------------------------
         // Repetitions
@@ -294,7 +303,7 @@ export const executionItemController = {
         setExecutionWorkerBridge: executionWorkerBridgeAtom,
 
         /** Handle web worker result (processes execution results) */
-        handleWebWorkerResult: handleWebWorkerResultAtom,
+        handleWebWorkerResult: handleExecutionResultFromWorkerAtom,
 
         // ----------------------------------------------------------------
         // Chat messages (chat mode)

@@ -14,7 +14,7 @@ import {selectAtom} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
-import {entityIdsAtom, primaryNodeAtom} from "../atoms/playground"
+import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {addUserMessageAtom} from "../chat"
 import {sharedMessageIdsAtomFamily} from "../chat/messageSelectors"
 
@@ -52,9 +52,9 @@ import type {RunStatus} from "./types"
  * // Returns "testset:appRevision:rev-123" if primary node is an app revision
  */
 export const derivedLoadableIdAtom = atom((get) => {
-    const primaryNode = get(primaryNodeAtom)
-    if (!primaryNode) return ""
-    return `testset:${primaryNode.entityType}:${primaryNode.entityId}`
+    const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
+    if (!rootNode) return ""
+    return `testset:${rootNode.entityType}:${rootNode.entityId}`
 })
 
 /**
@@ -400,31 +400,31 @@ export const executionProgressAtomFamily = atomFamily((loadableId: string) =>
 // ============================================================================
 
 /**
- * Key type for row-revision selectors.
- * Accepts either a string "rowId:revisionId" or an object.
+ * Key type for row-entity selectors.
+ * Accepts either a string "rowId:entityId" or an object.
  */
-type RowRevisionKey = string | {rowId: string; revisionId: string}
+type RowEntityKey = string | {rowId: string; entityId: string}
 
-function parseRowRevisionKey(param: RowRevisionKey) {
+function parseRowEntityKey(param: RowEntityKey) {
     if (typeof param === "string") {
         const idx = param.indexOf(":")
-        if (idx === -1) return {rowId: param, revisionId: ""}
-        return {rowId: param.slice(0, idx), revisionId: param.slice(idx + 1)}
+        if (idx === -1) return {rowId: param, entityId: ""}
+        return {rowId: param.slice(0, idx), entityId: param.slice(idx + 1)}
     }
     return param
 }
 
 function getExecutionItemLifecycleSnapshot(
     get: Getter,
-    params: {rowId: string; revisionId: string; loadableId?: string},
+    params: {rowId: string; entityId: string; loadableId?: string},
 ): ExecutionItemLifecycleSnapshot | null {
     const loadableId = params.loadableId || get(derivedLoadableIdAtom)
-    if (!loadableId || !params.rowId || !params.revisionId) return null
+    if (!loadableId || !params.rowId || !params.entityId) return null
 
     const handle = createExecutionItemHandle({
         loadableId,
         rowId: params.rowId,
-        revisionId: params.revisionId,
+        entityId: params.entityId,
     })
     return handle.lifecycle.snapshot(get)
 }
@@ -432,90 +432,90 @@ function getExecutionItemLifecycleSnapshot(
 /**
  * Lifecycle snapshot for a single row + revision execution item.
  */
-export const executionItemLifecycleAtomFamily = ((param: RowRevisionKey) => {
-    const {rowId, revisionId} = parseRowRevisionKey(param)
-    return atom((get) => getExecutionItemLifecycleSnapshot(get, {rowId, revisionId}))
-}) as (param: RowRevisionKey) => ReturnType<typeof atom<ExecutionItemLifecycleSnapshot | null>>
+export const executionItemLifecycleAtomFamily = ((param: RowEntityKey) => {
+    const {rowId, entityId} = parseRowEntityKey(param)
+    return atom((get) => getExecutionItemLifecycleSnapshot(get, {rowId, entityId}))
+}) as (param: RowEntityKey) => ReturnType<typeof atom<ExecutionItemLifecycleSnapshot | null>>
 
 /**
- * Get the output/response for a row + revision.
+ * Get the output/response for a row + entity.
  * Derives from execution state using loadableId from primary node.
  *
- * @param param - "rowId:revisionId" string or {rowId, revisionId} object
+ * @param param - "rowId:entityId" string or {rowId, entityId} object
  * @returns Atom for the result output (or null)
  */
-export const responseByRowRevisionAtomFamily = ((param: RowRevisionKey) => {
-    const {rowId, revisionId} = parseRowRevisionKey(param)
+export const responseByRowEntityAtomFamily = ((param: RowEntityKey) => {
+    const {rowId, entityId} = parseRowEntityKey(param)
     return atom((get) => {
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return null
         const result = get(
-            resultAtomFamily({loadableId, stepId: rowId, sessionId: `sess:${revisionId}`}),
+            resultAtomFamily({loadableId, stepId: rowId, sessionId: `sess:${entityId}`}),
         )
         return result?.output ?? null
     })
-}) as (param: RowRevisionKey) => ReturnType<typeof atom<unknown>>
+}) as (param: RowEntityKey) => ReturnType<typeof atom<unknown>>
 
 /**
- * Get loading state for a row + revision.
+ * Get loading state for a row + entity.
  * Returns true if the execution is running or pending.
  *
- * @param param - "rowId:revisionId" string or {rowId, revisionId} object
+ * @param param - "rowId:entityId" string or {rowId, entityId} object
  * @returns Atom for loading boolean
  */
-export const loadingByRowRevisionAtomFamily = ((param: RowRevisionKey) => {
-    const {rowId, revisionId} = parseRowRevisionKey(param)
+export const loadingByRowEntityAtomFamily = ((param: RowEntityKey) => {
+    const {rowId, entityId} = parseRowEntityKey(param)
     return atom((get) => {
-        const lifecycle = get(executionItemLifecycleAtomFamily({rowId, revisionId}))
+        const lifecycle = get(executionItemLifecycleAtomFamily({rowId, entityId}))
         return Boolean(lifecycle?.isRunning)
     })
-}) as (param: RowRevisionKey) => ReturnType<typeof atom<boolean>>
+}) as (param: RowEntityKey) => ReturnType<typeof atom<boolean>>
 
 /**
- * Get the complete RunResult for a row + revision.
+ * Get the complete RunResult for a row + entity.
  * Exposes status, output, traceId, error, metrics, etc.
  *
- * @param param - "rowId:revisionId" string or {rowId, revisionId} object
+ * @param param - "rowId:entityId" string or {rowId, entityId} object
  * @returns Atom for the full RunResult (or null)
  */
-export const fullResultByRowRevisionAtomFamily = ((param: RowRevisionKey) => {
-    const {rowId, revisionId} = parseRowRevisionKey(param)
+export const fullResultByRowEntityAtomFamily = ((param: RowEntityKey) => {
+    const {rowId, entityId} = parseRowEntityKey(param)
     return atom((get) => {
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return null
-        return get(resultAtomFamily({loadableId, stepId: rowId, sessionId: `sess:${revisionId}`}))
+        return get(resultAtomFamily({loadableId, stepId: rowId, sessionId: `sess:${entityId}`}))
     })
-}) as (param: RowRevisionKey) => ReturnType<typeof atom<import("./types").RunResult | null>>
+}) as (param: RowEntityKey) => ReturnType<typeof atom<import("./types").RunResult | null>>
 
 // ============================================================================
 // RUN STATUS MAP
 // ============================================================================
 
 /**
- * Derived run status map keyed by `${rowId}:${revisionId}`.
+ * Derived run status map keyed by `${rowId}:${entityId}`.
  *
  * Reads all results for the current loadable and reformats the package key
- * format (`stepId:sess:revisionId`) into the consumer-friendly
- * `rowId:revisionId` format.
+ * format (`stepId:sess:entityId`) into the consumer-friendly
+ * `rowId:entityId` format.
  *
  * This is a read-only derivation — writes go through package atoms
  * (startRunAtom, completeRunAtom, etc.).
  */
-export const runStatusByRowRevisionAtom = selectAtom(
+export const runStatusByRowEntityAtom = selectAtom(
     atom((get) => {
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return {}
         const all = get(resultsByKeyAtomFamily(loadableId))
         const mapped: Record<string, {isRunning?: string | false; resultHash?: string | null}> = {}
         for (const [key, result] of Object.entries(all)) {
-            // Package key format: "stepId:sess:revisionId"
+            // Package key format: "stepId:sess:entityId"
             const sepIdx = key.indexOf(":sess:")
             if (sepIdx === -1) continue
             const stepId = key.slice(0, sepIdx)
-            const revisionId = key.slice(sepIdx + 5)
+            const entityId = key.slice(sepIdx + 5)
             const status = result?.status
             const isRunning = status === "running" || status === "pending"
-            mapped[`${stepId}:${revisionId}`] = {
+            mapped[`${stepId}:${entityId}`] = {
                 isRunning: isRunning ? result?.runId || "true" : false,
                 resultHash: result?.resultHash ?? null,
             }
@@ -668,7 +668,7 @@ export const renderableExecutionItemsByRowAtomFamily = atomFamily((rowId: string
 )
 
 /**
- * Renderable execution items scoped to a single execution ID (revision).
+ * Renderable execution items scoped to a single execution ID (entity).
  */
 export const renderableExecutionItemsByExecutionIdAtomFamily = atomFamily((executionId: string) =>
     atom((get) =>
@@ -772,9 +772,9 @@ export const messageSchemaMetadataAtom = selectAtom(
  * Replaces the OSS `appChatModeAtom` / `playgroundIsChatModeAtom`.
  */
 export const isChatModeAtom = atom<boolean | undefined>((get) => {
-    const node = get(primaryNodeAtom)
-    if (!node) return undefined
-    const mode = get(runnableBridge.executionMode(node.entityId))
+    const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
+    if (!rootNode) return undefined
+    const mode = get(runnableBridge.executionMode(rootNode.entityId))
     return mode === "chat"
 })
 
@@ -797,7 +797,7 @@ export const appTypeAtom = atom<AppType | undefined>((get) => {
 // ============================================================================
 
 /**
- * Check if any revision is currently running for a given row ID.
+ * Check if any entity is currently running for a given row ID.
  *
  * Checks execution lifecycle snapshots across all displayed entity IDs.
  * Used by chat and completion UI to disable/enable run buttons during execution.
@@ -807,11 +807,11 @@ export const isAnyRunningForRowAtomFamily = atomFamily((rowId: string) =>
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return false
         const ids = get(entityIdsAtom)
-        return ids.some((revId: string) => {
+        return ids.some((eid: string) => {
             const lifecycle = getExecutionItemLifecycleSnapshot(get, {
                 loadableId,
                 rowId,
-                revisionId: revId,
+                entityId: eid,
             })
             return Boolean(lifecycle?.isRunning)
         })

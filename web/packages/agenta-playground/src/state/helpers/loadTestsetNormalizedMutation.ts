@@ -201,9 +201,9 @@ export const loadTestsetNormalizedMutationAtom = atom(
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return
 
-        const displayedRevIds = get(displayedEntityIdsAtom) || []
-        const baseline = displayedRevIds[0]
-        const targetRevisionIds = displayedRevIds.length > 0 ? displayedRevIds : [baseline || ""]
+        const displayedIds = get(displayedEntityIdsAtom) || []
+        const baseline = displayedIds[0]
+        const targetEntityIds = displayedIds.length > 0 ? displayedIds : [baseline || ""]
 
         const dataset = Array.isArray(testsetData) ? testsetData : []
 
@@ -258,14 +258,12 @@ export const loadTestsetNormalizedMutationAtom = atom(
         const allMessages = datasetMessages.flat()
         if (!Array.isArray(allMessages) || allMessages.length === 0) return
 
-        const revisionIds = targetRevisionIds.filter(
-            (rev) => typeof rev === "string" && rev.length > 0,
-        )
+        const entityIds = targetEntityIds.filter((id) => typeof id === "string" && id.length > 0)
 
-        if (revisionIds.length === 0) {
-            if (baseline) revisionIds.push(baseline)
-            else if (targetRevisionIds[0]) revisionIds.push(targetRevisionIds[0])
-            else revisionIds.push("__default__")
+        if (entityIds.length === 0) {
+            if (baseline) entityIds.push(baseline)
+            else if (targetEntityIds[0]) entityIds.push(targetEntityIds[0])
+            else entityIds.push("__default__")
         }
 
         const flatMessageIds: string[] = []
@@ -346,7 +344,7 @@ export const loadTestsetNormalizedMutationAtom = atom(
                 flatMessagesById[userMsgId] = userChatMsg
 
                 // Per-session assistant + tool responses
-                for (const revId of revisionIds) {
+                for (const revId of entityIds) {
                     const sessId = `sess:${revId}`
 
                     const aMsgId = `msg-${generateId()}`

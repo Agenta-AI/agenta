@@ -50,7 +50,7 @@ import type {ExecutionMode, RunResult, RunStatus} from "./types"
 export interface ExecutionItemReference {
     loadableId: string
     rowId: string
-    revisionId: string
+    entityId: string
     sessionId: string
     messageId?: string
 }
@@ -67,7 +67,6 @@ export interface WorkerRunEntityRowPayload {
     runId: string
     rowId: string
     entityId: string
-    revisionId: string
     messageId?: string
     invocationUrl: string
     requestBody: Record<string, unknown>
@@ -86,7 +85,7 @@ export interface ExecutionItem {
 export interface CreateExecutionItemParams {
     loadableId: string
     rowId: string
-    revisionId: string
+    entityId: string
     runId?: string
     messageId?: string
 }
@@ -154,7 +153,7 @@ export interface AgConfigFallbackCandidate {
 interface BuildExecutionItemBaseParams {
     loadableId: string
     rowId: string
-    revisionId: string
+    entityId: string
     runId: string
     messageId?: string
     headers: Record<string, string>
@@ -167,6 +166,8 @@ interface BuildExecutionItemBaseParams {
     variables?: string[]
     variableValues?: Record<string, string>
     agConfigFallbacks?: AgConfigFallbackCandidate[]
+    /** Runtime-resolved inputs (e.g. from chain upstream). Merged into rawBody.inputs when __rawBody is true. */
+    inputValues?: Record<string, unknown>
 }
 
 export interface BuildCompletionExecutionItemParams extends BuildExecutionItemBaseParams {
@@ -359,8 +360,8 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
     const references: ExecutionItemReference = {
         loadableId: params.loadableId,
         rowId: params.rowId,
-        revisionId: params.revisionId,
-        sessionId: `sess:${params.revisionId}`,
+        entityId: params.entityId,
+        sessionId: `sess:${params.entityId}`,
         ...(params.messageId ? {messageId: params.messageId} : {}),
     }
 
@@ -371,7 +372,7 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
     const buildLifecycleSnapshot = (get: Getter): ExecutionItemLifecycleSnapshot => {
         const result = resolveRunResult(get, references)
         const status: RunStatus = result?.status ?? "idle"
-        const repetitionKey = `${references.rowId}:${references.revisionId}`
+        const repetitionKey = `${references.rowId}:${references.entityId}`
         const repetitionIndexRaw = get(repetitionIndexAtomFamily(repetitionKey))
         const repetitionCountFromResult =
             Array.isArray(result?.repetitions) && result.repetitions.length > 0
@@ -412,19 +413,27 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         const {get, headers, repetitions, runId, inputValues, projectId, dispatchWorkerRun} =
             runParams
         const mode: ExecutionMode =
-            get(runnableBridge.executionMode(params.revisionId)) === "chat" ? "chat" : "completion"
+            get(runnableBridge.executionMode(params.entityId)) === "chat" ? "chat" : "completion"
         const normalizedRepetitions = resolveRequestedRepetitions(get, repetitions)
         const effectiveRunId =
             runId ?? (!forceNewRunId && params.runId ? params.runId : undefined) ?? generateId()
 
         const requestPayload = get(
-            runnableBridge.requestPayload(params.revisionId),
+            runnableBridge.requestPayload(params.entityId),
         ) as RequestPayloadData | null
-        const invocationUrl = get(runnableBridge.invocationUrl(params.revisionId)) as string | null
+        const invocationUrl = get(runnableBridge.invocationUrl(params.entityId)) as string | null
         const runnableData = get(
-            runnableBridge.data(params.revisionId),
+            runnableBridge.data(params.entityId),
         ) as TransformVariantInput | null
         const entityData = runnableData ?? null
+
+        console.log("[executionItem.run] entityId:", params.entityId, {
+            mode,
+            invocationUrl,
+            requestPayload,
+            runnableData,
+            entityData,
+        })
 
         const allMetadata = (runnableBridge.utils?.getAllMetadata() ?? {}) as Record<
             string,
@@ -433,20 +442,39 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         const variables = requestPayload?.variables ?? []
 
         const displayRowIds = get(loadableController.selectors.displayRowIds(params.loadableId))
-        if (!Array.isArray(displayRowIds) || displayRowIds.length === 0) return null
+        if (!Array.isArray(displayRowIds) || displayRowIds.length === 0) {
+            console.warn("[executionItem.run] No displayRowIds for", params.entityId, {
+                loadableId: params.loadableId,
+            })
+            return null
+        }
 
         const variableSourceRowId = resolveVariableRowId({
             mode,
             executionRowId: params.rowId,
             displayRowIds,
         })
-        if (!variableSourceRowId) return null
+        if (!variableSourceRowId) {
+            console.warn("[executionItem.run] No variableSourceRowId for", params.entityId, {
+                mode,
+                rowId: params.rowId,
+                displayRowIds: displayRowIds.slice(0, 5),
+            })
+            return null
+        }
 
         const variableSourceRow = get(
             loadableController.selectors.row(params.loadableId, variableSourceRowId),
         ) as {id: string; data?: Record<string, unknown>} | null
         const variableSourceRowData = variableSourceRow?.data ?? null
-        if (mode === "completion" && !variableSourceRowData) return null
+        if (mode === "completion" && !variableSourceRowData) {
+            console.warn("[executionItem.run] No variableSourceRowData for", params.entityId, {
+                mode,
+                variableSourceRowId,
+                hasRow: !!variableSourceRow,
+            })
+            return null
+        }
 
         const variableSourceDataForExecution = inputValues ?? variableSourceRowData
 
@@ -498,7 +526,7 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
             {source: "requestPayload.ag_config", value: requestPayload?.ag_config},
             {
                 source: "runnableBridge.configuration",
-                value: get(runnableBridge.configuration(params.revisionId)) as unknown,
+                value: get(runnableBridge.configuration(params.entityId)) as unknown,
             },
             {
                 source: "entityData.parameters",
@@ -512,7 +540,7 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                 ? buildChatExecutionItem({
                       loadableId: params.loadableId,
                       rowId: params.rowId,
-                      revisionId: params.revisionId,
+                      entityId: params.entityId,
                       runId: effectiveRunId,
                       messageId: params.messageId,
                       headers,
@@ -526,11 +554,12 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                       variableValues,
                       chatHistory,
                       agConfigFallbacks,
+                      inputValues,
                   })
                 : buildCompletionExecutionItem({
                       loadableId: params.loadableId,
                       rowId: params.rowId,
-                      revisionId: params.revisionId,
+                      entityId: params.entityId,
                       runId: effectiveRunId,
                       messageId: params.messageId,
                       headers,
@@ -544,6 +573,7 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                       variableValues,
                       inputRow: completionInputRow,
                       agConfigFallbacks,
+                      inputValues,
                   })
 
         lastRequestedRepetitions = executionItem.invocation.repetitions
@@ -555,7 +585,7 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
     }
 
     return {
-        id: `${params.revisionId}:${params.rowId}`,
+        id: `${params.entityId}:${params.rowId}`,
         references,
         lifecycle: {
             snapshot: buildLifecycleSnapshot,
@@ -582,6 +612,27 @@ function constructPlaygroundTestPath(runtimePrefix: string, routePath?: string):
     return `${runtimePrefix}${routePath ? `/${routePath}` : ""}/test`
 }
 
+function isSupportedFetchProtocol(protocol: string): boolean {
+    return protocol === "http:" || protocol === "https:"
+}
+
+function resolveExplicitInvocationCandidate(candidate: string, baseUrl: string): string | null {
+    try {
+        const absolute = new URL(candidate)
+        return isSupportedFetchProtocol(absolute.protocol) ? absolute.toString() : null
+    } catch {
+        if (baseUrl) {
+            try {
+                const resolved = new URL(candidate, baseUrl)
+                return isSupportedFetchProtocol(resolved.protocol) ? resolved.toString() : null
+            } catch {
+                return candidate
+            }
+        }
+        return candidate
+    }
+}
+
 function resolveInvocationUrl(
     invocationUrl: string | null | undefined,
     requestPayload: RequestPayloadData | null | undefined,
@@ -590,24 +641,24 @@ function resolveInvocationUrl(
     const bridgeInvocationUrl = readString(invocationUrl)
     const requestPayloadInvocationUrl = readString(requestPayload?.invocationUrl)
     const entityInvocationUrl = readString(entityData?.invocationUrl)
-    const entityUri = readString((entityData as Record<string, unknown> | null | undefined)?.uri)
-    const explicitUrl =
-        bridgeInvocationUrl || requestPayloadInvocationUrl || entityInvocationUrl || entityUri
-
+    const entityUri = readString(
+        (entityData as Record<string, unknown> | null | undefined)?.uri as string | undefined,
+    )
     const baseUrl = resolveBaseUrl()
 
-    if (explicitUrl) {
-        try {
-            return new URL(explicitUrl).toString()
-        } catch {
-            if (baseUrl) {
-                try {
-                    return new URL(explicitUrl, baseUrl).toString()
-                } catch {
-                    return explicitUrl
-                }
-            }
-            return explicitUrl
+    const explicitCandidates = [
+        bridgeInvocationUrl,
+        requestPayloadInvocationUrl,
+        entityInvocationUrl,
+        entityUri,
+    ].filter((value): value is string => Boolean(value))
+
+    for (const candidate of explicitCandidates) {
+        // Guard against non-fetchable schemes (e.g. "agenta:...") while still
+        // allowing valid relative URLs like "/api/evaluators/{key}/run".
+        const resolved = resolveExplicitInvocationCandidate(candidate, baseUrl)
+        if (resolved) {
+            return resolved
         }
     }
 
@@ -807,7 +858,7 @@ function buildRequestBody(
         requestPayload: RequestPayloadData | null | undefined
         variables: string[]
         variableValues: Record<string, string>
-        revisionId: string
+        entityId: string
         agConfigFallbacks?: AgConfigFallbackCandidate[]
     },
 ): Record<string, unknown> {
@@ -819,7 +870,7 @@ function buildRequestBody(
         requestPayload,
         variables,
         variableValues,
-        revisionId,
+        entityId,
         agConfigFallbacks,
     } = params
 
@@ -834,7 +885,7 @@ function buildRequestBody(
             prompts: Array.isArray(entityData?.prompts) ? entityData?.prompts : [],
             variables,
             variableValues,
-            revisionId,
+            entityId,
             isChat: mode === "chat",
             isCustom: requestPayload?.isCustom,
             appType: requestPayload?.appType || undefined,
@@ -902,23 +953,44 @@ function buildExecutionItem(
         },
     )
 
-    const requestBody = buildRequestBody(mode, {
-        entityData,
-        inputRow: params.inputRow,
-        chatHistory: params.chatHistory,
-        allMetadata: params.allMetadata || {},
-        requestPayload,
-        variables: params.variables || [],
-        variableValues: params.variableValues || {},
-        revisionId: params.revisionId,
-        agConfigFallbacks: params.agConfigFallbacks,
-    })
+    // When the entity provides a pre-built request body (e.g. workflow invoke),
+    // use it directly instead of building a legacy ag_config body.
+    const isRawBody = !!(requestPayload as Record<string, unknown> | null)?.__rawBody
+    const requestBody = isRawBody
+        ? (() => {
+              const {
+                  __rawBody: _,
+                  invocationUrl: _url,
+                  ...body
+              } = requestPayload as unknown as Record<string, unknown>
+              // When inputValues are provided (e.g. from chain execution),
+              // merge them into the raw body's inputs field.
+              if (params.inputValues && Object.keys(params.inputValues).length > 0) {
+                  console.log("[buildExecutionItem] Merging inputValues into rawBody.inputs", {
+                      existingInputs: body.inputs,
+                      inputValues: params.inputValues,
+                  })
+                  body.inputs = params.inputValues
+              }
+              return body
+          })()
+        : buildRequestBody(mode, {
+              entityData,
+              inputRow: params.inputRow,
+              chatHistory: params.chatHistory,
+              allMetadata: params.allMetadata || {},
+              requestPayload,
+              variables: params.variables || [],
+              variableValues: params.variableValues || {},
+              entityId: params.entityId,
+              agConfigFallbacks: params.agConfigFallbacks,
+          })
 
     const references: ExecutionItemReference = {
         loadableId: params.loadableId,
         rowId: params.rowId,
-        revisionId: params.revisionId,
-        sessionId: `sess:${params.revisionId}`,
+        entityId: params.entityId,
+        sessionId: `sess:${params.entityId}`,
         ...(params.messageId ? {messageId: params.messageId} : {}),
     }
 
@@ -933,8 +1005,7 @@ function buildExecutionItem(
     const workerPayload: WorkerRunEntityRowPayload = {
         runId: invocation.runId,
         rowId: references.rowId,
-        entityId: references.revisionId,
-        revisionId: references.revisionId,
+        entityId: references.entityId,
         ...(references.messageId ? {messageId: references.messageId} : {}),
         invocationUrl: invocation.invocationUrl,
         requestBody: invocation.requestBody,
@@ -943,7 +1014,7 @@ function buildExecutionItem(
     }
 
     return {
-        id: `${params.runId}:${params.revisionId}:${params.rowId}`,
+        id: `${params.runId}:${params.entityId}:${params.rowId}`,
         mode,
         references,
         invocation,

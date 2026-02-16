@@ -232,6 +232,8 @@ export interface RunStepPayload {
     data?: Record<string, unknown>
     /** Per-session options passed through to the adapter. Keyed by sessionId. */
     sessionOptions?: Record<string, SessionExecutionOptions>
+    /** When set, only execute this specific node instead of the full chain */
+    targetNodeId?: string
 }
 
 /**

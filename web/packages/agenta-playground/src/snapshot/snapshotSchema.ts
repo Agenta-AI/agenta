@@ -48,9 +48,22 @@ export const SNAPSHOT_VERSION = 1 as const
 // ============================================================================
 
 /**
+ * Optional metadata about how an entity is placed in the playground graph.
+ * Used to restore downstream chain entities during URL hydration.
+ */
+export interface SnapshotEntityMetadata {
+    /** Playground entity type (e.g., "legacyAppRevision", "evaluatorRevision") */
+    entityType?: string
+    /** Node depth in the playground graph (0 = root) */
+    depth?: number
+    /** Optional display label captured at snapshot creation time */
+    label?: string
+}
+
+/**
  * Selection item for a committed revision (no local changes).
  */
-export interface CommitSelectionItem {
+export interface CommitSelectionItem extends SnapshotEntityMetadata {
     kind: "commit"
     /** Revision ID */
     id: string
@@ -62,7 +75,7 @@ export interface CommitSelectionItem {
  * Selection item for a draft revision (has local changes).
  * References a draft entry by draftKey.
  */
-export interface DraftSelectionItem {
+export interface DraftSelectionItem extends SnapshotEntityMetadata {
     kind: "draft"
     /** Key referencing a draft in the drafts array */
     draftKey: string
@@ -137,6 +150,7 @@ function isCommitSelectionItem(item: unknown): item is CommitSelectionItem {
     const i = item as CommitSelectionItem
     if (i.kind !== "commit" || typeof i.id !== "string") return false
     if (typeof i.runnableType !== "string") return false
+    if (!hasValidEntityMetadata(i)) return false
     return true
 }
 
@@ -148,6 +162,30 @@ function isDraftSelectionItem(item: unknown): item is DraftSelectionItem {
     const i = item as DraftSelectionItem
     if (i.kind !== "draft" || typeof i.draftKey !== "string") return false
     if (typeof i.runnableType !== "string") return false
+    if (!hasValidEntityMetadata(i)) return false
+    return true
+}
+
+function hasValidEntityMetadata(item: SnapshotEntityMetadata): boolean {
+    if (item.entityType !== undefined && typeof item.entityType !== "string") {
+        return false
+    }
+
+    if (item.label !== undefined && typeof item.label !== "string") {
+        return false
+    }
+
+    if (item.depth !== undefined) {
+        if (
+            typeof item.depth !== "number" ||
+            !Number.isFinite(item.depth) ||
+            !Number.isInteger(item.depth) ||
+            item.depth < 0
+        ) {
+            return false
+        }
+    }
+
     return true
 }
 

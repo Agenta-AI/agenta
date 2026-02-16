@@ -14,7 +14,7 @@ import {testcaseMolecule} from "@agenta/entities/testcase"
 import {atom} from "jotai"
 
 import {outputConnectionsAtom} from "../atoms"
-import {playgroundNodesAtom, primaryNodeAtom} from "../atoms/playground"
+import {playgroundNodesAtom} from "../atoms/playground"
 import type {OutputConnection} from "../types"
 
 import {
@@ -368,11 +368,11 @@ export const cancelRunAtom = atom(
     null,
     (get, set, payload: {loadableId: string; stepId: string; sessionId: string}) => {
         const {loadableId, stepId, sessionId} = payload
-        const revisionId = sessionId.startsWith("sess:") ? sessionId.slice(5) : sessionId
+        const entityId = sessionId.startsWith("sess:") ? sessionId.slice(5) : sessionId
         const handle = createExecutionItemHandle({
             loadableId,
             rowId: stepId,
-            revisionId,
+            entityId,
         })
         handle.cancel({get, set})
     },
@@ -434,12 +434,13 @@ export const runStepAtom = atom(
             sessionIds: specifiedSessionIds,
             data = {},
             sessionOptions,
+            targetNodeId,
         } = payload
 
-        const primaryNode = get(primaryNodeAtom)
-        if (!primaryNode) return
-
         const nodes = get(playgroundNodesAtom)
+        const rootNode = nodes.find((n) => n.depth === 0)
+        if (!rootNode) return
+
         const allConnections = get(outputConnectionsAtom) as OutputConnection[]
         const activeSessions = get(activeSessionsAtomFamily(loadableId))
 
@@ -462,11 +463,11 @@ export const runStepAtom = atom(
             sessions: sessionsToRun,
             data,
             nodes,
-            primaryNode,
             allConnections,
             sessionOptions,
             repetitionCount: repetitions,
             concurrency: get(executionConcurrencyAtom),
+            targetNodeId,
             createLifecycle: (session) => ({
                 onStart: ({runId}) => {
                     set(startRunAtom, {loadableId, stepId, sessionId: session.id, runId})
@@ -561,6 +562,8 @@ export interface RunStepWithContextPayload {
     sessionIds?: string[]
     /** Per-session options passed through to the adapter. Keyed by sessionId. */
     sessionOptions?: Record<string, SessionExecutionOptions>
+    /** When set, only execute this specific node instead of the full chain */
+    targetNodeId?: string
 }
 
 /**
@@ -681,23 +684,23 @@ export const setRepetitionIndexAtom = atom(
 )
 
 /**
- * Clear stored execution output for a specific row+revision using context-derived loadableId.
+ * Clear stored execution output for a specific row+entity using context-derived loadableId.
  * Useful when chat assistant output is manually removed from UI.
  */
-export const clearResponseByRowRevisionWithContextAtom = atom(
+export const clearResponseByRowEntityWithContextAtom = atom(
     null,
     (
         get,
         set,
         payload: {
             rowId: string
-            revisionId: string
+            entityId: string
         },
     ) => {
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return
 
-        const key = buildResultKey(payload.rowId, `sess:${payload.revisionId}`)
+        const key = buildResultKey(payload.rowId, `sess:${payload.entityId}`)
         const resultsByKey = {...get(resultsByKeyAtomFamily(loadableId))}
         const existing = resultsByKey[key]
         if (!existing) return

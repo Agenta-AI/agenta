@@ -34,6 +34,7 @@ import {
     pendingHydrationsAtom,
     applyPendingHydrationsForRevision,
     type SnapshotSelectionInput,
+    type HydratedSnapshotEntity,
     type CreateSnapshotResult,
     type HydrateSnapshotResult,
 } from "./playgroundSnapshotController"
@@ -43,7 +44,7 @@ import {
 // ============================================================================
 
 /**
- * Interface for resolving runnable types from revision IDs.
+ * Interface for resolving runnable types from entity IDs.
  *
  * OSS/EE layers implement this interface to provide entity-specific
  * type resolution without leaking entity logic into the package.
@@ -110,8 +111,10 @@ export interface BuildEncodedSnapshotResult {
     encoded?: string
     /** Whether the snapshot has draft changes (needs to be in URL hash) */
     hasDrafts: boolean
-    /** The selection IDs (for query param) */
-    selectionIds: string[]
+    /** Entity IDs represented in the snapshot input */
+    entityIds: string[]
+    /** @deprecated Use `entityIds` */
+    selectionIds?: string[]
     /** Error message if failed */
     error?: string
     /** Warning if snapshot is large */
@@ -120,39 +123,53 @@ export interface BuildEncodedSnapshotResult {
     length?: number
 }
 
+type SnapshotBuildInput = string[] | SnapshotSelectionInput[]
+
+function normalizeSnapshotSelectionInput(input: SnapshotBuildInput): SnapshotSelectionInput[] {
+    if (input.length === 0) return []
+
+    const first = input[0]
+    if (typeof first === "string") {
+        return (input as string[]).map((id) => ({
+            id,
+            runnableType: currentResolver.getType(id),
+        }))
+    }
+
+    return input as SnapshotSelectionInput[]
+}
+
 // ============================================================================
 // ACTIONS
 // ============================================================================
 
 /**
- * Build an encoded snapshot from a list of revision IDs.
+ * Build an encoded snapshot from entity IDs or typed entity descriptors.
  *
  * This action:
- * 1. Resolves runnable types for each revision ID using the registered resolver
+ * 1. Resolves runnable types when only IDs are provided
  * 2. Delegates to playgroundSnapshotController.createSnapshot
  * 3. Returns the encoded result with metadata
  *
- * @param selectionIds - Array of revision IDs to include in the snapshot
+ * @param input - Entity IDs or typed entity descriptors to include in the snapshot
  * @returns BuildEncodedSnapshotResult with encoded string and metadata
  */
 const buildEncodedSnapshotAtom = atom(
     null,
-    (get, set, selectionIds: string[]): BuildEncodedSnapshotResult => {
-        if (selectionIds.length === 0) {
+    (_get, set, input: SnapshotBuildInput): BuildEncodedSnapshotResult => {
+        const selectionInputs = normalizeSnapshotSelectionInput(input)
+        const entityIds = selectionInputs.map((item) => item.id)
+
+        if (selectionInputs.length === 0) {
             return {
                 ok: true,
                 hasDrafts: false,
+                entityIds: [],
                 selectionIds: [],
             }
         }
 
         try {
-            // Resolve runnable types for each revision
-            const selectionInputs: SnapshotSelectionInput[] = selectionIds.map((id) => ({
-                id,
-                runnableType: currentResolver.getType(id),
-            }))
-
             // Delegate to playgroundSnapshotController
             const result: CreateSnapshotResult = set(
                 playgroundSnapshotController.actions.createSnapshot,
@@ -163,7 +180,8 @@ const buildEncodedSnapshotAtom = atom(
                 return {
                     ok: false,
                     hasDrafts: false,
-                    selectionIds,
+                    entityIds,
+                    selectionIds: entityIds,
                     error: result.error,
                 }
             }
@@ -175,7 +193,8 @@ const buildEncodedSnapshotAtom = atom(
                 ok: true,
                 encoded: result.encoded,
                 hasDrafts,
-                selectionIds,
+                entityIds,
+                selectionIds: entityIds,
                 warning: result.warning,
                 length: result.length,
             }
@@ -183,7 +202,8 @@ const buildEncodedSnapshotAtom = atom(
             return {
                 ok: false,
                 hasDrafts: false,
-                selectionIds,
+                entityIds,
+                selectionIds: entityIds,
                 error: `Failed to build snapshot: ${err instanceof Error ? err.message : String(err)}`,
             }
         }
@@ -191,13 +211,13 @@ const buildEncodedSnapshotAtom = atom(
 )
 
 /**
- * Build URL components from selection.
+ * Build URL components from entity IDs or typed entity descriptors.
  *
  * Returns the query param value and optional hash value for URL construction.
  * OSS URL adapter uses this to write the URL.
  */
 export interface UrlComponents {
-    /** Query param value (comma-separated revision IDs) */
+    /** Query param value (comma-separated root entity IDs) */
     queryParam: string | null
     /** Hash value (encoded snapshot with drafts) */
     hashParam: string | null
@@ -207,8 +227,10 @@ export interface UrlComponents {
     error?: string
 }
 
-const buildUrlComponentsAtom = atom(null, (get, set, selectionIds: string[]): UrlComponents => {
-    if (selectionIds.length === 0) {
+const buildUrlComponentsAtom = atom(null, (_get, set, input: SnapshotBuildInput): UrlComponents => {
+    const selectionInputs = normalizeSnapshotSelectionInput(input)
+
+    if (selectionInputs.length === 0) {
         return {
             queryParam: null,
             hashParam: null,
@@ -216,7 +238,7 @@ const buildUrlComponentsAtom = atom(null, (get, set, selectionIds: string[]): Ur
         }
     }
 
-    const result = set(buildEncodedSnapshotAtom, selectionIds)
+    const result = set(buildEncodedSnapshotAtom, selectionInputs)
 
     if (!result.ok) {
         return {
@@ -230,8 +252,11 @@ const buildUrlComponentsAtom = atom(null, (get, set, selectionIds: string[]): Ur
     // Resolve local draft IDs to their source revision IDs for the query param.
     // Local draft IDs are ephemeral (in-memory only) and won't work when opened in a new tab.
     // The hash param contains the patch data needed to reconstruct the draft state.
-    const resolvedIds = selectionIds.map((id) => {
-        const runnableType = currentResolver.getType(id)
+    const rootSelectionInputs = selectionInputs.filter((item) => (item.depth ?? 0) === 0)
+    const querySelectionInputs =
+        rootSelectionInputs.length > 0 ? rootSelectionInputs : selectionInputs
+
+    const resolvedIds = querySelectionInputs.map(({id, runnableType}) => {
         const adapter = snapshotAdapterRegistry.get(runnableType)
 
         if (adapter && adapter.isLocalDraftId(id)) {
@@ -242,9 +267,19 @@ const buildUrlComponentsAtom = atom(null, (get, set, selectionIds: string[]): Ur
         return id
     })
 
+    const hasNonRootEntities = selectionInputs.some((item) => (item.depth ?? 0) > 0)
+    const hasEntityMetadata = selectionInputs.some(
+        (item) => typeof item.depth === "number" || typeof item.entityType === "string",
+    )
+    const hasResolverTypeMismatch = selectionInputs.some(
+        (item) => item.runnableType !== currentResolver.getType(item.id),
+    )
+    const requiresSnapshotHash =
+        result.hasDrafts || hasNonRootEntities || hasEntityMetadata || hasResolverTypeMismatch
+
     return {
         queryParam: resolvedIds.join(","),
-        hashParam: result.hasDrafts && result.encoded ? result.encoded : null,
+        hashParam: requiresSnapshotHash && result.encoded ? result.encoded : null,
         ok: true,
     }
 })
@@ -276,8 +311,10 @@ const pendingHydrationCountAtom = atom((get) => get(pendingHydrationsAtom).size)
 export interface HydrateFromUrlResult {
     /** Whether the operation succeeded */
     ok: boolean
-    /** The new selection (revision IDs to select) */
+    /** The new selection (entity IDs to select) */
     selection?: string[]
+    /** Hydrated entities with runnable type and optional graph metadata */
+    entities?: HydratedSnapshotEntity[]
     /** Whether there are pending hydrations (drafts to apply) */
     hasPendingHydrations: boolean
     /** Error message if failed */
@@ -325,6 +362,7 @@ const hydrateFromUrlAtom = atom(null, (get, set, encodedSnapshot: string): Hydra
         return {
             ok: true,
             selection: hydrateResult.selection,
+            entities: hydrateResult.entities,
             hasPendingHydrations: get(pendingHydrationsAtom).size > 0,
         }
     } catch (err) {
@@ -337,19 +375,19 @@ const hydrateFromUrlAtom = atom(null, (get, set, encodedSnapshot: string): Hydra
 })
 
 /**
- * Apply pending hydrations for a list of revision IDs.
+ * Apply pending hydrations for a list of entity IDs.
  *
  * Call this when revision data becomes available for selected revisions.
  * Returns the total number of patches applied.
  *
- * @param revisionIds - Array of revision IDs to apply pending hydrations for
+ * @param entityIds - Array of entity IDs to apply pending hydrations for
  * @returns Number of patches successfully applied
  */
-const applyPendingHydrationsAtom = atom(null, (get, set, revisionIds: string[]): number => {
+const applyPendingHydrationsAtom = atom(null, (_get, _set, entityIds: string[]): number => {
     let totalApplied = 0
 
-    for (const revisionId of revisionIds) {
-        const applied = applyPendingHydrationsForRevision(revisionId)
+    for (const entityId of entityIds) {
+        const applied = applyPendingHydrationsForRevision(entityId)
         totalApplied += applied
     }
 
@@ -383,13 +421,13 @@ export const urlSnapshotController = {
      */
     actions: {
         /**
-         * Build an encoded snapshot from selection IDs.
+         * Build an encoded snapshot from entity IDs.
          * Returns encoded string and metadata.
          */
         buildEncodedSnapshot: buildEncodedSnapshotAtom,
 
         /**
-         * Build URL components (query + hash) from selection IDs.
+         * Build URL components (query + hash) from entity IDs.
          * Convenience wrapper for URL adapter.
          */
         buildUrlComponents: buildUrlComponentsAtom,
@@ -401,7 +439,7 @@ export const urlSnapshotController = {
         hydrateFromUrl: hydrateFromUrlAtom,
 
         /**
-         * Apply pending hydrations for a list of revision IDs.
+         * Apply pending hydrations for a list of entity IDs.
          * Call when revision data becomes available.
          */
         applyPendingHydrations: applyPendingHydrationsAtom,
