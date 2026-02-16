@@ -192,6 +192,7 @@ export const triggerExecutionAtom = atom(
             ? nodes.find((n) => n.id === params.targetNodeId)
             : undefined
         const isTargetingDownstream = targetNode && targetNode.depth > 0
+        const nodeById = new Map(nodes.map((n) => [n.id, n]))
 
         // Mark nodes as running.
         // - Full chain (no targetNodeId): mark root + all downstream
@@ -249,7 +250,7 @@ export const triggerExecutionAtom = atom(
             targetNodeId: params.targetNodeId,
             lifecycle: {
                 onStart: () => {},
-                onProgress: ({chainProgress}) => {
+                onProgress: ({chainProgress, chainResults}) => {
                     // Store chain progress on the root session so
                     // chainExecutionStatusAtomFamily can read which node is active.
                     set(updateChainProgressAtom, {
@@ -257,7 +258,38 @@ export const triggerExecutionAtom = atom(
                         stepId: rowId,
                         sessionId,
                         chainProgress,
+                        chainResults,
                     })
+
+                    // Publish completed stage outputs incrementally so already-finished
+                    // chain steps render while downstream steps are still running.
+                    if (chainResults) {
+                        for (const [nodeId, stageResult] of Object.entries(chainResults)) {
+                            const node = nodeById.get(nodeId)
+                            if (!node) continue
+                            const stageSessionId = `sess:${node.entityId}`
+                            if (stageResult.status === "error") {
+                                set(failRunAtom, {
+                                    loadableId,
+                                    stepId: rowId,
+                                    sessionId: stageSessionId,
+                                    error: stageResult.error || {message: "Execution failed"},
+                                })
+                                continue
+                            }
+                            set(completeRunAtom, {
+                                loadableId,
+                                stepId: rowId,
+                                sessionId: stageSessionId,
+                                result: {
+                                    output: {response: stageResult.structuredOutput},
+                                    structuredOutput: stageResult.structuredOutput,
+                                    traceId: stageResult.traceId,
+                                    metrics: stageResult.metrics,
+                                },
+                            })
+                        }
+                    }
                 },
                 onComplete: ({result}) => {
                     // Wrap output in {response: structuredOutput} to match the
@@ -307,10 +339,20 @@ export const triggerExecutionAtom = atom(
                         for (const [nodeId, stageResult] of Object.entries(result.chainResults)) {
                             const node = nodes.find((n) => n.id === nodeId)
                             if (!node || node.depth === 0) continue
+                            const stageSessionId = `sess:${node.entityId}`
+                            if (stageResult.status === "error") {
+                                set(failRunAtom, {
+                                    loadableId,
+                                    stepId: rowId,
+                                    sessionId: stageSessionId,
+                                    error: stageResult.error || {message: "Execution failed"},
+                                })
+                                continue
+                            }
                             set(completeRunAtom, {
                                 loadableId,
                                 stepId: rowId,
-                                sessionId: `sess:${node.entityId}`,
+                                sessionId: stageSessionId,
                                 result: {
                                     output: {response: stageResult.structuredOutput},
                                     structuredOutput: stageResult.structuredOutput,
