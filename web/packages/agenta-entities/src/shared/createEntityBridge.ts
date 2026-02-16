@@ -25,6 +25,7 @@
  */
 
 import {atom, type Atom} from "jotai"
+import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
 import type {
@@ -523,6 +524,15 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                 return null
             }),
 
+        dataForType: (runnableType: string, runnableId: string) =>
+            atom((get) => {
+                const config = runnables[runnableType]
+                if (!config) return null
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (!entity) return null
+                return config.toRunnable(entity)
+            }),
+
         query: (runnableId: string) =>
             atom((get) => {
                 // Try each runnable type to find query state
@@ -669,9 +679,30 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
         return null
     })()
 
+    // Build normalizeResponse utility: finds the matching type config for a
+    // runnableId and delegates to its normalizeResponse if defined.
+    const normalizeResponse = (
+        runnableId: string,
+        responseData: unknown,
+    ): {output: unknown; trace?: {id: string} | undefined} => {
+        const store = getDefaultStore()
+        for (const [_type, cfg] of Object.entries(runnables)) {
+            const entity = store.get(cfg.molecule.selectors.data(runnableId))
+            if (entity && cfg.normalizeResponse) {
+                return cfg.normalizeResponse(responseData)
+            }
+        }
+        // Default: standard response parsing
+        const data = responseData as Record<string, unknown> | null | undefined
+        const output = data?.data !== undefined ? data.data : data
+        const traceId = data?.trace_id as string | undefined
+        return {output, trace: traceId ? {id: traceId} : undefined}
+    }
+
     return {
         // Nested API (backwards compatible)
         selectors,
+        normalizeResponse,
         runnable: <T extends string>(runnableType: T) => {
             const config = runnables[runnableType]
             if (!config) {
@@ -693,8 +724,10 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
         //   runnable.inputPorts(id) instead of runnable.selectors.inputPorts(id)
         // =====================================================================
 
-        /** Get runnable data by ID */
+        /** Get runnable data by ID (probes all molecule types) */
         data: selectors.data,
+        /** Get runnable data by type + ID (queries only the specified molecule) */
+        dataForType: selectors.dataForType,
         /** Get query state */
         query: selectors.query,
         /** Check if runnable has unsaved changes */

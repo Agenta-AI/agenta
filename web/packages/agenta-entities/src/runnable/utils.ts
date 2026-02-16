@@ -4,7 +4,12 @@
  * Chain execution and input mapping utilities for runnables.
  */
 
+import {getAgentaApiUrl} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
 import {getValueAtPath} from "@agenta/shared/utils"
+import {getDefaultStore} from "jotai/vanilla"
+
+import {parseEvaluatorKeyFromUri} from "../evaluator/core"
 
 import type {
     RunnableType,
@@ -118,6 +123,30 @@ export function resolveChainInputs(
     const sourceNodeId = incomingConnection.sourceNodeId
     const sourceResult = nodeResults[sourceNodeId]
     const upstreamOutput = sourceResult?.output ?? sourceResult?.structuredOutput ?? {}
+
+    // When there are no explicit input mappings (e.g., evaluators whose input
+    // schema has no fixed properties), fall back to the DebugSection pattern:
+    // pass through all testcase data + upstream output as prediction/outputs.
+    const hasValidMappings = mappings.some((m) => m.status === "valid" && m.sourcePath)
+    if (!hasValidMappings) {
+        // Spread testcase data first (ground truth, correct_answer, etc.)
+        if (testcaseData) {
+            Object.assign(result, testcaseData)
+        }
+
+        // Normalize upstream output to a string for the prediction field
+        const predictionValue =
+            typeof upstreamOutput === "string"
+                ? upstreamOutput
+                : typeof upstreamOutput === "object" && upstreamOutput !== null
+                  ? JSON.stringify(upstreamOutput)
+                  : String(upstreamOutput ?? "")
+
+        result.prediction = predictionValue
+        result.outputs = upstreamOutput
+
+        return result
+    }
 
     for (const mapping of mappings) {
         // Check for valid mapping with source path
@@ -527,6 +556,106 @@ export function extractVariablesFromConfig(
 }
 
 // ============================================================================
+// EVALUATOR INPUT CONSTRUCTION
+// ============================================================================
+
+/**
+ * Context provided to the evaluator for building its execution inputs.
+ * The caller (execution runner) supplies upstream results and testcase data;
+ * the evaluator entity decides how to assemble them into `inputs`.
+ */
+export interface EvaluatorInputContext {
+    /** Testcase row data (e.g. {question, correct_answer, ...}) */
+    testcaseData: Record<string, unknown>
+    /** Raw output from the upstream (primary) node */
+    upstreamOutput: unknown
+    /** Evaluator's configuration / parameters (settings) */
+    settings: Record<string, unknown>
+}
+
+/**
+ * Build evaluator execution inputs following the DebugSection pattern.
+ *
+ * This is the **entity-owned** input construction logic for evaluators.
+ * The execution runner should call this instead of inlining evaluator-specific
+ * knowledge.
+ *
+ * Flow (mirrors DebugSection.fetchEvalMapper):
+ * 1. Normalize `prediction` from upstream output.
+ * 2. Extract `correct_answer_key` from settings to derive `ground_truth`.
+ * 3. Spread testcase data into inputs.
+ * 4. Merge `prediction`, `ground_truth`, and `[groundTruthKey]: ground_truth`.
+ *
+ * @returns The `inputs` object to send in `{ inputs, settings }` to the evaluator endpoint.
+ */
+export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Record<string, unknown> {
+    const {testcaseData, upstreamOutput, settings} = ctx
+
+    // --- Normalize prediction (same as DebugSection.normalizeCompact) ---
+    const prediction = normalizeCompact(upstreamOutput)
+
+    // --- Derive ground_truth from correct_answer_key in settings ---
+    const correctAnswerKey = settings.correct_answer_key
+    const groundTruthKey =
+        typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
+            ? correctAnswerKey.split(".")[1]
+            : typeof correctAnswerKey === "string"
+              ? correctAnswerKey
+              : undefined
+
+    const rawGT = groundTruthKey ? testcaseData[groundTruthKey] : undefined
+    const ground_truth = normalizeCompact(rawGT)
+
+    // --- Build inputs: testcase + prediction + ground_truth ---
+    const inputs: Record<string, unknown> = {
+        ...testcaseData,
+        prediction,
+    }
+
+    if (groundTruthKey) {
+        inputs.ground_truth = ground_truth
+        inputs[groundTruthKey] = ground_truth
+    }
+
+    return inputs
+}
+
+/**
+ * Normalize a value to a compact string representation.
+ * Mirrors DebugSection's `normalizeCompact` helper.
+ */
+function normalizeCompact(val: unknown): string {
+    if (val === undefined || val === null) return ""
+    const str = typeof val === "string" ? val : JSON.stringify(val)
+    try {
+        const parsed = JSON.parse(str)
+        if (parsed && typeof parsed === "object") {
+            return JSON.stringify(parsed)
+        }
+        return str
+    } catch {
+        return str
+    }
+}
+
+/**
+ * Transform trace-prefixed keys in evaluator settings.
+ * Strips `trace.` prefix from setting values (e.g. `"trace.spans.output"` → `"spans.output"`).
+ * Mirrors DebugSection's `transformTraceKeysInSettings` from legacy evaluations.
+ */
+function transformTraceKeysInSettings(settings: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(settings)) {
+        if (typeof value === "string" && value.startsWith("trace.")) {
+            result[key] = value.replace("trace.", "")
+        } else {
+            result[key] = value
+        }
+    }
+    return result
+}
+
+// ============================================================================
 // EXECUTION
 // ============================================================================
 
@@ -552,13 +681,18 @@ export interface ExecuteRunnableOptions {
  * @returns Execution result
  */
 export async function executeRunnable(
-    _type: RunnableType,
+    type: RunnableType,
     data: RunnableData,
     options: ExecuteRunnableOptions,
 ): Promise<ExecutionResult> {
     const {inputs, abortSignal, rawBody, headers: optionHeaders} = options
     const executionId = crypto.randomUUID()
     const startedAt = new Date().toISOString()
+
+    // Route evaluator execution to the evaluator run endpoint
+    if ((type === "evaluator" || type === "evaluatorRevision") && !data.invocationUrl && data.uri) {
+        return executeEvaluator(data, options, executionId, startedAt)
+    }
 
     // Validate runnable data
     if (!data.invocationUrl) {
@@ -674,6 +808,137 @@ export async function executeRunnable(
             completedAt: new Date().toISOString(),
             error: {
                 message: error instanceof Error ? error.message : "Unknown error",
+            },
+        }
+    }
+}
+
+// ============================================================================
+// EVALUATOR EXECUTION
+// ============================================================================
+
+/**
+ * Execute a built-in evaluator via `POST /evaluators/{key}/run?project_id={projectId}`.
+ *
+ * Built-in evaluators don't have an `invocationUrl` — they are identified by
+ * a URI (e.g., `"agenta:builtin:auto_exact_match:v0"`) and invoked through
+ * the legacy evaluator run endpoint.
+ *
+ * Request body: `{ inputs: {...}, settings: {...} }`
+ * Response body: `{ outputs: {...} }`
+ */
+async function executeEvaluator(
+    data: RunnableData,
+    options: ExecuteRunnableOptions,
+    executionId: string,
+    startedAt: string,
+): Promise<ExecutionResult> {
+    const {inputs, abortSignal, headers: optionHeaders} = options
+
+    const evaluatorKey = parseEvaluatorKeyFromUri(data.uri ?? null)
+    if (!evaluatorKey) {
+        return {
+            executionId,
+            status: "error",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            error: {
+                message: `Cannot parse evaluator key from URI: ${data.uri}`,
+            },
+        }
+    }
+
+    const store = getDefaultStore()
+    const projectId = store.get(projectIdAtom)
+    if (!projectId) {
+        return {
+            executionId,
+            status: "error",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            error: {
+                message: "No project ID available for evaluator execution",
+            },
+        }
+    }
+
+    const apiUrl = getAgentaApiUrl()
+    const url = `${apiUrl}/evaluators/${evaluatorKey}/run?project_id=${projectId}`
+
+    try {
+        const rawSettings = (data.configuration ?? {}) as Record<string, unknown>
+        const requestBody: Record<string, unknown> = {
+            inputs,
+            settings: transformTraceKeysInSettings(rawSettings),
+        }
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(optionHeaders ?? {}),
+            },
+            body: JSON.stringify(requestBody),
+            signal: abortSignal,
+        })
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            let errorMessage = `Evaluator request failed with status ${response.status}`
+
+            try {
+                const errorData = JSON.parse(errorText)
+                if (errorData?.detail?.message) {
+                    errorMessage = errorData.detail.message
+                } else if (typeof errorData?.detail === "string") {
+                    errorMessage = errorData.detail
+                }
+            } catch {
+                if (errorText) {
+                    errorMessage = errorText
+                }
+            }
+
+            return {
+                executionId,
+                status: "error",
+                startedAt,
+                completedAt: new Date().toISOString(),
+                error: {message: errorMessage},
+            }
+        }
+
+        const responseData = await response.json()
+
+        // Evaluator run returns { outputs: {...} }
+        const output = responseData?.outputs ?? responseData
+
+        return {
+            executionId,
+            status: "success",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            output,
+            structuredOutput: responseData,
+        }
+    } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+            return {
+                executionId,
+                status: "error",
+                startedAt,
+                completedAt: new Date().toISOString(),
+                error: {message: "Evaluator execution aborted"},
+            }
+        }
+
+        return {
+            executionId,
+            status: "error",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            error: {
+                message: error instanceof Error ? error.message : "Unknown evaluator error",
             },
         }
     }

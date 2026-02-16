@@ -153,7 +153,33 @@ export interface AppRevisionRawData {
 }
 
 /**
- * Evaluator revision raw data (as returned by the controller)
+ * Evaluator raw data (as returned by the new evaluator molecule)
+ */
+export interface EvaluatorRawData {
+    id: string
+    name?: string | null
+    slug?: string | null
+    data?: {
+        uri?: string | null
+        url?: string | null
+        parameters?: Record<string, unknown> | null
+        schemas?: {
+            inputs?: Record<string, unknown> | null
+            outputs?: Record<string, unknown> | null
+            parameters?: Record<string, unknown> | null
+        } | null
+    } | null
+    flags?: {
+        is_custom?: boolean
+        is_evaluator?: boolean
+        is_human?: boolean
+        is_chat?: boolean
+    } | null
+}
+
+/**
+ * Evaluator revision raw data (as returned by the legacy stub controller)
+ * @deprecated Use EvaluatorRawData instead
  */
 export interface EvaluatorRevisionRawData {
     id: string
@@ -175,6 +201,20 @@ export interface EvaluatorRevisionRawData {
 // ============================================================================
 
 /**
+ * Selectors for the new evaluator entity
+ */
+export interface EvaluatorSelectors extends EntityRevisionSelectors<EvaluatorRawData> {
+    /** Evaluator URI (e.g., "agenta:builtin:auto_exact_match:v0") */
+    uri?: (id: string) => Atom<string | null>
+    /** Evaluator key parsed from URI */
+    evaluatorKey?: (id: string) => Atom<string | null>
+    /** Configuration parameters */
+    parameters?: (id: string) => Atom<Record<string, unknown> | null>
+    /** Is custom evaluator */
+    isCustom?: (id: string) => Atom<boolean>
+}
+
+/**
  * Injected entity providers
  *
  * This interface defines what entity providers must supply for the
@@ -186,6 +226,14 @@ export interface PlaygroundEntityProviders {
         lists?: AppRevisionListSelectors
         actions?: AppRevisionActions
     }
+    /** New evaluator entity (workflow-based SimpleEvaluator) */
+    evaluator?: {
+        selectors: EvaluatorSelectors
+    }
+    /**
+     * Legacy evaluator revision (stub molecule).
+     * @deprecated Use `evaluator` instead.
+     */
     evaluatorRevision: {
         selectors: EvaluatorRevisionSelectors<EvaluatorRevisionRawData>
         actions: EvaluatorRevisionActions

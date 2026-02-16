@@ -60,7 +60,7 @@ export interface TransformToRequestBodyParams {
     routePath?: string
     prompts?: any[]
     customProperties?: Record<string, any>
-    revisionId?: string
+    entityId?: string
     isChat?: boolean
     isCustom?: boolean
     appType?: string
@@ -84,7 +84,7 @@ export function transformToRequestBody({
     routePath = "",
     prompts,
     customProperties,
-    revisionId: _revisionId,
+    entityId: _entityId,
     isChat,
     isCustom,
     appType,
@@ -492,12 +492,12 @@ export function transformToRequestBody({
                     .flatMap((historyMessage: any) => {
                         const messages = [extractValueByMetadata(historyMessage, allMetadata)]
                         if (historyMessage.__runs) {
-                            const revisionId = _revisionId ?? variant?.id
+                            const entityId = _entityId ?? variant?.id
                             const runMessages =
-                                historyMessage.__runs[revisionId!]?.message &&
-                                Array.isArray(historyMessage.__runs[revisionId!]?.message)
-                                    ? historyMessage.__runs[revisionId!]?.message
-                                    : [historyMessage.__runs[revisionId!]?.message]
+                                historyMessage.__runs[entityId!]?.message &&
+                                Array.isArray(historyMessage.__runs[entityId!]?.message)
+                                    ? historyMessage.__runs[entityId!]?.message
+                                    : [historyMessage.__runs[entityId!]?.message]
 
                             if (runMessages && Array.isArray(runMessages)) {
                                 for (const runMessage of runMessages) {
@@ -574,7 +574,7 @@ export function toRequestBodyChat(args: {
     variables?: string[]
     spec?: OpenAPISpec
     routePath?: string
-    revisionId?: string
+    entityId?: string
     variant?: TransformVariantInput
     allMetadata?: Record<string, ConfigMetadata>
     chatHistory?: TransformMessage[]
@@ -587,7 +587,7 @@ export function toRequestBodyChat(args: {
         variables: _variables,
         spec,
         routePath,
-        revisionId,
+        entityId,
         variant,
         allMetadata = {},
         chatHistory,
@@ -603,7 +603,7 @@ export function toRequestBodyChat(args: {
         routePath,
         prompts,
         customProperties,
-        revisionId,
+        entityId,
         isChat: true,
         isCustom: undefined,
         appType,

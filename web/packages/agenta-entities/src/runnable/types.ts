@@ -14,6 +14,8 @@
 export type EntityType =
     | "appRevision"
     | "legacyAppRevision"
+    | "evaluator"
+    | "legacyEvaluator"
     | "evaluatorRevision"
     | "testcase"
     | "span"
@@ -21,7 +23,12 @@ export type EntityType =
 /**
  * Types of runnables (entities that can be executed)
  */
-export type RunnableType = "appRevision" | "legacyAppRevision" | "evaluatorRevision"
+export type RunnableType =
+    | "appRevision"
+    | "legacyAppRevision"
+    | "evaluator"
+    | "legacyEvaluator"
+    | "evaluatorRevision"
 
 /**
  * Execution mode for a runnable.
@@ -317,6 +324,8 @@ export interface RunnableData {
     outputPorts: RunnableOutputPort[]
     configuration?: Record<string, unknown>
     invocationUrl?: string
+    /** Entity URI (e.g., "agenta:builtin:auto_exact_match:v0" for evaluators) */
+    uri?: string
 }
 
 /**

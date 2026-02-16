@@ -20,10 +20,17 @@
  * ```
  */
 
+import {getAgentaApiUrl} from "@agenta/shared/api"
 import {atom, type Atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
 import {appRevisionMolecule} from "../appRevision"
+import {evaluatorMolecule} from "../evaluator"
+import {parseEvaluatorKeyFromUri} from "../evaluator/core/schema"
+import {
+    invocationUrlAtomFamily as evaluatorInvocationUrlAtomFamily,
+    requestPayloadAtomFamily as evaluatorRequestPayloadAtomFamily,
+} from "../evaluator/state/runnableSetup"
 import {evaluatorRevisionMolecule} from "../evaluatorRevision"
 import {legacyAppRevisionMolecule} from "../legacyAppRevision"
 import {
@@ -33,6 +40,11 @@ import {
 } from "../legacyAppRevision/state/metadataAtoms"
 import {createMessageFromSchema} from "../legacyAppRevision/utils/messageFromSchema"
 import {extractValueByMetadata} from "../legacyAppRevision/utils/valueExtraction"
+import {legacyEvaluatorMolecule} from "../legacyEvaluator"
+import {
+    invocationUrlAtomFamily as legacyEvaluatorInvocationUrlAtomFamily,
+    requestPayloadAtomFamily as legacyEvaluatorRequestPayloadAtomFamily,
+} from "../legacyEvaluator/state/runnableSetup"
 import {loadableStateAtomFamily, loadableColumnsAtomFamily} from "../loadable/store"
 import {createRunnableBridge, type RunnableData, type RunnablePort} from "../shared"
 
@@ -270,44 +282,53 @@ function getSchemaFromRevisionState(schemaState: unknown): {
 }
 
 // ============================================================================
-// EVALUATOR REVISION CONFIGURATION
+// EVALUATOR (NEW ENTITY) CONFIGURATION
 // ============================================================================
 
-interface EvaluatorRevisionEntity {
+/**
+ * Evaluator entity from the new preview API (`POST /preview/simple/evaluators/query`).
+ * Maps to `Evaluator` type from `@agenta/entities/evaluator`.
+ */
+interface EvaluatorEntity {
     id: string
-    name?: string
-    slug?: string
-    version?: number
-    configuration?: Record<string, unknown>
-    invocationUrl?: string
-    schemas?: {
-        inputSchema?: unknown
-        outputSchema?: unknown
-    }
+    name?: string | null
+    slug?: string | null
+    data?: {
+        uri?: string | null
+        url?: string | null
+        parameters?: Record<string, unknown> | null
+        schemas?: {
+            inputs?: Record<string, unknown> | null
+            outputs?: Record<string, unknown> | null
+            parameters?: Record<string, unknown> | null
+        } | null
+    } | null
 }
 
-function evaluatorRevisionToRunnable(entity: unknown): RunnableData {
-    const e = entity as EvaluatorRevisionEntity
+function evaluatorToRunnable(entity: unknown): RunnableData {
+    const e = entity as EvaluatorEntity
     return {
         id: e.id,
-        name: e.name || e.slug,
-        version: e.version,
-        slug: e.slug,
-        configuration: e.configuration,
-        invocationUrl: e.invocationUrl,
-        schemas: e.schemas,
+        name: e.name || e.slug || undefined,
+        slug: e.slug || undefined,
+        configuration: e.data?.parameters ?? undefined,
+        invocationUrl: e.data?.url || undefined,
+        uri: e.data?.uri || undefined,
+        schemas: {
+            inputSchema: e.data?.schemas?.inputs ?? undefined,
+            outputSchema: e.data?.schemas?.outputs ?? undefined,
+        },
     }
 }
 
-function getEvaluatorRevisionInputPorts(entity: unknown): RunnablePort[] {
-    const e = entity as EvaluatorRevisionEntity
-    return extractInputPortsFromSchema(e.schemas?.inputSchema)
+function getEvaluatorInputPorts(entity: unknown): RunnablePort[] {
+    const e = entity as EvaluatorEntity
+    return extractInputPortsFromSchema(e.data?.schemas?.inputs)
 }
 
-function getEvaluatorRevisionOutputPorts(entity: unknown): RunnablePort[] {
-    const e = entity as EvaluatorRevisionEntity
-    // Evaluators typically output a score
-    const schemaOutputs = extractOutputPortsFromSchema(e.schemas?.outputSchema)
+function getEvaluatorOutputPorts(entity: unknown): RunnablePort[] {
+    const e = entity as EvaluatorEntity
+    const schemaOutputs = extractOutputPortsFromSchema(e.data?.schemas?.outputs)
     if (schemaOutputs.length > 0) return schemaOutputs
 
     // Default evaluator output
@@ -318,6 +339,142 @@ function getEvaluatorRevisionOutputPorts(entity: unknown): RunnablePort[] {
             type: "number",
         },
     ]
+}
+
+// ============================================================================
+// EVALUATOR REVISION CONFIGURATION
+// ============================================================================
+
+/**
+ * EvaluatorRevision entity from the workflow revisions API.
+ * Same shape as EvaluatorEntity — both are WorkflowRevision objects
+ * with `data` containing uri, schemas, parameters.
+ *
+ * The revision data may also contain legacy fields:
+ * - `data.service` — legacy service config
+ * - `data.configuration` — legacy parameters (same as `data.parameters`)
+ */
+function evaluatorRevisionToRunnable(entity: unknown): RunnableData {
+    const e = entity as EvaluatorEntity
+    return {
+        id: e.id,
+        name: e.name || e.slug || undefined,
+        slug: e.slug || undefined,
+        configuration: e.data?.parameters ?? undefined,
+        invocationUrl: e.data?.url || undefined,
+        uri: e.data?.uri || undefined,
+        schemas: {
+            inputSchema: e.data?.schemas?.inputs ?? undefined,
+            outputSchema: e.data?.schemas?.outputs ?? undefined,
+        },
+    }
+}
+
+function getEvaluatorRevisionInputPorts(entity: unknown): RunnablePort[] {
+    return getEvaluatorInputPorts(entity)
+}
+
+function getEvaluatorRevisionOutputPorts(entity: unknown): RunnablePort[] {
+    return getEvaluatorOutputPorts(entity)
+}
+
+/**
+ * Invocation URL selector for evaluator revisions.
+ * Reads from the evaluatorRevision molecule's merged entity data
+ * (which includes inspect-resolved schemas).
+ */
+function evaluatorRevisionInvocationUrlSelector(revisionId: string) {
+    return atom<string | null>((get) => {
+        const entity = get(
+            evaluatorRevisionMolecule.selectors.data(revisionId),
+        ) as EvaluatorEntity | null
+        if (!entity?.data) return null
+
+        // Custom evaluators with webhook URL
+        if (entity.data.url) return entity.data.url
+
+        // Built-in evaluators: build an absolute URL using the API base
+        // to avoid mismatches between proxy paths and direct backend paths.
+        if (entity.data.uri) {
+            const key = parseEvaluatorKeyFromUri(entity.data.uri)
+            if (key) return `${getAgentaApiUrl()}/evaluators/${key}/run`
+        }
+
+        return null
+    })
+}
+
+/**
+ * Request payload selector for evaluator revisions.
+ * Builds `{inputs, settings}` body for the legacy evaluator run endpoint.
+ */
+function evaluatorRevisionRequestPayloadSelector(revisionId: string) {
+    return atom<Record<string, unknown> | null>((get) => {
+        const entity = get(
+            evaluatorRevisionMolecule.selectors.data(revisionId),
+        ) as EvaluatorEntity | null
+        if (!entity?.data) return null
+
+        const uri = entity.data.uri
+        if (!uri) return null
+
+        // Build an absolute invocation URL using the API base.
+        const key = parseEvaluatorKeyFromUri(uri)
+        const invocationUrl = key ? `${getAgentaApiUrl()}/evaluators/${key}/run` : undefined
+
+        return {
+            __rawBody: true,
+            invocationUrl,
+            inputs: {},
+            settings: entity.data.parameters ?? {},
+        }
+    })
+}
+
+/**
+ * Reactive input ports selector for evaluator revisions.
+ * Reads from the molecule's merged entity data (which includes inspect-resolved schemas).
+ */
+function evaluatorRevisionInputPortsSelector(revisionId: string) {
+    return atom<RunnablePort[]>((get) => {
+        const entity = get(
+            evaluatorRevisionMolecule.selectors.data(revisionId),
+        ) as EvaluatorEntity | null
+        return extractInputPortsFromSchema(entity?.data?.schemas?.inputs)
+    })
+}
+
+/**
+ * Reactive output ports selector for evaluator revisions.
+ * Reads from the molecule's merged entity data (which includes inspect-resolved schemas).
+ * Falls back to a default "score" output if no schema properties are defined.
+ */
+function evaluatorRevisionOutputPortsSelector(revisionId: string) {
+    return atom<RunnablePort[]>((get) => {
+        const entity = get(
+            evaluatorRevisionMolecule.selectors.data(revisionId),
+        ) as EvaluatorEntity | null
+        const schemaOutputs = extractOutputPortsFromSchema(entity?.data?.schemas?.outputs)
+        if (schemaOutputs.length > 0) return schemaOutputs
+        return [{key: "score", name: "Score", type: "number"}]
+    })
+}
+
+/**
+ * Reactive schemas selector for evaluator revisions.
+ * Returns the full input/output schemas from the inspect-enriched entity data.
+ */
+function evaluatorRevisionSchemasSelector(revisionId: string) {
+    return atom<{inputSchema?: unknown; outputSchema?: unknown} | null>((get) => {
+        const entity = get(
+            evaluatorRevisionMolecule.selectors.data(revisionId),
+        ) as EvaluatorEntity | null
+        if (!entity?.data?.schemas) return null
+        return {
+            inputSchema: entity.data.schemas.inputs ?? undefined,
+            outputSchema: entity.data.schemas.outputs ?? undefined,
+        }
+    })
 }
 
 // ============================================================================
@@ -381,11 +538,49 @@ export const runnableBridge = createRunnableBridge({
                 appRevisionMolecule.selectors.isChatVariant(id),
             ),
         },
+        evaluator: {
+            molecule: evaluatorMolecule,
+            toRunnable: evaluatorToRunnable,
+            getInputPorts: getEvaluatorInputPorts,
+            getOutputPorts: getEvaluatorOutputPorts,
+            executionModeSelector: () => atom<"chat" | "completion">("completion"),
+            invocationUrlSelector: (id: string) => evaluatorInvocationUrlAtomFamily(id),
+            requestPayloadSelector: (id: string) => evaluatorRequestPayloadAtomFamily(id),
+        },
+        legacyEvaluator: {
+            molecule: legacyEvaluatorMolecule,
+            toRunnable: evaluatorToRunnable,
+            getInputPorts: getEvaluatorInputPorts,
+            getOutputPorts: getEvaluatorOutputPorts,
+            executionModeSelector: () => atom<"chat" | "completion">("completion"),
+            invocationUrlSelector: (id: string) => legacyEvaluatorInvocationUrlAtomFamily(id),
+            requestPayloadSelector: (id: string) => legacyEvaluatorRequestPayloadAtomFamily(id),
+            normalizeResponse: (responseData: unknown) => {
+                // Workflow invoke returns { data: { outputs: {...} }, status: {...}, ... }
+                const data = responseData as Record<string, unknown> | null | undefined
+                const nestedData = data?.data as Record<string, unknown> | undefined
+                const output = nestedData?.outputs ?? data?.outputs ?? data
+                return {output}
+            },
+        },
         evaluatorRevision: {
             molecule: evaluatorRevisionMolecule,
             toRunnable: evaluatorRevisionToRunnable,
             getInputPorts: getEvaluatorRevisionInputPorts,
             getOutputPorts: getEvaluatorRevisionOutputPorts,
+            schemasSelector: evaluatorRevisionSchemasSelector,
+            inputPortsSelector: evaluatorRevisionInputPortsSelector,
+            outputPortsSelector: evaluatorRevisionOutputPortsSelector,
+            executionModeSelector: () => atom<"chat" | "completion">("completion"),
+            invocationUrlSelector: evaluatorRevisionInvocationUrlSelector,
+            requestPayloadSelector: evaluatorRevisionRequestPayloadSelector,
+            normalizeResponse: (responseData: unknown) => {
+                // Evaluator endpoint returns {outputs: {score, reasoning, ...}}
+                // No trace_id is returned.
+                const data = responseData as Record<string, unknown> | null | undefined
+                const output = data?.outputs ?? data
+                return {output}
+            },
             extraSelectors: {
                 presets: (id: string) => evaluatorRevisionMolecule.selectors.presets(id),
             },
@@ -454,13 +649,20 @@ export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: str
                     type: port.type,
                 }))
             }
-        } else if (linkedRunnableType === "evaluatorRevision") {
+        } else if (
+            linkedRunnableType === "evaluator" ||
+            linkedRunnableType === "legacyEvaluator" ||
+            linkedRunnableType === "evaluatorRevision"
+        ) {
             // Read from evaluator entity's schema
-            const entityData = get(
-                evaluatorRevisionMolecule.selectors.data(linkedRunnableId),
-            ) as Record<string, unknown> | null
+            const evaluatorDataAtom =
+                linkedRunnableType === "legacyEvaluator"
+                    ? legacyEvaluatorMolecule.selectors.data(linkedRunnableId)
+                    : evaluatorMolecule.selectors.data(linkedRunnableId)
+            const entityData = get(evaluatorDataAtom) as Record<string, unknown> | null
             if (entityData) {
-                const schemas = entityData.schemas as Record<string, unknown> | undefined
+                const data = (entityData as {data?: Record<string, unknown>}).data
+                const schemas = data?.schemas as Record<string, unknown> | undefined
                 const inputSchema = schemas?.inputs as Record<string, unknown> | undefined
                 if (inputSchema?.properties) {
                     const inputKeys = Object.keys(inputSchema.properties as Record<string, unknown>)
@@ -470,6 +672,28 @@ export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: str
                             name: key,
                             type: "string" as const,
                         }))
+                    }
+                }
+            }
+            // Fall back to stub molecule for backward compat
+            if (linkedRunnableType === "evaluatorRevision") {
+                const stubData = get(
+                    evaluatorRevisionMolecule.selectors.data(linkedRunnableId),
+                ) as Record<string, unknown> | null
+                if (stubData) {
+                    const schemas = stubData.schemas as Record<string, unknown> | undefined
+                    const inputSchema = schemas?.inputs as Record<string, unknown> | undefined
+                    if (inputSchema?.properties) {
+                        const inputKeys = Object.keys(
+                            inputSchema.properties as Record<string, unknown>,
+                        )
+                        if (inputKeys.length > 0) {
+                            return inputKeys.map((key) => ({
+                                key,
+                                name: key,
+                                type: "string" as const,
+                            }))
+                        }
                     }
                 }
             }

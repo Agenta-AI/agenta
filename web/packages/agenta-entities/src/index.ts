@@ -153,6 +153,41 @@ export {appRevisionMolecule as appRevision} from "./appRevision"
 export {legacyAppRevisionMolecule as legacyAppRevision} from "./legacyAppRevision"
 
 /**
+ * Evaluator entity controller.
+ * Manages evaluator entities via the Workflows API (`/preview/workflows/`).
+ * Uses the granular Artifact → Variant → Revision hierarchy.
+ * Implements RunnableCapability for playground integration.
+ *
+ * Backend endpoints: `/preview/workflows/`
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(evaluator.selectors.data(evaluatorId))
+ * const uri = useAtomValue(evaluator.selectors.uri(evaluatorId))
+ * const params = useAtomValue(evaluator.selectors.parameters(evaluatorId))
+ * ```
+ */
+export {evaluatorMolecule as evaluator} from "./evaluator"
+
+/**
+ * LegacyEvaluator entity controller.
+ * Manages evaluator entities via the SimpleEvaluator facade API
+ * (`/preview/simple/evaluators/`). Flattens the Artifact → Variant → Revision
+ * hierarchy into a single entity.
+ * Implements RunnableCapability for playground integration.
+ *
+ * Backend endpoints: `/preview/simple/evaluators/`
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(legacyEvaluator.selectors.data(evaluatorId))
+ * const uri = useAtomValue(legacyEvaluator.selectors.uri(evaluatorId))
+ * const params = useAtomValue(legacyEvaluator.selectors.parameters(evaluatorId))
+ * ```
+ */
+export {legacyEvaluatorMolecule as legacyEvaluator} from "./legacyEvaluator"
+
+/**
  * Trace span entity controller.
  * Manages trace span state with attribute editing.
  */
@@ -210,6 +245,8 @@ export {runnableBridge as runnable} from "./runnable"
 export type {Testcase} from "./testcase"
 export type {Revision, Testset} from "./testset"
 export type {AppRevisionData} from "./appRevision"
+export type {Evaluator, EvaluatorData, EvaluatorFlags} from "./evaluator"
+export type {LegacyEvaluator, LegacyEvaluatorData, LegacyEvaluatorFlags} from "./legacyEvaluator"
 export type {LegacyAppRevisionData} from "./legacyAppRevision"
 export type {TraceSpan} from "./trace"
 export type {Environment, EnvironmentRevision, EnvironmentRevisionData} from "./environment"
@@ -238,6 +275,11 @@ export {
     legacyAppRevisionSelectionConfig,
     type LegacyAppRevisionSelectionConfig,
 } from "./legacyAppRevision"
+export {evaluatorSelectionConfig, type EvaluatorSelectionConfig} from "./evaluator"
+export {
+    legacyEvaluatorSelectionConfig,
+    type LegacyEvaluatorSelectionConfig,
+} from "./legacyEvaluator"
 
 // ============================================================================
 // SUBPATH IMPORTS (Advanced Usage)

@@ -130,6 +130,7 @@ export {
     resolveInputsFromMappings,
     autoMapInputs,
     executeRunnable,
+    buildEvaluatorExecutionInputs,
     // Template variable extraction
     extractTemplateVariables,
     extractTemplateVariablesFromJson,
@@ -137,7 +138,7 @@ export {
     extractVariablesFromEnhancedPrompt,
     extractVariablesFromConfig,
 } from "./utils"
-export type {PathSource, ExecuteRunnableOptions} from "./utils"
+export type {PathSource, ExecuteRunnableOptions, EvaluatorInputContext} from "./utils"
 
 // ============================================================================
 // SNAPSHOT ADAPTER
@@ -157,11 +158,13 @@ export type {
 export type {
     PlaygroundEntityProviders,
     EntityRevisionSelectors,
+    EvaluatorSelectors,
     EvaluatorRevisionSelectors,
     EvaluatorRevisionActions,
     EntityQueryState,
     SettingsPreset,
     AppRevisionRawData,
+    EvaluatorRawData,
     EvaluatorRevisionRawData,
     AppRevisionListSelectors,
     AppRevisionActions,

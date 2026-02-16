@@ -89,7 +89,7 @@ export interface BaseMolecule {
 
     // Nested API (backwards compatible)
     selectors: BaseMoleculeSelectors
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types for action registries
+
     actions?: Record<string, WritableAtom<any, any[], any>>
 }
 
@@ -293,6 +293,8 @@ export interface RunnableData {
     slug?: string
     configuration?: Record<string, unknown>
     invocationUrl?: string
+    /** Entity URI (e.g., "agenta:builtin:auto_exact_match:v0" for evaluators) */
+    uri?: string
     schemas?: {
         inputSchema?: unknown
         outputSchema?: unknown
@@ -350,6 +352,18 @@ export interface RunnableTypeConfig<T = unknown> {
      */
     metadataSelector?: () => Atom<Record<string, Record<string, unknown>>>
     /**
+     * Normalize a raw API response into a standard shape.
+     * Each entity type can define how its response should be parsed.
+     * When not provided, the default parsing in executeViaFetch is used.
+     *
+     * @returns `{output, trace}` where output is the meaningful payload
+     *          and trace is optional trace metadata.
+     */
+    normalizeResponse?: (responseData: unknown) => {
+        output: unknown
+        trace?: {id: string} | undefined
+    }
+    /**
      * Imperative utility functions for value extraction and message construction.
      * Only needed for entity types with enhanced PropertyNode values (legacyAppRevision).
      */
@@ -357,7 +371,7 @@ export interface RunnableTypeConfig<T = unknown> {
     /** Additional selectors specific to this runnable type */
     extraSelectors?: Record<string, (id: string) => Atom<unknown>>
     /** Additional actions specific to this runnable type */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types
+
     extraActions?: Record<string, WritableAtom<any, any[], any>>
 }
 
@@ -374,8 +388,10 @@ export interface CreateRunnableBridgeConfig {
  * Runnable bridge selectors
  */
 export interface RunnableBridgeSelectors {
-    /** Get runnable data by ID */
+    /** Get runnable data by ID (probes all registered molecule types) */
     data: (runnableId: string) => Atom<RunnableData | null>
+    /** Get runnable data by type + ID (queries only the specified molecule) */
+    dataForType: (runnableType: string, runnableId: string) => Atom<RunnableData | null>
     /** Get query state */
     query: (runnableId: string) => Atom<BridgeQueryState<RunnableData>>
     /** Check if runnable has unsaved changes */
@@ -449,7 +465,7 @@ export interface RunnableBridge extends RunnableBridgeSelectors {
         runnableType: T,
     ) => {
         selectors: RunnableBridgeSelectors & Record<string, (id: string) => Atom<unknown>>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types
+
         actions?: Record<string, WritableAtom<any, any[], any>>
     }
 
@@ -461,6 +477,16 @@ export interface RunnableBridge extends RunnableBridgeSelectors {
     requestPayload: RunnableBridgeSelectors["requestPayload"]
     /** Get global metadata store (all property metadata entries) */
     metadata: RunnableBridgeSelectors["metadata"]
+
+    /**
+     * Normalize a raw API response for a given runnableId.
+     * Delegates to the matching entity type's `normalizeResponse` if defined,
+     * otherwise applies default parsing (unwrap `data` field, extract `trace_id`).
+     */
+    normalizeResponse: (
+        runnableId: string,
+        responseData: unknown,
+    ) => {output: unknown; trace?: {id: string} | undefined}
 
     /**
      * Imperative utility functions for value extraction and message construction.
