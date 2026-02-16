@@ -6,19 +6,20 @@ import {playgroundController} from "@agenta/playground"
 import {atom, useAtomValue} from "jotai"
 
 export const useLocalDraftWarning = () => {
-    const displayedEntityIds = useAtomValue(
-        useMemo(() => playgroundController.selectors.displayedEntityIds(), []),
-    )
+    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
 
     const hasUnsavedOrLocalDraftsAtom = useMemo(
         () =>
             atom((get) =>
-                displayedEntityIds.some((entityId) => {
-                    if (isLocalDraftId(entityId)) return true
-                    return get(runnableBridge.isDirty(entityId))
-                }),
+                nodes
+                    .filter((n) => n.depth === 0)
+                    .some((node) => {
+                        if (isLocalDraftId(node.entityId)) return true
+                        const scoped = runnableBridge.forType(node.entityType)
+                        return get(scoped.isDirty(node.entityId))
+                    }),
             ),
-        [displayedEntityIds],
+        [nodes],
     )
 
     const hasUnsavedOrLocalDrafts = useAtomValue(hasUnsavedOrLocalDraftsAtom)

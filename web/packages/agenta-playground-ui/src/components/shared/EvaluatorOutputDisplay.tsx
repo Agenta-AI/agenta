@@ -52,7 +52,12 @@ export function EvaluatorOutputDisplay({
     nodeName,
     compact = false,
 }: EvaluatorOutputDisplayProps) {
-    const schemas = useAtomValue(useMemo(() => runnableBridge.schemas(entityId), [entityId])) as {
+    const schemas = useAtomValue(
+        useMemo(() => {
+            const scoped = runnableBridge.forType(entityType)
+            return scoped.schemas(entityId)
+        }, [entityId, entityType]),
+    ) as {
         outputSchema?: SchemaProperty
     } | null
 

@@ -42,13 +42,14 @@ import {isPlaceholderId} from "../controllers/playgroundSnapshotController"
  * default selections.
  */
 export const playgroundRevisionsReadyAtom = atom((get) => {
-    const ids = get(entityIdsAtom)
-    if (ids.length === 0) return true
+    const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
+    if (nodes.length === 0) return true
 
-    return ids.every((id) => {
-        if (isPlaceholderId(id)) return true
-        if (isLocalDraftId(id)) return true
-        const query = get(runnableBridge.query(id))
+    return nodes.every((node) => {
+        if (isPlaceholderId(node.entityId)) return true
+        if (isLocalDraftId(node.entityId)) return true
+        const scoped = runnableBridge.forType(node.entityType)
+        const query = get(scoped.query(node.entityId))
         return !query.isPending
     })
 })
@@ -119,14 +120,15 @@ export const playgroundStatusAtom = atom<PlaygroundStatus>((get) => {
  */
 export const displayedEntityIdsAtom = selectAtom(
     atom((get) => {
-        const selected = get(entityIdsAtom)
-        return selected.map((id) => {
-            if (isPlaceholderId(id)) return {id, keep: true}
-            if (isLocalDraftId(id)) return {id, keep: true}
-            const query = get(runnableBridge.query(id))
+        const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
+        return nodes.map((node) => {
+            if (isPlaceholderId(node.entityId)) return {id: node.entityId, keep: true}
+            if (isLocalDraftId(node.entityId)) return {id: node.entityId, keep: true}
+            const scoped = runnableBridge.forType(node.entityType)
+            const query = get(scoped.query(node.entityId))
             // Keep if data exists or still loading
             const keep = !!query.data || query.isPending
-            return {id, keep}
+            return {id: node.entityId, keep}
         })
     }),
     (entries) => entries.filter((e) => e.keep).map((e) => e.id),
@@ -146,13 +148,14 @@ export const displayedEntityIdsAtom = selectAtom(
  */
 export const resolvedEntityIdsAtom = selectAtom(
     atom((get) => {
-        const selected = get(entityIdsAtom)
-        return selected.map((id) => {
-            if (isPlaceholderId(id)) return {id, keep: false}
-            if (isLocalDraftId(id)) return {id, keep: true}
-            const query = get(runnableBridge.query(id))
+        const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
+        return nodes.map((node) => {
+            if (isPlaceholderId(node.entityId)) return {id: node.entityId, keep: false}
+            if (isLocalDraftId(node.entityId)) return {id: node.entityId, keep: true}
+            const scoped = runnableBridge.forType(node.entityType)
+            const query = get(scoped.query(node.entityId))
             const keep = !!query.data
-            return {id, keep}
+            return {id: node.entityId, keep}
         })
     }),
     (entries) => entries.filter((e) => e.keep).map((e) => e.id),
@@ -210,9 +213,8 @@ export const schemaInputKeysAtom = selectAtom(
         const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
         if (!rootNode) return [] as string[]
 
-        const payload = get(
-            runnableBridge.requestPayload(rootNode.entityId),
-        ) as RequestPayloadData | null
+        const scoped = runnableBridge.forType(rootNode.entityType)
+        const payload = get(scoped.requestPayload(rootNode.entityId)) as RequestPayloadData | null
         return payload?.variables || ([] as string[])
     }),
     (keys) => keys,

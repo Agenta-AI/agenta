@@ -90,6 +90,7 @@ export interface BaseMolecule {
     // Nested API (backwards compatible)
     selectors: BaseMoleculeSelectors
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types for action registries
     actions?: Record<string, WritableAtom<any, any[], any>>
 }
 
@@ -371,7 +372,7 @@ export interface RunnableTypeConfig<T = unknown> {
     /** Additional selectors specific to this runnable type */
     extraSelectors?: Record<string, (id: string) => Atom<unknown>>
     /** Additional actions specific to this runnable type */
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types
     extraActions?: Record<string, WritableAtom<any, any[], any>>
 }
 
@@ -420,12 +421,12 @@ export interface RunnableBridgeSelectors {
  */
 export interface RunnableExecutionUtils {
     /** Extract raw value from enhanced PropertyNode using metadata */
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic interface for PropertyNode values
     extractValueByMetadata: (enhanced: any, allMetadata: any, debug?: boolean) => unknown
     /** Get all metadata (imperative, includes pending writes) */
     getAllMetadata: () => Record<string, unknown>
     /** Create a message PropertyNode from schema metadata */
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic interface for schema metadata shapes
     createMessageFromSchema: (metadata: any, json?: Record<string, unknown>) => any
     /** Get a specific metadata entry by hash */
     getMetadataLazy?: (hash: string) => unknown
@@ -440,13 +441,13 @@ export interface RunnableExecutionUtils {
  */
 export interface RunnableBridgeCrudActions {
     /** Create a new variant from a base revision */
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
     createVariant: WritableAtom<any, any[], any>
     /** Commit (save) a revision to create a new version */
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
     commitRevision: WritableAtom<any, any[], any>
     /** Delete a single revision */
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
     deleteRevision: WritableAtom<any, any[], any>
 }
 
@@ -460,6 +461,11 @@ export interface TypeScopedRunnableSelectors {
     requestPayload: (runnableId: string) => Atom<unknown | null>
     executionMode: (runnableId: string) => Atom<"chat" | "completion">
     configuration: (runnableId: string) => Atom<Record<string, unknown> | null>
+    inputPorts: (runnableId: string) => Atom<RunnablePort[]>
+    outputPorts: (runnableId: string) => Atom<RunnablePort[]>
+    schemas: (runnableId: string) => Atom<{inputSchema?: unknown; outputSchema?: unknown} | null>
+    query: (runnableId: string) => Atom<BridgeQueryState<RunnableData>>
+    isDirty: (runnableId: string) => Atom<boolean>
 }
 
 /**
@@ -478,6 +484,7 @@ export interface RunnableBridge extends RunnableBridgeSelectors {
     ) => {
         selectors: RunnableBridgeSelectors & Record<string, (id: string) => Atom<unknown>>
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
         actions?: Record<string, WritableAtom<any, any[], any>>
     }
 

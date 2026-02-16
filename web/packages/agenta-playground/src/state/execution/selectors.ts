@@ -713,11 +713,12 @@ export const executionRowIdsForEntityAtomFamily = atomFamily((entityId: string) 
  * from the prompt template, tools, response_format, and schema.
  */
 export const inputVariableNamesAtom = atom<string[]>((get) => {
-    const ids = get(entityIdsAtom)
+    const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
     const seen = new Set<string>()
     const names: string[] = []
-    for (const id of ids) {
-        const ports = get(runnableBridge.inputPorts(id)) as RunnablePort[]
+    for (const node of nodes) {
+        const scoped = runnableBridge.forType(node.entityType)
+        const ports = get(scoped.inputPorts(node.entityId)) as RunnablePort[]
         for (const port of ports || []) {
             if (port.key && !seen.has(port.key)) {
                 seen.add(port.key)
@@ -774,7 +775,8 @@ export const messageSchemaMetadataAtom = selectAtom(
 export const isChatModeAtom = atom<boolean | undefined>((get) => {
     const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
     if (!rootNode) return undefined
-    const mode = get(runnableBridge.executionMode(rootNode.entityId))
+    const scoped = runnableBridge.forType(rootNode.entityType)
+    const mode = get(scoped.executionMode(rootNode.entityId))
     return mode === "chat"
 })
 

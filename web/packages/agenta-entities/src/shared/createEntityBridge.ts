@@ -729,6 +729,11 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                     requestPayload: selectors.requestPayload,
                     executionMode: selectors.executionMode,
                     configuration: selectors.configuration,
+                    inputPorts: selectors.inputPorts,
+                    outputPorts: selectors.outputPorts,
+                    schemas: selectors.schemas,
+                    query: selectors.query,
+                    isDirty: selectors.isDirty,
                 }
             }
 
@@ -773,6 +778,43 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                         if (!entity) return null
                         const data = config.toRunnable(entity)
                         return data?.configuration ?? null
+                    }),
+                inputPorts: (runnableId: string) =>
+                    atom((get) => {
+                        const entity = get(config.molecule.selectors.data(runnableId))
+                        if (!entity) return []
+                        if (config.inputPortsSelector) {
+                            return get(config.inputPortsSelector(runnableId))
+                        }
+                        return config.getInputPorts(entity)
+                    }),
+                outputPorts: (runnableId: string) =>
+                    atom((get) => {
+                        const entity = get(config.molecule.selectors.data(runnableId))
+                        if (!entity) return []
+                        if (config.outputPortsSelector) {
+                            return get(config.outputPortsSelector(runnableId))
+                        }
+                        return config.getOutputPorts(entity)
+                    }),
+                schemas: (runnableId: string) =>
+                    atom((get) => {
+                        const entity = get(config.molecule.selectors.data(runnableId))
+                        if (!entity) return null
+                        if (config.schemasSelector) {
+                            return get(config.schemasSelector(runnableId))
+                        }
+                        const data = config.toRunnable(entity)
+                        return data?.schemas ?? null
+                    }),
+                query: (runnableId: string) =>
+                    atom((get) => {
+                        const query = get(config.molecule.selectors.query(runnableId))
+                        return query as BridgeQueryState<RunnableData>
+                    }),
+                isDirty: (runnableId: string) =>
+                    atom((get) => {
+                        return get(config.molecule.selectors.isDirty(runnableId))
                     }),
             }
         },

@@ -75,7 +75,8 @@ export function useTestsetInputsAnalysis(
                         hasMessages: false,
                     }
                     if (!primaryId) return meta
-                    const payload = get(runnableBridge.requestPayload(primaryId)) as any
+                    const scoped = runnableBridge.forType(rootNode.entityType)
+                    const payload = get(scoped.requestPayload(primaryId)) as any
                     if (!payload?.spec) return meta
                     const rp = payload.routePath || routePath
                     const {primaryEndpoint} = extractAllEndpointSchemas(payload.spec, rp)
