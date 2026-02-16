@@ -1,0 +1,166 @@
+---
+title: "Configuring Applications"
+sidebar_label: "Configuring Applications"
+description: "Learn how to define and configure applications for evaluation with the Agenta SDK"
+sidebar_position: 3
+---
+
+# Configuring Applications
+
+Applications are the functions you want to evaluate. They receive inputs from your test data and return outputs that evaluators will check.
+
+## Basic Application Structure
+
+An application is any Python function decorated with `@ag.application`. The decorator tells Agenta this function should be evaluated.
+
+```python
+import agenta as ag
+
+ag.init()
+
+@ag.application(
+    slug="my_app",
+    name="My Application",
+    description="Describes what this application does"
+)
+async def my_app(input_text: str):
+    # Your application logic here
+    result = process(input_text)
+    return result
+```
+
+The application decorator takes these parameters:
+
+- **slug** (required): A unique identifier for your application
+- **name** (optional): A human-readable name shown in the UI
+- **description** (optional): Explains what the application does
+
+## Understanding Application Inputs
+
+Applications receive inputs from your test cases. The function parameters must match field names in your test data.
+
+**Example:**
+
+```python
+# Your test case
+test_case = {
+    "country": "France",
+    "language": "French",
+    "capital": "Paris"
+}
+
+# Your application receives these as parameters
+@ag.application(slug="country_info")
+async def country_info(country: str, language: str):
+    # country = "France"
+    # language = "French"
+    # Note: capital is not used by this application
+    return f"The capital of {country} is well known!"
+```
+
+You only need to declare parameters for the fields your application uses. Extra fields in the test case are ignored.
+## Application Return Values
+
+Applications should return the output you want evaluators to check. The return value can be:
+
+- **String**: Text responses
+- **Dictionary**: Structured data
+- **List**: Multiple items
+- **Number**: Numeric results
+- **Any JSON-serializable value**
+
+### String Returns
+
+Most common for text-based applications:
+
+```python
+@ag.application(slug="question_answerer")
+async def question_answerer(question: str) -> str:
+    answer = generate_answer(question)
+    return answer  # Simple string
+```
+
+### Dictionary Returns
+
+Useful for structured outputs:
+
+```python
+@ag.application(slug="entity_extractor")
+async def entity_extractor(text: str) -> dict:
+    return {
+        "entities": ["Paris", "France"],
+        "count": 2,
+        "confidence": 0.95
+    }
+```
+
+### List Returns
+
+For multiple items:
+
+```python
+@ag.application(slug="keyword_extractor")
+async def keyword_extractor(text: str) -> list:
+    keywords = extract_keywords(text)
+    return keywords  # ["keyword1", "keyword2", ...]
+```
+
+## Application Examples
+
+### Simple Lookup Application
+
+```python
+@ag.application(
+    slug="capital_lookup",
+    name="Capital City Lookup",
+    description="Returns the capital city for a given country"
+)
+async def capital_lookup(country: str) -> str:
+    """Look up a country's capital city."""
+    capitals = {
+        "France": "Paris",
+        "Germany": "Berlin",
+        "Spain": "Madrid",
+        "Italy": "Rome",
+    }
+    return capitals.get(country, "Unknown")
+```
+
+### LLM-Based Application
+
+```python
+import openai
+
+@ag.application(
+    slug="question_answerer",
+    name="Question Answering System",
+    description="Answers questions using GPT-4"
+)
+async def question_answerer(question: str, context: str) -> str:
+    """Answer questions based on provided context."""
+    client = openai.AsyncOpenAI()
+
+    response = await client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "Answer based on the context provided."},
+            {"role": "user", "content": f"Context: {context}\n\nQuestion: {question}"}
+        ]
+    )
+
+    return response.choices[0].message.content
+```
+
+## Synchronous vs Asynchronous
+
+Applications can be either synchronous or asynchronous:
+
+### Asynchronous (Recommended)
+
+
+
+### Synchronous
+
+
+## Working with Application Parameters
+

@@ -24,6 +24,8 @@ from oss.databases.postgres.migrations.tracing.utils import (
 from oss.src.services.auth_helper import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
 
+from oss.src.routers import evaluation_router, human_evaluation_router
+
 # DBEs
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
@@ -175,6 +177,7 @@ app.add_middleware(
         "http://0.0.0.0:3000",
         "http://0.0.0.0:3001",
         "https://docs.agenta.ai",
+        "https://agenta.ai",
     ],
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
@@ -473,6 +476,18 @@ app.include_router(
 )
 
 app.include_router(
+    evaluation_router.router,
+    prefix="/evaluations",
+    tags=["Evaluations"],
+)
+
+app.include_router(
+    human_evaluation_router.router,
+    prefix="/human-evaluations",
+    tags=["Human-Evaluations"],
+)
+
+app.include_router(
     admin_router.router,
     prefix="/admin",
     tags=["Admin"],
@@ -568,7 +583,11 @@ app.include_router(
 
 # ------------------------------------------------------------------------------
 
+
+import oss.src.tasks.evaluations.live
+import oss.src.tasks.evaluations.legacy
+import oss.src.tasks.evaluations.batch
+
+
 if ee and is_ee():
     app = ee.extend_app_schema(app)
-
-    ee.load_tasks()

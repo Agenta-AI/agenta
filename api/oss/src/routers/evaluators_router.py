@@ -22,6 +22,10 @@ from oss.src.models.api.evaluation_model import (
 )
 from oss.src.core.secrets.utils import get_llm_providers_secrets
 
+from oss.src.services.auth_helper import sign_secret_token
+from agenta.sdk.contexts.running import RunningContext, running_context_manager
+from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
+
 if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access
@@ -88,16 +92,33 @@ async def evaluator_run(
 
     payload.credentials = providers_keys_from_vault
 
-    try:
-        result = await evaluators_service.run(
-            evaluator_key=evaluator_key,
-            evaluator_input=payload,
-        )
-    except Exception as e:
-        log.warning(f"Error with evaluator /run", exc_info=True)
-        raise HTTPException(status_code=424 if "401" in str(e) else 500, detail=str(e))
+    secret_token = await sign_secret_token(
+        user_id=str(request.state.user_id),
+        project_id=str(request.state.project_id),
+        workspace_id=str(request.state.workspace_id),
+        organization_id=str(request.state.organization_id),
+    )
 
-    return result
+    with tracing_context_manager(TracingContext.get()):
+        tracing_ctx = TracingContext.get()
+        tracing_ctx.credentials = f"Secret {secret_token}"
+
+        with running_context_manager(RunningContext.get()):
+            running_ctx = RunningContext.get()
+            running_ctx.credentials = f"Secret {secret_token}"
+
+            try:
+                result = await evaluators_service.run(
+                    evaluator_key=evaluator_key,
+                    evaluator_input=payload,
+                )
+            except Exception as e:
+                log.warning(f"Error with evaluator /run", exc_info=True)
+                raise HTTPException(
+                    status_code=424 if "401" in str(e) else 500, detail=str(e)
+                )
+
+            return result
 
 
 @router.get("/configs/", response_model=List[EvaluatorConfig])

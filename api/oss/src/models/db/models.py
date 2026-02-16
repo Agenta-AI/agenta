@@ -58,4 +58,14 @@ models = [
 ]
 
 if is_ee():
-    models.extend([OrganizationDB, WorkspaceDB, APIKeyDB, InvitationDB, OrganizationMemberDB, ProjectMemberDB, WorkspaceMemberDB])  # type: ignore
+    models.extend(
+        [
+            OrganizationDB,
+            WorkspaceDB,
+            APIKeyDB,
+            InvitationDB,
+            OrganizationMemberDB,
+            ProjectMemberDB,
+            WorkspaceMemberDB,
+        ]
+    )  # type: ignore

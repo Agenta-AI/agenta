@@ -110,7 +110,7 @@ class RawBillingClient:
         *,
         plan: Plan,
         success_url: str,
-        request_options: typing.Optional[RequestOptions] = None
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[typing.Optional[typing.Any]]:
         """
         Parameters
@@ -506,7 +506,7 @@ class AsyncRawBillingClient:
         *,
         plan: Plan,
         success_url: str,
-        request_options: typing.Optional[RequestOptions] = None
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
         """
         Parameters

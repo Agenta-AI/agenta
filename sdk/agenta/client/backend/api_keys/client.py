@@ -95,7 +95,7 @@ class ApiKeysClient:
         self,
         key_prefix: str,
         *,
-        request_options: typing.Optional[RequestOptions] = None
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Dict[str, typing.Optional[typing.Any]]:
         """
         Delete an API key with the given key prefix for the authenticated user.
@@ -246,7 +246,7 @@ class AsyncApiKeysClient:
         self,
         key_prefix: str,
         *,
-        request_options: typing.Optional[RequestOptions] = None
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Dict[str, typing.Optional[typing.Any]]:
         """
         Delete an API key with the given key prefix for the authenticated user.

@@ -36,25 +36,25 @@ class EntitlementsException(Exception):
     pass
 
 
-NOT_ENTITLED_RESPONSE: Callable[
-    [Tracker], JSONResponse
-] = lambda tracker=None: JSONResponse(
-    status_code=403,
-    content={
-        "detail": (
-            "You have reached your monthly quota limit. Please upgrade your plan to continue."
-            if tracker == Tracker.COUNTERS
-            else (
-                "You have reached your quota limit. Please upgrade your plan to continue."
-                if tracker == Tracker.GAUGES
+NOT_ENTITLED_RESPONSE: Callable[[Tracker], JSONResponse] = (
+    lambda tracker=None: JSONResponse(
+        status_code=403,
+        content={
+            "detail": (
+                "You have reached your monthly quota limit. Please upgrade your plan to continue."
+                if tracker == Tracker.COUNTERS
                 else (
-                    "You do not have access to this feature. Please upgrade your plan to continue."
-                    if tracker == Tracker.FLAGS
-                    else "You do not have access to this feature."
+                    "You have reached your quota limit. Please upgrade your plan to continue."
+                    if tracker == Tracker.GAUGES
+                    else (
+                        "You do not have access to this feature. Please upgrade your plan to continue."
+                        if tracker == Tracker.FLAGS
+                        else "You do not have access to this feature."
+                    )
                 )
-            )
-        ),
-    },
+            ),
+        },
+    )
 )
 
 
@@ -163,7 +163,7 @@ async def check_entitlements(
 
     # TODO: remove this line
     log.info(
-        f"adjusting: {organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'allow' if check else 'deny '} | {meter.key}: {meter.value-meter.synced} [{meter.value}]"
+        f"adjusting: {organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'allow' if check else 'deny '} | {meter.key}: {meter.value - meter.synced} [{meter.value}]"
     )
 
     return check is True, meter, _

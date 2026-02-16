@@ -32,7 +32,8 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
             if (!getEnv("NEXT_PUBLIC_POSTHOG_API_KEY")) return
 
             posthog.init(getEnv("NEXT_PUBLIC_POSTHOG_API_KEY"), {
-                api_host: "https://app.posthog.com",
+                api_host: "https://alef.agenta.ai",
+                ui_host: "https://us.posthog.com",
                 // Enable debug mode in development
                 loaded: (posthog) => {
                     setPosthogClient(posthog)

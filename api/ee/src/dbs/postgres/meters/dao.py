@@ -27,40 +27,72 @@ class MetersDAO(MetersDAOInterface):
     def __init__(self):
         pass
 
-    async def dump(self) -> list[MeterDTO]:
+    async def dump(
+        self,
+        limit: Optional[int] = None,
+    ) -> list[MeterDTO]:
+        log.info(f"[report] [dump] Starting (limit={limit or 'none'})")
+
         async with engine.core_session() as session:
-            stmt = (
-                select(MeterDBE)
-                .filter(MeterDBE.synced != MeterDBE.value)
-                .options(joinedload(MeterDBE.subscription))
-            )  # NO RISK OF DEADLOCK
-
-            result = await session.execute(stmt)
-            meters = result.scalars().all()
-
-            return [
-                MeterDTO(
-                    organization_id=meter.organization_id,
-                    year=meter.year,
-                    month=meter.month,
-                    value=meter.value,
-                    key=meter.key,
-                    synced=meter.synced,
-                    subscription=(
-                        SubscriptionDTO(
-                            organization_id=meter.subscription.organization_id,
-                            customer_id=meter.subscription.customer_id,
-                            subscription_id=meter.subscription.subscription_id,
-                            plan=meter.subscription.plan,
-                            active=meter.subscription.active,
-                            anchor=meter.subscription.anchor,
-                        )
-                        if meter.subscription
-                        else None
-                    ),
+            try:
+                stmt = (
+                    select(MeterDBE)
+                    .filter(MeterDBE.synced != MeterDBE.value)
+                    .options(joinedload(MeterDBE.subscription))
+                    .order_by(
+                        MeterDBE.organization_id,
+                        MeterDBE.key,
+                        MeterDBE.year,
+                        MeterDBE.month,
+                    )
                 )
-                for meter in meters
-            ]
+
+                if limit:
+                    stmt = stmt.limit(limit)
+
+                result = await session.execute(stmt)
+                meters = result.scalars().all()
+
+                log.info(f"[report] [dump] Found {len(meters)} unsynced meters")
+
+                dto_list = []
+                for meter in meters:
+                    try:
+                        subscription_dto = None
+                        if meter.subscription:
+                            subscription_dto = SubscriptionDTO(
+                                organization_id=meter.subscription.organization_id,
+                                customer_id=meter.subscription.customer_id,
+                                subscription_id=meter.subscription.subscription_id,
+                                plan=meter.subscription.plan,
+                                active=meter.subscription.active,
+                                anchor=meter.subscription.anchor,
+                            )
+
+                        meter_dto = MeterDTO(
+                            organization_id=meter.organization_id,
+                            year=meter.year,
+                            month=meter.month,
+                            value=meter.value,
+                            key=meter.key,
+                            synced=meter.synced,
+                            subscription=subscription_dto,
+                        )
+                        dto_list.append(meter_dto)
+
+                    except Exception:
+                        log.error(
+                            f"[report] [dump] Error converting meter to DTO",
+                            exc_info=True,
+                        )
+                        continue
+
+                log.info(f"[report] [dump] Converted {len(dto_list)} meters to DTOs")
+                return dto_list
+
+            except Exception:
+                log.error("[report] [dump] Error executing query", exc_info=True)
+                raise
 
     async def bump(
         self,
@@ -69,33 +101,54 @@ class MetersDAO(MetersDAOInterface):
         if not meters:
             return
 
-        # Sort for consistent lock acquisition
+        log.info(f"[report] [bump] Starting for {len(meters)} meters")
+
         sorted_meters = sorted(
             meters,
-            key=lambda m: (
-                m.organization_id,
-                m.key,
-                m.year,
-                m.month,
-            ),
+            key=lambda m: (m.organization_id, m.key, m.year, m.month),
         )
 
         async with engine.core_session() as session:
+            updated_count = 0
+
             for meter in sorted_meters:
-                stmt = (
-                    update(MeterDBE)
-                    .where(
-                        MeterDBE.organization_id == meter.organization_id,
-                        MeterDBE.key == meter.key,
-                        MeterDBE.year == meter.year,
-                        MeterDBE.month == meter.month,
+                try:
+                    stmt = (
+                        update(MeterDBE)
+                        .where(
+                            MeterDBE.organization_id == meter.organization_id,
+                            MeterDBE.key == meter.key,
+                            MeterDBE.year == meter.year,
+                            MeterDBE.month == meter.month,
+                        )
+                        .values(synced=meter.synced)
                     )
-                    .values(synced=meter.synced)
-                )
 
-                await session.execute(stmt)
+                    result = await session.execute(stmt)
 
-            await session.commit()
+                    if result.rowcount == 0:
+                        log.warn(
+                            f"[report] [bump] No rows updated for {meter.organization_id}/{meter.key}"
+                        )
+                    else:
+                        updated_count += result.rowcount
+
+                except Exception:
+                    log.error(
+                        f"[report] [bump] Error updating meter {meter.organization_id}/{meter.key}",
+                        exc_info=True,
+                    )
+                    raise
+
+            log.info(f"[report] [bump] Committing {updated_count} updates")
+
+            try:
+                await session.commit()
+                log.info(f"[report] [bump] ✅ Committed successfully")
+            except Exception:
+                log.error("[report] [bump] ❌ Commit failed", exc_info=True)
+                await session.rollback()
+                raise
 
     async def fetch(
         self,
@@ -132,17 +185,13 @@ class MetersDAO(MetersDAOInterface):
         if quota.monthly:
             now = datetime.now(timezone.utc)
 
-            if not anchor:
-                meter.year = now.year
-                meter.month = now.month
+            if not anchor or now.day < anchor:
+                year, month = now.year, now.month
+            else:
+                year = now.year + now.month // 12
+                month = ((now.month + 1) % 12) or 12
 
-            if anchor:
-                if now.day < anchor:
-                    meter.year = now.year
-                    meter.month = now.month
-                else:
-                    meter.year = now.year + now.month // 12
-                    meter.month = (now.month + 1) % 12
+            meter.year, meter.month = year, month
 
         async with engine.core_session() as session:
             stmt = select(MeterDBE).filter_by(
@@ -185,15 +234,13 @@ class MetersDAO(MetersDAOInterface):
         if quota.monthly:
             now = datetime.now(timezone.utc)
 
-            if not anchor:
-                meter.year = now.year
-                meter.month = now.month
-            elif now.day < anchor:
-                meter.year = now.year
-                meter.month = now.month
+            if not anchor or now.day < anchor:
+                year, month = now.year, now.month
             else:
-                meter.year = now.year + now.month // 12
-                meter.month = (now.month + 1) % 12
+                year = now.year + now.month // 12
+                month = ((now.month + 1) % 12) or 12
+
+            meter.year, meter.month = year, month
 
         # 2. Calculate proposed value (starting from 0)
         desired_value = meter.value if meter.value is not None else (meter.delta or 0)

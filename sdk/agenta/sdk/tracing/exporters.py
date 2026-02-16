@@ -24,7 +24,7 @@ from agenta.sdk.contexts.tracing import (
 
 log = get_module_logger(__name__)
 
-_ASYNC_EXPORT = environ.get("AGENTA_OTLP_ASYNC_EXPORT", "false").lower() in TRUTHY
+_ASYNC_EXPORT = environ.get("AGENTA_OTLP_ASYNC_EXPORT", "true").lower() in TRUTHY
 
 
 class InlineTraceExporter(SpanExporter):
@@ -158,13 +158,11 @@ class OTLPExporter(OTLPSpanExporter):
                     # )
 
             if _ASYNC_EXPORT is True:
+                # log.debug("[SPAN] [ASYNC.X]")
                 thread = Thread(target=__export, daemon=True)
                 thread.start()
             else:
-                # log.debug(
-                #     "[SPAN] [__XPORT]",
-                #     data=serialized_data,
-                # )
+                # log.debug("[SPAN] [ SYNC.X]")
                 return __export()
 
         except Exception as e:

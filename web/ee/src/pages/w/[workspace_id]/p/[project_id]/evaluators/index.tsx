@@ -1,7 +1,3 @@
-import EvaluatorsRegistry from "@/oss/components/Evaluators"
-
-const ProjectEvaluatorsPage = () => {
-    return <EvaluatorsRegistry scope="project" />
-}
+import ProjectEvaluatorsPage from "@agenta/oss/src/pages/w/[workspace_id]/p/[project_id]/evaluators/index"
 
 export default ProjectEvaluatorsPage

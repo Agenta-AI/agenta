@@ -29,14 +29,16 @@ class Annotation(UniversalBaseModel):
     kind: typing.Optional[AnnotationKind] = None
     source: typing.Optional[AnnotationSource] = None
     data: typing.Dict[str, typing.Optional["FullJsonOutput"]]
-    metadata: typing.Optional[
-        typing.Dict[str, typing.Optional["FullJsonOutput"]]
-    ] = None
+    metadata: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
+        None
+    )
     references: AnnotationReferences
     links: typing.Dict[str, AnnotationLink]
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:

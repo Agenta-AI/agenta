@@ -1,0 +1,71 @@
+---
+title: "Customize LLM-as-a-Judge Output Schemas"
+slug: customize-llm-as-a-judge-output-schemas
+date: 2025-11-10
+tags: [v0.62.0]
+description: "Learn how to customize LLM-as-a-Judge evaluator output schemas with binary, multiclass, or custom JSON formats. Enable reasoning for better evaluation quality and structure feedback to match your workflow needs."
+---
+
+import Image from "@theme/IdealImage";
+
+The LLM-as-a-Judge evaluator now supports custom output schemas. You can define exactly what feedback structure you need for your evaluations.
+
+
+<div style={{display: 'flex', justifyContent: 'center', gap: '24px', margin: '20px 0'}}>
+  <Image
+    img={require('/static/images/changelog/changelog-llm-as-a-judge-response-1.png')}
+    alt="Custom output schemas in LLM-as-a-Judge - Example 1"
+    style={{width: '48%', minWidth: 0}}
+  />
+  <Image
+    img={require('/static/images/changelog/changelog-llm-as-a-judge-response-2.png')}
+    alt="Custom output schemas in LLM-as-a-Judge - Example 2"
+    style={{width: '48%', minWidth: 0}}
+  />
+</div>
+
+## What's New
+
+### **Flexible Output Types**
+Configure the evaluator to return different types of outputs:
+- **Binary**: Return a simple yes/no or pass/fail score
+- **Multiclass**: Choose from multiple predefined categories
+- **Custom JSON**: Define any structure that fits your use case
+
+### **Include Reasoning for Better Quality**
+Enable the reasoning option to have the LLM explain its evaluation. This improves prediction quality because the model thinks through its assessment before providing a score.
+
+When you include reasoning, the evaluator returns both the score and a detailed explanation of how it arrived at that judgment.
+
+### **Advanced: Raw JSON Schema**
+For complete control, provide a raw JSON schema. The evaluator will return responses that match your exact structure.
+
+This lets you capture multiple scores, categorical labels, confidence levels, and custom fields in a single evaluation pass. You can structure the output however your workflow requires.
+
+### **Use Custom Schemas in Evaluation**
+Once configured, your custom schemas work seamlessly in the evaluation workflow. The results display in the evaluation dashboard with all your custom fields visible.
+
+This makes it easy to analyze multiple dimensions of quality in a single evaluation run.
+
+## Example Use Cases
+
+**Binary Score with Reasoning:**
+Return a simple correct/incorrect judgment along with an explanation of why the output succeeded or failed.
+
+**Multi-dimensional Feedback:**
+Capture separate scores for accuracy, relevance, completeness, and tone in one evaluation. Include reasoning for each dimension.
+
+**Structured Classification:**
+Return categorical labels (excellent/good/fair/poor) along with specific issues found and suggestions for improvement.
+
+## Getting Started
+
+To use custom output schemas with LLM-as-a-Judge:
+
+1. Open the evaluator configuration
+2. Select your desired output type (binary, multiclass, or custom)
+3. Enable reasoning if you want explanations
+4. For advanced use, provide your JSON schema
+5. Run your evaluation
+
+Learn more in the [LLM-as-a-Judge documentation](/evaluation/configure-evaluators/llm-as-a-judge).

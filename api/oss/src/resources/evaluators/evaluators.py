@@ -229,12 +229,12 @@ evaluators = [
                             "description": "Extract information from the user's response.",
                             "type": "object",
                             "properties": {
-                                "correctness": {
+                                "score": {
                                     "type": "boolean",
                                     "description": "The grade results",
                                 }
                             },
-                            "required": ["correctness"],
+                            "required": ["score"],
                             "strict": True,
                         },
                     },
@@ -264,12 +264,12 @@ evaluators = [
                             "description": "Extract information from the user's response.",
                             "type": "object",
                             "properties": {
-                                "correctness": {
+                                "score": {
                                     "type": "boolean",
                                     "description": "The hallucination detection result",
                                 }
                             },
-                            "required": ["correctness"],
+                            "required": ["score"],
                             "strict": True,
                         },
                     },
@@ -339,12 +339,12 @@ evaluators = [
                         "description": "Extract information from the user's response.",
                         "type": "object",
                         "properties": {
-                            "correctness": {
+                            "score": {
                                 "type": "boolean",
                                 "description": "The grade results",
                             }
                         },
-                        "required": ["correctness"],
+                        "required": ["score"],
                         "strict": True,
                     },
                 },

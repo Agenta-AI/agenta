@@ -20,14 +20,16 @@ async def test_batch_invoke_success():
     to simulate successful invocations. It verifies that the batch_invoke
     function correctly returns the expected results for the given test data.
     """
-    with patch(
-        "src.services.llm_apps_service.get_parameters_from_openapi",
-        new_callable=AsyncMock,
-    ) as mock_get_parameters_from_openapi, patch(
-        "src.services.llm_apps_service.invoke_app", new_callable=AsyncMock
-    ) as mock_invoke_app, patch(
-        "asyncio.sleep", new_callable=AsyncMock
-    ) as mock_sleep:
+    with (
+        patch(
+            "src.services.llm_apps_service.get_parameters_from_openapi",
+            new_callable=AsyncMock,
+        ) as mock_get_parameters_from_openapi,
+        patch(
+            "src.services.llm_apps_service.invoke_app", new_callable=AsyncMock
+        ) as mock_invoke_app,
+        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+    ):
         mock_get_parameters_from_openapi.return_value = [
             {"name": "param1", "type": "input"},
             {"name": "param2", "type": "input"},
@@ -90,14 +92,16 @@ async def test_batch_invoke_retries_and_failure():
     function correctly retries the specified number of times and returns an error
     result after reaching the maximum retries.
     """
-    with patch(
-        "src.services.llm_apps_service.get_parameters_from_openapi",
-        new_callable=AsyncMock,
-    ) as mock_get_parameters_from_openapi, patch(
-        "src.services.llm_apps_service.invoke_app", new_callable=AsyncMock
-    ) as mock_invoke_app, patch(
-        "asyncio.sleep", new_callable=AsyncMock
-    ) as mock_sleep:
+    with (
+        patch(
+            "src.services.llm_apps_service.get_parameters_from_openapi",
+            new_callable=AsyncMock,
+        ) as mock_get_parameters_from_openapi,
+        patch(
+            "src.services.llm_apps_service.invoke_app", new_callable=AsyncMock
+        ) as mock_invoke_app,
+        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+    ):
         mock_get_parameters_from_openapi.return_value = [
             {"name": "param1", "type": "input"},
             {"name": "param2", "type": "input"},
@@ -155,14 +159,16 @@ async def test_batch_invoke_generic_exception():
     batch_invoke function correctly handles the exception and returns an error
     result with the appropriate error message.
     """
-    with patch(
-        "src.m_apps_service.get_parameters_from_openapi",
-        new_callable=AsyncMock,
-    ) as mock_get_parameters_from_openapi, patch(
-        "src.services.llm_apps_service.invoke_app", new_callable=AsyncMock
-    ) as mock_invoke_app, patch(
-        "asyncio.sleep", new_callable=AsyncMock
-    ) as mock_sleep:
+    with (
+        patch(
+            "src.m_apps_service.get_parameters_from_openapi",
+            new_callable=AsyncMock,
+        ) as mock_get_parameters_from_openapi,
+        patch(
+            "src.services.llm_apps_service.invoke_app", new_callable=AsyncMock
+        ) as mock_invoke_app,
+        patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+    ):
         mock_get_parameters_from_openapi.return_value = [
             {"name": "param1", "type": "input"},
             {"name": "param2", "type": "input"},

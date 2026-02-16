@@ -732,7 +732,10 @@ class WorkflowsService:
         request: WorkflowServiceRequest,
         #
         **kwargs,
-    ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse,]:
+    ) -> Union[
+        WorkflowServiceBatchResponse,
+        WorkflowServiceStreamResponse,
+    ]:
         project = await get_project_by_id(
             project_id=str(project_id),
         )

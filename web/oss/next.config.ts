@@ -1,7 +1,13 @@
+import {createRequire} from "module"
 import path from "path"
 
 import type {NextConfig} from "next"
 
+const require = createRequire(import.meta.url)
+const reduxToolkitCjsEntry = path.join(
+    path.dirname(require.resolve("@reduxjs/toolkit/package.json")),
+    "dist/cjs/index.js",
+)
 const isDevelopment = process.env.NODE_ENV === "development"
 
 const COMMON_CONFIG: NextConfig = {
@@ -62,6 +68,12 @@ const COMMON_CONFIG: NextConfig = {
                   "@ant-design/icons-svg",
               ],
               webpack: (config, {webpack, isServer}) => {
+                  config.resolve ??= {}
+                  config.resolve.alias = {
+                      ...(config.resolve.alias ?? {}),
+                      "@reduxjs/toolkit": reduxToolkitCjsEntry,
+                  }
+
                   const envs: Record<string, string | undefined> = {}
                   config.cache = false
 

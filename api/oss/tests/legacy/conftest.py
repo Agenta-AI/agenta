@@ -46,7 +46,8 @@ AGENTA_HOST = os.getenv("AGENTA_HOST", "http://localhost")
 API_BASE_URL = f"{AGENTA_HOST}/api/"
 API_KEYS_MAPPING = {
     "OPENAI_API_KEY": "openai",
-    "MISTRAL_API_KEY": "mistralai",
+    "MISTRAL_API_KEY": "mistral",
+    "MISTRALAI_API_KEY": "mistralai",
     "COHERE_API_KEY": "cohere",
     "ANTHROPIC_API_KEY": "anthropic",
     "ANYSCALE_API_KEY": "anyscale",

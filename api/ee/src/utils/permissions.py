@@ -218,17 +218,17 @@ async def check_rbac_permission(
         bool: True if the user belongs to the workspace and has the specified permission, False otherwise.
     """
 
-    assert (
-        project_id is not None
-    ), "Project_ID is required to check object-level permissions"
+    assert project_id is not None, (
+        "Project_ID is required to check object-level permissions"
+    )
 
     # Assert that either permission or role is provided, but not both
-    assert (permission is not None) or (
-        role is not None
-    ), "Either 'permission' or 'role' must be provided, but neither is provided"
-    assert not (
-        (permission is not None) and (role is not None)
-    ), "'permission' and 'role' cannot both be provided at the same time"
+    assert (permission is not None) or (role is not None), (
+        "Either 'permission' or 'role' must be provided, but neither is provided"
+    )
+    assert not ((permission is not None) and (role is not None)), (
+        "'permission' and 'role' cannot both be provided at the same time"
+    )
 
     if project_id is not None:
         project = await db_manager.get_project_by_id(project_id)
@@ -281,9 +281,9 @@ async def check_project_has_role_or_permission(
     if not check:
         return True
 
-    assert (
-        role is not None or permission is not None
-    ), "Either role or permission must be provided"
+    assert role is not None or permission is not None, (
+        "Either role or permission must be provided"
+    )
 
     project_members = await db_manager_ee.get_project_members(
         project_id=str(project.id)

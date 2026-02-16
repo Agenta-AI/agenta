@@ -68,7 +68,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     return (
         <div
             className={clsx(
-                "h-[48px] flex justify-between items-center gap-4 sticky top-0 z-1000 !bg-[white]",
+                "h-[48px] flex justify-between items-center gap-4 sticky top-0 z-[1000] !bg-[white]",
                 classes.container,
             )}
         >

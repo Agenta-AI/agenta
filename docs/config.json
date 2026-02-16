@@ -1,7 +1,7 @@
 {
   "index_name": "agenta-ai",
-  "start_urls": ["https://docs.agenta.ai/"],
-  "sitemap_urls": ["https://docs.agenta.ai/sitemap.xml"],
+  "start_urls": ["https://agenta.ai/docs/"],
+  "sitemap_urls": ["https://agenta.ai/docs/sitemap.xml"],
   "sitemap_alternate_links": true,
   "stop_urls": ["/tests"],
   "selectors": {

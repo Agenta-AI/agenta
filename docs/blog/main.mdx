@@ -10,6 +10,110 @@ import Image from "@theme/IdealImage";
 
 <section class="changelog">
 
+
+### [Jinja2 Template Support in the Playground](/changelog/jinja2-template-support)
+
+_17 November 2025_
+
+**v0.62.3**
+
+You can now use Jinja2 templates in your prompts. Jinja2 is available in both the Playground and in prompt management.
+
+Learn more in our [blog post](https://agenta.ai/blog/launch-week-2-day-5-jinja2-prompt-templates) or check the [documentation](/prompt-engineering/playground/using-playground#switching-template-formats).
+
+---
+
+### [Agenta Core is Now Open Source](/changelog/open-sourcing-agenta)
+
+_13 November 2025_
+
+We're open sourcing the core of Agenta under the MIT license. All functional features are now available to the community. This includes the evaluation system, prompt playground and management, observability, and all core workflows.
+
+Development moves back to the public repository. We're building in public again. Only enterprise collaboration features like RBAC, SSO, and audit logs remain under a separate license.
+
+Get started with the [self-hosting guide](/self-host/quick-start). View the code and contribute on [GitHub](https://github.com/Agenta-AI/agenta). Read why we made this decision at [agenta.ai/blog/commercial-open-source-is-hard-our-journey](https://agenta.ai/blog/commercial-open-source-is-hard-our-journey).
+
+---
+
+### [Evaluation SDK](/changelog/evaluation-sdk)
+
+_12 November 2025_
+
+**v0.62.0**
+
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://www.youtube.com/embed/1sZASEjvoOA"
+    title="Evaluation SDK - Demonstration"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+You can now run programmatic evaluations of complex AI agents and workflows directly from code. The Evaluation SDK gives you full control over test data and evaluation logic. It works with agents built using any framework.
+
+The SDK lets you create test sets in code or fetch them from Agenta. You can use built-in evaluators like LLM-as-a-Judge, semantic similarity, or regex matching. You can also write custom Python evaluators. The SDK evaluates end-to-end workflows or specific spans in execution traces. Evaluations run on your own infrastructure; results display in the Agenta dashboard.
+
+Check out the [Evaluation SDK documentation](/evaluation/evaluation-from-sdk/quick-start) to get started.
+
+---
+
+### [Online Evaluation](/changelog/online-evaluation)
+
+_11 November 2025_
+
+**v0.62.0**
+
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://www.youtube.com/embed/rP3CiRmu3io"
+    title="Online Evaluation - Demonstration"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+You can now automatically evaluate every request to your LLM application in production. Online Evaluation helps you catch hallucinations and off-brand responses as they happen. You no longer need to discover problems through user complaints.
+
+You can configure evaluators like LLM-as-a-Judge with custom prompts. Set sampling rates to control costs. Create evaluations with filters for specific spans in your traces. All evaluated requests appear in one dashboard. You can filter traces by evaluation scores to understand issues. You can also add problematic cases to test sets for continuous improvement.
+
+Setting up online evaluation takes just a couple of minutes. It provides immediate visibility into production quality.
+
+---
+
+### [Customize LLM-as-a-Judge Output Schemas](/changelog/customize-llm-as-a-judge-output-schemas)
+
+_10 November 2025_
+
+**v0.62.0**
+
+<div style={{display: 'flex', justifyContent: 'center', gap: '24px', margin: '20px 0'}}>
+  <Image
+    img={require('/static/images/changelog/changelog-llm-as-a-judge-response-1.png')}
+    alt="Custom output schemas in LLM-as-a-Judge - Example 1"
+    style={{width: '48%', minWidth: 0}}
+  />
+  <Image
+    img={require('/static/images/changelog/changelog-llm-as-a-judge-response-2.png')}
+    alt="Custom output schemas in LLM-as-a-Judge - Example 2"
+    style={{width: '48%', minWidth: 0}}
+  />
+</div>
+
+The LLM-as-a-Judge evaluator now supports custom output schemas. Create multiple feedback outputs per evaluator with any structure you need.
+
+You can configure output types (binary, multiclass), include reasoning to improve prediction quality, or provide a raw JSON schema with any structure you define. Use these custom schemas in your evaluations to capture exactly the feedback you need.
+
+Learn more in the [LLM-as-a-Judge documentation](/evaluation/configure-evaluators/llm-as-a-judge).
+
+---
+
 ### [Documentation Overhaul](/changelog/documentation-architecture-overhaul)
 
 _3 November 2025_

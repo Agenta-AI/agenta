@@ -393,9 +393,9 @@ async def get_variant_revision(
     revision_number: int,
     request: Request,
 ):
-    assert (
-        variant_id != "undefined"
-    ), "Variant id is required to retrieve variant revision"
+    assert variant_id != "undefined", (
+        "Variant id is required to retrieve variant revision"
+    )
     app_variant = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
 
     if is_ee():

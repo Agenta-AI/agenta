@@ -35,7 +35,7 @@ class SyncClientWrapper(BaseClientWrapper):
         api_key: str,
         base_url: str,
         timeout: typing.Optional[float] = None,
-        httpx_client: httpx.Client
+        httpx_client: httpx.Client,
     ):
         super().__init__(api_key=api_key, base_url=base_url, timeout=timeout)
         self.httpx_client = HttpClient(
@@ -53,7 +53,7 @@ class AsyncClientWrapper(BaseClientWrapper):
         api_key: str,
         base_url: str,
         timeout: typing.Optional[float] = None,
-        httpx_client: httpx.AsyncClient
+        httpx_client: httpx.AsyncClient,
     ):
         super().__init__(api_key=api_key, base_url=base_url, timeout=timeout)
         self.httpx_client = AsyncHttpClient(

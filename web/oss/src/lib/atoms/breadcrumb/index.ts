@@ -56,6 +56,25 @@ export const prependBreadcrumbAtom = atom(null, (get, set, item: BreadcrumbAtom)
     set(breadcrumbOverridesAtom, {...item, ...current})
 })
 
+export const removeBreadcrumbsAtom = atom(null, (get, set, keys: string[] | undefined) => {
+    if (!keys || keys.length === 0) return
+
+    const current = get(breadcrumbOverridesAtom) || {}
+    let changed = false
+    const next = {...current}
+
+    keys.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(next, key)) {
+            delete next[key]
+            changed = true
+        }
+    })
+
+    if (changed) {
+        set(breadcrumbOverridesAtom, next)
+    }
+})
+
 // Helper atom to clear breadcrumbs (reset to URL-based)
 export const clearBreadcrumbsAtom = atom(null, (get, set) => {
     set(breadcrumbOverridesAtom, {})

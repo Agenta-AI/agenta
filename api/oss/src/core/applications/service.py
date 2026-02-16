@@ -8,10 +8,14 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.workflows.dtos import WorkflowRevisionData
 from oss.src.core.applications.dtos import (
+    LegacyApplicationFlags,
+    #
     LegacyApplication,
     LegacyApplicationCreate,
     LegacyApplicationEdit,
     LegacyApplicationData,
+    #
+    ApplicationFlags,
     #
     Application,
     ApplicationCreate,
@@ -53,7 +57,15 @@ class LegacyApplicationsService:
             #
             name=legacy_application_create.name,
             #
-            tags=legacy_application_create.tags,
+            flags=(
+                ApplicationFlags(
+                    **legacy_application_create.flags.model_dump(
+                        mode="json", exclude_none=True
+                    )
+                )
+                if legacy_application_create.flags
+                else ApplicationFlags()
+            ),
         )
 
         user = await db_manager.get_user_with_id(
@@ -71,7 +83,7 @@ class LegacyApplicationsService:
             or application_create.name
             or uuid4().hex[-12:],
             #
-            template_key=AppType.CUSTOM,
+            template_key=AppType.SDK_CUSTOM,
             #
             user_id=str(user_id),
         )
@@ -102,7 +114,7 @@ class LegacyApplicationsService:
             #
             name=application_create.name or uuid4().hex[-12:],
             #
-            tags=application_create.tags,
+            flags=application_create.flags,
             #
             application_id=app_db.id,  # type: ignore[arg-type]
         )
@@ -132,7 +144,7 @@ class LegacyApplicationsService:
             #
             # name=application_create.name or uuid4().hex[-12:],
             #
-            tags=application_create.tags,
+            flags=application_create.flags,
             #
             data=ApplicationRevisionData(
                 **(
@@ -161,7 +173,7 @@ class LegacyApplicationsService:
             project_id=str(project_id),
             #
             app_id=str(app_variant_db.app.id),
-            uri="" if app_db.app_type == AppType.CUSTOM else url,  # type: ignore
+            uri="" if app_db.app_type == AppType.SDK_CUSTOM else url,  # type: ignore
         )
 
         # Update variant base
@@ -205,6 +217,8 @@ class LegacyApplicationsService:
             created_at=app_db.created_at,  # type: ignore
             updated_at=app_db.updated_at,  # type: ignore
             created_by_id=app_db.modified_by_id,  # type: ignore
+            #
+            flags={"is_custom": True},  # type: ignore
             #
             data=application_revision_data,
         )
@@ -267,7 +281,7 @@ class LegacyApplicationsService:
                 else None
             ),
             #
-            tags=application.tags,
+            flags=application.flags,
             #
             application_id=application.id,
         )
@@ -329,7 +343,7 @@ class LegacyApplicationsService:
                 else None
             ),
             #
-            tags=application_variant.tags,
+            flags=application_variant.flags,
             #
             data=ApplicationRevisionData(
                 **(
@@ -353,7 +367,7 @@ class LegacyApplicationsService:
             updated_at=application.updated_at,
             created_by_id=application.created_by_id,
             #
-            tags=application_variant.tags,
+            flags={"is_custom": True},  # type: ignore
             #
             data=LegacyApplicationData(
                 **(
@@ -471,7 +485,7 @@ class LegacyApplicationsService:
             updated_at=app_db.updated_at,  # type: ignore
             created_by_id=app_db.modified_by_id,  # type: ignore
             #
-            tags={"type": app_db.app_type},  # type: ignore
+            flags={"is_custom": True},  # type: ignore
             #
             data=application_revision_data,
         )
@@ -593,7 +607,7 @@ class LegacyApplicationsService:
             created_at=app_db.created_at,  # type: ignore
             updated_at=app_db.updated_at,  # type: ignore
             created_by_id=app_db.modified_by_id,  # type: ignore
-            tags={"type": app_db.app_type},  # type: ignore
+            flags={"is_custom": True},  # type: ignore
         )
 
         application_variant_slug = get_slug_from_name_and_id(
@@ -619,7 +633,7 @@ class LegacyApplicationsService:
                 if app_variant_db.hidden  # type: ignore
                 else None
             ),
-            tags=application.tags,
+            flags=application.flags,
             application_id=application.id,
         )
 
@@ -650,7 +664,7 @@ class LegacyApplicationsService:
                 if variant_revision_db.hidden  # type: ignore
                 else None
             ),
-            tags=application_variant.tags,
+            flags=application_variant.flags,
             application_id=application.id,
             application_variant_id=application_variant.id,
         )

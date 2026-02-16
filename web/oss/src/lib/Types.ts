@@ -442,6 +442,7 @@ export enum SecretDTOProvider {
     DEEPINFRA = "deepinfra",
     ALEPHALPHA = "alephalpha",
     GROQ = "groq",
+    MISTRAL = "mistral",
     MISTRALAI = "mistralai",
     ANTHROPIC = "anthropic",
     PERPLEXITYAI = "perplexityai",
@@ -457,6 +458,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
     deepinfra: "DeepInfra",
     alephalpha: "Aleph Alpha",
     groq: "Groq",
+    mistral: "Mistral AI",
     mistralai: "Mistral AI",
     anthropic: "Anthropic",
     perplexityai: "Perplexity AI",
@@ -832,9 +834,9 @@ export interface StyleProps {
 }
 
 export interface SettingsPreset {
-    key: string;
-    name: string;
-    values: Record<string, any>;
+    key: string
+    name: string
+    values: Record<string, any>
 }
 
 export interface Evaluator {

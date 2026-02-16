@@ -1,12 +1,18 @@
 agenta
-uvicorn
-boto3
-structlog
 
-# test
+# Server
+uvicorn
+gunicorn
+
+# Traces, Metrics, Logs
+structlog
+newrelic
+
+# LiteLLM
+boto3
 google-auth>=2.23,<3
 google-cloud-aiplatform>=1.38
 
-# temporary
+# Miscellaneous / Temporary
 decorator
 restrictedpython

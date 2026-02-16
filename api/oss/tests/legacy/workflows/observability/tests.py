@@ -70,6 +70,6 @@ class TestObservabilityCoverage:
         )
 
         is_match = exact_match(workflow_nodes, observability_nodes)
-        assert (
-            is_match is True
-        ), "Workflow nodes does not match nodes from observability"
+        assert is_match is True, (
+            "Workflow nodes does not match nodes from observability"
+        )

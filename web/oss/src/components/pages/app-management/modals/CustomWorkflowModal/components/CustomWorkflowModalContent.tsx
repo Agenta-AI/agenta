@@ -226,7 +226,7 @@ const CustomWorkflowModalContent = ({
                 <Space>
                     {!configureWorkflow && (
                         <Typography.Link
-                            href="https://docs.agenta.ai/custom-workflows/quick-start"
+                            href="https://agenta.ai/docs/custom-workflows/quick-start"
                             target="_blank"
                         >
                             <Button icon={<Scroll size={14} className="mt-[2px]" />} size="small">

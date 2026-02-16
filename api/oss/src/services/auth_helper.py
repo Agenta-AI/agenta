@@ -483,9 +483,9 @@ async def verify_bearer_token(
             else:
                 workspaces = await db_manager.get_workspaces()
 
-                assert (
-                    len(workspaces) == 1
-                ), "You can only have a single workspace in OSS."
+                assert len(workspaces) == 1, (
+                    "You can only have a single workspace in OSS."
+                )
                 workspace_id = str(workspaces[0].id)
 
             project_id = await db_manager.get_default_project_id_from_workspace(

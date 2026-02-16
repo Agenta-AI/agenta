@@ -777,7 +777,7 @@ class PromptTemplate(BaseModel):
                 )
             )
 
-        new_llm_config = self.llm_config.copy(deep=True)
+        new_llm_config = self.llm_config.model_copy(deep=True)
         if new_llm_config.response_format is not None:
             rf_dict = new_llm_config.response_format.model_dump(by_alias=True)
             substituted = self._substitute_variables(rf_dict, kwargs)

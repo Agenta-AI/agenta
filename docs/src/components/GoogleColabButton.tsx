@@ -20,7 +20,7 @@ const GoogleColabButton: React.FC<GoogleColabButtonProps> = ({ notebookPath, chi
       >
         {/* Google Colab Logo */}
         <img 
-          src="/images/google_collab.png" 
+          src="/docs/images/google_collab.png" 
           alt="Google Colaboratory"
           className={styles.logo}
         />

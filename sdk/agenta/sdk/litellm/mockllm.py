@@ -67,8 +67,7 @@ def user_aws_credentials_from(ps: dict):
 
 
 class LitellmProtocol(Protocol):
-    async def acompletion(self, *args: Any, **kwargs: Any) -> Any:
-        ...
+    async def acompletion(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
 async def acompletion(*args, **kwargs):

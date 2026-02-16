@@ -29,16 +29,6 @@ const CloudScripts = () => {
             </Head>
             <div className="container">
                 <Script src="/__env.js" strategy="beforeInteractive" />
-                <Script src="https://www.googletagmanager.com/gtag/js?id=G-PV7R8H9KDM" />
-                <Script id="google-analytics">
-                    {`
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
- 
-          gtag('config', 'G-PV7R8H9KDM');
-        `}
-                </Script>
             </div>
         </>
     )

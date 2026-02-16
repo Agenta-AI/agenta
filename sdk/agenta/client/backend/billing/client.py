@@ -80,7 +80,7 @@ class BillingClient:
         *,
         plan: Plan,
         success_url: str,
-        request_options: typing.Optional[RequestOptions] = None
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
         Parameters
@@ -343,7 +343,7 @@ class AsyncBillingClient:
         *,
         plan: Plan,
         success_url: str,
-        request_options: typing.Optional[RequestOptions] = None
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
         Parameters

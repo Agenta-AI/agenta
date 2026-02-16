@@ -442,9 +442,7 @@ class DeprecatedEvaluationDB(DeprecatedBase):
     )
     average_cost = Column(mutable_json_type(dbtype=JSONB, nested=True))  # type: ignore #  Result
     total_cost = Column(mutable_json_type(dbtype=JSONB, nested=True))  # type: ignore #  Result
-    average_latency = Column(
-        mutable_json_type(dbtype=JSONB, nested=True)
-    )  #  type: ignore # Result
+    average_latency = Column(mutable_json_type(dbtype=JSONB, nested=True))  #  type: ignore # Result
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

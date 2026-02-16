@@ -478,7 +478,9 @@ class SharedManager:
             config=ConfigRequest(
                 params=parameters,
                 variant_ref=variant_ref.model_dump() if variant_ref else None,  # type: ignore
-                application_ref=application_ref.model_dump() if application_ref else None,  # type: ignore
+                application_ref=application_ref.model_dump()
+                if application_ref
+                else None,  # type: ignore
             )
         )
 
