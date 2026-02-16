@@ -1,11 +1,16 @@
-import {useCallback} from "react"
+import {useCallback, useMemo, useState} from "react"
 
+import {getEvaluatorColor} from "@agenta/entities/evaluator"
+import {runnableBridge, type RunnableType} from "@agenta/entities/runnable"
+import type {EvaluatorRevisionSelectionResult} from "@agenta/entity-ui"
+import {EntityPicker} from "@agenta/entity-ui"
+import {playgroundController} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {DownOutlined, MoreOutlined} from "@ant-design/icons"
-import {PencilSimple, Plus} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Typography} from "antd"
+import {LinkSimple, PencilSimple, Plus} from "@phosphor-icons/react"
+import {Button, Dropdown, Popover, Space, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
@@ -38,6 +43,109 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const {displayedEntities} = usePlaygroundLayout()
 
     const currentApp = useAtomValue(currentAppAtom)
+
+    // Evaluator chaining state
+    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
+    const connectDownstreamNode = useSetAtom(playgroundController.actions.connectDownstreamNode)
+    const disconnectDownstreamNode = useSetAtom(
+        playgroundController.actions.disconnectDownstreamNode,
+    )
+    const [evaluatorPopoverOpen, setEvaluatorPopoverOpen] = useState(false)
+
+    const hasRootNode = useMemo(() => nodes.some((n) => n.depth === 0), [nodes])
+
+    // Find connected evaluator node (any downstream node with evaluator type)
+    const connectedEvaluatorNode = useMemo(
+        () =>
+            nodes.find(
+                (n) =>
+                    n.depth > 0 &&
+                    (n.entityType === "evaluatorRevision" ||
+                        n.entityType === "evaluator" ||
+                        n.entityType === "legacyEvaluator"),
+            ),
+        [nodes],
+    )
+
+    const connectedEvaluatorRunnableType = useMemo<RunnableType | null>(() => {
+        if (!connectedEvaluatorNode) return null
+        if (
+            connectedEvaluatorNode.entityType === "evaluatorRevision" ||
+            connectedEvaluatorNode.entityType === "evaluator" ||
+            connectedEvaluatorNode.entityType === "legacyEvaluator"
+        ) {
+            return connectedEvaluatorNode.entityType
+        }
+        return null
+    }, [connectedEvaluatorNode])
+
+    // Read runnable data in a type-specific way so UI logic is decoupled from concrete molecules.
+    const connectedEvaluatorRunnableData = useAtomValue(
+        useMemo(
+            () =>
+                connectedEvaluatorNode?.entityId && connectedEvaluatorRunnableType
+                    ? runnableBridge.dataForType(
+                          connectedEvaluatorRunnableType,
+                          connectedEvaluatorNode.entityId,
+                      )
+                    : atom(null),
+            [connectedEvaluatorNode?.entityId, connectedEvaluatorRunnableType],
+        ),
+    ) as {
+        name?: string | null
+        slug?: string | null
+        uri?: string | null
+    } | null
+
+    const connectedEvaluatorColor = useMemo(() => {
+        if (!connectedEvaluatorRunnableData?.uri) return undefined
+        return getEvaluatorColor(connectedEvaluatorRunnableData.uri) ?? undefined
+    }, [connectedEvaluatorRunnableData])
+
+    const connectedEvaluatorLabel = useMemo(() => {
+        if (!connectedEvaluatorNode) return "Evaluator"
+
+        // Prefer snapshot/selection-provided label (includes evaluator + variant + revision context).
+        const nodeLabel = connectedEvaluatorNode.label?.trim()
+        if (nodeLabel && nodeLabel !== connectedEvaluatorNode.entityId) return nodeLabel
+
+        const fetchedName = connectedEvaluatorRunnableData?.name?.trim()
+        if (fetchedName) return fetchedName
+
+        const fetchedSlug = connectedEvaluatorRunnableData?.slug?.trim()
+        if (fetchedSlug) return fetchedSlug
+
+        return "Evaluator"
+    }, [connectedEvaluatorNode, connectedEvaluatorRunnableData])
+
+    const handleEvaluatorSelect = useCallback(
+        (selection: EvaluatorRevisionSelectionResult) => {
+            const rootNode = nodes.find((n) => n.depth === 0)
+            if (!rootNode) return
+
+            connectDownstreamNode({
+                sourceNodeId: rootNode.id,
+                entity: {
+                    type: "evaluatorRevision",
+                    id: selection.id,
+                    label: selection.label,
+                    metadata: selection.metadata,
+                },
+            })
+
+            setEvaluatorPopoverOpen(false)
+        },
+        [nodes, connectDownstreamNode],
+    )
+
+    const handleDisconnectEvaluator = useCallback(() => {
+        if (connectedEvaluatorNode?.entityType) {
+            disconnectDownstreamNode(connectedEvaluatorNode.entityType)
+        } else {
+            disconnectDownstreamNode("evaluatorRevision")
+        }
+        setEvaluatorPopoverOpen(false)
+    }, [connectedEvaluatorNode?.entityType, disconnectDownstreamNode])
 
     // Simplified refresh function - atoms will handle the data updates automatically
     const handleUpdate = useCallback(async () => {
@@ -118,6 +226,65 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <Space.Compact size="small">
+                        <Button
+                            className="flex items-center gap-1"
+                            icon={<LinkSimple size={14} />}
+                            disabled={!hasRootNode}
+                            onClick={connectedEvaluatorNode ? handleDisconnectEvaluator : undefined}
+                            style={
+                                connectedEvaluatorColor
+                                    ? {
+                                          backgroundColor: connectedEvaluatorColor.bg,
+                                          color: connectedEvaluatorColor.text,
+                                          borderColor: connectedEvaluatorColor.border,
+                                      }
+                                    : undefined
+                            }
+                        >
+                            {connectedEvaluatorLabel}
+                        </Button>
+                        <Popover
+                            open={evaluatorPopoverOpen}
+                            onOpenChange={setEvaluatorPopoverOpen}
+                            trigger="click"
+                            placement="bottomRight"
+                            arrow={false}
+                            destroyTooltipOnHide
+                            styles={{body: {padding: 0}}}
+                            content={
+                                <div style={{width: 280}}>
+                                    <EntityPicker<EvaluatorRevisionSelectionResult>
+                                        variant="breadcrumb"
+                                        adapter="evaluatorRevision"
+                                        onSelect={handleEvaluatorSelect}
+                                        showSearch
+                                        showBreadcrumb
+                                        showBackButton
+                                        rootLabel="Evaluators"
+                                        emptyMessage="No evaluators available"
+                                        loadingMessage="Loading evaluators..."
+                                        maxHeight={250}
+                                        instanceId="playground-header-evaluator"
+                                    />
+                                </div>
+                            }
+                        >
+                            <Button
+                                icon={<DownOutlined style={{fontSize: 10}} />}
+                                disabled={!hasRootNode}
+                                style={
+                                    connectedEvaluatorColor
+                                        ? {
+                                              backgroundColor: connectedEvaluatorColor.bg,
+                                              color: connectedEvaluatorColor.text,
+                                              borderColor: connectedEvaluatorColor.border,
+                                          }
+                                        : undefined
+                                }
+                            />
+                        </Popover>
+                    </Space.Compact>
                     <RunEvaluationButton />
                     <SelectVariant
                         showAsCompare

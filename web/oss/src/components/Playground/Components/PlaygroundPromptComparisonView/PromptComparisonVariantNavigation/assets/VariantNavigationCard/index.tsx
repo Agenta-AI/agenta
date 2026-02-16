@@ -68,7 +68,7 @@ const VariantNavigationCard = ({
                 const rowIds =
                     (get(executionItemController.selectors.generationRowIds) as string[]) || []
                 const results: any[] = []
-                get(executionItemController.selectors.runStatusByRowRevision)
+                get(executionItemController.selectors.runStatusByRowEntity)
 
                 for (const rowId of rowIds) {
                     // Read full result from package store

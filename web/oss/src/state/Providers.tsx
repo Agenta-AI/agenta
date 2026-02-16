@@ -1,6 +1,10 @@
 import {PropsWithChildren} from "react"
 
 import {appRevisionSelectionConfig} from "@agenta/entities/appRevision"
+import {
+    evaluatorSelectionConfig,
+    evaluatorRevisionSelectionConfig,
+} from "@agenta/entities/evaluator"
 import {testsetSelectionConfig} from "@agenta/entities/testset"
 import {
     revisionModalAdapter,
@@ -23,6 +27,8 @@ import {SessionListener} from "./session"
 initializeSelectionSystem({
     testset: testsetSelectionConfig,
     appRevision: appRevisionSelectionConfig,
+    evaluator: evaluatorSelectionConfig,
+    evaluatorRevision: evaluatorRevisionSelectionConfig,
 })
 
 // Explicitly reference modal adapters so registration is not tree-shaken.

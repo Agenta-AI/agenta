@@ -65,7 +65,10 @@ export function useTestsetInputsAnalysis(
         useMemo(
             () =>
                 atom((get) => {
-                    const primaryId = get(playgroundController.selectors.primaryEntityId())
+                    const rootNode = get(playgroundController.selectors.nodes()).find(
+                        (n) => n.depth === 0,
+                    )
+                    const primaryId = rootNode?.entityId ?? null
                     const meta = {
                         required: [] as string[],
                         inputKeys: [] as string[],

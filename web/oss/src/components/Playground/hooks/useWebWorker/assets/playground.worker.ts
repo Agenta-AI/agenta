@@ -1,7 +1,6 @@
 interface RunVariantRowPayload {
     rowId: string
     entityId: string
-    revisionId: string
     runId: string
     messageId?: string
     invocationUrl: string
@@ -174,7 +173,7 @@ async function runVariantRow(payload: RunVariantRowPayload) {
             payload: {
                 rowId: payload.rowId,
                 entityId: payload.entityId,
-                revisionId: payload.revisionId,
+
                 runId: payload.runId,
                 messageId: payload.messageId,
                 result: results,
@@ -190,7 +189,7 @@ async function runVariantRow(payload: RunVariantRowPayload) {
             payload: {
                 rowId: payload.rowId,
                 entityId: payload.entityId,
-                revisionId: payload.revisionId,
+
                 runId: payload.runId,
                 messageId: payload.messageId,
                 result: {

@@ -2,13 +2,14 @@
  * OSS Playground Entity Provider
  *
  * Wires OSS-specific entity implementations (legacyAppRevisionMolecule,
- * evaluatorRevisionMolecule) into the package's PlaygroundEntityProvider.
+ * evaluatorMolecule) into the package's PlaygroundEntityProvider.
  *
  * Follows the same pattern as OSSdrillInUIProvider for DrillInView.
  */
 
 import {useEffect, useMemo, type ReactNode} from "react"
 
+import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import {evaluatorRevisionMolecule} from "@agenta/entities/evaluatorRevision"
 import {
     legacyAppRevisionMolecule,
@@ -49,6 +50,19 @@ const ossEntityProviders: PlaygroundEntityProviders = {
             invalidateQueries: playgroundController.actions.invalidateQueries,
         } as PlaygroundEntityProviders["appRevision"]["actions"],
     },
+    // New evaluator entity (workflow-based SimpleEvaluator)
+    evaluator: {
+        selectors: {
+            data: (id: string) => evaluatorMolecule.selectors.data(id),
+            query: (id: string) => evaluatorMolecule.selectors.query(id),
+            isDirty: (id: string) => evaluatorMolecule.selectors.isDirty(id),
+            uri: (id: string) => evaluatorMolecule.selectors.uri(id),
+            evaluatorKey: (id: string) => evaluatorMolecule.selectors.evaluatorKey(id),
+            parameters: (id: string) => evaluatorMolecule.selectors.parameters(id),
+            isCustom: (id: string) => evaluatorMolecule.selectors.isCustom(id),
+        },
+    },
+    // Legacy evaluator revision (stub — kept for backward compatibility)
     evaluatorRevision: {
         selectors: {
             data: evaluatorRevisionMolecule.selectors.data,
@@ -71,7 +85,6 @@ const getAuthHeaders = async () => {
 export function OSSPlaygroundEntityProvider({children}: {children: ReactNode}) {
     const providers = useMemo(() => ossEntityProviders, [])
     const setHeaders = useSetAtom(executionItemController.actions.setExecutionHeaders)
-
     // Register the auth headers provider once on mount
     useEffect(() => {
         setHeaders(() => getAuthHeaders)

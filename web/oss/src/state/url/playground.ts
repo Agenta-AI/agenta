@@ -11,6 +11,7 @@ import {runnableBridge} from "@agenta/entities/runnable"
 import {
     urlSnapshotController,
     setRunnableTypeResolver,
+    getRunnableTypeResolver,
     setSelectionUpdateCallback,
     isPlaceholderId,
     pendingHydrations,
@@ -128,6 +129,121 @@ const arraysEqual = (a: string[], b: string[]) => {
     return true
 }
 
+interface HydratedEntityDescriptor {
+    id: string
+    runnableType: RunnableType
+    entityType?: string
+    depth?: number
+    label?: string
+}
+
+type RunnableType =
+    | "appRevision"
+    | "legacyAppRevision"
+    | "evaluator"
+    | "legacyEvaluator"
+    | "evaluatorRevision"
+
+type PlaygroundEntityType =
+    | "appRevision"
+    | "legacyAppRevision"
+    | "evaluator"
+    | "legacyEvaluator"
+    | "evaluatorRevision"
+
+interface SnapshotSelectionInput {
+    id: string
+    runnableType: RunnableType
+    entityType?: PlaygroundEntityType
+    depth?: number
+    label?: string
+}
+
+interface PlaygroundNode {
+    id: string
+    entityType: string
+    entityId: string
+    label?: string
+    depth: number
+}
+
+const entityTypeToRunnableType = (entityType: string | undefined): RunnableType | null => {
+    switch (entityType) {
+        case "appRevision":
+            return "appRevision"
+        case "legacyAppRevision":
+            return "legacyAppRevision"
+        case "evaluator":
+            return "evaluator"
+        case "legacyEvaluator":
+            return "legacyEvaluator"
+        case "evaluatorRevision":
+            return "evaluatorRevision"
+        default:
+            return null
+    }
+}
+
+const runnableTypeToEntityType = (runnableType: RunnableType): PlaygroundEntityType | null => {
+    switch (runnableType) {
+        case "appRevision":
+            return "appRevision"
+        case "legacyAppRevision":
+            return "legacyAppRevision"
+        case "evaluator":
+            return "evaluator"
+        case "legacyEvaluator":
+            return "legacyEvaluator"
+        case "evaluatorRevision":
+            return "evaluatorRevision"
+        default:
+            return null
+    }
+}
+
+const buildSnapshotSelectionInputs = (
+    rootEntityIds: string[],
+    nodes: PlaygroundNode[],
+): SnapshotSelectionInput[] => {
+    if (rootEntityIds.length === 0) return []
+
+    const resolver = getRunnableTypeResolver()
+    const hasDownstreamNodes = nodes.some((node) => node.depth > 0)
+    const rootNodeByEntityId = new Map(
+        nodes.filter((node) => node.depth === 0).map((node) => [node.entityId, node] as const),
+    )
+    const snapshotInputs: SnapshotSelectionInput[] = []
+
+    for (const rootEntityId of rootEntityIds) {
+        const node = rootNodeByEntityId.get(rootEntityId)
+        const runnableType =
+            entityTypeToRunnableType(node?.entityType) ?? resolver.getType(rootEntityId)
+        snapshotInputs.push({
+            id: rootEntityId,
+            runnableType,
+            ...(hasDownstreamNodes ? {depth: 0} : {}),
+            ...(node?.label ? {label: node.label} : {}),
+        })
+    }
+
+    for (const node of nodes) {
+        if (node.depth <= 0) continue
+
+        const runnableType = entityTypeToRunnableType(node.entityType)
+        if (!runnableType) continue
+
+        snapshotInputs.push({
+            id: node.entityId,
+            runnableType,
+            entityType: node.entityType,
+            depth: node.depth,
+            ...(node.label ? {label: node.label} : {}),
+        })
+    }
+
+    return snapshotInputs
+}
+
 /**
  * Write the current playground selection to the URL.
  * Uses urlSnapshotController.buildUrlComponents for entity-agnostic snapshot building.
@@ -147,6 +263,8 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
         try {
             const sanitized = sanitizeRevisionList(selection)
             const store = getDefaultStore()
+            const nodes = store.get(playgroundController.selectors.nodes())
+            const snapshotSelection = buildSnapshotSelectionInputs(sanitized, nodes)
 
             // Build the new URL with query params and hash
             const url = new URL(window.location.href)
@@ -154,7 +272,7 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
             // Use package controller to build URL components
             const urlComponents = store.set(
                 urlSnapshotController.actions.buildUrlComponents,
-                sanitized,
+                snapshotSelection,
             )
 
             if (!urlComponents.ok) {
@@ -212,56 +330,120 @@ export const updatePlaygroundUrlWithDrafts = () => {
     }
 }
 
-const applyPlaygroundSelection = (store: Store, next: string[]) => {
+const applyPlaygroundSelection = (
+    store: Store,
+    next: string[],
+    hydratedEntities?: HydratedEntityDescriptor[],
+) => {
     const sanitized = sanitizeRevisionList(next)
+    const normalizedHydratedEntities = (hydratedEntities ?? []).filter((entity) => {
+        const id = String(entity?.id ?? "").trim()
+        return Boolean(id && id !== "null" && id !== "undefined")
+    })
+
+    const rootHydratedEntities = normalizedHydratedEntities.filter(
+        (entity) => (entity.depth ?? 0) === 0,
+    )
+    const rootEntityIdsFromHydrated = sanitizeRevisionList(
+        rootHydratedEntities.map((entity) => entity.id),
+    )
+    const rootEntityIdsFromRunnableType = sanitizeRevisionList(
+        normalizedHydratedEntities
+            .filter(
+                (entity) =>
+                    entity.runnableType === "appRevision" ||
+                    entity.runnableType === "legacyAppRevision",
+            )
+            .map((entity) => entity.id),
+    )
+    const rootEntityIds =
+        rootEntityIdsFromHydrated.length > 0
+            ? rootEntityIdsFromHydrated
+            : rootEntityIdsFromRunnableType.length > 0
+              ? rootEntityIdsFromRunnableType
+              : sanitized
+
     const currentSelected = sanitizeRevisionList(
         store.get(playgroundController.selectors.entityIds()),
     )
+    const hasHydratedDownstream = normalizedHydratedEntities.some(
+        (entity) => (entity.depth ?? 0) > 0,
+    )
 
-    console.log("[applySelection] sanitized:", sanitized, "currentSelected:", currentSelected)
-    if (arraysEqual(currentSelected, sanitized)) {
-        console.log("[applySelection] no change, skipping")
+    if (arraysEqual(currentSelected, rootEntityIds) && !hasHydratedDownstream) {
         return
     }
 
     const currentNodes = store.get(playgroundController.selectors.nodes())
-    console.log(
-        "[applySelection] currentNodes:",
-        currentNodes.length,
-        "sanitized:",
-        sanitized.length,
-    )
 
-    if (currentNodes.length === 0 && sanitized.length > 0) {
-        console.log("[applySelection] no nodes yet, using addPrimaryNode for:", sanitized[0])
+    if (currentNodes.length === 0 && rootEntityIds.length > 0) {
+        const primaryHydratedEntity =
+            rootHydratedEntities.find((entity) => entity.id === rootEntityIds[0]) ??
+            rootHydratedEntities[0]
+        const primaryEntityType =
+            (primaryHydratedEntity?.entityType as PlaygroundEntityType | undefined) ??
+            (primaryHydratedEntity
+                ? runnableTypeToEntityType(primaryHydratedEntity.runnableType)
+                : null) ??
+            "legacyAppRevision"
+
         // No nodes yet — use addPrimaryNode for the first entity so the
         // loadable is linked to the runnable and an initial testcase row
         // is created with proper input variables.
         store.set(playgroundController.actions.addPrimaryNode, {
-            type: "legacyAppRevision",
-            id: sanitized[0],
-            label: sanitized[0],
+            type: primaryEntityType,
+            id: rootEntityIds[0],
+            label: primaryHydratedEntity?.label ?? rootEntityIds[0],
         })
-
-        // Verify loadable was linked
-        const nodesAfter = store.get(playgroundController.selectors.nodes())
-        const loadableId = store.get(playgroundController.selectors.loadableId())
-        console.log(
-            "[applySelection] after addPrimaryNode: nodes:",
-            nodesAfter.length,
-            "loadableId:",
-            loadableId,
-        )
 
         // If there are additional entities (comparison mode from URL),
         // add them via setEntityIds which preserves the first node.
-        if (sanitized.length > 1) {
-            console.log("[applySelection] adding comparison entities:", sanitized.slice(1))
-            store.set(playgroundController.actions.setEntityIds, sanitized)
+        if (rootEntityIds.length > 1) {
+            store.set(playgroundController.actions.setEntityIds, rootEntityIds)
         }
     } else {
-        console.log("[applySelection] nodes exist, using setEntityIds")
-        store.set(playgroundController.actions.setEntityIds, sanitized)
+        store.set(playgroundController.actions.setEntityIds, rootEntityIds)
+    }
+
+    if (!hasHydratedDownstream) return
+
+    const downstreamHydratedEntities = normalizedHydratedEntities
+        .filter((entity) => (entity.depth ?? 0) > 0)
+        .sort((a, b) => (a.depth ?? 1) - (b.depth ?? 1))
+
+    if (downstreamHydratedEntities.length === 0) return
+
+    const nodesAfterRoots = store.get(playgroundController.selectors.nodes())
+    const rootNode = nodesAfterRoots.find((node) => node.depth === 0)
+    if (!rootNode) return
+
+    const sourceNodeByDepth = new Map<number, string>([[0, rootNode.id]])
+    for (const node of nodesAfterRoots) {
+        sourceNodeByDepth.set(node.depth, node.id)
+    }
+
+    for (const downstream of downstreamHydratedEntities) {
+        const depth = downstream.depth ?? 1
+        const entityType =
+            (downstream.entityType as PlaygroundEntityType | undefined) ??
+            runnableTypeToEntityType(downstream.runnableType)
+        if (!entityType) continue
+
+        const sourceNodeId =
+            sourceNodeByDepth.get(Math.max(depth - 1, 0)) ?? sourceNodeByDepth.get(0) ?? rootNode.id
+
+        const result = store.set(playgroundController.actions.connectDownstreamNode, {
+            sourceNodeId,
+            entity: {
+                type: entityType,
+                id: downstream.id,
+                label: downstream.label ?? downstream.id,
+            },
+        })
+
+        if (result?.nodeId) {
+            sourceNodeByDepth.set(depth, result.nodeId)
+        }
     }
 }
 
@@ -367,7 +549,11 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
             )
 
             if (hydrateResult.ok && hydrateResult.selection) {
-                applyPlaygroundSelection(store, hydrateResult.selection)
+                applyPlaygroundSelection(
+                    store,
+                    hydrateResult.selection,
+                    hydrateResult.entities as HydratedEntityDescriptor[] | undefined,
+                )
                 return
             }
         }
