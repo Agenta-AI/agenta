@@ -39,11 +39,6 @@ class WebhooksDAOInterface:
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         raise NotImplementedError
 
-    async def list_subscriptions(
-        self, project_id: UUID
-    ) -> List[WebhookSubscriptionResponseDTO]:
-        raise NotImplementedError
-
     async def query_subscriptions(
         self,
         project_id: UUID,

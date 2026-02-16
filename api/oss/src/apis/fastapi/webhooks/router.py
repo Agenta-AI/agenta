@@ -1,7 +1,7 @@
 """FastAPI router for webhooks endpoints."""
 
 from uuid import UUID
-from typing import List
+
 
 from fastapi import APIRouter, Request, status, HTTPException
 from fastapi.responses import JSONResponse
@@ -42,13 +42,7 @@ class WebhooksRouter:
             operation_id="create_webhook_subscription",
             response_model=WebhookSubscriptionResponse,
         )
-        self.router.add_api_route(
-            "/",
-            self.list_subscriptions,
-            methods=["GET"],
-            operation_id="list_webhook_subscriptions",
-            response_model=List[WebhookSubscriptionResponse],
-        )
+
         # /query and /test MUST be registered before /{subscription_id}
         self.router.add_api_route(
             "/query",
@@ -118,28 +112,6 @@ class WebhooksRouter:
 
         # Convert DTO to API response
         return WebhookSubscriptionResponse(**subscription_dto.model_dump())
-
-    @intercept_exceptions()
-    async def list_subscriptions(self, request: Request):
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.VIEW_WEBHOOKS,
-            )
-            if not has_permission:
-                return JSONResponse(
-                    {"detail": "You do not have access to perform this action"},
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
-
-        subscription_dtos = await self.service.list_subscriptions(
-            project_id=UUID(request.state.project_id),
-        )
-
-        return [
-            WebhookSubscriptionResponse(**dto.model_dump()) for dto in subscription_dtos
-        ]
 
     @intercept_exceptions()
     async def query_subscriptions(

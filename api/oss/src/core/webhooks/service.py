@@ -45,11 +45,6 @@ class WebhooksService:
             project_id=project_id, payload=payload, user_id=user_id, secret=secret
         )
 
-    async def list_subscriptions(
-        self, project_id: UUID
-    ) -> List[WebhookSubscriptionResponseDTO]:
-        return await self.dao.list_subscriptions(project_id=project_id)
-
     async def query_subscriptions(
         self,
         project_id: UUID,

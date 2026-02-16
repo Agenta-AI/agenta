@@ -85,21 +85,6 @@ class WebhooksDAO(WebhooksDAOInterface):
 
             return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
-    async def list_subscriptions(
-        self, project_id: UUID
-    ) -> List[WebhookSubscriptionResponseDTO]:
-        async with engine.core_session() as session:
-            stmt = select(WebhookSubscriptionDBE).filter_by(
-                project_id=project_id, archived_at=None
-            )
-            result = await session.execute(stmt)
-            subscription_dbes = result.scalars().all()
-
-            return [
-                map_subscription_dbe_to_dto(subscription_dbe=dbe)
-                for dbe in subscription_dbes
-            ]
-
     async def query_subscriptions(
         self,
         project_id: UUID,
