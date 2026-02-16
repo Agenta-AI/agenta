@@ -1,9 +1,22 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {
+    buildEvaluatorSlug,
+    buildEvaluatorUri,
+    resolveEvaluatorKey,
+} from "@/oss/lib/evaluators/utils"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {getTagColors} from "@/oss/lib/helpers/colors"
 import {isDemo, stringToNumberInRange} from "@/oss/lib/helpers/utils"
 import {EvaluatorResponseDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
+import {
+    Evaluator,
+    SimpleEvaluator,
+    SimpleEvaluatorCreate,
+    SimpleEvaluatorData,
+    SimpleEvaluatorEdit,
+    SimpleEvaluatorResponse,
+    SimpleEvaluatorsResponse,
+} from "@/oss/lib/Types"
 import aiImg from "@/oss/media/artificial-intelligence.png"
 import bracketCurlyImg from "@/oss/media/bracket-curly.png"
 import codeImg from "@/oss/media/browser.png"
@@ -48,7 +61,7 @@ export const updateEvaluator = async (
     }
 }
 
-export const fetchEvaluatorById = async (evaluatorId: string) => {
+export const fetchEvaluatorById = async (evaluatorId: string): Promise<SimpleEvaluator | null> => {
     const {projectId} = getProjectValues()
     if (!projectId) {
         return null
@@ -59,7 +72,7 @@ export const fetchEvaluatorById = async (evaluatorId: string) => {
     )
     const payload = (response?.data as any)?.evaluator ?? response?.data ?? null
     if (!payload) return null
-    return payload as EvaluatorResponseDto<"response">["evaluator"]
+    return decorateSimpleEvaluator(payload as SimpleEvaluator)
 }
 
 const evaluatorIconsMap = {
@@ -103,58 +116,118 @@ export const fetchAllEvaluators = async (includeArchived = false) => {
 }
 
 // Evaluator Configs
+function decorateSimpleEvaluator(evaluator: SimpleEvaluator) {
+    const tagColors = getTagColors()
+    const evaluatorKey = resolveEvaluatorKey(evaluator)
+    if (!evaluatorKey) return evaluator
+
+    return {
+        ...evaluator,
+        icon_url: evaluatorIconsMap[evaluatorKey as keyof typeof evaluatorIconsMap],
+        color: tagColors[stringToNumberInRange(evaluatorKey, 0, tagColors.length - 1)],
+    }
+}
+
 export const fetchAllEvaluatorConfigs = async (
     appId?: string | null,
     projectIdOverride?: string | null,
-) => {
-    const tagColors = getTagColors()
+): Promise<SimpleEvaluator[]> => {
     const {projectId: projectIdFromStore} = getProjectValues()
     const projectId = projectIdOverride ?? projectIdFromStore
+    void appId
 
     if (!projectId) {
-        return [] as EvaluatorConfig[]
+        return [] as SimpleEvaluator[]
     }
 
-    const response = await axios.get("/evaluators/configs", {
-        params: {
-            project_id: projectId,
-            ...(appId ? {app_id: appId} : {}),
+    const response = await axios.post<SimpleEvaluatorsResponse>(
+        `${getAgentaApiUrl()}/preview/simple/evaluators/query?project_id=${projectId}`,
+        {
+            include_archived: false,
         },
-    })
-    const evaluatorConfigs = (response.data || []).map((item: EvaluatorConfig) => ({
-        ...item,
-        icon_url: evaluatorIconsMap[item.evaluator_key as keyof typeof evaluatorIconsMap],
-        color: tagColors[stringToNumberInRange(item.evaluator_key, 0, tagColors.length - 1)],
-    })) as EvaluatorConfig[]
-    return evaluatorConfigs
+    )
+
+    const evaluators = response.data?.evaluators ?? []
+    return evaluators
+        .filter((item) => !item.deleted_at)
+        .filter((item) => item.flags?.is_human !== true)
+        .map(decorateSimpleEvaluator)
 }
 
-export type CreateEvaluationConfigData = Omit<EvaluatorConfig, "id" | "created_at">
+export interface CreateEvaluatorConfigData {
+    name: string
+    evaluator_key: string
+    parameters: Record<string, any>
+    outputs_schema?: Record<string, any>
+    tags?: string[]
+    description?: string
+}
+
 export const createEvaluatorConfig = async (
     _appId: string | null | undefined,
-    config: CreateEvaluationConfigData,
-) => {
+    config: CreateEvaluatorConfigData,
+): Promise<SimpleEvaluator> => {
     const {projectId} = getProjectValues()
     void _appId
 
-    return axios.post(`/evaluators/configs?project_id=${projectId}`, {
-        ...config,
-    })
+    const data: SimpleEvaluatorData = {
+        uri: buildEvaluatorUri(config.evaluator_key),
+        parameters: config.parameters,
+    }
+
+    if (config.outputs_schema) {
+        data.schemas = {
+            outputs: config.outputs_schema,
+        }
+    }
+
+    const payload: SimpleEvaluatorCreate = {
+        slug: buildEvaluatorSlug(config.name),
+        name: config.name,
+        description: config.description,
+        tags: config.tags,
+        flags: {is_evaluator: true, is_human: false},
+        data,
+    }
+
+    const response = await axios.post<SimpleEvaluatorResponse>(
+        `${getAgentaApiUrl()}/preview/simple/evaluators/?project_id=${projectId}`,
+        {evaluator: payload},
+    )
+
+    const evaluator = response.data?.evaluator
+    if (!evaluator) {
+        throw new Error("Failed to create evaluator")
+    }
+
+    return decorateSimpleEvaluator(evaluator)
 }
 
 export const updateEvaluatorConfig = async (
     configId: string,
-    config: Partial<CreateEvaluationConfigData>,
-) => {
+    config: SimpleEvaluatorEdit,
+): Promise<SimpleEvaluator> => {
     const {projectId} = getProjectValues()
 
-    return axios.put(`/evaluators/configs/${configId}?project_id=${projectId}`, config)
+    const response = await axios.put<SimpleEvaluatorResponse>(
+        `${getAgentaApiUrl()}/preview/simple/evaluators/${configId}?project_id=${projectId}`,
+        {evaluator: {...config, id: configId}},
+    )
+
+    const evaluator = response.data?.evaluator
+    if (!evaluator) {
+        throw new Error("Failed to update evaluator")
+    }
+
+    return decorateSimpleEvaluator(evaluator)
 }
 
 export const deleteEvaluatorConfig = async (configId: string) => {
     const {projectId} = getProjectValues()
 
-    return axios.delete(`/evaluators/configs/${configId}?project_id=${projectId}`)
+    return axios.post(
+        `${getAgentaApiUrl()}/preview/simple/evaluators/${configId}/archive?project_id=${projectId}`,
+    )
 }
 
 export const deleteHumanEvaluator = async (evaluatorId: string) => {
