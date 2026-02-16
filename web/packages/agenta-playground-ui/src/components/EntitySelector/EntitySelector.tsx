@@ -36,6 +36,7 @@ import {
 import type {EntitySelectorConfig, EntitySelection, EntityType} from "@agenta/entities/runnable"
 import {
     EntityPicker,
+    type EvaluatorSelectionResult,
     type EvaluatorRevisionSelectionResult,
     type AppRevisionSelectionResult,
 } from "@agenta/entity-ui"
@@ -129,6 +130,41 @@ function EvaluatorRevisionSelector({onSelect}: {onSelect: (selection: EntitySele
 }
 
 // ============================================================================
+// EVALUATOR SELECTOR (Flat list)
+// ============================================================================
+
+function EvaluatorSelector({onSelect}: {onSelect: (selection: EntitySelection) => void}) {
+    const handleSelect = useCallback(
+        (selection: EvaluatorSelectionResult) => {
+            onSelect({
+                type: "evaluator",
+                id: selection.id,
+                label: selection.label,
+                metadata: {
+                    evaluatorId: selection.metadata.evaluatorId,
+                    evaluatorName: selection.metadata.evaluatorName,
+                },
+            })
+        },
+        [onSelect],
+    )
+
+    return (
+        <EntityPicker<EvaluatorSelectionResult>
+            variant="breadcrumb"
+            adapter="evaluator"
+            onSelect={handleSelect}
+            showSearch
+            rootLabel="Evaluators"
+            emptyMessage="No evaluators available"
+            loadingMessage="Loading evaluators..."
+            maxHeight={300}
+            instanceId="entity-selector-evaluator"
+        />
+    )
+}
+
+// ============================================================================
 // TESTCASE SELECTOR
 // ============================================================================
 
@@ -216,6 +252,7 @@ function SpanSelector({onSelect}: {onSelect: (selection: EntitySelection) => voi
 const ALL_ENTITY_TYPES: EntityType[] = [
     "appRevision",
     "legacyAppRevision",
+    "evaluator",
     "evaluatorRevision",
     "testcase",
     "span",
@@ -224,6 +261,7 @@ const ALL_ENTITY_TYPES: EntityType[] = [
 const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
     appRevision: "App Revision",
     legacyAppRevision: "OSS App Revision",
+    evaluator: "Evaluator",
     evaluatorRevision: "Evaluator Revision",
     testcase: "Testcase",
     span: "Span",
@@ -247,6 +285,7 @@ function EntitySelectorContent({
         children: (
             <div className="pt-2 min-h-[200px]">
                 {type === "appRevision" && <AppRevisionSelector onSelect={onSelect} />}
+                {type === "evaluator" && <EvaluatorSelector onSelect={onSelect} />}
                 {type === "evaluatorRevision" && <EvaluatorRevisionSelector onSelect={onSelect} />}
                 {type === "testcase" && <TestcaseSelector onSelect={onSelect} />}
                 {type === "span" && <SpanSelector onSelect={onSelect} />}

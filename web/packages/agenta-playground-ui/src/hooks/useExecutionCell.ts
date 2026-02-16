@@ -25,7 +25,7 @@ interface ResolvedResult {
  * Replaces:
  * - useGenerationCompletionRow (for result/status data)
  * - Inline resolvedGenerationResult usage in GenerationChatTurnNormalized
- * - Manual generationResult + fullResultByRowRevision merging in comparison view
+ * - Manual generationResult + fullResultByRowEntity merging in comparison view
  *
  * @param entityId - The entity (revision) being executed
  * @param stepId - The test case row or chat turn being executed

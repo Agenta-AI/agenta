@@ -4,11 +4,11 @@ import {executionItemController} from "@agenta/playground"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {TurnMessageAdapter} from "@agenta/playground-ui/adapters"
+
 import {useRunnableLoading} from "../../../hooks/useRunnableLoading"
 import ChatTurnView from "../../ExecutionItems/assets/ChatTurnView"
 import ExecutionRow from "../../ExecutionItems/assets/ExecutionRow"
-
-import {TurnMessageAdapter} from "@agenta/playground-ui/adapters"
 
 interface GenerationComparisonChatOutputProps {
     turnId: string
@@ -66,7 +66,7 @@ const GenerationComparisonChatOutputCell = ({
     }, [addUserMessage])
 
     const runStatusMap = useAtomValue(
-        executionItemController.selectors.runStatusByRowRevision,
+        executionItemController.selectors.runStatusByRowEntity,
     ) as Record<string, {resultHash?: string | null} | undefined>
     const resultHashes = useMemo(() => {
         try {

@@ -1,167 +1,195 @@
 import {useMemo} from "react"
 
-import {type PlaygroundTestResult, executionItemController} from "@agenta/playground"
-import {
-    extractChatMessages,
-    normalizeChatMessages,
-    type NormalizedChatMessage,
-} from "@agenta/ui/cell-renderers"
+import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {runnableBridge} from "@agenta/entities/runnable"
+import {executionItemController, playgroundController} from "@agenta/playground"
 import {Collapse} from "antd"
-import clsx from "clsx"
+import {atom} from "jotai"
 import {useAtomValue} from "jotai"
 
 import {usePlaygroundUI} from "../../../context"
 import {playgroundFocusDrawerAtom} from "../../../state"
+import ExecutionResultView from "../../ExecutionResultView"
+import {EvaluatorOutputDisplay} from "../../shared/EvaluatorOutputDisplay"
 
-const tryParseJson = (value: unknown): unknown => {
-    if (typeof value !== "string") return value
-    try {
-        return JSON.parse(value)
-    } catch {
-        return value
-    }
-}
+// ============================================================================
+// SUB-COMPONENT: Single input variable
+// ============================================================================
 
-const getOutputContent = (
-    rep: PlaygroundTestResult,
-    index: number,
-): {
-    type: "error" | "chat" | "text"
-    content: string | React.ReactNode | NormalizedChatMessage[]
-} => {
-    if (!rep) return {type: "text", content: ""}
-    const error = rep.error || rep.response?.error
-
-    if (error) {
-        const errorContent = typeof error === "string" ? error : JSON.stringify(error)
-        return {type: "error", content: errorContent}
-    }
-
-    try {
-        const potentialChatValue =
-            rep.response?.choices || rep.response?.output || rep.response?.data || rep.response
-
-        const chatValueString =
-            typeof potentialChatValue === "string"
-                ? potentialChatValue
-                : JSON.stringify(potentialChatValue)
-
-        const parsed = tryParseJson(chatValueString)
-        const messageArray = extractChatMessages(parsed)
-
-        if (messageArray) {
-            const normalized = normalizeChatMessages(messageArray)
-            if (normalized.length > 0) {
-                return {type: "chat", content: normalized}
-            }
-        }
-    } catch (e) {
-        console.error("Error rendering output:", e)
-        return {type: "error", content: "Error rendering output"}
-    }
-
-    const simpleContent =
-        rep.response?.choices?.[0]?.message?.content ||
-        rep.response?.output ||
-        rep.response?.data ||
-        (typeof rep.response === "string" ? rep.response : "") ||
-        ""
-
-    return {type: "text", content: String(simpleContent)}
-}
-
-const getLastUserMessage = (repetitions: PlaygroundTestResult[]) => {
-    if (!repetitions?.length) return null
-
-    try {
-        const firstRep = repetitions[0]
-        const nodes = firstRep.response?.tree?.nodes
-        const node = Array.isArray(nodes) ? nodes[0] : nodes ? Object.values(nodes)[0] : null
-
-        if (!node) return null
-
-        // Support both direct data access and attributes.ag.data structure
-        const data = node.data || node.attributes?.ag?.data
-        const messages = data?.inputs?.messages
-
-        if (Array.isArray(messages)) {
-            return (
-                messages
-                    .slice()
-                    .reverse()
-                    .find((m: Record<string, unknown>) => m.role === "user") || null
-            )
-        }
-    } catch (error) {
-        console.error("Error getting user message", error)
-    }
-    return null
-}
-
-const getChatInputs = (repetitions: PlaygroundTestResult[]) => {
-    if (!repetitions?.length) return []
-    try {
-        const firstRep = repetitions[0]
-        const nodes = firstRep.response?.tree?.nodes
-        const node = Array.isArray(nodes) ? nodes[0] : nodes ? Object.values(nodes)[0] : null
-
-        if (!node) return []
-
-        const data = node.data || node.attributes?.ag?.data
-        let inputs = data?.inputs || {}
-        if (typeof inputs !== "object" || inputs === null) return []
-
-        if (inputs.inputs) {
-            inputs = inputs.inputs
-        }
-
-        return Object.entries(inputs)
-            .filter(([key]) => key !== "messages")
-            .map(([key, value]) => ({key, value}))
-    } catch (error) {
-        console.error("Error getting chat inputs", error)
-        return []
-    }
-}
-
-const FocusDrawerContent = () => {
-    const {SharedGenerationResultUtils, SimpleSharedEditor} = usePlaygroundUI()
-    const appType = useAtomValue(executionItemController.selectors.appType)
-    const {rowId, entityId} = useAtomValue(playgroundFocusDrawerAtom)
-
-    const rowData = useAtomValue(executionItemController.selectors.rowData(rowId || ""))
-    const responseData = useAtomValue(
-        executionItemController.selectors.responseByRowRevision({
-            rowId: rowId || "",
-            revisionId: entityId || "",
-        }),
-    )
-
-    const repetitions = useMemo(() => {
-        if (!responseData) return []
-        if (Array.isArray(responseData)) return responseData
-        return [responseData]
-    }, [responseData])
-
-    const lastUserMessage = useMemo(() => {
-        return getLastUserMessage(repetitions)
-    }, [repetitions])
-
-    const inputsToRender = useMemo(() => {
-        if (appType === "chat") {
-            return getChatInputs(repetitions)
-        }
-        // Convert flat row data to {key, value} pairs for rendering
-        if (rowData?.data) {
-            return Object.entries(rowData.data).map(([key, value]) => ({key, value}))
-        }
-        return []
-    }, [appType, repetitions, rowData?.data])
+function InputVariable({rowId, variableKey}: {rowId: string; variableKey: string}) {
+    const {SimpleSharedEditor} = usePlaygroundUI()
+    const value = useAtomValue(
+        useMemo(
+            () =>
+                executionItemController.selectors.testcaseCellValue({
+                    testcaseId: rowId,
+                    column: variableKey,
+                }),
+            [rowId, variableKey],
+        ),
+    ) as string | undefined
 
     if (!SimpleSharedEditor) return null
 
     return (
-        <div className="flex flex-col h-full">
+        <SimpleSharedEditor
+            value={String(value ?? "")}
+            initialValue={String(value ?? "")}
+            defaultMinimized
+            isJSON={false}
+            isMinimizeVisible
+            isFormatVisible={false}
+            headerName={variableKey}
+            editorType="border"
+            headerClassName="text-[#1677FF]"
+        />
+    )
+}
+
+// ============================================================================
+// SUB-COMPONENT: Primary output for an entity
+// ============================================================================
+
+function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
+    const {SharedGenerationResultUtils} = usePlaygroundUI()
+
+    const fullResult = useAtomValue(
+        useMemo(
+            () =>
+                executionItemController.selectors.fullResult({
+                    rowId,
+                    entityId,
+                }),
+            [rowId, entityId],
+        ),
+    ) as {status?: string; output?: unknown; traceId?: string | null; error?: unknown} | null
+
+    const status = fullResult?.status
+    const isRunning = status === "running" || status === "pending"
+    const traceId = (fullResult?.traceId as string | null) ?? null
+    const output = fullResult?.output ?? null
+    const error = fullResult?.error
+
+    const currentResult = useMemo(() => {
+        if (!fullResult || status === "idle") return null
+        if (error) {
+            const errorMsg =
+                typeof error === "object" && error !== null
+                    ? ((error as {message?: string}).message ?? JSON.stringify(error))
+                    : String(error)
+            return {error: errorMsg}
+        }
+        return output as {response?: unknown; error?: unknown} | null
+    }, [fullResult, status, error, output])
+
+    return (
+        <div className="flex flex-col gap-2">
+            <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Output</span>
+                {SharedGenerationResultUtils && traceId && (
+                    <SharedGenerationResultUtils traceId={traceId} showStatus />
+                )}
+            </div>
+            <ExecutionResultView
+                isRunning={isRunning}
+                currentResult={currentResult}
+                traceId={traceId}
+            />
+        </div>
+    )
+}
+
+// ============================================================================
+// SUB-COMPONENT: Downstream node result (evaluator)
+// ============================================================================
+
+function DownstreamOutput({
+    rowId,
+    node,
+    nodeName,
+}: {
+    rowId: string
+    node: PlaygroundNode
+    nodeName: string
+}) {
+    const fullResult = useAtomValue(
+        useMemo(
+            () =>
+                executionItemController.selectors.fullResult({
+                    rowId,
+                    entityId: node.entityId,
+                }),
+            [rowId, node.entityId],
+        ),
+    ) as {status?: string; output?: unknown} | null
+
+    if (!fullResult || fullResult.status === "idle" || !fullResult.output) {
+        return null
+    }
+
+    // Extract display data from the wrapped output shape {response: rawApiResponse}
+    const output = fullResult.output as Record<string, unknown> | undefined
+    const responseData = output?.response as Record<string, unknown> | undefined
+    const evaluatorOutputs = responseData?.outputs as Record<string, unknown> | undefined
+    const displayData = evaluatorOutputs ?? responseData?.data ?? responseData
+
+    if (!displayData || typeof displayData !== "object") return null
+
+    return (
+        <div className="p-3 border-0 border-t border-solid border-[var(--ant-color-border-secondary)]">
+            <EvaluatorOutputDisplay
+                entityId={node.entityId}
+                entityType={node.entityType}
+                data={displayData as Record<string, unknown>}
+                nodeName={nodeName}
+            />
+        </div>
+    )
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+const FocusDrawerContent = () => {
+    const {rowId, entityId} = useAtomValue(playgroundFocusDrawerAtom)
+    const variableKeys = useAtomValue(executionItemController.selectors.variableKeys) as string[]
+
+    // Chain nodes for downstream results
+    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
+        | PlaygroundNode[]
+        | null
+    const isChain = (nodes?.length ?? 0) > 1
+    const primaryEntityId = entityId || ""
+
+    // Resolve human-readable names for downstream nodes
+    const nodeNamesAtom = useMemo(
+        () =>
+            atom((get) => {
+                if (!nodes) return {} as Record<string, string>
+                const names: Record<string, string> = {}
+                for (const node of nodes) {
+                    const data = get(runnableBridge.dataForType(node.entityType, node.entityId))
+                    if (data?.name) {
+                        names[node.id] = data.name
+                    }
+                }
+                return names
+            }),
+        [nodes],
+    )
+    const nodeNames = useAtomValue(nodeNamesAtom)
+
+    const downstreamNodes = useMemo(() => {
+        if (!isChain || !nodes) return []
+        return nodes.filter((n) => n.depth > 0 && n.entityId !== primaryEntityId)
+    }, [isChain, nodes, primaryEntityId])
+
+    if (!rowId) return null
+
+    return (
+        <div className="flex flex-col h-full overflow-y-auto">
+            {/* Input Section */}
             <Collapse
                 defaultActiveKey={["input"]}
                 expandIconPosition="end"
@@ -176,36 +204,10 @@ const FocusDrawerContent = () => {
                         label: "Input",
                         children: (
                             <div className="flex flex-col gap-2">
-                                {inputsToRender?.map(
-                                    (
-                                        v: {
-                                            key?: string
-                                            value?: unknown
-                                            content?: {value?: unknown}
-                                        },
-                                        index: number,
-                                    ) => {
-                                        if (!v) return null
-                                        const key = v.key || `Repeats ${index + 1}`
-                                        const value = v.value ?? v.content?.value ?? ""
-
-                                        return (
-                                            <SimpleSharedEditor
-                                                key={index}
-                                                value={String(value)}
-                                                initialValue={String(value)}
-                                                defaultMinimized
-                                                isJSON={false}
-                                                isMinimizeVisible
-                                                isFormatVisible={false}
-                                                headerName={key}
-                                                editorType="border"
-                                                headerClassName="text-[#1677FF]"
-                                            />
-                                        )
-                                    },
-                                )}
-                                {(!inputsToRender || inputsToRender.length === 0) && (
+                                {variableKeys.map((key) => (
+                                    <InputVariable key={key} rowId={rowId} variableKey={key} />
+                                ))}
+                                {variableKeys.length === 0 && (
                                     <div className="text-gray-400">No inputs available</div>
                                 )}
                             </div>
@@ -213,46 +215,6 @@ const FocusDrawerContent = () => {
                     },
                 ]}
             />
-
-            {/* Messages Section */}
-            {lastUserMessage && (
-                <Collapse
-                    defaultActiveKey={["messages"]}
-                    expandIconPosition="end"
-                    bordered={false}
-                    classNames={{
-                        header: "bg-[#05172905] !rounded-none select-none",
-                        body: "!rounded-none bg-white !p-0",
-                    }}
-                    items={[
-                        {
-                            key: "messages",
-                            label: "Messages",
-                            children: (
-                                <div className="px-3 py-3">
-                                    <SimpleSharedEditor
-                                        value={
-                                            typeof lastUserMessage.content === "string"
-                                                ? lastUserMessage.content
-                                                : JSON.stringify(lastUserMessage.content, null, 2)
-                                        }
-                                        initialValue={
-                                            typeof lastUserMessage.content === "string"
-                                                ? lastUserMessage.content
-                                                : JSON.stringify(lastUserMessage.content, null, 2)
-                                        }
-                                        editorType="border"
-                                        isMinimizeVisible
-                                        headerName={lastUserMessage.role}
-                                        minimizedHeight={100}
-                                        headerClassName="text-gray-500 capitalize"
-                                    />
-                                </div>
-                            ),
-                        },
-                    ]}
-                />
-            )}
 
             {/* Output Section */}
             <Collapse
@@ -268,100 +230,30 @@ const FocusDrawerContent = () => {
                         key: "output",
                         label: "Outputs",
                         children: (
-                            <div className="flex flex-col gap-4">
-                                <div className="flex flex-row gap-2 overflow-x-auto pb-5 @container">
-                                    {repetitions.map((rep: PlaygroundTestResult, index: number) => {
-                                        const {type, content} = getOutputContent(rep, index)
-                                        let contentToRender: React.ReactNode = null
-                                        const isError = type === "error"
-                                        const header = (
-                                            <div className="flex justify-between items-center">
-                                                <span className="">
-                                                    {isError
-                                                        ? `Repeat ${index + 1} (Error)`
-                                                        : `Repeat ${index + 1}`}
-                                                </span>
-                                                {SharedGenerationResultUtils &&
-                                                    rep?.response?.tree?.trace_id && (
-                                                        <SharedGenerationResultUtils
-                                                            traceId={rep.response.tree.trace_id}
-                                                            showStatus
-                                                        />
-                                                    )}
-                                            </div>
-                                        )
-
-                                        if (type === "chat" && Array.isArray(content)) {
-                                            contentToRender = (
-                                                <div className="flex flex-col gap-2">
-                                                    {content.map(
-                                                        (
-                                                            msg: NormalizedChatMessage,
-                                                            msgIndex: number,
-                                                        ) => {
-                                                            const role = msg.role
-                                                                ? msg.role
-                                                                      ?.charAt(0)
-                                                                      .toUpperCase() +
-                                                                  msg.role?.slice(1)
-                                                                : "Unknown"
-                                                            const value =
-                                                                typeof msg.content === "string"
-                                                                    ? msg.content
-                                                                    : JSON.stringify(
-                                                                          msg.content,
-                                                                          null,
-                                                                          2,
-                                                                      )
-                                                            return (
-                                                                <SimpleSharedEditor
-                                                                    key={msgIndex}
-                                                                    value={value}
-                                                                    initialValue={value}
-                                                                    editorType="border"
-                                                                    isMinimizeVisible
-                                                                    headerName={role}
-                                                                    minimizedHeight={150}
-                                                                />
-                                                            )
-                                                        },
-                                                    )}
-                                                </div>
-                                            )
-                                        } else {
-                                            contentToRender = (
-                                                <SimpleSharedEditor
-                                                    value={content as string}
-                                                    initialValue={content as string}
-                                                    editorType="border"
-                                                    isMinimizeVisible
-                                                    headerName="Output"
-                                                    minimizedHeight={150}
-                                                    headerClassName="mb-1"
-                                                />
-                                            )
-                                        }
-
-                                        return (
-                                            <div
-                                                key={index}
-                                                className={clsx(
-                                                    "flex-1 min-w-[400px]",
-                                                    "border-0 border-r border-b border-solid border-gray-200 p-3",
-                                                    "flex flex-col gap-3",
-                                                )}
-                                            >
-                                                {header}
-                                                {contentToRender}
-                                            </div>
-                                        )
-                                    })}
-                                    {repetitions.length === 0 && (
-                                        <div className="text-gray-400 p-2">
-                                            No outputs available
-                                        </div>
-                                    )}
+                            <div className="flex flex-col">
+                                {/* Primary output */}
+                                <div className="p-3">
+                                    <PrimaryOutput rowId={rowId} entityId={primaryEntityId} />
                                 </div>
+
+                                {/* Downstream node outputs (evaluators) */}
+                                {downstreamNodes.map((node) => {
+                                    const resolvedName = nodeNames[node.id]
+                                    const label =
+                                        resolvedName ||
+                                        (node.label && !/^[0-9a-f]{8}-/.test(node.label)
+                                            ? node.label
+                                            : node.entityType.charAt(0).toUpperCase() +
+                                              node.entityType.slice(1))
+                                    return (
+                                        <DownstreamOutput
+                                            key={node.entityId}
+                                            rowId={rowId}
+                                            node={node}
+                                            nodeName={label}
+                                        />
+                                    )
+                                })}
                             </div>
                         ),
                     },

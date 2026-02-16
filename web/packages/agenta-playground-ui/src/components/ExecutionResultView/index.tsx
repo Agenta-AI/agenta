@@ -29,6 +29,7 @@ interface ExecutionResultViewProps {
         onNext: () => void
         onPrev: () => void
     }
+    showEmptyPlaceholder?: boolean
 }
 
 /**
@@ -44,6 +45,7 @@ export default function ExecutionResultView({
     currentResult,
     traceId,
     repetitionProps,
+    showEmptyPlaceholder = true,
 }: ExecutionResultViewProps) {
     const providers = usePlaygroundUIOptional()
     const SharedGenerationResultUtils = providers?.SharedGenerationResultUtils
@@ -51,12 +53,14 @@ export default function ExecutionResultView({
     const isComparisonView = useAtomValue(
         useMemo(() => playgroundController.selectors.isComparisonView(), []),
     )
+    const isRerunning = isRunning && Boolean(currentResult)
 
-    if (isRunning) {
+    if (isRunning && !currentResult) {
         return <TypingIndicator />
     }
 
     if (!currentResult) {
+        if (!showEmptyPlaceholder) return null
         return <ClickRunPlaceholder />
     }
 
@@ -69,17 +73,25 @@ export default function ExecutionResultView({
 
     // Error state
     if (currentResult.error) {
-        return <ErrorContent result={currentResult} footer={traceFooter} />
+        return (
+            <div className="flex flex-col gap-2">
+                {isRerunning ? <TypingIndicator label="Re-running..." size="small" /> : null}
+                <ErrorContent result={currentResult} footer={traceFooter} />
+            </div>
+        )
     }
 
     // Success state
     return (
-        <ResponseContent
-            result={currentResult}
-            footer={traceFooter}
-            repetitionProps={repetitionProps}
-            isComparisonView={isComparisonView}
-        />
+        <div className="flex flex-col gap-2">
+            {isRerunning ? <TypingIndicator label="Re-running..." size="small" /> : null}
+            <ResponseContent
+                result={currentResult}
+                footer={traceFooter}
+                repetitionProps={repetitionProps}
+                isComparisonView={isComparisonView}
+            />
+        </div>
     )
 }
 

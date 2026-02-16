@@ -108,7 +108,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const messageIds = useAtomValue(useMemo(() => executionItemController.selectors.messageIds, []))
     const patchMessage = useSetAtom(executionItemController.actions.patchMessage)
     const deleteMsg = useSetAtom(executionItemController.actions.deleteMessage)
-    const clearResponseByRowRevision = useSetAtom(executionItemController.actions.clearResponse)
+    const clearResponseByRowEntity = useSetAtom(executionItemController.actions.clearResponse)
     const {footerClassName, ...messageProps} = (_messageProps || {}) as AdapterMessageProps
     const [isMessageCollapsed, setIsMessageCollapsed] = useState(false)
     const isToolKind = kind === "tool"
@@ -247,7 +247,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
             deleteMsg({target: {turnId: rowId, kind: "user"}})
         }
         if (kind === "assistant" && messageOverride) {
-            clearResponseByRowRevision({rowId, revisionId: entityId})
+            clearResponseByRowEntity({rowId, entityId})
         }
     }, [
         deleteMsg,
@@ -258,7 +258,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
         msg,
         isToolKind,
         messageOverride,
-        clearResponseByRowRevision,
+        clearResponseByRowEntity,
     ])
 
     const onChangeRole = useCallback(
@@ -292,7 +292,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const triggerTest = useSetAtom(executionItemController.actions.triggerTest)
     const truncateChat = useSetAtom(executionItemController.actions.truncateChat)
     const runStatusMap = useAtomValue(
-        useMemo(() => executionItemController.selectors.runStatusByRowRevision, []),
+        useMemo(() => executionItemController.selectors.runStatusByRowEntity, []),
     ) as Record<string, {resultHash?: string | null} | undefined>
 
     const handleRerun = useCallback(() => {
@@ -329,7 +329,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
             () =>
                 executionItemController.selectors.fullResult({
                     rowId,
-                    revisionId: entityId,
+                    entityId,
                 }),
             [rowId, entityId],
         ),

@@ -10,11 +10,17 @@ export const ResultPlaceholder = ({message}: {message: string}) => (
 export const RunningPlaceholder = () => <ResultPlaceholder message="Running..." />
 
 // Visually align with TypingIndicator (same container classes) to avoid layout shift
-export const ClickRunPlaceholder: FC<{className?: string}> = ({className}) => {
+export const ClickRunPlaceholder: FC<{className?: string; variant?: "block" | "inline"}> = ({
+    className,
+    variant = "block",
+}) => {
+    const isInline = variant === "inline"
+
     return (
         <div
             className={clsx(
-                "w-full px-3 py-2 rounded-md bg-[#fafafa] text-[13px] text-gray-600 border border-solid border-[rgba(5,23,41,0.06)]",
+                "rounded-md bg-[#fafafa] text-gray-600 border border-solid border-[rgba(5,23,41,0.06)]",
+                isInline ? "px-2 py-1 text-[12px] leading-4" : "w-full px-3 py-2 text-[13px]",
                 className,
             )}
         >

@@ -112,6 +112,7 @@ const ChatTurnView = ({
             ),
         [messageOverride, assistantMsg, displayAssistantValue, toolMessages.length],
     )
+    const isRerunning = isRunning && hasAssistantContent
 
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
@@ -139,6 +140,7 @@ const ChatTurnView = ({
                 <TypingIndicator />
             ) : hasAssistantContent ? (
                 <>
+                    {isRerunning ? <TypingIndicator label="Re-running..." size="small" /> : null}
                     <TurnMessageAdapter
                         key={`${turnId}-assistant-${repetitionIndex}`}
                         entityId={entityId as string}
