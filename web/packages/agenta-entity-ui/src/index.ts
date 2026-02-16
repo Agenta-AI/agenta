@@ -385,7 +385,10 @@ export {
     type CreateHierarchyLevelOptions,
     type CreateSelectionAdapterOptions,
     type AppRevisionSelectionResult,
+    type EvaluatorSelectionResult,
+    type LegacyEvaluatorSelectionResult,
     type EvaluatorRevisionSelectionResult,
+    type EvaluatorRevisionRelationSelectionResult,
     type TestsetSelectionResult,
     // Adapter factory
     createAdapter as createSelectionAdapter,
@@ -399,8 +402,13 @@ export {
     // Pre-built adapters
     appRevisionAdapter,
     legacyAppRevisionAdapter,
+    evaluatorAdapter,
+    setEvaluatorAtoms,
+    legacyEvaluatorAdapter,
+    setLegacyEvaluatorAtoms,
     evaluatorRevisionAdapter,
     setEvaluatorRevisionAtoms,
+    evaluatorRevisionRelationAdapter,
     testsetAdapter,
     // State
     selectionMolecule,
@@ -465,6 +473,7 @@ export {
     resetSelectionSystem,
     isSelectionSystemInitialized,
     type SelectionSystemConfig,
+    type LegacyEvaluatorSelectionConfig,
     type EvaluatorRevisionSelectionConfig,
 } from "./selection"
 

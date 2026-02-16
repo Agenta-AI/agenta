@@ -36,11 +36,17 @@ import type {Atom} from "jotai"
 import {registerSelectionAdapter} from "./adapters"
 // New relation-based adapters (auto-configured from @agenta/entities)
 import {appRevisionAdapter} from "./adapters/appRevisionRelationAdapter"
-// Legacy adapter (still needs runtime configuration)
+// 1-level evaluator adapter (flat list, runtime configuration)
+import {evaluatorAdapter, setEvaluatorAtoms} from "./adapters/evaluatorAdapter"
+// 3-level evaluator revision adapter (legacy runtime configuration)
 import {
     evaluatorRevisionAdapter,
     setEvaluatorRevisionAtoms,
 } from "./adapters/evaluatorRevisionAdapter"
+// 2-level evaluator revision adapter (relation-based, auto-configured)
+import {evaluatorRevisionRelationAdapter} from "./adapters/evaluatorRevisionRelationAdapter"
+// 1-level legacy evaluator adapter (flat list, SimpleEvaluator facade API)
+import {legacyEvaluatorAdapter, setLegacyEvaluatorAtoms} from "./adapters/legacyEvaluatorAdapter"
 import {testsetAdapter} from "./adapters/testsetRelationAdapter"
 
 // ============================================================================
@@ -48,10 +54,42 @@ import {testsetAdapter} from "./adapters/testsetRelationAdapter"
 // ============================================================================
 
 /**
- * Configuration for evaluator revision selection adapter
+ * Configuration for evaluator selection adapter (1-level flat list)
+ */
+export interface EvaluatorSelectionConfig {
+    /**
+     * Atom that provides the list of evaluators.
+     */
+    evaluatorsAtom: Atom<unknown[]>
+
+    /**
+     * Optional query atom for reflecting loading/error state.
+     * Should expose `isPending` and `isError` from the underlying tanstack query.
+     */
+    evaluatorsQueryAtom?: Atom<{isPending?: boolean; isError?: boolean; error?: unknown}>
+}
+
+/**
+ * Configuration for legacy evaluator selection adapter (1-level flat list)
  *
- * Note: This is the only adapter that still requires runtime configuration.
- * Testset and appRevision adapters use relation-based atoms directly.
+ * Uses the SimpleEvaluator facade API (`/preview/simple/evaluators/`).
+ */
+export interface LegacyEvaluatorSelectionConfig {
+    /**
+     * Atom that provides the list of legacy evaluators.
+     */
+    evaluatorsAtom: Atom<unknown[]>
+
+    /**
+     * Optional query atom for reflecting loading/error state.
+     */
+    evaluatorsQueryAtom?: Atom<{isPending?: boolean; isError?: boolean; error?: unknown}>
+}
+
+/**
+ * Configuration for evaluator revision selection adapter (3-level hierarchy)
+ *
+ * Evaluator → Variant → Revision
  */
 export interface EvaluatorRevisionSelectionConfig {
     /**
@@ -81,8 +119,20 @@ export interface SelectionSystemConfig {
     user?: UserAtomConfig
 
     /**
-     * Evaluator revision selection adapter configuration.
-     * Required if using the evaluator adapter.
+     * Evaluator selection adapter configuration (1-level flat list).
+     * Used in playground for chaining evaluators as downstream nodes.
+     */
+    evaluator?: EvaluatorSelectionConfig
+
+    /**
+     * Legacy evaluator selection adapter configuration (1-level flat list).
+     * Uses the SimpleEvaluator facade API (`/preview/simple/evaluators/`).
+     */
+    legacyEvaluator?: LegacyEvaluatorSelectionConfig
+
+    /**
+     * Evaluator revision selection adapter configuration (3-level hierarchy).
+     * Required if using the evaluator revision adapter.
      */
     evaluatorRevision?: EvaluatorRevisionSelectionConfig
 }
@@ -123,7 +173,23 @@ export function initializeSelectionSystem(config: SelectionSystemConfig = {}): v
     // Register app revision adapter (auto-configured from @agenta/entities/appRevision)
     registerSelectionAdapter(appRevisionAdapter)
 
-    // Configure and register evaluator revision adapter (if provided)
+    // Register evaluator revision relation adapter (2-level: Evaluator → Revision)
+    // Auto-configured from @agenta/entities/evaluator — supports list-popover variant
+    registerSelectionAdapter(evaluatorRevisionRelationAdapter)
+
+    // Configure and register evaluator adapter (1-level flat list, if provided)
+    if (config.evaluator) {
+        setEvaluatorAtoms(config.evaluator)
+        registerSelectionAdapter(evaluatorAdapter)
+    }
+
+    // Configure and register legacy evaluator adapter (1-level flat list, if provided)
+    if (config.legacyEvaluator) {
+        setLegacyEvaluatorAtoms(config.legacyEvaluator)
+        registerSelectionAdapter(legacyEvaluatorAdapter)
+    }
+
+    // Configure and register evaluator revision adapter (3-level hierarchy, if provided)
     if (config.evaluatorRevision) {
         setEvaluatorRevisionAtoms(config.evaluatorRevision)
         registerSelectionAdapter(evaluatorRevisionAdapter)

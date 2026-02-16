@@ -191,8 +191,13 @@ export {
     appRevisionAdapter,
     legacyAppRevisionAdapter,
     createLegacyAppRevisionAdapter,
+    evaluatorAdapter,
+    setEvaluatorAtoms,
+    legacyEvaluatorAdapter,
+    setLegacyEvaluatorAtoms,
     evaluatorRevisionAdapter,
     setEvaluatorRevisionAtoms,
+    evaluatorRevisionRelationAdapter,
     testsetAdapter,
 } from "./adapters"
 
@@ -200,7 +205,10 @@ export type {
     AppRevisionSelectionResult,
     LegacyAppRevisionSelectionResult,
     CreateLegacyAppRevisionAdapterOptions,
+    EvaluatorSelectionResult,
+    LegacyEvaluatorSelectionResult,
     EvaluatorRevisionSelectionResult,
+    EvaluatorRevisionRelationSelectionResult,
     TestsetSelectionResult,
 } from "./adapters"
 
@@ -211,4 +219,9 @@ export {
     isSelectionSystemInitialized,
 } from "./initializeSelection"
 
-export type {SelectionSystemConfig, EvaluatorRevisionSelectionConfig} from "./initializeSelection"
+export type {
+    SelectionSystemConfig,
+    EvaluatorSelectionConfig,
+    LegacyEvaluatorSelectionConfig,
+    EvaluatorRevisionSelectionConfig,
+} from "./initializeSelection"
