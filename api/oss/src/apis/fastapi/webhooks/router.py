@@ -241,8 +241,8 @@ class WebhooksRouter:
                     status_code=status.HTTP_403_FORBIDDEN,
                 )
 
-        # Convert API request to DTO
-        dto = UpdateWebhookSubscriptionDTO(**body.model_dump())
+        # Convert API request to DTO (preserve unset tracking for partial updates)
+        dto = UpdateWebhookSubscriptionDTO(**body.model_dump(exclude_unset=True))
 
         subscription_dto = await self.service.update_subscription(
             subscription_id=subscription_id,
