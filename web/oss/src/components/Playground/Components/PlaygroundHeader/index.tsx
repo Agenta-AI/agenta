@@ -60,9 +60,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
             nodes.find(
                 (n) =>
                     n.depth > 0 &&
-                    (n.entityType === "evaluatorRevision" ||
-                        n.entityType === "evaluator" ||
-                        n.entityType === "legacyEvaluator"),
+                    (n.entityType === "evaluatorRevision" || n.entityType === "evaluator"),
             ),
         [nodes],
     )
@@ -71,8 +69,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         if (!connectedEvaluatorNode) return null
         if (
             connectedEvaluatorNode.entityType === "evaluatorRevision" ||
-            connectedEvaluatorNode.entityType === "evaluator" ||
-            connectedEvaluatorNode.entityType === "legacyEvaluator"
+            connectedEvaluatorNode.entityType === "evaluator"
         ) {
             return connectedEvaluatorNode.entityType
         }
@@ -231,7 +228,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             className="flex items-center gap-1"
                             icon={<LinkSimple size={14} />}
                             disabled={!hasRootNode}
-                            onClick={connectedEvaluatorNode ? handleDisconnectEvaluator : undefined}
                             style={
                                 connectedEvaluatorColor
                                     ? {
@@ -253,7 +249,15 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             destroyTooltipOnHide
                             styles={{body: {padding: 0}}}
                             content={
-                                <div style={{width: 280}}>
+                                <div style={{width: 280}} className="relative">
+                                    {connectedEvaluatorNode && (
+                                        <span
+                                            className="absolute top-0 right-0 z-10 h-[22px] leading-[22px] pr-2 text-[12px] cursor-pointer text-red-500 hover:text-red-600"
+                                            onClick={handleDisconnectEvaluator}
+                                        >
+                                            Disconnect
+                                        </span>
+                                    )}
                                     <EntityPicker<EvaluatorRevisionSelectionResult>
                                         variant="breadcrumb"
                                         adapter="evaluatorRevision"

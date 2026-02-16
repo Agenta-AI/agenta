@@ -756,7 +756,9 @@ export function getOnSelectionChangeCallback(): SelectionChangeCallback | null {
  */
 const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]) => string[])) => {
     const currentNodes = get(playgroundNodesAtom)
-    const currentIds = currentNodes.map((n) => n.entityId)
+    const currentRootNodes = currentNodes.filter((node) => node.depth === 0)
+    const downstreamNodes = currentNodes.filter((node) => node.depth > 0)
+    const currentIds = currentRootNodes.map((node) => node.entityId)
     const rawValue = typeof next === "function" ? next(currentIds) : next
     const seen = new Set<string>()
     const newIds = rawValue.filter((id) => {
@@ -764,9 +766,9 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
         seen.add(id)
         return true
     })
-    const existingByEntityId = new Map(currentNodes.map((n) => [n.entityId, n]))
+    const existingByEntityId = new Map(currentRootNodes.map((node) => [node.entityId, node]))
     const resolver = getRunnableTypeResolver()
-    const newNodes: PlaygroundNode[] = newIds.map((entityId) => {
+    const newRootNodes: PlaygroundNode[] = newIds.map((entityId) => {
         const existing = existingByEntityId.get(entityId)
         if (existing) return existing
         return {
@@ -777,11 +779,13 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
             depth: 0,
         }
     })
-    set(playgroundNodesAtom, newNodes)
+    // Preserve downstream nodes (e.g. evaluators at depth > 0) when updating root selection.
+    // If root selection is cleared entirely, downstream nodes are also removed.
+    set(playgroundNodesAtom, newRootNodes.length > 0 ? [...newRootNodes, ...downstreamNodes] : [])
 
     // Ensure primary runnable is linked so loadable-derived columns/rows
     // (including initial variable row) are initialized for the current selection.
-    const primary = newNodes[0]
+    const primary = newRootNodes[0]
     if (primary) {
         const loadableId = `testset:${primary.entityType}:${primary.entityId}`
         set(
