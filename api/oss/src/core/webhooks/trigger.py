@@ -7,7 +7,7 @@ Example:
     from oss.src.core.webhooks import trigger_webhook
 
     await trigger_webhook(
-        workspace_id=workspace_id,
+        project_id=project_id,
         event_type="config.deployed",
         payload={"config_id": "cfg_123", "version": 1},
     )
@@ -75,7 +75,7 @@ def _get_worker() -> Optional["WebhooksWorker"]:
 
 
 async def trigger_webhook(
-    workspace_id: UUID,
+    project_id: UUID,
     event_type: str,
     payload: dict,
 ) -> None:
@@ -89,13 +89,13 @@ async def trigger_webhook(
     3. Enqueues delivery tasks to the worker
 
     Args:
-        workspace_id: Workspace triggering the webhook
+        project_id: Project triggering the webhook
         event_type: Type of event (e.g., "config.deployed")
         payload: Event data to send in webhook (must be JSON-serializable)
 
     Example:
         await trigger_webhook(
-            workspace_id=UUID("123..."),
+            project_id=UUID("123..."),
             event_type="config.deployed",
             payload={
                 "variant_id": "var_456",
@@ -115,12 +115,12 @@ async def trigger_webhook(
 
         # 1. Get active subscriptions
         subscriptions = await dao.get_active_subscriptions_for_event(
-            workspace_id, event_type
+            project_id, event_type
         )
 
         if not subscriptions:
             log.debug(
-                f"No active subscriptions for event {event_type} in workspace {workspace_id}"
+                f"No active subscriptions for event {event_type} in project {project_id}"
             )
             return
 

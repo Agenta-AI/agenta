@@ -27,7 +27,7 @@ class UpdateWebhookSubscription(BaseModel):
 
 class WebhookSubscription(WebhookSubscriptionBase):
     id: UUID
-    workspace_id: UUID
+    project_id: UUID
     secret: str
     created_at: datetime
     updated_at: datetime

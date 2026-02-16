@@ -36,13 +36,13 @@ class WebhooksDAO(WebhooksDAOInterface):
 
     async def create_subscription(
         self,
-        workspace_id: UUID,
+        project_id: UUID,
         payload: CreateWebhookSubscriptionDTO,
         user_id: Optional[UUID] = None,
         secret: str = "",
     ) -> WebhookSubscriptionResponseDTO:
         subscription_dbe = map_subscription_dto_to_dbe(
-            workspace_id=workspace_id,
+            project_id=project_id,
             payload=payload,
             user_id=user_id,
             secret=secret,
@@ -56,11 +56,11 @@ class WebhooksDAO(WebhooksDAOInterface):
         return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
     async def get_subscription(
-        self, workspace_id: UUID, subscription_id: UUID
+        self, project_id: UUID, subscription_id: UUID
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
             stmt = select(WebhookSubscriptionDBE).filter_by(
-                id=subscription_id, workspace_id=workspace_id, archived_at=None
+                id=subscription_id, project_id=project_id, archived_at=None
             )
             result = await session.execute(stmt)
             subscription_dbe = result.scalar_one_or_none()
@@ -86,11 +86,11 @@ class WebhooksDAO(WebhooksDAOInterface):
             return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
     async def list_subscriptions(
-        self, workspace_id: UUID
+        self, project_id: UUID
     ) -> List[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
             stmt = select(WebhookSubscriptionDBE).filter_by(
-                workspace_id=workspace_id, archived_at=None
+                project_id=project_id, archived_at=None
             )
             result = await session.execute(stmt)
             subscription_dbes = result.scalars().all()
@@ -102,7 +102,7 @@ class WebhooksDAO(WebhooksDAOInterface):
 
     async def query_subscriptions(
         self,
-        workspace_id: UUID,
+        project_id: UUID,
         filters: Optional[WebhookSubscriptionQueryDTO] = None,
         offset: int = 0,
         limit: int = 20,
@@ -110,7 +110,7 @@ class WebhooksDAO(WebhooksDAOInterface):
         async with engine.core_session() as session:
             # Build shared WHERE conditions
             conditions = [
-                WebhookSubscriptionDBE.workspace_id == workspace_id,
+                WebhookSubscriptionDBE.project_id == project_id,
                 WebhookSubscriptionDBE.archived_at.is_(None),
             ]
 
@@ -168,13 +168,13 @@ class WebhooksDAO(WebhooksDAOInterface):
 
     async def update_subscription(
         self,
-        workspace_id: UUID,
+        project_id: UUID,
         subscription_id: UUID,
         payload: UpdateWebhookSubscriptionDTO,
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
             stmt = select(WebhookSubscriptionDBE).filter_by(
-                id=subscription_id, workspace_id=workspace_id, archived_at=None
+                id=subscription_id, project_id=project_id, archived_at=None
             )
             result = await session.execute(stmt)
             subscription_dbe = result.scalar_one_or_none()
@@ -192,11 +192,11 @@ class WebhooksDAO(WebhooksDAOInterface):
             return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
     async def archive_subscription(
-        self, workspace_id: UUID, subscription_id: UUID
+        self, project_id: UUID, subscription_id: UUID
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
             stmt = select(WebhookSubscriptionDBE).filter_by(
-                id=subscription_id, workspace_id=workspace_id, archived_at=None
+                id=subscription_id, project_id=project_id, archived_at=None
             )
             result = await session.execute(stmt)
             subscription_dbe = result.scalar_one_or_none()
@@ -211,11 +211,11 @@ class WebhooksDAO(WebhooksDAOInterface):
             return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
 
     async def get_active_subscriptions_for_event(
-        self, workspace_id: UUID, event_type: str
+        self, project_id: UUID, event_type: str
     ) -> List[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
             stmt = select(WebhookSubscriptionDBE).filter_by(
-                workspace_id=workspace_id, is_active=True, archived_at=None
+                project_id=project_id, is_active=True, archived_at=None
             )
             stmt = stmt.filter(WebhookSubscriptionDBE.events.contains([event_type]))
             result = await session.execute(stmt)

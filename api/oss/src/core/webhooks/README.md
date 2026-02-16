@@ -1,16 +1,16 @@
 # Webhooks
 
-Webhooks enable real-time event notifications from Agenta to external systems. When specific events occur in a workspace, Agenta sends HTTP POST requests to configured endpoints.
+Webhooks enable real-time event notifications from Agenta to external systems. When specific events occur in a project, Agenta sends HTTP POST requests to configured endpoints.
 
 ## Features
 
-- **Event Subscriptions**: Subscribe to workspace events (e.g., config deployments)
+- **Event Subscriptions**: Subscribe to project events (e.g., config deployments)
 - **Secure Delivery**: HMAC-SHA256 signed payloads for verification
 - **Automatic Retries**: Exponential backoff with up to 5 retry attempts
 - **Circuit Breaking**: Prevents repeated delivery attempts to failing endpoints
 - **Delivery History**: Audit trail of all webhook delivery attempts
 - **Test Endpoint**: Verify webhook configuration before activation
-- **Workspace Scoped**: Webhooks are isolated per workspace
+- **Project Scoped**: Webhooks are isolated per project
 
 ## Database Schema
 
@@ -21,7 +21,7 @@ Stores user-configured webhook endpoints.
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | UUID | PRIMARY KEY | Unique identifier |
-| workspace_id | UUID | FOREIGN KEY → workspaces (CASCADE) | Workspace owner |
+| project_id | UUID | FOREIGN KEY → projects (CASCADE) | Project owner |
 | name | VARCHAR(255) | NOT NULL | Subscription name |
 | url | VARCHAR(2048) | NOT NULL, CHECK (HTTPS or localhost) | Endpoint URL |
 | events | TEXT[] | NOT NULL | Event types to subscribe to |
@@ -33,7 +33,7 @@ Stores user-configured webhook endpoints.
 | created_by_id | UUID | FOREIGN KEY → users (SET NULL) | Creator user |
 | archived_at | TIMESTAMP | | Soft delete marker |
 
-**Index**: `ix_webhook_subscriptions_workspace_id` (filtered on `archived_at IS NULL`)
+**Index**: `ix_webhook_subscriptions_project_id` (filtered on `archived_at IS NULL`)
 
 ### webhook_deliveries
 
@@ -220,11 +220,11 @@ Circuit breaker status is per-subscription.
 - Localhost and 127.0.0.1 are allowed for development
 - Maximum URL length: 2048 characters
 
-## Workspace Scoping
+## Project Scoping
 
-Webhooks are strictly scoped to workspaces:
-- Subscriptions belong to a single workspace
-- Events are filtered by workspace_id
-- No cross-workspace event delivery
-- Workspace deletion cascades to subscriptions
-- Workspace isolation enforced at database level
+Webhooks are strictly scoped to projects:
+- Subscriptions belong to a single project
+- Events are filtered by project_id
+- No cross-project event delivery
+- Project deletion cascades to subscriptions
+- Project isolation enforced at database level

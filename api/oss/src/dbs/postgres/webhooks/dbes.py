@@ -17,9 +17,9 @@ class WebhookSubscriptionDBE(Base, WebhookSubscriptionDBA):
 
     __tablename__ = "webhook_subscriptions"
 
-    workspace_id = Column(
+    project_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
     created_by_id = Column(
@@ -28,8 +28,8 @@ class WebhookSubscriptionDBE(Base, WebhookSubscriptionDBA):
         nullable=True,
     )
 
-    workspace = relationship(
-        "oss.src.models.db_models.WorkspaceDB",
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
     )
     created_by = relationship(
         "oss.src.models.db_models.UserDB",

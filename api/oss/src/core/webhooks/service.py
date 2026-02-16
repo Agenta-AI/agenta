@@ -36,69 +36,69 @@ class WebhooksService:
 
     async def create_subscription(
         self,
-        workspace_id: UUID,
+        project_id: UUID,
         payload: CreateWebhookSubscriptionDTO,
         user_id: Optional[UUID] = None,
     ) -> WebhookSubscriptionResponseDTO:
         secret = self._generate_secret()
         return await self.dao.create_subscription(
-            workspace_id=workspace_id, payload=payload, user_id=user_id, secret=secret
+            project_id=project_id, payload=payload, user_id=user_id, secret=secret
         )
 
     async def list_subscriptions(
-        self, workspace_id: UUID
+        self, project_id: UUID
     ) -> List[WebhookSubscriptionResponseDTO]:
-        return await self.dao.list_subscriptions(workspace_id=workspace_id)
+        return await self.dao.list_subscriptions(project_id=project_id)
 
     async def query_subscriptions(
         self,
-        workspace_id: UUID,
+        project_id: UUID,
         filters: Optional[WebhookSubscriptionQueryDTO] = None,
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[List[WebhookSubscriptionResponseDTO], int]:
         return await self.dao.query_subscriptions(
-            workspace_id=workspace_id,
+            project_id=project_id,
             filters=filters,
             offset=offset,
             limit=limit,
         )
 
     async def get_subscription(
-        self, workspace_id: UUID, subscription_id: UUID
+        self, project_id: UUID, subscription_id: UUID
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         return await self.dao.get_subscription(
-            workspace_id=workspace_id, subscription_id=subscription_id
+            project_id=project_id, subscription_id=subscription_id
         )
 
     async def update_subscription(
         self,
-        workspace_id: UUID,
+        project_id: UUID,
         subscription_id: UUID,
         payload: UpdateWebhookSubscriptionDTO,
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         return await self.dao.update_subscription(
-            workspace_id=workspace_id,
+            project_id=project_id,
             subscription_id=subscription_id,
             payload=payload,
         )
 
     async def archive_subscription(
-        self, workspace_id: UUID, subscription_id: UUID
+        self, project_id: UUID, subscription_id: UUID
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         return await self.dao.archive_subscription(
-            workspace_id=workspace_id, subscription_id=subscription_id
+            project_id=project_id, subscription_id=subscription_id
         )
 
     async def trigger_event(
-        self, workspace_id: UUID, event_type: str, payload: dict
+        self, project_id: UUID, event_type: str, payload: dict
     ) -> None:
         """
         Triggers a webhook event: finds subscribers and enqueues delivery tasks.
         """
         # 1. Get subscribers
         subscriptions = await self.dao.get_active_subscriptions_for_event(
-            workspace_id, event_type
+            project_id, event_type
         )
 
         if not subscriptions:
@@ -130,13 +130,13 @@ class WebhooksService:
                 )
 
     async def test_webhook(
-        self, url: str, event_type: str, workspace_id: UUID, user_id: UUID
+        self, url: str, event_type: str, project_id: UUID, user_id: UUID
     ) -> dict:
         """
         Tests a webhook endpoint with valid signature.
 
         Sends a test payload with:
-        - Real workspace_id (not dummy)
+        - Real project_id (not dummy)
         - Valid HMAC signature using temporary test secret
         - Clear indication this is a test ("test": true)
         - Returns test secret for signature verification
@@ -144,7 +144,7 @@ class WebhooksService:
         Args:
             url: Webhook endpoint URL to test
             event_type: Event type to test (e.g., "config.deployed")
-            workspace_id: Actual workspace ID
+            project_id: Actual project ID
             user_id: User triggering the test
 
         Returns:
@@ -160,11 +160,11 @@ class WebhooksService:
         # Generate temporary test secret (same length as real subscriptions)
         test_secret = self._generate_secret()
 
-        # Construct test payload with real workspace_id
+        # Construct test payload with real project_id
         payload = {
             "id": f"evt_test_{str(uuid.uuid4())[:8]}",
             "event_type": event_type,
-            "workspace_id": str(workspace_id),  # Real workspace_id
+            "project_id": str(project_id),  # Real project_id
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "test": True,  # Clear indicator this is a test
             "data": {

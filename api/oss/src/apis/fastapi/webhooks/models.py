@@ -33,7 +33,7 @@ class WebhookSubscriptionResponse(BaseModel):
     """API response model for webhook subscription."""
 
     id: UUID
-    workspace_id: UUID
+    project_id: UUID
     name: str
     url: str
     events: List[str]
@@ -90,7 +90,7 @@ class TestWebhookResponse(BaseModel):
 class WebhookSubscriptionQueryRequest(BaseModel):
     """POST /webhooks/query request body."""
 
-    # Filters (workspace_id always from request.state, never from body)
+    # Filters (project_id always from request.state, never from body)
     is_active: Optional[bool] = None
     events: Optional[List[str]] = None
     created_after: Optional[datetime] = None

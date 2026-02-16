@@ -7,8 +7,8 @@ from fastapi import APIRouter, Request, status, HTTPException
 from fastapi.responses import JSONResponse
 
 from oss.src.utils.common import is_ee
-from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.webhooks.dtos import (
     CreateWebhookSubscriptionDTO,
@@ -28,8 +28,6 @@ from oss.src.apis.fastapi.webhooks.models import (
 if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access
-
-log = get_module_logger(__name__)
 
 
 class WebhooksRouter:
@@ -109,8 +107,13 @@ class WebhooksRouter:
 
         subscription_dto = await self.service.create_subscription(
             user_id=request.state.user_id,
-            workspace_id=UUID(request.state.workspace_id),
+            project_id=UUID(request.state.project_id),
             payload=dto,
+        )
+
+        await invalidate_cache(
+            project_id=request.state.project_id,
+            namespace="webhook_query_subscriptions",
         )
 
         # Convert DTO to API response
@@ -131,7 +134,7 @@ class WebhooksRouter:
                 )
 
         subscription_dtos = await self.service.list_subscriptions(
-            workspace_id=UUID(request.state.workspace_id),
+            project_id=UUID(request.state.project_id),
         )
 
         return [
@@ -154,6 +157,37 @@ class WebhooksRouter:
                     status_code=status.HTTP_403_FORBIDDEN,
                 )
 
+        # Build cache key: include all filter + pagination fields, exclude None values
+        cache_key = {
+            k: v
+            for k, v in {
+                "is_active": body.is_active,
+                "events": (",".join(sorted(body.events)) if body.events else None),
+                "created_after": (
+                    body.created_after.isoformat() if body.created_after else None
+                ),
+                "created_before": (
+                    body.created_before.isoformat() if body.created_before else None
+                ),
+                "sort_by": body.sort_by or "created_at",
+                "sort_order": body.sort_order or "desc",
+                "offset": body.offset,
+                "limit": body.limit,
+            }.items()
+            if v is not None
+        }
+
+        cached = await get_cache(
+            project_id=request.state.project_id,
+            namespace="webhook_query_subscriptions",
+            key=cache_key,
+            model=WebhookSubscriptionsResponse,
+            retry=False,
+        )
+
+        if cached is not None:
+            return cached
+
         filters = WebhookSubscriptionQueryDTO(
             is_active=body.is_active,
             events=body.events,
@@ -164,20 +198,31 @@ class WebhooksRouter:
         )
 
         subscriptions, total = await self.service.query_subscriptions(
-            workspace_id=UUID(request.state.workspace_id),
+            project_id=UUID(request.state.project_id),
             filters=filters,
             offset=body.offset,
             limit=body.limit,
         )
 
-        return WebhookSubscriptionsResponse(
+        data = [
+            WebhookSubscriptionResponse(**dto.model_dump()) for dto in subscriptions
+        ]
+
+        response = WebhookSubscriptionsResponse(
             count=total,
-            data=[
-                WebhookSubscriptionResponse(**dto.model_dump()) for dto in subscriptions
-            ],
+            data=data,
             offset=body.offset,
             limit=body.limit,
         )
+
+        await set_cache(
+            project_id=request.state.project_id,
+            namespace="webhook_query_subscriptions",
+            key=cache_key,
+            value=response,
+        )
+
+        return response
 
     @intercept_exceptions()
     async def get_subscription(self, request: Request, subscription_id: UUID):
@@ -195,7 +240,7 @@ class WebhooksRouter:
 
         subscription_dto = await self.service.get_subscription(
             subscription_id=subscription_id,
-            workspace_id=UUID(request.state.workspace_id),
+            project_id=UUID(request.state.project_id),
         )
         if not subscription_dto:
             raise HTTPException(
@@ -229,7 +274,7 @@ class WebhooksRouter:
 
         subscription_dto = await self.service.update_subscription(
             subscription_id=subscription_id,
-            workspace_id=UUID(request.state.workspace_id),
+            project_id=UUID(request.state.project_id),
             payload=dto,
         )
         if not subscription_dto:
@@ -237,6 +282,11 @@ class WebhooksRouter:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Webhook subscription not found",
             )
+
+        await invalidate_cache(
+            project_id=request.state.project_id,
+            namespace="webhook_query_subscriptions",
+        )
 
         return WebhookSubscriptionResponse(**subscription_dto.model_dump())
 
@@ -256,13 +306,18 @@ class WebhooksRouter:
 
         subscription_dto = await self.service.archive_subscription(
             subscription_id=subscription_id,
-            workspace_id=UUID(request.state.workspace_id),
+            project_id=UUID(request.state.project_id),
         )
         if not subscription_dto:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Webhook subscription not found",
             )
+
+        await invalidate_cache(
+            project_id=request.state.project_id,
+            namespace="webhook_query_subscriptions",
+        )
 
         return WebhookSubscriptionResponse(**subscription_dto.model_dump())
 
@@ -283,7 +338,7 @@ class WebhooksRouter:
         response = await self.service.test_webhook(
             url=str(body.url),
             event_type=body.event_type,
-            workspace_id=UUID(request.state.workspace_id),
+            project_id=UUID(request.state.project_id),
             user_id=request.state.user_id,
         )
         return response

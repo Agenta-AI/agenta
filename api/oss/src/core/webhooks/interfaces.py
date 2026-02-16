@@ -22,7 +22,7 @@ class WebhooksDAOInterface:
     # Subscription operations
     async def create_subscription(
         self,
-        workspace_id: UUID,
+        project_id: UUID,
         payload: CreateWebhookSubscriptionDTO,
         user_id: Optional[UUID] = None,
         secret: str = "",
@@ -30,7 +30,7 @@ class WebhooksDAOInterface:
         raise NotImplementedError
 
     async def get_subscription(
-        self, workspace_id: UUID, subscription_id: UUID
+        self, project_id: UUID, subscription_id: UUID
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         raise NotImplementedError
 
@@ -40,13 +40,13 @@ class WebhooksDAOInterface:
         raise NotImplementedError
 
     async def list_subscriptions(
-        self, workspace_id: UUID
+        self, project_id: UUID
     ) -> List[WebhookSubscriptionResponseDTO]:
         raise NotImplementedError
 
     async def query_subscriptions(
         self,
-        workspace_id: UUID,
+        project_id: UUID,
         filters: Optional[WebhookSubscriptionQueryDTO] = None,
         offset: int = 0,
         limit: int = 20,
@@ -55,20 +55,20 @@ class WebhooksDAOInterface:
 
     async def update_subscription(
         self,
-        workspace_id: UUID,
+        project_id: UUID,
         subscription_id: UUID,
         payload: UpdateWebhookSubscriptionDTO,
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         raise NotImplementedError
 
     async def archive_subscription(
-        self, workspace_id: UUID, subscription_id: UUID
+        self, project_id: UUID, subscription_id: UUID
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         raise NotImplementedError
 
     # Event operations
     async def get_active_subscriptions_for_event(
-        self, workspace_id: UUID, event_type: str
+        self, project_id: UUID, event_type: str
     ) -> List[WebhookSubscriptionResponseDTO]:
         raise NotImplementedError
 

@@ -17,14 +17,14 @@ from oss.src.core.webhooks.dtos import (
 # Subscription mappings
 def map_subscription_dto_to_dbe(
     *,
-    workspace_id: UUID,
+    project_id: UUID,
     payload: CreateWebhookSubscriptionDTO,
     user_id: UUID | None,
     secret: str,
 ) -> WebhookSubscriptionDBE:
     """Map CreateWebhookSubscriptionDTO to DBE."""
     return WebhookSubscriptionDBE(
-        workspace_id=workspace_id,
+        project_id=project_id,
         name=payload.name,
         url=str(payload.url),
         events=payload.events,
@@ -41,7 +41,7 @@ def map_subscription_dbe_to_dto(
     """Map WebhookSubscriptionDBE to response DTO."""
     return WebhookSubscriptionResponseDTO(
         id=subscription_dbe.id,
-        workspace_id=subscription_dbe.workspace_id,
+        project_id=subscription_dbe.project_id,
         name=subscription_dbe.name,
         url=subscription_dbe.url,
         events=subscription_dbe.events,

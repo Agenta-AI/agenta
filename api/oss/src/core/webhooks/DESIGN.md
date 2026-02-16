@@ -2,7 +2,7 @@
 
 ## Architecture Overview
 
-The webhook system implements an event-driven, asynchronous architecture for delivering HTTP notifications when workspace events occur. The design emphasizes reliability, fault tolerance, and non-blocking execution.
+The webhook system implements an event-driven, asynchronous architecture for delivering HTTP notifications when project events occur. The design emphasizes reliability, fault tolerance, and non-blocking execution.
 
 ## System Architecture Diagram
 
@@ -16,7 +16,7 @@ The webhook system implements an event-driven, asynchronous architecture for del
 │          │                     │                         │               │
 │          └─────────────────────┼─────────────────────────┘               │
 │                                ↓                                         │
-│                    trigger_webhook(workspace_id, event_type, payload)   │
+│                    trigger_webhook(project_id, event_type, payload)   │
 └─────────────────────────────────────────────────────────────────────────┘
                                  ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -24,7 +24,7 @@ The webhook system implements an event-driven, asynchronous architecture for del
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │                     WebhooksService                              │    │
 │  │                                                                  │    │
-│  │  trigger_event(workspace_id, event_type, payload):              │    │
+│  │  trigger_event(project_id, event_type, payload):              │    │
 │  │    1. Find active subscriptions for event_type                  │    │
 │  │    2. Create WebhookDeliveryDB for each subscription            │    │
 │  │    3. Enqueue delivery task to worker                           │    │
@@ -36,7 +36,7 @@ The webhook system implements an event-driven, asynchronous architecture for del
 │  ┌──────────────────────┐  ┌──────────────────┐                       │
 │  │webhook_subscriptions │  │webhook_deliveries│                       │
 │  │                      │  │                  │                       │
-│  │ - workspace_id       │  │ - subscription_id│                       │
+│  │ - project_id       │  │ - subscription_id│                       │
 │  │ - url                │  │ - status         │                       │
 │  │ - events[]           │  │ - attempts       │                       │
 │  │ - secret (HMAC)      │  │ - next_retry_at  │                       │
@@ -291,7 +291,7 @@ Current: 1 worker with 50 concurrent tasks
 
 **Critical Metrics**:
 - Queue depth (queues:webhooks)
-- Delivery success rate (per subscription, per workspace)
+- Delivery success rate (per subscription, per project)
 - Circuit breaker open count
 - Worker task processing time (p95, p99)
 - Database connection pool utilization
@@ -324,7 +324,7 @@ The webhook system implements a production-capable event notification architectu
 
 1. **Fault tolerance** via automatic retries and circuit breaking
 2. **Security** via HMAC signing
-3. **Workspace isolation** for multi-tenancy
+3. **Project isolation** for multi-tenancy
 
 Current limitations center on observability, performance optimization, and feature completeness. The modular architecture allows incremental enhancement without major refactoring.
 

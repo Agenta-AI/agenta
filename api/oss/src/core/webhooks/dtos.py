@@ -32,7 +32,7 @@ class WebhookSubscriptionResponseDTO(BaseModel):
     """DTO for webhook subscription responses."""
 
     id: UUID
-    workspace_id: UUID
+    project_id: UUID
     name: str
     url: str  # Stored as string in DB
     events: List[str]
