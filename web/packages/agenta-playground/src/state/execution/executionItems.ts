@@ -438,15 +438,6 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         const runnableData = get(bridge.data(params.entityId)) as TransformVariantInput | null
         const entityData = runnableData ?? null
 
-        console.log("[executionItem.run] entityId:", params.entityId, {
-            mode,
-            invocationUrl,
-            requestPayload,
-            runnableData,
-            entityData,
-            entityType: params.entityType,
-        })
-
         const allMetadata = (runnableBridge.utils?.getAllMetadata() ?? {}) as Record<
             string,
             ConfigMetadata
@@ -978,10 +969,6 @@ function buildExecutionItem(
               // When inputValues are provided (e.g. from chain execution),
               // merge them into the raw body's inputs field.
               if (params.inputValues && Object.keys(params.inputValues).length > 0) {
-                  console.log("[buildExecutionItem] Merging inputValues into rawBody.inputs", {
-                      existingInputs: body.inputs,
-                      inputValues: params.inputValues,
-                  })
                   body.inputs = params.inputValues
               }
               return body

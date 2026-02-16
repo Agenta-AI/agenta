@@ -510,12 +510,6 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
     const fullUrl = nextUrl ? new URL(nextUrl, window.location.origin).href : window.location.href
     const normalizedUrl = `${new URL(fullUrl).pathname}${new URL(fullUrl).search}${new URL(fullUrl).hash}`
 
-    console.log(
-        "[syncFromUrl] called, normalizedUrl:",
-        normalizedUrl,
-        "lastWrittenUrl:",
-        lastWrittenUrl,
-    )
     if (normalizedUrl === lastWrittenUrl) return
 
     try {
@@ -528,14 +522,6 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
 
         const revisionsParam = url.searchParams.get(REVISIONS_QUERY_PARAM)
         const urlRevisions = revisionsParam ? sanitizeRevisionList(revisionsParam.split(",")) : []
-        console.log(
-            "[syncFromUrl] isPlaygroundRoute:",
-            isPlaygroundRoute,
-            "currentAppId:",
-            currentAppId,
-            "urlRevisions:",
-            urlRevisions,
-        )
 
         const snapshotEncoded = extractSnapshotFromHash(url)
 
@@ -697,27 +683,27 @@ playgroundSyncAtom.onMount = (set) => {
     // Also do an immediate check for any pending hydrations whose source data is already loaded
     {
         const pending = store.get(pendingHydrationsAtom)
-        if (process.env.NODE_ENV !== "production" && pending.size > 0) {
-            const entries = Array.from(pending.entries()).map(([key, h]) => ({
-                key,
-                sourceRevisionId: h.sourceRevisionId,
-                createLocalDraft: h.createLocalDraft,
-                hasPatch: !!h.patch,
-            }))
-            console.debug("[hydration-sync] pending hydrations at mount", entries)
-        }
+        // if (process.env.NODE_ENV !== "production" && pending.size > 0) {
+        //     const entries = Array.from(pending.entries()).map(([key, h]) => ({
+        //         key,
+        //         sourceRevisionId: h.sourceRevisionId,
+        //         createLocalDraft: h.createLocalDraft,
+        //         hasPatch: !!h.patch,
+        //     }))
+        //     // console.debug("[hydration-sync] pending hydrations at mount", entries)
+        // }
         // Collect unique source IDs that are ready, then apply via the ordered helper
         const readySourceIds = new Set<string>()
         for (const [key, hydration] of pending.entries()) {
             const query = store.get(runnableBridge.query(hydration.sourceRevisionId))
-            if (process.env.NODE_ENV !== "production") {
-                console.debug("[hydration-sync] query state for", key, {
-                    sourceRevisionId: hydration.sourceRevisionId,
-                    isPending: query.isPending,
-                    hasData: !!query.data,
-                    isError: query.isError,
-                })
-            }
+            // if (process.env.NODE_ENV !== "production") {
+            //     console.debug("[hydration-sync] query state for", key, {
+            //         sourceRevisionId: hydration.sourceRevisionId,
+            //         isPending: query.isPending,
+            //         hasData: !!query.data,
+            //         isError: query.isError,
+            //     })
+            // }
             if (!query.isPending && query.data) {
                 readySourceIds.add(hydration.sourceRevisionId)
             }
@@ -774,7 +760,6 @@ playgroundSyncAtom.onMount = (set) => {
     const bindRevisionsReady = () => {
         const rawAppId = store.get(selectedAppIdAtom)
         const currentAppId = typeof rawAppId === "string" ? rawAppId : null
-        console.log("[bindRevisionsReady] resetting, appId:", currentAppId)
         hasAppliedDefaults = false
         store.set(playgroundInitializedAtom, false)
         currentRevReadyUnsub?.()
@@ -785,7 +770,6 @@ playgroundSyncAtom.onMount = (set) => {
             store.get(playgroundController.selectors.entityIds()),
         )
         if (existingSelection.length > 0) {
-            console.log("[bindRevisionsReady] URL already provided selection:", existingSelection)
             hasAppliedDefaults = true
             // Subscribe to revisionsReady (per-entity query state)
             // so we can mark initialized once the selected entities load.

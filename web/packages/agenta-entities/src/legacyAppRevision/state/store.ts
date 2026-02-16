@@ -414,10 +414,6 @@ export const variantsQueryAtomFamily = atomFamily((appId: string) =>
     atomWithQuery<VariantListItem[]>((get) => {
         const projectId = get(projectIdAtom)
         const enabled = !!projectId && !!appId
-        if (enabled)
-            console.trace(
-                `[DEBUG-ATOM] variantsQueryAtomFamily EVALUATED appId=${appId} enabled=${enabled}`,
-            )
 
         return {
             queryKey: ["oss-variants-for-selection", appId, projectId],
@@ -450,10 +446,6 @@ export const revisionsQueryAtomFamily = atomFamily((variantId: string) =>
     atomWithQuery<RevisionListItem[]>((get) => {
         const projectId = get(projectIdAtom)
         const enabled = !!projectId && !!variantId
-        if (enabled)
-            console.trace(
-                `[DEBUG-ATOM] revisionsQueryAtomFamily EVALUATED variantId=${variantId} enabled=${enabled}`,
-            )
 
         return {
             queryKey: ["oss-revisions-for-selection", variantId, projectId],

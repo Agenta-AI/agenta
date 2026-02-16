@@ -352,7 +352,7 @@ export function safeParseWithLogging<T>(
     if (result.success) {
         // Log success in development
         if (process.env.NODE_ENV !== "production") {
-            console.log(`${prefix}Schema validation passed`)
+            // console.log(`${prefix}Schema validation passed`)
         }
         return result.data
     }

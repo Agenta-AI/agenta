@@ -255,50 +255,6 @@ function LegacyPlaygroundConfigSection({
         }
     }, [state.data, serverData, activeData])
 
-    useEffect(() => {
-        if (process.env.NODE_ENV === "production") return
-        if (!isLocalDraft && !isConfigLoading) return
-
-        const parameterCount = Object.keys(parameters || {}).length
-        console.debug("[playground-config-debug] LegacyPlaygroundConfigSection state", {
-            revisionId,
-            isLocalDraft,
-            isConfigLoading,
-            statePending: state.isPending,
-            stateHasData: Boolean(state.data),
-            serverHasData: Boolean(serverData),
-            activeDataHasParameters: hasParameters(activeData),
-            parameterCount,
-            schemaPending: schemaQuery.isPending,
-            schemaError: schemaQuery.isError,
-            hasSchema: Boolean(schema),
-            schemaHasAgConfig: Boolean(schemaQuery.data?.agConfigSchema),
-            schemaHasOpenApi: Boolean(schemaQuery.data?.openApiSchema),
-            endpointCount: Array.isArray(schemaQuery.data?.availableEndpoints)
-                ? schemaQuery.data.availableEndpoints.length
-                : 0,
-            routePath: schemaQuery.data?.routePath ?? null,
-            runtimePrefix: schemaQuery.data?.runtimePrefix ?? null,
-            localSourceRevisionId: localRefInfo.localSourceRevisionId,
-            localBaseRevisionId: localRefInfo.localBaseRevisionId,
-            localSourceVariantId: localRefInfo.localSourceVariantId,
-        })
-    }, [
-        revisionId,
-        isLocalDraft,
-        isConfigLoading,
-        state.isPending,
-        state.data,
-        serverData,
-        activeData,
-        parameters,
-        schemaQuery.isPending,
-        schemaQuery.isError,
-        schemaQuery.data,
-        schema,
-        localRefInfo,
-    ])
-
     if (isConfigLoading) {
         return (
             <div className={clsx("p-4 flex flex-col gap-3", className)}>

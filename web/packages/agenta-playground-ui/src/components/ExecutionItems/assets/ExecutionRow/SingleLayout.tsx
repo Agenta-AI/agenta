@@ -114,7 +114,7 @@ const RowHeaderActions = ({
 /** Reusable step name tag (used in both full and compact modes) */
 const StepTag = ({icon, name}: {icon: React.ReactNode; name: string}) => (
     <Tag
-        bordered={false}
+        variant="filled"
         className="flex items-center gap-1 !m-0 self-start whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium bg-[#0517290F] text-[#344054] border border-solid border-transparent"
     >
         {icon}
@@ -514,7 +514,7 @@ const SingleView = ({
                         className="text-gray-500 shrink-0"
                         renderLabel={(label) => (
                             <Tag
-                                bordered={false}
+                                variant="filled"
                                 className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[#0517290F] text-[#344054] border border-solid border-transparent cursor-default select-none"
                                 onClick={(e) => e.stopPropagation()}
                             >

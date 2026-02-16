@@ -150,17 +150,6 @@ export async function executeStepForSessionWithExecutionItems(
                 const allResults = get(resultsByKeyAtomFamily(loadableId))
                 const prevRootResult = allResults[rootResultKey] as RunResult | undefined
 
-                console.log("[chain:targeted] Cache resolution:", {
-                    targetNodeId: params.targetNodeId,
-                    rootResultKey,
-                    hasRootResult: !!prevRootResult,
-                    rootStatus: prevRootResult?.status,
-                    hasChainResults: !!prevRootResult?.chainResults,
-                    chainResultKeys: prevRootResult?.chainResults
-                        ? Object.keys(prevRootResult.chainResults)
-                        : [],
-                })
-
                 if (prevRootResult?.chainResults) {
                     resolvedCache = {}
                     for (const [nid, stage] of Object.entries(prevRootResult.chainResults)) {
@@ -182,17 +171,6 @@ export async function executeStepForSessionWithExecutionItems(
                 for (const [nid, res] of Object.entries(resolvedCache)) {
                     nodeResults[nid] = res
                 }
-                console.log("[chain:targeted] Seeded nodeResults:", {
-                    nodeIds: Object.keys(nodeResults),
-                    statuses: Object.fromEntries(
-                        Object.entries(nodeResults).map(([k, v]) => [k, v.status]),
-                    ),
-                    hasOutput: Object.fromEntries(
-                        Object.entries(nodeResults).map(([k, v]) => [k, !!v.output]),
-                    ),
-                })
-            } else {
-                console.warn("[chain:targeted] No cached results found for targeted execution")
             }
         }
 
@@ -247,20 +225,12 @@ export async function executeStepForSessionWithExecutionItems(
             let nodeInputs: Record<string, unknown>
             if (node.depth === 0) {
                 nodeInputs = {...data}
-                console.log("[chain] Root node inputs (testcase data):", nodeInputs)
             } else {
                 // Try resolveChainInputs first (uses inputMappings from connection config)
                 const resolved = resolveChainInputs(allConnections, nodeId, nodeResults, data)
 
-                console.log("[chain] resolveChainInputs for node", nodeId, {
-                    resolvedKeys: Object.keys(resolved),
-                    resolved,
-                    nodeResultKeys: Object.keys(nodeResults),
-                })
-
                 if (Object.keys(resolved).length > 0) {
                     nodeInputs = resolved
-                    console.log("[chain] Using resolveChainInputs result:", nodeInputs)
                 } else {
                     // Fallback: inputMappings is empty (default for new connections).
                     // Delegate to entity-owned input construction (DebugSection pattern).
@@ -277,21 +247,11 @@ export async function executeStepForSessionWithExecutionItems(
                         typeScopedData.data(node.entity.id as string),
                     ) as RunnableData | null
 
-                    console.log("[chain] Fallback: buildEvaluatorExecutionInputs context:", {
-                        testcaseData: data,
-                        upstreamNodeId,
-                        upstreamOutput,
-                        hasUpstreamResult: !!upstreamResult,
-                        settingsKeys: Object.keys(stageRunnableData?.configuration ?? {}),
-                        configuration: stageRunnableData?.configuration,
-                    })
-
                     nodeInputs = buildEvaluatorExecutionInputs({
                         testcaseData: data,
                         upstreamOutput,
                         settings: stageRunnableData?.configuration ?? {},
                     })
-                    console.log("[chain] buildEvaluatorExecutionInputs result:", nodeInputs)
                 }
             }
 
@@ -307,15 +267,6 @@ export async function executeStepForSessionWithExecutionItems(
                           entityType: node.entity.type,
                       })
 
-            console.log("[chain] Creating execution item for node", nodeId, {
-                stageRunnableId,
-                nodeDepth: node.depth,
-                nodeType: node.entity.type,
-                isTargeted: !!params.targetNodeId,
-                hasHeaders: !!perSession?.headers,
-                inputValueKeys: Object.keys(nodeInputs),
-            })
-
             const stageExecutionItem = stageHandle.run({
                 get,
                 headers: perSession?.headers ?? {},
@@ -324,19 +275,8 @@ export async function executeStepForSessionWithExecutionItems(
                 inputValues: nodeInputs,
             })
             if (!stageExecutionItem) {
-                console.error("[chain] stageHandle.run() returned null for", stageRunnableId, {
-                    nodeId,
-                    nodeType: node.entity.type,
-                    isTargeted: !!params.targetNodeId,
-                })
                 throw new Error(`Failed to build execution item for ${stageRunnableId}`)
             }
-
-            console.log("[chain] Execution item for node", nodeId, {
-                invocationUrl: stageExecutionItem.invocation.invocationUrl,
-                requestBody: stageExecutionItem.invocation.requestBody,
-                nodeInputs,
-            })
 
             // Use the execution item's invocationUrl and requestBody directly.
             // This is the same URL the web worker uses (includes /test suffix),
@@ -356,17 +296,6 @@ export async function executeStepForSessionWithExecutionItems(
             if (!result) {
                 throw new Error(`Execution returned null for node ${nodeId}`)
             }
-
-            console.log("[chain] executeViaFetch result for node", nodeId, {
-                status: result.status,
-                hasOutput: !!result.output,
-                hasError: !!result.error,
-                errorMessage: result.error?.message,
-                outputPreview:
-                    typeof result.output === "string"
-                        ? result.output.slice(0, 100)
-                        : typeof result.output,
-            })
 
             nodeResults[nodeId] = result
             chainResults[nodeId] = {
@@ -494,13 +423,6 @@ async function executeViaFetch(params: {
     const executionId = crypto.randomUUID()
     const startedAt = new Date().toISOString()
 
-    console.log("[executeViaFetch] About to fetch:", {
-        invocationUrl,
-        bodyKeys: Object.keys(requestBody),
-        headerKeys: Object.keys(headers),
-        hasAbortSignal: !!abortSignal,
-    })
-
     try {
         const response = await fetch(invocationUrl, {
             method: "POST",
@@ -559,12 +481,6 @@ async function executeViaFetch(params: {
             trace: normalized.trace,
         }
     } catch (error) {
-        console.error("[executeViaFetch] Fetch error:", {
-            invocationUrl,
-            errorName: error instanceof Error ? error.name : "unknown",
-            errorMessage: error instanceof Error ? error.message : String(error),
-        })
-
         if (error instanceof Error && error.name === "AbortError") {
             return {
                 executionId,
