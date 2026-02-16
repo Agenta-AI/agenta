@@ -6,7 +6,7 @@ import type {EvaluatorRevisionSelectionResult} from "@agenta/entity-ui"
 import {EntityPicker} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
-import {DownOutlined, MoreOutlined} from "@ant-design/icons"
+import {DisconnectOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {LinkSimple, PencilSimple, Plus} from "@phosphor-icons/react"
 import {Button, Dropdown, Popover, Space, Typography} from "antd"
 import clsx from "clsx"
@@ -246,18 +246,10 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             trigger="click"
                             placement="bottomRight"
                             arrow={false}
-                            destroyTooltipOnHide
+                            destroyOnHidden
                             styles={{body: {padding: 0}}}
                             content={
-                                <div style={{width: 280}} className="relative">
-                                    {connectedEvaluatorNode && (
-                                        <span
-                                            className="absolute top-0 right-0 z-10 h-[22px] leading-[22px] pr-2 text-[12px] cursor-pointer text-red-500 hover:text-red-600"
-                                            onClick={handleDisconnectEvaluator}
-                                        >
-                                            Disconnect
-                                        </span>
-                                    )}
+                                <div style={{width: 320}}>
                                     <EntityPicker<EvaluatorRevisionSelectionResult>
                                         variant="breadcrumb"
                                         adapter="evaluatorRevision"
@@ -270,6 +262,19 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                         loadingMessage="Loading evaluators..."
                                         maxHeight={250}
                                         instanceId="playground-header-evaluator"
+                                        breadcrumbActions={
+                                            connectedEvaluatorNode ? (
+                                                <Button
+                                                    size="small"
+                                                    danger
+                                                    icon={<DisconnectOutlined />}
+                                                    className="!h-6 !px-2 !text-xs whitespace-nowrap"
+                                                    onClick={handleDisconnectEvaluator}
+                                                >
+                                                    Disconnect
+                                                </Button>
+                                            ) : undefined
+                                        }
                                     />
                                 </div>
                             }

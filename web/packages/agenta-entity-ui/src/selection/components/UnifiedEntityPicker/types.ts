@@ -4,6 +4,8 @@
  * Type definitions for the unified EntityPicker component with variant support.
  */
 
+import type {ReactNode} from "react"
+
 import type {EntitySelectionAdapter, EntitySelectionResult} from "../../types"
 
 // ============================================================================
@@ -160,6 +162,12 @@ export interface BreadcrumbVariantProps<
      * Root label for breadcrumb (e.g., "All Apps")
      */
     rootLabel?: string
+
+    /**
+     * Optional content rendered on the right side of breadcrumb header row.
+     * Useful for contextual actions (e.g., disconnect).
+     */
+    breadcrumbActions?: ReactNode
 
     /**
      * Maximum height for the list container
