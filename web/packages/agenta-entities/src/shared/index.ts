@@ -278,6 +278,7 @@ export type {
     RunnableBridgeSelectors,
     RunnableBridgeCrudActions,
     RunnableExecutionUtils,
+    TypeScopedRunnableSelectors,
     // Aliases
     SourceConfig,
     RunnableConfig,

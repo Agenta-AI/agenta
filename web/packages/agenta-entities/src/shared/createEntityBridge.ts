@@ -43,6 +43,7 @@ import type {
     RunnableData,
     RunnablePort as _RunnablePort,
     RunnableTypeConfig as _RunnableTypeConfig,
+    TypeScopedRunnableSelectors,
     BridgeQueryState,
 } from "./entityBridge"
 
@@ -715,6 +716,64 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                     ...config.extraSelectors,
                 } as RunnableBridgeSelectors & Record<string, (id: string) => Atom<unknown>>,
                 actions: config.extraActions,
+            }
+        },
+
+        forType: (runnableType: string): TypeScopedRunnableSelectors => {
+            const config = runnables[runnableType]
+            if (!config) {
+                // Fallback to generic selectors when type is not recognized
+                return {
+                    data: selectors.data,
+                    invocationUrl: selectors.invocationUrl,
+                    requestPayload: selectors.requestPayload,
+                    executionMode: selectors.executionMode,
+                    configuration: selectors.configuration,
+                }
+            }
+
+            return {
+                data: (runnableId: string) =>
+                    atom((get) => {
+                        const entity = get(config.molecule.selectors.data(runnableId))
+                        if (!entity) return null
+                        return config.toRunnable(entity)
+                    }),
+                invocationUrl: (runnableId: string) =>
+                    atom((get) => {
+                        const entity = get(config.molecule.selectors.data(runnableId))
+                        if (!entity) return null
+                        if (config.invocationUrlSelector) {
+                            return get(config.invocationUrlSelector(runnableId))
+                        }
+                        const data = config.toRunnable(entity)
+                        return data?.invocationUrl ?? null
+                    }),
+                requestPayload: (runnableId: string) =>
+                    atom((get) => {
+                        const entity = get(config.molecule.selectors.data(runnableId))
+                        if (!entity) return null
+                        if (config.requestPayloadSelector) {
+                            return get(config.requestPayloadSelector(runnableId))
+                        }
+                        return null
+                    }),
+                executionMode: (runnableId: string) =>
+                    atom<"chat" | "completion">((get) => {
+                        const entity = get(config.molecule.selectors.data(runnableId))
+                        if (!entity) return "completion"
+                        if (config.executionModeSelector) {
+                            return get(config.executionModeSelector(runnableId))
+                        }
+                        return "completion"
+                    }),
+                configuration: (runnableId: string) =>
+                    atom((get) => {
+                        const entity = get(config.molecule.selectors.data(runnableId))
+                        if (!entity) return null
+                        const data = config.toRunnable(entity)
+                        return data?.configuration ?? null
+                    }),
             }
         },
 

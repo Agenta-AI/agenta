@@ -451,6 +451,18 @@ export interface RunnableBridgeCrudActions {
 }
 
 /**
+ * Type-scoped selectors — only probe a single molecule type, avoiding
+ * cross-contamination from shared database tables (e.g. workflow_revisions).
+ */
+export interface TypeScopedRunnableSelectors {
+    data: (runnableId: string) => Atom<RunnableData | null>
+    invocationUrl: (runnableId: string) => Atom<string | null>
+    requestPayload: (runnableId: string) => Atom<unknown | null>
+    executionMode: (runnableId: string) => Atom<"chat" | "completion">
+    configuration: (runnableId: string) => Atom<Record<string, unknown> | null>
+}
+
+/**
  * Runnable bridge interface
  *
  * Provides both nested API (selectors.*) and flattened API
@@ -468,6 +480,12 @@ export interface RunnableBridge extends RunnableBridgeSelectors {
 
         actions?: Record<string, WritableAtom<any, any[], any>>
     }
+
+    /**
+     * Get type-scoped selectors that only probe a single molecule type.
+     * Use this when the entity type is known to avoid cross-type contamination.
+     */
+    forType: (runnableType: string) => TypeScopedRunnableSelectors
 
     /** Alias for configuration (capability interface compatibility) */
     config: RunnableBridgeSelectors["configuration"]
