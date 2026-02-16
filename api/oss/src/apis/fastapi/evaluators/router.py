@@ -50,6 +50,8 @@ from oss.src.apis.fastapi.evaluators.models import (
     EvaluatorRevisionRetrieveRequest,
     EvaluatorRevisionResponse,
     EvaluatorRevisionsResponse,
+    EvaluatorRevisionResolveRequest,
+    EvaluatorRevisionResolveResponse,
     #
     SimpleEvaluatorCreateRequest,
     SimpleEvaluatorEditRequest,
@@ -306,6 +308,16 @@ class EvaluatorsRouter:
             operation_id="log_evaluator_revisions",
             status_code=status.HTTP_200_OK,
             response_model=EvaluatorRevisionsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/revisions/resolve",
+            self.resolve_evaluator_revision,
+            methods=["POST"],
+            operation_id="resolve_evaluator_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=EvaluatorRevisionResolveResponse,
             response_model_exclude_none=True,
         )
 
@@ -1048,6 +1060,47 @@ class EvaluatorsRouter:
         )
 
         return revisions_response
+
+    @intercept_exceptions()
+    async def resolve_evaluator_revision(
+        self,
+        request: Request,
+        *,
+        evaluator_revision_resolve_request: EvaluatorRevisionResolveRequest,
+    ) -> EvaluatorRevisionResolveResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_EVALUATORS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        result = await self.evaluators_service.resolve_evaluator_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            evaluator_ref=evaluator_revision_resolve_request.evaluator_ref,
+            evaluator_variant_ref=evaluator_revision_resolve_request.evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_revision_resolve_request.evaluator_revision_ref,
+            #
+            max_depth=evaluator_revision_resolve_request.max_depth or 10,
+            max_embeds=evaluator_revision_resolve_request.max_embeds or 100,
+            error_policy=evaluator_revision_resolve_request.error_policy.value
+            if evaluator_revision_resolve_request.error_policy
+            else "exception",
+        )
+
+        if not result:
+            return EvaluatorRevisionResolveResponse()
+
+        evaluator_revision, resolution_info = result
+
+        return EvaluatorRevisionResolveResponse(
+            count=1,
+            evaluator_revision=evaluator_revision,
+            resolution_info=resolution_info,
+        )
 
 
 class SimpleEvaluatorsRouter:

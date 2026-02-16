@@ -30,6 +30,10 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorEdit,
     SimpleEvaluatorQuery,
 )
+from oss.src.core.embeds.dtos import (
+    ErrorPolicy,
+    ResolutionInfo,
+)
 
 
 # EVALUATORS -------------------------------------------------------------------
@@ -183,3 +187,22 @@ class SimpleEvaluatorResponse(BaseModel):
 class SimpleEvaluatorsResponse(BaseModel):
     count: int = 0
     evaluators: List[SimpleEvaluator] = []
+
+
+# EVALUATOR REVISION RESOLUTION ------------------------------------------------
+
+
+class EvaluatorRevisionResolveRequest(BaseModel):
+    evaluator_ref: Optional[Reference] = None
+    evaluator_variant_ref: Optional[Reference] = None
+    evaluator_revision_ref: Optional[Reference] = None
+    #
+    max_depth: Optional[int] = 10
+    max_embeds: Optional[int] = 100
+    error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
+
+
+class EvaluatorRevisionResolveResponse(BaseModel):
+    count: int = 0
+    evaluator_revision: Optional[EvaluatorRevision] = None
+    resolution_info: Optional[ResolutionInfo] = None

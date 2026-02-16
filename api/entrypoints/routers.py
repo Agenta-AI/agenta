@@ -293,7 +293,16 @@ folders_service = FoldersService(
 
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
+    # environments_service set below after initialization
 )
+
+environments_service = EnvironmentsService(
+    environments_dao=environments_dao,
+    workflows_service=workflows_service,
+)
+
+# Wire up cross-service dependencies for embed resolution
+workflows_service._environments_service = environments_service
 
 applications_service = ApplicationsService(
     workflows_service=workflows_service,
@@ -309,10 +318,6 @@ evaluators_service = EvaluatorsService(
 
 simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
-)
-
-environments_service = EnvironmentsService(
-    environments_dao=environments_dao,
 )
 
 simple_environments_service = SimpleEnvironmentsService(

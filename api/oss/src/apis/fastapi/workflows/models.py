@@ -26,6 +26,10 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
 )
+from oss.src.core.embeds.dtos import (
+    ErrorPolicy,
+    ResolutionInfo,
+)
 
 
 # WORKFLOWS --------------------------------------------------------------------
@@ -140,3 +144,22 @@ class WorkflowRevisionResponse(BaseModel):
 class WorkflowRevisionsResponse(BaseModel):
     count: int = 0
     workflow_revisions: List[WorkflowRevision] = []
+
+
+# WORKFLOW REVISION RESOLUTION -------------------------------------------------
+
+
+class WorkflowRevisionResolveRequest(BaseModel):
+    workflow_ref: Optional[Reference] = None
+    workflow_variant_ref: Optional[Reference] = None
+    workflow_revision_ref: Optional[Reference] = None
+    #
+    max_depth: Optional[int] = 10
+    max_embeds: Optional[int] = 100
+    error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
+
+
+class WorkflowRevisionResolveResponse(BaseModel):
+    count: int = 0
+    workflow_revision: Optional[WorkflowRevision] = None
+    resolution_metadata: Optional[ResolutionInfo] = None

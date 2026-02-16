@@ -30,6 +30,10 @@ from oss.src.core.applications.dtos import (
     SimpleApplicationEdit,
     SimpleApplicationQuery,
 )
+from oss.src.core.embeds.dtos import (
+    ErrorPolicy,
+    ResolutionInfo,
+)
 
 # APPLICATIONS -----------------------------------------------------------------
 
@@ -174,3 +178,22 @@ class SimpleApplicationResponse(BaseModel):
 class SimpleApplicationsResponse(BaseModel):
     count: int = 0
     applications: List[SimpleApplication] = []
+
+
+# APPLICATION REVISION RESOLUTION ----------------------------------------------
+
+
+class ApplicationRevisionResolveRequest(BaseModel):
+    application_ref: Optional[Reference] = None
+    application_variant_ref: Optional[Reference] = None
+    application_revision_ref: Optional[Reference] = None
+    #
+    max_depth: Optional[int] = 10
+    max_embeds: Optional[int] = 100
+    error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
+
+
+class ApplicationRevisionResolveResponse(BaseModel):
+    count: int = 0
+    application_revision: Optional[ApplicationRevision] = None
+    resolution_info: Optional[ResolutionInfo] = None

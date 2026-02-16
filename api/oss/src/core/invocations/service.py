@@ -5,7 +5,7 @@ from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.applications.services import (
+from oss.src.core.applications.service import (
     ApplicationsService,
     SimpleApplicationsService,
 )

@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.core.shared.dtos import Reference, Windowing
-from oss.src.core.applications.services import (
+from oss.src.core.applications.service import (
     ApplicationsService,
     SimpleApplicationsService,
 )

@@ -7,7 +7,7 @@ from taskiq import AsyncBroker
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import TestsetsService
 
-from oss.src.core.applications.services import ApplicationsService
+from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.workflows.service import WorkflowsService

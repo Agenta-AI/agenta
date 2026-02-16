@@ -43,6 +43,10 @@ from oss.src.apis.fastapi.environments.models import (
     EnvironmentRevisionResponse,
     EnvironmentRevisionsResponse,
     #
+    EnvironmentRevisionResolveRequest,
+    EnvironmentRevisionResolveResponse,
+    ResolutionInfo,
+    #
     SimpleEnvironmentCreateRequest,
     SimpleEnvironmentEditRequest,
     SimpleEnvironmentQueryRequest,
@@ -292,6 +296,16 @@ class EnvironmentsRouter:
             operation_id="log_environment_revisions",
             status_code=status.HTTP_200_OK,
             response_model=EnvironmentRevisionsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/revisions/resolve",
+            self.resolve_environment_revision_endpoint,
+            methods=["POST"],
+            operation_id="resolve_environment_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=EnvironmentRevisionResolveResponse,
             response_model_exclude_none=True,
         )
 
@@ -744,6 +758,71 @@ class EnvironmentsRouter:
         )
 
         return environment_revision_response
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=EnvironmentRevisionResolveResponse(), exclude=[HTTPException]
+    )
+    async def resolve_environment_revision_endpoint(
+        self,
+        request: Request,
+        *,
+        environment_revision_resolve_request: EnvironmentRevisionResolveRequest,
+    ) -> EnvironmentRevisionResolveResponse:
+        """
+        Resolve embedded references in an environment revision configuration.
+
+        This endpoint:
+        1. Fetches the environment revision
+        2. Resolves all @ag.references tokens in the configuration
+        3. Returns the revision with resolved configuration + metadata
+        """
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_ENVIRONMENTS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        # Resolve the environment revision
+        from oss.src.core.embeds.dtos import ErrorPolicy
+
+        result = await self.environments_service.resolve_environment_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            environment_ref=environment_revision_resolve_request.environment_ref,
+            environment_variant_ref=environment_revision_resolve_request.environment_variant_ref,
+            environment_revision_ref=environment_revision_resolve_request.environment_revision_ref,
+            #
+            max_depth=environment_revision_resolve_request.max_depth or 10,
+            max_embeds=environment_revision_resolve_request.max_embeds or 100,
+            error_policy=environment_revision_resolve_request.error_policy
+            or ErrorPolicy.EXCEPTION,
+        )
+
+        if not result:
+            return EnvironmentRevisionResolveResponse()
+
+        # Unpack the result tuple
+        environment_revision, resolution_info = result
+
+        # Build resolution metadata
+        resolution_metadata = ResolutionInfo(
+            references_used=resolution_info.references_used,
+            depth_reached=resolution_info.depth_reached,
+            embeds_resolved=resolution_info.embeds_resolved,
+            errors=resolution_info.errors,
+        )
+
+        environment_revision_resolve_response = EnvironmentRevisionResolveResponse(
+            count=1 if environment_revision else 0,
+            environment_revision=environment_revision,
+            resolution_metadata=resolution_metadata,
+        )
+
+        return environment_revision_resolve_response
 
     @intercept_exceptions()
     async def create_environment_revision(
