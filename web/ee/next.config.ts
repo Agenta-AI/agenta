@@ -19,6 +19,7 @@ const config = {
         },
     },
     experimental: {
+        ...(ossConfig.experimental ?? {}),
         optimizePackageImports: [
             "@agenta/oss",
             "@agenta/shared",
