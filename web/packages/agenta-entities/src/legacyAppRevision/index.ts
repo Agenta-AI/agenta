@@ -291,12 +291,8 @@ export {
     enhancedCustomPropertiesToParameters,
     areParametersDifferent,
     resolveRootSourceId,
-    deriveEnhancedPrompts,
-    deriveEnhancedCustomProperties,
-    // OpenAPI spec convenience wrappers
+    // Parameter extraction
     extractVariantParameters,
-    derivePromptsFromOpenApiSpec,
-    deriveCustomPropertiesFromOpenApiSpec,
     // Detection helpers
     isPromptLikeStructure,
     isPromptLikeSchema,
