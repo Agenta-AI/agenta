@@ -22,6 +22,9 @@ def create_account(ag_env):
             "user": {
                 "email": f"{unique_id}@test.agenta.ai",
             },
+            "subscription": {
+                "plan": "cloud_v0_business",  # Use BUSINESS plan to avoid quota limits in tests
+            },
         },
         timeout=BASE_TIMEOUT,
     )
