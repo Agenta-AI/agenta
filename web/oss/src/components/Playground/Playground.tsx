@@ -1,6 +1,7 @@
 import {type FC, useEffect} from "react"
 
 import {PlaygroundUIProvider, type PlaygroundUIProviders} from "@agenta/playground-ui"
+import {EntitySelectorProvider} from "@agenta/playground-ui/components"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {preloadEditorPlugins} from "@agenta/ui"
 import {useAtomValue} from "jotai"
@@ -38,13 +39,15 @@ const Playground: FC = () => {
     return (
         <OSSPlaygroundEntityProvider>
             <PlaygroundUIProvider providers={providers}>
-                <OSSdrillInUIProvider>
-                    <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
-                        <PlaygroundOnboarding />
-                        <PlaygroundHeader key={`${uri}-header`} />
-                        <PlaygroundMainView key={`${uri}-main`} />
-                    </div>
-                </OSSdrillInUIProvider>
+                <EntitySelectorProvider>
+                    <OSSdrillInUIProvider>
+                        <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
+                            <PlaygroundOnboarding />
+                            <PlaygroundHeader key={`${uri}-header`} />
+                            <PlaygroundMainView key={`${uri}-main`} />
+                        </div>
+                    </OSSdrillInUIProvider>
+                </EntitySelectorProvider>
             </PlaygroundUIProvider>
         </OSSPlaygroundEntityProvider>
     )

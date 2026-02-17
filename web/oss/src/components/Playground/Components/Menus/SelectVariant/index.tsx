@@ -24,7 +24,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {selectedAppIdAtom} from "@/oss/state/app"
+import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import VariantGroupTitle from "./components/VariantGroupTitle"
 import {SelectVariantProps} from "./types"
@@ -39,8 +39,10 @@ const SelectVariant = ({
 }: SelectVariantProps) => {
     const selectedVariants = useAtomValue(playgroundController.selectors.entityIds())
     const setSelectedVariants = useSetAtom(playgroundController.actions.setEntityIds)
-    const selectedAppId = useAtomValue(selectedAppIdAtom)
-    const appId = selectedAppId ?? ""
+    // Use URL-based app ID only (not localStorage fallback)
+    // When null (project-level playground), adapter uses 3-level mode (App → Variant → Revision)
+    // When present (app-level playground), adapter uses 2-level mode (Variant → Revision)
+    const urlAppId = useAtomValue(routerAppIdAtom)
     const jotaiStore = useStore()
     const singleSelectedValue = useMemo(
         () =>
@@ -110,12 +112,14 @@ const SelectVariant = ({
             ? "Loading variant..."
             : "Select variant"
 
-    // Create adapter scoped to current app (memoized)
+    // Create adapter - 2-level (Variant → Revision) when app ID in URL,
+    // 3-level (App → Variant → Revision) when on project-level playground
     const adapter = useMemo(
         () =>
             createLegacyAppRevisionAdapter({
-                appIdAtom: selectedAppIdAtom,
-                appId,
+                // Only pass appId when we have one from the URL
+                // When null, adapter returns 3-level mode automatically
+                ...(urlAppId ? {appId: urlAppId} : {}),
                 includeLocalDrafts: true,
                 excludeRevisionZero: true,
                 variantOverrides: {
@@ -147,7 +151,12 @@ const SelectVariant = ({
                         variantName?: string
                         sourceRevisionId?: string
                     }
-                    const variant = path[0]
+                    // In 3-level mode: path = [app, variant, revision]
+                    // In 2-level mode: path = [variant, revision]
+                    const isThreeLevel = path.length === 3
+                    const app = isThreeLevel ? path[0] : null
+                    const variant = isThreeLevel ? path[1] : path[0]
+                    const resolvedAppId = app?.id ?? urlAppId ?? ""
 
                     return {
                         type: "legacyAppRevision",
@@ -157,8 +166,8 @@ const SelectVariant = ({
                             : `${variant?.label ?? "Variant"} v${revision.revision ?? 0}`,
                         path,
                         metadata: {
-                            appId,
-                            appName: "",
+                            appId: resolvedAppId,
+                            appName: app?.label ?? "",
                             variantId: variant?.id ?? "",
                             variantName: variant?.label ?? "",
                             revision: revision.revision ?? 0,
@@ -167,10 +176,10 @@ const SelectVariant = ({
                         },
                     } as LegacyAppRevisionSelectionResult
                 },
-                emptyMessage: "No variants found",
-                loadingMessage: "Loading variants...",
+                emptyMessage: urlAppId ? "No variants found" : "No apps found",
+                loadingMessage: urlAppId ? "Loading variants..." : "Loading apps...",
             }),
-        [appId],
+        [urlAppId],
     )
 
     // Memoize the disabled IDs set to avoid recreation on each render

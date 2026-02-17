@@ -5,7 +5,7 @@ import {
     executionItemController,
     playgroundController,
 } from "@agenta/playground"
-import {ExecutionHeader} from "@agenta/playground-ui/components"
+import {EmptyState, ExecutionHeader, useEntitySelector} from "@agenta/playground-ui/components"
 import {
     GenerationComparisonOutput,
     GenerationComparisonInputHeader as PlaygroundComparisonGenerationInputHeader,
@@ -16,6 +16,8 @@ import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
+
+import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
 import PromptComparisonVariantNavigation from "../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"
@@ -61,15 +63,37 @@ const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
     const selectedEntityIds = useAtomValue(playgroundController.selectors.entityIds())
     const displayedEntities = useAtomValue(playgroundController.selectors.displayedEntityIds())
     const status = useAtomValue(playgroundController.selectors.status())
+    const urlAppId = useAtomValue(routerAppIdAtom)
+    const {open: openEntitySelector} = useEntitySelector()
+    const setEntityIds = playgroundController.actions.setEntityIds
+
     const layoutEntityIds = selectedEntityIds.length > 0 ? selectedEntityIds : displayedEntities
     const isComparisonView = layoutEntityIds.length > 1
     const hasAnyLayoutEntity = layoutEntityIds.length > 0
     const hasDisplayedEntities = displayedEntities.length > 0
     const isEmpty = status === "empty"
+    // On project-level playground (no app in URL), show empty state instead of error
+    // when no entities are selected
+    const isProjectLevel = !urlAppId
+    const showEmptyState = isEmpty && isProjectLevel
+    const showErrorState = isEmpty && !isProjectLevel
+
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
     const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
+
+    const handleAddRunnable = useCallback(async () => {
+        const selection = await openEntitySelector({
+            title: "Add to Playground",
+            allowedTypes: ["appRevision"],
+        })
+        if (selection) {
+            // Add the selected entity to the playground
+            const store = (await import("jotai")).getDefaultStore()
+            store.set(setEntityIds, [selection.id])
+        }
+    }, [openEntitySelector, setEntityIds])
 
     // Selection validation and default selection are now handled imperatively
     // by playgroundSyncAtom (store.sub subscriptions in playground.ts)
@@ -85,17 +109,29 @@ const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
         [variantRefs],
     )
 
-    return isEmpty ? (
-        <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
-            <div className="flex flex-col items-center justify-center gap-1">
-                <Typography.Title level={3}>Something went wrong</Typography.Title>
-                <Typography.Text className="mb-3 text-[14px]">
-                    Playground is unable to communicate with the service
-                </Typography.Text>
-                <Button>Try again</Button>
-            </div>
-        </main>
-    ) : (
+    if (showEmptyState) {
+        return (
+            <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
+                <EmptyState onAddRunnable={handleAddRunnable} />
+            </main>
+        )
+    }
+
+    if (showErrorState) {
+        return (
+            <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
+                <div className="flex flex-col items-center justify-center gap-1">
+                    <Typography.Title level={3}>Something went wrong</Typography.Title>
+                    <Typography.Text className="mb-3 text-[14px]">
+                        Playground is unable to communicate with the service
+                    </Typography.Text>
+                    <Button>Try again</Button>
+                </div>
+            </main>
+        )
+    }
+
+    return (
         <main
             className={clsx("flex flex-col grow h-full overflow-hidden", className)}
             {...divProps}

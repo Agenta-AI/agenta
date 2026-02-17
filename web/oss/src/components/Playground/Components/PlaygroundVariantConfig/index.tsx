@@ -1,27 +1,23 @@
 "use client"
 
-import {memo} from "react"
+import {memo, useMemo} from "react"
 
+import {playgroundController} from "@agenta/playground"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 
 import LegacyPlaygroundConfigSection from "../LegacyPlaygroundConfigSection"
 
+import BaseRunnableConfigSection from "./assets/BaseRunnableConfigSection"
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
  *
- * Features:
- * - Displays variant configuration header
- * - Renders prompt configuration interface
- * - Handles styling for collapsed sections
- *
- * @component
- * @example
- * ```tsx
- * <PlaygroundVariantConfig variantId="variant-123" />
- * ```
+ * Routes to entity-type specific config sections:
+ * - legacyAppRevision: LegacyPlaygroundConfigSection (schema-driven)
+ * - baseRunnable: BaseRunnableConfigSection (read-only key-value display)
  */
 
 const PlaygroundVariantConfig: React.FC<
@@ -31,6 +27,17 @@ const PlaygroundVariantConfig: React.FC<
         revisionOverride?: number | string | null
     }
 > = ({variantId, className, embedded, variantNameOverride, revisionOverride, ...divProps}) => {
+    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
+    const entityType = nodes.find((n) => n.entityId === variantId)?.entityType
+
+    if (entityType === "baseRunnable") {
+        return (
+            <div className={clsx("w-full", "relative", "flex flex-col", className)} {...divProps}>
+                <BaseRunnableConfigSection entityId={variantId} />
+            </div>
+        )
+    }
+
     return (
         <div
             className={clsx(
