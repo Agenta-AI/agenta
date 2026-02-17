@@ -9,7 +9,33 @@
 
 import {asRecord, safeStringify} from "@agenta/shared/utils"
 
-import {getTextContent} from "./messageContent"
+// ============================================================================
+// TEXT EXTRACTION (inlined from deleted messageContent.ts)
+// ============================================================================
+
+const getNodeType = (part: unknown): string | undefined => {
+    const partRec = asRecord(part)
+    if (!partRec) return undefined
+    const typeRec = asRecord(partRec.type)
+    return (typeRec?.value ?? partRec.type) as string | undefined
+}
+
+function getTextContent(content: unknown): string {
+    if (typeof content === "string") return content
+    if (Array.isArray(content)) {
+        const value = content.filter((part) => getNodeType(part) === "text")
+        return value.length > 0
+            ? (() => {
+                  const first = asRecord(value[0])
+                  const text = first?.text
+                  if (typeof text === "string") return text
+                  const textRec = asRecord(text)
+                  return (textRec?.value as string | undefined) ?? ""
+              })()
+            : ""
+    }
+    return ""
+}
 
 // ============================================================================
 // TYPES
