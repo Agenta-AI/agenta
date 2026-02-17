@@ -8,7 +8,7 @@ import {Button, Dropdown, Input, Popover, Tooltip, Typography} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 
-import {EditorProvider} from "@/oss/components/Editor/Editor"
+import {EditorProvider} from "@agenta/ui/editor"
 
 import TestcaseFieldHeader from "../TestcaseFieldHeader"
 
