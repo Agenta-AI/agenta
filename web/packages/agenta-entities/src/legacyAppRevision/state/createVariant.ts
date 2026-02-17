@@ -16,11 +16,9 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 
 import type {LegacyAppRevisionData} from "../core"
 import {buildLegacyAppRevisionDraftPatch} from "../snapshot"
-import {transformToRequestBody, type TransformVariantInput} from "../utils/requestBodyBuilder"
 
 import {waitForNewRevision} from "./commit"
 import {invalidateEntityQueries} from "./invalidation"
-import {getAllMetadata} from "./metadataAtoms"
 import {
     legacyAppRevisionEntityWithBridgeAtomFamily,
     legacyAppRevisionDraftAtomFamily,
@@ -154,8 +152,7 @@ function resolveBaseId(revisionData: LegacyAppRevisionData, appId: string): stri
  * Build ag_config parameters from entity data (merged server + draft).
  */
 function buildAgConfig(revisionId: string): Record<string, unknown> | null {
-    // Use the draft patch if available — this converts enhanced prompts/custom properties
-    // back to raw parameters in ag_config format
+    // Use the draft patch if available — returns raw parameters in ag_config format
     const patchResult = buildLegacyAppRevisionDraftPatch(revisionId)
     if (patchResult.hasDraft && patchResult.patch?.parameters) {
         return patchResult.patch.parameters
@@ -166,13 +163,7 @@ function buildAgConfig(revisionId: string): Record<string, unknown> | null {
     const entityData = store.get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
     if (!entityData) return null
 
-    // Build via transformToRequestBody for proper parameter conversion
-    const body = transformToRequestBody({
-        variant: entityData as TransformVariantInput,
-        allMetadata: getAllMetadata(),
-    })
-
-    return body?.ag_config ?? entityData.parameters ?? null
+    return entityData.parameters ?? null
 }
 
 // ============================================================================

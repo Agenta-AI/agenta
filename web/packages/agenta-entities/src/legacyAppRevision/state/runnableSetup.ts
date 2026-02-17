@@ -14,21 +14,12 @@ import {atomFamily} from "jotai-family"
 import type {RequestPayloadData} from "../../runnable/types"
 import type {StoreOptions, EntitySchema} from "../../shared"
 import type {ExecutionMode} from "../core"
-import {
-    transformToRequestBody,
-    type TransformToRequestBodyParams,
-} from "../utils/requestBodyBuilder"
 
-import {getAllMetadata} from "./metadataAtoms"
 import {
     legacyAppRevisionSchemaQueryAtomFamily,
     revisionOpenApiSchemaAtomFamily,
 } from "./schemaAtoms"
-import {
-    enhancedPromptsWithFallbackAtomFamily,
-    enhancedCustomPropertiesWithFallbackAtomFamily,
-    legacyAppRevisionEntityWithBridgeAtomFamily,
-} from "./store"
+import {legacyAppRevisionEntityWithBridgeAtomFamily} from "./store"
 
 // ============================================================================
 // HELPERS
@@ -252,19 +243,14 @@ export const outputPortsAtomFamily = atomFamily((revisionId: string) =>
 /**
  * Pre-built request payload for a legacy app revision.
  *
- * Builds the config portion of the API request body from enhanced prompts,
- * custom properties, and metadata. The playground package merges in
- * inputs (from loadable) and chat history (from chat state) on top.
+ * Reads raw parameters.ag_config directly from entity state.
+ * The playground package merges in inputs (from loadable) and
+ * chat history (from chat state) on top via transformToRequestBody.
  */
 export const requestPayloadAtomFamily = atomFamily((revisionId: string) =>
     atom<RequestPayloadData | null>((get) => {
         const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         if (!entityData) return null
-
-        const enhancedPrompts = get(enhancedPromptsWithFallbackAtomFamily(revisionId))
-        const enhancedCustomProperties = get(
-            enhancedCustomPropertiesWithFallbackAtomFamily(revisionId),
-        )
 
         const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         const openApiSchema = get(revisionOpenApiSchemaAtomFamily(revisionId))
@@ -273,31 +259,17 @@ export const requestPayloadAtomFamily = atomFamily((revisionId: string) =>
         const isChat = get(isChatVariantAtomFamily(revisionId))
         const invocationUrl = get(invocationUrlAtomFamily(revisionId))
 
-        // Use imperative getAllMetadata() to include pending microtask updates
-        const allMetadata = getAllMetadata()
-
         // Access runtime fields not in the Zod schema via Record indexing
         const entityRecord = entityData as Record<string, unknown>
         const appType = typeof entityRecord.appType === "string" ? entityRecord.appType : undefined
 
-        // Build config-only request body (no inputs, no chat history)
-        const body = transformToRequestBody({
-            variant: entityData,
-            allMetadata,
-            spec: openApiSchema as TransformToRequestBodyParams["spec"],
-            routePath,
-            prompts: enhancedPrompts,
-            customProperties: enhancedCustomProperties,
-            isChat,
-            appType,
-        })
+        // Read raw ag_config directly from entity parameters
+        const params = entityData.parameters as Record<string, unknown> | undefined
+        const agConfig = (params?.ag_config as Record<string, unknown>) || params || {}
 
-        // Extract variables from the built body
-        const agConfig = (body.ag_config as Record<string, unknown>) || {}
-
+        // Extract variables from ag_config prompt configs' input_keys
         const variables: string[] = []
         try {
-            // Extract variable keys from prompt configs' input_keys
             for (const val of Object.values(agConfig)) {
                 const valRecord = val as Record<string, unknown> | null
                 if (valRecord && typeof valRecord === "object" && "input_keys" in valRecord) {

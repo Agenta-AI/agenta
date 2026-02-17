@@ -44,7 +44,6 @@ import {
     type CreateLocalLegacyAppRevisionParams,
     type LocalLegacyAppRevision,
 } from "../core/factory"
-import {setMessageSchemaMetadataAccessor} from "../utils/messageFromSchema"
 
 import {
     // Commit abstraction
@@ -55,15 +54,6 @@ import {
 import {createVariantAtom} from "./createVariant"
 import {deleteRevisionAtom} from "./deleteRevision"
 import {discardRevisionDraftAtom} from "./localDrafts"
-import {
-    // Metadata store
-    metadataAtom,
-    metadataSelectorFamily,
-    updateMetadataAtom,
-    getMetadataLazy,
-    getAllMetadata,
-    hashMetadata,
-} from "./metadataAtoms"
 import {
     // Runnable extension atoms
     runnableAtoms,
@@ -80,10 +70,6 @@ import {
     revisionCustomPropertiesSchemaAtomFamily,
     revisionSchemaAtPathAtomFamily,
     revisionEndpointsAtomFamily,
-    // Enhanced custom properties
-    revisionEnhancedCustomPropertiesAtomFamily,
-    revisionCustomPropertyKeysAtomFamily,
-    type EnhancedCustomProperty,
 } from "./schemaAtoms"
 import {
     // Store atoms
@@ -114,29 +100,10 @@ import {
     // Server data management
     setServerDataAtom,
     clearServerDataAtom,
-    // Enhanced prompts/custom properties
-    setEnhancedPromptsAtom,
-    mutateEnhancedPromptsAtom,
-    setEnhancedCustomPropertiesAtom,
-    mutateEnhancedCustomPropertiesAtom,
-    updatePropertyAtom,
-    // Read utilities
-    findPropertyByIdAtomFamily,
-    // Template format
-    revisionTemplateFormatAtomFamily,
-    type PromptTemplateFormat,
-    // Per-prompt variables
-    revisionPromptVariablesAtomFamily,
     // Cache invalidation
     revisionCacheVersionAtom,
-    // Enhanced prompts/custom properties with fallback
-    enhancedPromptsWithFallbackAtomFamily,
-    enhancedCustomPropertiesWithFallbackAtomFamily,
     latestAppRevisionIdAtom,
 } from "./store"
-
-// Wire up the metadata accessor for createMessageFromSchema (avoids circular import)
-setMessageSchemaMetadataAccessor((hash) => getMetadataLazy(hash) ?? undefined)
 
 // ============================================================================
 // HELPERS
@@ -242,12 +209,6 @@ export interface LegacyAppRevisionControllerDispatch {
     update: (changes: Partial<LegacyAppRevisionData>) => void
     /** Discard local draft changes */
     discard: () => void
-    /** Set enhanced prompts */
-    setEnhancedPrompts: (prompts: unknown[]) => void
-    /** Set enhanced custom properties */
-    setEnhancedCustomProperties: (props: Record<string, unknown>) => void
-    /** Update a property by __id */
-    updateProperty: (propertyId: string, value: unknown) => void
     /** Commit changes to create a new revision */
     commit: (params: Omit<CommitRevisionParams, "revisionId">) => Promise<CommitResult>
     /** Set execution mode */
@@ -280,14 +241,9 @@ export type LegacyAppRevisionControllerResult = [
  *   if (state.isPending) return <Skeleton />
  *   if (!state.data) return <NotFound />
  *
- *   const handleChange = (propertyId: string, value: unknown) => {
- *     dispatch.updateProperty(propertyId, value)
- *   }
- *
  *   return (
  *     <div>
  *       <span>{state.isDirty ? 'Modified' : 'Saved'}</span>
- *       <PropertyEditor data={state.data} onChange={handleChange} />
  *       <Button onClick={dispatch.discard}>Discard</Button>
  *     </div>
  *   )
@@ -306,9 +262,6 @@ export function useLegacyAppRevisionController(
     // Get dispatch setters
     const setUpdate = useSetAtom(updateLegacyAppRevisionAtom)
     const setDiscard = useSetAtom(discardRevisionDraftAtom)
-    const setEnhancedPromptsAtomSetter = useSetAtom(setEnhancedPromptsAtom)
-    const setEnhancedCustomPropertiesAtomSetter = useSetAtom(setEnhancedCustomPropertiesAtom)
-    const setUpdatePropertyAtomSetter = useSetAtom(updatePropertyAtom)
     const setCommit = useSetAtom(commitRevisionAtom)
     const setExecutionModeAtom = useSetAtom(runnableReducers.setExecutionMode)
 
@@ -327,26 +280,11 @@ export function useLegacyAppRevisionController(
         () => ({
             update: (changes: Partial<LegacyAppRevisionData>) => setUpdate(revisionId, changes),
             discard: () => setDiscard(revisionId),
-            setEnhancedPrompts: (prompts: unknown[]) =>
-                setEnhancedPromptsAtomSetter(revisionId, prompts),
-            setEnhancedCustomProperties: (props: Record<string, unknown>) =>
-                setEnhancedCustomPropertiesAtomSetter(revisionId, props),
-            updateProperty: (propertyId: string, value: unknown) =>
-                setUpdatePropertyAtomSetter({revisionId, propertyId, value}),
             commit: (params: Omit<CommitRevisionParams, "revisionId">) =>
                 setCommit({...params, revisionId}),
             setExecutionMode: (mode: ExecutionMode) => setExecutionModeAtom(revisionId, mode),
         }),
-        [
-            revisionId,
-            setUpdate,
-            setDiscard,
-            setEnhancedPromptsAtomSetter,
-            setEnhancedCustomPropertiesAtomSetter,
-            setUpdatePropertyAtomSetter,
-            setCommit,
-            setExecutionModeAtom,
-        ],
+        [revisionId, setUpdate, setDiscard, setCommit, setExecutionModeAtom],
     )
 
     return [state, dispatch]
@@ -388,10 +326,6 @@ export const legacyAppRevisionMolecule = {
         serverData: legacyAppRevisionServerDataSelectorFamily,
         /** Raw server data from bridge */
         bridgeServerData: legacyAppRevisionServerDataAtomFamily,
-        /** Enhanced prompts with schema-derived fallback (recommended read API) */
-        enhancedPrompts: enhancedPromptsWithFallbackAtomFamily,
-        /** Enhanced custom properties with schema-derived fallback (recommended read API) */
-        enhancedCustomProperties: enhancedCustomPropertiesWithFallbackAtomFamily,
 
         // Execution mode atoms (from runnable extension)
         /** Execution mode (draft/deployed) */
@@ -448,10 +382,6 @@ export const legacyAppRevisionMolecule = {
         query: legacyAppRevisionQueryAtomFamily,
         bridgeServerData: legacyAppRevisionServerDataAtomFamily,
 
-        /** Enhanced prompts with draft fallback (recommended read API) */
-        enhancedPrompts: (revisionId: string): Atom<unknown[]> =>
-            enhancedPromptsWithFallbackAtomFamily(revisionId),
-
         /**
          * Input ports derived from the revision's parameters template.
          */
@@ -481,17 +411,6 @@ export const legacyAppRevisionMolecule = {
             revisionPromptSchemaAtomFamily(revisionId),
         customPropertiesSchema: (revisionId: string): Atom<EntitySchema | null> =>
             revisionCustomPropertiesSchemaAtomFamily(revisionId),
-        /** Enhanced custom properties with draft fallback (recommended read API) */
-        enhancedCustomProperties: (revisionId: string): Atom<Record<string, unknown>> =>
-            enhancedCustomPropertiesWithFallbackAtomFamily(revisionId),
-        /** Enhanced custom properties (schema-derived only, no draft fallback) */
-        schemaDerivedCustomProperties: (
-            revisionId: string,
-        ): Atom<Record<string, EnhancedCustomProperty>> =>
-            revisionEnhancedCustomPropertiesAtomFamily(revisionId),
-        /** Custom property keys for a revision */
-        customPropertyKeys: (revisionId: string): Atom<string[]> =>
-            revisionCustomPropertyKeysAtomFamily(revisionId),
         schemaAtPath: (params: {
             revisionId: string
             path: (string | number)[]
@@ -510,18 +429,6 @@ export const legacyAppRevisionMolecule = {
             runnableAtoms.runtimePrefix(revisionId),
         routePath: (revisionId: string): Atom<string | undefined> =>
             runnableAtoms.routePath(revisionId),
-
-        /** Find a property by __id across enhanced prompts and custom properties. Returns the value. */
-        propertyById: (revisionId: string, propertyId: string): Atom<unknown | null> =>
-            findPropertyByIdAtomFamily({revisionId, propertyId}),
-
-        /** Template format extracted from enhanced prompts (read-only) */
-        templateFormat: (revisionId: string): Atom<PromptTemplateFormat> =>
-            revisionTemplateFormatAtomFamily(revisionId),
-
-        /** Template variables for a specific prompt (by __id or __name) */
-        promptVariables: (revisionId: string, promptId: string): Atom<string[]> =>
-            revisionPromptVariablesAtomFamily({revisionId, promptId}),
 
         // ====================================================================
         // LIST SELECTORS (for hierarchical entity selection)
@@ -569,16 +476,6 @@ export const legacyAppRevisionMolecule = {
         setServerData: setServerDataAtom,
         /** Clear server data */
         clearServerData: clearServerDataAtom,
-        /** Set enhanced prompts */
-        setEnhancedPrompts: setEnhancedPromptsAtom,
-        /** Mutate enhanced prompts with Immer recipe */
-        mutateEnhancedPrompts: mutateEnhancedPromptsAtom,
-        /** Set enhanced custom properties */
-        setEnhancedCustomProperties: setEnhancedCustomPropertiesAtom,
-        /** Mutate enhanced custom properties with Immer recipe */
-        mutateEnhancedCustomProperties: mutateEnhancedCustomPropertiesAtom,
-        /** Update property by __id */
-        updateProperty: updatePropertyAtom,
     },
 
     // ========================================================================
@@ -590,11 +487,6 @@ export const legacyAppRevisionMolecule = {
         setExecutionMode: runnableReducers.setExecutionMode,
         setServerData: setServerDataAtom,
         clearServerData: clearServerDataAtom,
-        setEnhancedPrompts: setEnhancedPromptsAtom,
-        mutateEnhancedPrompts: mutateEnhancedPromptsAtom,
-        setEnhancedCustomProperties: setEnhancedCustomPropertiesAtom,
-        mutateEnhancedCustomProperties: mutateEnhancedCustomPropertiesAtom,
-        updateProperty: updatePropertyAtom,
         /**
          * Commit changes to create a new revision.
          *
@@ -772,10 +664,6 @@ export const legacyAppRevisionMolecule = {
         /** Latest server revision ID for the current app */
         latestRevisionId: (options?: StoreOptions) =>
             getStore(options).get(latestAppRevisionIdAtom),
-        /** Get metadata by hash (synchronous) */
-        metadata: getMetadataLazy,
-        /** Get all metadata as a Record (synchronous) */
-        allMetadata: getAllMetadata,
     },
 
     set: {
@@ -794,20 +682,6 @@ export const legacyAppRevisionMolecule = {
             getStore(options).set(setServerDataAtom, revisionId, data),
         clearServerData: (revisionId: string, options?: StoreOptions) =>
             getStore(options).set(clearServerDataAtom, revisionId),
-        // Enhanced prompts/custom properties
-        setEnhancedPrompts: (revisionId: string, prompts: unknown[], options?: StoreOptions) =>
-            getStore(options).set(setEnhancedPromptsAtom, revisionId, prompts),
-        setEnhancedCustomProperties: (
-            revisionId: string,
-            customProperties: Record<string, unknown>,
-            options?: StoreOptions,
-        ) => getStore(options).set(setEnhancedCustomPropertiesAtom, revisionId, customProperties),
-        updateProperty: (
-            revisionId: string,
-            propertyId: string,
-            value: unknown,
-            options?: StoreOptions,
-        ) => getStore(options).set(updatePropertyAtom, {revisionId, propertyId, value}),
         /**
          * Commit changes to create a new revision (imperative API).
          *
@@ -815,8 +689,6 @@ export const legacyAppRevisionMolecule = {
          */
         commit: (params: CommitRevisionParams, options?: StoreOptions): Promise<CommitResult> =>
             getStore(options).set(commitRevisionAtom, params),
-        /** Write metadata entries to the store (synchronous, safe anywhere) */
-        updateMetadata: updateMetadataAtom,
         /** Bump the revision cache version to force dependent atoms to re-evaluate */
         invalidateCache: (options?: StoreOptions) =>
             getStore(options).set(revisionCacheVersionAtom, (prev: number) => prev + 1),
@@ -849,47 +721,6 @@ export const legacyAppRevisionMolecule = {
          * Depends on execution mode (draft: /test, deployed: /run).
          */
         invocationUrl: runnableAtoms.invocationUrl,
-    },
-
-    // ========================================================================
-    // METADATA (public API for the metadata store)
-    // ========================================================================
-    /**
-     * Metadata store API for enhanced property metadata lookup.
-     *
-     * Metadata is a synchronous cache — the same schema + key always produces
-     * the same hash and the same ConfigMetadata object. Use this namespace
-     * instead of importing metadata atoms directly from internal modules.
-     *
-     * @example
-     * ```typescript
-     * // Reactive subscription to a specific metadata hash
-     * const meta = useAtomValue(molecule.metadata.selector(hash))
-     *
-     * // Imperative read (for callbacks, atom getters)
-     * const meta = molecule.metadata.getLazy(hash)
-     * const all = molecule.metadata.getAll()
-     *
-     * // Hash and store a schema property
-     * const hash = molecule.metadata.hash(schemaProperty, key)
-     *
-     * // Bulk update
-     * molecule.metadata.update({ [hash]: metadataObj })
-     * ```
-     */
-    metadata: {
-        /** Read-only atom returning the full metadata store as a Record */
-        atom: metadataAtom,
-        /** Per-hash selector family (avoids re-renders on unrelated keys) */
-        selector: metadataSelectorFamily,
-        /** Write metadata entries to the store (synchronous, safe anywhere) */
-        update: updateMetadataAtom,
-        /** Get all metadata as a Record (synchronous, for use anywhere) */
-        getAll: getAllMetadata,
-        /** Lazy reader for metadata by hash (synchronous, for use anywhere) */
-        getLazy: getMetadataLazy,
-        /** Hash a schema property and store it, returning the hash string */
-        hash: hashMetadata,
     },
 
     // ========================================================================
