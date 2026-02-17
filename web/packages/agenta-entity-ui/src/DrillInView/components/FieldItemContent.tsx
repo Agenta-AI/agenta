@@ -84,6 +84,7 @@ export function FieldItemContent({
 }: FieldItemContentProps) {
     // Simple value display
     const displayValue = useMemo(() => {
+        if (item.value === undefined || item.value === null) return String(item.value ?? "")
         return typeof item.value === "string" ? item.value : JSON.stringify(item.value, null, 2)
     }, [item.value])
 

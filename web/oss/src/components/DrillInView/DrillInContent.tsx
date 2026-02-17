@@ -5,9 +5,7 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InputNumber, Select, Switch} from "antd"
 import {useAtomValue} from "jotai"
 
-import {EditorProvider} from "@/oss/components/Editor/Editor"
-import {DrillInProvider} from "@/oss/components/Editor/plugins/code/context/DrillInContext"
-import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
+import {EditorProvider, DrillInProvider, markdownViewAtom} from "@agenta/ui/editor"
 import {
     detectDataType,
     getTextModeValue,
