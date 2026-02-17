@@ -61,7 +61,7 @@ const SharedGenerationResultUtils = ({
 
     if (summary.isPending) {
         return (
-            <div className={clsx("flex items-center gap-2 flex-wrap", className)}>
+            <div className={clsx("flex items-center gap-2 flex-nowrap", className)}>
                 <Tooltip title="Open trace">
                     <Button
                         type="default"
@@ -85,7 +85,7 @@ const SharedGenerationResultUtils = ({
     }
 
     return (
-        <div className={clsx("flex items-center gap-2 flex-wrap", className)}>
+        <div className={clsx("flex items-center gap-2 flex-nowrap", className)}>
             <Tooltip title="Open trace">
                 <Button
                     type="default"

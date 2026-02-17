@@ -1,7 +1,9 @@
-import {useMemo} from "react"
+import React, {useMemo} from "react"
 
+import type {SchemaProperty} from "@agenta/entities"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {runnableBridge} from "@agenta/entities/runnable"
+import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {Collapse} from "antd"
 import {atom} from "jotai"
@@ -10,7 +12,6 @@ import {useAtomValue} from "jotai"
 import {usePlaygroundUI} from "../../../context"
 import {playgroundFocusDrawerAtom} from "../../../state"
 import ExecutionResultView from "../../ExecutionResultView"
-import {EvaluatorOutputDisplay} from "../../shared/EvaluatorOutputDisplay"
 
 // ============================================================================
 // SUB-COMPONENT: Single input variable
@@ -103,6 +104,14 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
 // SUB-COMPONENT: Downstream node result (evaluator)
 // ============================================================================
 
+/** Convert snake_case/camelCase key to human-readable label */
+function formatFieldLabel(key: string): string {
+    return key
+        .replace(/_/g, " ")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replace(/^./, (c) => c.toUpperCase())
+}
+
 function DownstreamOutput({
     rowId,
     node,
@@ -123,26 +132,55 @@ function DownstreamOutput({
         ),
     ) as {status?: string; output?: unknown} | null
 
+    // Read output ports from the runnable bridge (includes per-field schema)
+    const outputPorts = useAtomValue(
+        useMemo(
+            () => runnableBridge.forType(node.entityType).outputPorts(node.entityId),
+            [node.entityType, node.entityId],
+        ),
+    )
+
+    const schemaMap = useMemo(() => {
+        const map: Record<string, SchemaProperty | undefined> = {}
+        for (const port of outputPorts) {
+            map[port.key] = port.schema as SchemaProperty | undefined
+        }
+        return map
+    }, [outputPorts])
+
     if (!fullResult || fullResult.status === "idle" || !fullResult.output) {
         return null
     }
 
-    // Extract display data from the wrapped output shape {response: rawApiResponse}
+    // Extract display data — same path as SingleLayout DownstreamNodeResult
     const output = fullResult.output as Record<string, unknown> | undefined
     const responseData = output?.response as Record<string, unknown> | undefined
-    const evaluatorOutputs = responseData?.outputs as Record<string, unknown> | undefined
-    const displayData = evaluatorOutputs ?? responseData?.data ?? responseData
+    const nestedData = responseData?.data as Record<string, unknown> | undefined
+    const displayData = nestedData?.outputs ?? responseData?.outputs ?? nestedData ?? responseData
 
     if (!displayData || typeof displayData !== "object") return null
 
+    const entries = Object.entries(displayData).filter(([, v]) => v !== undefined && v !== null)
+    if (entries.length === 0) return null
+
     return (
         <div className="p-3 border-0 border-t border-solid border-[var(--ant-color-border-secondary)]">
-            <EvaluatorOutputDisplay
-                entityId={node.entityId}
-                entityType={node.entityType}
-                data={displayData as Record<string, unknown>}
-                nodeName={nodeName}
-            />
+            <span className="text-sm font-medium text-[var(--ant-color-text)]">{nodeName}</span>
+            <div
+                className="grid items-baseline leading-5 mt-2"
+                style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 4}}
+            >
+                {entries.map(([key, value]) => (
+                    <React.Fragment key={key}>
+                        <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap">
+                            {formatFieldLabel(key)}:
+                        </span>
+                        <span className="break-words min-w-0">
+                            <RunnableOutputValue value={value} schema={schemaMap[key]} />
+                        </span>
+                    </React.Fragment>
+                ))}
+            </div>
         </div>
     )
 }
