@@ -12,11 +12,11 @@
 
 import {useCallback, useMemo} from "react"
 
+import {ChatMessageEditor} from "@agenta/ui/chat-message"
 import {Typography} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import DiffView from "@/oss/components/Editor/DiffView"
-import MessageEditor from "@/oss/components/Playground/Components/ChatCommon/MessageEditor"
 
 import {
     originalPromptSnapshotAtomFamily,
@@ -25,15 +25,14 @@ import {
 } from "../store/refinePromptStore"
 
 interface PreviewPanelProps {
-    variantId: string
-    promptId: string
+    promptKey: string
     promptVersion: number
 }
 
-const PreviewPanel: React.FC<PreviewPanelProps> = ({promptId, promptVersion}) => {
-    const showDiff = useAtomValue(refineDiffViewAtomFamily(promptId))
-    const [workingPrompt, setWorkingPrompt] = useAtom(workingPromptAtomFamily(promptId))
-    const originalPrompt = useAtomValue(originalPromptSnapshotAtomFamily(promptId))
+const PreviewPanel: React.FC<PreviewPanelProps> = ({promptKey, promptVersion}) => {
+    const showDiff = useAtomValue(refineDiffViewAtomFamily(promptKey))
+    const [workingPrompt, setWorkingPrompt] = useAtom(workingPromptAtomFamily(promptKey))
+    const originalPrompt = useAtomValue(originalPromptSnapshotAtomFamily(promptKey))
 
     const handleMessageChange = useCallback(
         (index: number, field: "role" | "content", value: string) => {
@@ -90,9 +89,9 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({promptId, promptVersion}) =>
             ) : (
                 <div className="flex flex-col gap-3">
                     {workingPrompt.messages.map((message, index) => (
-                        <MessageEditor
+                        <ChatMessageEditor
                             key={`v${promptVersion}-${index}`}
-                            id={`refine-preview-${promptId}-v${promptVersion}-${index}`}
+                            id={`refine-preview-${promptKey}-v${promptVersion}-${index}`}
                             role={message.role}
                             text={
                                 typeof message.content === "string"

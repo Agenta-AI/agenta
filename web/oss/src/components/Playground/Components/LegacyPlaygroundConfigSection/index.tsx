@@ -32,12 +32,15 @@ import {
 import {formatLabel} from "@agenta/entity-ui/drill-in"
 import {getOptionsFromSchema} from "@agenta/shared/utils"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {CaretDown} from "@phosphor-icons/react"
-import {Button, Collapse, Popover, Select, Typography} from "antd"
+import {CaretDown, MagicWand} from "@phosphor-icons/react"
+import {Button, Collapse, Popover, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
 import LLMIconMap from "@/oss/components/LLMIcons"
+
+const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {ssr: false})
 
 /**
  * Safely extract a property schema from the agConfig schema
@@ -166,6 +169,10 @@ function LegacyPlaygroundConfigSection({
     // Popover open state
     const [isModelConfigOpen, setIsModelConfigOpen] = useState(false)
 
+    // Refine prompt modal state
+    const [refineModalOpen, setRefineModalOpen] = useState(false)
+    const [refinePromptKey, setRefinePromptKey] = useState<string | null>(null)
+
     // Helper to update a key inside the prompt's llm_config (or root level)
     const updatePromptLLMConfigKey = useCallback(
         (key: string, newValue: unknown) => {
@@ -293,6 +300,12 @@ function LegacyPlaygroundConfigSection({
                         }
                     }
 
+                    // Determine if this is a prompt-like section (has messages array)
+                    const hasMessages =
+                        !!item.value &&
+                        typeof item.value === "object" &&
+                        Array.isArray((item.value as Record<string, unknown>).messages)
+
                     return {
                         key: item.key,
                         label: isPromptWithPopover ? (
@@ -300,7 +313,28 @@ function LegacyPlaygroundConfigSection({
                                 <span className="font-medium text-[rgba(0,0,0,0.65)]">
                                     {item.name}
                                 </span>
-                                <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+                                <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex items-center gap-2 flex-shrink-0"
+                                >
+                                    {!disabled && hasMessages && (
+                                        <Tooltip
+                                            title={"Refine prompt with AI" as string}
+                                        >
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                icon={<MagicWand size={16} aria-hidden="true" />}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setRefinePromptKey(item.key)
+                                                    setRefineModalOpen(true)
+                                                }}
+                                                aria-label="Refine prompt with AI"
+                                                className="flex items-center justify-center opacity-60 hover:opacity-100"
+                                            />
+                                        </Tooltip>
+                                    )}
                                     <Popover
                                         trigger="click"
                                         open={isModelConfigOpen}
@@ -473,6 +507,17 @@ function LegacyPlaygroundConfigSection({
                     }
                 })}
             />
+            {refinePromptKey && (
+                <RefinePromptModal
+                    open={refineModalOpen}
+                    onClose={() => {
+                        setRefineModalOpen(false)
+                        setRefinePromptKey(null)
+                    }}
+                    revisionId={revisionId}
+                    promptKey={refinePromptKey}
+                />
+            )}
         </div>
     )
 }

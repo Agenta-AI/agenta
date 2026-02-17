@@ -348,4 +348,3 @@ export function transformRevisionToListItem(
         parameters: revision.config?.parameters,
     }
 }
-
