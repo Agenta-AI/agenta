@@ -29,6 +29,7 @@ from oss.src.core.applications.dtos import (
     #
     ApplicationRevision,
     ApplicationRevisionCommit,
+    ApplicationRevisionData,
     ApplicationRevisionsLog,
 )
 
@@ -337,8 +338,6 @@ class LegacyApplicationsAdapter:
         commit_message: Optional[str] = None,
     ) -> Optional[AppVariantResponse]:
         """Create a new variant (fork from default) in legacy format."""
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         # Build compound slug: {app_slug}.{variant_name}
         application = await self.applications_service.fetch_application(
             project_id=project_id,
@@ -405,8 +404,6 @@ class LegacyApplicationsAdapter:
         commit_message: Optional[str] = None,
     ) -> Optional[AppVariantRevision]:
         """Update variant parameters (create new revision)."""
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
@@ -536,8 +533,6 @@ class LegacyApplicationsAdapter:
         commit_message: Optional[str] = None,
     ) -> Optional[AppVariantResponse]:
         """Create a new variant from a URL in legacy format."""
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         # Build compound slug: {app_slug}.{variant_name}
         application = await self.applications_service.fetch_application(
             project_id=project_id,
@@ -790,8 +785,6 @@ class LegacyApplicationsAdapter:
         The variant_slug should already be the compound slug
         ('{app_slug}.{variant_name}') when coming from legacy callers.
         """
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         # Fetch the application to get its flags
         application = await self.applications_service.fetch_application(
             project_id=project_id,
@@ -861,8 +854,6 @@ class LegacyApplicationsAdapter:
         commit_message: Optional[str] = None,
     ) -> Optional[ApplicationRevision]:
         """Commit a new revision to a variant with updated parameters."""
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
@@ -944,8 +935,6 @@ class LegacyApplicationsAdapter:
         commit_message: Optional[str] = None,
     ) -> Optional[AppVariantResponse]:
         """Update the URL for a variant (creates a new revision)."""
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
@@ -1029,8 +1018,6 @@ class LegacyApplicationsAdapter:
         In the new system, base_id is actually a variant_id, so we fetch the variant
         to get the app_id and URL from its latest revision.
         """
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         # In the new system, base_id is actually a variant_id
         # Fetch the source variant to get app info
         source_variant = await self.applications_service.fetch_application_variant(

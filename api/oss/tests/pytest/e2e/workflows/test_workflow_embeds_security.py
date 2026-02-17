@@ -28,7 +28,7 @@ class TestWorkflowEmbedsArchived:
         """
         # ARRANGE --------------------------------------------------------------
         # Create base workflow
-        base_slug = f"archived-base-{uuid4()}"
+        base_slug = f"archived-base-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -40,18 +40,26 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{base_slug}-v",
+                    "name": "Default",
+                    "workflow_id": base_id,
+                }
+            },
         )
         assert response.status_code == 200
         base_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_id}/variants/{base_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{base_slug}-v1",
+                    "workflow_id": base_id,
+                    "workflow_variant_id": base_variant_id,
                     "data": {"parameters": {"value": "archived-value"}},
                 }
             },
@@ -66,7 +74,7 @@ class TestWorkflowEmbedsArchived:
         assert response.status_code == 200
 
         # Create workflow that references archived workflow
-        ref_slug = f"refs-archived-{uuid4()}"
+        ref_slug = f"refs-archived-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -78,18 +86,26 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{ref_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{ref_slug}-v",
+                    "name": "Default",
+                    "workflow_id": ref_id,
+                }
+            },
         )
         assert response.status_code == 200
         ref_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{ref_id}/variants/{ref_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{ref_slug}-v1",
+                    "workflow_id": ref_id,
+                    "workflow_variant_id": ref_variant_id,
                     "data": {
                         "parameters": {
                             "config": {
@@ -143,7 +159,7 @@ class TestWorkflowEmbedsArchived:
         """
         # ARRANGE --------------------------------------------------------------
         # Create and archive base workflow
-        base_slug = f"archived-included-{uuid4()}"
+        base_slug = f"archived-included-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -155,18 +171,26 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{base_slug}-v",
+                    "name": "Default",
+                    "workflow_id": base_id,
+                }
+            },
         )
         assert response.status_code == 200
         base_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_id}/variants/{base_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{base_slug}-v1",
+                    "workflow_id": base_id,
+                    "workflow_variant_id": base_variant_id,
                     "data": {"parameters": {"archived_value": "still-accessible"}},
                 }
             },
@@ -181,7 +205,7 @@ class TestWorkflowEmbedsArchived:
         assert response.status_code == 200
 
         # Create referencing workflow
-        ref_slug = f"refs-archived-included-{uuid4()}"
+        ref_slug = f"refs-archived-included-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -193,18 +217,26 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{ref_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{ref_slug}-v",
+                    "name": "Default",
+                    "workflow_id": ref_id,
+                }
+            },
         )
         assert response.status_code == 200
         ref_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{ref_id}/variants/{ref_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{ref_slug}-v1",
+                    "workflow_id": ref_id,
+                    "workflow_variant_id": ref_variant_id,
                     "data": {
                         "parameters": {
                             "config": {

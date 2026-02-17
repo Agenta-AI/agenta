@@ -158,7 +158,7 @@ class TestFindStringEmbeds:
     def test_find_simple_string_embed(self):
         """Test finding a simple string embed with inline token."""
         config = {
-            "prompt": "Use this prompt: @ag.embed[@ag.references[workflow_revision:v1]]"
+            "prompt": "Use this prompt: @ag.embed[@ag.references[workflow_revision.version=v1]]"
         }
 
         embeds = find_string_embeds(config)
@@ -174,7 +174,7 @@ class TestFindStringEmbeds:
         """Test finding string embed with path selector in token."""
         workflow_variant_id = str(uuid4())
         config = {
-            "message": f"Content: @ag.embed[@ag.references[workflow_variant:{workflow_variant_id}], @ag.selector[path:params.message.content]]"
+            "message": f"Content: @ag.embed[@ag.references[workflow_variant.id={workflow_variant_id}], @ag.selector[path:params.message.content]]"
         }
 
         embeds = find_string_embeds(config)
@@ -184,6 +184,23 @@ class TestFindStringEmbeds:
         assert embeds[0].selector.path == "params.message.content"
         # Reference model stores id as UUID, so convert to string for comparison
         assert str(embeds[0].references["workflow_variant"].id) == workflow_variant_id
+
+    def test_find_environment_revision_key_selector(self):
+        """environment_revision.key should target data.references.<key>."""
+        environment_revision_id = str(uuid4())
+        config = {
+            "auth": f"@ag.embed[@ag.references[environment_revision.id={environment_revision_id}, environment_revision.key=api_config]]"
+        }
+
+        embeds = find_string_embeds(config)
+
+        assert len(embeds) == 1
+        assert (
+            str(embeds[0].references["environment_revision"].id)
+            == environment_revision_id
+        )
+        assert embeds[0].selector is not None
+        assert embeds[0].selector.path == "references.api_config"
 
     def test_no_string_embed_without_token(self):
         """Test that strings without @ag.embed token are not detected."""
@@ -398,7 +415,9 @@ class TestResolveEmbeds:
         """Test resolving a string embed with inline token."""
         resolved_value = {"message": "Hello world"}
 
-        config = {"greeting": "Say: @ag.embed[@ag.references[workflow_revision:v1]]"}
+        config = {
+            "greeting": "Say: @ag.embed[@ag.references[workflow_revision.version=v1]]"
+        }
 
         async def resolver(entity_type: str, ref: Reference):
             assert ref.version == "v1"
@@ -635,6 +654,13 @@ class TestResolveEmbeds:
             resolver_callback=resolver,
         )
 
-        # Should resolve first reference
-        assert "resolved" in result_config["combined"]
+        # Should resolve all references into a mapping keyed by entity_type
+        assert "workflow_revision" in result_config["combined"]
+        assert "environment_revision" in result_config["combined"]
+        assert result_config["combined"]["workflow_revision"]["resolved"] == str(
+            workflow_id
+        )
+        assert result_config["combined"]["environment_revision"]["resolved"] == str(
+            env_id
+        )
         assert resolution_info.embeds_resolved == 1

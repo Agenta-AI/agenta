@@ -187,7 +187,9 @@ def mock_evaluators_service():
             {"parameters": {"criteria": "accuracy", "threshold": 0.8}}
         )
         return EvaluatorRevision(
-            id=evaluator_revision_ref.id if evaluator_revision_ref and evaluator_revision_ref.id else uuid4(),
+            id=evaluator_revision_ref.id
+            if evaluator_revision_ref and evaluator_revision_ref.id
+            else uuid4(),
             variant_id=uuid4(),
             artifact_id=uuid4(),
             project_id=project_id,
@@ -305,7 +307,7 @@ class TestStringEmbeds:
         """Test resolving a simple string embed."""
         project_id = uuid4()
         config = {
-            "prompt": "System: @ag.embed[@ag.references[workflow_revision:v1], @ag.selector[path:parameters.system_prompt]]"
+            "prompt": "System: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path:parameters.system_prompt]]"
         }
 
         resolved_config, resolution_info = await embeds_service.resolve_configuration(
@@ -322,7 +324,7 @@ class TestStringEmbeds:
         """Test multiple string embeds in the same string value."""
         project_id = uuid4()
         config = {
-            "prompt": "Model: @ag.embed[@ag.references[workflow_revision:v1], @ag.selector[path:parameters.model]] Temp: @ag.embed[@ag.references[workflow_revision:v1], @ag.selector[path:parameters.temperature]]"
+            "prompt": "Model: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path:parameters.model]] Temp: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path:parameters.temperature]]"
         }
 
         resolved_config, resolution_info = await embeds_service.resolve_configuration(
@@ -414,6 +416,7 @@ class TestCircularDetection:
     @pytest.mark.asyncio
     async def test_circular_embed_raises_error(self):
         """Test that circular references are detected."""
+
         # Create a mock service that always returns config with same embed
         # Use dict representation of Reference to avoid serialization issues
         async def fetch_workflow_revision(**kwargs):
@@ -525,7 +528,9 @@ class TestErrorPolicies:
         config = {
             "data": {
                 "@ag.embed": {
-                    "@ag.references": {"workflow_revision": Reference(version="missing")}
+                    "@ag.references": {
+                        "workflow_revision": Reference(version="missing")
+                    }
                 }
             }
         }

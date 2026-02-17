@@ -15,13 +15,9 @@ from pprint import pprint
 
 sys.path.insert(0, ".")
 
-from fastapi.testclient import TestClient
-from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.workflows.dtos import (
-    WorkflowCreate,
-    WorkflowVariantCreate,
-    WorkflowRevisionCreate,
+    WorkflowRevision,
     WorkflowRevisionData,
 )
 from oss.src.core.shared.dtos import Reference
@@ -37,7 +33,6 @@ async def test_api_endpoint_with_mock_services():
     # For now, we'll test the service layer directly which the endpoint calls
 
     from unittest.mock import AsyncMock
-    from oss.src.core.workflows.dtos import WorkflowRevision
 
     # Create mock service that returns a workflow with an embed
     async def fetch_workflow_revision(**kwargs):
@@ -45,13 +40,15 @@ async def test_api_endpoint_with_mock_services():
 
         if workflow_revision_ref and workflow_revision_ref.version == "base":
             # Return a workflow with parameters
-            data = WorkflowRevisionData.model_validate({
-                "parameters": {
-                    "system_prompt": "You are a helpful AI assistant",
-                    "temperature": 0.7,
-                    "model": "gpt-4"
+            data = WorkflowRevisionData.model_validate(
+                {
+                    "parameters": {
+                        "system_prompt": "You are a helpful AI assistant",
+                        "temperature": 0.7,
+                        "model": "gpt-4",
+                    }
                 }
-            })
+            )
             return WorkflowRevision(
                 id=uuid4(),
                 variant_id=uuid4(),
@@ -64,25 +61,25 @@ async def test_api_endpoint_with_mock_services():
 
         elif workflow_revision_ref and workflow_revision_ref.version == "with-embed":
             # Return a workflow that references the base workflow
-            data = WorkflowRevisionData.model_validate({
-                "parameters": {
-                    "prompt_config": {
-                        "@ag.embed": {
-                            "@ag.references": {
-                                "workflow_revision": {
-                                    "version": "base",
-                                    "slug": None,
-                                    "id": None,
-                                }
-                            },
-                            "@ag.selector": {
-                                "path": "parameters.system_prompt"
+            data = WorkflowRevisionData.model_validate(
+                {
+                    "parameters": {
+                        "prompt_config": {
+                            "@ag.embed": {
+                                "@ag.references": {
+                                    "workflow_revision": {
+                                        "version": "base",
+                                        "slug": None,
+                                        "id": None,
+                                    }
+                                },
+                                "@ag.selector": {"path": "parameters.system_prompt"},
                             }
-                        }
-                    },
-                    "max_tokens": 2000
+                        },
+                        "max_tokens": 2000,
+                    }
                 }
-            })
+            )
             return WorkflowRevision(
                 id=uuid4(),
                 variant_id=uuid4(),
@@ -216,6 +213,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ TEST FAILED: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

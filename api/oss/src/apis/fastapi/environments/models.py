@@ -119,6 +119,7 @@ class EnvironmentRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
+    resolve: bool = False  # Optionally resolve embeds on query
 
 
 class EnvironmentRevisionCommitRequest(BaseModel):
@@ -129,6 +130,7 @@ class EnvironmentRevisionRetrieveRequest(BaseModel):
     environment_ref: Optional[Reference] = None
     environment_variant_ref: Optional[Reference] = None
     environment_revision_ref: Optional[Reference] = None
+    resolve: bool = False  # Optionally resolve embeds on retrieve
 
 
 class EnvironmentRevisionsLogRequest(BaseModel):
@@ -138,6 +140,7 @@ class EnvironmentRevisionsLogRequest(BaseModel):
 class EnvironmentRevisionResponse(BaseModel):
     count: int = 0
     environment_revision: Optional[EnvironmentRevision] = None
+    resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
 class EnvironmentRevisionsResponse(BaseModel):
@@ -192,4 +195,4 @@ class EnvironmentRevisionResolveRequest(BaseModel):
 class EnvironmentRevisionResolveResponse(BaseModel):
     count: int = 0
     environment_revision: Optional[EnvironmentRevision] = None
-    resolution_metadata: Optional[ResolutionInfo] = None
+    resolution_info: Optional[ResolutionInfo] = None

@@ -50,6 +50,7 @@ web/oss/public/__env.js
 web/oss/tests/datalayer/results
 api/tests/results/
 sdk/tests/results/
+tests/results/
 .*
 !api/.dockerignore
 !services/.dockerignore

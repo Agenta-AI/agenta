@@ -14,8 +14,6 @@ from pprint import pprint
 # Add api to path
 sys.path.insert(0, ".")
 
-from oss.src.core.embeds.service import EmbedsService
-from oss.src.core.embeds.utils import create_universal_resolver
 from oss.src.core.embeds.dtos import ErrorPolicy
 from oss.src.core.shared.dtos import Reference
 
@@ -51,9 +49,7 @@ async def test_object_embed():
         "model": "gpt-4",
         "prompt_config": {
             "@ag.embed": {
-                "@ag.references": {
-                    "workflow_revision": Reference(version="v1")
-                }
+                "@ag.references": {"workflow_revision": Reference(version="v1")}
             }
         },
         "service": {
@@ -63,12 +59,10 @@ async def test_object_embed():
                     "@ag.references": {
                         "environment_revision": Reference(version="prod")
                     },
-                    "@ag.selector": {
-                        "path": "headers.Authorization"
-                    }
+                    "@ag.selector": {"path": "headers.Authorization"},
                 }
-            }
-        }
+            },
+        },
     }
 
     print("\nInput configuration:")
@@ -94,7 +88,10 @@ async def test_object_embed():
     print(f"  Errors: {resolution_info.errors}")
 
     # Verify results
-    assert resolved_config["prompt_config"]["params"]["system_prompt"] == "You are a helpful assistant"
+    assert (
+        resolved_config["prompt_config"]["params"]["system_prompt"]
+        == "You are a helpful assistant"
+    )
     assert resolved_config["service"]["auth"] == "Bearer secret-token"
     print("\n✅ Object embed test PASSED")
 
@@ -122,12 +119,9 @@ async def test_string_embed():
         "messages": [
             {
                 "role": "system",
-                "content": "Base prompt: @ag.embed[@ag.references[workflow_revision:v2], @ag.selector[path:params.system_prompt]]"
+                "content": "Base prompt: @ag.embed[@ag.references[workflow_revision:v2], @ag.selector[path:params.system_prompt]]",
             },
-            {
-                "role": "user",
-                "content": "Write a story"
-            }
+            {"role": "user", "content": "Write a story"},
         ]
     }
 
@@ -175,25 +169,19 @@ async def test_nested_embeds():
             return {
                 "outer": {
                     "@ag.embed": {
-                        "@ag.references": {
-                            "workflow_revision": Reference(version="v2")
-                        }
+                        "@ag.references": {"workflow_revision": Reference(version="v2")}
                     }
                 }
             }
         elif ref.version == "v2":
             # Second level - returns final config
-            return {
-                "inner": "Final value"
-            }
+            return {"inner": "Final value"}
         return {}
 
     config = {
         "data": {
             "@ag.embed": {
-                "@ag.references": {
-                    "workflow_revision": Reference(version="v1")
-                }
+                "@ag.references": {"workflow_revision": Reference(version="v1")}
             }
         }
     }
@@ -238,9 +226,7 @@ async def test_circular_detection():
         return {
             "data": {
                 "@ag.embed": {
-                    "@ag.references": {
-                        "workflow_revision": Reference(version="v1")
-                    }
+                    "@ag.references": {"workflow_revision": Reference(version="v1")}
                 }
             }
         }
@@ -248,9 +234,7 @@ async def test_circular_detection():
     config = {
         "root": {
             "@ag.embed": {
-                "@ag.references": {
-                    "workflow_revision": Reference(version="v1")
-                }
+                "@ag.references": {"workflow_revision": Reference(version="v1")}
             }
         }
     }
@@ -294,14 +278,11 @@ async def test_cross_entity_references():
                                 "environment_revision": Reference(slug="prod-api")
                             }
                         }
-                    }
+                    },
                 }
             }
         elif entity_type == "environment_revision":
-            return {
-                "api_key": "sk-prod-12345",
-                "base_url": "https://api.openai.com/v1"
-            }
+            return {"api_key": "sk-prod-12345", "base_url": "https://api.openai.com/v1"}
         elif entity_type == "application_revision":
             return {
                 "app": "Chat Assistant",
@@ -311,37 +292,26 @@ async def test_cross_entity_references():
                             "@ag.references": {
                                 "evaluator_revision": Reference(version="latest")
                             },
-                            "@ag.selector": {
-                                "path": "eval_config"
-                            }
+                            "@ag.selector": {"path": "eval_config"},
                         }
                     }
-                ]
+                ],
             }
         elif entity_type == "evaluator_revision":
-            return {
-                "eval_config": {
-                    "criteria": "accuracy",
-                    "threshold": 0.8
-                }
-            }
+            return {"eval_config": {"criteria": "accuracy", "threshold": 0.8}}
         return {}
 
     config = {
         "workflow": {
             "@ag.embed": {
-                "@ag.references": {
-                    "workflow_revision": Reference(id=uuid4())
-                }
+                "@ag.references": {"workflow_revision": Reference(id=uuid4())}
             }
         },
         "application": {
             "@ag.embed": {
-                "@ag.references": {
-                    "application_revision": Reference(version="v1")
-                }
+                "@ag.references": {"application_revision": Reference(version="v1")}
             }
-        }
+        },
     }
 
     print("\nInput configuration:")
@@ -365,7 +335,9 @@ async def test_cross_entity_references():
     print(f"  Depth reached: {resolution_info.depth_reached}")
 
     # Verify cross-entity resolution
-    assert resolved_config["workflow"]["llm"]["api_config"]["api_key"] == "sk-prod-12345"
+    assert (
+        resolved_config["workflow"]["llm"]["api_config"]["api_key"] == "sk-prod-12345"
+    )
     assert resolved_config["application"]["app"] == "Chat Assistant"
     assert resolved_config["application"]["evaluators"][0]["criteria"] == "accuracy"
     print("\n✅ Cross-entity references test PASSED")
@@ -385,18 +357,14 @@ async def test_error_policies():
     config = {
         "valid": {
             "@ag.embed": {
-                "@ag.references": {
-                    "workflow_revision": Reference(version="v1")
-                }
+                "@ag.references": {"workflow_revision": Reference(version="v1")}
             }
         },
         "invalid": {
             "@ag.embed": {
-                "@ag.references": {
-                    "workflow_revision": Reference(version="missing")
-                }
+                "@ag.references": {"workflow_revision": Reference(version="missing")}
             }
-        }
+        },
     }
 
     print("\nInput configuration (with missing reference):")
@@ -443,13 +411,16 @@ async def main():
         print("✅ ALL TESTS PASSED")
         print("=" * 80)
         print("\nNext steps:")
-        print("1. Test with actual services (WorkflowsService, EnvironmentsService, etc.)")
+        print(
+            "1. Test with actual services (WorkflowsService, EnvironmentsService, etc.)"
+        )
         print("2. Test via API endpoints (/preview/workflows/revisions/resolve)")
         print("3. Create integration tests based on these scenarios")
 
     except Exception as e:
         print(f"\n❌ TEST FAILED: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

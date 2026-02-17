@@ -14,6 +14,7 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.workflows.service import (
     WorkflowsService,
 )
+from oss.src.core.workflows.dtos import WorkflowRevisionData
 from oss.src.core.embeds.dtos import ErrorPolicy
 
 from oss.src.apis.fastapi.workflows.models import (
@@ -223,7 +224,7 @@ class WorkflowsRouter:
         self.router.add_api_route(
             "/revisions/retrieve",
             self.retrieve_workflow_revision,
-            methods=["GET"],
+            methods=["POST"],
             operation_id="retrieve_workflow_revision",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowRevisionResponse,
@@ -993,6 +994,34 @@ class WorkflowsRouter:
             windowing=workflow_revision_query_request.windowing,
         )
 
+        # Optionally resolve embeds for all revisions if requested
+        if workflow_revisions and workflow_revision_query_request.resolve:
+            for revision in workflow_revisions:
+                if not revision or not revision.data:
+                    continue
+
+                try:
+                    resolved = await self.workflows_service.resolve_workflow_revision(
+                        project_id=UUID(request.state.project_id),
+                        user_id=UUID(request.state.user_id),
+                        workflow_revision_ref=Reference(id=revision.id),
+                        max_depth=10,
+                        max_embeds=100,
+                        error_policy=ErrorPolicy.EXCEPTION,
+                        include_archived=workflow_revision_query_request.include_archived,
+                    )
+
+                    if resolved:
+                        resolved_revision, _ = resolved
+                        if resolved_revision and resolved_revision.data:
+                            revision.data = resolved_revision.data
+
+                except Exception as e:
+                    log.error(
+                        f"Failed to resolve embeds for revision {revision.id}: {e}"
+                    )
+                    # Continue with next revision
+
         workflow_revisions_response = WorkflowRevisionsResponse(
             count=len(workflow_revisions),
             workflow_revisions=workflow_revisions,
@@ -1113,17 +1142,32 @@ class WorkflowsRouter:
                 value=workflow_revision,
             )
 
+        # Optionally resolve embeds if requested
+        resolution_info = None
+        if workflow_revision and workflow_revision_retrieve_request.resolve:
+            embeds_service = self.workflows_service.embeds_service
+            (
+                resolved_config,
+                resolution_info,
+            ) = await embeds_service.resolve_configuration(
+                project_id=UUID(request.state.project_id),
+                configuration=workflow_revision.data.model_dump()
+                if workflow_revision.data
+                else {},
+            )
+
+            if workflow_revision.data:
+                workflow_revision.data = WorkflowRevisionData(**resolved_config)
+
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
+            resolution_info=resolution_info,
         )
 
         return workflow_revision_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=WorkflowRevisionResolveResponse(), exclude=[HTTPException]
-    )
     async def resolve_workflow_revision_endpoint(
         self,
         request: Request,
@@ -1168,7 +1212,7 @@ class WorkflowsRouter:
         workflow_revision, resolution_info = result
 
         # Build resolution metadata
-        resolution_metadata = ResolutionInfo(
+        resolution_info = ResolutionInfo(
             references_used=resolution_info.references_used,
             depth_reached=resolution_info.depth_reached,
             embeds_resolved=resolution_info.embeds_resolved,
@@ -1178,7 +1222,7 @@ class WorkflowsRouter:
         workflow_revision_resolve_response = WorkflowRevisionResolveResponse(
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
-            resolution_metadata=resolution_metadata,
+            resolution_info=resolution_info,
         )
 
         return workflow_revision_resolve_response

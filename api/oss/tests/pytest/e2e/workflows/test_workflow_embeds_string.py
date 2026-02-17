@@ -26,7 +26,7 @@ class TestWorkflowEmbedsString:
         """
         # ARRANGE --------------------------------------------------------------
         # Create base workflow with message
-        base_slug = f"string-base-{uuid4()}"
+        base_slug = f"string-base-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -38,18 +38,26 @@ class TestWorkflowEmbedsString:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{base_slug}-v",
+                    "name": "Default",
+                    "workflow_id": base_id,
+                }
+            },
         )
         assert response.status_code == 200
         base_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_id}/variants/{base_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{base_slug}-v1",
+                    "workflow_id": base_id,
+                    "workflow_variant_id": base_variant_id,
                     "data": {"parameters": {"greeting": "Hello, World!"}},
                 }
             },
@@ -57,7 +65,7 @@ class TestWorkflowEmbedsString:
         assert response.status_code == 200
 
         # Create workflow with string embed
-        ref_slug = f"string-ref-{uuid4()}"
+        ref_slug = f"string-ref-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -69,8 +77,14 @@ class TestWorkflowEmbedsString:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{ref_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{ref_slug}-v",
+                    "name": "Default",
+                    "workflow_id": ref_id,
+                }
+            },
         )
         assert response.status_code == 200
         ref_variant_id = response.json()["workflow_variant"]["id"]
@@ -78,13 +92,15 @@ class TestWorkflowEmbedsString:
         # Use string embed syntax: @ag.embed[@ag.references[...], @ag.selector[...]]
         response = authed_api(
             "POST",
-            f"/preview/workflows/{ref_id}/variants/{ref_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{ref_slug}-v1",
+                    "workflow_id": ref_id,
+                    "workflow_variant_id": ref_variant_id,
                     "data": {
                         "parameters": {
-                            "message": f"Say: @ag.embed[@ag.references[workflow_revision:{base_slug}:v1], @ag.selector[path:parameters.greeting]]"
+                            "message": f"Say: @ag.embed[@ag.references[workflow_revision.slug={base_slug}-v1], @ag.selector[path:parameters.greeting]]"
                         }
                     },
                 }
@@ -113,7 +129,7 @@ class TestWorkflowEmbedsString:
         assert resolved_config["parameters"]["message"] == "Say: Hello, World!"
 
         # Verify metadata
-        metadata = result["resolution_metadata"]
+        metadata = result["resolution_info"]
         assert metadata["embeds_resolved"] == 1
         assert metadata["depth_reached"] == 1
         # ----------------------------------------------------------------------
@@ -124,7 +140,7 @@ class TestWorkflowEmbedsString:
         """
         # ARRANGE --------------------------------------------------------------
         # Create base workflow
-        base_slug = f"string-no-sel-{uuid4()}"
+        base_slug = f"string-no-sel-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -136,18 +152,26 @@ class TestWorkflowEmbedsString:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{base_slug}-v",
+                    "name": "Default",
+                    "workflow_id": base_id,
+                }
+            },
         )
         assert response.status_code == 200
         base_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_id}/variants/{base_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{base_slug}-v1",
+                    "workflow_id": base_id,
+                    "workflow_variant_id": base_variant_id,
                     "data": {"parameters": {"model": "gpt-4", "temp": 0.7}},
                 }
             },
@@ -155,7 +179,7 @@ class TestWorkflowEmbedsString:
         assert response.status_code == 200
 
         # Create workflow with string embed (no selector)
-        ref_slug = f"string-no-sel-ref-{uuid4()}"
+        ref_slug = f"string-no-sel-ref-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -167,21 +191,29 @@ class TestWorkflowEmbedsString:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{ref_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{ref_slug}-v",
+                    "name": "Default",
+                    "workflow_id": ref_id,
+                }
+            },
         )
         assert response.status_code == 200
         ref_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{ref_id}/variants/{ref_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{ref_slug}-v1",
+                    "workflow_id": ref_id,
+                    "workflow_variant_id": ref_variant_id,
                     "data": {
                         "parameters": {
-                            "config": f"Config: @ag.embed[@ag.references[workflow_revision:{base_slug}:v1]]"
+                            "config": f"Config: @ag.embed[@ag.references[workflow_revision.slug={base_slug}-v1]]"
                         }
                     },
                 }
@@ -221,8 +253,8 @@ class TestWorkflowEmbedsString:
         """
         # ARRANGE --------------------------------------------------------------
         # Create two base workflows
-        base1_slug = f"multi-str-1-{uuid4()}"
-        base2_slug = f"multi-str-2-{uuid4()}"
+        base1_slug = f"multi-str-1-{uuid4().hex[:8]}"
+        base2_slug = f"multi-str-2-{uuid4().hex[:8]}"
 
         # Base 1
         response = authed_api(
@@ -235,18 +267,26 @@ class TestWorkflowEmbedsString:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base1_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{base1_slug}-v",
+                    "name": "Default",
+                    "workflow_id": base1_id,
+                }
+            },
         )
         assert response.status_code == 200
         base1_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base1_id}/variants/{base1_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{base1_slug}-v1",
+                    "workflow_id": base1_id,
+                    "workflow_variant_id": base1_variant_id,
                     "data": {"parameters": {"value": "first-value"}},
                 }
             },
@@ -264,18 +304,26 @@ class TestWorkflowEmbedsString:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base2_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{base2_slug}-v",
+                    "name": "Default",
+                    "workflow_id": base2_id,
+                }
+            },
         )
         assert response.status_code == 200
         base2_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base2_id}/variants/{base2_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{base2_slug}-v1",
+                    "workflow_id": base2_id,
+                    "workflow_variant_id": base2_variant_id,
                     "data": {"parameters": {"value": "second-value"}},
                 }
             },
@@ -283,7 +331,7 @@ class TestWorkflowEmbedsString:
         assert response.status_code == 200
 
         # Create workflow with multiple string embeds
-        ref_slug = f"multi-str-ref-{uuid4()}"
+        ref_slug = f"multi-str-ref-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -295,21 +343,29 @@ class TestWorkflowEmbedsString:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{ref_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{ref_slug}-v",
+                    "name": "Default",
+                    "workflow_id": ref_id,
+                }
+            },
         )
         assert response.status_code == 200
         ref_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{ref_id}/variants/{ref_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{ref_slug}-v1",
+                    "workflow_id": ref_id,
+                    "workflow_variant_id": ref_variant_id,
                     "data": {
                         "parameters": {
-                            "combined": f"Use @ag.embed[@ag.references[workflow_revision:{base1_slug}:v1], @ag.selector[path:parameters.value]] and @ag.embed[@ag.references[workflow_revision:{base2_slug}:v1], @ag.selector[path:parameters.value]]"
+                            "combined": f"Use @ag.embed[@ag.references[workflow_revision.slug={base1_slug}-v1], @ag.selector[path:parameters.value]] and @ag.embed[@ag.references[workflow_revision.slug={base2_slug}-v1], @ag.selector[path:parameters.value]]"
                         }
                     },
                 }
@@ -341,7 +397,7 @@ class TestWorkflowEmbedsString:
         )
 
         # Verify metadata
-        metadata = result["resolution_metadata"]
+        metadata = result["resolution_info"]
         assert metadata["embeds_resolved"] == 2  # Two string embeds
         # ----------------------------------------------------------------------
 
@@ -361,7 +417,7 @@ class TestWorkflowEmbedsNested:
         """
         # ARRANGE --------------------------------------------------------------
         # Level 3: Base value
-        level3_slug = f"nest-str-l3-{uuid4()}"
+        level3_slug = f"nest-str-l3-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -373,18 +429,26 @@ class TestWorkflowEmbedsNested:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level3_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level3_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level3_id,
+                }
+            },
         )
         assert response.status_code == 200
         level3_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level3_id}/variants/{level3_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level3_slug}-v1",
+                    "workflow_id": level3_id,
+                    "workflow_variant_id": level3_variant_id,
                     "data": {"parameters": {"final": "deeply-nested-value"}},
                 }
             },
@@ -392,7 +456,7 @@ class TestWorkflowEmbedsNested:
         assert response.status_code == 200
 
         # Level 2: References level 3
-        level2_slug = f"nest-str-l2-{uuid4()}"
+        level2_slug = f"nest-str-l2-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -404,21 +468,29 @@ class TestWorkflowEmbedsNested:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level2_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level2_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level2_id,
+                }
+            },
         )
         assert response.status_code == 200
         level2_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level2_id}/variants/{level2_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level2_slug}-v1",
+                    "workflow_id": level2_id,
+                    "workflow_variant_id": level2_variant_id,
                     "data": {
                         "parameters": {
-                            "middle": f"Mid: @ag.embed[@ag.references[workflow_revision:{level3_slug}:v1], @ag.selector[path:parameters.final]]"
+                            "middle": f"Mid: @ag.embed[@ag.references[workflow_revision.slug={level3_slug}-v1], @ag.selector[path:parameters.final]]"
                         }
                     },
                 }
@@ -427,7 +499,7 @@ class TestWorkflowEmbedsNested:
         assert response.status_code == 200
 
         # Level 1: References level 2
-        level1_slug = f"nest-str-l1-{uuid4()}"
+        level1_slug = f"nest-str-l1-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -439,21 +511,29 @@ class TestWorkflowEmbedsNested:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level1_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level1_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level1_id,
+                }
+            },
         )
         assert response.status_code == 200
         level1_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level1_id}/variants/{level1_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level1_slug}-v1",
+                    "workflow_id": level1_id,
+                    "workflow_variant_id": level1_variant_id,
                     "data": {
                         "parameters": {
-                            "top": f"Top: @ag.embed[@ag.references[workflow_revision:{level2_slug}:v1], @ag.selector[path:parameters.middle]]"
+                            "top": f"Top: @ag.embed[@ag.references[workflow_revision.slug={level2_slug}-v1], @ag.selector[path:parameters.middle]]"
                         }
                     },
                 }
@@ -481,12 +561,10 @@ class TestWorkflowEmbedsNested:
         resolved_config = result["workflow_revision"]["data"]
         # Level 1 refs Level 2 which refs Level 3
         # After resolution: "Top: Mid: deeply-nested-value"
-        assert (
-            resolved_config["parameters"]["top"] == "Top: Mid: deeply-nested-value"
-        )
+        assert resolved_config["parameters"]["top"] == "Top: Mid: deeply-nested-value"
 
         # Verify metadata
-        metadata = result["resolution_metadata"]
+        metadata = result["resolution_info"]
         assert metadata["embeds_resolved"] == 2  # Two levels of resolution
         assert metadata["depth_reached"] == 2  # Two iterations
         # ----------------------------------------------------------------------
@@ -507,7 +585,7 @@ class TestWorkflowEmbedsMixedTypes:
         """
         # ARRANGE --------------------------------------------------------------
         # Level 2: Base value
-        level2_slug = f"mixed-os-l2-{uuid4()}"
+        level2_slug = f"mixed-os-l2-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -519,18 +597,26 @@ class TestWorkflowEmbedsMixedTypes:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level2_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level2_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level2_id,
+                }
+            },
         )
         assert response.status_code == 200
         level2_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level2_id}/variants/{level2_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level2_slug}-v1",
+                    "workflow_id": level2_id,
+                    "workflow_variant_id": level2_variant_id,
                     "data": {"parameters": {"final_msg": "base-message"}},
                 }
             },
@@ -538,7 +624,7 @@ class TestWorkflowEmbedsMixedTypes:
         assert response.status_code == 200
 
         # Level 1: Contains string embed
-        level1_slug = f"mixed-os-l1-{uuid4()}"
+        level1_slug = f"mixed-os-l1-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -550,21 +636,29 @@ class TestWorkflowEmbedsMixedTypes:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level1_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level1_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level1_id,
+                }
+            },
         )
         assert response.status_code == 200
         level1_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level1_id}/variants/{level1_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level1_slug}-v1",
+                    "workflow_id": level1_id,
+                    "workflow_variant_id": level1_variant_id,
                     "data": {
                         "parameters": {
-                            "prompt": f"Prompt: @ag.embed[@ag.references[workflow_revision:{level2_slug}:v1], @ag.selector[path:parameters.final_msg]]",
+                            "prompt": f"Prompt: @ag.embed[@ag.references[workflow_revision.slug={level2_slug}-v1], @ag.selector[path:parameters.final_msg]]",
                             "model": "gpt-4",
                         }
                     },
@@ -574,7 +668,7 @@ class TestWorkflowEmbedsMixedTypes:
         assert response.status_code == 200
 
         # Level 0: Object embed referencing level 1
-        level0_slug = f"mixed-os-l0-{uuid4()}"
+        level0_slug = f"mixed-os-l0-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -586,18 +680,26 @@ class TestWorkflowEmbedsMixedTypes:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level0_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level0_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level0_id,
+                }
+            },
         )
         assert response.status_code == 200
         level0_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level0_id}/variants/{level0_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level0_slug}-v1",
+                    "workflow_id": level0_id,
+                    "workflow_variant_id": level0_variant_id,
                     "data": {
                         "parameters": {
                             "config": {
@@ -645,7 +747,7 @@ class TestWorkflowEmbedsMixedTypes:
         assert resolved_config["parameters"]["config"]["parameters"]["model"] == "gpt-4"
 
         # Verify metadata
-        metadata = result["resolution_metadata"]
+        metadata = result["resolution_info"]
         assert metadata["embeds_resolved"] == 2  # Object + String
         assert metadata["depth_reached"] == 2
         # ----------------------------------------------------------------------
@@ -662,7 +764,7 @@ class TestWorkflowEmbedsMixedTypes:
         """
         # ARRANGE --------------------------------------------------------------
         # Level 2: Base value
-        level2_slug = f"mixed-so-l2-{uuid4()}"
+        level2_slug = f"mixed-so-l2-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -674,18 +776,26 @@ class TestWorkflowEmbedsMixedTypes:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level2_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level2_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level2_id,
+                }
+            },
         )
         assert response.status_code == 200
         level2_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level2_id}/variants/{level2_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level2_slug}-v1",
+                    "workflow_id": level2_id,
+                    "workflow_variant_id": level2_variant_id,
                     "data": {"parameters": {"setting": "final-setting"}},
                 }
             },
@@ -693,7 +803,7 @@ class TestWorkflowEmbedsMixedTypes:
         assert response.status_code == 200
 
         # Level 1: Contains object embed
-        level1_slug = f"mixed-so-l1-{uuid4()}"
+        level1_slug = f"mixed-so-l1-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -705,18 +815,26 @@ class TestWorkflowEmbedsMixedTypes:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level1_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level1_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level1_id,
+                }
+            },
         )
         assert response.status_code == 200
         level1_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level1_id}/variants/{level1_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level1_slug}-v1",
+                    "workflow_id": level1_id,
+                    "workflow_variant_id": level1_variant_id,
                     "data": {
                         "parameters": {
                             "nested_config": {
@@ -738,7 +856,7 @@ class TestWorkflowEmbedsMixedTypes:
         assert response.status_code == 200
 
         # Level 0: String embed that references level 1 (without selector, gets whole data)
-        level0_slug = f"mixed-so-l0-{uuid4()}"
+        level0_slug = f"mixed-so-l0-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -750,8 +868,14 @@ class TestWorkflowEmbedsMixedTypes:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level0_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level0_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level0_id,
+                }
+            },
         )
         assert response.status_code == 200
         level0_variant_id = response.json()["workflow_variant"]["id"]
@@ -759,13 +883,15 @@ class TestWorkflowEmbedsMixedTypes:
         # String embed without selector - gets entire data as JSON string
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level0_id}/variants/{level0_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level0_slug}-v1",
+                    "workflow_id": level0_id,
+                    "workflow_variant_id": level0_variant_id,
                     "data": {
                         "parameters": {
-                            "full_config": f"Config: @ag.embed[@ag.references[workflow_revision:{level1_slug}:v1]]"
+                            "full_config": f"Config: @ag.embed[@ag.references[workflow_revision.slug={level1_slug}-v1]]"
                         }
                     },
                 }
@@ -798,7 +924,7 @@ class TestWorkflowEmbedsMixedTypes:
         assert "final-setting" in full_config  # The resolved value from level 2
 
         # Verify metadata
-        metadata = result["resolution_metadata"]
+        metadata = result["resolution_info"]
         assert metadata["embeds_resolved"] == 2  # String + Object
         assert metadata["depth_reached"] == 2
         # ----------------------------------------------------------------------
@@ -816,7 +942,7 @@ class TestWorkflowEmbedsMixedTypes:
         """
         # ARRANGE --------------------------------------------------------------
         # Level 3: Base
-        level3_slug = f"mixed-oso-l3-{uuid4()}"
+        level3_slug = f"mixed-oso-l3-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -828,18 +954,26 @@ class TestWorkflowEmbedsMixedTypes:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level3_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level3_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level3_id,
+                }
+            },
         )
         assert response.status_code == 200
         level3_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level3_id}/variants/{level3_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level3_slug}-v1",
+                    "workflow_id": level3_id,
+                    "workflow_variant_id": level3_variant_id,
                     "data": {"parameters": {"base": "deepest-value"}},
                 }
             },
@@ -847,7 +981,7 @@ class TestWorkflowEmbedsMixedTypes:
         assert response.status_code == 200
 
         # Level 2: Object embed
-        level2_slug = f"mixed-oso-l2-{uuid4()}"
+        level2_slug = f"mixed-oso-l2-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -859,18 +993,26 @@ class TestWorkflowEmbedsMixedTypes:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level2_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level2_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level2_id,
+                }
+            },
         )
         assert response.status_code == 200
         level2_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level2_id}/variants/{level2_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level2_slug}-v1",
+                    "workflow_id": level2_id,
+                    "workflow_variant_id": level2_variant_id,
                     "data": {
                         "parameters": {
                             "obj_config": {
@@ -892,7 +1034,7 @@ class TestWorkflowEmbedsMixedTypes:
         assert response.status_code == 200
 
         # Level 1: String embed
-        level1_slug = f"mixed-oso-l1-{uuid4()}"
+        level1_slug = f"mixed-oso-l1-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -904,21 +1046,29 @@ class TestWorkflowEmbedsMixedTypes:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level1_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level1_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level1_id,
+                }
+            },
         )
         assert response.status_code == 200
         level1_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level1_id}/variants/{level1_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level1_slug}-v1",
+                    "workflow_id": level1_id,
+                    "workflow_variant_id": level1_variant_id,
                     "data": {
                         "parameters": {
-                            "str_msg": f"Message: @ag.embed[@ag.references[workflow_revision:{level2_slug}:v1], @ag.selector[path:parameters.obj_config.parameters.base]]"
+                            "str_msg": f"Message: @ag.embed[@ag.references[workflow_revision.slug={level2_slug}-v1], @ag.selector[path:parameters.obj_config.parameters.base]]"
                         }
                     },
                 }
@@ -927,7 +1077,7 @@ class TestWorkflowEmbedsMixedTypes:
         assert response.status_code == 200
 
         # Level 0: Object embed
-        level0_slug = f"mixed-oso-l0-{uuid4()}"
+        level0_slug = f"mixed-oso-l0-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -939,18 +1089,26 @@ class TestWorkflowEmbedsMixedTypes:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level0_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level0_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level0_id,
+                }
+            },
         )
         assert response.status_code == 200
         level0_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level0_id}/variants/{level0_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level0_slug}-v1",
+                    "workflow_id": level0_id,
+                    "workflow_variant_id": level0_variant_id,
                     "data": {
                         "parameters": {
                             "top_config": {
@@ -1002,7 +1160,7 @@ class TestWorkflowEmbedsMixedTypes:
         )
 
         # Verify metadata
-        metadata = result["resolution_metadata"]
+        metadata = result["resolution_info"]
         assert metadata["embeds_resolved"] == 3  # Object + String + Object
         assert metadata["depth_reached"] == 3
         # ----------------------------------------------------------------------

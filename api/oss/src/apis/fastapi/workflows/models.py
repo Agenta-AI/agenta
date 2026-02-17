@@ -120,6 +120,8 @@ class WorkflowRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
+    #
+    resolve: bool = False  # Optionally resolve embeds on query
 
 
 class WorkflowRevisionCommitRequest(BaseModel):
@@ -130,6 +132,8 @@ class WorkflowRevisionRetrieveRequest(BaseModel):
     workflow_ref: Optional[Reference] = None
     workflow_variant_ref: Optional[Reference] = None
     workflow_revision_ref: Optional[Reference] = None
+    #
+    resolve: bool = False  # Optionally resolve embeds on retrieve
 
 
 class WorkflowRevisionsLogRequest(BaseModel):
@@ -139,6 +143,7 @@ class WorkflowRevisionsLogRequest(BaseModel):
 class WorkflowRevisionResponse(BaseModel):
     count: int = 0
     workflow_revision: Optional[WorkflowRevision] = None
+    resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
 class WorkflowRevisionsResponse(BaseModel):
@@ -162,4 +167,4 @@ class WorkflowRevisionResolveRequest(BaseModel):
 class WorkflowRevisionResolveResponse(BaseModel):
     count: int = 0
     workflow_revision: Optional[WorkflowRevision] = None
-    resolution_metadata: Optional[ResolutionInfo] = None
+    resolution_info: Optional[ResolutionInfo] = None

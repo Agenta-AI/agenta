@@ -1,7 +1,8 @@
 """
 E2E tests for cross-entity embeds resolution.
 
-Tests workflows referencing environments and vice versa.
+Tests workflows referencing environments and environment resolve behavior with
+references-only environment revision data.
 """
 
 from uuid import uuid4
@@ -12,100 +13,134 @@ class TestWorkflowEnvironmentEmbeds:
 
     def test_workflow_embeds_environment(self, authed_api):
         """
-        Test workflow that references an environment.
+        Test workflow embedding data from an environment revision.
 
-        Flow:
-        1. Create environment with configuration
-        2. Create workflow that embeds the environment config
-        3. Resolve workflow
-        4. Verify environment config is inlined
+        Environment revision data is references-only.
         """
         # ARRANGE --------------------------------------------------------------
-        # Create environment with API configuration
-        env_slug = f"api-config-{uuid4()}"
+        # Create workflow referenced by environment data
+        referenced_workflow_slug = f"shared-config-{uuid4().hex[:8]}"
+
+        response = authed_api(
+            "POST",
+            "/preview/workflows/",
+            json={
+                "workflow": {"slug": referenced_workflow_slug, "name": "Shared Config"}
+            },
+        )
+        assert response.status_code == 200
+        referenced_workflow_id = response.json()["workflow"]["id"]
+
+        response = authed_api(
+            "POST",
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{referenced_workflow_slug}-v",
+                    "name": "Default",
+                    "workflow_id": referenced_workflow_id,
+                }
+            },
+        )
+        assert response.status_code == 200
+        referenced_variant_id = response.json()["workflow_variant"]["id"]
+
+        response = authed_api(
+            "POST",
+            "/preview/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
+                    "slug": f"{referenced_workflow_slug}-v1",
+                    "workflow_id": referenced_workflow_id,
+                    "workflow_variant_id": referenced_variant_id,
+                    "data": {"parameters": {"marker": "base"}},
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        # Create environment with references-only data
+        env_slug = f"env-refs-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
             "/preview/environments/",
-            json={
-                "environment": {
-                    "slug": env_slug,
-                    "name": "API Configuration Environment",
-                    "description": "Environment with API settings",
-                }
-            },
+            json={"environment": {"slug": env_slug, "name": "Environment References"}},
         )
         assert response.status_code == 200
         env_id = response.json()["environment"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/environments/{env_id}/variants",
+            "/preview/environments/variants/",
             json={
                 "environment_variant": {
-                    "slug": "production",
-                    "name": "Production Variant",
+                    "slug": f"{env_slug}-v",
+                    "name": "Default",
+                    "environment_id": env_id,
                 }
             },
         )
         assert response.status_code == 200
         env_variant_id = response.json()["environment_variant"]["id"]
 
-        # Create environment revision with API settings
         response = authed_api(
             "POST",
-            f"/preview/environments/{env_id}/variants/{env_variant_id}/revisions",
+            "/preview/environments/revisions/commit",
             json={
-                "environment_revision": {
-                    "slug": "v1",
+                "environment_revision_commit": {
+                    "slug": f"{env_slug}-v1",
+                    "environment_id": env_id,
+                    "environment_variant_id": env_variant_id,
                     "data": {
-                        "api_config": {
-                            "base_url": "https://api.example.com/v1",
-                            "api_key": "sk-prod-12345",
-                            "timeout": 30,
-                        },
-                        "headers": {
-                            "Authorization": "Bearer prod-token",
-                            "Content-Type": "application/json",
-                        },
+                        "references": {
+                            "api_settings": {
+                                "workflow_revision": {
+                                    "slug": referenced_workflow_slug,
+                                    "version": "v1",
+                                    "id": None,
+                                }
+                            }
+                        }
                     },
                 }
             },
         )
         assert response.status_code == 200
 
-        # Create workflow that embeds environment config
-        workflow_slug = f"app-with-env-{uuid4()}"
+        # Create workflow that embeds one field from environment references
+        workflow_slug = f"app-with-env-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
             "/preview/workflows/",
-            json={
-                "workflow": {
-                    "slug": workflow_slug,
-                    "name": "App with Environment Config",
-                    "description": "Uses environment for API settings",
-                }
-            },
+            json={"workflow": {"slug": workflow_slug, "name": "App with Environment"}},
         )
         assert response.status_code == 200
         workflow_id = response.json()["workflow"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{workflow_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{workflow_slug}-v",
+                    "name": "Default",
+                    "workflow_id": workflow_id,
+                }
+            },
         )
         assert response.status_code == 200
         variant_id = response.json()["workflow_variant"]["id"]
 
-        # Create workflow revision that embeds environment
         response = authed_api(
             "POST",
-            f"/preview/workflows/{workflow_id}/variants/{variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{workflow_slug}-v1",
+                    "workflow_id": workflow_id,
+                    "workflow_variant_id": variant_id,
                     "data": {
                         "parameters": {
                             "model": "gpt-4",
@@ -119,7 +154,7 @@ class TestWorkflowEnvironmentEmbeds:
                                         }
                                     },
                                     "@ag.selector": {
-                                        "path": "api_config"
+                                        "path": "references.api_settings.workflow_revision.slug"
                                     },
                                 }
                             },
@@ -146,28 +181,21 @@ class TestWorkflowEnvironmentEmbeds:
         assert response.status_code == 200
         result = response.json()
 
-        # Verify environment config was embedded
         resolved_config = result["workflow_revision"]["data"]
         assert resolved_config["parameters"]["model"] == "gpt-4"
-        assert resolved_config["parameters"]["api_settings"]["base_url"] == "https://api.example.com/v1"
-        assert resolved_config["parameters"]["api_settings"]["api_key"] == "sk-prod-12345"
-        assert resolved_config["parameters"]["api_settings"]["timeout"] == 30
+        assert resolved_config["parameters"]["api_settings"] == referenced_workflow_slug
 
-        # Verify metadata
-        metadata = result["resolution_metadata"]
+        metadata = result["resolution_info"]
         assert metadata["embeds_resolved"] == 1
         assert metadata["depth_reached"] == 1
         # ----------------------------------------------------------------------
 
     def test_workflow_embeds_environment_header(self, authed_api):
         """
-        Test workflow that embeds a specific header from environment.
-
-        Uses path selector to extract just one field.
+        Test workflow extracting a specific nested value from environment references.
         """
         # ARRANGE --------------------------------------------------------------
-        # Create environment
-        env_slug = f"auth-config-{uuid4()}"
+        env_slug = f"auth-config-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -179,23 +207,35 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            f"/preview/environments/{env_id}/variants",
-            json={"environment_variant": {"slug": "default", "name": "Default"}},
+            "/preview/environments/variants/",
+            json={
+                "environment_variant": {
+                    "slug": f"{env_slug}-v",
+                    "name": "Default",
+                    "environment_id": env_id,
+                }
+            },
         )
         assert response.status_code == 200
         env_variant_id = response.json()["environment_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/environments/{env_id}/variants/{env_variant_id}/revisions",
+            "/preview/environments/revisions/commit",
             json={
-                "environment_revision": {
-                    "slug": "v1",
+                "environment_revision_commit": {
+                    "slug": f"{env_slug}-v1",
+                    "environment_id": env_id,
+                    "environment_variant_id": env_variant_id,
                     "data": {
-                        "headers": {
-                            "Authorization": "Bearer secret-token-12345",
-                            "X-API-Key": "api-key-67890",
-                            "Content-Type": "application/json",
+                        "references": {
+                            "auth": {
+                                "workflow_revision": {
+                                    "slug": "wf-auth-config",
+                                    "version": "v2",
+                                    "id": None,
+                                }
+                            }
                         }
                     },
                 }
@@ -203,8 +243,7 @@ class TestWorkflowEnvironmentEmbeds:
         )
         assert response.status_code == 200
 
-        # Create workflow that extracts just Authorization header
-        workflow_slug = f"app-auth-{uuid4()}"
+        workflow_slug = f"app-auth-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -216,18 +255,26 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{workflow_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{workflow_slug}-v",
+                    "name": "Default",
+                    "workflow_id": workflow_id,
+                }
+            },
         )
         assert response.status_code == 200
         variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{workflow_id}/variants/{variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{workflow_slug}-v1",
+                    "workflow_id": workflow_id,
+                    "workflow_variant_id": variant_id,
                     "data": {
                         "parameters": {
                             "auth_header": {
@@ -240,7 +287,7 @@ class TestWorkflowEnvironmentEmbeds:
                                         }
                                     },
                                     "@ag.selector": {
-                                        "path": "headers.Authorization"
+                                        "path": "references.auth.workflow_revision.version"
                                     },
                                 }
                             }
@@ -267,24 +314,21 @@ class TestWorkflowEnvironmentEmbeds:
         assert response.status_code == 200
         result = response.json()
 
-        # Verify only Authorization header was extracted
         resolved_config = result["workflow_revision"]["data"]
-        assert resolved_config["parameters"]["auth_header"] == "Bearer secret-token-12345"
+        assert resolved_config["parameters"]["auth_header"] == "v2"
         # ----------------------------------------------------------------------
 
 
 class TestEnvironmentWorkflowEmbeds:
-    """Test environments referencing workflows."""
+    """Test environment resolve behavior with references-only data."""
 
     def test_environment_embeds_workflow(self, authed_api):
         """
-        Test environment that references a workflow.
-
-        Environments can reference workflows for shared configuration.
+        Environment revision data allows only references. Resolve should succeed
+        and return unchanged references when no embed markers exist.
         """
         # ARRANGE --------------------------------------------------------------
-        # Create workflow with shared config
-        workflow_slug = f"shared-config-{uuid4()}"
+        workflow_slug = f"shared-config-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -296,71 +340,79 @@ class TestEnvironmentWorkflowEmbeds:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{workflow_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{workflow_slug}-v",
+                    "name": "Default",
+                    "workflow_id": workflow_id,
+                }
+            },
         )
         assert response.status_code == 200
         variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{workflow_id}/variants/{variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
-                    "data": {
-                        "parameters": {
-                            "default_model": "gpt-4",
-                            "default_temperature": 0.7,
-                            "max_tokens": 2000,
-                        }
-                    },
+                    "slug": f"{workflow_slug}-v1",
+                    "workflow_id": workflow_id,
+                    "workflow_variant_id": variant_id,
+                    "data": {"parameters": {"default_model": "gpt-4"}},
                 }
             },
         )
         assert response.status_code == 200
 
-        # Create environment that embeds workflow config
-        env_slug = f"env-with-workflow-{uuid4()}"
+        env_slug = f"env-with-workflow-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
             "/preview/environments/",
-            json={"environment": {"slug": env_slug, "name": "Environment with Workflow Ref"}},
+            json={
+                "environment": {
+                    "slug": env_slug,
+                    "name": "Environment with Workflow Ref",
+                }
+            },
         )
         assert response.status_code == 200
         env_id = response.json()["environment"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/environments/{env_id}/variants",
-            json={"environment_variant": {"slug": "default", "name": "Default"}},
+            "/preview/environments/variants/",
+            json={
+                "environment_variant": {
+                    "slug": f"{env_slug}-v",
+                    "name": "Default",
+                    "environment_id": env_id,
+                }
+            },
         )
         assert response.status_code == 200
         env_variant_id = response.json()["environment_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/environments/{env_id}/variants/{env_variant_id}/revisions",
+            "/preview/environments/revisions/commit",
             json={
-                "environment_revision": {
-                    "slug": "v1",
+                "environment_revision_commit": {
+                    "slug": f"{env_slug}-v1",
+                    "environment_id": env_id,
+                    "environment_variant_id": env_variant_id,
                     "data": {
-                        "llm_defaults": {
-                            "@ag.embed": {
-                                "@ag.references": {
-                                    "workflow_revision": {
-                                        "slug": workflow_slug,
-                                        "version": "v1",
-                                        "id": None,
-                                    }
-                                },
-                                "@ag.selector": {
-                                    "path": "parameters"
-                                },
+                        "references": {
+                            "llm_defaults": {
+                                "workflow_revision": {
+                                    "slug": workflow_slug,
+                                    "version": "v1",
+                                    "id": None,
+                                }
                             }
-                        },
-                        "environment": "production",
+                        }
                     },
                 }
             },
@@ -383,31 +435,33 @@ class TestEnvironmentWorkflowEmbeds:
         assert response.status_code == 200
         result = response.json()
 
-        # Verify workflow config was embedded in environment
         resolved_config = result["environment_revision"]["data"]
-        assert resolved_config["environment"] == "production"
-        assert resolved_config["llm_defaults"]["default_model"] == "gpt-4"
-        assert resolved_config["llm_defaults"]["default_temperature"] == 0.7
-        assert resolved_config["llm_defaults"]["max_tokens"] == 2000
+        assert (
+            resolved_config["references"]["llm_defaults"]["workflow_revision"]["slug"]
+            == workflow_slug
+        )
+        assert (
+            resolved_config["references"]["llm_defaults"]["workflow_revision"][
+                "version"
+            ]
+            == "v1"
+        )
 
-        # Verify metadata
-        metadata = result["resolution_metadata"]
-        assert metadata["embeds_resolved"] == 1
+        metadata = result["resolution_info"]
+        assert metadata["embeds_resolved"] == 0
         # ----------------------------------------------------------------------
 
 
 class TestChainedCrossEntityEmbeds:
-    """Test complex chains: Workflow → Environment → Workflow."""
+    """Test workflow -> environment reference data chain."""
 
     def test_workflow_environment_workflow_chain(self, authed_api):
         """
-        Test complex chain: Workflow A → Environment → Workflow B.
-
-        Workflow A references Environment, which references Workflow B.
+        Workflow A embeds Environment, and the embedded environment data contains
+        a reference to Workflow B.
         """
         # ARRANGE --------------------------------------------------------------
-        # Level 3: Base workflow with final config
-        base_workflow_slug = f"base-config-{uuid4()}"
+        base_workflow_slug = f"base-config-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -419,18 +473,26 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_workflow_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{base_workflow_slug}-v",
+                    "name": "Default",
+                    "workflow_id": base_workflow_id,
+                }
+            },
         )
         assert response.status_code == 200
         base_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_workflow_id}/variants/{base_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{base_workflow_slug}-v1",
+                    "workflow_id": base_workflow_id,
+                    "workflow_variant_id": base_variant_id,
                     "data": {
                         "parameters": {
                             "system_prompt": "You are a helpful assistant",
@@ -442,8 +504,7 @@ class TestChainedCrossEntityEmbeds:
         )
         assert response.status_code == 200
 
-        # Level 2: Environment that references base workflow
-        env_slug = f"env-middle-{uuid4()}"
+        env_slug = f"env-middle-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -455,39 +516,43 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            f"/preview/environments/{env_id}/variants",
-            json={"environment_variant": {"slug": "default", "name": "Default"}},
+            "/preview/environments/variants/",
+            json={
+                "environment_variant": {
+                    "slug": f"{env_slug}-v",
+                    "name": "Default",
+                    "environment_id": env_id,
+                }
+            },
         )
         assert response.status_code == 200
         env_variant_id = response.json()["environment_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/environments/{env_id}/variants/{env_variant_id}/revisions",
+            "/preview/environments/revisions/commit",
             json={
-                "environment_revision": {
-                    "slug": "v1",
+                "environment_revision_commit": {
+                    "slug": f"{env_slug}-v1",
+                    "environment_id": env_id,
+                    "environment_variant_id": env_variant_id,
                     "data": {
-                        "prompt_config": {
-                            "@ag.embed": {
-                                "@ag.references": {
-                                    "workflow_revision": {
-                                        "slug": base_workflow_slug,
-                                        "version": "v1",
-                                        "id": None,
-                                    }
+                        "references": {
+                            "prompt_config": {
+                                "workflow_revision": {
+                                    "slug": base_workflow_slug,
+                                    "version": "v1",
+                                    "id": None,
                                 }
                             }
-                        },
-                        "env_specific": "environment-value",
+                        }
                     },
                 }
             },
         )
         assert response.status_code == 200
 
-        # Level 1: Top workflow that references environment
-        top_workflow_slug = f"top-workflow-{uuid4()}"
+        top_workflow_slug = f"top-workflow-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -499,18 +564,26 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{top_workflow_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{top_workflow_slug}-v",
+                    "name": "Default",
+                    "workflow_id": top_workflow_id,
+                }
+            },
         )
         assert response.status_code == 200
         top_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{top_workflow_id}/variants/{top_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{top_workflow_slug}-v1",
+                    "workflow_id": top_workflow_id,
+                    "workflow_variant_id": top_variant_id,
                     "data": {
                         "parameters": {
                             "config": {
@@ -549,23 +622,22 @@ class TestChainedCrossEntityEmbeds:
         assert response.status_code == 200
         result = response.json()
 
-        # Verify full chain resolved
         resolved_config = result["workflow_revision"]["data"]
         assert resolved_config["parameters"]["top_level_param"] == "from-top"
-        assert resolved_config["parameters"]["config"]["env_specific"] == "environment-value"
-        assert "prompt_config" in resolved_config["parameters"]["config"]
-        assert "parameters" in resolved_config["parameters"]["config"]["prompt_config"]
         assert (
-            resolved_config["parameters"]["config"]["prompt_config"]["parameters"]["system_prompt"]
-            == "You are a helpful assistant"
+            resolved_config["parameters"]["config"]["references"]["prompt_config"][
+                "workflow_revision"
+            ]["slug"]
+            == base_workflow_slug
         )
         assert (
-            resolved_config["parameters"]["config"]["prompt_config"]["parameters"]["model"]
-            == "gpt-4-turbo"
+            resolved_config["parameters"]["config"]["references"]["prompt_config"][
+                "workflow_revision"
+            ]["version"]
+            == "v1"
         )
 
-        # Verify metadata
-        metadata = result["resolution_metadata"]
-        assert metadata["embeds_resolved"] == 2  # Environment + Workflow
-        assert metadata["depth_reached"] == 2
+        metadata = result["resolution_info"]
+        assert metadata["embeds_resolved"] == 1
+        assert metadata["depth_reached"] == 1
         # ----------------------------------------------------------------------

@@ -26,6 +26,7 @@ async def _retrieve_application(
     application_slug: Optional[str] = None,
     application_revision_id: Optional[UUID] = None,
     application_revision_slug: Optional[str] = None,
+    resolve: bool = False,
 ) -> Optional[ApplicationRevision]:
     payload = {
         "application_ref": (
@@ -46,6 +47,7 @@ async def _retrieve_application(
             if application_revision_id or application_revision_slug
             else None
         ),
+        "resolve": resolve,
     }
 
     # print(" --- payload:", payload)
@@ -73,6 +75,7 @@ async def aretrieve(
 
     response = await _retrieve_application(
         application_revision_id=application_revision_id,
+        resolve=True,
     )
 
     return response

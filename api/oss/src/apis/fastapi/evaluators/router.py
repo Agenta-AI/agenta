@@ -13,6 +13,7 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.evaluators.dtos import (
     EvaluatorQueryFlags,
+    EvaluatorRevisionData,
     #
     EvaluatorQuery,
     #
@@ -822,9 +823,27 @@ class EvaluatorsRouter:
                 value=evaluator_revision,
             )
 
+        # Optionally resolve embeds if requested
+        resolution_info = None
+        if evaluator_revision and evaluator_revision_retrieve_request.resolve:
+            embeds_service = self.evaluators_service.embeds_service
+            (
+                resolved_config,
+                resolution_info,
+            ) = await embeds_service.resolve_configuration(
+                project_id=UUID(request.state.project_id),
+                configuration=evaluator_revision.data.model_dump()
+                if evaluator_revision.data
+                else {},
+            )
+
+            if evaluator_revision.data:
+                evaluator_revision.data = EvaluatorRevisionData(**resolved_config)
+
         evaluator_revision_response = EvaluatorRevisionResponse(
             count=1 if evaluator_revision else 0,
             evaluator_revision=evaluator_revision,
+            resolution_info=resolution_info,
         )
 
         return evaluator_revision_response
@@ -1000,6 +1019,23 @@ class EvaluatorsRouter:
             #
             windowing=evaluator_revision_query_request.windowing,
         )
+
+        # Optionally resolve embeds for all revisions if requested
+        if evaluator_revisions and evaluator_revision_query_request.resolve:
+            embeds_service = self.evaluators_service.embeds_service
+
+            for revision in evaluator_revisions:
+                if revision and revision.data:
+                    try:
+                        resolved_config, _ = await embeds_service.resolve_configuration(
+                            project_id=UUID(request.state.project_id),
+                            configuration=revision.data.model_dump(),
+                        )
+                        revision.data = EvaluatorRevisionData(**resolved_config)
+                    except Exception as e:
+                        log.error(
+                            f"Failed to resolve embeds for revision {revision.id}: {e}"
+                        )
 
         return EvaluatorRevisionsResponse(
             count=len(evaluator_revisions),

@@ -127,6 +127,7 @@ class ApplicationRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
+    resolve: bool = False  # Optionally resolve embeds on query
 
 
 class ApplicationRevisionCommitRequest(BaseModel):
@@ -137,11 +138,13 @@ class ApplicationRevisionRetrieveRequest(BaseModel):
     application_ref: Optional[Reference] = None
     application_variant_ref: Optional[Reference] = None
     application_revision_ref: Optional[Reference] = None
+    resolve: bool = False  # Optionally resolve embeds on retrieve
 
 
 class ApplicationRevisionResponse(BaseModel):
     count: int = 0
     application_revision: Optional[ApplicationRevision] = None
+    resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
 class ApplicationRevisionsResponse(BaseModel):

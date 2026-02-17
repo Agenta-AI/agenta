@@ -27,6 +27,7 @@ async def _retrieve_evaluator(
     evaluator_slug: Optional[str] = None,
     evaluator_revision_id: Optional[UUID] = None,
     evaluator_revision_slug: Optional[str] = None,
+    resolve: bool = False,
 ) -> Optional[EvaluatorRevision]:
     payload = {
         "evaluator_ref": (
@@ -45,6 +46,7 @@ async def _retrieve_evaluator(
             if evaluator_revision_id or evaluator_revision_slug
             else None
         ),
+        "resolve": resolve,
     }
 
     # print(" --- payload:", payload)
@@ -72,6 +74,7 @@ async def aretrieve(
     # print("\n--------- RETRIEVE EVALUATOR")
     response = await _retrieve_evaluator(
         evaluator_revision_id=evaluator_revision_id,
+        resolve=True,
     )
 
     return response

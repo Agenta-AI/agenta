@@ -15,6 +15,7 @@ from oss.src.core.applications.service import (
     ApplicationsService,
     SimpleApplicationsService,
 )
+from oss.src.core.applications.dtos import ApplicationRevisionData
 
 from oss.src.apis.fastapi.applications.models import (
     ApplicationCreateRequest,
@@ -821,9 +822,27 @@ class ApplicationsRouter:
                 value=application_revision,
             )
 
+        # Optionally resolve embeds if requested
+        resolution_info = None
+        if application_revision and application_revision_retrieve_request.resolve:
+            embeds_service = self.applications_service.embeds_service
+            (
+                resolved_config,
+                resolution_info,
+            ) = await embeds_service.resolve_configuration(
+                project_id=UUID(request.state.project_id),
+                configuration=application_revision.data.model_dump()
+                if application_revision.data
+                else {},
+            )
+
+            if application_revision.data:
+                application_revision.data = ApplicationRevisionData(**resolved_config)
+
         application_revision_response = ApplicationRevisionResponse(
             count=1 if application_revision else 0,
             application_revision=application_revision,
+            resolution_info=resolution_info,
         )
 
         return application_revision_response
@@ -1008,6 +1027,23 @@ class ApplicationsRouter:
             #
             windowing=application_revision_query_request.windowing,
         )
+
+        # Optionally resolve embeds for all revisions if requested
+        if application_revisions and application_revision_query_request.resolve:
+            embeds_service = self.applications_service.embeds_service
+
+            for revision in application_revisions:
+                if revision and revision.data:
+                    try:
+                        resolved_config, _ = await embeds_service.resolve_configuration(
+                            project_id=UUID(request.state.project_id),
+                            configuration=revision.data.model_dump(),
+                        )
+                        revision.data = ApplicationRevisionData(**resolved_config)
+                    except Exception as e:
+                        log.error(
+                            f"Failed to resolve embeds for revision {revision.id}: {e}"
+                        )
 
         return ApplicationRevisionsResponse(
             count=len(application_revisions),

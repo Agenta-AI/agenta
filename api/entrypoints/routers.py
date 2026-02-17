@@ -69,8 +69,8 @@ from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.queries.service import SimpleQueriesService
-from oss.src.core.applications.services import ApplicationsService
-from oss.src.core.applications.services import SimpleApplicationsService
+from oss.src.core.applications.service import ApplicationsService
+from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
@@ -79,6 +79,7 @@ from oss.src.core.environments.service import EnvironmentsService
 from oss.src.core.environments.service import SimpleEnvironmentsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
+from oss.src.core.embeds.service import EmbedsService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
@@ -293,16 +294,12 @@ folders_service = FoldersService(
 
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
-    # environments_service set below after initialization
 )
 
 environments_service = EnvironmentsService(
     environments_dao=environments_dao,
     workflows_service=workflows_service,
 )
-
-# Wire up cross-service dependencies for embed resolution
-workflows_service._environments_service = environments_service
 
 applications_service = ApplicationsService(
     workflows_service=workflows_service,
@@ -315,6 +312,19 @@ simple_applications_service = SimpleApplicationsService(
 evaluators_service = EvaluatorsService(
     workflows_service=workflows_service,
 )
+
+embeds_service = EmbedsService(
+    workflows_service=workflows_service,
+    environments_service=environments_service,
+    applications_service=applications_service,
+    evaluators_service=evaluators_service,
+)
+
+# Inject embeds_service into all services that need it
+workflows_service.embeds_service = embeds_service
+environments_service.embeds_service = embeds_service
+applications_service.embeds_service = embeds_service
+evaluators_service.embeds_service = embeds_service
 
 simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,

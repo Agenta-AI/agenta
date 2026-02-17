@@ -7,12 +7,10 @@ Tests the resolution logic that the API endpoint uses.
 
 import asyncio
 import sys
-from uuid import uuid4
 from pprint import pprint
 
 sys.path.insert(0, ".")
 
-from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.embeds.utils import resolve_embeds
 from oss.src.core.embeds.dtos import ErrorPolicy
 from oss.src.core.shared.dtos import Reference
@@ -36,26 +34,26 @@ async def test_api_resolution_flow():
     print("\n1. Create workflow revision with embed reference")
     print("-" * 80)
 
-    workflow_data = WorkflowRevisionData.model_validate({
-        "parameters": {
-            "llm_config": {
-                "@ag.embed": {
-                    "@ag.references": {
-                        "workflow_revision": {
-                            "version": "base-prompt",
-                            "slug": None,
-                            "id": None,
-                        }
-                    },
-                    "@ag.selector": {
-                        "path": "parameters.system_prompt"
+    workflow_data = WorkflowRevisionData.model_validate(
+        {
+            "parameters": {
+                "llm_config": {
+                    "@ag.embed": {
+                        "@ag.references": {
+                            "workflow_revision": {
+                                "version": "base-prompt",
+                                "slug": None,
+                                "id": None,
+                            }
+                        },
+                        "@ag.selector": {"path": "parameters.system_prompt"},
                     }
-                }
-            },
-            "temperature": 0.8,
-            "max_tokens": 1500
+                },
+                "temperature": 0.8,
+                "max_tokens": 1500,
+            }
         }
-    })
+    )
 
     print("Workflow configuration:")
     pprint(workflow_data.model_dump(), indent=2)
@@ -73,7 +71,7 @@ async def test_api_resolution_flow():
             return {
                 "parameters": {
                     "system_prompt": "You are a helpful, creative AI assistant",
-                    "model": "gpt-4-turbo"
+                    "model": "gpt-4-turbo",
                 }
             }
 
@@ -104,7 +102,10 @@ async def test_api_resolution_flow():
     print("\n4. Verify resolution")
     print("-" * 80)
 
-    assert resolved_config["parameters"]["llm_config"] == "You are a helpful, creative AI assistant"
+    assert (
+        resolved_config["parameters"]["llm_config"]
+        == "You are a helpful, creative AI assistant"
+    )
     assert resolved_config["parameters"]["temperature"] == 0.8
     assert resolved_config["parameters"]["max_tokens"] == 1500
     assert resolution_info.embeds_resolved == 1
@@ -157,13 +158,11 @@ async def test_nested_workflow_embeds():
                         }
                     }
                 },
-                "extra_param": "from-level-1"
+                "extra_param": "from-level-1",
             }
         elif ref.version == "level-2":
             # Second level: final config (no more embeds)
-            return {
-                "final_value": "resolved-from-level-2"
-            }
+            return {"final_value": "resolved-from-level-2"}
 
         return {}
 
@@ -220,6 +219,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ TEST FAILED: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

@@ -26,7 +26,7 @@ class TestWorkflowEmbedsBasics:
         """
         # ARRANGE --------------------------------------------------------------
         # Create base workflow with system prompt
-        base_slug = f"base-prompt-{uuid4()}"
+        base_slug = f"base-prompt-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -45,11 +45,12 @@ class TestWorkflowEmbedsBasics:
         # Create variant and revision with parameters
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_workflow_id}/variants",
+            "/preview/workflows/variants/",
             json={
                 "workflow_variant": {
-                    "slug": "default",
+                    "slug": f"{base_slug}-v",
                     "name": "Default Variant",
+                    "workflow_id": base_workflow_id,
                 }
             },
         )
@@ -58,10 +59,12 @@ class TestWorkflowEmbedsBasics:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_workflow_id}/variants/{base_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{base_slug}-v1",
+                    "workflow_id": base_workflow_id,
+                    "workflow_variant_id": base_variant_id,
                     "data": {
                         "parameters": {
                             "system_prompt": "You are a helpful AI assistant",
@@ -74,7 +77,7 @@ class TestWorkflowEmbedsBasics:
         assert response.status_code == 200
 
         # Create workflow that embeds the base workflow
-        embed_slug = f"app-with-embed-{uuid4()}"
+        embed_slug = f"app-with-embed-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -92,11 +95,12 @@ class TestWorkflowEmbedsBasics:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{embed_workflow_id}/variants",
+            "/preview/workflows/variants/",
             json={
                 "workflow_variant": {
-                    "slug": "default",
+                    "slug": f"{embed_slug}-v",
                     "name": "Default Variant",
+                    "workflow_id": embed_workflow_id,
                 }
             },
         )
@@ -106,10 +110,12 @@ class TestWorkflowEmbedsBasics:
         # Create revision with @ag.embed reference
         response = authed_api(
             "POST",
-            f"/preview/workflows/{embed_workflow_id}/variants/{embed_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{embed_slug}-v1",
+                    "workflow_id": embed_workflow_id,
+                    "workflow_variant_id": embed_variant_id,
                     "data": {
                         "parameters": {
                             "prompt_config": {
@@ -160,7 +166,7 @@ class TestWorkflowEmbedsBasics:
 
         assert result["count"] == 1
         assert result["workflow_revision"] is not None
-        assert result["resolution_metadata"] is not None
+        assert result["resolution_info"] is not None
 
         # Verify embed was resolved
         resolved_config = result["workflow_revision"]["data"]
@@ -175,7 +181,7 @@ class TestWorkflowEmbedsBasics:
         assert resolved_config["parameters"]["temperature"] == 0.7
 
         # Verify resolution metadata
-        metadata = result["resolution_metadata"]
+        metadata = result["resolution_info"]
         assert metadata["embeds_resolved"] == 1
         assert metadata["depth_reached"] == 1
         assert len(metadata["references_used"]) == 1
@@ -189,7 +195,7 @@ class TestWorkflowEmbedsBasics:
         Should return the workflow unchanged with metadata showing 0 embeds resolved.
         """
         # ARRANGE --------------------------------------------------------------
-        workflow_slug = f"no-embeds-{uuid4()}"
+        workflow_slug = f"no-embeds-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -207,11 +213,12 @@ class TestWorkflowEmbedsBasics:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{workflow_id}/variants",
+            "/preview/workflows/variants/",
             json={
                 "workflow_variant": {
-                    "slug": "default",
+                    "slug": f"{workflow_slug}-v",
                     "name": "Default Variant",
+                    "workflow_id": workflow_id,
                 }
             },
         )
@@ -220,10 +227,12 @@ class TestWorkflowEmbedsBasics:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{workflow_id}/variants/{variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{workflow_slug}-v1",
+                    "workflow_id": workflow_id,
+                    "workflow_variant_id": variant_id,
                     "data": {
                         "parameters": {
                             "system_prompt": "You are helpful",
@@ -256,7 +265,7 @@ class TestWorkflowEmbedsBasics:
         result = response.json()
 
         # Verify no embeds were resolved
-        metadata = result["resolution_metadata"]
+        metadata = result["resolution_info"]
         assert metadata["embeds_resolved"] == 0
         assert metadata["depth_reached"] == 0
         assert len(metadata["references_used"]) == 0
@@ -283,7 +292,7 @@ class TestWorkflowEmbedsNested:
         """
         # ARRANGE --------------------------------------------------------------
         # Level 2: Base config (no embeds)
-        level2_slug = f"level2-{uuid4()}"
+        level2_slug = f"level2-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -300,18 +309,26 @@ class TestWorkflowEmbedsNested:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level2_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level2_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level2_id,
+                }
+            },
         )
         assert response.status_code == 200
         level2_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level2_id}/variants/{level2_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level2_slug}-v1",
+                    "workflow_id": level2_id,
+                    "workflow_variant_id": level2_variant_id,
                     "data": {
                         "parameters": {
                             "final_value": "resolved-from-level-2",
@@ -323,7 +340,7 @@ class TestWorkflowEmbedsNested:
         assert response.status_code == 200
 
         # Level 1: References level 2
-        level1_slug = f"level1-{uuid4()}"
+        level1_slug = f"level1-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -335,18 +352,26 @@ class TestWorkflowEmbedsNested:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level1_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level1_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level1_id,
+                }
+            },
         )
         assert response.status_code == 200
         level1_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level1_id}/variants/{level1_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level1_slug}-v1",
+                    "workflow_id": level1_id,
+                    "workflow_variant_id": level1_variant_id,
                     "data": {
                         "parameters": {
                             "nested_config": {
@@ -369,7 +394,7 @@ class TestWorkflowEmbedsNested:
         assert response.status_code == 200
 
         # Level 0: References level 1
-        level0_slug = f"level0-{uuid4()}"
+        level0_slug = f"level0-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -381,18 +406,26 @@ class TestWorkflowEmbedsNested:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level0_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{level0_slug}-v",
+                    "name": "Default",
+                    "workflow_id": level0_id,
+                }
+            },
         )
         assert response.status_code == 200
         level0_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{level0_id}/variants/{level0_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{level0_slug}-v1",
+                    "workflow_id": level0_id,
+                    "workflow_variant_id": level0_variant_id,
                     "data": {
                         "parameters": {
                             "top_config": {
@@ -438,16 +471,29 @@ class TestWorkflowEmbedsNested:
         resolved_config = result["workflow_revision"]["data"]
         assert "parameters" in resolved_config
         assert "top_config" in resolved_config["parameters"]
-        assert "nested_config" in resolved_config["parameters"]["top_config"]
-        assert "parameters" in resolved_config["parameters"]["top_config"]["nested_config"]
+        assert "parameters" in resolved_config["parameters"]["top_config"]
         assert (
-            resolved_config["parameters"]["top_config"]["nested_config"]["parameters"]["final_value"]
+            "nested_config" in resolved_config["parameters"]["top_config"]["parameters"]
+        )
+        assert (
+            "parameters"
+            in resolved_config["parameters"]["top_config"]["parameters"][
+                "nested_config"
+            ]
+        )
+        assert (
+            resolved_config["parameters"]["top_config"]["parameters"]["nested_config"][
+                "parameters"
+            ]["final_value"]
             == "resolved-from-level-2"
         )
-        assert resolved_config["parameters"]["top_config"]["extra_param"] == "from-level-1"
+        assert (
+            resolved_config["parameters"]["top_config"]["parameters"]["extra_param"]
+            == "from-level-1"
+        )
 
         # Verify metadata
-        metadata = result["resolution_metadata"]
+        metadata = result["resolution_info"]
         assert metadata["embeds_resolved"] == 2  # Two embeds resolved
         assert metadata["depth_reached"] == 2  # Two levels deep
         # ----------------------------------------------------------------------
@@ -464,7 +510,7 @@ class TestWorkflowEmbedsMultipleReferences:
         """
         # ARRANGE --------------------------------------------------------------
         # Create shared config workflow
-        shared_slug = f"shared-config-{uuid4()}"
+        shared_slug = f"shared-config-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -476,18 +522,26 @@ class TestWorkflowEmbedsMultipleReferences:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{shared_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{shared_slug}-v",
+                    "name": "Default",
+                    "workflow_id": shared_id,
+                }
+            },
         )
         assert response.status_code == 200
         shared_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{shared_id}/variants/{shared_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{shared_slug}-v1",
+                    "workflow_id": shared_id,
+                    "workflow_variant_id": shared_variant_id,
                     "data": {
                         "parameters": {
                             "shared_value": "reusable-config",
@@ -499,7 +553,7 @@ class TestWorkflowEmbedsMultipleReferences:
         assert response.status_code == 200
 
         # Create workflow that references the shared config twice
-        multi_slug = f"multi-ref-{uuid4()}"
+        multi_slug = f"multi-ref-{uuid4().hex[:8]}"
 
         response = authed_api(
             "POST",
@@ -511,18 +565,26 @@ class TestWorkflowEmbedsMultipleReferences:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{multi_id}/variants",
-            json={"workflow_variant": {"slug": "default", "name": "Default"}},
+            "/preview/workflows/variants/",
+            json={
+                "workflow_variant": {
+                    "slug": f"{multi_slug}-v",
+                    "name": "Default",
+                    "workflow_id": multi_id,
+                }
+            },
         )
         assert response.status_code == 200
         multi_variant_id = response.json()["workflow_variant"]["id"]
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/{multi_id}/variants/{multi_variant_id}/revisions",
+            "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
-                    "version": "v1",
+                    "slug": f"{multi_slug}-v1",
+                    "workflow_id": multi_id,
+                    "workflow_variant_id": multi_variant_id,
                     "data": {
                         "parameters": {
                             "config_a": {
@@ -577,11 +639,17 @@ class TestWorkflowEmbedsMultipleReferences:
         # Verify both embeds resolved correctly
         resolved_config = result["workflow_revision"]["data"]
         assert "parameters" in resolved_config
-        assert resolved_config["parameters"]["config_a"]["parameters"]["shared_value"] == "reusable-config"
-        assert resolved_config["parameters"]["config_b"]["parameters"]["shared_value"] == "reusable-config"
+        assert (
+            resolved_config["parameters"]["config_a"]["parameters"]["shared_value"]
+            == "reusable-config"
+        )
+        assert (
+            resolved_config["parameters"]["config_b"]["parameters"]["shared_value"]
+            == "reusable-config"
+        )
 
         # Verify metadata
-        metadata = result["resolution_metadata"]
+        metadata = result["resolution_info"]
         assert metadata["embeds_resolved"] == 2  # Both embeds counted
         assert metadata["depth_reached"] == 1  # Same iteration
         # ----------------------------------------------------------------------

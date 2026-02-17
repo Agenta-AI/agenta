@@ -13,9 +13,11 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.environments.dtos import (
     EnvironmentFlags,
     EnvironmentEdit,
+    EnvironmentRevisionData,
     #
     SimpleEnvironment,
 )
+from oss.src.core.embeds.dtos import ErrorPolicy
 from oss.src.core.environments.service import (
     SimpleEnvironmentsService,
     EnvironmentsService,
@@ -752,17 +754,32 @@ class EnvironmentsRouter:
             environment_revision_ref=environment_revision_retrieve_request.environment_revision_ref,  # type: ignore
         )
 
+        # Optionally resolve embeds if requested
+        resolution_info = None
+        if environment_revision and environment_revision_retrieve_request.resolve:
+            embeds_service = self.environments_service.embeds_service
+            (
+                resolved_config,
+                resolution_info,
+            ) = await embeds_service.resolve_configuration(
+                project_id=UUID(request.state.project_id),
+                configuration=environment_revision.data.model_dump()
+                if environment_revision.data
+                else {},
+            )
+
+            if environment_revision.data:
+                environment_revision.data = EnvironmentRevisionData(**resolved_config)
+
         environment_revision_response = EnvironmentRevisionResponse(
             count=1 if environment_revision else 0,
             environment_revision=environment_revision,
+            resolution_info=resolution_info,
         )
 
         return environment_revision_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=EnvironmentRevisionResolveResponse(), exclude=[HTTPException]
-    )
     async def resolve_environment_revision_endpoint(
         self,
         request: Request,
@@ -786,8 +803,6 @@ class EnvironmentsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         # Resolve the environment revision
-        from oss.src.core.embeds.dtos import ErrorPolicy
-
         result = await self.environments_service.resolve_environment_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -809,7 +824,7 @@ class EnvironmentsRouter:
         environment_revision, resolution_info = result
 
         # Build resolution metadata
-        resolution_metadata = ResolutionInfo(
+        resolution_info = ResolutionInfo(
             references_used=resolution_info.references_used,
             depth_reached=resolution_info.depth_reached,
             embeds_resolved=resolution_info.embeds_resolved,
@@ -819,7 +834,7 @@ class EnvironmentsRouter:
         environment_revision_resolve_response = EnvironmentRevisionResolveResponse(
             count=1 if environment_revision else 0,
             environment_revision=environment_revision,
-            resolution_metadata=resolution_metadata,
+            resolution_info=resolution_info,
         )
 
         return environment_revision_resolve_response
@@ -1028,6 +1043,23 @@ class EnvironmentsRouter:
             #
             windowing=environment_revision_query_request.windowing,
         )
+
+        # Optionally resolve embeds for all revisions if requested
+        if environment_revisions and environment_revision_query_request.resolve:
+            embeds_service = self.environments_service.embeds_service
+
+            for revision in environment_revisions:
+                if revision and revision.data:
+                    try:
+                        resolved_config, _ = await embeds_service.resolve_configuration(
+                            project_id=UUID(request.state.project_id),
+                            configuration=revision.data.model_dump(),
+                        )
+                        revision.data = EnvironmentRevisionData(**resolved_config)
+                    except Exception as e:
+                        log.error(
+                            f"Failed to resolve embeds for revision {revision.id}: {e}"
+                        )
 
         return EnvironmentRevisionsResponse(
             count=len(environment_revisions),

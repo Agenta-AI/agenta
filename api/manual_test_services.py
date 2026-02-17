@@ -10,8 +10,7 @@ import asyncio
 import sys
 from uuid import uuid4, UUID
 from pprint import pprint
-from typing import Optional, List
-from unittest.mock import AsyncMock, MagicMock
+from typing import Optional
 
 sys.path.insert(0, ".")
 
@@ -37,18 +36,20 @@ class MockWorkflowsService:
         include_archived: bool = True,
     ) -> Optional[WorkflowRevision]:
         """Return mock workflow revision with test data."""
-        print(f"  → MockWorkflowsService.fetch_workflow_revision called")
+        print("  → MockWorkflowsService.fetch_workflow_revision called")
         print(f"    workflow_revision_ref: {workflow_revision_ref}")
 
         if workflow_revision_ref and workflow_revision_ref.version == "v1":
             # Create WorkflowRevisionData with 'parameters' field (SDK format)
-            data = WorkflowRevisionData.model_validate({
-                "parameters": {
-                    "system_prompt": "You are a helpful AI assistant",
-                    "temperature": 0.7,
-                    "model": "gpt-4"
+            data = WorkflowRevisionData.model_validate(
+                {
+                    "parameters": {
+                        "system_prompt": "You are a helpful AI assistant",
+                        "temperature": 0.7,
+                        "model": "gpt-4",
+                    }
                 }
-            })
+            )
 
             return WorkflowRevision(
                 id=uuid4(),
@@ -75,19 +76,21 @@ class MockEnvironmentsService:
         include_archived: bool = True,
     ) -> Optional[EnvironmentRevision]:
         """Return mock environment revision with test data."""
-        print(f"  → MockEnvironmentsService.fetch_environment_revision called")
+        print("  → MockEnvironmentsService.fetch_environment_revision called")
         print(f"    environment_revision_ref: {environment_revision_ref}")
 
         if environment_revision_ref and environment_revision_ref.slug == "prod":
             # Environment data stores references to apps
             # For testing, create a simple structure
-            data = EnvironmentRevisionData.model_validate({
-                "references": {
-                    "app1": {
-                        "application": Reference(version="v1"),
+            data = EnvironmentRevisionData.model_validate(
+                {
+                    "references": {
+                        "app1": {
+                            "application": Reference(version="v1"),
+                        }
                     }
                 }
-            })
+            )
 
             return EnvironmentRevision(
                 id=uuid4(),
@@ -114,18 +117,20 @@ class MockApplicationsService:
         include_archived: bool = True,
     ) -> Optional[ApplicationRevision]:
         """Return mock application revision with test data."""
-        print(f"  → MockApplicationsService.fetch_application_revision called")
+        print("  → MockApplicationsService.fetch_application_revision called")
         print(f"    application_revision_ref: {application_revision_ref}")
 
         if application_revision_ref and application_revision_ref.version == "latest":
             # ApplicationRevisionData is same as WorkflowRevisionData
-            data = ApplicationRevisionData.model_validate({
-                "parameters": {
-                    "app_name": "Customer Support Bot",
-                    "max_tokens": 2000,
-                    "response_format": "json"
+            data = ApplicationRevisionData.model_validate(
+                {
+                    "parameters": {
+                        "app_name": "Customer Support Bot",
+                        "max_tokens": 2000,
+                        "response_format": "json",
+                    }
                 }
-            })
+            )
 
             return ApplicationRevision(
                 id=uuid4(),
@@ -152,7 +157,7 @@ class MockEvaluatorsService:
         include_archived: bool = True,
     ) -> Optional[EvaluatorRevision]:
         """Return mock evaluator revision with test data."""
-        print(f"  → MockEvaluatorsService.fetch_evaluator_revision called")
+        print("  → MockEvaluatorsService.fetch_evaluator_revision called")
         print(f"    evaluator_revision_ref: {evaluator_revision_ref}")
 
         eval_id = uuid4()
@@ -160,13 +165,15 @@ class MockEvaluatorsService:
             eval_id = evaluator_revision_ref.id
 
         # EvaluatorRevisionData is same as WorkflowRevisionData
-        data = EvaluatorRevisionData.model_validate({
-            "parameters": {
-                "criteria": "accuracy",
-                "threshold": 0.8,
-                "scoring_method": "llm_judge"
+        data = EvaluatorRevisionData.model_validate(
+            {
+                "parameters": {
+                    "criteria": "accuracy",
+                    "threshold": 0.8,
+                    "scoring_method": "llm_judge",
+                }
             }
-        })
+        )
 
         return EvaluatorRevision(
             id=eval_id,
@@ -205,35 +212,25 @@ async def test_embeds_service_integration():
     config = {
         "workflow_settings": {
             "@ag.embed": {
-                "@ag.references": {
-                    "workflow_revision": Reference(version="v1")
-                },
-                "@ag.selector": {
-                    "path": "parameters"
-                }
+                "@ag.references": {"workflow_revision": Reference(version="v1")},
+                "@ag.selector": {"path": "parameters"},
             }
         },
         "environment": {
             "@ag.embed": {
-                "@ag.references": {
-                    "environment_revision": Reference(slug="prod")
-                }
+                "@ag.references": {"environment_revision": Reference(slug="prod")}
             }
         },
         "application_config": {
             "@ag.embed": {
-                "@ag.references": {
-                    "application_revision": Reference(version="latest")
-                }
+                "@ag.references": {"application_revision": Reference(version="latest")}
             }
         },
         "evaluator": {
             "@ag.embed": {
-                "@ag.references": {
-                    "evaluator_revision": Reference(id=uuid4())
-                }
+                "@ag.references": {"evaluator_revision": Reference(id=uuid4())}
             }
-        }
+        },
     }
 
     print("\nInput configuration (referencing all entity types):")
@@ -258,9 +255,15 @@ async def test_embeds_service_integration():
     print(f"  Errors: {resolution_info.errors}")
 
     # Verify all entity types were resolved
-    assert resolved_config["workflow_settings"]["system_prompt"] == "You are a helpful AI assistant"
+    assert (
+        resolved_config["workflow_settings"]["system_prompt"]
+        == "You are a helpful AI assistant"
+    )
     assert "references" in resolved_config["environment"]  # Environment has references
-    assert resolved_config["application_config"]["parameters"]["app_name"] == "Customer Support Bot"
+    assert (
+        resolved_config["application_config"]["parameters"]["app_name"]
+        == "Customer Support Bot"
+    )
     assert resolved_config["evaluator"]["parameters"]["criteria"] == "accuracy"
 
     print("\n✅ EmbedsService integration test PASSED")
@@ -295,9 +298,7 @@ async def test_nested_cross_entity_embeds():
     config = {
         "llm_config": {
             "@ag.embed": {
-                "@ag.references": {
-                    "workflow_revision": Reference(version="v1")
-                }
+                "@ag.references": {"workflow_revision": Reference(version="v1")}
             }
         }
     }
@@ -392,6 +393,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ TEST FAILED: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

@@ -69,6 +69,34 @@ def create_universal_resolver(
         EmbedNotFoundError,
     )
 
+    async def _resolve_revision_with_normalization(
+        *,
+        ref: Reference,
+        fetch_revision_by_refs: Callable[
+            [Optional[Reference], Optional[Reference]],
+            Awaitable[Optional[Any]],
+        ],
+    ) -> Optional[Any]:
+        # First try exact revision lookup (id/slug/version as provided)
+        entity = await fetch_revision_by_refs(None, ref)
+        if entity:
+            return entity
+
+        # If id lookup failed there is nothing else to normalize
+        if ref.id is not None:
+            return None
+
+        # Normalization only:
+        # slug=<artifact-slug>, version=v1 while revision slug=<artifact-slug>-v1
+        if ref.slug and ref.version and not ref.slug.endswith(f"-{ref.version}"):
+            normalized_ref = Reference(
+                slug=f"{ref.slug}-{ref.version}",
+                version=ref.version,
+            )
+            return await fetch_revision_by_refs(None, normalized_ref)
+
+        return None
+
     async def resolver_callback(entity_type: str, ref: Reference) -> Dict[str, Any]:
         # Parse entity_type: "workflow_revision" -> ("workflow", "revision")
         parts = entity_type.split("_", 1)
@@ -107,10 +135,15 @@ def create_universal_resolver(
                 return entity.model_dump(mode="json")
 
             elif level == "revision":
-                entity = await workflows_service.fetch_workflow_revision(
-                    project_id=project_id,
-                    workflow_revision_ref=ref,
-                    include_archived=include_archived,
+                entity = await _resolve_revision_with_normalization(
+                    ref=ref,
+                    fetch_revision_by_refs=lambda variant_ref,
+                    revision_ref: workflows_service.fetch_workflow_revision(
+                        project_id=project_id,
+                        workflow_variant_ref=variant_ref,
+                        workflow_revision_ref=revision_ref,
+                        include_archived=include_archived,
+                    ),
                 )
                 if not entity or not entity.data:
                     raise EmbedNotFoundError(f"Workflow revision not found: {ref}")
@@ -146,10 +179,15 @@ def create_universal_resolver(
                 return entity.model_dump(mode="json")
 
             elif level == "revision":
-                entity = await environments_service.fetch_environment_revision(
-                    project_id=project_id,
-                    environment_revision_ref=ref,
-                    include_archived=include_archived,
+                entity = await _resolve_revision_with_normalization(
+                    ref=ref,
+                    fetch_revision_by_refs=lambda variant_ref,
+                    revision_ref: environments_service.fetch_environment_revision(
+                        project_id=project_id,
+                        environment_variant_ref=variant_ref,
+                        environment_revision_ref=revision_ref,
+                        include_archived=include_archived,
+                    ),
                 )
                 if not entity or not entity.data:
                     raise EmbedNotFoundError(f"Environment revision not found: {ref}")
@@ -185,10 +223,15 @@ def create_universal_resolver(
                 return entity.model_dump(mode="json")
 
             elif level == "revision":
-                entity = await applications_service.fetch_application_revision(
-                    project_id=project_id,
-                    application_revision_ref=ref,
-                    include_archived=include_archived,
+                entity = await _resolve_revision_with_normalization(
+                    ref=ref,
+                    fetch_revision_by_refs=lambda variant_ref,
+                    revision_ref: applications_service.fetch_application_revision(
+                        project_id=project_id,
+                        application_variant_ref=variant_ref,
+                        application_revision_ref=revision_ref,
+                        include_archived=include_archived,
+                    ),
                 )
                 if not entity or not entity.data:
                     raise EmbedNotFoundError(f"Application revision not found: {ref}")
@@ -224,10 +267,15 @@ def create_universal_resolver(
                 return entity.model_dump(mode="json")
 
             elif level == "revision":
-                entity = await evaluators_service.fetch_evaluator_revision(
-                    project_id=project_id,
-                    evaluator_revision_ref=ref,
-                    include_archived=include_archived,
+                entity = await _resolve_revision_with_normalization(
+                    ref=ref,
+                    fetch_revision_by_refs=lambda variant_ref,
+                    revision_ref: evaluators_service.fetch_evaluator_revision(
+                        project_id=project_id,
+                        evaluator_variant_ref=variant_ref,
+                        evaluator_revision_ref=revision_ref,
+                        include_archived=include_archived,
+                    ),
                 )
                 if not entity or not entity.data:
                     raise EmbedNotFoundError(f"Evaluator revision not found: {ref}")
@@ -282,6 +330,7 @@ async def resolve_embeds(
 
     depth = 0
     total_embeds = 0
+    depth_reached = 0
     references_used: List[Dict[str, Reference]] = []
     errors: List[str] = []
     failed_locations: Set[str] = set()  # Track failed embeds to skip on KEEP policy
@@ -308,15 +357,19 @@ async def resolve_embeds(
 
             try:
                 # Pass iteration tracking for circular detection
-                await _resolve_and_inline_object_embed(
+                nested_embeds, nested_depth = await _resolve_and_inline_object_embed(
                     config=config_copy,
                     embed=embed,
                     resolver_callback=resolver_callback,
                     seen_by_iteration=seen_by_iteration,
                     current_iteration=depth,
+                    max_depth=max_depth,
+                    max_embeds=max_embeds,
+                    error_policy=error_policy,
                 )
                 references_used.append(embed.references)
-                total_embeds += 1
+                total_embeds += 1 + nested_embeds
+                depth_reached = max(depth_reached, depth + 1 + nested_depth)
                 processed_any = True
 
                 if total_embeds > max_embeds:
@@ -342,15 +395,19 @@ async def resolve_embeds(
 
             try:
                 # Pass iteration tracking for circular detection
-                await _resolve_and_inline_string_embed(
+                nested_embeds, nested_depth = await _resolve_and_inline_string_embed(
                     config=config_copy,
                     embed=embed,
                     resolver_callback=resolver_callback,
                     seen_by_iteration=seen_by_iteration,
                     current_iteration=depth,
+                    max_depth=max_depth,
+                    max_embeds=max_embeds,
+                    error_policy=error_policy,
                 )
                 references_used.append(embed.references)
-                total_embeds += 1
+                total_embeds += 1 + nested_embeds
+                depth_reached = max(depth_reached, depth + 1 + nested_depth)
                 processed_any = True
 
                 if total_embeds > max_embeds:
@@ -379,7 +436,7 @@ async def resolve_embeds(
 
     resolution_info = ResolutionInfo(
         references_used=references_used,
-        depth_reached=depth,
+        depth_reached=depth_reached,
         embeds_resolved=total_embeds,
         errors=errors,
     )
@@ -394,7 +451,10 @@ async def _resolve_and_inline_object_embed(
     resolver_callback: Callable[[str, Reference], Awaitable[Dict[str, Any]]],
     seen_by_iteration: Dict[str, int],
     current_iteration: int,
-) -> None:
+    max_depth: int,
+    max_embeds: int,
+    error_policy: ErrorPolicy,
+) -> tuple[int, int]:
     """
     Resolve an object embed and inline it into config.
 
@@ -404,31 +464,15 @@ async def _resolve_and_inline_object_embed(
         seen_by_iteration: Maps canonical references to the iteration they were first seen
         current_iteration: Current iteration number (depth)
     """
-    # For now, we expect exactly one reference in the dict
-    # The key indicates the type/level (e.g., "workflow_revision")
     if not embed.references:
         raise ValueError(f"No references found in embed at {embed.location}")
 
-    # Get the first (and expected only) reference
-    entity_type, reference = next(iter(embed.references.items()))
-
-    canonical = canonicalize_reference(reference)
-
-    # Circular detection: if we've seen this canonical in a PREVIOUS iteration,
-    # it means the entity is referencing itself (circular)
-    if canonical in seen_by_iteration:
-        first_seen_iteration = seen_by_iteration[canonical]
-        if first_seen_iteration < current_iteration:
-            # Seen in a previous iteration - circular reference!
-            raise CircularEmbedError([canonical])
-        # Seen in current iteration - this is fine (multiple refs to same entity)
-
-    # Mark this canonical as seen in this iteration
-    if canonical not in seen_by_iteration:
-        seen_by_iteration[canonical] = current_iteration
-
-    # Fetch the referenced entity via callback (passing entity_type and reference)
-    resolved_value = await resolver_callback(entity_type, reference)
+    resolved_value = await _resolve_references(
+        references=embed.references,
+        resolver_callback=resolver_callback,
+        seen_by_iteration=seen_by_iteration,
+        current_iteration=current_iteration,
+    )
 
     # Extract path if selector specified
     selector = embed.selector
@@ -437,6 +481,79 @@ async def _resolve_and_inline_object_embed(
 
     # Replace in config
     set_path(config, embed.location, resolved_value)
+    return (0, 0)
+
+
+async def _resolve_nested_embeds_in_value(
+    *,
+    value: Any,
+    resolver_callback: Callable[[str, Reference], Awaitable[Dict[str, Any]]],
+    max_depth: int,
+    max_embeds: int,
+    error_policy: ErrorPolicy,
+) -> tuple[Any, int, int]:
+    """
+    Resolve embeds in a nested value and return (resolved_value, embeds_resolved, depth_reached).
+
+    This is used when a string embed references a full object and we need that
+    object fully resolved before selector extraction or JSON stringification.
+    """
+    if not isinstance(value, (dict, list)):
+        return (value, 0, 0)
+
+    wrapped = {"__value": value}
+    if not find_object_embeds(wrapped) and not find_string_embeds(wrapped):
+        return (value, 0, 0)
+
+    resolved_wrapped, nested_info = await resolve_embeds(
+        configuration=wrapped,
+        resolver_callback=resolver_callback,
+        max_depth=max_depth,
+        max_embeds=max_embeds,
+        error_policy=error_policy,
+    )
+
+    return (
+        resolved_wrapped["__value"],
+        nested_info.embeds_resolved,
+        nested_info.depth_reached,
+    )
+
+
+async def _resolve_references(
+    *,
+    references: Dict[str, Reference],
+    resolver_callback: Callable[[str, Reference], Awaitable[Dict[str, Any]]],
+    seen_by_iteration: Dict[str, int],
+    current_iteration: int,
+) -> Any:
+    """
+    Resolve one or more references and return resolved value.
+
+    - If one entity_type is referenced, returns that entity value directly.
+    - If multiple entity_types are referenced, returns a dict keyed by entity_type.
+    """
+    resolved_by_entity: Dict[str, Any] = {}
+
+    for entity_type, reference in references.items():
+        canonical = f"{entity_type}:{canonicalize_reference(reference)}"
+
+        if canonical in seen_by_iteration:
+            first_seen_iteration = seen_by_iteration[canonical]
+            if first_seen_iteration < current_iteration:
+                raise CircularEmbedError([canonical])
+
+        if canonical not in seen_by_iteration:
+            seen_by_iteration[canonical] = current_iteration
+
+        resolved_by_entity[entity_type] = await resolver_callback(
+            entity_type, reference
+        )
+
+    if len(resolved_by_entity) == 1:
+        return next(iter(resolved_by_entity.values()))
+
+    return resolved_by_entity
 
 
 async def _resolve_and_inline_string_embed(
@@ -446,7 +563,10 @@ async def _resolve_and_inline_string_embed(
     resolver_callback: Callable[[str, Reference], Awaitable[Dict[str, Any]]],
     seen_by_iteration: Dict[str, int],
     current_iteration: int,
-) -> None:
+    max_depth: int,
+    max_embeds: int,
+    error_policy: ErrorPolicy,
+) -> tuple[int, int]:
     """
     Resolve a string embed and inline it into config.
 
@@ -457,30 +577,25 @@ async def _resolve_and_inline_string_embed(
         seen_by_iteration: Maps canonical references to the iteration they were first seen
         current_iteration: Current iteration number (depth)
     """
-    # For now, we expect exactly one reference in the dict
     if not embed.references:
         raise ValueError(f"No references found in embed at {embed.location}")
 
-    # Get the first (and expected only) reference
-    entity_type, reference = next(iter(embed.references.items()))
+    resolved_value = await _resolve_references(
+        references=embed.references,
+        resolver_callback=resolver_callback,
+        seen_by_iteration=seen_by_iteration,
+        current_iteration=current_iteration,
+    )
 
-    canonical = canonicalize_reference(reference)
-
-    # Circular detection: if we've seen this canonical in a PREVIOUS iteration,
-    # it means the entity is referencing itself (circular)
-    if canonical in seen_by_iteration:
-        first_seen_iteration = seen_by_iteration[canonical]
-        if first_seen_iteration < current_iteration:
-            # Seen in a previous iteration - circular reference!
-            raise CircularEmbedError([canonical])
-        # Seen in current iteration - this is fine (multiple refs to same entity)
-
-    # Mark this canonical as seen in this iteration
-    if canonical not in seen_by_iteration:
-        seen_by_iteration[canonical] = current_iteration
-
-    # Fetch the referenced entity via callback (passing entity_type and reference)
-    resolved_value = await resolver_callback(entity_type, reference)
+    # If the resolved value is a nested object/list, resolve embeds inside it
+    # before selector extraction and stringification.
+    resolved_value, nested_embeds, nested_depth = await _resolve_nested_embeds_in_value(
+        value=resolved_value,
+        resolver_callback=resolver_callback,
+        max_depth=max_depth,
+        max_embeds=max_embeds,
+        error_policy=error_policy,
+    )
 
     # Extract path if selector specified
     selector = embed.selector
@@ -506,6 +621,7 @@ async def _resolve_and_inline_string_embed(
 
     # Update config with the new string
     set_path(config, embed.location, new_string)
+    return (nested_embeds, nested_depth)
 
 
 def find_object_embeds(
@@ -727,10 +843,13 @@ def _parse_embed_token(
     Token format examples:
     - @ag.embed[@ag.references[workflow_revision.version=v1]]
     - @ag.embed[@ag.references[workflow_revision.id=abc-123]]
-    - @ag.embed[@ag.references[workflow_variant.slug=my-variant], @ag.selector[path:params.system_prompt]]
+    - @ag.embed[@ag.references[workflow_revision.slug=my-revision-v1]]
+    - @ag.embed[@ag.references[workflow_revision.version=v1, environment_revision.slug=prod-v1], @ag.selector[path:workflow_revision.parameters.prompt]]
+    - @ag.embed[@ag.references[environment_revision.id=abc-123, environment_revision.key=api_config]]
 
     Reference format: entity_type.field=value
-    - Any Reference field can be used (id, slug, version, etc.)
+    - Supported fields: id, slug, version
+    - Special field: environment_revision.key (maps selector to references.<key>)
     - Examples: workflow_revision.version=v1, workflow_variant.id=abc-123
 
     Returns:
@@ -750,41 +869,40 @@ def _parse_embed_token(
 
     ref_content = ref_match.group(1).strip()
 
-    # Parse reference: supports two formats:
-    # 1. "workflow_revision.version=v1" (explicit field)
-    # 2. "workflow_revision:v1" (inferred field: UUID->id, otherwise->version)
+    # Parse references format: entity_type.field=value[, entity_type.field=value...]
     references: Dict[str, Reference] = {}
-
+    reference_keys: Dict[str, str] = {}
     if "=" in ref_content:
-        # Format: entity_type.field=value
-        key_path, value = ref_content.split("=", 1)
-        key_path = key_path.strip()
-        value = value.strip()
+        ref_entries = [
+            entry.strip() for entry in ref_content.split(",") if entry.strip()
+        ]
+        for ref_entry in ref_entries:
+            if "=" not in ref_entry:
+                continue
 
-        # Parse key_path: "workflow_revision.version" -> entity_type="workflow_revision", field="version"
-        if "." in key_path:
+            key_path, value = ref_entry.split("=", 1)
+            key_path = key_path.strip()
+            value = value.strip()
+
+            if "." not in key_path:
+                continue
+
             entity_type, field = key_path.rsplit(".", 1)
-            # Create Reference with the specified field
-            references[entity_type] = Reference(**{field: value})
-    elif ":" in ref_content:
-        # Format: entity_type:value (infer field from value)
-        entity_type, value = ref_content.split(":", 1)
-        entity_type = entity_type.strip()
-        value = value.strip()
+            if field not in {"id", "slug", "version", "key"}:
+                continue
 
-        # Infer field: if value looks like UUID, use 'id', otherwise use 'version'
-        # Note: Keep value as string, Reference model will handle type conversion
-        try:
-            # Try to parse as UUID to check format
-            from uuid import UUID
-            UUID(value)
-            field = "id"
-        except (ValueError, AttributeError):
-            # Not a UUID, assume it's a version
-            field = "version"
+            if field == "key":
+                if entity_type == "environment_revision":
+                    reference_keys[entity_type] = value
+                continue
 
-        # Create reference with raw string value
-        references[entity_type] = Reference.model_validate({field: value})
+            if entity_type in references:
+                existing = references[entity_type]
+                merged = existing.model_dump(mode="json")
+                merged[field] = value
+                references[entity_type] = Reference.model_validate(merged)
+            else:
+                references[entity_type] = Reference.model_validate({field: value})
 
     # Extract @ag.selector[...] (optional)
     selector = None
@@ -795,6 +913,27 @@ def _parse_embed_token(
         if sel_content.startswith("path:"):
             path = sel_content.split(":", 1)[1].strip()
             selector = Selector(path=path)
+        elif sel_content.startswith("path="):
+            path = sel_content.split("=", 1)[1].strip()
+            selector = Selector(path=path)
+
+    if reference_keys:
+        # key currently maps to a specific entry under environment_revision.data.references
+        if len(reference_keys) > 1:
+            return None
+
+        entity_type, key = next(iter(reference_keys.items()))
+        if entity_type not in references:
+            return None
+
+        key_selector_prefix = f"references.{key}"
+        if selector is None:
+            selector = Selector(path=key_selector_prefix)
+        elif not selector.path.startswith("references."):
+            selector = Selector(path=f"{key_selector_prefix}.{selector.path}")
+
+    if not references:
+        return None
 
     return (references, selector)
 
@@ -811,33 +950,33 @@ def _reconstruct_token(
         selector: Optional selector for path extraction
 
     Returns:
-        Token string in shorter format:
-        - @ag.embed[@ag.references[workflow_revision:v1], @ag.selector[path:...]]
-        - @ag.embed[@ag.references[workflow_variant:abc-123]]
-
-    Uses the shorter "entity_type:value" format for compatibility with parsed tokens.
+        Token string in supported parseable format:
+        - @ag.embed[@ag.references[workflow_revision.slug=my-revision-v1], @ag.selector[path:...]]
+        - @ag.embed[@ag.references[workflow_revision.version=v1]]
+        - @ag.embed[@ag.references[workflow_variant.id=abc-123]]
+        - @ag.embed[@ag.references[workflow_revision.version=v1, environment_revision.slug=prod-v1]]
     """
     # Get the first reference
     if not references:
         raise ValueError("Cannot reconstruct token without references")
 
-    entity_type, reference = next(iter(references.items()))
+    reference_parts: List[str] = []
+    for entity_type, reference in references.items():
+        has_any = False
+        if reference.id is not None:
+            reference_parts.append(f"{entity_type}.id={reference.id}")
+            has_any = True
+        if reference.slug is not None:
+            reference_parts.append(f"{entity_type}.slug={reference.slug}")
+            has_any = True
+        if reference.version is not None:
+            reference_parts.append(f"{entity_type}.version={reference.version}")
+            has_any = True
 
-    # Find the first non-None field to use and get its value
-    value = None
+        if not has_any:
+            raise ValueError(f"Reference {entity_type} has no id, slug, or version")
 
-    if reference.id is not None:
-        value = str(reference.id)
-    elif reference.version is not None:
-        value = reference.version
-    elif reference.slug is not None:
-        value = reference.slug
-
-    if value is None:
-        raise ValueError(f"Reference {entity_type} has no id, slug, or version")
-
-    # Use shorter format: entity_type:value
-    ref_part = f"@ag.references[{entity_type}:{value}]"
+    ref_part = f"@ag.references[{', '.join(reference_parts)}]"
 
     # Build @ag.selector[...] part if present
     parts = [ref_part]
