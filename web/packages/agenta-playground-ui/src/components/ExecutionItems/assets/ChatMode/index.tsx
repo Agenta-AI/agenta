@@ -35,19 +35,12 @@ export interface ChatModeProps {
 
 const noop = () => {}
 
-interface PromptLike {
-    messages?: {value?: unknown} | unknown
-}
-
-const extractPromptMessages = (prompt: unknown): unknown[] => {
-    if (!prompt || typeof prompt !== "object" || Array.isArray(prompt)) return []
-    const promptRec = prompt as PromptLike
-    const messages = promptRec.messages
+/** Extract messages from a prompt config object (raw ag_config value) */
+const extractPromptMessages = (promptConfig: unknown): unknown[] => {
+    if (!promptConfig || typeof promptConfig !== "object" || Array.isArray(promptConfig)) return []
+    const cfg = promptConfig as Record<string, unknown>
+    const messages = cfg.messages
     if (Array.isArray(messages)) return messages
-    if (messages && typeof messages === "object" && "value" in messages) {
-        const wrapped = (messages as {value?: unknown}).value
-        return Array.isArray(wrapped) ? wrapped : []
-    }
     return []
 }
 
@@ -71,18 +64,45 @@ const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeP
             Array.from(new Set(renderableItemsForExecution.map((item) => item.rowId))) as string[],
         [renderableItemsForExecution],
     )
-    // Config messages (read-only, single view only) - use molecule-backed prompts
-    const prompts = useAtomValue(
-        entityId ? legacyAppRevisionMolecule.atoms.enhancedPrompts(entityId) : atom([]),
-    ) as unknown[]
+    // Config messages (read-only) — read raw parameters and extract messages from prompt configs
+    const entityData = useAtomValue(
+        useMemo(
+            () => (entityId ? legacyAppRevisionMolecule.atoms.data(entityId) : atom(null)),
+            [entityId],
+        ),
+    )
+    const agConfig = useMemo(() => {
+        const params = entityData?.parameters as Record<string, unknown> | undefined
+        return (params?.ag_config || params || {}) as Record<string, unknown>
+    }, [entityData?.parameters])
 
-    const rawConfigMessages = (prompts || []).flatMap((prompt) => extractPromptMessages(prompt))
+    // Extract prompt config objects from ag_config (objects with messages or llm_config)
+    const promptConfigs = useMemo(() => {
+        const configs: Record<string, unknown>[] = []
+        for (const val of Object.values(agConfig)) {
+            if (val && typeof val === "object" && !Array.isArray(val)) {
+                const cfg = val as Record<string, unknown>
+                if (cfg.messages || cfg.llm_config) {
+                    configs.push(cfg)
+                }
+            }
+        }
+        return configs
+    }, [agConfig])
+
+    const rawConfigMessages = useMemo(
+        () => promptConfigs.flatMap((cfg) => extractPromptMessages(cfg)),
+        [promptConfigs],
+    )
     const configMessages = useMemo(
         () => normalizeEnhancedMessages(rawConfigMessages),
         [rawConfigMessages],
     )
 
-    const {templateFormat, tokens} = useMemo(() => extractPromptTemplateContext(prompts), [prompts])
+    const {templateFormat, tokens} = useMemo(
+        () => extractPromptTemplateContext(promptConfigs),
+        [promptConfigs],
+    )
 
     return (
         <section className="flex flex-col">
