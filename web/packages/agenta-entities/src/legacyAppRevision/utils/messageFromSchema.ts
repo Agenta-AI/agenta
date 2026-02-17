@@ -14,11 +14,18 @@
 import type {MessageContentPart} from "@agenta/shared/types"
 import {generateId} from "@agenta/shared/utils"
 
-import type {ConfigMetadata} from "../state/metadataAtoms"
-import {hashConfigMetadata, isObjectMetadata} from "../state/metadataAtoms"
+import type {ConfigMetadata, ObjectMetadata} from "../types/enhanced"
 
-import {createObjectFromMetadata, extractObjectSchemaFromMetadata} from "./metadataHelpers"
+import {
+    createObjectFromMetadata,
+    extractObjectSchemaFromMetadata,
+    hashConfigMetadata,
+} from "./metadataHelpers"
 import {toSnakeCase} from "./valueExtraction"
+
+function isObjectMetadata(metadata: ConfigMetadata): metadata is ObjectMetadata {
+    return metadata?.type === "object"
+}
 
 // ---------------------------------------------------------------------------
 // Metadata accessor — avoids circular imports with the molecule/store.
