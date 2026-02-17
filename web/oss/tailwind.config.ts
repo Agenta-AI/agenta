@@ -15,6 +15,7 @@ export const createConfig = (content: string[] = []): Config => {
             "../packages/agenta-entity-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-entities/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-playground-ui/src/**/*.{js,ts,jsx,tsx}",
             ...content,
         ],
         theme: {

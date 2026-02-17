@@ -52,8 +52,6 @@ function InputVariable({rowId, variableKey}: {rowId: string; variableKey: string
 // ============================================================================
 
 function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
-    const {SharedGenerationResultUtils} = usePlaygroundUI()
-
     const fullResult = useAtomValue(
         useMemo(
             () =>
@@ -84,19 +82,12 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
     }, [fullResult, status, error, output])
 
     return (
-        <div className="flex flex-col gap-2">
-            <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">Output</span>
-                {SharedGenerationResultUtils && traceId && (
-                    <SharedGenerationResultUtils traceId={traceId} showStatus />
-                )}
-            </div>
-            <ExecutionResultView
-                isRunning={isRunning}
-                currentResult={currentResult}
-                traceId={traceId}
-            />
-        </div>
+        <ExecutionResultView
+            isRunning={isRunning}
+            currentResult={currentResult}
+            traceId={traceId}
+            showEmptyPlaceholder={false}
+        />
     )
 }
 
@@ -164,7 +155,7 @@ function DownstreamOutput({
     if (entries.length === 0) return null
 
     return (
-        <div className="p-3 border-0 border-t border-solid border-[var(--ant-color-border-secondary)]">
+        <div className="pt-3 mt-3 border-0 border-t border-solid border-[var(--ant-color-border-secondary)]">
             <span className="text-sm font-medium text-[var(--ant-color-text)]">{nodeName}</span>
             <div
                 className="grid items-baseline leading-5 mt-2"
@@ -232,9 +223,10 @@ const FocusDrawerContent = () => {
                 defaultActiveKey={["input"]}
                 expandIconPlacement="end"
                 bordered={false}
-                classNames={{
-                    header: "bg-[#05172905] !rounded-none select-none",
-                    body: "!rounded-none bg-white !p-3",
+                style={{background: "transparent", borderRadius: 0}}
+                styles={{
+                    header: {borderRadius: 0, userSelect: "none", padding: "10px 16px"},
+                    body: {borderRadius: 0, padding: "16px 24px"},
                 }}
                 items={[
                     {
@@ -253,15 +245,15 @@ const FocusDrawerContent = () => {
                     },
                 ]}
             />
-
             {/* Output Section */}
             <Collapse
                 defaultActiveKey={["output"]}
                 expandIconPlacement="end"
                 bordered={false}
-                classNames={{
-                    header: "bg-[#05172905] !rounded-none select-none",
-                    body: "!rounded-none bg-white !p-0",
+                style={{background: "transparent", borderRadius: 0}}
+                styles={{
+                    header: {borderRadius: 0, userSelect: "none", padding: "10px 16px"},
+                    body: {borderRadius: 0, padding: "16px 24px"},
                 }}
                 items={[
                     {
@@ -270,9 +262,7 @@ const FocusDrawerContent = () => {
                         children: (
                             <div className="flex flex-col">
                                 {/* Primary output */}
-                                <div className="p-3">
-                                    <PrimaryOutput rowId={rowId} entityId={primaryEntityId} />
-                                </div>
+                                <PrimaryOutput rowId={rowId} entityId={primaryEntityId} />
 
                                 {/* Downstream node outputs (evaluators) */}
                                 {downstreamNodes.map((node) => {
