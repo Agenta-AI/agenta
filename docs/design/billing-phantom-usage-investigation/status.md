@@ -40,16 +40,24 @@ We cannot confirm without full logs from the 14:15 run on Feb 13 (container died
 ### For PR #3769 (JP's Fix)
 **Merge it.** The `break` instead of `continue` eliminates the within-run amplification loop — this is the most critical fix. The lock ownership improvements and chunked bump are also valuable.
 
-### Follow-Up: Add Stripe `identifier` (Critical)
-Open a follow-up PR to add idempotent Stripe reporting:
-```python
-stripe.billing.MeterEvent.create(
-    event_name=event_name,
-    payload={"delta": delta, "customer_id": customer_id},
-    identifier=f"{org_id}:{key}:{year}:{month}:{synced}:{value}",
-)
-```
-This eliminates cross-run re-reporting entirely. Even if a process dies between Stripe report and bump, the duplicate event is rejected by Stripe within 24 hours.
+### Follow-Up: Add a DB Outbox / Attempt Ledger (Critical)
+The naive Stripe `identifier` fix does NOT work because `value` changes between runs (real usage keeps arriving), so each re-report produces a unique identifier and Stripe never deduplicates. Excluding `value` from the identifier helps within 24 hours, but the dedup window expires for multi-day stuck states.
+
+The complete fix is a **DB outbox (attempt ledger)** for counter meters:
+
+**New table: `meter_report_attempts`**
+- Meter key: `(organization_id, key, year, month)`
+- `from_value` (= current `synced`), `to_value` (= current `value`), `delta`
+- `stripe_identifier` (stable, deterministic from the range)
+- `status` (`pending`, `sent`, `failed`)
+- Unique constraint on `(org, key, year, month, from_value, to_value)`
+
+**Reporting algorithm:**
+1. **TX1 (DB):** Lock meter row `FOR UPDATE`. Create or retrieve a pending attempt for `[synced, value]`. Commit.
+2. **Stripe call:** Send meter event with `identifier = stripe_identifier`.
+3. **TX2 (DB):** Mark attempt `sent`. Set `meters.synced = GREATEST(synced, to_value)`. Commit.
+
+On retry, replay the same pending attempt (same identifier, same delta) instead of recomputing. This gives idempotent retries with no time-window limitation.
 
 ### Follow-Up: Investigate bump() Failure Trigger (Nice to Have)
 Understanding WHY bump() fails would help prevent future issues. Suggestions:

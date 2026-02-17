@@ -17,7 +17,7 @@ Two customers are seeing usage in Stripe that does **not exist in the database**
 
 This is NOT simple process death (which would give ~2x). The `continue` loop is the only code path that produces the observed 15-28x amplification.
 
-**JP's PR #3769** correctly fixes this by changing `continue` to `break`. The remaining gap is cross-run re-reporting, fixable with Stripe's `identifier` field for idempotent event dedup.
+**JP's PR #3769** correctly fixes this by changing `continue` to `break`. The remaining gap is cross-run re-reporting. A naive Stripe `identifier` fix does not work here because `value` changes between runs; the complete fix requires a DB outbox/attempt ledger.
 
 ## Workspace Contents
 
@@ -33,5 +33,5 @@ This is NOT simple process death (which would give ~2x). The `continue` loop is 
 
 1. **The `continue` loop** in `report()` turns a single `bump()` failure into 50x re-reporting within one run
 2. **JP's `break` fix** (PR #3769) eliminates this amplification — **merge it**
-3. **Stripe `identifier`** would make reporting fully idempotent — needed as follow-up
+3. **DB outbox/attempt ledger** is needed for true idempotency (Stripe `identifier` alone fails because `value` changes between runs)
 4. **Still open**: What causes `bump()` to fail? Best candidate: connection pool exhaustion from halved pool size (`71079ed3d`, Nov 11)

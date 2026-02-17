@@ -68,20 +68,17 @@ await self.bump(meters=meters_to_bump)       # Step 2: Persist synced ✗ (can f
 
 The `break` fix only prevents re-reporting **within the same job run**. It doesn't help if the process dies entirely.
 
-**Fix**: Use Stripe's `identifier` field for deduplication ([Stripe API docs](https://docs.stripe.com/api/billing/meter-event/create)):
+**Stripe `identifier` is NOT sufficient here.** Stripe's `identifier` field ([docs](https://docs.stripe.com/api/billing/meter-event/create)) deduplicates events within a 24-hour rolling window. However, because `value` keeps growing (real usage arrives between runs), each re-report produces a different `(synced, value)` pair and therefore a different identifier. Stripe never deduplicates:
 
-> **`identifier`** *(string, optional)* — A unique identifier for the event. If not provided, one is generated. We recommend using UUID-like identifiers. **We will enforce uniqueness within a rolling period of at least 24 hours.** The enforcement of uniqueness primarily addresses issues arising from accidental retries or other problems occurring within extremely brief time intervals.
-
-```python
-stripe.billing.MeterEvent.create(
-    event_name=event_name,
-    payload={"delta": delta, "customer_id": customer_id},
-    identifier=f"{org_id}:{key}:{year}:{month}:{synced}:{value}",
-)
 ```
-This would make reporting **idempotent** — even if the same delta is sent twice within 24 hours, Stripe ignores the duplicate. This is the only way to truly eliminate the double-reporting risk.
+Run 1: synced=0, value=10000 → identifier="...:0:10000" → delta=10000 → accepted ✓
+Run 2: synced=0, value=10200 → identifier="...:0:10200" → delta=10200 → accepted ✓ (different!)
+Run 3: synced=0, value=10400 → identifier="...:0:10400" → delta=10400 → accepted ✓ (different!)
+```
 
-**Note**: The 24-hour uniqueness window covers our use case since the cron runs every 30 minutes and a stuck lock expires in 1 hour. Any re-report would happen well within the 24-hour window.
+Excluding `value` from the identifier (using only `synced`) would dedup within 24 hours, but the window expires after that. If the system is stuck for days (as in Feb 13-16), duplicates leak through after each 24-hour boundary.
+
+**The complete fix requires a DB outbox / attempt ledger:** record the exact `[from_value, to_value]` range in a durable row BEFORE calling Stripe, with a stable identifier. Retries replay the same recorded attempt instead of recomputing the delta. See `status.md` for the proposed schema.
 
 ### 2. Cross-Run Re-Reporting (STILL PRESENT)
 
@@ -155,11 +152,7 @@ After `break`, the meters that were reported to Stripe but not bumped remain in 
 
 **Open a follow-up** for:
 
-1. **Add Stripe `identifier` for idempotent reporting** — This eliminates cross-run re-reporting (the remaining gap). One-line fix:
-   ```python
-   identifier=f"{org_id}:{key}:{year}:{month}:{synced}:{value}"
-   ```
-   Stripe deduplicates within a rolling 24-hour window, which covers our 30-minute cron + 1-hour lock TTL.
+1. **Add a DB outbox / attempt ledger for meter reporting** — The Stripe `identifier` field alone is insufficient because `value` changes between runs (producing unique identifiers each time) and the 24-hour dedup window expires for multi-day stuck states. A durable attempt record with a stable identifier is the complete fix for cross-run re-reporting. See `status.md` for the proposed schema.
 
 2. **Investigate what causes bump() to fail** — The `break` fix is a symptom treatment. Understanding the root trigger (likely connection pool exhaustion from halved pool size in `71079ed3d`) would prevent related issues.
 

@@ -224,4 +224,4 @@ A SIGKILL kills the process before bump() runs. But this explains ~2x, not 15-28
 | Why does bump() fail? | **STILL OPEN.** Best candidate: connection pool exhaustion from halved pool size. Other possibilities: double commit, scoped session interference. |
 | Why does it escalate day-over-day? | `synced` stuck → each re-report sends `value - synced` where `value` grows daily. |
 | Why does it stop? | Either someone deploys a fix, or transient conditions resolve (pool pressure decreases). |
-| What's the complete fix? | JP's `break` fix eliminates within-run amplification. Stripe `identifier` eliminates cross-run re-reporting. Both needed. |
+| What's the complete fix? | JP's `break` fix eliminates within-run amplification. A DB outbox/attempt ledger eliminates cross-run re-reporting (Stripe `identifier` alone is insufficient because `value` changes between runs). Both needed. |
