@@ -1,11 +1,10 @@
-import {useCallback, useEffect} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
-import {publishMutationAtom} from "@agenta/entities/legacyAppRevision"
+import {legacyAppRevisionMolecule, publishMutationAtom} from "@agenta/entities/legacyAppRevision"
 import {message} from "@agenta/ui/app-message"
 import {Rocket} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-import router from "next/router"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
@@ -41,7 +40,11 @@ const DeployVariantModal = ({
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const {isPending: isLoading} = useAtomValue(publishMutationAtom)
 
-    const appId = router.query.app_id as string
+    // Derive appId from the revision's entity data (for analytics only)
+    const revisionData = useAtomValue(
+        useMemo(() => legacyAppRevisionMolecule.atoms.data(revisionId ?? ""), [revisionId]),
+    ) as {appId?: string} | null
+    const appId = revisionData?.appId ?? null
 
     // Ensure Jotai store has the necessary identifiers when this modal is used directly
     useEffect(() => {

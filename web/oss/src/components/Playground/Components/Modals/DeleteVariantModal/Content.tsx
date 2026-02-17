@@ -13,7 +13,6 @@ import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {deleteSingleVariant} from "@/oss/services/playground/api"
-import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
 const {Text} = Typography
 
@@ -38,7 +37,15 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
     const [checking, setChecking] = useState(true)
     const [canDelete, setCanDelete] = useState<boolean | null>(null)
     const [isMutating, setIsMutating] = useState(false)
-    const appId = useAtomValue(selectedAppIdAtom)
+
+    // Derive appId from the first revision's data (entity-scoped, not global)
+    const firstRevisionData = useMemo(() => {
+        const firstId = revisionIds[0]
+        if (!firstId) return null
+        return store.get(legacyAppRevisionMolecule.atoms.data(firstId)) as {appId?: string} | null
+    }, [revisionIds, store])
+    const appId = firstRevisionData?.appId ?? null
+
     const emptyListAtom = useMemo(
         () => atom({data: [], isPending: false, isError: false, error: null}),
         [],

@@ -8,7 +8,7 @@ import groupBy from "lodash/groupBy"
 import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
+import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import {CreateVariantModalProps} from "./types"
 
@@ -28,8 +28,8 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
     const [note, setNote] = useState("")
     const [isSubmitting, setIsSubmitting] = useState(false)
 
-    const rawAppId = useAtomValue(selectedAppIdAtom)
-    const appId = typeof rawAppId === "string" ? rawAppId : null
+    // Use URL-based app ID only — creating a variant requires an app context
+    const appId = useAtomValue(routerAppIdAtom)
     const revisions = useAtomValue(appRevisionsWithDraftsAtomFamily(appId || ""))
     const createVariant = useSetAtom(playgroundController.actions.createVariant)
     const currentSelectedVariants = useAtomValue(playgroundController.selectors.entityIds())
