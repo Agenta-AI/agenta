@@ -20,8 +20,8 @@ import type {DataPath} from "@agenta/shared/utils"
 import {getOptionsFromSchema} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
-import {Button, Popover, Select, Typography} from "antd"
+import {CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
+import {Button, Popover, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import type {Atom, WritableAtom} from "jotai"
 import {useAtomValue} from "jotai"
@@ -157,6 +157,8 @@ export interface PlaygroundConfigSectionProps {
     className?: string
     /** Optional molecule adapter — defaults to legacyAppRevisionMolecule */
     moleculeAdapter?: ConfigSectionMoleculeAdapter
+    /** Called when the user clicks "Refine prompt with AI" on a prompt section header */
+    onRefinePrompt?: (promptKey: string) => void
 }
 
 function PlaygroundConfigSection({
@@ -165,6 +167,7 @@ function PlaygroundConfigSection({
     useServerData = false,
     className,
     moleculeAdapter,
+    onRefinePrompt,
 }: PlaygroundConfigSectionProps) {
     const {llmProviderConfig} = useDrillInUI()
     const mol = moleculeAdapter ?? defaultAdapter
@@ -339,7 +342,26 @@ function PlaygroundConfigSection({
                     </div>
 
                     {isPromptField && promptModelInfo && (
-                        <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+                        <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-2 flex-shrink-0"
+                        >
+                            {!disabled &&
+                                onRefinePrompt &&
+                                Array.isArray(promptModelInfo.promptValue?.messages) && (
+                                    <Tooltip title="Refine prompt with AI">
+                                        <Button
+                                            type="text"
+                                            size="small"
+                                            icon={
+                                                <MagicWand size={16} aria-hidden="true" />
+                                            }
+                                            onClick={() => onRefinePrompt(fieldKey)}
+                                            aria-label="Refine prompt with AI"
+                                            className="flex items-center justify-center opacity-60 hover:opacity-100"
+                                        />
+                                    </Tooltip>
+                                )}
                             <Popover
                                 trigger="click"
                                 open={isModelConfigOpen}
@@ -493,6 +515,7 @@ function PlaygroundConfigSection({
             handleModelChange,
             handleLLMConfigChange,
             updatePromptLLMConfigKey,
+            onRefinePrompt,
         ],
     )
 

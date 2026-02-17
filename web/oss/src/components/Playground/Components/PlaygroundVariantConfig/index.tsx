@@ -1,16 +1,22 @@
 "use client"
 
-import {memo, useMemo} from "react"
+import {memo, useCallback, useMemo, useState} from "react"
 
 import {playgroundController} from "@agenta/playground"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
 import {PlaygroundConfigSection} from "@agenta/entity-ui"
 
 import BaseRunnableConfigSection from "./assets/BaseRunnableConfigSection"
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
+
+const RefinePromptModal = dynamic(
+    () => import("../Modals/RefinePromptModal"),
+    {ssr: false},
+)
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
@@ -29,6 +35,20 @@ const PlaygroundVariantConfig: React.FC<
 > = ({variantId, className, embedded, variantNameOverride, revisionOverride, ...divProps}) => {
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
     const entityType = nodes.find((n) => n.entityId === variantId)?.entityType
+
+    // Refine prompt modal state
+    const [refineModalOpen, setRefineModalOpen] = useState(false)
+    const [refinePromptKey, setRefinePromptKey] = useState<string | null>(null)
+
+    const handleRefinePrompt = useCallback((promptKey: string) => {
+        setRefinePromptKey(promptKey)
+        setRefineModalOpen(true)
+    }, [])
+
+    const handleRefineClose = useCallback(() => {
+        setRefineModalOpen(false)
+        setRefinePromptKey(null)
+    }, [])
 
     if (entityType === "baseRunnable") {
         return (
@@ -54,7 +74,18 @@ const PlaygroundVariantConfig: React.FC<
                 variantNameOverride={variantNameOverride}
                 revisionOverride={revisionOverride}
             />
-            <PlaygroundConfigSection revisionId={variantId} />
+            <PlaygroundConfigSection
+                revisionId={variantId}
+                onRefinePrompt={handleRefinePrompt}
+            />
+            {refinePromptKey && (
+                <RefinePromptModal
+                    open={refineModalOpen}
+                    onClose={handleRefineClose}
+                    revisionId={variantId}
+                    promptKey={refinePromptKey}
+                />
+            )}
         </div>
     )
 }
