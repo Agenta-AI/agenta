@@ -2,8 +2,9 @@ import {useMemo} from "react"
 
 import {SelectProps} from "antd"
 
+import {getEvaluatorParameters, resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
-import type {Evaluator} from "@/oss/lib/Types"
+import type {Evaluator, SimpleEvaluator} from "@/oss/lib/Types"
 
 import {
     ALLOWED_ONLINE_EVALUATOR_KEYS,
@@ -13,7 +14,7 @@ import {
 import {capitalize, collectEvaluatorCandidates} from "../utils/evaluatorDetails"
 
 interface UseEvaluatorSelectionParams {
-    evaluators: any[]
+    evaluators: SimpleEvaluator[]
     selectedEvaluatorId: string | undefined
     previewEvaluators: EvaluatorPreviewDto[]
     baseEvaluators: Evaluator[]
@@ -21,16 +22,17 @@ interface UseEvaluatorSelectionParams {
 
 interface EvaluatorSelectionResult {
     evaluatorOptions: SelectProps["options"]
-    selectedEvaluatorConfig?: any
+    selectedEvaluatorConfig?: SimpleEvaluator
     matchedPreviewEvaluator?: EvaluatorPreviewDto
     evaluatorTypeLookup: Map<string, {slug: string; label: string}>
 }
 
-const buildEvaluatorOptions = (configs: any[]): SelectProps["options"] =>
+const buildEvaluatorOptions = (configs: SimpleEvaluator[]): SelectProps["options"] =>
     (configs || []).map((cfg: any) => {
         const iconSrc = (cfg?.icon_url && (cfg.icon_url.src || cfg.icon_url)) || undefined
         const displayName = cfg?.name || ""
-        const searchable = [displayName, cfg?.evaluator_key, cfg?.id]
+        const evaluatorKey = resolveEvaluatorKey(cfg)
+        const searchable = [displayName, evaluatorKey, cfg?.id, cfg?.slug, cfg?.data?.uri]
             .map((item) => {
                 if (item === undefined || item === null) return undefined
                 const text = String(item).trim()
@@ -61,6 +63,7 @@ const buildPreviewLookup = (previewEvaluators: EvaluatorPreviewDto[]) => {
     const map = new Map<string, EvaluatorPreviewDto>()
     previewEvaluators.forEach((evaluator) => {
         const rawKey =
+            resolveEvaluatorKey(evaluator as any) ||
             (evaluator as any)?.evaluator_key ||
             (evaluator as any)?.flags?.evaluator_key ||
             (evaluator as any)?.meta?.evaluator_key ||
@@ -122,13 +125,14 @@ export const useEvaluatorSelection = ({
 
     const allowedEvaluators = useMemo(() => {
         if (!evaluators?.length) return []
-        return evaluators.filter((config: any) => {
+        return evaluators.filter((config: SimpleEvaluator) => {
             if (!config) return false
+            const evaluatorKey = resolveEvaluatorKey(config)
             const candidates = collectEvaluatorCandidates(
-                config?.evaluator_key,
-                (config as any)?.slug,
+                evaluatorKey,
+                config?.slug,
                 config?.name,
-                config?.key,
+                (config as any)?.key,
                 config?.meta?.evaluator_key,
                 config?.meta?.key,
             )
@@ -141,13 +145,13 @@ export const useEvaluatorSelection = ({
         if (!allowedEvaluators.length) return []
         if (!ENABLE_CORRECT_ANSWER_KEY_FILTER) return allowedEvaluators
         const requiringKey = evaluatorsRequiringCorrectAnswerKey ?? new Set<string>()
-        return allowedEvaluators.filter((config: any) => {
+        return allowedEvaluators.filter((config: SimpleEvaluator) => {
             if (!config) return false
-            const evaluatorKey = config?.evaluator_key
+            const evaluatorKey = resolveEvaluatorKey(config)
             if (evaluatorKey && requiringKey.has(evaluatorKey)) {
                 return false
             }
-            const settingsValues = config?.settings_values || {}
+            const settingsValues = getEvaluatorParameters(config)
             const requiresCorrectAnswerKey = Object.entries(settingsValues).some(([key, value]) => {
                 if (!key) return false
                 const normalizedKey = key.toLowerCase()
@@ -176,7 +180,7 @@ export const useEvaluatorSelection = ({
     const previewLookup = useMemo(() => buildPreviewLookup(previewEvaluators), [previewEvaluators])
 
     const matchedPreviewEvaluator = useMemo(() => {
-        const key = (selectedEvaluatorConfig as any)?.evaluator_key as string | undefined
+        const key = resolveEvaluatorKey(selectedEvaluatorConfig)
         if (!key) return undefined
         return previewLookup.get(key.toLowerCase())
     }, [selectedEvaluatorConfig, previewLookup])

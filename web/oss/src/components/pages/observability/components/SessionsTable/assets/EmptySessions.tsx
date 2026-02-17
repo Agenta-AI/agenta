@@ -5,13 +5,17 @@ import {useAtomValue} from "jotai"
 import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import {filtersAtom, sortAtom} from "@/oss/state/newObservability/atoms/controls"
 
-const EmptySessions = () => {
+interface EmptySessionsProps {
+    showOnboarding?: boolean
+}
+
+const EmptySessions = ({showOnboarding = true}: EmptySessionsProps) => {
     const filters = useAtomValue(filtersAtom)
     const sort = useAtomValue(sortAtom)
 
     const isFiltered = filters.length > 0 || sort?.customRange
 
-    if (isFiltered) {
+    if (isFiltered || !showOnboarding) {
         return (
             <div className="py-16">
                 <EmptyComponent

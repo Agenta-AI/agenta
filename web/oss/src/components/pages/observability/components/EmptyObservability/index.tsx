@@ -1,16 +1,43 @@
 import {memo} from "react"
 
+import {BranchesOutlined} from "@ant-design/icons"
+import {Typography} from "antd"
 import {useSetAtom} from "jotai"
 
 import EmptyState from "@/oss/components/EmptyState"
 import {EMPTY_STATE_VIDEOS} from "@/oss/components/EmptyState/videos"
+import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import {setOnboardingWidgetActivationAtom} from "@/oss/lib/onboarding"
 
-const EmptyObservability = () => {
+interface EmptyObservabilityProps {
+    showOnboarding?: boolean
+}
+
+const EmptyObservability = ({showOnboarding = true}: EmptyObservabilityProps) => {
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
 
     const handleSetupTracing = () => {
         setOnboardingWidgetActivation("tracing-snippet")
+    }
+
+    if (!showOnboarding) {
+        return (
+            <div className="py-16">
+                <EmptyComponent
+                    image={<BranchesOutlined style={{fontSize: 32, color: "#d9d9d9"}} />}
+                    description={
+                        <div className="flex flex-col gap-2">
+                            <Typography.Text className="text-lg font-medium">
+                                No traces found
+                            </Typography.Text>
+                            <Typography.Text type="secondary">
+                                Try adjusting your filters or time range to view traces.
+                            </Typography.Text>
+                        </div>
+                    }
+                />
+            </div>
+        )
     }
 
     return (

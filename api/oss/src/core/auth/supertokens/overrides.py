@@ -1,4 +1,5 @@
 from typing import Dict, Any, List, Optional, Union, Set
+from urllib.parse import urlparse
 
 import posthog
 
@@ -81,6 +82,35 @@ else:
 
 # Auth service for domain policy enforcement
 auth_service = AuthService()
+
+
+def _get_signup_cloud_url() -> str:
+    return env.agenta.web_url or env.agenta.api_url
+
+
+def _get_signup_cloud_region(cloud_url: str) -> str:
+    try:
+        parsed = urlparse(cloud_url if "://" in cloud_url else f"https://{cloud_url}")
+        hostname = (parsed.hostname or "").lower()
+    except Exception:
+        hostname = ""
+
+    if (
+        hostname == "cloud.agenta.ai"
+        or hostname == "eu.cloud.agenta.ai"
+        or hostname.endswith(".eu.cloud.agenta.ai")
+        or hostname == "staging.preview.agenta.dev"
+    ):
+        return "EU"
+
+    if (
+        hostname == "us.cloud.agenta.ai"
+        or hostname.endswith(".us.cloud.agenta.ai")
+        or hostname == "testing.preview.agenta.dev"
+    ):
+        return "US"
+
+    return "Other"
 
 
 def _merge_session_identities(
@@ -294,6 +324,8 @@ async def _create_account(email: str, uid: str) -> bool:
                 properties={
                     "source": "auth",
                     "is_ee": is_ee(),
+                    "cloud_region": _get_signup_cloud_region(_get_signup_cloud_url()),
+                    "cloud_url": _get_signup_cloud_url(),
                 },
             )
         except Exception:

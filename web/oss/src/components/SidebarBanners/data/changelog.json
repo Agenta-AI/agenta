@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-02-17-enterprise-compliance",
+        "title": "Enterprise Compliance Features",
+        "description": "Multi-org support, SSO, domain verification, and a US region.",
+        "link": "https://agenta.ai/docs/changelog/enterprise-compliance-features"
+    },
+    {
         "id": "changelog-2026-02-04-prompt-folders",
         "title": "Folders for Prompt Organization",
         "description": "Organize prompts with folders and subfolders. Drag, move, and search.",

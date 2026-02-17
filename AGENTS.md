@@ -204,6 +204,137 @@ async def create_workflow(
     ...
 ```
 
+### Domain-level exceptions
+
+1. **Define domain exceptions in the core layer** (`core/{domain}/types.py` or `core/{domain}/dtos.py`) — never raise `HTTPException` from services or DAOs.
+2. **Catch domain exceptions at the API boundary** — in the router or via a decorator — and convert them to HTTP responses.
+3. **Use a base exception per domain** so callers can catch broadly or narrowly.
+4. **Include structured context** (not just a message string) so the router can build rich HTTP error responses.
+
+**Example 1 — Folder exceptions (best example of the full pattern):**
+
+Definition in `api/oss/src/core/folders/types.py`:
+```python
+class FolderNameInvalid(Exception):
+    def __init__(self, message: str = "Folder name contains invalid characters."):
+        self.message = message
+        super().__init__(message)
+
+class FolderPathConflict(Exception):
+    def __init__(self, message: str = "A folder with this path already exists."):
+        self.message = message
+        super().__init__(message)
+```
+
+Raised in service `api/oss/src/core/folders/service.py`:
+```python
+def _validate_folder_name(name: Optional[str]) -> None:
+    if not name or not fullmatch(r"[\w -]+", name):
+        raise FolderNameInvalid()
+```
+
+Caught in router via decorator `api/oss/src/apis/fastapi/folders/router.py`:
+```python
+def handle_folder_exceptions():
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except FolderNameInvalid as e:
+                raise FolderNameInvalidException(message=e.message) from e
+            except FolderPathConflict as e:
+                raise FolderPathConflictException(message=e.message) from e
+        return wrapper
+    return decorator
+```
+
+**Example 2 — Filtering exception (inline catch in router):**
+
+Definition in `api/oss/src/core/tracing/dtos.py`:
+```python
+class FilteringException(Exception):
+    pass
+```
+
+Caught in `api/oss/src/apis/fastapi/tracing/router.py`:
+```python
+except FilteringException as e:
+    raise HTTPException(status_code=400, detail=str(e)) from e
+```
+
+**Example 3 — EE organization exceptions (base class hierarchy):**
+
+Definition in `api/ee/src/core/organizations/exceptions.py`:
+```python
+class OrganizationError(Exception):
+    """Base exception for organization-related errors."""
+    pass
+
+class OrganizationSlugConflictError(OrganizationError):
+    def __init__(self, slug: str, message: str = None):
+        self.slug = slug
+        self.message = message or f"Organization slug '{slug}' is already in use."
+        super().__init__(self.message)
+
+class OrganizationNotFoundError(OrganizationError):
+    def __init__(self, organization_id: str, message: str = None):
+        self.organization_id = organization_id
+        self.message = message or f"Organization '{organization_id}' not found."
+        super().__init__(self.message)
+```
+
+Anti-patterns:
+- Do NOT return error dicts like `{"_error": True, "status_code": 502, "detail": "..."}` from services or clients.
+- Do NOT raise `HTTPException` from core services — that couples the domain to HTTP.
+- Do NOT use bare `Exception` or `ValueError` for domain errors when a typed exception would be clearer.
+
+### Typed DTO returns from services and clients
+
+1. **Service methods must return typed DTOs** (Pydantic `BaseModel` subclasses), not raw dicts, tuples, or `Any`.
+2. **HTTP clients should return a response DTO**, not `Tuple[Optional[Any], Optional[str]]`.
+3. **Define DTOs in `core/{domain}/dtos.py`** alongside the domain's other data contracts.
+4. **Use `Optional[DTO]` for missing entities**, `List[DTO]` for collections.
+
+**Example — Workflow service returns typed DTOs:**
+
+```python
+# core/workflows/dtos.py
+class Workflow(Artifact):
+    pass
+
+class WorkflowVariant(Variant):
+    pass
+
+# core/workflows/service.py
+async def create_workflow(self, *, project_id, user_id, workflow_create) -> Optional[Workflow]:
+    artifact = await self.workflows_dao.create_artifact(...)
+    if not artifact:
+        return None
+    return Workflow(**artifact.model_dump(mode="json"))
+```
+
+**Example — HTTP client returns a DTO instead of a raw tuple:**
+
+```python
+# Instead of:
+async def invoke(...) -> Tuple[Optional[Any], Optional[str]]:
+    return data, trace_id  # untyped
+
+# Do:
+class InvokeResponse(BaseModel):
+    data: Any
+    trace_id: Optional[str] = None
+
+async def invoke(...) -> InvokeResponse:
+    return InvokeResponse(data=data, trace_id=trace_id)
+```
+
+Anti-patterns:
+- Do NOT return raw dicts from service methods.
+- Do NOT return tuples like `(data, trace_id)` — use a named DTO.
+- Do NOT use `Dict[str, Any]` as a return type when you can define a proper model.
+
 ### Migration seams (do not copy for net-new code)
 
 These exist during transition but should not be copied into new implementations:
