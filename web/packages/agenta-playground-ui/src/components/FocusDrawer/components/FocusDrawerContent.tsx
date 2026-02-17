@@ -230,7 +230,7 @@ const FocusDrawerContent = () => {
             {/* Input Section */}
             <Collapse
                 defaultActiveKey={["input"]}
-                expandIconPosition="end"
+                expandIconPlacement="end"
                 bordered={false}
                 classNames={{
                     header: "bg-[#05172905] !rounded-none select-none",
@@ -257,7 +257,7 @@ const FocusDrawerContent = () => {
             {/* Output Section */}
             <Collapse
                 defaultActiveKey={["output"]}
-                expandIconPosition="end"
+                expandIconPlacement="end"
                 bordered={false}
                 classNames={{
                     header: "bg-[#05172905] !rounded-none select-none",
