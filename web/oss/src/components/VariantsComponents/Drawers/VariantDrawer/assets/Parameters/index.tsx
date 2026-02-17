@@ -1,12 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {
-    legacyAppRevisionEntityWithBridgeAtomFamily,
-    legacyAppRevisionMolecule,
-    revisionOpenApiSchemaAtomFamily,
-    derivePromptsFromOpenApiSpec,
-    deriveCustomPropertiesFromOpenApiSpec,
-} from "@agenta/entities/legacyAppRevision"
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -22,27 +16,14 @@ export const NewVariantParametersView = ({
 }) => {
     const revisionId = (selectedVariant as any)?._revisionId || selectedVariant?.id
 
-    const spec = useAtomValue(revisionOpenApiSchemaAtomFamily(revisionId ?? ""))
-    const entity = useAtomValue(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId ?? ""))
-    const routePath = entity?.routePath || ""
-
-    // Entity-native ag_config from current draft state (enhanced → raw conversion)
     const draftConfig = useAtomValue(legacyAppRevisionMolecule.atoms.draftParameters(revisionId))
-    const setPrompts = useSetAtom(legacyAppRevisionMolecule.reducers.setEnhancedPrompts)
-    const setCustomProps = useSetAtom(
-        legacyAppRevisionMolecule.reducers.setEnhancedCustomProperties,
-    )
+    const update = useSetAtom(legacyAppRevisionMolecule.reducers.update)
 
     const configJsonString = useMemo(() => {
         // When viewing original, always show the saved revision parameters
         if (showOriginal) {
             const base = (selectedVariant as any)?.parameters ?? {}
             return getYamlOrJson("JSON", base)
-        }
-
-        if (!spec) {
-            const fallback = (selectedVariant as any)?.parameters ?? {}
-            return getYamlOrJson("JSON", fallback)
         }
 
         // Fall back to saved parameters when draft config is empty
@@ -52,8 +33,19 @@ export const NewVariantParametersView = ({
             const base = params.ag_config ?? params
             return getYamlOrJson("JSON", base)
         }
+
+        // DEBUG: check for enhanced wrappers in config view data
+        const configStr = JSON.stringify(draftConfig)
+        const hasEnhanced = configStr.includes("__id") || configStr.includes("__metadata")
+        console.debug("[ParametersView]", revisionId?.slice(0, 8), {
+            source: "draftConfig",
+            hasEnhancedWrappers: hasEnhanced,
+            keys: Object.keys(draftConfig),
+            sample: configStr.slice(0, 300),
+        })
+
         return getYamlOrJson("JSON", draftConfig)
-    }, [draftConfig, showOriginal, spec, selectedVariant])
+    }, [draftConfig, showOriginal, selectedVariant, revisionId])
 
     const onChange = useCallback(
         (value: string) => {
@@ -62,35 +54,12 @@ export const NewVariantParametersView = ({
 
             try {
                 const parsed = JSON.parse(value || "{}")
-                if (!spec) return
-
-                const variantForDerive = {
-                    ...(selectedVariant as any),
-                    parameters: {
-                        ...(selectedVariant as any)?.parameters,
-                        ag_config: parsed,
-                    },
-                }
-
-                const nextPrompts = derivePromptsFromOpenApiSpec(
-                    variantForDerive.parameters as Record<string, unknown> | undefined,
-                    spec as any,
-                    routePath,
-                ) as any
-
-                const nextCustomProps = deriveCustomPropertiesFromOpenApiSpec(
-                    variantForDerive.parameters as Record<string, unknown> | undefined,
-                    spec as any,
-                    routePath,
-                ) as Record<string, any>
-
-                setPrompts(revisionId, nextPrompts)
-                setCustomProps(revisionId, nextCustomProps)
+                update(revisionId, {parameters: {ag_config: parsed}})
             } catch (error) {
                 // Ignore parse errors; editor will keep showing the current text
             }
         },
-        [showOriginal, spec, routePath, setPrompts, setCustomProps, selectedVariant],
+        [showOriginal, revisionId, update],
     )
 
     if (!revisionId) return null

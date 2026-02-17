@@ -22,9 +22,7 @@ import {
     legacyAppRevisionSchemaQueryAtomFamily,
     extractAllEndpointSchemas,
     extractInputKeysFromSchema,
-    derivePromptsFromOpenApiSpec,
     transformToRequestBody,
-    getAllMetadata,
 } from "@agenta/entities/legacyAppRevision"
 import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {message} from "@agenta/ui/app-message"
@@ -358,15 +356,13 @@ const DebugSection = () => {
         [inputPorts],
     )
 
-    // Stable custom properties derived from spec + saved parameters (by revision)
-    const customProps = useAtomValue(
+    // Read raw entity data for variant parameters
+    const variantEntityData = useAtomValue(
         useMemo(
             () =>
                 (selectedVariant?.id
-                    ? (legacyAppRevisionMolecule.atoms.enhancedCustomProperties(
-                          selectedVariant?.id,
-                      ) as any)
-                    : (atom({}) as any)) as any,
+                    ? (legacyAppRevisionMolecule.atoms.data(selectedVariant?.id) as any)
+                    : (atom(null) as any)) as any,
             [selectedVariant?.id],
         ),
     ) as any
@@ -618,20 +614,19 @@ const DebugSection = () => {
 
                 params.inputs = (effectiveKeys || []).map((name) => ({name, input: false}))
 
+                // Build raw ag_config from variant parameters
+                const variantParams =
+                    variantEntityData?.parameters || selectedVariant?.parameters
+                const variantAgConfig =
+                    (variantParams as Record<string, unknown>)?.ag_config ||
+                    variantParams ||
+                    {}
+
                 const baseParameters = transformToRequestBody({
                     variant: selectedVariant,
-                    allMetadata: getAllMetadata(),
-                    prompts:
-                        safeSpec && selectedVariant
-                            ? derivePromptsFromOpenApiSpec(
-                                  selectedVariant.parameters as Record<string, unknown> | undefined,
-                                  safeSpec as any,
-                                  safeRoutePath,
-                              ) || []
-                            : [],
                     isChat,
                     isCustom,
-                    customProperties: isCustom ? customProps : undefined,
+                    rawAgConfig: variantAgConfig as Record<string, unknown>,
                 })
 
                 const variantParameters = isPlainObject(selectedVariant?.parameters)

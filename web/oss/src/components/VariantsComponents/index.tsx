@@ -4,12 +4,11 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {
     variantsListQueryStateAtomFamily,
     revisionsListQueryStateAtomFamily,
-    legacyAppRevisionMolecule,
 } from "@agenta/entities/legacyAppRevision"
 import {SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
 import {Button, Flex, Input, Radio, Space, Typography} from "antd"
-import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
@@ -208,12 +207,7 @@ const VariantsDashboard = () => {
         async (record?: any) => {
             // Try to prefetch chunks before navigating for a seamless transition
             prefetchPlayground()
-            // Prewarm prompts for the selected revision specifically
-            const store = getDefaultStore()
             const revId = record?._revisionId ?? record?.id
-            if (revId) {
-                store.get(legacyAppRevisionMolecule.atoms.enhancedPrompts(revId))
-            }
             if (revId) {
                 goToPlayground(revId)
             } else {
