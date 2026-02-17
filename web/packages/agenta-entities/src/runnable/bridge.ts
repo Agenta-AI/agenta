@@ -25,6 +25,7 @@ import {atom, type Atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
 import {appRevisionMolecule} from "../appRevision"
+import {baseRunnableMolecule, type BaseRunnableData} from "../baseRunnable"
 import {evaluatorMolecule} from "../evaluator"
 import {parseEvaluatorKeyFromUri} from "../evaluator/core/schema"
 import {
@@ -49,6 +50,7 @@ import {loadableStateAtomFamily, loadableColumnsAtomFamily} from "../loadable/st
 import {createRunnableBridge, type RunnableData, type RunnablePort} from "../shared"
 
 import type {PathItem, RunnableType, TestsetColumn} from "./types"
+import {extractVariablesFromConfig} from "./utils"
 
 // ============================================================================
 // EXECUTION MODE HELPERS
@@ -491,6 +493,73 @@ function evaluatorRevisionSchemasSelector(revisionId: string) {
  */
 export const runnableBridge = createRunnableBridge({
     runnables: {
+        // baseRunnable MUST come first: its molecule is purely in-memory (no
+        // server queries). When the generic bridge iterates all runnables for
+        // an unknown ID, query-backed molecules (evaluator, legacyEvaluator)
+        // trigger server fetches and return isPending:true, which the bridge
+        // treats as a match — preventing baseRunnable from ever being reached
+        // if it's registered last. Putting it first is harmless for other ID
+        // types (returns {data:null, isPending:false} → skipped by bridge).
+        baseRunnable: {
+            molecule: baseRunnableMolecule,
+            toRunnable: (entity) => {
+                const e = entity as BaseRunnableData
+                const dynamicKeys = extractVariablesFromConfig(e.parameters)
+                const inputPorts =
+                    dynamicKeys.length > 0
+                        ? dynamicKeys.map((key) => ({
+                              key,
+                              name: key,
+                              type: "string",
+                              required: true,
+                          }))
+                        : Object.keys(e.inputs || {}).map((key) => ({
+                              key,
+                              name: formatKeyAsName(key),
+                              type: "string",
+                              required: false,
+                          }))
+                return {
+                    id: e.id,
+                    type: "baseRunnable" as RunnableType,
+                    name: e.label,
+                    inputPorts,
+                    outputPorts: [],
+                    configuration: e.parameters,
+                }
+            },
+            getInputPorts: (entity) => {
+                const e = entity as BaseRunnableData
+                const dynamicKeys = extractVariablesFromConfig(e.parameters)
+                if (dynamicKeys.length > 0) {
+                    return dynamicKeys.map((key) => ({
+                        key,
+                        name: key,
+                        type: "string",
+                        required: true,
+                    }))
+                }
+                return Object.keys(e.inputs || {}).map((key) => ({
+                    key,
+                    name: formatKeyAsName(key),
+                    type: "string",
+                    required: false,
+                }))
+            },
+            getOutputPorts: () => [],
+            inputPortsSelector: (id: string) => baseRunnableMolecule.selectors.inputPorts(id),
+            outputPortsSelector: (id: string) => baseRunnableMolecule.selectors.outputPorts(id),
+            // Execution mode detection from parameters (chat vs completion)
+            executionModeSelector: (id: string) =>
+                atom<"chat" | "completion">((get) =>
+                    get(baseRunnableMolecule.selectors.isChatVariant(id)) ? "chat" : "completion",
+                ),
+            // Use default /test endpoint — invocationUrl is null, so resolveInvocationUrl
+            // will construct the path from runtimePrefix + routePath
+            invocationUrlSelector: () => atom<string | null>(null),
+            // Request payload with ag_config from parameters
+            requestPayloadSelector: (id: string) => baseRunnableMolecule.atoms.requestPayload(id),
+        },
         // legacyAppRevision must come before appRevision so the OSS playground
         // (which writes to legacyAppRevision) reads its own draft-aware data.
         // If appRevision is checked first, it returns stale server data and
@@ -696,6 +765,15 @@ export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: str
                         }
                     }
                 }
+            }
+        } else if (linkedRunnableType === "baseRunnable") {
+            const inputPorts = get(baseRunnableMolecule.selectors.inputPorts(linkedRunnableId))
+            if (inputPorts.length > 0) {
+                return inputPorts.map((port) => ({
+                    key: port.key,
+                    name: port.name,
+                    type: port.type,
+                }))
             }
         }
 

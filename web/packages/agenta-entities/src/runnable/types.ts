@@ -17,6 +17,7 @@ export type EntityType =
     | "evaluator"
     | "legacyEvaluator"
     | "evaluatorRevision"
+    | "baseRunnable"
     | "testcase"
     | "span"
 
@@ -29,6 +30,7 @@ export type RunnableType =
     | "evaluator"
     | "legacyEvaluator"
     | "evaluatorRevision"
+    | "baseRunnable"
 
 /**
  * Execution mode for a runnable.
