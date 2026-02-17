@@ -11,7 +11,7 @@ import {useAtomValue} from "jotai"
  * Returns true while the runnable query is pending or schema is loading.
  *
  * Local drafts that already have molecule data are treated as ready,
- * matching the pattern in LegacyPlaygroundConfigSection.
+ * matching the pattern in PlaygroundConfigSection (@agenta/entity-ui).
  *
  * Used by both completion and chat comparison cells.
  */
