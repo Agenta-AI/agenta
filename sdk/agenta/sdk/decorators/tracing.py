@@ -44,8 +44,8 @@ class instrument:  # pylint: disable=invalid-name
         self,
         type: str = "task",  # pylint: disable=redefined-builtin
         config: Optional[Dict[str, Any]] = None,
-        ignore_inputs: Optional[bool] = None,
-        ignore_outputs: Optional[bool] = None,
+        ignore_inputs: Optional[Union[bool, List[str]]] = None,
+        ignore_outputs: Optional[Union[bool, List[str]]] = None,
         redact: Optional[Callable[..., Any]] = None,
         redact_on_error: Optional[bool] = True,
         max_depth: Optional[int] = 2,

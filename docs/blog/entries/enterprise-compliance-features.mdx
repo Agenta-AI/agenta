@@ -1,0 +1,46 @@
+---
+title: "Enterprise Compliance Features"
+slug: enterprise-compliance-features
+date: 2026-02-17
+tags: [v0.83.0]
+description: "Multi-organization support, SSO with any OIDC provider, domain verification, and a new US region."
+---
+
+## Overview
+
+Agenta has new enterprise features. Multi-organization support, SSO, domain verification, and a US region.
+
+## Multi-Organization Support
+
+You can now create separate organizations for different teams or clients. Each organization has its own billing, projects, and roles. One account can belong to multiple organizations, and you switch between them without signing out.
+
+Inside each organization, you create workspaces and projects. Workspaces group related projects together. Projects scope your prompts, evaluations, and traces.
+
+Roles are per-organization. You can be an owner in one org and a viewer in another. Available roles include owner, workspace admin, editor, viewer, evaluator, and deployment manager.
+
+## SSO
+
+Connect your identity provider to Agenta. We support any OIDC-compliant provider: Okta, Azure AD, Auth0, OneLogin, Google Workspace, and others.
+
+You configure SSO per-organization through the API. Add your provider's issuer URL, client ID, and client secret. Agenta discovers the rest from the OIDC discovery endpoint. You can test the connection before enabling it.
+
+If your security policy requires it, you can enforce SSO-only for an organization and disable password login entirely.
+
+## Domain Verification
+
+Verify your company domain via a DNS TXT record. Once verified, anyone who signs up with a matching email address joins your organization automatically. No need to send invitations one by one.
+
+Domain verification also works with SSO enforcement. Users with a verified domain email are automatically routed to your SSO provider during login.
+
+## US Region
+
+Agenta Cloud now has a US-based region. If your data needs to stay in the United States, you can run your projects there. The US region has the same features as the EU region.
+
+## Availability
+
+SSO, and domain verification are available on Business and Enterprise plans. The US region is available on all plans.
+
+## Getting Started
+
+- [Organizations documentation](/administration/access-control/organizations)
+- [SSO documentation](/administration/access-control/sso)
