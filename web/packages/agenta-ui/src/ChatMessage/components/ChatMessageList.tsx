@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {
@@ -85,7 +85,7 @@ const ChatMessageItem: React.FC<{
     const hasAttachmentsFlag = attachments.length > 0
 
     return (
-        <div key={msg.id || `msg-${index}`} className={cn(flexLayouts.column)} ref={containerRef}>
+        <div className={cn(flexLayouts.column)} ref={containerRef}>
             <ChatMessageEditor
                 id={`chat-msg-${index}`}
                 role={msg.role}
@@ -217,6 +217,11 @@ export interface ChatMessageListProps {
  * This is a simpler alternative to ChatInputs that uses the same visual style
  * as the Playground message editors.
  */
+let _keyCounter = 0
+function generateKey(): string {
+    return `__id-${++_keyCounter}-${Date.now()}`
+}
+
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     messages,
     onChange,
@@ -235,88 +240,133 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     defaultMinimized = false,
     loadingFallback = "skeleton",
 }) => {
-    const [minimizedMessages, setMinimizedMessages] = useState<Record<number, boolean>>(() =>
-        defaultMinimized ? Object.fromEntries(messages.map((_, index) => [index, true])) : {},
+    // Maintain stable React keys for each message position.
+    // This prevents React from reusing the wrong component instance
+    // when messages are added or removed from the middle of the list.
+    const stableKeysRef = useRef<string[]>([])
+
+    const stableKeys = useMemo(() => {
+        const prev = stableKeysRef.current
+        const next: string[] = []
+
+        for (let i = 0; i < messages.length; i++) {
+            // Reuse existing key if we have one at this position, otherwise generate new
+            if (i < prev.length) {
+                next.push(prev[i])
+            } else {
+                next.push(messages[i].id || generateKey())
+            }
+        }
+
+        stableKeysRef.current = next
+        return next
+    }, [messages])
+
+    const [minimizedMessages, setMinimizedMessages] = useState<Record<string, boolean>>(() =>
+        defaultMinimized ? Object.fromEntries(stableKeys.map((key) => [key, true])) : {},
     )
 
     useEffect(() => {
         if (!defaultMinimized) return
 
         setMinimizedMessages((prev) => {
-            const next: Record<number, boolean> = {}
+            const next: Record<string, boolean> = {}
 
-            for (let i = 0; i < messages.length; i += 1) {
-                next[i] = prev[i] ?? true
+            for (const key of stableKeys) {
+                next[key] = prev[key] ?? true
             }
 
             return next
         })
-    }, [defaultMinimized, messages.length])
+    }, [defaultMinimized, stableKeys])
 
-    const handleRoleChange = (index: number, role: string) => {
-        const updated = [...messages]
-        updated[index] = {...updated[index], role}
-        onChange(updated)
-    }
+    const handleRoleChange = useCallback(
+        (index: number, role: string) => {
+            const updated = [...messages]
+            updated[index] = {...updated[index], role}
+            onChange(updated)
+        },
+        [messages, onChange],
+    )
 
-    const handleTextChange = (index: number, newText: string) => {
-        const updated = [...messages]
-        const currentContent = updated[index].content ?? ""
-        // Preserve attachments when updating text
-        updated[index] = {
-            ...updated[index],
-            content: updateTextInContent(currentContent, newText),
-        }
-        onChange(updated)
-    }
+    const handleTextChange = useCallback(
+        (index: number, newText: string) => {
+            const updated = [...messages]
+            const currentContent = updated[index].content ?? ""
+            updated[index] = {
+                ...updated[index],
+                content: updateTextInContent(currentContent, newText),
+            }
+            onChange(updated)
+        },
+        [messages, onChange],
+    )
 
-    const handleAddMessage = () => {
+    const handleAddMessage = useCallback(() => {
         onChange([...messages, {role: "user", content: ""}])
-    }
+    }, [messages, onChange])
 
-    const handleRemoveMessage = (index: number) => {
-        const updated = messages.filter((_, i) => i !== index)
-        onChange(updated)
-    }
+    const handleRemoveMessage = useCallback(
+        (index: number) => {
+            // Remove the stable key at the deleted index so remaining messages
+            // keep their original keys and React preserves the correct component instances
+            stableKeysRef.current = stableKeysRef.current.filter((_, i) => i !== index)
+            const updated = messages.filter((_, i) => i !== index)
+            onChange(updated)
+        },
+        [messages, onChange],
+    )
 
-    const handleAddImage = (index: number, imageUrl: string) => {
-        const updated = [...messages]
-        updated[index] = {
-            ...updated[index],
-            content: addImageToContent(updated[index].content ?? "", imageUrl),
-        }
-        onChange(updated)
-    }
+    const handleAddImage = useCallback(
+        (index: number, imageUrl: string) => {
+            const updated = [...messages]
+            updated[index] = {
+                ...updated[index],
+                content: addImageToContent(updated[index].content ?? "", imageUrl),
+            }
+            onChange(updated)
+        },
+        [messages, onChange],
+    )
 
-    const handleAddFile = (index: number, fileData: string, filename: string, format: string) => {
-        const updated = [...messages]
-        updated[index] = {
-            ...updated[index],
-            content: addFileToContent(updated[index].content ?? "", fileData, filename, format),
-        }
-        onChange(updated)
-    }
+    const handleAddFile = useCallback(
+        (index: number, fileData: string, filename: string, format: string) => {
+            const updated = [...messages]
+            updated[index] = {
+                ...updated[index],
+                content: addFileToContent(updated[index].content ?? "", fileData, filename, format),
+            }
+            onChange(updated)
+        },
+        [messages, onChange],
+    )
 
-    const handleRemoveAttachment = (msgIndex: number, attachmentIndex: number) => {
-        const updated = [...messages]
-        updated[msgIndex] = {
-            ...updated[msgIndex],
-            content: removeAttachmentFromContent(updated[msgIndex].content ?? "", attachmentIndex),
-        }
-        onChange(updated)
-    }
+    const handleRemoveAttachment = useCallback(
+        (msgIndex: number, attachmentIndex: number) => {
+            const updated = [...messages]
+            updated[msgIndex] = {
+                ...updated[msgIndex],
+                content: removeAttachmentFromContent(
+                    updated[msgIndex].content ?? "",
+                    attachmentIndex,
+                ),
+            }
+            onChange(updated)
+        },
+        [messages, onChange],
+    )
 
     return (
         <div className={cn(flexLayouts.column, gapClasses.sm, className)}>
             {messages.map((msg, index) => (
                 <ChatMessageItem
-                    key={msg.id || `msg-${index}`}
+                    key={stableKeys[index]}
                     msg={msg}
                     index={index}
                     disabled={disabled}
                     messageClassName={messageClassName}
                     placeholder={placeholder}
-                    isMinimized={minimizedMessages[index] ?? false}
+                    isMinimized={minimizedMessages[stableKeys[index]] ?? false}
                     showControls={showControls}
                     showRemoveButton={showRemoveButton}
                     showCopyButton={showCopyButton}
@@ -332,9 +382,10 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     onAddImage={handleAddImage}
                     onAddFile={handleAddFile}
                     onRemoveAttachment={handleRemoveAttachment}
-                    onToggleMinimize={(i) =>
-                        setMinimizedMessages((prev) => ({...prev, [i]: !prev[i]}))
-                    }
+                    onToggleMinimize={(i) => {
+                        const key = stableKeys[i]
+                        setMinimizedMessages((prev) => ({...prev, [key]: !prev[key]}))
+                    }}
                 />
             ))}
             {showControls && !disabled && (
