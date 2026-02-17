@@ -49,7 +49,10 @@ export {
     MoleculeDrillInFieldList,
     MoleculeDrillInFieldItem,
     MoleculeDrillInProvider,
+    PlaygroundConfigSection,
     useDrillIn,
+    type PlaygroundConfigSectionProps,
+    type ConfigSectionMoleculeAdapter,
     // Types - Molecule Config
     type DrillInMoleculeConfig,
     type DrillInDisplayConfig,

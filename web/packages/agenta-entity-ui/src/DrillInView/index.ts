@@ -45,8 +45,13 @@ export {
     MoleculeDrillInFieldItem,
     useDrillIn,
     MoleculeDrillInProvider,
+    PlaygroundConfigSection,
 } from "./components"
-export type {MoleculeDrillInProviderProps} from "./components"
+export type {
+    MoleculeDrillInProviderProps,
+    PlaygroundConfigSectionProps,
+    ConfigSectionMoleculeAdapter,
+} from "./components"
 
 // ============================================================================
 // TYPES
