@@ -222,6 +222,7 @@ export const evaluatorsQueryAtomFamily = atomFamily(
                                             `/preview/evaluators/revisions/query?project_id=${projectId}`,
                                             {
                                                 evaluator_refs: revisionRefs,
+                                                resolve: true,
                                             },
                                         )
 

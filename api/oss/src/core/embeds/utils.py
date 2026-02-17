@@ -98,14 +98,14 @@ def create_universal_resolver(
         return None
 
     async def resolver_callback(entity_type: str, ref: Reference) -> Dict[str, Any]:
-        # Parse entity_type: "workflow_revision" -> ("workflow", "revision")
-        parts = entity_type.split("_", 1)
-        if len(parts) != 2:
-            raise UnsupportedReferenceTypeError(
-                f"Invalid entity_type format: {entity_type}"
-            )
-
-        category, level = parts
+        # Parse entity_type:
+        # - "workflow_revision" -> ("workflow", "revision")
+        # - "workflow" -> ("workflow", "artifact")
+        # Bare category form is shorthand for artifact references.
+        if "_" in entity_type:
+            category, level = entity_type.split("_", 1)
+        else:
+            category, level = entity_type, "artifact"
 
         # Route to appropriate service
         if category == "workflow":
