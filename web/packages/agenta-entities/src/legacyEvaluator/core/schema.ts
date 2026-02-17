@@ -131,7 +131,10 @@ export const legacyEvaluatorSchema = z
         flags: legacyEvaluatorFlagsSchema,
 
         // Metadata
-        tags: z.array(z.string()).nullable().optional(),
+        tags: z.preprocess(
+            (val) => (Array.isArray(val) ? val : val === null || val === undefined ? val : []),
+            z.array(z.string()).nullable().optional(),
+        ),
         meta: z.record(z.string(), z.unknown()).nullable().optional(),
 
         // Revision data (flattened from latest revision)
@@ -187,10 +190,22 @@ export type LegacyEvaluatorResponse = z.infer<typeof legacyEvaluatorResponseSche
 /**
  * Multiple SimpleEvaluators response wrapper.
  * Matches backend `SimpleEvaluatorsResponse`.
+ *
+ * The `evaluators` field is pre-processed: if the API returns an object
+ * (e.g. a dict keyed by ID) instead of an array, we coerce it to an array
+ * of its values so downstream code always sees `LegacyEvaluator[]`.
  */
 export const legacyEvaluatorsResponseSchema = z.object({
     count: z.number().optional().default(0),
-    evaluators: z.array(legacyEvaluatorSchema).default([]),
+    evaluators: z.preprocess(
+        (val) =>
+            Array.isArray(val)
+                ? val
+                : typeof val === "object" && val !== null
+                  ? Object.values(val)
+                  : [],
+        z.array(legacyEvaluatorSchema).default([]),
+    ),
 })
 
 export type LegacyEvaluatorsResponse = z.infer<typeof legacyEvaluatorsResponseSchema>

@@ -17,6 +17,7 @@ import {
     ossAppToVariantRelation,
     ossVariantToRevisionRelation,
 } from "@agenta/entities/legacyAppRevision"
+import {legacyEvaluatorMolecule} from "@agenta/entities/legacyEvaluator"
 import {
     PlaygroundEntityProvider,
     type PlaygroundEntityProviders,
@@ -60,6 +61,18 @@ const ossEntityProviders: PlaygroundEntityProviders = {
             evaluatorKey: (id: string) => evaluatorMolecule.selectors.evaluatorKey(id),
             parameters: (id: string) => evaluatorMolecule.selectors.parameters(id),
             isCustom: (id: string) => evaluatorMolecule.selectors.isCustom(id),
+        },
+    },
+    // Legacy evaluator entity (SimpleEvaluator facade — flat list, no variant/revision hierarchy)
+    legacyEvaluator: {
+        selectors: {
+            data: (id: string) => legacyEvaluatorMolecule.selectors.data(id),
+            query: (id: string) => legacyEvaluatorMolecule.selectors.query(id),
+            isDirty: (id: string) => legacyEvaluatorMolecule.selectors.isDirty(id),
+            uri: (id: string) => legacyEvaluatorMolecule.selectors.uri(id),
+            evaluatorKey: (id: string) => legacyEvaluatorMolecule.selectors.evaluatorKey(id),
+            parameters: (id: string) => legacyEvaluatorMolecule.selectors.parameters(id),
+            isCustom: (id: string) => legacyEvaluatorMolecule.selectors.isCustom(id),
         },
     },
     // Legacy evaluator revision (stub — kept for backward compatibility)

@@ -1,8 +1,12 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {getEvaluatorColor} from "@agenta/entities/evaluator"
+import {getEvaluatorColor as getLegacyEvaluatorColor} from "@agenta/entities/legacyEvaluator"
 import {runnableBridge, type RunnableType} from "@agenta/entities/runnable"
-import type {EvaluatorRevisionSelectionResult} from "@agenta/entity-ui"
+import type {
+    EvaluatorRevisionSelectionResult,
+    LegacyEvaluatorSelectionResult,
+} from "@agenta/entity-ui"
 import {EntityPicker} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
@@ -14,6 +18,7 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {currentAppAtom} from "@/oss/state/app"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
@@ -35,6 +40,16 @@ const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
 })
 
 type PlaygroundHeaderProps = BaseContainerProps
+
+// Feature flag: when true, use legacyEvaluator (flat SimpleEvaluator facade)
+// instead of evaluatorRevision (3-level hierarchy).
+// Remove this once the feature is fully released.
+const USE_LEGACY_EVALUATOR =
+    getEnv("NEXT_PUBLIC_PLAYGROUND_EVALUATOR_LEGACY").toLowerCase() === "true"
+
+const EVALUATOR_ENTITY_TYPES: RunnableType[] = USE_LEGACY_EVALUATOR
+    ? ["legacyEvaluator", "evaluator", "evaluatorRevision"]
+    : ["evaluatorRevision", "evaluator"]
 
 const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divProps}) => {
     const classes = useStyles()
@@ -58,20 +73,15 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const connectedEvaluatorNode = useMemo(
         () =>
             nodes.find(
-                (n) =>
-                    n.depth > 0 &&
-                    (n.entityType === "evaluatorRevision" || n.entityType === "evaluator"),
+                (n) => n.depth > 0 && EVALUATOR_ENTITY_TYPES.includes(n.entityType as RunnableType),
             ),
         [nodes],
     )
 
     const connectedEvaluatorRunnableType = useMemo<RunnableType | null>(() => {
         if (!connectedEvaluatorNode) return null
-        if (
-            connectedEvaluatorNode.entityType === "evaluatorRevision" ||
-            connectedEvaluatorNode.entityType === "evaluator"
-        ) {
-            return connectedEvaluatorNode.entityType
+        if (EVALUATOR_ENTITY_TYPES.includes(connectedEvaluatorNode.entityType as RunnableType)) {
+            return connectedEvaluatorNode.entityType as RunnableType
         }
         return null
     }, [connectedEvaluatorNode])
@@ -96,7 +106,8 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
 
     const connectedEvaluatorColor = useMemo(() => {
         if (!connectedEvaluatorRunnableData?.uri) return undefined
-        return getEvaluatorColor(connectedEvaluatorRunnableData.uri) ?? undefined
+        const colorFn = USE_LEGACY_EVALUATOR ? getLegacyEvaluatorColor : getEvaluatorColor
+        return colorFn(connectedEvaluatorRunnableData.uri) ?? undefined
     }, [connectedEvaluatorRunnableData])
 
     const connectedEvaluatorLabel = useMemo(() => {
@@ -116,14 +127,14 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     }, [connectedEvaluatorNode, connectedEvaluatorRunnableData])
 
     const handleEvaluatorSelect = useCallback(
-        (selection: EvaluatorRevisionSelectionResult) => {
+        (selection: EvaluatorRevisionSelectionResult | LegacyEvaluatorSelectionResult) => {
             const rootNode = nodes.find((n) => n.depth === 0)
             if (!rootNode) return
 
             connectDownstreamNode({
                 sourceNodeId: rootNode.id,
                 entity: {
-                    type: "evaluatorRevision",
+                    type: USE_LEGACY_EVALUATOR ? "legacyEvaluator" : "evaluatorRevision",
                     id: selection.id,
                     label: selection.label,
                     metadata: selection.metadata,
@@ -139,7 +150,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         if (connectedEvaluatorNode?.entityType) {
             disconnectDownstreamNode(connectedEvaluatorNode.entityType)
         } else {
-            disconnectDownstreamNode("evaluatorRevision")
+            disconnectDownstreamNode(USE_LEGACY_EVALUATOR ? "legacyEvaluator" : "evaluatorRevision")
         }
         setEvaluatorPopoverOpen(false)
     }, [connectedEvaluatorNode?.entityType, disconnectDownstreamNode])
@@ -250,32 +261,61 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             styles={{body: {padding: 0}}}
                             content={
                                 <div style={{width: 320}}>
-                                    <EntityPicker<EvaluatorRevisionSelectionResult>
-                                        variant="breadcrumb"
-                                        adapter="evaluatorRevision"
-                                        onSelect={handleEvaluatorSelect}
-                                        showSearch
-                                        showBreadcrumb
-                                        showBackButton
-                                        rootLabel="Evaluators"
-                                        emptyMessage="No evaluators available"
-                                        loadingMessage="Loading evaluators..."
-                                        maxHeight={250}
-                                        instanceId="playground-header-evaluator"
-                                        breadcrumbActions={
-                                            connectedEvaluatorNode ? (
-                                                <Button
-                                                    size="small"
-                                                    danger
-                                                    icon={<DisconnectOutlined />}
-                                                    className="!h-6 !px-2 !text-xs whitespace-nowrap"
-                                                    onClick={handleDisconnectEvaluator}
-                                                >
-                                                    Disconnect
-                                                </Button>
-                                            ) : undefined
-                                        }
-                                    />
+                                    {USE_LEGACY_EVALUATOR ? (
+                                        <EntityPicker<LegacyEvaluatorSelectionResult>
+                                            variant="breadcrumb"
+                                            adapter="legacyEvaluator"
+                                            onSelect={handleEvaluatorSelect}
+                                            showSearch
+                                            showBreadcrumb
+                                            showBackButton
+                                            rootLabel="Evaluators"
+                                            emptyMessage="No evaluators available"
+                                            loadingMessage="Loading evaluators..."
+                                            maxHeight={250}
+                                            instanceId="playground-header-evaluator"
+                                            breadcrumbActions={
+                                                connectedEvaluatorNode ? (
+                                                    <Button
+                                                        size="small"
+                                                        danger
+                                                        icon={<DisconnectOutlined />}
+                                                        className="!h-6 !px-2 !text-xs whitespace-nowrap"
+                                                        onClick={handleDisconnectEvaluator}
+                                                    >
+                                                        Disconnect
+                                                    </Button>
+                                                ) : undefined
+                                            }
+                                        />
+                                    ) : (
+                                        <EntityPicker<EvaluatorRevisionSelectionResult>
+                                            variant="breadcrumb"
+                                            adapter="evaluatorRevision"
+                                            onSelect={handleEvaluatorSelect}
+                                            showSearch
+                                            showBreadcrumb
+                                            showBackButton
+                                            rootLabel="Evaluators"
+                                            emptyMessage="No evaluators available"
+                                            loadingMessage="Loading evaluators..."
+                                            maxHeight={250}
+                                            instanceId="playground-header-evaluator"
+                                            breadcrumbActions={
+                                                connectedEvaluatorNode ? (
+                                                    <Button
+                                                        size="small"
+                                                        danger
+                                                        icon={<DisconnectOutlined />}
+                                                        className="!h-6 !px-2 !text-xs whitespace-nowrap"
+                                                        onClick={handleDisconnectEvaluator}
+                                                    >
+                                                        Disconnect
+                                                    </Button>
+                                                ) : undefined
+                                            }
+                                        />
+                                    )}
                                 </div>
                             }
                         >
