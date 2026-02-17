@@ -770,7 +770,6 @@ export const messageSchemaMetadataAtom = selectAtom(
  * Derives from the primary node's entity ID via `runnableBridge.executionMode`.
  * Returns `true` for chat apps, `false` for completion apps, `undefined` while loading.
  *
- * Replaces the OSS `appChatModeAtom` / `playgroundIsChatModeAtom`.
  */
 export const isChatModeAtom = atom<boolean | undefined>((get) => {
     const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)

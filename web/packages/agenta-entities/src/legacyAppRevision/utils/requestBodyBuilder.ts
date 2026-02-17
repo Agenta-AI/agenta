@@ -99,7 +99,7 @@ export function transformToRequestBody({
         : {primaryEndpoint: null}
     const hasInputsProperty = Boolean(primaryEndpoint?.inputsSchema)
     const hasMessagesProperty = Boolean(primaryEndpoint?.messagesSchema)
-    // When isChat is explicitly true (detected via runnableBridge / appChatModeAtom),
+    // When isChat is explicitly true (detected via runnableBridge),
     // never treat the endpoint as custom-by-schema. The schema lookup via extractAllEndpointSchemas
     // can fail when OpenAPI path patterns don't match, producing a false positive.
     const isCustomBySchema =
