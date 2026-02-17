@@ -624,10 +624,10 @@ export const legacyAppRevisionMolecule = {
         },
         getChangesFromRoot: (
             entity: LegacyAppRevisionData | null,
-            _rootData: unknown,
+            rootData: unknown,
             path: DataPath,
-            value: unknown,
         ): Partial<LegacyAppRevisionData> | null => {
+            const value = getValueAtPathUtil(rootData, path)
             return getChangesFromPath(entity, path, value)
         },
     },
