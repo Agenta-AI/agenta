@@ -353,9 +353,7 @@ function PlaygroundConfigSection({
                                         <Button
                                             type="text"
                                             size="small"
-                                            icon={
-                                                <MagicWand size={16} aria-hidden="true" />
-                                            }
+                                            icon={<MagicWand size={16} aria-hidden="true" />}
                                             onClick={() => onRefinePrompt(fieldKey)}
                                             aria-label="Refine prompt with AI"
                                             className="flex items-center justify-center opacity-60 hover:opacity-100"

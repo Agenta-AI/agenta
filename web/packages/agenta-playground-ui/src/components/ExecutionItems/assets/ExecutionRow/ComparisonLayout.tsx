@@ -256,6 +256,7 @@ const ComparisonLayout = ({
                             onClick={isBusy ? cancelRow : handleRunChain}
                             onOptionSelect={handleStepSelect}
                             loading={isBusy}
+                            trigger={["click"]}
                         />
                     ) : isBusy ? (
                         <RunButton isCancel onClick={cancelRow} className="flex" />
