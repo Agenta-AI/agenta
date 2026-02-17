@@ -730,29 +730,6 @@ export const inputVariableNamesAtom = atom<string[]>((get) => {
 })
 
 // ============================================================================
-// MESSAGE SCHEMA METADATA (derived from entity metadata)
-// ============================================================================
-
-/**
- * Reactive selector for the "Message" schema metadata entry.
- *
- * Finds the first metadata entry with `title === "Message"` and `type === "object"`
- * from the merged entity metadata. This is used by chat turn synthesis and
- * message factory functions to create schema-driven PropertyNode messages.
- */
-export const messageSchemaMetadataAtom = selectAtom(
-    runnableBridge.metadata(),
-    (all) => {
-        const entries = Object.entries(
-            (all || {}) as unknown as Record<string, Record<string, unknown>>,
-        )
-        const entry = entries.find(([, v]) => v && v.title === "Message" && v.type === "object")
-        return (entry?.[1] as Record<string, unknown>) || null
-    },
-    Object.is,
-)
-
-// ============================================================================
 // COMPARISON STATE (derived from playground nodes)
 // ============================================================================
 

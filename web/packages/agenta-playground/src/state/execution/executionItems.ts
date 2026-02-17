@@ -2,7 +2,6 @@ import {
     stripAgentaMetadataDeep,
     stripEnhancedWrappers,
     transformToRequestBody,
-    type ConfigMetadata,
     type OpenAPISpec,
     type TransformMessage,
     type TransformVariantInput,
@@ -39,7 +38,7 @@ import {
     executionAdapterAtom,
 } from "./atoms"
 import {completeRunAtom} from "./reducer"
-import {isChatModeAtom, messageSchemaMetadataAtom} from "./selectors"
+import {isChatModeAtom} from "./selectors"
 import {extractTraceIdFromPayload} from "./trace"
 import type {ExecutionMode, RunResult, RunStatus} from "./types"
 
@@ -166,7 +165,6 @@ interface BuildExecutionItemBaseParams {
     entityData?: TransformVariantInput | null
     requestPayload?: RequestPayloadData | null
     invocationUrl?: string | null
-    allMetadata?: Record<string, ConfigMetadata>
     variables?: string[]
     variableValues?: Record<string, string>
     agConfigFallbacks?: AgConfigFallbackCandidate[]
@@ -438,10 +436,6 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         const runnableData = get(bridge.data(params.entityId)) as TransformVariantInput | null
         const entityData = runnableData ?? null
 
-        const allMetadata = (runnableBridge.utils?.getAllMetadata() ?? {}) as Record<
-            string,
-            ConfigMetadata
-        >
         const variables = requestPayload?.variables ?? []
 
         const displayRowIds = get(loadableController.selectors.displayRowIds(params.loadableId))
@@ -552,7 +546,6 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                       entityData,
                       requestPayload,
                       invocationUrl,
-                      allMetadata,
                       variables,
                       variableValues,
                       chatHistory,
@@ -571,7 +564,6 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                       entityData,
                       requestPayload,
                       invocationUrl,
-                      allMetadata,
                       variables,
                       variableValues,
                       inputRow: completionInputRow,
@@ -857,7 +849,6 @@ function buildRequestBody(
         entityData: TransformVariantInput | null | undefined
         inputRow?: Record<string, unknown>
         chatHistory?: TransformMessage[]
-        allMetadata: Record<string, ConfigMetadata>
         requestPayload: RequestPayloadData | null | undefined
         variables: string[]
         variableValues: Record<string, string>
@@ -869,7 +860,6 @@ function buildRequestBody(
         entityData,
         inputRow,
         chatHistory,
-        allMetadata,
         requestPayload,
         variables,
         variableValues,
@@ -877,41 +867,29 @@ function buildRequestBody(
         agConfigFallbacks,
     } = params
 
+    // Build raw ag_config from requestPayload (already raw parameters)
+    const payloadAgConfig = asRecord(requestPayload?.ag_config)
+    const rawAgConfig =
+        payloadAgConfig && Object.keys(payloadAgConfig).length > 0
+            ? payloadAgConfig
+            : firstNonEmptyAgConfig(agConfigFallbacks) || undefined
+
     const requestBody = stripAgentaMetadataDeep(
         transformToRequestBody({
             variant: (entityData || {}) as TransformVariantInput,
             ...(mode === "completion" ? {inputRow} : {}),
             ...(mode === "chat" ? {chatHistory} : {}),
-            allMetadata,
             spec: requestPayload?.spec as OpenAPISpec | undefined,
             routePath: requestPayload?.routePath,
-            prompts: Array.isArray(entityData?.prompts) ? entityData?.prompts : [],
             variables,
             variableValues,
             entityId,
             isChat: mode === "chat",
             isCustom: requestPayload?.isCustom,
             appType: requestPayload?.appType || undefined,
+            rawAgConfig: rawAgConfig as Record<string, unknown> | undefined,
         }),
     ) as Record<string, unknown>
-
-    // Prefer requestPayload.ag_config as the authoritative ag_config source.
-    // It's built from draft data with correct enhanced custom properties,
-    // whereas the transformToRequestBody call above doesn't have access to
-    // enhanced custom properties and may re-add stale data from raw parameters
-    // (e.g. tools that the user deleted).
-    const payloadAgConfig = asRecord(requestPayload?.ag_config)
-    if (payloadAgConfig && Object.keys(payloadAgConfig).length > 0) {
-        requestBody.ag_config = stripAgentaMetadataDeep(payloadAgConfig)
-    } else {
-        const agConfigFromBody = asRecord(requestBody.ag_config)
-        if (!agConfigFromBody || Object.keys(agConfigFromBody).length === 0) {
-            const fallbackAgConfig = firstNonEmptyAgConfig(agConfigFallbacks)
-            if (fallbackAgConfig) {
-                requestBody.ag_config = stripAgentaMetadataDeep(fallbackAgConfig)
-            }
-        }
-    }
 
     if (Array.isArray(requestBody.messages)) {
         const messages = stripEnhancedWrappers(requestBody.messages)
@@ -977,7 +955,6 @@ function buildExecutionItem(
               entityData,
               inputRow: params.inputRow,
               chatHistory: params.chatHistory,
-              allMetadata: params.allMetadata || {},
               requestPayload,
               variables: params.variables || [],
               variableValues: params.variableValues || {},
@@ -1069,10 +1046,9 @@ export const handleExecutionResultAtom = atom(
             const results = Array.isArray(testResult) ? testResult : [testResult]
             const lastResult = results[results.length - 1]
 
-            // Build assistant and tool messages from schema
-            const messageSchema = get(messageSchemaMetadataAtom)
-            const incoming = buildAssistantMessage(messageSchema, lastResult)
-            const toolMessages = buildToolMessages(messageSchema, lastResult)
+            // Build assistant and tool messages from result
+            const incoming = buildAssistantMessage(lastResult)
+            const toolMessages = buildToolMessages(lastResult)
             const hasToolCalls = toolMessages.length > 0
 
             // Find the parent user message this response belongs to

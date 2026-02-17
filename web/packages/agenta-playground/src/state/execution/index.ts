@@ -251,8 +251,6 @@ export {
     executionRowIdsForEntityAtomFamily,
     // Variable names (from entity input ports)
     inputVariableNamesAtom,
-    // Message schema metadata (from entity metadata)
-    messageSchemaMetadataAtom,
     // App-level mode selectors
     isChatModeAtom,
     appTypeAtom,
