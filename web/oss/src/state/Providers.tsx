@@ -5,6 +5,7 @@ import {
     evaluatorSelectionConfig,
     evaluatorRevisionSelectionConfig,
 } from "@agenta/entities/evaluator"
+import {legacyEvaluatorSelectionConfig} from "@agenta/entities/legacyEvaluator"
 import {testsetSelectionConfig} from "@agenta/entities/testset"
 import {
     revisionModalAdapter,
@@ -28,6 +29,7 @@ initializeSelectionSystem({
     testset: testsetSelectionConfig,
     appRevision: appRevisionSelectionConfig,
     evaluator: evaluatorSelectionConfig,
+    legacyEvaluator: legacyEvaluatorSelectionConfig,
     evaluatorRevision: evaluatorRevisionSelectionConfig,
 })
 

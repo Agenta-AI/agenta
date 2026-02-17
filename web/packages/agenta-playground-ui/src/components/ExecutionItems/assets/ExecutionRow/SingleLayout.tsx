@@ -1,7 +1,9 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import type {SchemaProperty} from "@agenta/entities"
 import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {DropdownButton, HeightCollapse} from "@agenta/ui/components"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
@@ -10,6 +12,7 @@ import {
     EnhancedButton,
     RunButton,
 } from "@agenta/ui/components/presentational"
+import {LoadingOutlined} from "@ant-design/icons"
 import {
     ArrowsOutLineHorizontalIcon,
     CopyIcon,
@@ -34,7 +37,6 @@ import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import ExecutionResultView from "../../../ExecutionResultView"
 import CollapseToggleButton from "../../../shared/CollapseToggleButton"
-import {EvaluatorOutputDisplay} from "../../../shared/EvaluatorOutputDisplay"
 
 interface Props {
     rowId: string
@@ -123,27 +125,6 @@ const StepTag = ({icon, name}: {icon: React.ReactNode; name: string}) => (
 )
 
 /**
- * Unified wrapper for a chain step's output.
- * Renders a labeled section with a left accent border and a step name tag.
- */
-const StepResultSection = ({
-    stepName,
-    icon,
-    children,
-}: {
-    stepName: string
-    icon: React.ReactNode
-    children: React.ReactNode
-}) => {
-    return (
-        <div className="w-full flex flex-col gap-2 rounded-md border border-[var(--ant-color-border-secondary)] border-l-[3px] border-l-[var(--ant-color-primary)] bg-[var(--ant-color-bg-layout)] p-3">
-            <StepTag icon={icon} name={stepName} />
-            <div className="w-full">{children}</div>
-        </div>
-    )
-}
-
-/**
  * Compact collapsed summary for a single chain step.
  * Shows step tag + SharedGenerationResultUtils metrics inline.
  */
@@ -186,10 +167,50 @@ const StepCollapsedSummary = ({
     )
 }
 
+/** Convert snake_case/camelCase key to human-readable label */
+function formatLabel(key: string): string {
+    return key
+        .replace(/_/g, " ")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replace(/^./, (c) => c.toUpperCase())
+}
+
+/** Flat row for evaluator result: tag on the left, content (single or stacked) on the right */
+const EvaluatorResultRow = ({
+    name,
+    content,
+    isPlaceholder,
+}: {
+    name: string
+    content: React.ReactNode
+    isPlaceholder?: boolean
+}) => (
+    <div className="flex items-start gap-2">
+        <div className="shrink-0 h-6 flex items-center">
+            <Tag
+                variant="filled"
+                className="!m-0 rounded-[6px] px-2 py-[1px] text-xs leading-[22px] bg-[#0517290F] text-[#344054] border border-solid border-transparent"
+            >
+                {name}
+            </Tag>
+        </div>
+        <div
+            className={clsx(
+                "flex-1 min-w-0 text-xs leading-5 break-words",
+                isPlaceholder ? "text-[#bdc7d1]" : "text-[var(--ant-color-text)]",
+            )}
+        >
+            {content}
+        </div>
+    </div>
+)
+
 /**
  * Renders a single downstream node's execution result (e.g. evaluator output).
- * Reads the result from the store using the node's entityId, then renders
- * each output field using schema-driven controls via EvaluatorOutputDisplay.
+ * Flat row layout: [Tag (name)] [Content (value / placeholder)]
+ *
+ * Uses the runnable bridge output ports to get per-field schemas,
+ * then renders values with schema-aware formatting via RunnableOutputValue.
  */
 const DownstreamNodeResult = ({
     rowId,
@@ -209,29 +230,115 @@ const DownstreamNodeResult = ({
                 }),
             [rowId, node.entityId],
         ),
-    ) as {status?: string; output?: unknown} | null
+    ) as {status?: string; output?: unknown; error?: {message: string} | null} | null
 
-    if (!fullResult || fullResult.status === "idle" || !fullResult.output) {
-        return null
+    // Read output ports from the runnable bridge (includes per-field schema)
+    const outputPorts = useAtomValue(
+        useMemo(
+            () => runnableBridge.forType(node.entityType).outputPorts(node.entityId),
+            [node.entityType, node.entityId],
+        ),
+    )
+
+    // Build a schema map: { fieldKey -> SchemaProperty }
+    const schemaMap = useMemo(() => {
+        const map: Record<string, SchemaProperty | undefined> = {}
+        for (const port of outputPorts) {
+            map[port.key] = port.schema as SchemaProperty | undefined
+        }
+        return map
+    }, [outputPorts])
+
+    const status = fullResult?.status ?? "idle"
+
+    // Idle / cancelled / no result -> "Pending run" placeholder
+    if (!fullResult || status === "idle" || status === "cancelled") {
+        return <EvaluatorResultRow name={nodeName} content="Pending run" isPlaceholder />
     }
 
-    // Extract display data from the wrapped output shape {response: rawApiResponse}
+    // Running / pending -> spinner + "Running..."
+    if (status === "running" || status === "pending") {
+        return (
+            <EvaluatorResultRow
+                name={nodeName}
+                content={
+                    <span className="flex items-center gap-1 text-[#bdc7d1]">
+                        <LoadingOutlined style={{fontSize: 12}} spin />
+                        Running...
+                    </span>
+                }
+                isPlaceholder
+            />
+        )
+    }
+
+    // Error -> red error text
+    if (status === "error") {
+        const errorMsg =
+            typeof fullResult.error === "object" && fullResult.error?.message
+                ? fullResult.error.message
+                : "Error"
+        return (
+            <EvaluatorResultRow
+                name={nodeName}
+                content={<span className="text-[var(--ant-color-error)]">{errorMsg}</span>}
+            />
+        )
+    }
+
+    // Success -> extract and display value(s)
+    // Response shapes vary by entity type:
+    //   legacyEvaluator: output.response.data.outputs = {score, reasoning, ...}
+    //   evaluatorRevision: output.response.outputs = {score, reasoning, ...}
+    //   generic: output.response = {key: value, ...}
     const output = fullResult.output as Record<string, unknown> | undefined
     const responseData = output?.response as Record<string, unknown> | undefined
-    const evaluatorOutputs = responseData?.outputs as Record<string, unknown> | undefined
-    const displayData = evaluatorOutputs ?? responseData?.data ?? responseData
+    const nestedData = responseData?.data as Record<string, unknown> | undefined
+    const displayData = nestedData?.outputs ?? responseData?.outputs ?? nestedData ?? responseData
 
-    if (!displayData || typeof displayData !== "object") return null
+    if (!displayData || typeof displayData !== "object") {
+        return <EvaluatorResultRow name={nodeName} content="—" />
+    }
 
-    return (
-        <StepResultSection stepName={nodeName} icon={<ExamIcon size={12} />}>
-            <EvaluatorOutputDisplay
-                entityId={node.entityId}
-                entityType={node.entityType}
-                data={displayData as Record<string, unknown>}
-                compact
+    const entries = Object.entries(displayData).filter(([, v]) => v !== undefined && v !== null)
+
+    if (entries.length === 0) {
+        return <EvaluatorResultRow name={nodeName} content="—" />
+    }
+
+    // Single field: show value directly with schema-aware rendering
+    if (entries.length === 1) {
+        const [key, value] = entries[0]
+        return (
+            <EvaluatorResultRow
+                name={nodeName}
+                content={<RunnableOutputValue value={value} schema={schemaMap[key]} />}
             />
-        </StepResultSection>
+        )
+    }
+
+    // Multi-field: tag once on the left, stacked fields on the right
+    return (
+        <EvaluatorResultRow
+            name={nodeName}
+            content={
+                <div
+                    className="grid items-baseline text-xs leading-5"
+                    style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 4}}
+                >
+                    {entries.map(([key, value]) => (
+                        <React.Fragment key={key}>
+                            <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap leading-5">
+                                {formatLabel(key)}:
+                            </span>
+                            <span className="break-words min-w-0 leading-5">
+                                <RunnableOutputValue value={value} schema={schemaMap[key]} />
+                            </span>
+                        </React.Fragment>
+                    ))}
+                </div>
+            }
+        />
     )
 }
 
@@ -654,49 +761,42 @@ const SingleView = ({
                         className={clsx(["w-full flex flex-col gap-3 pb-2 relative group/output"])}
                     >
                         <div className="relative w-full">
-                            {isChain ? (
-                                <StepResultSection
-                                    stepName={primaryNodeLabel}
-                                    icon={<LightningIcon size={12} weight="fill" />}
-                                >
-                                    <ExecutionResultView
-                                        isRunning={isBusy}
-                                        currentResult={currentResult}
-                                        traceId={traceId}
-                                        repetitionProps={repetitionProps}
-                                        showEmptyPlaceholder
-                                    />
-                                </StepResultSection>
-                            ) : (
-                                <ExecutionResultView
-                                    isRunning={isBusy}
-                                    currentResult={currentResult}
-                                    traceId={traceId}
-                                    repetitionProps={repetitionProps}
-                                    showEmptyPlaceholder={!showHeaderRunHint}
-                                />
-                            )}
+                            <ExecutionResultView
+                                isRunning={isBusy}
+                                currentResult={currentResult}
+                                traceId={traceId}
+                                repetitionProps={repetitionProps}
+                                showEmptyPlaceholder={isChain || !showHeaderRunHint}
+                            />
                         </div>
                         {isChain &&
-                            nodes
-                                ?.filter((n) => n.depth > 0 && n.entityId !== entityId)
-                                .map((node) => {
-                                    const resolvedName = nodeNames[node.id]
-                                    const label =
-                                        resolvedName ||
-                                        (node.label && !/^[0-9a-f]{8}-/.test(node.label)
-                                            ? node.label
-                                            : node.entityType.charAt(0).toUpperCase() +
-                                              node.entityType.slice(1))
-                                    return (
-                                        <DownstreamNodeResult
-                                            key={node.entityId}
-                                            rowId={rowId}
-                                            node={node}
-                                            nodeName={label}
-                                        />
-                                    )
-                                })}
+                            (() => {
+                                const downstreamNodes = nodes?.filter(
+                                    (n) => n.depth > 0 && n.entityId !== entityId,
+                                )
+                                if (!downstreamNodes?.length) return null
+                                return (
+                                    <div className="flex flex-col gap-2">
+                                        {downstreamNodes.map((node) => {
+                                            const resolvedName = nodeNames[node.id]
+                                            const label =
+                                                resolvedName ||
+                                                (node.label && !/^[0-9a-f]{8}-/.test(node.label)
+                                                    ? node.label
+                                                    : node.entityType.charAt(0).toUpperCase() +
+                                                      node.entityType.slice(1))
+                                            return (
+                                                <DownstreamNodeResult
+                                                    key={node.entityId}
+                                                    rowId={rowId}
+                                                    node={node}
+                                                    nodeName={label}
+                                                />
+                                            )
+                                        })}
+                                    </div>
+                                )
+                            })()}
                     </div>
                 ) : null}
             </HeightCollapse>

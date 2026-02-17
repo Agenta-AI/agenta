@@ -193,7 +193,9 @@ export const requestPayloadAtomFamily = atomFamily((evaluatorId: string) =>
             data: {
                 inputs: {},
                 outputs: {},
-                parameters: {},
+                // Mirror configuration.parameters into data.parameters
+                // so the backend resolver sees them in both locations.
+                parameters: Object.keys(parameters).length > 0 ? parameters : {},
             },
         }
     }),

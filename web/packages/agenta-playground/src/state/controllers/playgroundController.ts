@@ -25,6 +25,7 @@
 import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import {evaluatorRevisionMolecule} from "@agenta/entities/evaluatorRevision"
 import {fetchOssRevisionById} from "@agenta/entities/legacyAppRevision"
+import {legacyEvaluatorMolecule} from "@agenta/entities/legacyEvaluator"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
@@ -308,10 +309,18 @@ const connectDownstreamNodeAtom = atom(
         // to the molecule instead of runnableBridge.data() because the bridge
         // probes ALL registered molecules in order, which would trigger spurious
         // fetches on unrelated molecules (e.g. legacyAppRevision).
-        if (entity.type === "evaluator" || entity.type === "evaluatorRevision") {
+        if (
+            entity.type === "evaluator" ||
+            entity.type === "evaluatorRevision" ||
+            entity.type === "legacyEvaluator"
+        ) {
             const store = getDefaultStore()
             const molecule =
-                entity.type === "evaluatorRevision" ? evaluatorRevisionMolecule : evaluatorMolecule
+                entity.type === "legacyEvaluator"
+                    ? legacyEvaluatorMolecule
+                    : entity.type === "evaluatorRevision"
+                      ? evaluatorRevisionMolecule
+                      : evaluatorMolecule
             const unsub = store.sub(molecule.selectors.data(entity.id), () => {})
             // Unsubscribe after a generous window — the query cache keeps the data alive.
             setTimeout(() => unsub(), 60_000)

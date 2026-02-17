@@ -186,7 +186,7 @@ const SessionMessagePanel = ({
                     },
                 ]}
                 bordered={false}
-                expandIconPosition="end"
+                expandIconPlacement="end"
             />
         </>
     )

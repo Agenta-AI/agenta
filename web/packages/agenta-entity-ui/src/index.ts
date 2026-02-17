@@ -37,6 +37,7 @@
 // NOTE: Path utilities (getValueAtPath, parsePath, etc.) are available from @agenta/shared/utils
 
 export {SharedGenerationResultUtils, type SharedGenerationResultUtilsProps} from "./shared"
+export {RunnableOutputValue, formatOutputValue, type RunnableOutputValueProps} from "./shared"
 
 // ============================================================================
 // DRILL-IN VIEW (Molecule-first API)

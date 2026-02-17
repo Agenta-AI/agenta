@@ -953,6 +953,22 @@ function buildExecutionItem(
               // When inputValues are provided (e.g. from chain execution),
               // merge them into the raw body's inputs field.
               if (params.inputValues && Object.keys(params.inputValues).length > 0) {
+                  // For workflow invoke payloads with nested `data` structure
+                  // (e.g. POST /preview/workflows/invoke), populate data.inputs
+                  // with all input values and data.outputs with the upstream
+                  // model output so the backend template engine can resolve
+                  // {{inputs}} and {{outputs}} correctly.
+                  if (body.data && typeof body.data === "object") {
+                      const dataObj = body.data as Record<string, unknown>
+                      const iv = params.inputValues as Record<string, unknown>
+                      // All fields (testcase + prediction + ground_truth) go into data.inputs
+                      dataObj.inputs = iv
+                      // The prediction field is the normalized upstream output —
+                      // set it as data.outputs (a plain string) for template resolution.
+                      if (iv.prediction !== undefined) {
+                          dataObj.outputs = iv.prediction
+                      }
+                  }
                   body.inputs = params.inputValues
               }
               return body
