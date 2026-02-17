@@ -17,7 +17,7 @@ export {
     createEvaluatorConfig,
     updateEvaluatorConfig,
     deleteEvaluatorConfig,
-    type CreateEvaluationConfigData,
+    type CreateEvaluatorConfigData,
 } from "@/oss/services/evaluators"
 
 //Prefix convention:

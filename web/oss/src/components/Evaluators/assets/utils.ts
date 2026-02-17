@@ -1,6 +1,7 @@
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {capitalize} from "@/oss/lib/helpers/utils"
-import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
+import {Evaluator, SimpleEvaluator} from "@/oss/lib/Types"
 
 import {
     EvaluatorCategory,
@@ -54,7 +55,7 @@ const formatDate = (value?: string) => {
     return formatDay({date: value})
 }
 
-const collectConfigTags = (config: EvaluatorConfig, evaluator?: Evaluator | null) => {
+const collectConfigTags = (config: SimpleEvaluator, evaluator?: Evaluator | null) => {
     const tags = new Set<string>()
 
     if (Array.isArray(config.tags)) {
@@ -132,11 +133,12 @@ export const transformEvaluatorsToRows = (
 }
 
 const buildConfigTypeBadge = (
-    config: EvaluatorConfig,
+    config: SimpleEvaluator,
     category: Extract<EvaluatorCategory, "automatic" | "custom">,
     evaluator?: Evaluator | null,
 ): EvaluatorTypeBadge => {
-    const label = evaluator?.name || createTypeLabel(config.evaluator_key, config.name)
+    const evaluatorKey = resolveEvaluatorKey(config)
+    const label = evaluator?.name || createTypeLabel(evaluatorKey, config.name)
     const colorHex = config.color || evaluator?.color
 
     return {
@@ -146,44 +148,54 @@ const buildConfigTypeBadge = (
     }
 }
 
-const extractConfigVersion = (config: EvaluatorConfig) => {
-    const serviceValues = (config.settings_values as any)?.service || {}
+const extractConfigVersion = (config: SimpleEvaluator) => {
+    const parameters = (config.data as any)?.parameters || {}
+    const serviceValues = (config.data as any)?.service || {}
+    const serviceConfig = serviceValues?.configuration || {}
     const candidate =
         (config as any)?.version ||
         serviceValues?.agenta ||
         serviceValues?.version ||
-        (config.settings_values as any)?.version ||
+        serviceConfig?.version ||
+        serviceConfig?.agenta ||
+        parameters?.version ||
         ""
 
     return sanitizeVersion(typeof candidate === "string" ? candidate : "")
 }
 
-const extractConfigModifiedBy = (config: EvaluatorConfig) => {
+const extractConfigModifiedBy = (config: SimpleEvaluator) => {
     const modifiedBy =
         (config as any)?.updated_by ||
         (config as any)?.updatedBy ||
+        (config as any)?.updated_by_id ||
+        (config as any)?.updatedById ||
         (config as any)?.created_by ||
         (config as any)?.createdBy ||
+        (config as any)?.created_by_id ||
+        (config as any)?.createdById ||
         ""
 
     return typeof modifiedBy === "string" ? modifiedBy : ""
 }
 
 export const transformEvaluatorConfigsToRows = (
-    configs: EvaluatorConfig[],
+    configs: SimpleEvaluator[],
     category: Extract<EvaluatorCategory, "automatic">,
     evaluators: Evaluator[],
 ): EvaluatorRegistryRow[] => {
     const evaluatorsMap = new Map(evaluators.map((item) => [item.key, item]))
 
     return configs.map((config) => {
-        const evaluator = evaluatorsMap.get(config.evaluator_key) || null
+        const evaluatorKey = resolveEvaluatorKey(config)
+        const evaluator = evaluatorKey ? evaluatorsMap.get(evaluatorKey) || null : null
         const badge = buildConfigTypeBadge(config, category, evaluator)
         const versionLabel = extractConfigVersion(config)
         const tags = collectConfigTags(config, evaluator)
         const modifiedBy = extractConfigModifiedBy(config)
         const createdAt = config.created_at
         const updatedAt = config.updated_at || createdAt
+        const displayName = config.name || evaluator?.name || evaluatorKey || config.slug || ""
 
         const raw: EvaluatorConfigRow = {
             ...config,
@@ -194,15 +206,15 @@ export const transformEvaluatorConfigsToRows = (
         return {
             key: config.id,
             id: config.id,
-            name: config.name,
-            slug: config.evaluator_key,
+            name: displayName,
+            slug: evaluatorKey || config.slug,
             typeBadge: badge,
             versionLabel,
             tags,
             dateCreated: formatDate(createdAt),
             lastModified: formatDate(updatedAt),
             modifiedBy,
-            avatarName: modifiedBy || config.name,
+            avatarName: modifiedBy || displayName,
             raw,
         }
     })

@@ -18,6 +18,7 @@ const {Text} = Typography
 
 interface Props {
     revisionIds: string[]
+    forceVariantIds?: string[]
     onClose: () => void
 }
 
@@ -29,7 +30,13 @@ interface VariantGroup {
     deleteEntireVariant: boolean
 }
 
-const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
+const isVisibleServerRevision = (revision: any) => {
+    if (!revision?.id) return false
+    if (revision?.isLocalDraft) return false
+    return Number(revision?.revision ?? 0) > 0
+}
+
+const DeleteVariantContent = ({revisionIds, forceVariantIds = [], onClose}: Props) => {
     const store = getDefaultStore()
     const deleteRevision = useSetAtom(playgroundController.actions.deleteRevision)
     const invalidatePlaygroundQueries = useSetAtom(playgroundController.actions.invalidateQueries)
@@ -82,6 +89,7 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
 
     const variantGroups = useMemo(() => {
         const groups: Record<string, VariantGroup> = {}
+        const forceVariantIdSet = new Set(forceVariantIds)
 
         resolvedRevisions.forEach((rev: any) => {
             const variantId = (rev?._parentVariant as string) || (rev?.variantId as string)
@@ -106,15 +114,19 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
         Object.values(groups).forEach((group) => {
             const allRevisions = (store.get(revisionsListWithDraftsAtomFamily(group.variantId))
                 ?.data || []) as any[]
-            const totalIds = allRevisions.map((r: any) => r.id).filter(Boolean) as string[]
+            const totalIds = allRevisions
+                .filter(isVisibleServerRevision)
+                .map((r: any) => r.id)
+                .filter(Boolean) as string[]
             group.totalIds = totalIds.length > 0 ? totalIds : group.selectedIds
             const selectedSet = new Set(group.selectedIds)
             group.deleteEntireVariant =
-                group.totalIds.length > 0 && group.totalIds.every((id) => selectedSet.has(id))
+                forceVariantIdSet.has(group.variantId) ||
+                (group.totalIds.length > 0 && group.totalIds.every((id) => selectedSet.has(id)))
         })
 
         return groups
-    }, [resolvedRevisions, store, variantNameMap])
+    }, [forceVariantIds, resolvedRevisions, store, variantNameMap])
 
     useEffect(() => {
         let mounted = true
@@ -180,10 +192,8 @@ const DeleteVariantContent = ({revisionIds, onClose}: Props) => {
                 }
             }
 
-            // Invalidate all playground-related queries including entity package queries
-            if (deletionPlan.variants.length > 0) {
-                await invalidatePlaygroundQueries()
-            }
+            // Always invalidate all related queries so registry and playground stay in sync.
+            await invalidatePlaygroundQueries()
 
             message.success(
                 deletionPlan.variants.length > 0

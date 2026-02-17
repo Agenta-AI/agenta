@@ -285,6 +285,18 @@ export type {
 
 // Re-export spec derivation utilities (pure functions)
 export {
+    extractRawValue,
+    stripVolatileKeys,
+    enhancedPromptsToParameters,
+    enhancedCustomPropertiesToParameters,
+    areParametersDifferent,
+    resolveRootSourceId,
+    deriveEnhancedPrompts,
+    deriveEnhancedCustomProperties,
+    // OpenAPI spec convenience wrappers
+    extractVariantParameters,
+    derivePromptsFromOpenApiSpec,
+    deriveCustomPropertiesFromOpenApiSpec,
     // Detection helpers
     isPromptLikeStructure,
     isPromptLikeSchema,

@@ -12,6 +12,7 @@ import {useRouter} from "next/router"
 import {FIRST_EVALUATION_TOUR_ID} from "@/oss/components/Onboarding/tours/firstEvaluationTour"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
@@ -342,7 +343,7 @@ const NewEvaluationModalInner = ({
             !preview &&
             selectedEvalConfigs.some(
                 (id) =>
-                    evaluatorConfigs.find((config) => config.id === id)?.evaluator_key ===
+                    resolveEvaluatorKey(evaluatorConfigs.find((config) => config.id === id)) ===
                     "auto_ai_critique",
             ) &&
             (await redirectIfNoLLMKeys({secrets}))

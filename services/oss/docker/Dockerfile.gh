@@ -1,25 +1,80 @@
-FROM python:3.11-slim-bookworm
+FROM python:3.11-slim-bookworm AS builder
+
+ARG POETRY_VERSION=2.3.1
 
 WORKDIR /app
 
-RUN pip install --upgrade pip \
-    && pip install poetry
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=0 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Install poetry system-level (outside venv) — only used for export
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --timeout=300 "poetry==${POETRY_VERSION}" "poetry-plugin-export"
 
 COPY ./pyproject.toml ./poetry.lock* /app/
 
-RUN poetry config virtualenvs.create false
+# Create clean venv, install app deps, strip heavy unused deps
+# Merged into one layer so stripped files don't persist in a previous layer.
+# Stripped:
+# - hf_xet: transitive, never imported
+# - shapely: transitive from google-cloud-aiplatform, never used
+# Kept: litellm + provider SDKs (google-cloud-aiplatform, boto3, openai) — litellm
+#   dynamically imports these at runtime to route calls to different LLM providers
+# Kept: newrelic — used for observability
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/pypoetry \
-    poetry install --no-interaction --no-ansi
+    python -m venv /opt/venv \
+    && . /opt/venv/bin/activate \
+    && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
+    && pip install -r /tmp/requirements.txt \
+    && rm -f /tmp/requirements.txt \
+    && (pip uninstall -y pip setuptools 2>/dev/null || true) \
+    && SITE=$(python -c 'import site; print(site.getsitepackages()[0])') \
+    && rm -rf \
+        ${SITE}/hf_xet* \
+        ${SITE}/shapely* \
+    && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
+# Copy and install SDK first (changes less frequently than app code)
+RUN mkdir -p /app/sdk
+COPY ./sd[k] /app/sdk/
+
+RUN if [ -f /app/sdk/pyproject.toml ]; then \
+        . /opt/venv/bin/activate && \
+        pip install pip && \
+        pip install --editable /app/sdk && \
+        (pip uninstall -y pip 2>/dev/null || true); \
+    fi
+
+# Copy app code last (changes more frequently)
 COPY ./oss /app/oss/
 COPY ./entrypoints /app/entrypoints/
 
-# Copy local SDK if present (synced by build.sh before docker build)
-# Uses glob pattern sd[k] to avoid failure if sdk/ doesn't exist (for OSS users)
-COPY ./sd[k] /app/sdk/
 
-# PYTHONPATH includes /app/sdk - if local SDK exists it takes precedence over PyPI version
-ENV PYTHONPATH=/app:/app/sdk
+FROM python:3.11-slim-bookworm AS runner
+
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION=0.0.0
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app:/app/sdk \
+    PATH="/opt/venv/bin:${PATH}"
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /app/oss /app/oss
+COPY --from=builder /app/entrypoints /app/entrypoints
+COPY --from=builder /app/sdk /app/sdk
+
+LABEL org.opencontainers.image.title="agenta-services" \
+    org.opencontainers.image.description="Agenta Services GH runtime image" \
+    org.opencontainers.image.version="${VERSION}" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.created="${BUILD_DATE}"
 
 EXPOSE 80

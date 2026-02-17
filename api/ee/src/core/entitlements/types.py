@@ -75,6 +75,7 @@ class Category(str, Enum):
     TRACING_SLOW = "tracing_slow"
     SERVICES_FAST = "services_fast"
     SERVICES_SLOW = "services_slow"
+    AI_SERVICES = "ai_services"
 
 
 class Method(str, Enum):
@@ -103,6 +104,7 @@ class Throttle(BaseModel):
 ENDPOINTS = {
     Category.CORE_FAST: [
         (Method.POST, "*/retrieve"),
+        (Method.POST, "/variants/configs/fetch"),
     ],
     Category.CORE_SLOW: [
         # None defined yet
@@ -120,6 +122,9 @@ ENDPOINTS = {
     ],
     Category.SERVICES_SLOW: [
         # None defined yet
+    ],
+    Category.AI_SERVICES: [
+        (Method.POST, "/ai/services/tools/call"),
     ],
     Category.STANDARD: [
         # None defined yet
@@ -363,6 +368,16 @@ ENTITLEMENTS = {
                     rate=1,
                 ),
             ),
+            Throttle(
+                categories=[
+                    Category.AI_SERVICES,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=10,
+                    rate=30,
+                ),
+            ),
         ],
     },
     Plan.CLOUD_V0_PRO: {
@@ -435,6 +450,16 @@ ENTITLEMENTS = {
                     rate=1,
                 ),
             ),
+            Throttle(
+                categories=[
+                    Category.AI_SERVICES,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=30,
+                    rate=90,
+                ),
+            ),
         ],
     },
     Plan.CLOUD_V0_BUSINESS: {
@@ -503,6 +528,16 @@ ENTITLEMENTS = {
                 bucket=Bucket(
                     capacity=1800,
                     rate=1,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.AI_SERVICES,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=300,
+                    rate=900,
                 ),
             ),
         ],
