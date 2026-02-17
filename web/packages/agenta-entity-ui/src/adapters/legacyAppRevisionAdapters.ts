@@ -60,29 +60,16 @@ const legacyAppRevisionDataAtom = (id: string) =>
 
 /**
  * Extract configuration data for diff display.
- * For OSS variants, we diff the parameters/enhancedPrompts.
+ * For OSS variants, we diff the raw parameters.
  */
 function extractDiffableData(data: LegacyAppRevisionData | null): Record<string, unknown> {
     if (!data) return {}
 
-    const result: Record<string, unknown> = {}
-
-    // Include enhanced prompts if available (these are the UI-visible prompts)
-    if (data.enhancedPrompts && Array.isArray(data.enhancedPrompts)) {
-        result.prompts = data.enhancedPrompts
+    if (data.parameters) {
+        return {parameters: data.parameters}
     }
 
-    // Include enhanced custom properties if available
-    if (data.enhancedCustomProperties) {
-        result.customProperties = data.enhancedCustomProperties
-    }
-
-    // Fallback to raw parameters if no enhanced data
-    if (!result.prompts && !result.customProperties && data.parameters) {
-        result.parameters = data.parameters
-    }
-
-    return result
+    return {}
 }
 
 /**
@@ -97,36 +84,17 @@ function countChanges(
         return {promptChanges: 0, propertyChanges: 0}
     }
 
-    let promptChanges = 0
     let propertyChanges = 0
 
-    // Compare enhanced prompts
-    const serverPrompts = serverData.enhancedPrompts || []
-    const draftPrompts = draftData.enhancedPrompts || []
+    // Compare raw parameters
+    const serverParams = serverData.parameters || {}
+    const draftParams = draftData.parameters || {}
 
-    if (JSON.stringify(serverPrompts) !== JSON.stringify(draftPrompts)) {
-        promptChanges = 1
-    }
-
-    // Compare enhanced custom properties
-    const serverProps = serverData.enhancedCustomProperties || {}
-    const draftProps = draftData.enhancedCustomProperties || {}
-
-    if (JSON.stringify(serverProps) !== JSON.stringify(draftProps)) {
+    if (JSON.stringify(serverParams) !== JSON.stringify(draftParams)) {
         propertyChanges = 1
     }
 
-    // If no enhanced data, compare raw parameters
-    if (promptChanges === 0 && propertyChanges === 0) {
-        const serverParams = serverData.parameters || {}
-        const draftParams = draftData.parameters || {}
-
-        if (JSON.stringify(serverParams) !== JSON.stringify(draftParams)) {
-            propertyChanges = 1
-        }
-    }
-
-    return {promptChanges, propertyChanges}
+    return {promptChanges: 0, propertyChanges}
 }
 
 // ============================================================================
