@@ -1,8 +1,8 @@
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
-import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
+import LastInputMessageCell from "@/oss/components/pages/observability/components/common/LastInputMessageCell"
+import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {
     sessionFirstInputAtomFamily,
     sessionsLoadingAtom,
@@ -17,12 +17,10 @@ export const FirstInputCell = ({sessionId}: {sessionId: string}) => {
 
     const {data: sanitized} = sanitizeDataWithBlobUrls(firstInput)
     return (
-        <TruncatedTooltipTag
-            children={firstInput ? getStringOrJson(sanitized) : ""}
-            placement="bottom"
-            tagProps={{
-                className: "max-w-[300px] truncate",
-            }}
+        <LastInputMessageCell
+            value={sanitized}
+            keyPrefix={`session-${sessionId}-input`}
+            className="max-w-[300px] h-[112px] overflow-hidden"
         />
     )
 }

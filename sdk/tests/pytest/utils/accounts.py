@@ -14,6 +14,11 @@ def create_account(ag_env):
     response = requests.post(
         url=url,
         headers=headers,
+        json={
+            "subscription": {
+                "plan": "cloud_v0_business",  # Use BUSINESS plan to avoid quota limits in tests
+            },
+        },
         timeout=BASE_TIMEOUT,
     )
 

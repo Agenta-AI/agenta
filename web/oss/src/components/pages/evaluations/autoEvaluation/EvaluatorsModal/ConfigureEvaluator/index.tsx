@@ -11,9 +11,10 @@ import {createUseStyles} from "react-jss"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
+import {deriveEvaluatorOutputsSchema} from "@/oss/lib/evaluators/utils"
 import {EvaluationSettingsTemplate, JSSTheme, SettingsPreset} from "@/oss/lib/Types"
 import {
-    CreateEvaluationConfigData,
+    CreateEvaluatorConfigData,
     createEvaluatorConfig,
     updateEvaluatorConfig,
 } from "@/oss/services/evaluations/api"
@@ -67,6 +68,13 @@ interface ConfigureEvaluatorProps {
     isTestPanelOpen?: boolean
     /** Drawer-only: toggle the right test panel */
     onToggleTestPanel?: () => void
+}
+
+interface ConfigureEvaluatorFormValues {
+    name: string
+    description?: string
+    tags?: string[]
+    parameters?: Record<string, any>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -199,12 +207,10 @@ const ConfigureEvaluator = ({
             const allKeys = Array.from(new Set([...templateKeys, ...presetKeys]))
 
             // Clear subtree before applying new values to avoid stale keys
-            form.setFieldsValue({settings_values: {}})
+            form.setFieldsValue({parameters: {}})
 
             if (allKeys.length) {
-                const fieldNames = allKeys.map(
-                    (key) => ["settings_values", key] as (string | number)[],
-                )
+                const fieldNames = allKeys.map((key) => ["parameters", key] as (string | number)[])
                 form.resetFields(fieldNames)
 
                 const nextFields = fieldNames
@@ -248,7 +254,7 @@ const ConfigureEvaluator = ({
 
     const evaluatorVersionNumber = useMemo(() => {
         const raw =
-            editEvalEditValues?.settings_values?.version ??
+            editEvalEditValues?.data?.parameters?.version ??
             selectedEvaluator?.settings_template?.version?.default ??
             3
 
@@ -256,7 +262,7 @@ const ConfigureEvaluator = ({
         // extract leading number (e.g., "4", "4.1", "v4")
         const match = String(raw).match(/\d+(\.\d+)?/)
         return match ? parseFloat(match[0]) : 3
-    }, [editEvalEditValues?.settings_values?.version, selectedEvaluator])
+    }, [editEvalEditValues?.data?.parameters?.version, selectedEvaluator])
 
     const evalFields = useMemo(() => {
         const templateEntries = Object.entries(selectedEvaluator?.settings_template || {})
@@ -283,28 +289,25 @@ const ConfigureEvaluator = ({
     const advancedSettingsFields = evalFields.filter((field) => field.advanced)
     const basicSettingsFields = evalFields.filter((field) => !field.advanced)
 
-    const onSubmit = async (values: CreateEvaluationConfigData) => {
+    const onSubmit = async (values: ConfigureEvaluatorFormValues) => {
         try {
             setSubmitLoading(true)
             if (!selectedEvaluator?.key) throw new Error("No selected key")
-            const settingsValues = values.settings_values || {}
+            const parameters = values.parameters || {}
 
-            const jsonSchemaFieldPath: (string | number)[] = ["settings_values", "json_schema"]
-            const hasJsonSchema = Object.prototype.hasOwnProperty.call(
-                settingsValues,
-                "json_schema",
-            )
+            const jsonSchemaFieldPath: (string | number)[] = ["parameters", "json_schema"]
+            const hasJsonSchema = Object.prototype.hasOwnProperty.call(parameters, "json_schema")
 
             if (hasJsonSchema) {
                 form.setFields([{name: jsonSchemaFieldPath, errors: []}])
 
-                if (typeof settingsValues.json_schema === "string") {
+                if (typeof parameters.json_schema === "string") {
                     try {
-                        const parsed = JSON.parse(settingsValues.json_schema)
+                        const parsed = JSON.parse(parameters.json_schema)
                         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
                             throw new Error()
                         }
-                        settingsValues.json_schema = parsed
+                        parameters.json_schema = parsed
                     } catch {
                         form.setFields([
                             {
@@ -315,9 +318,9 @@ const ConfigureEvaluator = ({
                         throw new Error("JSON schema must be a valid JSON object")
                     }
                 } else if (
-                    settingsValues.json_schema &&
-                    (typeof settingsValues.json_schema !== "object" ||
-                        Array.isArray(settingsValues.json_schema))
+                    parameters.json_schema &&
+                    (typeof parameters.json_schema !== "object" ||
+                        Array.isArray(parameters.json_schema))
                 ) {
                     form.setFields([
                         {
@@ -329,40 +332,81 @@ const ConfigureEvaluator = ({
                 }
             }
 
-            const data = {
-                ...values,
-                evaluator_key: selectedEvaluator!.key,
-                settings_values: settingsValues,
+            const existingParameters = editEvalEditValues?.data?.parameters || {}
+            const mergedParameters = {...existingParameters, ...parameters}
+            const createOutputsSchema = deriveEvaluatorOutputsSchema({
+                evaluatorKey: selectedEvaluator.key,
+                evaluatorTemplate: selectedEvaluator,
+                parameters,
+            })
+            const updateOutputsSchema = deriveEvaluatorOutputsSchema({
+                evaluatorKey: selectedEvaluator.key,
+                evaluatorTemplate: selectedEvaluator,
+                parameters: mergedParameters,
+            })
+
+            const payload: CreateEvaluatorConfigData = {
+                name: values.name,
+                description: values.description,
+                tags: values.tags,
+                evaluator_key: selectedEvaluator.key,
+                parameters,
+                outputs_schema: createOutputsSchema,
             }
 
             if (editMode) {
-                await updateEvaluatorConfig(editEvalEditValues?.id!, data)
+                const existingData = editEvalEditValues?.data ?? {}
+                const existingSchemas =
+                    existingData.schemas &&
+                    typeof existingData.schemas === "object" &&
+                    !Array.isArray(existingData.schemas)
+                        ? existingData.schemas
+                        : undefined
 
-                // Update atom with merged values
-                const updatedConfig = editEvalEditValues
-                    ? {
-                          ...editEvalEditValues,
-                          ...data,
-                          settings_values: settingsValues,
-                      }
-                    : null
-                if (updatedConfig) {
-                    commitPlayground(updatedConfig)
-                }
-            } else {
-                const response = await createEvaluatorConfig(appId, data)
-                const createdConfig = response?.data
-
-                if (createdConfig) {
-                    // Use commitPlayground to update state and switch to edit mode
-                    commitPlayground(createdConfig)
-                    if (uiVariant === "page" && createdConfig.id) {
-                        await router.replace(
-                            `${projectURL}/evaluators/configure/${encodeURIComponent(
-                                createdConfig.id,
-                            )}`,
-                        )
+                const nextSchemas = (() => {
+                    if (updateOutputsSchema) {
+                        return {
+                            ...(existingSchemas ?? {}),
+                            outputs: updateOutputsSchema,
+                        }
                     }
+
+                    if (!existingSchemas) return undefined
+
+                    const {outputs, ...remainingSchemas} = existingSchemas
+                    void outputs
+                    return Object.keys(remainingSchemas).length ? remainingSchemas : undefined
+                })()
+
+                const {schemas: _unusedSchemas, ...dataWithoutSchemas} = existingData
+                void _unusedSchemas
+
+                const updatedEvaluator = await updateEvaluatorConfig(editEvalEditValues?.id!, {
+                    id: editEvalEditValues?.id!,
+                    name: values.name,
+                    description: editEvalEditValues?.description,
+                    tags: editEvalEditValues?.tags,
+                    meta: editEvalEditValues?.meta,
+                    flags: editEvalEditValues?.flags,
+                    data: {
+                        ...dataWithoutSchemas,
+                        parameters: mergedParameters,
+                        ...(nextSchemas ? {schemas: nextSchemas} : {}),
+                    },
+                })
+
+                commitPlayground(updatedEvaluator)
+            } else {
+                const createdConfig = await createEvaluatorConfig(appId, payload)
+
+                // Use commitPlayground to update state and switch to edit mode
+                commitPlayground(createdConfig)
+                if (uiVariant === "page" && createdConfig.id) {
+                    await router.replace(
+                        `${projectURL}/evaluators/configure/${encodeURIComponent(
+                            createdConfig.id,
+                        )}`,
+                    )
                 }
             }
 
@@ -381,15 +425,15 @@ const ConfigureEvaluator = ({
         form.resetFields()
 
         if (editMode && editEvalEditValues) {
-            // Load all values including nested settings_values
+            // Load all values including nested parameters
             form.setFieldsValue({
                 ...editEvalEditValues,
-                settings_values: editEvalEditValues.settings_values || {},
+                parameters: editEvalEditValues.data?.parameters || {},
             })
         } else if (cloneConfig && editEvalEditValues) {
-            // When cloning, copy only settings_values and clear the name so user provides a new name
+            // When cloning, copy only parameters and clear the name so user provides a new name
             form.setFieldsValue({
-                settings_values: editEvalEditValues.settings_values || {},
+                parameters: editEvalEditValues.data?.parameters || {},
                 name: "",
             })
         } else if (selectedEvaluator?.settings_template) {
@@ -404,7 +448,7 @@ const ConfigureEvaluator = ({
             }
             if (Object.keys(defaultSettings).length > 0) {
                 form.setFieldsValue({
-                    settings_values: defaultSettings,
+                    parameters: defaultSettings,
                 })
             }
         }
@@ -557,7 +601,7 @@ const ConfigureEvaluator = ({
                                                     key={field.key}
                                                     traceTree={traceTree}
                                                     form={form}
-                                                    name={["settings_values", field.key]}
+                                                    name={["parameters", field.key]}
                                                 />
                                             ))}
                                         </div>
@@ -676,7 +720,7 @@ const ConfigureEvaluator = ({
                                                     key={field.key}
                                                     traceTree={traceTree}
                                                     form={form}
-                                                    name={["settings_values", field.key]}
+                                                    name={["parameters", field.key]}
                                                 />
                                             ))}
                                         </div>

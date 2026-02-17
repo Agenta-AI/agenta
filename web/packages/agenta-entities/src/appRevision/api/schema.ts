@@ -377,10 +377,23 @@ export function extractAllEndpointSchemas(
         return endpoints[key] !== null
     })
 
-    // Check if this is a chat variant (has messages in any endpoint)
-    const isChatVariant = Object.values(endpoints).some(
-        (ep) => ep?.messagesSchema !== null || ep?.requestProperties?.includes("messages"),
-    )
+    // Check if this is a chat variant
+    // Prefer explicit x-agenta.flags.is_chat from the SDK, fall back to heuristic
+    const isChatVariant = (() => {
+        for (const name of ["/test", "/run", "/generate", "/generate_deployed", "/"] as const) {
+            const path = constructEndpointPath(routePath, name)
+            const operation = spec?.paths?.[path]?.post as Record<string, unknown> | undefined
+            const agentaExt = operation?.["x-agenta"] as Record<string, unknown> | undefined
+            const flags = agentaExt?.flags as Record<string, unknown> | undefined
+            if (flags && typeof flags.is_chat === "boolean") {
+                return flags.is_chat
+            }
+        }
+        // Fallback: heuristic — check if any endpoint has messages schema
+        return Object.values(endpoints).some(
+            (ep) => !!ep?.messagesSchema || ep?.requestProperties?.includes("messages"),
+        )
+    })()
 
     // Get primary ag_config schema (prefer /test, then /run, then others, then root)
     const primaryAgConfigSchema =
