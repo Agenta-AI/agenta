@@ -1,12 +1,19 @@
-import {useMemo} from "react"
+import React, {useMemo} from "react"
 
-import {executionItemController} from "@agenta/playground"
+import type {SchemaProperty} from "@agenta/entities"
+import {runnableBridge} from "@agenta/entities/runnable"
+import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {RunnableOutputValue} from "@agenta/entity-ui"
+import {executionItemController, playgroundController} from "@agenta/playground"
 import type {SimpleChatMessage} from "@agenta/playground"
 import {
     extractAssistantDisplayValue,
     hasAssistantContent as checkHasAssistantContent,
 } from "@agenta/playground/utils"
+import {LoadingOutlined} from "@ant-design/icons"
+import {Popover, Tag} from "antd"
 import clsx from "clsx"
+import {atom} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {TurnMessageAdapter} from "@agenta/playground-ui/adapters"
@@ -15,6 +22,180 @@ import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useExecutionCell} from "../../../../hooks/useExecutionCell"
 import {ClickRunPlaceholder} from "../ResultPlaceholder"
 import TypingIndicator from "../TypingIndicator"
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+/** Convert snake_case/camelCase key to human-readable label */
+function formatLabel(key: string): string {
+    return key
+        .replace(/_/g, " ")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replace(/^./, (c) => c.toUpperCase())
+}
+
+// ============================================================================
+// SUB-COMPONENT: Evaluator result popover for chat turns
+// ============================================================================
+
+const EvaluatorResultPopover = ({
+    rowId,
+    node,
+    nodeName,
+}: {
+    rowId: string
+    node: PlaygroundNode
+    nodeName: string
+}) => {
+    const fullResult = useAtomValue(
+        useMemo(
+            () =>
+                executionItemController.selectors.fullResult({
+                    rowId,
+                    entityId: node.entityId,
+                }),
+            [rowId, node.entityId],
+        ),
+    ) as {status?: string; output?: unknown; error?: {message: string} | null} | null
+
+    const outputPorts = useAtomValue(
+        useMemo(
+            () => runnableBridge.forType(node.entityType).outputPorts(node.entityId),
+            [node.entityType, node.entityId],
+        ),
+    )
+
+    const schemaMap = useMemo(() => {
+        const map: Record<string, SchemaProperty | undefined> = {}
+        for (const port of outputPorts) {
+            map[port.key] = port.schema as SchemaProperty | undefined
+        }
+        return map
+    }, [outputPorts])
+
+    const status = fullResult?.status ?? "idle"
+
+    // Determine compact label + color for the tag
+    const {tagLabel, tagColor} = useMemo(() => {
+        if (!fullResult || status === "idle" || status === "cancelled") {
+            return {tagLabel: "Pending", tagColor: "default" as const}
+        }
+        if (status === "running" || status === "pending") {
+            return {tagLabel: "Running", tagColor: "processing" as const}
+        }
+        if (status === "error") {
+            return {tagLabel: "Error", tagColor: "error" as const}
+        }
+
+        // Success — try to extract a single summary value for the tag
+        const output = fullResult.output as Record<string, unknown> | undefined
+        const responseData = output?.response as Record<string, unknown> | undefined
+        const nestedData = responseData?.data as Record<string, unknown> | undefined
+        const displayData =
+            nestedData?.outputs ?? responseData?.outputs ?? nestedData ?? responseData
+
+        if (!displayData || typeof displayData !== "object") {
+            return {tagLabel: "Done", tagColor: "success" as const}
+        }
+
+        const entries = Object.entries(displayData).filter(([, v]) => v !== undefined && v !== null)
+
+        if (entries.length === 1) {
+            const [, value] = entries[0]
+            const label = typeof value === "boolean" ? (value ? "Pass" : "Fail") : String(value)
+            return {
+                tagLabel: label.length > 20 ? label.slice(0, 17) + "..." : label,
+                tagColor: "success" as const,
+            }
+        }
+
+        return {tagLabel: "Done", tagColor: "success" as const}
+    }, [fullResult, status])
+
+    // Build popover content
+    const popoverContent = useMemo(() => {
+        if (!fullResult || status === "idle" || status === "cancelled") {
+            return <span className="text-[#bdc7d1] text-xs">Pending run</span>
+        }
+        if (status === "running" || status === "pending") {
+            return (
+                <span className="flex items-center gap-1 text-[#bdc7d1] text-xs">
+                    <LoadingOutlined style={{fontSize: 12}} spin />
+                    Running...
+                </span>
+            )
+        }
+        if (status === "error") {
+            const errorMsg =
+                typeof fullResult.error === "object" && fullResult.error?.message
+                    ? fullResult.error.message
+                    : "Error"
+            return (
+                <span className="text-[var(--ant-color-error)] text-xs break-words">
+                    {errorMsg}
+                </span>
+            )
+        }
+
+        const output = fullResult.output as Record<string, unknown> | undefined
+        const responseData = output?.response as Record<string, unknown> | undefined
+        const nestedData = responseData?.data as Record<string, unknown> | undefined
+        const displayData =
+            nestedData?.outputs ?? responseData?.outputs ?? nestedData ?? responseData
+
+        if (!displayData || typeof displayData !== "object")
+            return <span className="text-xs">—</span>
+
+        const entries = Object.entries(displayData).filter(([, v]) => v !== undefined && v !== null)
+        if (entries.length === 0) return <span className="text-xs">—</span>
+
+        return (
+            <div
+                className="grid items-baseline text-xs leading-5"
+                style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 4}}
+            >
+                {entries.map(([key, value]) => (
+                    <React.Fragment key={key}>
+                        <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap">
+                            {formatLabel(key)}:
+                        </span>
+                        <span className="break-words min-w-0">
+                            <RunnableOutputValue value={value} schema={schemaMap[key]} />
+                        </span>
+                    </React.Fragment>
+                ))}
+            </div>
+        )
+    }, [fullResult, status, schemaMap])
+
+    return (
+        <Popover
+            content={popoverContent}
+            title={nodeName}
+            trigger="hover"
+            mouseEnterDelay={0.2}
+            overlayStyle={{maxWidth: 360}}
+        >
+            <Tag color={tagColor} className="!m-0 cursor-pointer text-xs">
+                {status === "running" || status === "pending" ? (
+                    <span className="flex items-center gap-1">
+                        <LoadingOutlined style={{fontSize: 10}} spin />
+                        {nodeName}
+                    </span>
+                ) : (
+                    <span>
+                        {nodeName}: {tagLabel}
+                    </span>
+                )}
+            </Tag>
+        </Popover>
+    )
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
 interface Props {
     turnId: string
@@ -109,6 +290,36 @@ const ChatTurnView = ({
     )
     const isRerunning = isRunning && hasAssistantContent
 
+    // Chain nodes for downstream evaluator results
+    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
+        | PlaygroundNode[]
+        | null
+    const isChain = (nodes?.length ?? 0) > 1
+
+    const nodeNamesAtom = useMemo(
+        () =>
+            atom((get) => {
+                if (!nodes) return {} as Record<string, string>
+                const names: Record<string, string> = {}
+                for (const node of nodes) {
+                    const data = get(runnableBridge.dataForType(node.entityType, node.entityId))
+                    if (data?.name) {
+                        names[node.id] = data.name
+                    }
+                }
+                return names
+            }),
+        [nodes],
+    )
+    const nodeNames = useAtomValue(nodeNamesAtom)
+
+    const downstreamNodes = useMemo(() => {
+        if (!isChain || !nodes) return []
+        return nodes.filter((n) => n.depth > 0 && n.entityId !== entityId)
+    }, [isChain, nodes, entityId])
+
+    const hasFooterContent = (traceId && SharedGenerationResultUtils) || downstreamNodes.length > 0
+
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
             {!hideUserMessage ? (
@@ -144,9 +355,28 @@ const ChatTurnView = ({
                         className="w-full"
                         headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
                         footer={
-                            traceId && SharedGenerationResultUtils ? (
-                                <div className="w-full flex items-center justify-start mt-2 gap-2 flex-nowrap overflow-hidden">
-                                    <SharedGenerationResultUtils traceId={traceId} />
+                            hasFooterContent ? (
+                                <div className="w-full flex items-center justify-start mt-2 gap-2 flex-wrap">
+                                    {traceId && SharedGenerationResultUtils ? (
+                                        <SharedGenerationResultUtils traceId={traceId} />
+                                    ) : null}
+                                    {downstreamNodes.map((node) => {
+                                        const resolvedName = nodeNames[node.id]
+                                        const label =
+                                            resolvedName ||
+                                            (node.label && !/^[0-9a-f]{8}-/.test(node.label)
+                                                ? node.label
+                                                : node.entityType.charAt(0).toUpperCase() +
+                                                  node.entityType.slice(1))
+                                        return (
+                                            <EvaluatorResultPopover
+                                                key={node.entityId}
+                                                rowId={turnId}
+                                                node={node}
+                                                nodeName={label}
+                                            />
+                                        )
+                                    })}
                                 </div>
                             ) : null
                         }

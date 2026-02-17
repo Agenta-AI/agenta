@@ -297,6 +297,19 @@ export const triggerExecutionAtom = atom(
                     // (it reads result.response.data for display text).
                     const wrappedOutput = {response: result.structuredOutput}
 
+                    // Chat mode: route through handleExecutionResultAtom to
+                    // write assistant/tool messages to the chat message store.
+                    // Without this, assistantForTurn returns null and chat
+                    // responses never render.
+                    if (isChat && !isTargetingDownstream) {
+                        set(handleExecutionResultAtom, {
+                            loadableId,
+                            sessionId,
+                            rowId,
+                            result: wrappedOutput,
+                        })
+                    }
+
                     // For targeted downstream execution, don't overwrite the
                     // root session's result — only update chainResults on it.
                     if (isTargetingDownstream) {
