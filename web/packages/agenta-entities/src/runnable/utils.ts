@@ -432,56 +432,6 @@ export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | un
 }
 
 /**
- * Extract template variables from a single enhanced prompt.
- * Handles the enhanced value wrapper pattern ({value, __id, __metadata}).
- *
- * @param prompt - Enhanced prompt object with .messages.value pattern
- * @returns Array of unique variable names
- */
-export function extractVariablesFromEnhancedPrompt(prompt: unknown): string[] {
-    if (!prompt || typeof prompt !== "object") return []
-
-    const p = prompt as Record<string, unknown>
-    const messagesNode = p.messages as {value?: unknown} | undefined
-    const messages = Array.isArray(messagesNode?.value)
-        ? messagesNode!.value
-        : Array.isArray(messagesNode)
-          ? messagesNode
-          : []
-
-    const variables: string[] = []
-
-    for (const message of messages) {
-        if (!message || typeof message !== "object") continue
-        const msg = message as Record<string, unknown>
-        const contentNode = msg.content as {value?: unknown} | undefined
-        const content =
-            contentNode && typeof contentNode === "object" ? contentNode.value : contentNode
-
-        if (typeof content === "string") {
-            for (const v of extractTemplateVariables(content)) {
-                if (!variables.includes(v)) variables.push(v)
-            }
-        } else if (Array.isArray(content)) {
-            for (const part of content) {
-                if (!part || typeof part !== "object") continue
-                const partObj = part as Record<string, unknown>
-                const textNode = partObj.text as {value?: unknown} | string | undefined
-                const text =
-                    textNode && typeof textNode === "object" ? (textNode.value as string) : textNode
-                if (typeof text === "string") {
-                    for (const v of extractTemplateVariables(text)) {
-                        if (!variables.includes(v)) variables.push(v)
-                    }
-                }
-            }
-        }
-    }
-
-    return variables
-}
-
-/**
  * Extract template variables from config prompt objects.
  *
  * Scans all top-level prompt-like entries in config for:

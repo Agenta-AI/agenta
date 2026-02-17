@@ -33,13 +33,6 @@ import {
 } from "../evaluator/state/runnableSetup"
 import {evaluatorRevisionMolecule} from "../evaluatorRevision"
 import {legacyAppRevisionMolecule} from "../legacyAppRevision"
-import {
-    metadataAtom,
-    getAllMetadata,
-    getMetadataLazy,
-} from "../legacyAppRevision/state/metadataAtoms"
-import {createMessageFromSchema} from "../legacyAppRevision/utils/messageFromSchema"
-import {extractValueByMetadata} from "../legacyAppRevision/utils/valueExtraction"
 import {legacyEvaluatorMolecule} from "../legacyEvaluator"
 import {
     invocationUrlAtomFamily as legacyEvaluatorInvocationUrlAtomFamily,
@@ -205,8 +198,6 @@ interface LegacyAppRevisionEntity {
     uri?: string
     variantId?: string
     appId?: string
-    enhancedPrompts?: unknown[]
-    enhancedCustomProperties?: Record<string, unknown>
 }
 
 function legacyAppRevisionToRunnable(entity: unknown): RunnableData {
@@ -220,11 +211,7 @@ function legacyAppRevisionToRunnable(entity: unknown): RunnableData {
         invocationUrl: e.uri,
         // OSS model doesn't have structured schemas
         schemas: undefined,
-        // Pass through enhanced data so the execution pipeline can access
-        // draft-aware prompts and custom properties (e.g. tools).
-        prompts: e.enhancedPrompts,
-        customProperties: e.enhancedCustomProperties,
-    } as RunnableData
+    }
 }
 
 function getLegacyAppRevisionInputPorts(entity: unknown): RunnablePort[] {
@@ -516,14 +503,6 @@ export const runnableBridge = createRunnableBridge({
             ),
             requestPayloadSelector: (id: string) =>
                 legacyAppRevisionMolecule.atoms.requestPayload(id),
-            metadataSelector: () =>
-                metadataAtom as unknown as Atom<Record<string, Record<string, unknown>>>,
-            utils: {
-                extractValueByMetadata,
-                getAllMetadata,
-                createMessageFromSchema,
-                getMetadataLazy,
-            },
         },
         appRevision: {
             molecule: appRevisionMolecule,
