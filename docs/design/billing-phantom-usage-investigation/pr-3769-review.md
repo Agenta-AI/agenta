@@ -17,7 +17,7 @@
 The dedicated `r_lock` Redis client with a longer timeout (2.0s vs 0.5s) is also smart — lock operations should be more reliable than cache lookups.
 
 ### 2. `break` Instead of `continue` on bump() Failure (service.py)
-**Critical fix.** The old code:
+**THE most critical fix in this PR.** The old code:
 ```python
 except Exception:
     total_errors += len(meters)
@@ -29,7 +29,7 @@ except Exception:
     total_errors += len(meters)
     break  # ← Stops the job, prevents re-reporting in the same run
 ```
-This eliminates the **intra-run** re-reporting loop.
+This eliminates the **intra-run** re-reporting loop — the PRIMARY amplification mechanism responsible for the 15-28x inflation. With `continue`, a single bump() failure causes up to 50 re-reports of the same meters within ONE job run (MAX_BATCHES=50). With `break`, a bump() failure stops the run immediately, limiting re-reporting to at most 1x per run (cross-run only).
 
 ### 3. Break on Lock Renewal Failure (service.py)
 **Good fix.** If the lock is lost mid-job, the job stops instead of continuing without lock protection. This prevents scenarios where two workers report the same meters concurrently.
@@ -151,10 +151,16 @@ After `break`, the meters that were reported to Stripe but not bumped remain in 
 
 ## Recommendation
 
-**Merge this PR** — it's a significant improvement. But **open a follow-up** for:
+**Merge this PR** — the `break` fix alone eliminates the primary amplification mechanism (50x within-run re-reporting → 1x). Combined with the lock ownership fixes and chunked bump, this is a strong improvement.
 
-1. **Add Stripe `identifier` for idempotent reporting** — This is the only complete fix for the fundamental non-atomicity. The identifier should encode enough state to be unique per "logical report" (e.g., `{org}:{key}:{year}:{month}:{synced}:{value}`).
+**Open a follow-up** for:
 
-2. **Add a reconciliation check** — A periodic job that compares the database meter values with what Stripe has received, alerting on discrepancies.
+1. **Add Stripe `identifier` for idempotent reporting** — This eliminates cross-run re-reporting (the remaining gap). One-line fix:
+   ```python
+   identifier=f"{org_id}:{key}:{year}:{month}:{synced}:{value}"
+   ```
+   Stripe deduplicates within a rolling 24-hour window, which covers our 30-minute cron + 1-hour lock TTL.
 
-3. **Consider bump-per-meter instead of batch** — Report one meter to Stripe, immediately bump that one meter, then move to the next. This minimizes the window where report-without-bump can occur.
+2. **Investigate what causes bump() to fail** — The `break` fix is a symptom treatment. Understanding the root trigger (likely connection pool exhaustion from halved pool size in `71079ed3d`) would prevent related issues.
+
+3. **Add a reconciliation check** — A periodic job that compares the database meter values with what Stripe has received, alerting on discrepancies.

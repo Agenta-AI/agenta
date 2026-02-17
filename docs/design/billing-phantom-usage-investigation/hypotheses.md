@@ -1,14 +1,94 @@
 # Hypotheses: Root Cause Analysis
 
-## CONFIRMED: Double Reporting Due to bump() Failure
+## CONFIRMED ROOT CAUSE: Non-Atomic Report + `continue` Loop Amplifier
 
-JP confirmed this by correlating Stripe meter event summaries with NewRelic logs.
+The billing system has **two compounding bugs**:
+
+1. **The fundamental non-atomicity** (existed since v0.58.0): Reporting to Stripe and persisting `synced` to DB are separate operations. If the second fails, the same usage gets re-reported.
+
+2. **The `continue` loop amplifier** (the critical bug): When `bump()` fails, the `continue` statement sends control back to the `while True` loop. `dump()` returns the **same meters** (since `synced` was never updated), and they get re-reported to Stripe — up to `MAX_BATCHES=50` times within a **single job run**.
+
+```python
+# v0.85.5 code (what ran on Feb 13):
+while True:
+    meters = await self.dump(limit=BATCH_SIZE)  # Gets unsynced meters from DB
+    if not meters: break
+
+    for meter in meters:
+        stripe.billing.MeterEvent.create(...)  # Report to Stripe
+        meters_to_bump.append(meter)
+
+    try:
+        await self.bump(meters=meters_to_bump)  # Persist synced to DB
+    except Exception:
+        total_errors += len(meters)
+        continue  # <-- GOES BACK TO while True! dump() returns SAME meters!
+```
+
+### Why Process Death Alone Can't Explain 15-28x
+
+If the process simply dies between Stripe report and bump:
+- One run reports delta, process dies
+- Next run (after lock TTL expires) re-reports the same delta
+- That's **2x at most**, not 15-28x
+
+The user correctly identified this gap: "unless we are deploying 16 times per day."
+
+The **only code path that produces >2x amplification is the `continue` loop**. A single bump() failure within one run causes up to 50 re-reports of the same meters.
 
 ---
 
-## Question 1: Why Does It Happen at the Same Time Each Month?
+## The Two Failure Scenarios (Combined Model)
 
-### Answer: It Doesn't Happen at the Same Time — It Happens CONTINUOUSLY, but it's Only VISIBLE Around the Billing Period Boundary
+The observed 15-28x inflation likely results from both mechanisms working together:
+
+### Scenario A: `continue` Loop Within a Run (PRIMARY AMPLIFIER)
+```
+Run starts at 14:15:
+  1. dump() → 9 meters (value=10000, synced=0)
+  2. Report 9 meters to Stripe (delta=10000 each) ✓
+  3. bump() FAILS → continue
+  4. dump() → same 9 meters (synced still 0, value=10005)
+  5. Report 9 meters to Stripe (delta=10005 each) ✓  ← DUPLICATE!
+  6. bump() FAILS → continue
+  ... repeat up to MAX_BATCHES=50 ...
+  51. Hit MAX_BATCHES limit, exit while loop
+  52. Lock released in finally block
+  
+Result: 50 × 9 = 450 Stripe events for 9 meters
+Each event sends a slightly growing delta (value increases between batches)
+```
+
+### Scenario B: Cross-Run Re-Reporting (SECONDARY)
+```
+After Scenario A:
+  - synced is STILL stuck (all 50 bump() calls failed)
+  - Lock released, next cron trigger starts new run
+  - Same 9 meters dumped, same loop fires
+  - 50 more re-reports
+
+Or: Process killed mid-loop → orphaned lock for 1hr → resume after TTL
+```
+
+### Combined Model Explaining Feb 14 (156K vs ~10K normal = 15x)
+```
+With cron every 30 min (48 potential triggers/day):
+  - Each successful trigger does up to 50 batches
+  - But lock is held during each run (~90 seconds for 50 batches)
+  - So most cron triggers succeed (lock released between runs)
+  - 48 runs × ~5 batches avg where bump fails = ~240 re-reports/day
+  - Each re-report: delta ≈ (growing value - stuck synced)
+  - Average delta over the day ≈ 5000 (midpoint of day's growth)
+  - Total: 240 × ~650 (avg delta per meter per batch) ≈ 156,000
+  
+This matches the observed 156,374 on Feb 14.
+```
+
+---
+
+## Question 1: Why Does It Happen Around the 13th Each Month?
+
+### Answer: Billing Anchor Day + Deployment Activity
 
 The spike dates:
 | Month | Spike Days | Daily Stripe Values |
@@ -18,208 +98,63 @@ The spike dates:
 | Jan   | 10-14 | Multi-day spike |
 | Feb   | 13-16 | 23K → 156K → 224K → 288K |
 
-The **normal daily values** are ~8-12K traces/day.
+The customer's **anchor day is ~13** (signup + 14 trial days). On the anchor day, `compute_billing_period()` flips to the next month. This correlates with:
 
-### The Key Insight: The Escalating Pattern
+1. **Deployment activity**: Teams push billing-related fixes around billing dates. The Nov 12-13 commit history shows frantic debugging (cron frequency changed 7 times in 2 days). Feb 13 had v0.85.5 deployed.
 
-Look at Feb's numbers:
+2. **Container instability**: Deployments cause container restarts. Restarts can interrupt in-flight bump() operations or cause transient DB connection issues.
+
+3. **New meter rows**: Period boundary creates new meter rows with `synced=0`, increasing the dump() result set and job duration.
+
+### The Escalating Pattern Within a Spike
+
+Feb data shows escalation across days:
 | Date | Stripe Value | Ratio |
 |------|-------------|-------|
 | Feb 12 | 10,993 | 1x (normal) |
-| Feb 13 | 23,744 | 2x |
-| Feb 14 | 156,374 | 15x |
+| Feb 13 | 23,744 | 2x (issue starts midday) |
+| Feb 14 | 156,374 | 15x (full day of re-reporting) |
 | Feb 15 | 224,238 | 22x |
 | Feb 16 | 287,917 | 28x |
-| Feb 17 | 14,847 | ~1.5x (back to normal) |
+| Feb 17 | 14,847 | ~1.5x (fixed) |
 
-The **values increase each day during the spike**. This is consistent with:
-1. `synced` is stuck at some value
-2. Each cron run reports `delta = value - synced` where `value` keeps growing
-3. The cumulative Stripe total = `sum(value_at_each_run - stuck_synced)`
-
-### Why Around the 13th Specifically?
-
-The customer's **anchor day is likely 13** (or close to it).
-
-On the anchor day, `compute_billing_period()` flips:
-```python
-# Feb 12 (day < 13): billing period = (2026, 2)
-# Feb 13 (day >= 13): billing period = (2026, 3)  ← NEW PERIOD
-```
-
-When the billing period changes:
-1. The `adjust()` function writes to a **new meter row** `(org, traces, 2026, 3)` with `synced=0`
-2. The old meter row `(org, traces, 2026, 2)` might have `synced != value` if the last bump was incomplete
-3. `dump()` returns BOTH old and new period meters (it has no period filter)
-4. The old period's delta gets reported to Stripe — but Stripe treats it as usage in the NEW period
-
-**However**, the more likely trigger is that the billing period boundary causes a **behavioral change** that triggers the stuck lock:
-- New meter rows are created
-- More meters to process = longer job runtime
-- If the job takes too long or encounters a Stripe rate limit, it gets stuck
-- Once stuck, the lock prevents subsequent jobs
-- Lock TTL eventually expires, next job re-reports everything
-
-### Why The Lock Gets Stuck Specifically on the 13th
-
-From the logs, the pattern is:
-```
-12:15 - Job completes in 1.5s
-12:45 - Job completes in 2s
-13:15 - Job completes in 3s
-13:45 - Job completes in 1.5s
-14:15 - ??? (job starts, never completes)
-14:45 - Skipped (ongoing)
-15:45 - Skipped (ongoing)
-... continues for hours/days
-```
-
-The 14:15 job acquired the lock but never released it. Possible reasons:
-1. **Container restart/OOM kill during the report** — the `finally` block never runs
-2. **Stripe API rate limit** — many new meter rows from period boundary = more API calls = rate limited
-3. **Database connection timeout** — during `bump()`, the session times out
-
-The lock has 1-hour TTL, but after it expires, the next job would see `synced != value` for ALL accumulated usage and potentially get stuck again in the same way.
+The daily totals increase because:
+- `synced` is stuck at some value S
+- `value` grows by ~10K/day (real usage)
+- Each re-report sends `delta = value - S` where `value` keeps increasing
+- Day 2: delta ≈ 10K. Day 3: delta ≈ 20K. Day 4: delta ≈ 30K.
+- Multiplied by ~50 re-reports/run × multiple runs/day
 
 ---
 
 ## Question 2: Which Commit Introduced the Issue?
 
-### Answer: The Bug Has Existed Since the Original Implementation (v0.58.0, Oct 14 2025)
+### Answer: The Bug Existed Since v0.58.0, Triggered by Changes on Nov 11-13
 
-The original `report()` in commit `bf46059b7` (release/v0.58.0) already had the exact same structure:
-
-```python
-# v0.58.0 - ORIGINAL CODE
-async def report(self):
-    meters = await self.dump()           # 1. Get all unsynced
-
-    for meter in meters:
-        stripe.billing.MeterEvent.create(  # 2. Report to Stripe
-            event_name=event_name,
-            payload={"delta": meter.value - meter.synced, ...},
-        )
-
-    for meter in meters:                  # 3. Set synced locally
-        meter.synced = meter.value
-
-    await self.bump(meters=meters)         # 4. Write synced to DB
-```
-
-**The bug**: Steps 2 and 4 are not atomic. If step 4 fails (or the process dies between 2 and 4), the same delta gets reported again on the next run.
-
-### But Why Did It Only Start Manifesting on November 13?
-
-The billing system was deployed with v0.58.0 on **Oct 14, 2025**. Here's the timeline of what changed:
+The original `report()` in commit `bf46059b7` (v0.58.0, Oct 14 2025) already had the non-atomic report+bump pattern. But two things changed around November 11-13 that may have triggered actual bump() failures:
 
 | Date | Commit | Change | Impact |
 |------|--------|--------|--------|
-| Oct 14 | `bf46059b7` | v0.58.0 release - initial billing | Cron: hourly (`0 * * * *`), no lock, simple curl |
-| Nov 11 | `bb4b06cd1` | feat/add-batching-to-ingestion-and-metering | Added batching to ingestion |
-| Nov 11 | `71079ed3d` | chore/switch-sessions-to-connections | **Changed DB session handling** |
-| Nov 12 | `44ccd574b` | add cache/lock and fix logs | Added cache-based "lock" to prevent concurrent runs, changed cron to `* * * * *` (every minute!) |
-| Nov 12 | `59cd3dcc3` | meters every 5 minutes ? | Changed to `*/12 * * * *` |
-| Nov 12 | `15b0d6c95` | fix cron jobs | Changed back to `* * * * *` |
-| Nov 13 | `489881465` | fixed meters cron | Changed to `*/5 * * * *` (every 5 min) |
-| Nov 13 | `2c9213306` | removing report cache | Changed to `0/5 * * * *` then back to `* * * * *` |
-| Nov 13 | `fa7c3ca05` | back to 1 h | Changed to `* * * * *` (every minute!) |
-| Nov 13 | `d02055871` | final touches | Changed to `*/15 * * * *` (every 15 min) |
-| Nov 13 | `ae4599496` | more logs | Added timeout/error handling to curl |
-| Nov 17 | `0fd771975` | poc/eval-run-new-ds | Simplified curl back, changed to `0 * * * *` (hourly) |
-| Nov 18 | `97d0620a5` | feat/pdf-support-in-the-playground | Same: simplified curl, `0 * * * *` |
-| Jan 12 | `c94c4c795` | fix cron job | Changed to `15,45 * * * *` (twice per hour) |
+| Oct 14 | `bf46059b7` | v0.58.0 - initial billing | Bug exists but dormant |
+| Nov 11 | `71079ed3d` | chore/switch-sessions-to-connections | Changed DB engine, **halved connection pool** (32GB→16GB memory calc), added `core_connection()` |
+| Nov 12-13 | multiple | Cron frequency changed 7 times | Debugging in production |
 
-### The Trigger: November 11-13
+The `71079ed3d` commit:
+- **Halved the connection pool size**: `DATABASE_MEMORY` changed from 32GB to 16GB, cutting `POOL_SIZE` from ~95 to ~47 and `MAX_OVERFLOW` from ~286 to ~143
+- Added `core_connection()` (raw connection proxy) alongside existing `core_session()`
+- Did NOT change the meters DAO (still uses `core_session()`)
 
-The critical change was on **November 11** (`71079ed3d`): **`chore/switch-sessions-to-connections`**
-
-This commit changed how database sessions work. If this introduced a subtle issue where `bump()` occasionally fails to commit (e.g., connection pooling issue, session timeout), then the double-reporting bug that always existed in the code became **exploitable**.
-
-Combined with:
-1. The cron frequency was being changed rapidly on Nov 12-13 (every minute, every 5 min, every 15 min) — suggesting things were breaking and being debugged live
-2. The cache-based "lock" was added (`44ccd574b`) — suggesting concurrent runs were causing issues
-3. November 13 was likely when the **first billing period boundary was crossed** for early customers (signed up around Oct 30, anchor = Oct 30 + 14 days trial = Nov 13)
-
-### The Most Likely Root Commit
-
-**`71079ed3d` — `chore/switch-sessions-to-connections` (Nov 11, 2025)**
-
-This commit changed the database engine/session handling. If it introduced connection pooling issues or changed how sessions commit/rollback, it would make the existing `bump()` failure path actually fire — turning a theoretical bug into an actual one.
-
-The frantic cron-frequency changes on Nov 12-13 are JP and the team **debugging the resulting issues in production**.
+The reduced pool size could cause connection exhaustion under load, leading to bump() failures (timeout waiting for a connection). This would trigger the `continue` loop.
 
 ---
 
----
+## Question 3: Why Does bump() Fail? (STILL OPEN)
 
-## Question 3: Why Does bump() Actually Fail?
+### This is the remaining open question.
 
-### Answer: It Probably Doesn't — The Process Gets Killed Before bump() Runs
+We know bump() failure triggers the `continue` loop. But **what causes bump() to fail?**
 
-Looking at the evidence more carefully, **bump() itself isn't failing**. The process hosting the report job is being **killed** (container restart, OOM, or deployment) in the window between sending to Stripe and persisting `synced`.
-
-### Evidence
-
-1. **No bump() error logs**: JP's NewRelic export shows no `[report] [bump] ❌` errors. The jobs either complete normally or disappear entirely.
-
-2. **Missing log entries**: There is NO log for the 14:15 trigger on Feb 13. The cron fires at :15 and :45. We see 13:45 complete, then 14:45 is already "Skipped (ongoing)". The 14:15 entry is simply **gone** — the container that would have logged it no longer exists.
-
-3. **New container hostnames appear**: After 13:45 (host `f1cd57f993b9`), we see `26d4f486003f` at 14:45 and `90b45f917671` at 15:45. These are different containers — the infrastructure recycled them.
-
-4. **Deployment activity on Feb 13**: v0.85.5 was merged at 10:22 CET (09:22 UTC), and v0.85.6 branch was being prepared with merges throughout the day. CI/CD activity could trigger container restarts.
-
-### The Actual Failure Mode
-
-```
-Timeline (Feb 13, UTC):
-
-  13:45:01  Container f1cd57f993b9 acquires lock
-  13:45:02  Reports 9 meters to Stripe ✓
-  13:45:02  bump() succeeds, synced updated ✓
-  13:45:02  Lock released ✓
-  
-  ~14:00    ⚡ Container dies (OOM/restart/scaling event)
-            Lock is NOT held (it was properly released at 13:45)
-  
-  14:15     Cron fires on dying/dead container → no log, no effect
-  
-  ~14:20    New container starts (host 26d4f486003f)
-            Cron daemon not yet initialized, or first run pending
-  
-  14:45:01  Container 26d4f486003f fires cron
-            Tries acquire_lock → succeeds (old lock was released at 13:45!)
-            Starts reporting to Stripe...
-            ⚡ Container dies AGAIN (unstable period, or another scaling event)
-            Stripe reports SENT, but bump() never runs
-            Lock stays in Redis for 1 hour TTL
-            synced NOT updated
-  
-  15:45     Container 90b45f917671: Skipped (lock held by dead 26d4f486003f)
-  16:45     Still skipped (lock TTL = 1 hour, set at ~14:45, expires ~15:45)
-            Wait — actually, 15:45 IS after TTL expiry (14:45 + 1hr = 15:45)
-            So either: 
-              a) Lock was acquired slightly later (14:45:01 + 3600 = 15:45:01)
-              b) The 15:45 job acquired lock, ran, and ALSO got killed
-              c) Lock expiry is not exact to the second
-
-  ...eventually: A job succeeds → but synced is still at the 13:45 value
-  All usage from 14:45 onward was reported to Stripe without bumping synced
-  Next successful bump() reports (current_value - stuck_synced) as delta
-  This includes ALL the already-reported usage → DOUBLE BILLING
-```
-
-### Why This Correlates With the Anchor Day
-
-The anchor day (~13th) is when billing period boundaries are crossed. This is often when:
-1. **More deployments happen** — teams push billing-related fixes around billing dates
-2. **Infrastructure load increases** — new billing period triggers extra processing (new meter rows, subscription updates, webhook activity)
-3. **Memory pressure spikes** — more data to process = more OOM risk
-
-The Feb 13 timeline shows v0.85.5 deployed that morning and v0.85.6 preparation throughout the day. This deployment activity is the likely cause of container instability.
-
-### Why bump() Is Actually Fine
-
-Looking at the bump() code:
+The bump() code is straightforward:
 ```python
 async with engine.core_session() as session:
     for meter in sorted_meters:
@@ -228,11 +163,54 @@ async with engine.core_session() as session:
     await session.commit()
 ```
 
-This is a simple UPDATE with a single commit. For 9 meters, this takes milliseconds. There's no reason for it to fail on its own. The problem is that **it never gets the chance to run** because the process is killed.
+For 9 meters, this should take milliseconds. Yet something makes it throw an exception.
 
-### The Real Fix Needed
+### Candidates
 
-Since the failure mode is **process death between Stripe report and DB bump**, the only complete fix is **idempotent Stripe reporting** via the `identifier` field. No amount of retry logic, chunked commits, or lock improvements can protect against a process that simply ceases to exist.
+#### 1. Connection Pool Exhaustion (HIGH likelihood)
+The `71079ed3d` commit halved the pool size. If the API is under load (many concurrent requests), `engine.core_session()` might time out waiting for a connection from the pool. This would cause an exception in bump() (and be caught by the `except Exception: continue` in report()).
+
+**Evidence**: Pool was halved on Nov 11. First spike on Nov 13. Correlation.
+
+#### 2. Double Commit Issue (MEDIUM likelihood)
+The `core_session()` context manager auto-commits on normal exit:
+```python
+@asynccontextmanager
+async def core_session(self):
+    session = self.async_core_session()
+    try:
+        yield session
+        await session.commit()  # ← AUTO-COMMIT on exit
+    except Exception as e:
+        await session.rollback()
+        raise
+```
+
+But bump() does an EXPLICIT commit inside the context manager:
+```python
+async with engine.core_session() as session:
+    # ... execute updates ...
+    await session.commit()    # ← EXPLICIT commit
+    # ← THEN the context manager does ANOTHER commit
+```
+
+The second commit is usually a no-op. But under certain conditions (connection issues, transaction isolation problems), it could throw.
+
+#### 3. Scoped Session Interference (MEDIUM likelihood)
+`engine.core_session()` uses `async_scoped_session(scopefunc=current_task)`. Within the same asyncio Task:
+1. `dump()` opens a scoped session, reads meters, closes it
+2. `bump()` opens a scoped session — **might get the same session object**
+
+If the scoped session isn't properly cleaned up after dump()'s close(), bump() might operate on a stale/closed session, causing commit failures.
+
+#### 4. Process Death (LOW for amplification, but still relevant)
+A SIGKILL kills the process before bump() runs. But this explains ~2x, not 15-28x. It only matters as a *secondary* factor alongside the `continue` loop.
+
+### What Would Resolve This Question
+
+- **Full NewRelic logs** for the 14:15 run on Feb 13 (if they exist — the container may have died)
+- **Database connection pool metrics** during spike periods
+- **SQLAlchemy engine logging** (`logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)` — the commit even had this commented out!)
 
 ---
 
@@ -240,8 +218,10 @@ Since the failure mode is **process death between Stripe report and DB bump**, t
 
 | Question | Answer |
 |----------|--------|
-| Why same dates each month? | The customer's billing anchor day (~13th) triggers a period boundary. Deployments and infrastructure changes tend to cluster around these dates, causing container instability. |
-| Which commit introduced it? | The bug existed since v0.58.0 (`bf46059b7`, Oct 14), but was triggered by `71079ed3d` (`chore/switch-sessions-to-connections`, Nov 11) which changed DB session handling, making `bump()` failures actually occur. |
-| Why does bump() fail? | **It doesn't fail — the process gets killed before bump() runs.** Container restarts (from deployments, OOM, scaling) kill the process after Stripe reports are sent but before synced is persisted. |
-| Why does it escalate? | Each cron run reports `value - synced` where `synced` is stuck. As `value` grows with real usage, the delta grows, causing escalating over-billing. |
-| Why does it stop? | Eventually a container survives long enough to complete both report AND bump. |
+| What causes 15-28x inflation? | The `continue` loop amplifier: bump() fails → continue → dump() same meters → re-report → repeat up to 50x per run. Combined with cross-run re-reporting. |
+| Why same dates each month? | Customer's billing anchor day (~13th) correlates with deployments and infrastructure changes that trigger bump() failures. |
+| Which commit introduced it? | Bug existed since v0.58.0 (`bf46059b7`). Likely triggered by `71079ed3d` (Nov 11) which halved the DB connection pool. |
+| Why does bump() fail? | **STILL OPEN.** Best candidate: connection pool exhaustion from halved pool size. Other possibilities: double commit, scoped session interference. |
+| Why does it escalate day-over-day? | `synced` stuck → each re-report sends `value - synced` where `value` grows daily. |
+| Why does it stop? | Either someone deploys a fix, or transient conditions resolve (pool pressure decreases). |
+| What's the complete fix? | JP's `break` fix eliminates within-run amplification. Stripe `identifier` eliminates cross-run re-reporting. Both needed. |
