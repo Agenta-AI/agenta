@@ -14,7 +14,7 @@ import {atomFamily} from "jotai/utils"
 import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
-import LegacyPlaygroundConfigSection from "@/oss/components/Playground/Components/LegacyPlaygroundConfigSection"
+import {PlaygroundConfigSection} from "@agenta/entity-ui"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
@@ -91,7 +91,7 @@ const VariantDrawerContent = ({
                       className: "w-full h-full flex flex-col px-4",
                       children: (
                           <OSSdrillInUIProvider>
-                              <LegacyPlaygroundConfigSection
+                              <PlaygroundConfigSection
                                   revisionId={revisionId}
                                   disabled={!!showOriginal}
                                   useServerData={!!showOriginal}

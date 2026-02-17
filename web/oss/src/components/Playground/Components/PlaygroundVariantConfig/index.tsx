@@ -6,7 +6,7 @@ import {playgroundController} from "@agenta/playground"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
-import LegacyPlaygroundConfigSection from "../LegacyPlaygroundConfigSection"
+import {PlaygroundConfigSection} from "@agenta/entity-ui"
 
 import BaseRunnableConfigSection from "./assets/BaseRunnableConfigSection"
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
@@ -16,7 +16,7 @@ import type {VariantConfigComponentProps} from "./types"
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
  *
  * Routes to entity-type specific config sections:
- * - legacyAppRevision: LegacyPlaygroundConfigSection (schema-driven)
+ * - legacyAppRevision: PlaygroundConfigSection (schema-driven)
  * - baseRunnable: BaseRunnableConfigSection (read-only key-value display)
  */
 
@@ -44,12 +44,6 @@ const PlaygroundVariantConfig: React.FC<
                 "w-full",
                 "relative",
                 "flex flex-col",
-                "[&_.ant-collapse]:!bg-[transparent]",
-                "[&_.ant-collapse-expand-icon]:!self-center",
-                "[&_.ant-collapse-content-box]:!px-4",
-                "[&_.ant-collapse-header]:!pl-3 [&_.ant-collapse-header]:!pr-4",
-                "[&_.ant-collapse-header]:!top-[48px] [&_.ant-collapse-header]:!z-[2]",
-                "[&_.ant-collapse-header]:!sticky [&_.ant-collapse-header]:!bg-white",
                 className,
             )}
             {...divProps}
@@ -60,7 +54,7 @@ const PlaygroundVariantConfig: React.FC<
                 variantNameOverride={variantNameOverride}
                 revisionOverride={revisionOverride}
             />
-            <LegacyPlaygroundConfigSection revisionId={variantId} />
+            <PlaygroundConfigSection revisionId={variantId} />
         </div>
     )
 }

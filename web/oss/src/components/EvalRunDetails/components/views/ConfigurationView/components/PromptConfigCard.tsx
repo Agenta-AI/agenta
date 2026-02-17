@@ -3,7 +3,7 @@ import {memo, useMemo} from "react"
 import {Empty, Typography} from "antd"
 
 import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
-import LegacyPlaygroundConfigSection from "@/oss/components/Playground/Components/LegacyPlaygroundConfigSection"
+import {PlaygroundConfigSection} from "@agenta/entity-ui"
 
 import PromptConfigCardSkeleton from "./PromptConfigCardSkeleton"
 
@@ -46,7 +46,7 @@ const PromptConfigCard = ({variantId, isLoading = false, className}: PromptConfi
     return (
         <div className={className}>
             <OSSdrillInUIProvider>
-                <LegacyPlaygroundConfigSection
+                <PlaygroundConfigSection
                     revisionId={normalizedVariantId}
                     disabled
                     useServerData
