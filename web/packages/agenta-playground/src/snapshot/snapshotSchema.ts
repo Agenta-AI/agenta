@@ -84,9 +84,22 @@ export interface DraftSelectionItem extends SnapshotEntityMetadata {
 }
 
 /**
+ * Selection item for an ephemeral entity (no server-side state).
+ * Carries the full entity data inline so it can be restored from URL.
+ * Used for entities like baseRunnable that are created from trace data.
+ */
+export interface EphemeralSelectionItem extends SnapshotEntityMetadata {
+    kind: "ephemeral"
+    /** Runnable type (e.g., 'baseRunnable') */
+    runnableType: RunnableType
+    /** Full entity data serialized inline */
+    data: Record<string, unknown>
+}
+
+/**
  * Union type for selection items.
  */
-export type SelectionItem = CommitSelectionItem | DraftSelectionItem
+export type SelectionItem = CommitSelectionItem | DraftSelectionItem | EphemeralSelectionItem
 
 // ============================================================================
 // DRAFT ENTRY
@@ -190,10 +203,25 @@ function hasValidEntityMetadata(item: SnapshotEntityMetadata): boolean {
 }
 
 /**
+ * Type guard for EphemeralSelectionItem.
+ */
+function isEphemeralSelectionItem(item: unknown): item is EphemeralSelectionItem {
+    if (typeof item !== "object" || item === null) return false
+    const i = item as EphemeralSelectionItem
+    if (i.kind !== "ephemeral") return false
+    if (typeof i.runnableType !== "string") return false
+    if (typeof i.data !== "object" || i.data === null) return false
+    if (!hasValidEntityMetadata(i)) return false
+    return true
+}
+
+/**
  * Type guard for SelectionItem.
  */
 function isSelectionItem(item: unknown): item is SelectionItem {
-    return isCommitSelectionItem(item) || isDraftSelectionItem(item)
+    return (
+        isCommitSelectionItem(item) || isDraftSelectionItem(item) || isEphemeralSelectionItem(item)
+    )
 }
 
 /**

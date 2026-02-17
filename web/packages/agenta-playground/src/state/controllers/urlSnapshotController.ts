@@ -186,13 +186,16 @@ const buildEncodedSnapshotAtom = atom(
                 }
             }
 
-            // Check if snapshot has drafts
+            // Check if snapshot has drafts or ephemeral entities
             const hasDrafts = (result.snapshot?.drafts?.length ?? 0) > 0
+            const hasEphemeralEntities = result.snapshot?.selection?.some(
+                (item) => item.kind === "ephemeral",
+            )
 
             return {
                 ok: true,
                 encoded: result.encoded,
-                hasDrafts,
+                hasDrafts: hasDrafts || !!hasEphemeralEntities,
                 entityIds,
                 selectionIds: entityIds,
                 warning: result.warning,

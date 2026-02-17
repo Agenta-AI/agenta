@@ -24,6 +24,7 @@ export {
     type SelectionItem,
     type CommitSelectionItem,
     type DraftSelectionItem,
+    type EphemeralSelectionItem,
     type SnapshotDraftEntry,
     type ValidationResult,
 } from "./snapshotSchema"

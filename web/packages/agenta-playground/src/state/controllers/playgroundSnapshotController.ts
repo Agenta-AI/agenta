@@ -20,6 +20,7 @@
  */
 
 import {appRevisionSnapshotAdapter} from "@agenta/entities/appRevision"
+import {baseRunnableSnapshotAdapter} from "@agenta/entities/baseRunnable/snapshotAdapter"
 import {legacyAppRevisionSnapshotAdapter} from "@agenta/entities/legacyAppRevision"
 import {
     snapshotAdapterRegistry,
@@ -43,6 +44,7 @@ import {
 // Cannot rely on side-effect imports — tree-shaken by sideEffects: false.
 snapshotAdapterRegistry.register(legacyAppRevisionSnapshotAdapter)
 snapshotAdapterRegistry.register(appRevisionSnapshotAdapter)
+snapshotAdapterRegistry.register(baseRunnableSnapshotAdapter)
 
 // ============================================================================
 // TYPES
@@ -165,6 +167,22 @@ const createSnapshotAtom = atom(
                         runnableType,
                         ...selectionMetadata,
                     })
+                    continue
+                }
+
+                // Handle ephemeral entities (no server state, data serialized inline)
+                if (adapter.isEphemeral && adapter.serializeEntity) {
+                    const data = adapter.serializeEntity(revisionId)
+                    if (data) {
+                        snapshotSelection.push({
+                            kind: "ephemeral",
+                            runnableType,
+                            data,
+                            ...selectionMetadata,
+                        })
+                    } else {
+                        warnings.push(`Failed to serialize ephemeral entity: ${revisionId}`)
+                    }
                     continue
                 }
 
@@ -560,6 +578,28 @@ const hydrateSnapshotAtom = atom(
 
                     // Track mapping for reference
                     draftKeyToSourceRevisionId[item.draftKey] = draftEntry.sourceRevisionId
+                } else if (item.kind === "ephemeral") {
+                    // Ephemeral entity — restore from inline data
+                    const adapter = snapshotAdapterRegistry.get(item.runnableType)
+
+                    if (!adapter?.restoreEntity) {
+                        warnings.push(
+                            `No adapter with restoreEntity for runnable type: ${item.runnableType}`,
+                        )
+                        continue
+                    }
+
+                    const entityId = adapter.restoreEntity(item.data)
+                    if (entityId) {
+                        newSelection.push(entityId)
+                        hydratedEntities.push({
+                            id: entityId,
+                            runnableType: item.runnableType,
+                            ...itemMetadata,
+                        })
+                    } else {
+                        warnings.push(`Failed to restore ephemeral entity: ${item.runnableType}`)
+                    }
                 }
             }
 
