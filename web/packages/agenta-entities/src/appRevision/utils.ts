@@ -125,23 +125,6 @@ export function formatKeyAsName(key: string): string {
 }
 
 // ============================================================================
-// ENHANCED VALUE UTILITIES
-// ============================================================================
-
-/**
- * Unwrap an Enhanced<T> value to get the raw value
- */
-export function unwrapEnhanced<T>(enhanced: unknown): T | undefined {
-    if (enhanced === null || enhanced === undefined) return undefined
-
-    if (typeof enhanced === "object" && "value" in enhanced) {
-        return (enhanced as {value: T}).value
-    }
-
-    return enhanced as T
-}
-
-// ============================================================================
 // SCHEMA-AWARE DRILL-IN
 // ============================================================================
 

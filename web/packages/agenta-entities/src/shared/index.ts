@@ -277,7 +277,6 @@ export type {
     RunnableBridge,
     RunnableBridgeSelectors,
     RunnableBridgeCrudActions,
-    RunnableExecutionUtils,
     TypeScopedRunnableSelectors,
     // Aliases
     SourceConfig,
@@ -437,11 +436,9 @@ export {
     // Revision parameter extraction
     type RawAgConfig,
     extractRevisionParameters,
-    extractRevisionParametersFromEnhanced,
     extractRevisionParametersFromApiRevision,
     // Deprecated agConfig aliases
     extractAgConfig,
-    extractAgConfigFromEnhanced,
     extractAgConfigFromApiRevision,
     // List item types
     type AppListItem,
@@ -455,7 +452,4 @@ export {
     transformAppToListItem,
     transformVariantToListItem,
     transformRevisionToListItem,
-    // Enhanced variant types
-    type EnhancedVariantLike,
-    extractUriFromEnhanced,
 } from "./utils"

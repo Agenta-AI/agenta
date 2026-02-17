@@ -660,25 +660,7 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                 }
                 return null
             }),
-
-        metadata: () =>
-            atom((get) => {
-                for (const [_type, config] of Object.entries(runnables)) {
-                    if (config.metadataSelector) {
-                        return get(config.metadataSelector())
-                    }
-                }
-                return {} as Record<string, Record<string, unknown>>
-            }),
     }
-
-    // Resolve utils: first registered type that provides utils wins
-    const utils = (() => {
-        for (const [_type, config] of Object.entries(runnables)) {
-            if (config.utils) return config.utils
-        }
-        return null
-    })()
 
     // Build normalizeResponse utility: finds the matching type config for a
     // runnableId and delegates to its normalizeResponse if defined.
@@ -849,11 +831,6 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
         executionMode: selectors.executionMode,
         /** Get pre-built request payload (config portion of API request body) */
         requestPayload: selectors.requestPayload,
-        /** Get global metadata store */
-        metadata: selectors.metadata,
-
-        /** Imperative utils for value extraction and message construction */
-        utils,
 
         /** Entity-level CRUD actions */
         crud: crud ?? _noopCrud,

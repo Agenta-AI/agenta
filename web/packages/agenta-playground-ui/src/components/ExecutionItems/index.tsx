@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
-import {executionController, executionItemController} from "@agenta/playground"
+import {executionController} from "@agenta/playground"
 import {useAtomValue} from "jotai"
 
 import ExecutionHeader from "../ExecutionHeader"
@@ -47,17 +47,9 @@ const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({
     const schemaLoading = useAtomValue(
         useMemo(() => legacyAppRevisionMolecule.atoms.schemaLoading(entityId), [entityId]),
     )
-    const messageSchemaMetadata = useAtomValue(
-        executionItemController.selectors.messageSchemaMetadata,
-    )
-
     const usesSchemaPayload = requestPayload !== null
-    const needsMessageMetadata = isChat === true && usesSchemaPayload
     const isExecutionLoading =
-        runnableQuery.isPending ||
-        isChat === undefined ||
-        (usesSchemaPayload && schemaLoading) ||
-        (needsMessageMetadata && !messageSchemaMetadata)
+        runnableQuery.isPending || isChat === undefined || (usesSchemaPayload && schemaLoading)
 
     if (isExecutionLoading) {
         return (

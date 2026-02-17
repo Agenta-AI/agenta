@@ -10,7 +10,74 @@
  * - `value`: The actual value (for primitives/arrays)
  */
 
-import type {ConfigMetadata, ArrayMetadata} from "../state/metadataAtoms"
+// ============================================================================
+// METADATA TYPES (formerly in metadataAtoms.ts)
+// ============================================================================
+
+export interface BaseOption {
+    label: string
+    value: string
+    group?: string
+    metadata?: Record<string, unknown>
+}
+
+export interface OptionGroup {
+    label: string
+    options: BaseOption[]
+}
+
+export type SelectOptions = (BaseOption | OptionGroup)[]
+
+export interface BaseMetadata {
+    type: string
+    title?: string
+    description?: string
+    nullable?: boolean
+    key?: string
+    options?: SelectOptions
+    min?: number
+    max?: number
+    format?: string
+    pattern?: string
+    isInteger?: boolean
+}
+
+export interface StringMetadata extends BaseMetadata {
+    type: "string"
+    allowFreeform?: boolean
+}
+
+export interface NumberMetadata extends BaseMetadata {
+    type: "number"
+    min?: number
+    max?: number
+    isInteger?: boolean
+}
+
+export interface BooleanMetadata extends BaseMetadata {
+    type: "boolean"
+}
+
+export interface ArrayMetadata extends BaseMetadata {
+    type: "array"
+    itemMetadata?: ConfigMetadata
+    minItems?: number
+    maxItems?: number
+}
+
+export interface ObjectMetadata extends BaseMetadata {
+    type: "object"
+    properties?: Record<string, ConfigMetadata>
+    additionalProperties?: boolean
+}
+
+export type ConfigMetadata =
+    | StringMetadata
+    | NumberMetadata
+    | BooleanMetadata
+    | ArrayMetadata
+    | ObjectMetadata
+    | BaseMetadata
 
 export type Merge<A, B> = {
     [K in keyof A | keyof B]: K extends keyof A

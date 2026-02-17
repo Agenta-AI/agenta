@@ -100,7 +100,6 @@ import {
     runStatusByRowEntityAtom,
     isChatModeAtom,
     appTypeAtom,
-    messageSchemaMetadataAtom,
     canRunAllChatComparisonAtom,
     repetitionCountAtom,
     repetitionIndexAtomFamily,
@@ -207,9 +206,6 @@ export const executionController = {
 
         /** App type ("chat" | "completion" | undefined while loading) */
         appType: appTypeAtom,
-
-        /** Message schema metadata used for assistant/tool message synthesis */
-        messageSchemaMetadata: messageSchemaMetadataAtom,
 
         /** Unified generation row IDs (turns in chat, rows in completion) */
         generationRowIds: generationRowIdsAtom,

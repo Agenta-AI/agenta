@@ -22,7 +22,6 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {fetchServiceSchema} from "../../appRevision/api/schema"
 import type {RevisionSchemaState} from "../../appRevision/core"
 import {APP_SERVICE_TYPES, resolveServiceType, type AppServiceType} from "../../appRevision/core"
-import {preheatSchemaMetadata} from "../utils/specDerivation"
 
 import {
     appsListDataAtom,
@@ -51,11 +50,7 @@ const serviceSchemaQueryAtomFamily = atomFamily((serviceType: AppServiceType) =>
         return {
             queryKey: ["serviceSchema", serviceType, projectId],
             queryFn: async () => {
-                const data = await fetchServiceSchema(serviceType, projectId)
-                if (data?.agConfigSchema) {
-                    preheatSchemaMetadata(data.agConfigSchema)
-                }
-                return data
+                return fetchServiceSchema(serviceType, projectId)
             },
             staleTime: 1000 * 60 * 30, // 30 minutes — service schemas rarely change
             gcTime: 1000 * 60 * 60, // 1 hour garbage collection
@@ -77,37 +72,6 @@ export const completionServiceSchemaAtom = serviceSchemaQueryAtomFamily(
  * Chat service schema — prefetched.
  */
 export const chatServiceSchemaAtom = serviceSchemaQueryAtomFamily(APP_SERVICE_TYPES.CHAT)
-
-// ============================================================================
-// METADATA WARMER
-// ============================================================================
-
-/**
- * Subscribes to both service schema queries and preheats metadata as soon as
- * schema data is available. This runs independently of any revision — metadata
- * becomes warm at app-selection time, so when a revision is later opened
- * (e.g., variant drawer), UI controls can render correctly on first paint.
- *
- * Subscribe to this atom from AppGlobalWrappers alongside the existing
- * service schema prefetch subscriptions.
- */
-export const serviceSchemaMetadataWarmerAtom = atom((get) => {
-    let warmed = false
-
-    const completionQuery = get(completionServiceSchemaAtom)
-    if (completionQuery.data?.agConfigSchema) {
-        preheatSchemaMetadata(completionQuery.data.agConfigSchema)
-        warmed = true
-    }
-
-    const chatQuery = get(chatServiceSchemaAtom)
-    if (chatQuery.data?.agConfigSchema) {
-        preheatSchemaMetadata(chatQuery.data.agConfigSchema)
-        warmed = true
-    }
-
-    return warmed
-})
 
 // ============================================================================
 // APP TYPE LOOKUP
@@ -249,14 +213,6 @@ export const composedServiceSchemaAtomFamily = atomFamily((revisionId: string) =
 
         if (!serviceResult.isAvailable || !serviceResult.data) {
             return null
-        }
-
-        // Pre-heat metadata from the service schema so downstream derivation
-        // (deriveEnhancedPrompts, deriveEnhancedCustomProperties) finds metadata
-        // already warm — eliminates microtask timing gap on first read.
-        // This is idempotent and follows the same pattern as deriveEnhancedPrompts.
-        if (serviceResult.data.agConfigSchema) {
-            preheatSchemaMetadata(serviceResult.data.agConfigSchema)
         }
 
         // Merge with revision-specific runtime context

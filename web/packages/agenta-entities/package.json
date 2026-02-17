@@ -42,10 +42,10 @@
         "@agenta/shared": "workspace:../agenta-shared",
         "jotai-scheduler": "^0.0.5",
         "lodash": "^4.17.21",
+        "openapi-json-schema": "^2.0.0",
         "stable-hash": "^0.0.6"
     },
     "devDependencies": {
-        "typescript": "5.8.3",
         "@floating-ui/react": "^0.26.0",
         "@lexical/code": "^0.38.2",
         "@lexical/hashtag": "^0.38.2",
@@ -60,6 +60,7 @@
         "@lexical/utils": "^0.38.2",
         "@tanstack/react-virtual": "^3.13.2",
         "@types/js-yaml": "^4.0.9",
+        "@types/json-schema": "^7.0.15",
         "@types/lodash": "^4.17.18",
         "@types/node": "^20.8.10",
         "@types/prismjs": "^1.26.0",
@@ -72,6 +73,7 @@
         "jsonrepair": "^3.0.0",
         "lexical": "^0.38.2",
         "prismjs": "^1.29.0",
+        "typescript": "5.8.3",
         "usehooks-ts": "^3.0.0"
     },
     "peerDependencies": {

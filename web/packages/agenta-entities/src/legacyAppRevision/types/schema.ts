@@ -5,7 +5,7 @@
  * in the entity package.
  */
 
-import type {BaseOption} from "../state/metadataAtoms"
+import type {BaseOption} from "./enhanced"
 
 // ============================================================================
 // BASE

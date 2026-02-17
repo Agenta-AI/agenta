@@ -10,14 +10,10 @@
 
 export {
     // Transform functions
-    transformEnhancedVariant,
-    transformApiRevision,
     transformAppToListItem,
     // Revision parameter extraction
-    extractRevisionParametersFromEnhanced,
     extractRevisionParametersFromApiRevision,
     // Deprecated agConfig extraction
-    extractAgConfigFromEnhanced,
     extractAgConfigFromApi,
     // List API functions
     fetchAppsList,
@@ -31,7 +27,6 @@ export {
     type ApiVariant,
     type ApiRevisionListItem,
     type ApiApp,
-    type EnhancedVariantLike,
     type RevisionRequest,
     type VariantListItem,
     type RevisionListItem,
@@ -53,6 +48,9 @@ export {
     buildRevisionSchemaState,
     // Schema path navigation
     getSchemaPropertyAtPath,
+    // Schema conversion (openapi-json-schema)
+    convertOpenApiSchemaToJsonSchema,
+    jsonSchemaToEntitySchema,
     // Service schema prefetch
     fetchServiceSchema,
     // Types

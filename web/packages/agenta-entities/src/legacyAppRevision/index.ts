@@ -103,9 +103,6 @@ export {
 // ============================================================================
 
 export {
-    // Data transformers
-    transformApiRevision,
-    transformEnhancedVariant,
     // Fetch functions
     fetchOssRevision,
     fetchOssRevisionById,
@@ -124,6 +121,9 @@ export {
     extractEndpointSchema,
     extractAllEndpointSchemas,
     constructEndpointPath,
+    // Schema conversion (openapi-json-schema)
+    convertOpenApiSchemaToJsonSchema,
+    jsonSchemaToEntitySchema,
     // URI probing functions
     probeEndpointPath,
     fetchRevisionSchemaWithProbe,
@@ -197,7 +197,7 @@ export {
     legacyAppRevisionEntityWithBridgeAtomFamily,
     legacyAppRevisionServerDataSelectorFamily,
     legacyAppRevisionIsDirtyWithBridgeAtomFamily,
-    // Legacy atoms (deprecated - use enriched query pattern)
+    // Bridge server data (written imperatively, read by entity/molecule atoms)
     legacyAppRevisionServerDataAtomFamily,
     // List atoms
     appsListAtom,
@@ -222,26 +222,6 @@ export {
     // Server data management
     setServerDataAtom,
     clearServerDataAtom,
-    // Enhanced prompts/custom properties
-    setEnhancedPromptsAtom,
-    mutateEnhancedPromptsAtom,
-    setEnhancedCustomPropertiesAtom,
-    mutateEnhancedCustomPropertiesAtom,
-    updatePropertyAtom,
-    // Read utilities
-    findPropertyInObject,
-    findPropertyInArray,
-    findPropertyByIdAtomFamily,
-    // Template format
-    revisionTemplateFormatAtomFamily,
-    sanitizeTemplateFormat,
-    getTemplateFormatNode,
-    getTemplateFormatValue,
-    getTemplateFormatPropertyId,
-    DEFAULT_TEMPLATE_FORMAT,
-    type PromptTemplateFormat,
-    // Per-prompt variables
-    revisionPromptVariablesAtomFamily,
     // Override functions
     setAppsListAtom,
     setVariantsListAtomFamily,
@@ -258,16 +238,6 @@ export {
     revisionSchemaAtPathAtomFamily,
     revisionEndpointsAtomFamily,
     getSchemaPropertyAtPath,
-    // Enhanced custom properties (with values)
-    revisionEnhancedCustomPropertiesAtomFamily,
-    revisionCustomPropertyKeysAtomFamily,
-    type EnhancedCustomProperty,
-    // Enhanced prompts (with values)
-    revisionEnhancedPromptsAtomFamily,
-    revisionPromptKeysAtomFamily,
-    type EnhancedPrompt,
-    // Service schema metadata warmer
-    serviceSchemaMetadataWarmerAtom,
 } from "./state"
 
 // ============================================================================
@@ -283,6 +253,17 @@ export type {
     StartsWith__,
     EnhancedObjectConfig,
     Enhanced,
+    // Metadata types (canonical home — formerly in metadataAtoms.ts)
+    ConfigMetadata,
+    BaseMetadata,
+    StringMetadata,
+    NumberMetadata,
+    BooleanMetadata,
+    ArrayMetadata,
+    ObjectMetadata,
+    BaseOption,
+    OptionGroup,
+    SelectOptions,
     // Schema types
     Base,
     CompoundOption,
@@ -304,25 +285,11 @@ export type {
 
 // Re-export spec derivation utilities (pure functions)
 export {
-    deriveEnhancedPrompts,
-    deriveEnhancedCustomProperties,
-    // OpenAPI spec convenience wrappers
-    extractVariantParameters,
-    derivePromptsFromOpenApiSpec,
-    deriveCustomPropertiesFromOpenApiSpec,
     // Detection helpers
     isPromptLikeStructure,
     isPromptLikeSchema,
     isPromptProperty,
-    enhanceToolsArray,
-    // Parameter conversion helpers
-    enhancedPromptsToParameters,
-    enhancedCustomPropertiesToParameters,
-    // Metadata helpers
-    extractObjectSchemaFromMetadata,
-    createObjectFromMetadata,
     // Value extraction
-    extractValueByMetadata,
     stripAgentaMetadataDeep,
     stripEnhancedWrappers,
     toSnakeCase,
@@ -331,46 +298,11 @@ export {
     extractInputValues,
     // Request body builder
     transformToRequestBody,
-    toRequestBodyCompletion,
-    toRequestBodyChat,
     // Request body types
     type TransformVariantInput,
     type TransformMessage,
     type TransformToRequestBodyParams,
-    // Message from schema
-    createMessageFromSchema,
-    setMessageSchemaMetadataAccessor,
 } from "./utils"
-
-/**
- * Re-export metadata atoms.
- *
- * @deprecated Prefer using `legacyAppRevisionMolecule.metadata.*` for metadata access.
- */
-export {
-    // Atoms
-    metadataAtom,
-    metadataSelectorFamily,
-    // Utilities
-    updateMetadataAtom,
-    getMetadataLazy,
-    getAllMetadata,
-    hashMetadata,
-    hashAndStoreMetadata,
-    hashConfigMetadata,
-    isObjectMetadata,
-    // Types
-    type ConfigMetadata,
-    type BaseMetadata,
-    type StringMetadata,
-    type NumberMetadata,
-    type BooleanMetadata,
-    type ArrayMetadata,
-    type ObjectMetadata,
-    type BaseOption,
-    type OptionGroup,
-    type SelectOptions,
-} from "./state/metadataAtoms"
 
 // Re-export runnable extension
 export {

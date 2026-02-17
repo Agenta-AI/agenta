@@ -60,17 +60,12 @@ const ChatTurnView = ({
         stepId: turnId,
     })
 
-    const messageSchema = useAtomValue(executionItemController.selectors.messageSchemaMetadata)
-
     const messageOverride = useMemo(() => {
         if (Array.isArray(result) && result.length > 0) {
-            return executionItemController.helpers.buildAssistantMessage(
-                messageSchema,
-                currentResult,
-            )
+            return executionItemController.helpers.buildAssistantMessage(currentResult)
         }
         return undefined
-    }, [result, currentResult, messageSchema])
+    }, [result, currentResult])
 
     const sessionId = entityId ? `sess:${entityId}` : null
 

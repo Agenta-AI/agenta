@@ -113,7 +113,6 @@ export {createRunnableBridge} from "../shared"
 export type {
     RunnableBridge,
     RunnableBridgeSelectors,
-    RunnableExecutionUtils,
     RunnableTypeConfig,
     CreateRunnableBridgeConfig,
     RunnablePort,
@@ -135,7 +134,6 @@ export {
     extractTemplateVariables,
     extractTemplateVariablesFromJson,
     extractVariablesFromPrompts,
-    extractVariablesFromEnhancedPrompt,
     extractVariablesFromConfig,
 } from "./utils"
 export type {PathSource, ExecuteRunnableOptions, EvaluatorInputContext} from "./utils"

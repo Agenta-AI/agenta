@@ -54,7 +54,6 @@ import {
     repetitionCountAtom,
     repetitionIndexAtomFamily,
     allRowsCollapsedAtom,
-    messageSchemaMetadataAtom,
     triggerExecutionAtom,
     triggerExecutionsAtom,
     cancelTestsMutationAtom,
@@ -189,9 +188,6 @@ export const executionItemController = {
 
         /** Messages by ID for the current loadable context */
         messagesById: messagesByIdWithContextAtom,
-
-        /** Message schema metadata (from entity metadata) */
-        messageSchemaMetadata: messageSchemaMetadataAtom,
 
         // ----------------------------------------------------------------
         // Repetitions

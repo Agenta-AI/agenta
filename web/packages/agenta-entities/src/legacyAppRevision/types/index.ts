@@ -14,6 +14,17 @@ export type {
     StartsWith__,
     EnhancedObjectConfig,
     Enhanced,
+    // Metadata types (canonical home — formerly in metadataAtoms.ts)
+    ConfigMetadata,
+    BaseMetadata,
+    StringMetadata,
+    NumberMetadata,
+    BooleanMetadata,
+    ArrayMetadata,
+    ObjectMetadata,
+    BaseOption,
+    OptionGroup,
+    SelectOptions,
 } from "./enhanced"
 
 export type {

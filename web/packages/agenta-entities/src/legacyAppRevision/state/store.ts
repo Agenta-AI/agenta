@@ -20,7 +20,7 @@ import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
-import {extractVariablesFromConfig, extractVariablesFromEnhancedPrompt} from "../../runnable/utils"
+import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {QueryState} from "../../shared"
 import type {ListQueryState} from "../../shared"
 import {extractRoutePath, extractRuntimePrefix, isLocalDraftId, isPlaceholderId} from "../../shared"
@@ -38,17 +38,9 @@ import {
     type VariantDetail,
 } from "../api"
 import type {LegacyAppRevisionData} from "../core"
-import {
-    stripVolatileKeys,
-    enhancedPromptsToParameters,
-    enhancedCustomPropertiesToParameters,
-} from "../utils"
+import {stripVolatileKeys} from "../utils"
 
-import {
-    legacyAppRevisionSchemaQueryAtomFamily,
-    revisionEnhancedPromptsAtomFamily,
-    revisionEnhancedCustomPropertiesAtomFamily,
-} from "./schemaAtoms"
+import {legacyAppRevisionSchemaQueryAtomFamily} from "./schemaAtoms"
 
 // ============================================================================
 // INPUT PORTS TYPE
@@ -1040,7 +1032,6 @@ export const legacyAppRevisionEntityWithBridgeAtomFamily = atomFamily((revisionI
             return draft
         }
 
-        // Use server data selector which merges enriched data with enhanced properties
         const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
         if (serverData) {
             return serverData
@@ -1094,46 +1085,16 @@ export const legacyAppRevisionServerDataSelectorFamily = atomFamily((revisionId:
 )
 
 /**
- * Reactive atom that converts enhanced draft data back to raw parameters.
+ * Reactive atom that returns the current draft parameters.
  *
- * Returns the current draft parameters with enhanced prompts/properties
- * converted back to raw format. Returns null when no draft exists.
- *
- * This is the single conversion point used by isDirty, commit, diff view,
- * and JSON editor — avoiding duplicated enhanced→raw conversion logic.
+ * Returns null when no draft exists.
+ * Used by isDirty, commit, diff view, and JSON editor.
  */
 export const legacyAppRevisionDraftParametersAtomFamily = atomFamily((revisionId: string) =>
     atom<Record<string, unknown> | null>((get) => {
         const draft = get(legacyAppRevisionDraftAtomFamily(revisionId))
         if (!draft) return null
-
-        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        const serverParams: Record<string, unknown> = serverData?.parameters ?? {}
-        const hasEnhancedPrompts = draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)
-        const hasEnhancedCustomProps =
-            draft.enhancedCustomProperties && typeof draft.enhancedCustomProperties === "object"
-
-        // When enhanced data exists, use SERVER params as the base for conversion.
-        // This preserves key ordering from the server, preventing false positives
-        // from toSnakeCaseDeep key reordering in enhanced → raw conversion.
-        let params: Record<string, unknown>
-        if (hasEnhancedPrompts || hasEnhancedCustomProps) {
-            params = {...serverParams}
-        } else {
-            params = {...(draft.parameters ?? {})}
-        }
-
-        if (hasEnhancedPrompts) {
-            params = enhancedPromptsToParameters(draft.enhancedPrompts!, params)
-        }
-        if (hasEnhancedCustomProps) {
-            params = enhancedCustomPropertiesToParameters(
-                draft.enhancedCustomProperties as Record<string, unknown>,
-                params,
-            )
-        }
-
-        return params
+        return draft.parameters ?? null
     }),
 )
 
@@ -1216,14 +1177,6 @@ export const updateLegacyAppRevisionAtom = atom(
 
         const updated = produce(base, (draft) => {
             Object.assign(draft, changes)
-
-            // When parameters change, clear enhanced data so it gets re-derived.
-            // Without this, stale enhancedCustomProperties (e.g. deleted tools)
-            // would persist in the draft and be sent in the invocation payload.
-            if (changes.parameters) {
-                draft.enhancedPrompts = undefined
-                draft.enhancedCustomProperties = undefined
-            }
         })
 
         set(getDraftAtom(revisionId), updated)
@@ -1233,390 +1186,12 @@ export const updateLegacyAppRevisionAtom = atom(
 /**
  * Discard OSS app revision draft
  *
- * Clears both:
- * 1. The draft atom (local edits)
- * 2. The enhanced prompts/custom properties from server data atom
- *    (these may have been seeded during initial derivation from schema)
- *
+ * Clears the draft atom (local edits).
  * This ensures the UI falls back to the original query data.
  */
-export const discardLegacyAppRevisionDraftAtom = atom(null, (get, set, revisionId: string) => {
+export const discardLegacyAppRevisionDraftAtom = atom(null, (_get, set, revisionId: string) => {
     set(getDraftAtom(revisionId), null)
-
-    // 2. Clear enhanced prompts/custom properties from server data atom
-    // These may have been seeded during initial derivation from schema
-    // and need to be cleared so the UI re-derives from original query data
-    const serverData = get(legacyAppRevisionServerDataAtomFamily(revisionId))
-    if (serverData && (serverData.enhancedPrompts || serverData.enhancedCustomProperties)) {
-        const cleanedServerData = produce(serverData, (draft) => {
-            delete draft.enhancedPrompts
-            delete draft.enhancedCustomProperties
-        })
-        set(legacyAppRevisionServerDataAtomFamily(revisionId), cleanedServerData)
-    }
 })
-
-// ============================================================================
-// ENHANCED PROMPTS/CUSTOM PROPERTIES ACTIONS (for OSS playground)
-// ============================================================================
-
-/**
- * Set enhanced prompts for a revision.
- *
- * If this is the initial prompt seeding (no existing draft and server has no prompts),
- * we update the server data atom instead of creating a draft. This prevents the
- * "dirty" state from being triggered on page load when prompts are derived from schema.
- */
-export const setEnhancedPromptsAtom = atom(
-    null,
-    (get, set, revisionId: string, prompts: unknown[]) => {
-        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        const base = currentDraft || serverData
-
-        if (!base) {
-            // Don't create a draft if there's no base - wait for server data
-            return
-        }
-
-        // Skip if prompts didn't actually change
-        // Use stripVolatileKeys to ignore __id and __test fields that change on every derivation
-        const currentPrompts = base.enhancedPrompts || []
-        const currentStr = JSON.stringify(stripVolatileKeys(currentPrompts))
-        const newStr = JSON.stringify(stripVolatileKeys(prompts))
-        if (currentStr === newStr) {
-            return
-        }
-
-        // If there's no draft and server data has no prompts, this is initial seeding
-        // Update the server data atom instead of creating a draft
-        if (
-            !currentDraft &&
-            (!serverData?.enhancedPrompts || serverData.enhancedPrompts.length === 0)
-        ) {
-            const updatedServerData = produce(serverData!, (draft) => {
-                draft.enhancedPrompts = prompts
-            })
-            // Update the legacy server data atom (which feeds into serverDataSelector)
-            set(legacyAppRevisionServerDataAtomFamily(revisionId), updatedServerData)
-            return
-        }
-
-        // Otherwise, create/update the draft
-        const updated = produce(base, (draft) => {
-            draft.enhancedPrompts = prompts
-        })
-
-        set(getDraftAtom(revisionId), updated)
-    },
-)
-
-/**
- * Mutate enhanced prompts using an Immer recipe
- */
-export const mutateEnhancedPromptsAtom = atom(
-    null,
-    (get, set, revisionId: string, recipe: (draft: unknown[]) => void) => {
-        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        const base = currentDraft || serverData
-
-        if (!base) {
-            return
-        }
-
-        const currentPrompts = base.enhancedPrompts || []
-        const updatedPrompts = produce(currentPrompts, recipe)
-
-        // Skip creating draft if prompts didn't actually change
-        // Use stripVolatileKeys to ignore __id and __test fields that change on every derivation
-        const currentStr = JSON.stringify(stripVolatileKeys(currentPrompts))
-        const updatedStr = JSON.stringify(stripVolatileKeys(updatedPrompts))
-        if (currentStr === updatedStr) {
-            return
-        }
-
-        const updated = produce(base, (draft) => {
-            draft.enhancedPrompts = updatedPrompts
-        })
-
-        set(getDraftAtom(revisionId), updated)
-    },
-)
-
-/**
- * Set enhanced custom properties for a revision.
- *
- * If this is the initial seeding (no existing draft and server has no custom properties),
- * we update the server data atom instead of creating a draft. This prevents the
- * "dirty" state from being triggered on page load when properties are derived from schema.
- */
-export const setEnhancedCustomPropertiesAtom = atom(
-    null,
-    (get, set, revisionId: string, customProperties: Record<string, unknown>) => {
-        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        const base = currentDraft || serverData
-
-        if (!base) {
-            // No base data yet - wait for server data
-            return
-        }
-
-        // Skip if custom properties didn't actually change
-        // Use stripVolatileKeys to ignore __id and __test fields that change on every derivation
-        const currentProps = base.enhancedCustomProperties || {}
-        const currentStr = JSON.stringify(stripVolatileKeys(currentProps))
-        const newStr = JSON.stringify(stripVolatileKeys(customProperties))
-        if (currentStr === newStr) {
-            return
-        }
-
-        // If there's no draft and server data has no custom properties, this is initial seeding
-        // Update the server data atom instead of creating a draft
-        if (
-            !currentDraft &&
-            (!serverData?.enhancedCustomProperties ||
-                Object.keys(serverData.enhancedCustomProperties).length === 0)
-        ) {
-            const updatedServerData = produce(serverData!, (draft) => {
-                draft.enhancedCustomProperties = customProperties
-            })
-            // Update the legacy server data atom (which feeds into serverDataSelector)
-            set(legacyAppRevisionServerDataAtomFamily(revisionId), updatedServerData)
-            return
-        }
-
-        // Otherwise, create/update the draft
-        const updated = produce(base, (draft) => {
-            draft.enhancedCustomProperties = customProperties
-        })
-
-        set(getDraftAtom(revisionId), updated)
-    },
-)
-
-/**
- * Mutate enhanced custom properties using an Immer recipe
- */
-export const mutateEnhancedCustomPropertiesAtom = atom(
-    null,
-    (get, set, revisionId: string, recipe: (draft: Record<string, unknown>) => void) => {
-        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        const base = currentDraft || serverData
-
-        if (!base) return
-
-        const currentProps = (base.enhancedCustomProperties as Record<string, unknown>) || {}
-        const updatedProps = produce(currentProps, recipe)
-
-        // Skip creating draft if custom properties didn't actually change
-        // Use stripVolatileKeys to ignore __id and __test fields that change on every derivation
-        const currentStr = JSON.stringify(stripVolatileKeys(currentProps))
-        const updatedStr = JSON.stringify(stripVolatileKeys(updatedProps))
-        if (currentStr === updatedStr) {
-            return
-        }
-
-        const updated = produce(base, (draft) => {
-            draft.enhancedCustomProperties = updatedProps
-        })
-
-        set(getDraftAtom(revisionId), updated)
-    },
-)
-
-/**
- * Update a property by __id in enhanced prompts
- */
-export const updatePropertyAtom = atom(
-    null,
-    (
-        get,
-        set,
-        params: {
-            revisionId: string
-            propertyId: string
-            value: unknown
-        },
-    ) => {
-        const {revisionId, propertyId, value} = params
-
-        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        const base = currentDraft || serverData
-
-        if (!base) {
-            return
-        }
-
-        let propertyFound = false
-        const updated = produce(base, (draft) => {
-            // Try to find and update in enhanced prompts
-            if (draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)) {
-                const found = updatePropertyInArray(draft.enhancedPrompts, propertyId, value)
-                if (found) {
-                    propertyFound = true
-                    return
-                }
-            }
-
-            // Try to find and update in enhanced custom properties
-            if (draft.enhancedCustomProperties) {
-                const customProps = draft.enhancedCustomProperties as Record<string, unknown>
-                if (propertyId in customProps) {
-                    customProps[propertyId] = value
-                    propertyFound = true
-                    return
-                }
-
-                // Check if it's a nested property with __id
-                for (const [key, val] of Object.entries(customProps)) {
-                    if (
-                        val &&
-                        typeof val === "object" &&
-                        (val as {__id?: string}).__id === propertyId
-                    ) {
-                        // Preserve enhanced wrapper (__id, __metadata, schema) — only update .value
-                        const typedVal = val as {value?: unknown; [k: string]: unknown}
-                        if ("value" in typedVal) {
-                            typedVal.value = value
-                        } else {
-                            customProps[key] = value
-                        }
-                        propertyFound = true
-                        return
-                    }
-                }
-            }
-
-            // Handle custom property updates (format: "custom:propertyKey")
-            // Custom properties are derived from schema + parameters, so we update parameters directly
-            if (propertyId.startsWith("custom:")) {
-                const paramKey = propertyId.replace("custom:", "")
-                if (draft.parameters) {
-                    const params = draft.parameters as Record<string, unknown>
-                    // Update the parameter value directly
-                    // The value from the UI is the new value for this parameter
-                    params[paramKey] = value
-                    propertyFound = true
-                    return
-                }
-            }
-        })
-
-        // Only set draft if property was found and updated
-        if (!propertyFound) {
-            return
-        }
-
-        // Check if JSON actually changed (Immer may return same reference if no structural change)
-        const baseStr = JSON.stringify(base)
-        const updatedStr = JSON.stringify(updated)
-        if (baseStr === updatedStr) {
-            return
-        }
-
-        set(getDraftAtom(revisionId), updated)
-    },
-)
-
-/**
- * Helper to recursively find and update a property by __id in an object
- *
- * Searches:
- * - Direct properties with __id
- * - Nested objects (e.g., llmConfig.model, llmConfig.temperature)
- * - Arrays (recurses into them)
- *
- * When a property is found:
- * - If it has `value` directly, update that
- * - Otherwise replace the entire property
- */
-function updatePropertyInObject(
-    obj: Record<string, unknown>,
-    propertyId: string,
-    value: unknown,
-): boolean {
-    for (const key of Object.keys(obj)) {
-        const prop = obj[key]
-        if (!prop || typeof prop !== "object") continue
-
-        const typedProp = prop as {__id?: string; value?: unknown; [key: string]: unknown}
-
-        // Check if this property matches
-        if (typedProp.__id === propertyId) {
-            const hasValue = "value" in typedProp
-            if (hasValue) {
-                typedProp.value = value
-            } else {
-                obj[key] = value
-            }
-            return true
-        }
-
-        // Recurse into arrays
-        if (Array.isArray(prop)) {
-            if (updatePropertyInArray(prop, propertyId, value, 0)) {
-                return true
-            }
-        }
-        // Recurse into nested objects (e.g., llmConfig contains model, temperature, etc.)
-        else if (typeof prop === "object" && prop !== null) {
-            if (updatePropertyInObject(typedProp as Record<string, unknown>, propertyId, value)) {
-                return true
-            }
-        }
-    }
-    return false
-}
-
-/**
- * Helper to recursively find and update a property by __id in an array
- *
- * Searches both:
- * - Array elements (items in arrays)
- * - Nested object properties (object values within items)
- *
- * When a property is found:
- * - If it has `value` directly, update that
- * - Otherwise replace the entire item
- */
-function updatePropertyInArray(
-    arr: unknown[],
-    propertyId: string,
-    value: unknown,
-    depth = 0,
-): boolean {
-    for (let i = 0; i < arr.length; i++) {
-        const item = arr[i]
-        if (!item || typeof item !== "object") continue
-
-        const typedItem = item as {
-            __id?: string
-            value?: unknown
-            [key: string]: unknown
-        }
-
-        // Check if this array item matches
-        if (typedItem.__id === propertyId) {
-            const hasValue = "value" in typedItem
-            if (hasValue) {
-                typedItem.value = value
-            } else {
-                arr[i] = value
-            }
-            return true
-        }
-
-        // Recurse into the object's properties (handles llmConfig.model, etc.)
-        if (updatePropertyInObject(typedItem as Record<string, unknown>, propertyId, value)) {
-            return true
-        }
-    }
-    return false
-}
 
 // ============================================================================
 // READ UTILITIES - Find property by __id (read counterpart to updatePropertyIn*)
@@ -1667,41 +1242,6 @@ export function findPropertyInArray(arr: unknown[], propertyId: string): unknown
     return undefined
 }
 
-/**
- * Find a property by __id across a revision's enhanced prompts and custom properties.
- * Returns the property value (.content?.value or .value) or null.
- */
-export const findPropertyByIdAtomFamily = atomFamily(
-    (params: {revisionId: string; propertyId: string}) =>
-        atom((get) => {
-            const {revisionId, propertyId} = params
-            if (!revisionId || !propertyId) return null
-
-            const data = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-            if (!data) return null
-
-            // Search in enhanced prompts
-            if (data.enhancedPrompts && Array.isArray(data.enhancedPrompts)) {
-                const found = findPropertyInArray(data.enhancedPrompts, propertyId)
-                if (found !== undefined) {
-                    const typed = found as {content?: {value?: unknown}; value?: unknown}
-                    return typed?.content?.value ?? typed?.value ?? null
-                }
-            }
-
-            // Search in enhanced custom properties
-            if (data.enhancedCustomProperties) {
-                const found = findPropertyInObject(data.enhancedCustomProperties, propertyId)
-                if (found !== undefined) {
-                    const typed = found as {content?: {value?: unknown}; value?: unknown}
-                    return typed?.content?.value ?? typed?.value ?? null
-                }
-            }
-
-            return null
-        }),
-)
-
 // ============================================================================
 // TEMPLATE FORMAT - Extract template format from enhanced prompts
 // ============================================================================
@@ -1747,123 +1287,3 @@ export function getTemplateFormatPropertyId(node: unknown): string | undefined {
     const candidate = n.__id ?? n.id
     return typeof candidate === "string" ? candidate : undefined
 }
-
-/**
- * Read-only: extract template format from a revision's enhanced prompts.
- * If prompts disagree, prefers the first non-default format.
- */
-export const revisionTemplateFormatAtomFamily = atomFamily((revisionId: string) =>
-    atom<PromptTemplateFormat>((get) => {
-        const data = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-        const prompts = data?.enhancedPrompts
-        if (!Array.isArray(prompts) || prompts.length === 0) {
-            return DEFAULT_TEMPLATE_FORMAT
-        }
-
-        const formats = prompts
-            .map((prompt) => getTemplateFormatValue(getTemplateFormatNode(prompt)))
-            .filter(Boolean) as PromptTemplateFormat[]
-
-        if (formats.length === 0) return DEFAULT_TEMPLATE_FORMAT
-
-        const unique = new Set(formats)
-        if (unique.size === 1) return formats[0]
-
-        const firstNonDefault = formats.find((f) => f !== DEFAULT_TEMPLATE_FORMAT)
-        return firstNonDefault ?? DEFAULT_TEMPLATE_FORMAT
-    }),
-)
-
-// ============================================================================
-// PER-PROMPT VARIABLE EXTRACTION
-// ============================================================================
-
-/**
- * Extract template variables from a single prompt within a revision.
- * Finds the prompt by __id or __name, then extracts {{variables}} from its messages.
- */
-export const revisionPromptVariablesAtomFamily = atomFamily(
-    (params: {revisionId: string; promptId: string}) =>
-        atom<string[]>((get) => {
-            const {revisionId, promptId} = params
-            if (!revisionId || !promptId) return []
-
-            const data = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-            const prompts = data?.enhancedPrompts
-            if (!Array.isArray(prompts) || prompts.length === 0) return []
-
-            const target =
-                prompts.find((pr: unknown) => (pr as Record<string, unknown>)?.__id === promptId) ||
-                prompts.find((pr: unknown) => (pr as Record<string, unknown>)?.__name === promptId)
-            if (!target) return []
-
-            return extractVariablesFromEnhancedPrompt(target)
-        }),
-)
-
-// ============================================================================
-// ENHANCED PROMPTS / CUSTOM PROPERTIES WITH FALLBACK
-// Reads from entity data (draft merged) first, falls back to schema-derived.
-// This is the recommended read API for consumers that need prompts/properties.
-// ============================================================================
-
-/**
- * Enhanced prompts with schema-derived fallback.
- *
- * Reads `data.enhancedPrompts` (includes draft changes) first.
- * Falls back to `revisionEnhancedPromptsAtomFamily` (schema + parameters derivation)
- * when the entity hasn't been seeded yet (common after page load).
- *
- * This is the recommended read-only atom for prompts in UI components.
- */
-export const enhancedPromptsWithFallbackAtomFamily = atomFamily((revisionId: string) =>
-    atom<unknown[]>((get) => {
-        const data = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-
-        if (
-            data?.enhancedPrompts &&
-            Array.isArray(data.enhancedPrompts) &&
-            data.enhancedPrompts.length > 0
-        ) {
-            return data.enhancedPrompts
-        }
-
-        // Fallback: derive from schema + parameters
-        const derived = get(revisionEnhancedPromptsAtomFamily(revisionId))
-        if (derived && Array.isArray(derived) && derived.length > 0) {
-            return derived
-        }
-
-        return []
-    }),
-)
-
-/**
- * Enhanced custom properties with schema-derived fallback.
- *
- * Reads `data.enhancedCustomProperties` (includes draft changes) first.
- * Falls back to `revisionEnhancedCustomPropertiesAtomFamily` (schema + parameters derivation)
- * when the entity hasn't been seeded yet.
- *
- * This is the recommended read-only atom for custom properties in UI components.
- */
-export const enhancedCustomPropertiesWithFallbackAtomFamily = atomFamily((revisionId: string) =>
-    atom<Record<string, unknown>>((get) => {
-        const data = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-
-        if (
-            data?.enhancedCustomProperties &&
-            Object.keys(data.enhancedCustomProperties).length > 0
-        ) {
-            return data.enhancedCustomProperties as Record<string, unknown>
-        }
-
-        // Fallback: derive from schema + parameters
-        const derived = get(revisionEnhancedCustomPropertiesAtomFamily(revisionId))
-        if (derived && Object.keys(derived).length > 0) {
-            return derived as Record<string, unknown>
-        }
-
-        return {}
-    }),
-)

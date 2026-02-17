@@ -4,45 +4,19 @@
  * @packageDocumentation
  */
 
-export {
-    extractRawValue,
-    stripVolatileKeys,
-    enhancedPromptsToParameters,
-    enhancedCustomPropertiesToParameters,
-    areParametersDifferent,
-} from "./parameterConversion"
+export {stripVolatileKeys} from "./parameterConversion"
 
 export {resolveRootSourceId} from "./sourceResolution"
 
 export {
-    // Pure derivation functions
-    deriveEnhancedPrompts,
-    deriveEnhancedCustomProperties,
-    // OpenAPI spec convenience wrappers
-    extractVariantParameters,
-    derivePromptsFromOpenApiSpec,
-    deriveCustomPropertiesFromOpenApiSpec,
     // Detection helpers
     isPromptLikeStructure,
     isPromptLikeSchema,
     isPromptProperty,
-    enhanceToolsArray,
-    // Metadata pre-heating
-    preheatSchemaMetadata,
-    // Types
-    type EnhancedPrompt,
-    type EnhancedCustomProperty,
 } from "./specDerivation"
 
 export {
-    // Metadata navigation and object creation
-    extractObjectSchemaFromMetadata,
-    createObjectFromMetadata,
-} from "./metadataHelpers"
-
-export {
     // Value extraction
-    extractValueByMetadata,
     stripAgentaMetadataDeep,
     stripEnhancedWrappers,
     toSnakeCase,
@@ -54,16 +28,8 @@ export {
 export {
     // Request body builder
     transformToRequestBody,
-    toRequestBodyCompletion,
-    toRequestBodyChat,
     // Types
     type TransformVariantInput,
     type TransformMessage,
     type TransformToRequestBodyParams,
 } from "./requestBodyBuilder"
-
-export {
-    // Message from schema
-    createMessageFromSchema,
-    setMessageSchemaMetadataAccessor,
-} from "./messageFromSchema"

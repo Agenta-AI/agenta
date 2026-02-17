@@ -3,14 +3,12 @@ import {useMemo} from "react"
 import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
-import {executionItemController} from "@agenta/playground"
 import {useAtomValue} from "jotai"
 
 /**
  * Shared loading detection for a runnable entity.
  *
- * Returns true while the runnable query is pending, schema is loading,
- * or message metadata is not yet available (chat mode).
+ * Returns true while the runnable query is pending or schema is loading.
  *
  * Local drafts that already have molecule data are treated as ready,
  * matching the pattern in LegacyPlaygroundConfigSection.
@@ -25,9 +23,6 @@ export function useRunnableLoading(entityId: string): boolean {
     const schemaLoading = useAtomValue(
         useMemo(() => legacyAppRevisionMolecule.atoms.schemaLoading(entityId), [entityId]),
     )
-    const messageSchemaMetadata = useAtomValue(
-        executionItemController.selectors.messageSchemaMetadata,
-    )
     const moleculeData = useAtomValue(
         useMemo(() => legacyAppRevisionMolecule.atoms.data(entityId), [entityId]),
     )
@@ -35,12 +30,8 @@ export function useRunnableLoading(entityId: string): boolean {
     // Local drafts with available molecule data are considered ready,
     // even if the runnable bridge query is still resolving source data.
     if (isLocalDraftId(entityId) && moleculeData) {
-        return !messageSchemaMetadata
+        return false
     }
 
-    return (
-        runnableQuery.isPending ||
-        (requestPayload !== null && schemaLoading) ||
-        !messageSchemaMetadata
-    )
+    return runnableQuery.isPending || (requestPayload !== null && schemaLoading)
 }

@@ -19,7 +19,7 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, type Atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -27,13 +27,7 @@ import type {EntitySchema, EntitySchemaProperty} from "../../shared"
 import {isLocalDraftId} from "../../shared"
 import {fetchRevisionSchema, buildRevisionSchemaState, type OpenAPISpec} from "../api"
 import type {RevisionSchemaState} from "../core"
-import {
-    isPromptProperty,
-    deriveEnhancedPrompts,
-    deriveEnhancedCustomProperties,
-    type EnhancedPrompt,
-    type EnhancedCustomProperty,
-} from "../utils/specDerivation"
+import {isPromptProperty} from "../utils/specDerivation"
 
 import {
     serviceSchemaForRevisionAtomFamily,
@@ -44,9 +38,6 @@ import {
     legacyAppRevisionQueryAtomFamily,
     localDraftSourceRefsByIdAtom,
 } from "./store"
-
-// Re-export types and functions from specDerivation for backward compat
-export type {EnhancedPrompt, EnhancedCustomProperty}
 
 // ============================================================================
 // SCHEMA QUERY
@@ -170,8 +161,17 @@ const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
  * Downstream consumers are unaffected by this routing — they see the same
  * `{ data: RevisionSchemaState, isPending, isError, error }` interface.
  */
-export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
-    atom((get) => {
+export interface SchemaQueryResult {
+    data: RevisionSchemaState
+    isPending: boolean
+    isError: boolean
+    error: Error | null
+}
+
+export const legacyAppRevisionSchemaQueryAtomFamily: (
+    revisionId: string,
+) => Atom<SchemaQueryResult> = atomFamily((revisionId: string) =>
+    atom<SchemaQueryResult>((get) => {
         // Local drafts should inherit schema from their source revision.
         // If source schema is not ready yet, fall back to direct URI schema fetch for the draft.
         if (isLocalDraftId(revisionId)) {
@@ -352,8 +352,10 @@ export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: st
             }
         }
 
+        const resolvedData = query.data ?? emptySchemaState
+
         return {
-            data: query.data ?? emptySchemaState,
+            data: resolvedData,
             isPending: false,
             isError: false,
             error: null,
@@ -512,111 +514,5 @@ export const revisionEndpointsAtomFamily = atomFamily((revisionId: string) =>
                 root: null,
             }
         )
-    }),
-)
-
-// ============================================================================
-// ENHANCED CUSTOM PROPERTIES (with values)
-// ============================================================================
-
-/**
- * Derive enhanced custom properties (with values) from schema + parameters.
- *
- * Delegates to the pure function in utils/specDerivation.ts.
- * Directly reads from schema query to ensure proper reactivity.
- */
-export const revisionEnhancedCustomPropertiesAtomFamily = atomFamily((revisionId: string) =>
-    atom<Record<string, EnhancedCustomProperty>>((get) => {
-        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-        const parameters = entityData?.parameters as Record<string, unknown> | undefined
-
-        if (schemaQuery.isPending) {
-            return {}
-        }
-
-        return deriveEnhancedCustomProperties(schemaQuery.data?.agConfigSchema ?? null, parameters)
-    }),
-)
-
-/**
- * Get custom property keys for a revision.
- *
- * This atom directly reads from the schema query to ensure proper reactivity
- * when the async query completes.
- */
-export const revisionCustomPropertyKeysAtomFamily = atomFamily((revisionId: string) =>
-    atom<string[]>((get) => {
-        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-        const parameters = entityData?.parameters as Record<string, unknown> | undefined
-
-        if (!schemaQuery.data?.agConfigSchema?.properties) {
-            return []
-        }
-
-        const agConfigSchema = schemaQuery.data.agConfigSchema
-        const keys: string[] = []
-        Object.entries(agConfigSchema.properties).forEach(([key, prop]) => {
-            const savedValue = parameters?.[key]
-            if (!isPromptProperty(prop as EntitySchemaProperty, savedValue)) {
-                keys.push(key)
-            }
-        })
-
-        return keys
-    }),
-)
-
-// ============================================================================
-// ENHANCED PROMPTS DERIVATION
-// ============================================================================
-
-/**
- * Derive enhanced prompts from schema + parameters.
- *
- * Delegates to the pure function in utils/specDerivation.ts.
- * Directly reads from schema query to ensure proper reactivity.
- */
-export const revisionEnhancedPromptsAtomFamily = atomFamily((revisionId: string) =>
-    atom<EnhancedPrompt[]>((get) => {
-        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-        const parameters = entityData?.parameters as Record<string, unknown> | undefined
-
-        // Wait for schema before deriving — without schema, deriveEnhancedPrompts
-        // falls back to parameter-only derivation (Strategy 2) which produces
-        // prompts without __metadata, causing broken UI controls.
-        if (schemaQuery.isPending) {
-            return []
-        }
-
-        return deriveEnhancedPrompts(schemaQuery.data?.agConfigSchema ?? null, parameters)
-    }),
-)
-
-/**
- * Get prompt keys for a revision.
- */
-export const revisionPromptKeysAtomFamily = atomFamily((revisionId: string) =>
-    atom<string[]>((get) => {
-        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
-        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-        const parameters = entityData?.parameters as Record<string, unknown> | undefined
-
-        if (schemaQuery.isPending || !schemaQuery.data?.agConfigSchema?.properties) {
-            return []
-        }
-
-        const agConfigSchema = schemaQuery.data.agConfigSchema
-        const keys: string[] = []
-        Object.entries(agConfigSchema.properties).forEach(([key, prop]) => {
-            const savedValue = parameters?.[key]
-            if (isPromptProperty(prop as EntitySchemaProperty, savedValue)) {
-                keys.push(key)
-            }
-        })
-
-        return keys
     }),
 )

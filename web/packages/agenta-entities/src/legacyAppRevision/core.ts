@@ -114,13 +114,6 @@ export const legacyAppRevisionDataSchema = z.object({
 
     /** Extracted route path from URI */
     routePath: z.string().optional(),
-
-    // Enhanced data for playground (schema-enriched)
-    /** Enhanced prompts derived from parameters + schema */
-    enhancedPrompts: z.array(z.unknown()).optional(),
-
-    /** Enhanced custom properties derived from parameters + schema */
-    enhancedCustomProperties: z.record(z.string(), z.unknown()).optional(),
 })
 export type LegacyAppRevisionData = z.infer<typeof legacyAppRevisionDataSchema>
 

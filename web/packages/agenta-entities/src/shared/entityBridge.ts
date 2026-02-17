@@ -347,12 +347,6 @@ export interface RunnableTypeConfig<T = unknown> {
      */
     requestPayloadSelector?: (id: string) => Atom<unknown | null>
     /**
-     * Selector atom for global metadata store.
-     * Returns all property metadata entries. Not entity-scoped — metadata is shared.
-     * Only legacyAppRevision provides this (via metadataAtom).
-     */
-    metadataSelector?: () => Atom<Record<string, Record<string, unknown>>>
-    /**
      * Normalize a raw API response into a standard shape.
      * Each entity type can define how its response should be parsed.
      * When not provided, the default parsing in executeViaFetch is used.
@@ -364,11 +358,6 @@ export interface RunnableTypeConfig<T = unknown> {
         output: unknown
         trace?: {id: string} | undefined
     }
-    /**
-     * Imperative utility functions for value extraction and message construction.
-     * Only needed for entity types with enhanced PropertyNode values (legacyAppRevision).
-     */
-    utils?: RunnableExecutionUtils
     /** Additional selectors specific to this runnable type */
     extraSelectors?: Record<string, (id: string) => Atom<unknown>>
     /** Additional actions specific to this runnable type */
@@ -411,25 +400,6 @@ export interface RunnableBridgeSelectors {
     executionMode: (runnableId: string) => Atom<"chat" | "completion">
     /** Get pre-built request payload (config portion of API request body) */
     requestPayload: (runnableId: string) => Atom<unknown | null>
-    /** Get global metadata store (all property metadata entries) */
-    metadata: () => Atom<Record<string, Record<string, unknown>>>
-}
-
-/**
- * Imperative utility functions for entity-specific value extraction and
- * message construction. Provided by a registered runnable type (e.g. legacyAppRevision).
- */
-export interface RunnableExecutionUtils {
-    /** Extract raw value from enhanced PropertyNode using metadata */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic interface for PropertyNode values
-    extractValueByMetadata: (enhanced: any, allMetadata: any, debug?: boolean) => unknown
-    /** Get all metadata (imperative, includes pending writes) */
-    getAllMetadata: () => Record<string, unknown>
-    /** Create a message PropertyNode from schema metadata */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic interface for schema metadata shapes
-    createMessageFromSchema: (metadata: any, json?: Record<string, unknown>) => any
-    /** Get a specific metadata entry by hash */
-    getMetadataLazy?: (hash: string) => unknown
 }
 
 /**
@@ -500,8 +470,6 @@ export interface RunnableBridge extends RunnableBridgeSelectors {
     executionMode: RunnableBridgeSelectors["executionMode"]
     /** Get pre-built request payload (config portion of API request body) */
     requestPayload: RunnableBridgeSelectors["requestPayload"]
-    /** Get global metadata store (all property metadata entries) */
-    metadata: RunnableBridgeSelectors["metadata"]
 
     /**
      * Normalize a raw API response for a given runnableId.
@@ -512,13 +480,6 @@ export interface RunnableBridge extends RunnableBridgeSelectors {
         runnableId: string,
         responseData: unknown,
     ) => {output: unknown; trace?: {id: string} | undefined}
-
-    /**
-     * Imperative utility functions for value extraction and message construction.
-     * Provided by the first registered runnable type that supplies `utils`.
-     * Returns null if no runnable type provides utils.
-     */
-    utils: RunnableExecutionUtils | null
 
     /**
      * Entity-level CRUD actions with query invalidation baked in.

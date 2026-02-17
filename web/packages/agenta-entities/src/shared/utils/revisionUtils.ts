@@ -142,37 +142,6 @@ export function extractAgConfig(
 }
 
 /**
- * Extract revision parameters from enhanced variant data (cache redirect path)
- *
- * @param enhanced - Enhanced variant-like object with parameters
- * @returns The parameters object
- */
-export function extractRevisionParametersFromEnhanced(
-    enhanced:
-        | {
-              parameters?: Record<string, unknown>
-          }
-        | null
-        | undefined,
-): RawAgConfig {
-    return extractRevisionParameters(enhanced?.parameters)
-}
-
-/**
- * @deprecated Use extractRevisionParametersFromEnhanced instead.
- */
-export function extractAgConfigFromEnhanced(
-    enhanced:
-        | {
-              parameters?: Record<string, unknown>
-          }
-        | null
-        | undefined,
-): RawAgConfig {
-    return extractRevisionParametersFromEnhanced(enhanced)
-}
-
-/**
  * Extract revision parameters from API revision response
  *
  * API response structure: revision.config.parameters = { prompt: {...}, ... }
@@ -380,60 +349,3 @@ export function transformRevisionToListItem(
     }
 }
 
-// ============================================================================
-// ENHANCED VARIANT TYPES
-// ============================================================================
-
-/**
- * Enhanced variant structure (from variant revisions cache)
- *
- * This interface represents the cached variant data that may include
- * WorkflowRevisionData fields from the backend.
- */
-export interface EnhancedVariantLike {
-    id: string
-    variantId?: string
-    appId?: string
-    revision: number | string
-    prompts?: unknown[]
-    parameters?: Record<string, unknown>
-    uri?: string
-    url?: string
-    uriObject?: {
-        routePath?: string
-        runtimePrefix?: string
-    }
-    createdAt?: string
-    created_at?: string
-    updatedAt?: string
-    updated_at?: string
-    // WorkflowServiceConfiguration fields
-    headers?: Record<string, unknown>
-    schemas?: Record<string, unknown>
-    script?: Record<string, unknown>
-    runtime?: string | null
-    // Legacy fields
-    service?: Record<string, unknown>
-    configuration?: Record<string, unknown>
-}
-
-/**
- * Extract URI info from enhanced variant data
- */
-export function extractUriFromEnhanced(
-    enhanced: EnhancedVariantLike | null | undefined,
-): ParsedUriInfo | null {
-    if (!enhanced) return null
-
-    // Try uriObject first (pre-parsed)
-    if (enhanced.uriObject?.runtimePrefix) {
-        return {
-            uri: enhanced.uri || "",
-            runtimePrefix: enhanced.uriObject.runtimePrefix,
-            routePath: enhanced.uriObject.routePath,
-        }
-    }
-
-    // Fall back to parsing URI
-    return parseRevisionUri(enhanced.uri || enhanced.url)
-}

@@ -1,8 +1,8 @@
 /**
  * Request Body Builder
  *
- * Builds API request bodies from enhanced variant data (prompts, custom properties,
- * metadata, input rows, chat history). This is the entity-internal implementation
+ * Builds API request bodies from raw ag_config parameters, input rows,
+ * and chat history. This is the entity-internal implementation
  * that all callers ultimately use.
  *
  * @packageDocumentation
@@ -11,12 +11,10 @@
 import {extractTemplateVariables, extractTemplateVariablesFromJson} from "../../runnable/utils"
 import {extractAllEndpointSchemas} from "../api"
 import type {OpenAPISpec} from "../api"
-import type {ConfigMetadata} from "../state/metadataAtoms"
 
 import {
     extractInputKeysFromSchema,
     extractInputValues,
-    extractValueByMetadata,
     stripAgentaMetadataDeep,
 } from "./valueExtraction"
 
@@ -28,12 +26,7 @@ import {
 /** Minimal variant shape used by the request body builder */
 export interface TransformVariantInput {
     id?: string
-
     parameters?: any
-
-    prompts?: any[]
-
-    customProperties?: Record<string, any>
     isChat?: boolean
     [key: string]: unknown
 }
@@ -53,19 +46,17 @@ export interface TransformMessage {
 export interface TransformToRequestBodyParams {
     variant?: TransformVariantInput
     inputRow?: Record<string, any>
-    messageRow?: Record<string, any>
-    allMetadata?: Record<string, ConfigMetadata>
     chatHistory?: TransformMessage[]
     spec?: OpenAPISpec
     routePath?: string
-    prompts?: any[]
-    customProperties?: Record<string, any>
     entityId?: string
     isChat?: boolean
     isCustom?: boolean
     appType?: string
     variables?: string[]
     variableValues?: Record<string, any>
+    /** Raw ag_config from entity parameters. */
+    rawAgConfig?: Record<string, unknown>
 }
 
 /**
@@ -77,19 +68,16 @@ export interface TransformToRequestBodyParams {
 export function transformToRequestBody({
     variant,
     inputRow,
-    messageRow,
-    allMetadata = {},
     chatHistory,
     spec: _spec,
     routePath = "",
-    prompts,
-    customProperties,
     entityId: _entityId,
     isChat,
     isCustom,
     appType,
     variables,
     variableValues,
+    rawAgConfig,
 }: TransformToRequestBodyParams): Record<string, any> {
     const data = {} as Record<string, any>
     const spec = _spec
@@ -162,107 +150,10 @@ export function transformToRequestBody({
             return null
         }
     }
-    const enhancedPrompts = (prompts || variant?.prompts || []) as any[]
-    // Get original parameters to preserve fields like input_keys, template_format
-    const originalParams = (variant?.parameters as any)?.ag_config || variant?.parameters || {}
-    const promptConfigs = (enhancedPrompts || []).reduce(
-        (acc: Record<string, any>, prompt: any) => {
-            const extracted = extractValueByMetadata(prompt, allMetadata) as Record<string, any>
-            const name = prompt.__name
-            if (!name) return acc
-
-            // Preserve input_keys and template_format from original parameters if they exist
-            const originalPromptConfig = (originalParams as any)[name]
-            if (originalPromptConfig) {
-                if (originalPromptConfig.input_keys && !extracted.input_keys) {
-                    extracted.input_keys = originalPromptConfig.input_keys
-                }
-                if (originalPromptConfig.template_format && !extracted.template_format) {
-                    extracted.template_format = originalPromptConfig.template_format
-                }
-            }
-
-            acc[name] = extracted
-            return acc
-        },
-        {} as Record<string, any>,
-    )
-
-    // Fallback: if extraction produced empty messages but enhanced prompts contain messages,
-    // build a minimal messages array from the enhanced structure (role/content only)
-    try {
-        for (const p of enhancedPrompts || []) {
-            const key = p?.__name
-            if (!key) continue
-            const cfg = promptConfigs[key] || (promptConfigs[key] = {})
-            const hasMsgs = Array.isArray(cfg?.messages) && cfg.messages.length > 0
-            const enhancedMsgs = (p as any)?.messages?.value
-            if (!hasMsgs && Array.isArray(enhancedMsgs) && enhancedMsgs.length > 0) {
-                cfg.messages = enhancedMsgs.map((m: any) => {
-                    const role = m?.role?.value ?? m?.role ?? "user"
-                    const content = (() => {
-                        const c = m?.content?.value ?? m?.content
-                        if (Array.isArray(c)) {
-                            // Join text parts to a simple string; keep simple for fallback
-                            const texts = c
-                                .map((part: any) => part?.text?.value ?? part?.text ?? "")
-                                .filter(Boolean)
-                            return texts.join("\n\n")
-                        }
-                        return c
-                    })()
-                    return {role, content}
-                })
-            }
-        }
-    } catch {
-        // best-effort only
-    }
-
-    const customConfigs =
-        (extractValueByMetadata(
-            customProperties || variant?.customProperties,
-            allMetadata,
-        ) as Record<string, any>) || {}
-
-    // Preserve custom properties from original parameters that aren't in enhanced format.
-    // This handles custom apps where properties like max_tweet_length, output_format, etc.
-    // are stored directly in parameters but not in the enhanced customProperties.
-    //
-    // When enhanced prompts exist, legacy flat fields (system_prompt, user_prompt,
-    // temperature, model, etc.) in originalParams are superseded by the structured
-    // prompt format (messages + llm_config) and must NOT be copied over.
-    //
-    // IMPORTANT: Skip this preservation when explicit customProperties were provided.
-    // The enhanced custom properties represent the authoritative set — removed keys
-    // (e.g. tools deleted by the user) must NOT be re-added from stale parameters.
-    const hasExplicitCustomProperties =
-        customProperties != null || variant?.customProperties != null
-    const promptKeys = new Set(Object.keys(promptConfigs))
-    const customKeys = new Set(Object.keys(customConfigs))
-    const hasEnhancedPrompts = promptKeys.size > 0
-    if (!hasExplicitCustomProperties) {
-        for (const [key, value] of Object.entries(originalParams as Record<string, any>)) {
-            // Skip if it's a prompt config or already in customConfigs
-            if (promptKeys.has(key) || customKeys.has(key)) continue
-            // Skip if it's a nested object with llm_config or messages (it's a prompt, not custom property)
-            if (value && typeof value === "object" && (value.llm_config || value.messages)) continue
-            // When enhanced prompts exist, skip primitive legacy fields (system_prompt, temperature, etc.)
-            // — they are superseded by the structured prompt format
-            if (
-                hasEnhancedPrompts &&
-                (typeof value !== "object" || value === null || Array.isArray(value))
-            )
-                continue
-            // Preserve the custom property
-            customConfigs[key] = value
-        }
-    }
-
-    let ag_config = {
-        ...promptConfigs,
-        ...customConfigs,
-    }
+    // Use rawAgConfig directly, or fall back to variant parameters
+    let ag_config: Record<string, any> = rawAgConfig
+        ? {...rawAgConfig}
+        : {...((variant?.parameters as any)?.ag_config || variant?.parameters || {})}
 
     // Sanitize response_format within each prompt's llm_config to avoid backend validation errors
     const sanitizeResponseFormat = (cfg: Record<string, any>) => {
@@ -320,7 +211,7 @@ export function transformToRequestBody({
             resolvedVariables = inputKeys
         } else if (!resolvedVariables || resolvedVariables.length === 0) {
             const vars = new Set<string>()
-            for (const cfg of Object.values(promptConfigs || {})) {
+            for (const cfg of Object.values(ag_config || {})) {
                 const msgs = Array.isArray((cfg as any)?.messages) ? (cfg as any).messages : []
                 for (const m of msgs) {
                     const content = (m as any)?.content
@@ -481,131 +372,8 @@ export function transformToRequestBody({
     }
 
     if (isChat ?? variant?.isChat) {
-        data.messages = []
-        if (chatHistory && chatHistory.length > 0) {
-            data.messages.push(...chatHistory)
-        } else {
-            const messageHistory = (messageRow as any)?.history?.value || []
-
-            data.messages.push(
-                ...messageHistory
-                    .flatMap((historyMessage: any) => {
-                        const messages = [extractValueByMetadata(historyMessage, allMetadata)]
-                        if (historyMessage.__runs) {
-                            const entityId = _entityId ?? variant?.id
-                            const runMessages =
-                                historyMessage.__runs[entityId!]?.message &&
-                                Array.isArray(historyMessage.__runs[entityId!]?.message)
-                                    ? historyMessage.__runs[entityId!]?.message
-                                    : [historyMessage.__runs[entityId!]?.message]
-
-                            if (runMessages && Array.isArray(runMessages)) {
-                                for (const runMessage of runMessages) {
-                                    const extracted = extractValueByMetadata(
-                                        runMessage,
-                                        allMetadata,
-                                    )
-                                    messages.push(extracted)
-                                }
-                            }
-                        }
-
-                        return messages
-                    })
-                    .filter(Boolean),
-            )
-        }
+        data.messages = chatHistory && chatHistory.length > 0 ? [...chatHistory] : []
     }
 
     return data
-}
-
-/**
- * Pure helper for completion-style request bodies.
- */
-export function toRequestBodyCompletion(args: {
-    prompts?: any[]
-    customProperties?: Record<string, any>
-    appType?: string
-    variables?: string[]
-    variableValues?: Record<string, any>
-    spec?: OpenAPISpec
-    routePath?: string
-    variant?: TransformVariantInput
-    allMetadata?: Record<string, ConfigMetadata>
-    inputRow?: Record<string, any>
-}): Record<string, any> {
-    const {
-        prompts,
-        customProperties,
-        appType,
-        variables,
-        variableValues,
-        spec,
-        routePath,
-        variant,
-        allMetadata = {},
-        inputRow,
-    } = args
-
-    return transformToRequestBody({
-        variant: (variant || {}) as TransformVariantInput,
-        inputRow,
-        allMetadata,
-        spec,
-        routePath,
-        prompts,
-        customProperties,
-        isChat: false,
-        isCustom: undefined,
-        appType,
-        variables,
-        variableValues,
-    })
-}
-
-/**
- * Pure helper for chat-style request bodies.
- */
-export function toRequestBodyChat(args: {
-    prompts?: any[]
-    customProperties?: Record<string, any>
-    appType?: string
-    variables?: string[]
-    spec?: OpenAPISpec
-    routePath?: string
-    entityId?: string
-    variant?: TransformVariantInput
-    allMetadata?: Record<string, ConfigMetadata>
-    chatHistory?: TransformMessage[]
-    messageRow?: Record<string, any>
-}): Record<string, any> {
-    const {
-        prompts,
-        customProperties,
-        appType,
-        variables: _variables,
-        spec,
-        routePath,
-        entityId,
-        variant,
-        allMetadata = {},
-        chatHistory,
-        messageRow,
-    } = args
-
-    return transformToRequestBody({
-        variant: (variant || {}) as TransformVariantInput,
-        messageRow,
-        allMetadata,
-        chatHistory,
-        spec,
-        routePath,
-        prompts,
-        customProperties,
-        entityId,
-        isChat: true,
-        isCustom: undefined,
-        appType,
-    })
 }

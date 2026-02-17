@@ -27,10 +27,7 @@ const unwrapString = (value: unknown): string | undefined => {
     return undefined
 }
 
-export function buildAssistantMessage(
-    _messageSchema: unknown,
-    testResult: unknown,
-): SimpleChatMessage {
+export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
     const resultRecord = asRecord(testResult)
 
     if (resultRecord?.error) {
@@ -99,10 +96,7 @@ export function buildAssistantMessage(
     return msg
 }
 
-export function buildToolMessages(
-    _messageSchema: unknown,
-    testResult: unknown,
-): SimpleChatMessage[] {
+export function buildToolMessages(testResult: unknown): SimpleChatMessage[] {
     try {
         const resultRec = asRecord(testResult)
         const responseRec = asRecord(resultRec?.response)
@@ -141,10 +135,7 @@ export function buildToolMessages(
     }
 }
 
-export function buildUserMessage(
-    _messageSchema?: unknown,
-    init?: {role?: string; content?: unknown},
-): SimpleChatMessage {
+export function buildUserMessage(init?: {role?: string; content?: unknown}): SimpleChatMessage {
     const role = init?.role ?? "user"
     const content = init?.content ?? ""
 

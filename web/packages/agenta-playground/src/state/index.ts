@@ -173,9 +173,6 @@ export {
 // Variable names (derived from entity input ports)
 export {inputVariableNamesAtom} from "./execution"
 
-// Message schema metadata (from entity metadata)
-export {messageSchemaMetadataAtom} from "./execution"
-
 // App-level mode selectors
 export {isChatModeAtom, appTypeAtom, type AppType} from "./execution"
 

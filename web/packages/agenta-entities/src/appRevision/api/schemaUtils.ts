@@ -4,7 +4,13 @@
  * These functions operate on in-memory OpenAPI spec objects and have
  * NO network or browser dependencies, making them safe to use in
  * web workers and other non-browser contexts.
+ *
+ * Schema conversion uses the `openapi-json-schema` package to walk
+ * OpenAPI schema nodes and convert them to JSON Schema 7.
  */
+
+import type {JSONSchema7, JSONSchema7TypeName} from "json-schema"
+import {recurseSchema, encodeRefNameJsonSchema, decodeRefNameOpenApi} from "openapi-json-schema"
 
 import type {EndpointSchema, RevisionSchemaState, EntitySchema, EntitySchemaProperty} from "../core"
 
@@ -81,119 +87,126 @@ export function constructEndpointPath(routePath: string | undefined, endpoint: s
 }
 
 // ============================================================================
+// OPENAPI → JSON SCHEMA CONVERSION
+// ============================================================================
+
+/** Known system properties that are not user inputs */
+const SYSTEM_PROPERTIES = [
+    "ag_config",
+    "messages",
+    "environment",
+    "revision_id",
+    "variant_id",
+    "app_id",
+]
+
+/**
+ * Convert OpenAPI `type` + `nullable` to JSON Schema 7 `type`.
+ *
+ * OpenAPI 3.0 uses `nullable: true` as a sibling to `type`.
+ * JSON Schema 7 uses `type: ["string", "null"]` instead.
+ */
+function openApiTypeToJsonSchema7Type(
+    type: string | string[] | undefined,
+    nullable: boolean | undefined,
+): JSONSchema7TypeName | JSONSchema7TypeName[] | undefined {
+    if (type === undefined || type === "any") return undefined
+    if (!Array.isArray(type)) {
+        return type === "null" || !nullable
+            ? (type as JSONSchema7TypeName)
+            : ([type, "null"] as JSONSchema7TypeName[])
+    }
+    const arr = [...type] as JSONSchema7TypeName[]
+    if (arr.includes("any" as JSONSchema7TypeName)) return undefined
+    if (!arr.includes("null") && nullable) arr.push("null")
+    if (arr.length === 1) return arr[0]
+    return arr
+}
+
+/**
+ * Re-encode `$ref` from OpenAPI convention to JSON Schema convention.
+ * OpenAPI: `#/components/schemas/Foo` → JSON Schema: `#/definitions/Foo`
+ */
+function openApiToJsonSchema7Ref(node: Record<string, unknown>): Record<string, unknown> {
+    if (node.$ref && typeof node.$ref === "string") {
+        return {
+            ...node,
+            $ref: encodeRefNameJsonSchema(decodeRefNameOpenApi(node.$ref as string)),
+        }
+    }
+    return node
+}
+
+/**
+ * Convert a single OpenAPI schema node to JSON Schema 7.
+ *
+ * Uses `recurseSchema` from openapi-json-schema to walk nested schemas,
+ * with per-node conversion that handles:
+ * - `nullable: true` → `type: ["string", "null"]` (JSON Schema 7 style)
+ * - `$ref` path re-encoding (OpenAPI → JSON Schema conventions)
+ *
+ * Preserves OpenAPI extension properties (`x-*`) as passthrough.
+ */
+export function convertOpenApiSchemaToJsonSchema(
+    schema: Record<string, unknown> | null | undefined,
+): JSONSchema7 | null {
+    if (!schema) return null
+
+    try {
+        const convert = (node: Record<string, unknown>): Record<string, unknown> => {
+            if (typeof node === "boolean") return node as unknown as Record<string, unknown>
+            const {
+                type: _type,
+                nullable,
+                ...rest
+            } = node as Record<string, unknown> & {
+                type?: string | string[]
+                nullable?: boolean
+            }
+            const type = openApiTypeToJsonSchema7Type(_type, nullable)
+            let output: Record<string, unknown> = {...rest, ...(type ? {type} : {})}
+            output = openApiToJsonSchema7Ref(output)
+            return recurseSchema(
+                output,
+                convert as Parameters<typeof recurseSchema>[1],
+            ) as unknown as Record<string, unknown>
+        }
+
+        const result = convert(schema)
+        return result as JSONSchema7
+    } catch (error) {
+        console.warn("[schemaUtils] convertOpenApiSchemaToJsonSchema failed:", error)
+        return null
+    }
+}
+
+/**
+ * Convert JSON Schema 7 to our EntitySchema shape.
+ *
+ * This adapter allows JSON Schema 7 output from `convertOpenApiSchemaToJsonSchema`
+ * to be consumed by downstream code that expects EntitySchema.
+ */
+export function jsonSchemaToEntitySchema(jsonSchema: JSONSchema7 | null): EntitySchema | null {
+    if (!jsonSchema) return null
+
+    return {
+        type: (jsonSchema.type as string) ?? "object",
+        properties: jsonSchema.properties as Record<string, EntitySchemaProperty> | undefined,
+        required: jsonSchema.required,
+        additionalProperties: jsonSchema.additionalProperties,
+    } as EntitySchema
+}
+
+// ============================================================================
 // SCHEMA EXTRACTION
 // ============================================================================
 
 /**
- * Resolve a $ref reference in an OpenAPI schema.
- * Handles references like "#/components/schemas/SchemaName"
+ * Extract schema for a specific endpoint from OpenAPI spec.
  *
- * Merges the resolved schema with any sibling properties from the original.
- * In OpenAPI 3.1, $ref can have sibling properties that should be preserved.
- */
-function resolveSchemaRef(
-    spec: OpenAPISpec,
-    schema: Record<string, unknown>,
-): Record<string, unknown> {
-    const ref = schema.$ref as string | undefined
-    if (!ref || typeof ref !== "string") {
-        return schema
-    }
-
-    // Parse the $ref path (e.g., "#/components/schemas/Body_completion_test_post")
-    const refPath = ref.replace(/^#\//, "").split("/")
-
-    // Navigate to the referenced schema
-    let resolved: unknown = spec
-    for (const segment of refPath) {
-        if (resolved && typeof resolved === "object") {
-            resolved = (resolved as Record<string, unknown>)[segment]
-        } else {
-            return schema // Could not resolve, return original
-        }
-    }
-
-    if (resolved && typeof resolved === "object") {
-        // Merge sibling properties from original schema (excluding $ref)
-        // This preserves properties like 'choices', 'title', 'description' that may be on the parent
-        const {$ref: _discard, ...siblings} = schema
-        return {...(resolved as Record<string, unknown>), ...siblings}
-    }
-
-    return schema
-}
-
-/**
- * Recursively resolve all $ref references in a schema and its nested properties.
- * This ensures that all levels of the schema tree have their references resolved.
- */
-function resolveSchemaDeep(
-    spec: OpenAPISpec,
-    schema: Record<string, unknown>,
-    visited = new Set<string>(),
-    depth = 0,
-): Record<string, unknown> {
-    // First resolve any $ref at this level
-    const ref = schema.$ref as string | undefined
-    let resolved = schema
-
-    if (ref && typeof ref === "string") {
-        // Prevent infinite recursion
-        if (visited.has(ref)) {
-            return schema
-        }
-        visited.add(ref)
-        resolved = resolveSchemaRef(spec, schema)
-    }
-
-    // If this schema has properties, resolve $refs in each property
-    const properties = resolved.properties as Record<string, unknown> | undefined
-    if (properties && typeof properties === "object") {
-        const resolvedProperties: Record<string, unknown> = {}
-        for (const [key, value] of Object.entries(properties)) {
-            if (value && typeof value === "object") {
-                resolvedProperties[key] = resolveSchemaDeep(
-                    spec,
-                    value as Record<string, unknown>,
-                    new Set(visited),
-                    depth + 1,
-                )
-            } else {
-                resolvedProperties[key] = value
-            }
-        }
-        resolved = {...resolved, properties: resolvedProperties}
-    }
-
-    // If this schema has items (array), resolve $refs in items
-    const items = resolved.items as Record<string, unknown> | undefined
-    if (items && typeof items === "object") {
-        resolved = {
-            ...resolved,
-            items: resolveSchemaDeep(spec, items, new Set(visited), depth + 1),
-        }
-    }
-
-    // If this schema has allOf/anyOf/oneOf, resolve $refs in each
-    for (const combiner of ["allOf", "anyOf", "oneOf"] as const) {
-        const combined = resolved[combiner] as Record<string, unknown>[] | undefined
-        if (combined && Array.isArray(combined)) {
-            resolved = {
-                ...resolved,
-                [combiner]: combined.map((item) =>
-                    item && typeof item === "object"
-                        ? resolveSchemaDeep(spec, item, new Set(visited), depth + 1)
-                        : item,
-                ),
-            }
-        }
-    }
-
-    return resolved
-}
-
-/**
- * Extract schema for a specific endpoint from OpenAPI spec
+ * Uses `convertOpenApiSchemaToJsonSchema` (backed by `openapi-json-schema`)
+ * to convert each extracted schema node to standard JSON Schema 7 form,
+ * then adapts back to EntitySchema via `jsonSchemaToEntitySchema`.
  */
 export function extractEndpointSchema(
     spec: OpenAPISpec,
@@ -206,29 +219,28 @@ export function extractEndpointSchema(
 
     // Try the path with routePath first
     let path = pathWithRoute
-    let requestSchema =
+    let rawRequestSchema =
         spec?.paths?.[path]?.post?.requestBody?.content?.["application/json"]?.schema
 
     // If not found and routePath was provided, try without it
-    if ((!requestSchema || typeof requestSchema !== "object") && routePath) {
+    if ((!rawRequestSchema || typeof rawRequestSchema !== "object") && routePath) {
         path = pathWithoutRoute
-        requestSchema =
+        rawRequestSchema =
             spec?.paths?.[path]?.post?.requestBody?.content?.["application/json"]?.schema
     }
 
-    if (!requestSchema || typeof requestSchema !== "object") {
+    if (!rawRequestSchema || typeof rawRequestSchema !== "object") {
         return null
     }
 
-    // Resolve all $ref references recursively (deep resolution)
-    const resolvedSchema = resolveSchemaDeep(spec, requestSchema as Record<string, unknown>)
-
-    const properties = resolvedSchema?.properties as Record<string, unknown> | undefined
+    const properties = (rawRequestSchema as Record<string, unknown>)?.properties as
+        | Record<string, Record<string, unknown>>
+        | undefined
 
     if (!properties) {
         return {
             path,
-            requestSchema,
+            requestSchema: rawRequestSchema,
             agConfigSchema: null,
             inputsSchema: null,
             messagesSchema: null,
@@ -238,70 +250,40 @@ export function extractEndpointSchema(
 
     const requestProperties = Object.keys(properties)
 
-    // Extract ag_config schema (already resolved by resolveSchemaDeep)
-    const agConfigResolved = properties.ag_config as Record<string, unknown> | undefined
-
-    let agConfigSchema: EntitySchema | null = null
-    if (agConfigResolved && typeof agConfigResolved === "object") {
-        agConfigSchema = {
-            type: "object",
-            properties: (agConfigResolved.properties || {}) as Record<string, EntitySchemaProperty>,
-            required: agConfigResolved.required as string[] | undefined,
-        }
-    }
+    // Extract ag_config schema
+    const agConfigRaw = properties.ag_config as Record<string, unknown> | undefined
+    const agConfigSchema = jsonSchemaToEntitySchema(convertOpenApiSchemaToJsonSchema(agConfigRaw))
 
     // Extract inputs schema
-    // First, check if there's a dedicated "inputs" property
-    const inputsRaw = properties.inputs as Record<string, unknown> | undefined
     let inputsSchema: EntitySchema | null = null
+    const inputsRaw = properties.inputs as Record<string, unknown> | undefined
 
-    if (inputsRaw && typeof inputsRaw === "object") {
-        inputsSchema = {
-            type: (inputsRaw.type as string) || "object",
-            properties: (inputsRaw.properties || {}) as Record<string, EntitySchemaProperty>,
-            required: inputsRaw.required as string[] | undefined,
-            // Preserve additionalProperties for dynamic inputs
-            additionalProperties: inputsRaw.additionalProperties,
-        } as EntitySchema
+    if (inputsRaw) {
+        inputsSchema = jsonSchemaToEntitySchema(convertOpenApiSchemaToJsonSchema(inputsRaw))
     } else {
-        // Fallback: If no "inputs" property, collect top-level properties that are likely inputs
-        // (i.e., not ag_config, messages, or other known system properties)
-        const systemProperties = [
-            "ag_config",
-            "messages",
-            "environment",
-            "revision_id",
-            "variant_id",
-            "app_id",
-        ]
-        const inputProperties: Record<string, EntitySchemaProperty> = {}
-
+        // Fallback: collect non-system top-level properties as inputs
+        const inputProperties: Record<string, unknown> = {}
         for (const [key, value] of Object.entries(properties)) {
-            if (!systemProperties.includes(key) && value && typeof value === "object") {
-                inputProperties[key] = value as EntitySchemaProperty
+            if (!SYSTEM_PROPERTIES.includes(key) && value && typeof value === "object") {
+                inputProperties[key] = value
             }
         }
-
         if (Object.keys(inputProperties).length > 0) {
-            inputsSchema = {
-                type: "object",
-                properties: inputProperties,
-                required: (requestSchema as Record<string, unknown>).required as
-                    | string[]
-                    | undefined,
-            }
+            inputsSchema = jsonSchemaToEntitySchema(
+                convertOpenApiSchemaToJsonSchema({
+                    type: "object",
+                    properties: inputProperties,
+                    required: (rawRequestSchema as Record<string, unknown>).required,
+                }),
+            )
         }
     }
 
-    // Extract messages schema (for chat variants) - this is an array schema
+    // Extract messages schema (for chat variants)
     const messagesRaw = properties.messages as Record<string, unknown> | undefined
-    let messagesSchema: EntitySchemaProperty | null = null
-    if (messagesRaw && typeof messagesRaw === "object") {
-        messagesSchema = {
-            type: (messagesRaw.type as string) || "array",
-            items: messagesRaw.items as Record<string, unknown> | undefined,
-        } as EntitySchemaProperty
-    }
+    const messagesSchema = jsonSchemaToEntitySchema(
+        convertOpenApiSchemaToJsonSchema(messagesRaw),
+    ) as EntitySchemaProperty | null
 
     // Extract outputs schema from response (200 OK)
     let outputsSchema: EntitySchema | null = null
@@ -309,21 +291,18 @@ export function extractEndpointSchema(
         spec?.paths?.[path]?.post?.responses?.["200"]?.content?.["application/json"]?.schema
 
     if (responseSchema && typeof responseSchema === "object") {
-        const resolvedResponse = resolveSchemaDeep(spec, responseSchema as Record<string, unknown>)
-        if (resolvedResponse) {
-            // Check if it's an object with properties
-            if (resolvedResponse.properties) {
-                outputsSchema = {
-                    type: "object",
-                    properties: resolvedResponse.properties as Record<string, EntitySchemaProperty>,
-                    required: resolvedResponse.required as string[] | undefined,
-                }
-            } else if (resolvedResponse.type === "string" || resolvedResponse.type === "number") {
-                // Simple type response - wrap in a standard "output" property
+        const convertedResponse = convertOpenApiSchemaToJsonSchema(
+            responseSchema as Record<string, unknown>,
+        )
+        if (convertedResponse) {
+            if (convertedResponse.properties) {
+                outputsSchema = jsonSchemaToEntitySchema(convertedResponse)
+            } else if (convertedResponse.type === "string" || convertedResponse.type === "number") {
+                // Simple type response - wrap in standard "output" property
                 outputsSchema = {
                     type: "object",
                     properties: {
-                        output: resolvedResponse as EntitySchemaProperty,
+                        output: convertedResponse as unknown as EntitySchemaProperty,
                     },
                 }
             }
@@ -332,7 +311,7 @@ export function extractEndpointSchema(
 
     return {
         path,
-        requestSchema,
+        requestSchema: rawRequestSchema,
         agConfigSchema,
         inputsSchema,
         outputsSchema,

@@ -31,9 +31,6 @@ import {
     transformRevisionToListItem,
     // Validation
     isValidUUID,
-    // Enhanced variant types
-    type EnhancedVariantLike,
-    extractUriFromEnhanced,
 } from "../../shared"
 import type {LegacyAppRevisionData, ApiAppVariantRevision} from "../core"
 
@@ -146,37 +143,6 @@ export function transformApiRevision(
     }
 
     return result
-}
-
-/**
- * Transform EnhancedVariantLike to LegacyAppRevisionData
- *
- * This enables transformation of enhanced variant data (from OSS playground)
- * to the legacyAppRevision format, similar to appRevision's transformEnhancedVariant.
- *
- * @param enhanced - Enhanced variant-like object with full data
- */
-export function transformEnhancedVariant(enhanced: EnhancedVariantLike): LegacyAppRevisionData {
-    // Extract URI info using shared utility
-    const uriInfo = extractUriFromEnhanced(enhanced)
-
-    // Extract revision parameters using shared utility
-    const revisionParameters = extractRevisionParameters(enhanced.parameters)
-
-    return {
-        id: enhanced.id,
-        variantId: enhanced.variantId,
-        appId: enhanced.appId,
-        revision: Number(enhanced.revision) || 1,
-        configName: undefined, // Not available in enhanced format
-        parameters: revisionParameters,
-        createdAt: enhanced.createdAt || enhanced.created_at,
-        updatedAt: enhanced.updatedAt || enhanced.updated_at,
-        // URI and runtime info
-        uri: enhanced.uri || enhanced.url,
-        runtimePrefix: uriInfo?.runtimePrefix,
-        routePath: uriInfo?.routePath,
-    }
 }
 
 // transformAppToListItem imported from shared/utils/revisionUtils
@@ -921,6 +887,8 @@ export {
     extractEndpointSchema,
     extractAllEndpointSchemas,
     constructEndpointPath,
+    convertOpenApiSchemaToJsonSchema,
+    jsonSchemaToEntitySchema,
 } from "../../appRevision/api/schemaUtils"
 
 // Validation utilities imported from shared/utils/revisionUtils
