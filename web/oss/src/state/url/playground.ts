@@ -1,7 +1,9 @@
-// Import legacyAppRevision to ensure the snapshot adapter is registered
-// This side-effect import must happen before any snapshot operations
+// Import legacyAppRevision and baseRunnable to ensure snapshot adapters are registered
+// These side-effect imports must happen before any snapshot operations
 import "@agenta/entities/legacyAppRevision"
+import "@agenta/entities/baseRunnable"
 
+import {baseRunnableMolecule} from "@agenta/entities/baseRunnable"
 import {
     legacyAppRevisionMolecule,
     latestServerRevisionIdAtomFamily,
@@ -24,7 +26,7 @@ import {
 import {atom, getDefaultStore} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
-import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
+import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
 
 // ============================================================================
@@ -33,10 +35,13 @@ import {appStateSnapshotAtom} from "@/oss/state/appState"
 
 /**
  * Register the OSS runnable type resolver.
- * For OSS, all revisions are legacyAppRevision type.
+ * Detects baseRunnable from ID prefix, otherwise defaults to legacyAppRevision.
  */
 setRunnableTypeResolver({
-    getType: () => "legacyAppRevision",
+    getType: (id: string) => {
+        if (id.startsWith("base-runnable-")) return "baseRunnable"
+        return "legacyAppRevision"
+    },
 })
 
 // ============================================================================
@@ -107,6 +112,10 @@ const extractSnapshotFromHash = (url: URL): string | null => {
  */
 let lastWrittenSnapshotHash: string | null = null
 
+// Flag to skip URL revision processing after ephemeral entity hydration
+// until the URL is updated with the new entity IDs
+let skipUrlRevisionsUntilUpdate = false
+
 const sanitizeRevisionList = (values: (string | null | undefined)[]) => {
     const seen = new Set<string>()
     const result: string[] = []
@@ -143,6 +152,7 @@ type RunnableType =
     | "evaluator"
     | "legacyEvaluator"
     | "evaluatorRevision"
+    | "baseRunnable"
 
 type PlaygroundEntityType =
     | "appRevision"
@@ -150,6 +160,7 @@ type PlaygroundEntityType =
     | "evaluator"
     | "legacyEvaluator"
     | "evaluatorRevision"
+    | "baseRunnable"
 
 interface SnapshotSelectionInput {
     id: string
@@ -179,6 +190,8 @@ const entityTypeToRunnableType = (entityType: string | undefined): RunnableType 
             return "legacyEvaluator"
         case "evaluatorRevision":
             return "evaluatorRevision"
+        case "baseRunnable":
+            return "baseRunnable"
         default:
             return null
     }
@@ -196,6 +209,8 @@ const runnableTypeToEntityType = (runnableType: RunnableType): PlaygroundEntityT
             return "legacyEvaluator"
         case "evaluatorRevision":
             return "evaluatorRevision"
+        case "baseRunnable":
+            return "baseRunnable"
         default:
             return null
     }
@@ -216,8 +231,11 @@ const buildSnapshotSelectionInputs = (
 
     for (const rootEntityId of rootEntityIds) {
         const node = rootNodeByEntityId.get(rootEntityId)
-        const runnableType =
-            entityTypeToRunnableType(node?.entityType) ?? resolver.getType(rootEntityId)
+        // Detect baseRunnable from ID prefix if node doesn't have entityType yet
+        const isBaseRunnable = rootEntityId.startsWith("base-runnable-")
+        const runnableType = isBaseRunnable
+            ? "baseRunnable"
+            : (entityTypeToRunnableType(node?.entityType) ?? resolver.getType(rootEntityId))
         snapshotInputs.push({
             id: rootEntityId,
             runnableType,
@@ -242,6 +260,36 @@ const buildSnapshotSelectionInputs = (
     }
 
     return snapshotInputs
+}
+
+/**
+ * Build the playground URL for a given selection synchronously.
+ * Returns the full URL path with query params and hash.
+ * Used for navigation to playground with proper snapshot state.
+ */
+export const buildPlaygroundUrl = (selection: string[], basePath: string): string => {
+    const store = getDefaultStore()
+    const sanitized = sanitizeRevisionList(selection)
+    const nodes = store.get(playgroundController.selectors.nodes())
+    const snapshotSelection = buildSnapshotSelectionInputs(sanitized, nodes)
+
+    const url = new URL(basePath, window.location.origin)
+
+    const urlComponents = store.set(
+        urlSnapshotController.actions.buildUrlComponents,
+        snapshotSelection,
+    )
+
+    if (urlComponents.ok) {
+        if (urlComponents.queryParam) {
+            url.searchParams.set(REVISIONS_QUERY_PARAM, urlComponents.queryParam)
+        }
+        if (urlComponents.hashParam) {
+            url.hash = `${SNAPSHOT_HASH_PARAM}=${urlComponents.hashParam}`
+        }
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`
 }
 
 /**
@@ -470,29 +518,29 @@ export const ensurePlaygroundDefaults = (store: Store): boolean => {
         return true
     }
 
-    // Derives from the same entity store that powers the playground's revision
-    // list, so it's always available when the playground's data has loaded.
-    const rawAppId = store.get(selectedAppIdAtom)
-    const appId = typeof rawAppId === "string" ? rawAppId : null
-    const latestRevisionId = appId ? store.get(latestServerRevisionIdAtomFamily(appId)) : null
+    // Use URL-based app ID only — on project-level playground (no app in URL),
+    // we don't apply defaults since there's no single app to derive a default from.
+    const appId = store.get(routerAppIdAtom)
+    if (!appId) {
+        console.log("[ensureDefaults] project-level playground, no default selection")
+        return true // Mark as "applied" so we don't keep retrying
+    }
+
+    const latestRevisionId = store.get(latestServerRevisionIdAtomFamily(appId))
 
     // Debug: show all available revisions and which one is picked
-    if (appId) {
-        const allRevisions = store.get(appRevisionsWithDraftsAtomFamily(appId))
-        console.log("[ensureDefaults] appId:", appId, {
-            totalRevisions: allRevisions.length,
-            revisions: allRevisions.map((r) => ({
-                id: r.id,
-                revision: r.revision,
-                variantName: r.variantName,
-                isLocalDraft: r.isLocalDraft,
-                updatedAt: r.updatedAtTimestamp,
-            })),
-            pickedLatestRevisionId: latestRevisionId,
-        })
-    } else {
-        console.log("[ensureDefaults] appId:", appId, "latestRevisionId:", latestRevisionId)
-    }
+    const allRevisions = store.get(appRevisionsWithDraftsAtomFamily(appId))
+    console.log("[ensureDefaults] appId:", appId, {
+        totalRevisions: allRevisions.length,
+        revisions: allRevisions.map((r) => ({
+            id: r.id,
+            revision: r.revision,
+            variantName: r.variantName,
+            isLocalDraft: r.isLocalDraft,
+            updatedAt: r.updatedAtTimestamp,
+        })),
+        pickedLatestRevisionId: latestRevisionId,
+    })
     if (!latestRevisionId) return false
 
     console.log("[ensureDefaults] applying default selection:", [latestRevisionId])
@@ -540,8 +588,30 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
                     hydrateResult.selection,
                     hydrateResult.entities as HydratedEntityDescriptor[] | undefined,
                 )
+
+                // For ephemeral entities, the restored entity ID differs from the URL's query param.
+                // Update the URL to reflect the new entity IDs so subsequent syncs don't re-apply stale IDs.
+                const hasEphemeralEntities = hydrateResult.entities?.some(
+                    (e) => e.runnableType === "baseRunnable",
+                )
+                if (hasEphemeralEntities) {
+                    // Set flag to skip URL revision processing until URL is updated
+                    skipUrlRevisionsUntilUpdate = true
+                    // Update URL with new selection (deferred to avoid sync loop)
+                    requestAnimationFrame(() => {
+                        writePlaygroundSelectionToQuery(hydrateResult.selection)
+                        skipUrlRevisionsUntilUpdate = false
+                    })
+                }
+
                 return
             }
+        }
+
+        // Skip URL revision processing if we just hydrated ephemeral entities
+        // and haven't updated the URL yet
+        if (skipUrlRevisionsUntilUpdate && isPlaygroundRoute) {
+            return
         }
 
         // Skip URL revision processing if there are pending hydrations
@@ -591,8 +661,26 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
  */
 const selectedDraftHashAtom = atom((get) => {
     const selectedVariants = get(playgroundController.selectors.entityIds())
+    const nodes = get(playgroundController.selectors.nodes())
 
     const parts = selectedVariants.map((revisionId) => {
+        const node = nodes.find((n) => n.entityId === revisionId)
+        const entityType = node?.entityType
+
+        // Handle baseRunnable entities - track their data for URL sync
+        if (entityType === "baseRunnable") {
+            const data = get(baseRunnableMolecule.selectors.data(revisionId))
+            const isDirty = get(baseRunnableMolecule.selectors.isDirty(revisionId))
+            // Include parameters hash to detect changes
+            const dataHash = data?.parameters ? JSON.stringify(data.parameters) : ""
+            return `${revisionId}:${isDirty}:${dataHash}`
+        }
+
+        // Skip other non-legacyAppRevision entities (e.g. evaluator)
+        if (entityType && entityType !== "legacyAppRevision") {
+            return `${revisionId}:false:`
+        }
+
         const isDirty = get(legacyAppRevisionMolecule.atoms.isDirty(revisionId))
         const draft = get(legacyAppRevisionMolecule.atoms.draft(revisionId))
         const draftHash = draft ? JSON.stringify(draft) : ""
@@ -694,7 +782,7 @@ playgroundSyncAtom.onMount = (set) => {
         // }
         // Collect unique source IDs that are ready, then apply via the ordered helper
         const readySourceIds = new Set<string>()
-        for (const [key, hydration] of pending.entries()) {
+        for (const [, hydration] of pending.entries()) {
             const query = store.get(runnableBridge.query(hydration.sourceRevisionId))
             // if (process.env.NODE_ENV !== "production") {
             //     console.debug("[hydration-sync] query state for", key, {
@@ -758,8 +846,8 @@ playgroundSyncAtom.onMount = (set) => {
     let currentRevReadyUnsub: (() => void) | null = null
     let currentLatestRevUnsub: (() => void) | null = null
     const bindRevisionsReady = () => {
-        const rawAppId = store.get(selectedAppIdAtom)
-        const currentAppId = typeof rawAppId === "string" ? rawAppId : null
+        // Use URL-based app ID only — project-level playground has no app context
+        const currentAppId = store.get(routerAppIdAtom)
         hasAppliedDefaults = false
         store.set(playgroundInitializedAtom, false)
         currentRevReadyUnsub?.()
@@ -823,8 +911,8 @@ playgroundSyncAtom.onMount = (set) => {
         }
     }
     bindRevisionsReady()
-    const unsubAppChange = store.sub(selectedAppIdAtom, () => {
-        console.log("[SUB2] selectedAppIdAtom changed:", store.get(selectedAppIdAtom))
+    const unsubAppChange = store.sub(routerAppIdAtom, () => {
+        console.log("[SUB2] routerAppIdAtom changed:", store.get(routerAppIdAtom))
         bindRevisionsReady()
     })
     unsubs.push(unsubAppChange)
