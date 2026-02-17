@@ -15,20 +15,12 @@ export {
 export {resolveRootSourceId} from "./sourceResolution"
 
 export {
-    // Pure derivation functions
-    deriveEnhancedPrompts,
-    deriveEnhancedCustomProperties,
-    // OpenAPI spec convenience wrappers
-    extractVariantParameters,
-    derivePromptsFromOpenApiSpec,
-    deriveCustomPropertiesFromOpenApiSpec,
     // Detection helpers
     isPromptLikeStructure,
     isPromptLikeSchema,
     isPromptProperty,
-    enhanceToolsArray,
-    // Metadata pre-heating
-    preheatSchemaMetadata,
+    // Parameter extraction
+    extractVariantParameters,
     // Types
     type EnhancedPrompt,
     type EnhancedCustomProperty,

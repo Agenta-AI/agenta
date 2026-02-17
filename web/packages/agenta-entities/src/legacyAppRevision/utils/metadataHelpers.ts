@@ -7,8 +7,25 @@
 
 import {generateId} from "@agenta/shared/utils"
 
-import type {ConfigMetadata, ArrayMetadata, ObjectMetadata} from "../state/metadataAtoms"
-import {hashConfigMetadata} from "../state/metadataAtoms"
+import type {ConfigMetadata, ArrayMetadata, ObjectMetadata} from "../types/enhanced"
+
+/**
+ * Hash a ConfigMetadata object into a stable string key.
+ * If given a string, returns it as-is (already hashed).
+ */
+function hashConfigMetadata(metadata: ConfigMetadata | string): string {
+    if (typeof metadata === "string") return metadata
+    const jsonString = JSON.stringify(metadata, Object.keys(metadata).sort())
+    let hash = 0
+    for (let i = 0; i < jsonString.length; i++) {
+        const chr = jsonString.charCodeAt(i)
+        hash = (hash << 5) - hash + chr
+        hash |= 0
+    }
+    return `meta_${Math.abs(hash).toString(16)}`
+}
+
+export {hashConfigMetadata}
 
 /**
  * Navigate a ConfigMetadata tree to find the first object schema.

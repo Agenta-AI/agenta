@@ -11,7 +11,7 @@
 import {extractTemplateVariables, extractTemplateVariablesFromJson} from "../../runnable/utils"
 import {extractAllEndpointSchemas} from "../api"
 import type {OpenAPISpec} from "../api"
-import type {ConfigMetadata} from "../state/metadataAtoms"
+import type {ConfigMetadata} from "../types/enhanced"
 
 import {
     extractInputKeysFromSchema,

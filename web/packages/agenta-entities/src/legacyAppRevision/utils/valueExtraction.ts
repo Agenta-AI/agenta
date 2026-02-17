@@ -7,20 +7,23 @@
  * @packageDocumentation
  */
 
+import {stripAgentaMetadataDeep, stripEnhancedWrappers} from "@agenta/shared/utils"
+
 import {extractAllEndpointSchemas} from "../api"
 import type {OpenAPISpec} from "../api"
-import type {ConfigMetadata} from "../state/metadataAtoms"
-import {isObjectMetadata} from "../state/metadataAtoms"
+import type {ConfigMetadata, ObjectMetadata} from "../types/enhanced"
+
+export {stripAgentaMetadataDeep, stripEnhancedWrappers}
+
+function isObjectMetadata(metadata: ConfigMetadata): metadata is ObjectMetadata {
+    return metadata?.type === "object"
+}
 
 // Local one-liner — same as parameterConversion.ts's internal toSnakeCaseKey
 const toSnakeCase = (str: string): string =>
     str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
 
 export {toSnakeCase}
-
-// Import strip functions for local use; re-export from @agenta/shared (canonical location)
-import {stripAgentaMetadataDeep, stripEnhancedWrappers} from "@agenta/shared/utils"
-export {stripAgentaMetadataDeep, stripEnhancedWrappers}
 
 function shouldIncludeValue(value: unknown): boolean {
     // Handle null and undefined
