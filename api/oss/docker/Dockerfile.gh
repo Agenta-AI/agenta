@@ -1,70 +1,108 @@
-FROM python:3.11-slim-bookworm
+FROM python:3.11-slim-bookworm AS builder
+
+ARG POETRY_VERSION=2.3.1
 
 WORKDIR /app
 
-RUN apt-get update && \
-    apt-get install -y curl cron gnupg2 lsb-release && \
-    echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
-    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
-    gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg && \
-    apt-get update && \
-    apt-get install -y postgresql-client-16 && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=0 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-RUN pip install --upgrade pip \
-    && pip install poetry
+# Install poetry system-level (outside venv) — only used for export
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --timeout=300 "poetry==${POETRY_VERSION}" "poetry-plugin-export"
 
 COPY ./pyproject.toml ./poetry.lock* /app/
 
-RUN poetry config virtualenvs.create false
+# Create clean venv, install app deps, strip heavy unused deps, add stubs
+# Merged into one layer so stripped files don't persist in a previous layer.
+# Stripped:
+# - phonenumbers/twilio: required by supertokens at import-time but never called
+# - hf_xet: transitive, never imported by app code
+# Kept: litellm + chain (tokenizers, huggingface_hub, tiktoken) — needed by agenta SDK
+# Kept: newrelic — used for observability
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/pypoetry \
-    poetry install --no-interaction --no-ansi
+    python -m venv /opt/venv \
+    && . /opt/venv/bin/activate \
+    && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
+    && pip install -r /tmp/requirements.txt \
+    && rm -f /tmp/requirements.txt \
+    && (pip uninstall -y pip setuptools 2>/dev/null || true) \
+    && SITE=$(python -c 'import site; print(site.getsitepackages()[0])') \
+    && rm -rf \
+        ${SITE}/phonenumbers* \
+        ${SITE}/twilio* \
+        ${SITE}/hf_xet* \
+    && mkdir -p ${SITE}/phonenumbers ${SITE}/twilio/rest \
+    && printf 'PhoneNumberFormat=type("PhoneNumberFormat",(),{"E164":0,"INTERNATIONAL":1,"NATIONAL":2})()\ndef parse(*a,**k):return None\ndef format_number(*a,**k):return ""\ndef is_valid_number(*a,**k):return False\n' \
+        > ${SITE}/phonenumbers/__init__.py \
+    && printf 'class Client:\n    def __init__(self,*a,**k):raise NotImplementedError("twilio stub")\n' \
+        > ${SITE}/twilio/__init__.py \
+    && cp ${SITE}/twilio/__init__.py ${SITE}/twilio/rest/__init__.py \
+    && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
-#
+# Copy and install SDK first (changes less frequently than app code)
+RUN mkdir -p /app/sdk
+COPY ./sd[k] /app/sdk/
+
+RUN if [ -f /app/sdk/pyproject.toml ]; then \
+        . /opt/venv/bin/activate && \
+        pip install pip && \
+        pip install --editable /app/sdk && \
+        (pip uninstall -y pip 2>/dev/null || true); \
+    fi
+
+# Copy app code last (changes more frequently)
 COPY ./oss /app/oss/
 COPY ./entrypoints /app/entrypoints/
 
-# Copy local SDK if present (synced by build.sh before docker build)
-# Uses glob pattern sd[k] to avoid failure if sdk/ doesn't exist (for OSS users)
-COPY ./sd[k] /app/sdk/
 
-# Install local SDK in editable mode if present (overrides the PyPI version)
-RUN if [ -f /app/sdk/pyproject.toml ]; then pip install -e /app/sdk; fi
+FROM python:3.11-slim-bookworm AS runner
 
-# Verify which agenta package is active (output visible in build logs)
-RUN python -c '\
-import agenta; loc = getattr(agenta, "__file__", "?"); \
-print(f"[SDK CHECK] agenta={loc}"); \
-print(f"[SDK CHECK] is_local={"app/sdk" in (loc or "")}")' \
-|| echo "[SDK CHECK] verification failed"
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION=0.0.0
 
-# PYTHONPATH includes /app/sdk - if local SDK exists it takes precedence over PyPI version
-ENV PYTHONPATH=/app:/app/sdk
+WORKDIR /app
 
-COPY ./oss/src/crons/queries.sh /queries.sh
-COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
-RUN sed -i -e '$a\' /etc/cron.d/queries-cron
-RUN cat -A /etc/cron.d/queries-cron
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app:/app/sdk \
+    PATH="/opt/venv/bin:${PATH}"
 
-RUN chmod +x /queries.sh \
-    && chmod 0644 /etc/cron.d/queries-cron
+# Hardcode bookworm codename to avoid pulling in lsb-release (+ perl ~56MB).
+# IMPORTANT: This codename must match the Debian release used in the base image (python:3.11-slim-bookworm).
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl cron gnupg2 && \
+    echo "deb http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
+    gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends postgresql-client-17 && \
+    apt-get purge -y --auto-remove gnupg2 && \
+    rm -rf /var/lib/apt/lists/*
 
-#
-#
-#
-#
+# Copy stable cron files first (change less frequently)
+COPY --chmod=755 ./oss/src/crons/queries.sh /queries.sh
+COPY --chmod=644 ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
 
-#
-#
+# Copy dependencies from builder
+COPY --from=builder /opt/venv /opt/venv
 
-#
-#
-#
-#
+# Copy app code last (changes most frequently)
+COPY --from=builder /app/oss /app/oss
+COPY --from=builder /app/entrypoints /app/entrypoints
+COPY --from=builder /app/sdk /app/sdk
 
-#
-#
+RUN set -eux; \
+    sed -i -e '$a\' /etc/cron.d/queries-cron
+
+LABEL org.opencontainers.image.title="agenta-api" \
+    org.opencontainers.image.description="Agenta API GH runtime image" \
+    org.opencontainers.image.version="${VERSION}" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.created="${BUILD_DATE}"
 
 EXPOSE 8000

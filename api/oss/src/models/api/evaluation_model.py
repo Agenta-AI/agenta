@@ -14,6 +14,7 @@ class LegacyEvaluator(BaseModel):
     direct_use: bool
     settings_presets: Optional[list[dict]] = None
     settings_template: dict
+    outputs_schema: Optional[Dict[str, Any]] = None
     description: Optional[str] = None
     oss: Optional[bool] = False
     requires_llm_api_keys: Optional[bool] = False

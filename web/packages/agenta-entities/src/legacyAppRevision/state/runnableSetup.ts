@@ -109,19 +109,14 @@ export const availableEndpointsAtomFamily = atomFamily((revisionId: string) =>
 )
 
 /**
- * Is chat variant (has messages in schema)
+ * Is chat variant — prefers x-agenta.flags.is_chat from the SDK,
+ * falls back to messages schema heuristic (computed in extractAllEndpointSchemas)
  */
 export const isChatVariantAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
         const query = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
         const schemaState = query.data
-        if (!schemaState?.endpoints) return false
-
-        for (const endpoint of Object.values(schemaState.endpoints)) {
-            const ep = endpoint as {messagesSchema?: unknown}
-            if (ep?.messagesSchema) return true
-        }
-        return false
+        return schemaState?.isChatVariant ?? false
     }),
 )
 
