@@ -942,10 +942,10 @@ export const testcaseMolecule = {
          */
         getChangesFromRoot: (
             entity: Testcase | null,
-            _rootData: unknown,
+            rootData: unknown,
             path: DataPath,
-            value: unknown,
         ): {data: Record<string, unknown>} | null => {
+            const value = getValueAtPathUtil(rootData, path)
             return getChangesFromPath(entity, path, value)
         },
     },

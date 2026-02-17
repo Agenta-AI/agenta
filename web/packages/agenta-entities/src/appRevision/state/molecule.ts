@@ -455,10 +455,10 @@ export const appRevisionMolecule = {
         },
         getChangesFromRoot: (
             entity: AppRevisionData | null,
-            _rootData: unknown,
+            rootData: unknown,
             path: DataPath,
-            value: unknown,
         ): Partial<AppRevisionData> | null => {
+            const value = getValueAtPathUtil(rootData, path)
             return getChangesFromPath(entity, path, value)
         },
     },
