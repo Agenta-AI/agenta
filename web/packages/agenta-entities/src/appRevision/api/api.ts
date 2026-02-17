@@ -16,7 +16,6 @@ import {
     // URI parsing
     parseRevisionUri,
     // Revision parameter extraction
-    extractRevisionParameters,
     extractRevisionParametersFromApiRevision,
     // List item types (re-export)
     type AppListItem,
@@ -30,9 +29,6 @@ import {
     transformAppToListItem,
     transformVariantToListItem,
     transformRevisionToListItem,
-    // Enhanced variant types
-    type EnhancedVariantLike,
-    extractUriFromEnhanced,
     isLocalDraftId,
     isPlaceholderId,
 } from "../../shared"
@@ -46,7 +42,6 @@ export type {
     ApiVariant,
     ApiRevisionListItem,
     ApiApp,
-    EnhancedVariantLike,
 }
 export {transformAppToListItem}
 
@@ -68,8 +63,6 @@ export interface ApiRevision {
     updated_at?: string
 }
 
-// EnhancedVariantLike imported from shared/utils/revisionUtils
-
 /**
  * Batch request for revision fetching
  */
@@ -83,153 +76,6 @@ export interface RevisionRequest {
 // ============================================================================
 // DATA TRANSFORMATION
 // ============================================================================
-
-/**
- * Transform EnhancedVariant (from variant revisions cache) to AppRevisionData
- * This enables cache redirect - reusing data already fetched in the EntitySelector modal
- *
- * Also extracts raw agConfig for schema-driven approach.
- * Also captures URI/runtime info for schema fetching and invocation.
- */
-export function transformEnhancedVariant(enhanced: EnhancedVariantLike): AppRevisionData {
-    const prompts: PromptConfig[] = []
-
-    // EnhancedVariant has prompts directly at top level
-    const enhancedPrompts = toArray(enhanced.prompts)
-
-    enhancedPrompts.forEach((enhancedPrompt, idx) => {
-        prompts.push(transformEnhancedPrompt(enhancedPrompt, idx))
-    })
-
-    // Also get parameters from the original config if available
-    const params = enhanced.parameters || {}
-
-    // Extract raw revision parameters for schema-driven approach using shared utility
-    const agConfig = extractRevisionParameters(params)
-
-    // Extract URI/runtime info using shared utility
-    const uriInfo = extractUriFromEnhanced(enhanced)
-    const uri = enhanced.uri
-    const runtimePrefix = uriInfo?.runtimePrefix
-    const routePath = uriInfo?.routePath
-
-    return {
-        id: enhanced.id,
-        variantId: enhanced.variantId || "",
-        appId: enhanced.appId || "",
-        revision: Number(enhanced.revision) || 1,
-        prompts,
-        agConfig,
-        parameters: params,
-        createdAt: enhanced.createdAt || enhanced.created_at,
-        updatedAt: enhanced.updatedAt || enhanced.updated_at,
-        // WorkflowServiceConfiguration fields
-        uri,
-        url: enhanced.url,
-        runtimePrefix,
-        routePath,
-        headers: enhanced.headers as
-            | Record<string, string | {id?: string; slug?: string; version?: number}>
-            | undefined,
-        schemas: enhanced.schemas
-            ? {
-                  inputs: (enhanced.schemas as Record<string, unknown>).inputs as
-                      | Record<string, unknown>
-                      | undefined,
-                  outputs: (enhanced.schemas as Record<string, unknown>).outputs as
-                      | Record<string, unknown>
-                      | undefined,
-              }
-            : undefined,
-        script: enhanced.script,
-        runtime: enhanced.runtime,
-        // Legacy fields
-        service: enhanced.service,
-        configuration: enhanced.configuration,
-    }
-}
-
-/**
- * Transform an Enhanced<AgentaConfigPrompt> to PromptConfig
- * Unwraps the Enhanced wrapper structure to extract raw values
- */
-function transformEnhancedPrompt(enhancedPrompt: unknown, index: number): PromptConfig {
-    const prompt = enhancedPrompt as Record<string, unknown>
-
-    // Extract name from __name or fall back
-    const name = (prompt.__name as string) || `prompt_${index}`
-
-    // Messages are in EnhancedArrayValue format: { value: Enhanced<Message>[], __id, __metadata }
-    const messagesArray = toArray(prompt.messages)
-    const messages = messagesArray.map((msg) => {
-        if (!isRecord(msg)) return {role: "user" as const, content: ""}
-        const m = msg
-        const roleValue = m.role as Record<string, unknown> | string
-        const contentValue = m.content as Record<string, unknown> | string
-        const nameValue = m.name as Record<string, unknown> | string | undefined
-        const toolCallIdValue = (m.tool_call_id || m.toolCallId) as
-            | Record<string, unknown>
-            | string
-            | undefined
-
-        return {
-            role: ((typeof roleValue === "object" ? roleValue?.value : roleValue) || "user") as
-                | "system"
-                | "user"
-                | "assistant"
-                | "tool",
-            content: ((typeof contentValue === "object" ? contentValue?.value : contentValue) ||
-                "") as string,
-            name: (typeof nameValue === "object" ? nameValue?.value : nameValue) as
-                | string
-                | undefined,
-            tool_call_id: (typeof toolCallIdValue === "object"
-                ? toolCallIdValue?.value
-                : toolCallIdValue) as string | undefined,
-        }
-    })
-
-    // llmConfig is EnhancedObjectConfig - extract values from Enhanced wrappers
-    const llmConfig = (prompt.llmConfig || {}) as Record<string, unknown>
-
-    // inputKeys is EnhancedArrayValue or array of Enhanced<string>
-    const inputKeysRaw = toArray(prompt.inputKeys)
-    const inputKeys = inputKeysRaw
-        .map((k) => {
-            if (typeof k === "string") return k
-            if (isRecord(k) && typeof k.value === "string") return k.value
-            return ""
-        })
-        .filter(Boolean)
-
-    const getValue = (obj: Record<string, unknown>, ...keys: string[]): unknown => {
-        for (const key of keys) {
-            const val = obj[key] as Record<string, unknown> | unknown
-            if (val !== undefined) {
-                return typeof val === "object" && val !== null && "value" in val
-                    ? (val as Record<string, unknown>).value
-                    : val
-            }
-        }
-        return undefined
-    }
-
-    return {
-        name,
-        messages,
-        temperature: getValue(llmConfig, "temperature") as number | undefined,
-        model: getValue(llmConfig, "model") as string | undefined,
-        max_tokens: getValue(llmConfig, "maxTokens", "max_tokens") as number | undefined,
-        top_p: getValue(llmConfig, "topP", "top_p") as number | undefined,
-        frequency_penalty: getValue(llmConfig, "frequencyPenalty", "frequency_penalty") as
-            | number
-            | undefined,
-        presence_penalty: getValue(llmConfig, "presencePenalty", "presence_penalty") as
-            | number
-            | undefined,
-        inputKeys: inputKeys.length > 0 ? inputKeys : undefined,
-    }
-}
 
 /**
  * Transform a single prompt from API format to PromptConfig
@@ -323,13 +169,9 @@ export function transformApiRevision(apiRevision: ApiRevision): AppRevisionData 
 }
 
 // REVISION PARAMETER EXTRACTION - using shared utilities from ../../shared/utils/revisionUtils
-export {
-    extractRevisionParametersFromEnhanced,
-    extractRevisionParametersFromApiRevision,
-} from "../../shared"
+export {extractRevisionParametersFromApiRevision} from "../../shared"
 
 // Deprecated agConfig extraction aliases
-export {extractAgConfig as extractAgConfigFromEnhanced} from "../../shared"
 export {extractAgConfigFromApiRevision as extractAgConfigFromApi} from "../../shared"
 
 // LIST API FUNCTIONS - types imported from shared/utils/revisionUtils

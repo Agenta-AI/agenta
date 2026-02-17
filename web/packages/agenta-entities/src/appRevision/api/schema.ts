@@ -24,6 +24,8 @@ export {
     createEmptyRevisionSchemaState,
     buildRevisionSchemaState,
     getSchemaPropertyAtPath,
+    convertOpenApiSchemaToJsonSchema,
+    jsonSchemaToEntitySchema,
 } from "./schemaUtils"
 
 // ============================================================================

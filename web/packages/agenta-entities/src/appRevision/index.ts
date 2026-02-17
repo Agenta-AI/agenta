@@ -94,13 +94,9 @@ export type {
 
 export {
     // Data transformers
-    transformEnhancedVariant,
-    transformApiRevision,
     transformAppToListItem,
-    extractRevisionParametersFromEnhanced,
     extractRevisionParametersFromApiRevision,
     // Deprecated agConfig extraction
-    extractAgConfigFromEnhanced,
     extractAgConfigFromApi,
     // List API functions
     fetchVariantsList,
@@ -118,7 +114,6 @@ export {
     type ApiRevision,
     type ApiVariant,
     type ApiRevisionListItem,
-    type EnhancedVariantLike,
     type RevisionRequest,
     type VariantListItem,
     type RevisionListItem,
@@ -155,7 +150,6 @@ export {
     getCustomPropertyKeys,
     // Helpers
     formatKeyAsName,
-    unwrapEnhanced,
 } from "./utils"
 
 // ============================================================================
