@@ -1,7 +1,13 @@
 import {memo, useMemo} from "react"
 
 import {DEFAULT_ROLE_COLOR_CLASS, ROLE_COLOR_CLASSES} from "./constants"
-import {extractChatMessages, normalizeChatMessages, truncateContent, tryParseJson} from "./utils"
+import {
+    extractChatMessages,
+    normalizeChatMessages,
+    truncateContent,
+    tryParseJson,
+    type ChatExtractionPreference,
+} from "./utils"
 
 interface ChatMessagesCellContentProps {
     /** Value that may contain chat messages */
@@ -16,6 +22,8 @@ interface ChatMessagesCellContentProps {
     truncate?: boolean
     /** Show dividers between messages */
     showDividers?: boolean
+    /** Hint for chat extraction direction in mixed payloads */
+    chatPreference?: ChatExtractionPreference
 }
 
 /**
@@ -84,10 +92,7 @@ const SingleMessage = memo(
             ROLE_COLOR_CLASSES[message.role.toLowerCase()] ?? DEFAULT_ROLE_COLOR_CLASS
 
         return (
-            <section
-                key={`${keyPrefix}-${index}`}
-                className="w-full flex flex-col gap-1 text-xs text-zinc-7"
-            >
+            <section key={`${keyPrefix}-${index}`} className="w-full flex flex-col gap-1 text-xs">
                 <span className={`capitalize text-xs font-medium ${roleColorClass}`}>
                     {message.role}
                 </span>
@@ -96,7 +101,7 @@ const SingleMessage = memo(
                 )}
                 {message.tool_calls && message.tool_calls.length > 0 && (
                     <div className="flex flex-col gap-1">
-                        <span className="text-xs text-zinc-6 font-medium">Tool Calls:</span>
+                        <span className="text-xs font-medium">Tool Calls:</span>
                         <span className="whitespace-pre-wrap break-words text-xs bg-zinc-1 rounded px-2 py-1 block">
                             {formatToolCalls(message.tool_calls)}
                         </span>
@@ -168,12 +173,13 @@ const ChatMessagesCellContent = memo(
         maxTotalLines,
         truncate = true,
         showDividers = true,
+        chatPreference,
     }: ChatMessagesCellContentProps) => {
         // Memoize message extraction and smart selection together
         const {displayMessages, totalCount} = useMemo(() => {
             // Parse JSON string if needed, otherwise use value directly
             const parsed = typeof value === "string" ? tryParseJson(value).parsed : value
-            const extracted = extractChatMessages(parsed)
+            const extracted = extractChatMessages(parsed, {prefer: chatPreference})
             if (!extracted) return {displayMessages: [], totalCount: 0}
 
             // Smart selection: pick messages that fit within line budget
@@ -187,7 +193,7 @@ const ChatMessagesCellContent = memo(
             const normalized = normalizeChatMessages(selected)
 
             return {displayMessages: normalized, totalCount: total}
-        }, [value, maxTotalLines, maxLines])
+        }, [value, maxTotalLines, maxLines, chatPreference])
 
         if (displayMessages.length === 0) {
             return null
@@ -209,7 +215,7 @@ const ChatMessagesCellContent = memo(
                     />
                 ))}
                 {hasMore && (
-                    <span className="text-xs text-zinc-6 italic">
+                    <span className="text-xs italic">
                         +{totalCount - displayMessages.length} more message
                         {totalCount - displayMessages.length > 1 ? "s" : ""}
                     </span>
