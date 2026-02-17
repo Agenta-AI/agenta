@@ -1,14 +1,130 @@
+/**
+ * BaseRunnableConfigSection
+ *
+ * Configuration viewer/editor for baseRunnable entities (trace replays).
+ * Delegates config rendering to LegacyPlaygroundConfigSection via a
+ * molecule adapter that bridges baseRunnableMolecule's API.
+ */
+
 import {memo, useCallback, useMemo} from "react"
 
 import {baseRunnableMolecule} from "@agenta/entities/baseRunnable"
+import {PlaygroundConfigSection, type ConfigSectionMoleculeAdapter} from "@agenta/entity-ui"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
 import {Plus, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Tooltip, Typography} from "antd"
 import type {MenuProps} from "antd"
+import type {Atom, WritableAtom} from "jotai"
+import {atom} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore} from "jotai/vanilla"
 
-import {DrillInContent} from "@/oss/components/DrillInView/DrillInContent"
+// ============================================================================
+// BRIDGE UPDATE REDUCER
+// ============================================================================
+
+/**
+ * Bridge update reducer that translates LegacyPlaygroundConfigSection's
+ * update format ({parameters: {...}}) to baseRunnableMolecule's format
+ * (flat parameter keys).
+ *
+ * LegacyPlaygroundConfigSection calls:
+ *   update(id, { parameters: { prompt: {...}, ... } })
+ *
+ * baseRunnableMolecule.reducers.update expects:
+ *   update(id, { prompt: {...}, ... })
+ *
+ * This bridge unwraps the `parameters` wrapper.
+ */
+const bridgeUpdateAtom: WritableAtom<
+    unknown,
+    [id: string, changes: Record<string, unknown>],
+    void
+> = atom(null, (_get, set, id: string, changes: Record<string, unknown>) => {
+    // Unwrap {parameters: {...}} → flat parameters
+    const params =
+        changes.parameters && typeof changes.parameters === "object"
+            ? (changes.parameters as Record<string, unknown>)
+            : changes
+    set(baseRunnableMolecule.reducers.update, id, params)
+})
+
+// ============================================================================
+// DATA WRAPPER ATOMS
+// ============================================================================
+
+/**
+ * Atom family that wraps baseRunnableMolecule's merged data as
+ * {parameters: {...}} to match the shape LegacyPlaygroundConfigSection expects.
+ */
+function wrappedDataAtom(id: string): Atom<{parameters?: Record<string, unknown>} | null> {
+    return baseRunnableMolecule.selectors.data(id) as Atom<{
+        parameters?: Record<string, unknown>
+    } | null>
+}
+
+/**
+ * Atom family that wraps baseRunnableMolecule's base (pre-draft) data.
+ */
+function wrappedBaseDataAtom(id: string): Atom<{parameters?: Record<string, unknown>} | null> {
+    return atom((get) => {
+        const params = get(baseRunnableMolecule.atoms.serverData(id))
+        if (!params) return null
+        // Wrap parameters into {parameters: ...} shape
+        return {parameters: params as Record<string, unknown>}
+    })
+}
+
+// ============================================================================
+// MOLECULE ADAPTER
+// ============================================================================
+
+const baseRunnableConfigAdapter: ConfigSectionMoleculeAdapter = {
+    atoms: {
+        data: wrappedDataAtom,
+        serverData: wrappedBaseDataAtom,
+        draft: baseRunnableMolecule.atoms.draft,
+        isDirty: baseRunnableMolecule.atoms.isDirty,
+        schemaQuery: baseRunnableMolecule.atoms
+            .schemaQuery as ConfigSectionMoleculeAdapter["atoms"]["schemaQuery"],
+        agConfigSchema: baseRunnableMolecule.atoms.agConfigSchema as (
+            id: string,
+        ) => Atom<{properties?: Record<string, unknown>} | null>,
+    },
+    reducers: {
+        update: bridgeUpdateAtom,
+        discard: baseRunnableMolecule.reducers.discard,
+    },
+    drillIn: {
+        ...baseRunnableMolecule.drillIn,
+        // Override getRootData to extract .parameters from the wrapped entity
+        getRootData: (entity: unknown) => {
+            if (!entity || typeof entity !== "object") return null
+            const e = entity as {parameters?: Record<string, unknown>}
+            return e.parameters ?? entity
+        },
+        // Override getChangesFromRoot to wrap back into {parameters: ...}
+        getChangesFromRoot: (_entity: unknown, rootData: unknown, _path: (string | number)[]) => {
+            if (!rootData || typeof rootData !== "object") return null
+            return {parameters: rootData as Record<string, unknown>}
+        },
+    },
+    selectors: {
+        schemaAtPath: (params) =>
+            baseRunnableMolecule.selectors.schemaAtPath(params) as Atom<unknown>,
+    },
+    set: {
+        update: (id: string, changes: Record<string, unknown>) => {
+            const store = getDefaultStore()
+            store.set(bridgeUpdateAtom, id, changes)
+        },
+    },
+}
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
 
 interface BaseRunnableConfigSectionProps {
     entityId: string
@@ -21,24 +137,20 @@ function BaseRunnableConfigSection({entityId}: BaseRunnableConfigSectionProps) {
     const isDirty = useAtomValue(
         useMemo(() => baseRunnableMolecule.selectors.isDirty(entityId), [entityId]),
     )
-    const discardChanges = useSetAtom(baseRunnableMolecule.reducers.discard)
 
-    const parameters = data?.parameters ?? {}
-    const hasParameters = Object.keys(parameters).length > 0
+    const hasParameters = data?.parameters && Object.keys(data.parameters).length > 0
 
+    const discardEntity = useSetAtom(baseRunnableMolecule.reducers.discard)
     const handleDiscard = useCallback(() => {
-        discardChanges(entityId)
-    }, [discardChanges, entityId])
+        discardEntity(entityId)
+    }, [entityId, discardEntity])
 
-    // Create handlers for app/evaluator creation (no-op for now)
     const handleCreateApp = useCallback(() => {
         message.info("Create App from trace - coming soon")
-        // TODO: Implement app creation from baseRunnable config
     }, [])
 
     const handleCreateEvaluator = useCallback(() => {
         message.info("Create Evaluator from trace - coming soon")
-        // TODO: Implement evaluator creation from baseRunnable config
     }, [])
 
     const createMenuItems: MenuProps["items"] = useMemo(
@@ -56,60 +168,6 @@ function BaseRunnableConfigSection({entityId}: BaseRunnableConfigSectionProps) {
         ],
         [handleCreateApp, handleCreateEvaluator],
     )
-
-    const getValue = useCallback(
-        (path: string[]): unknown => {
-            let current: unknown = parameters
-            for (const key of path) {
-                if (current == null || typeof current !== "object") return undefined
-                current = (current as Record<string, unknown>)[key]
-            }
-            return current
-        },
-        [parameters],
-    )
-
-    const updateDraft = useSetAtom(baseRunnableMolecule.reducers.update)
-
-    const setValue = useCallback(
-        (path: string[], value: unknown) => {
-            if (path.length === 0 || !data) return
-            // Build updated parameters by setting value at path
-            // Must preserve arrays vs objects during immutable cloning
-            const updated = {...parameters}
-            let target: Record<string, unknown> = updated
-            for (let i = 0; i < path.length - 1; i++) {
-                const key = path[i]
-                const next = target[key]
-                if (Array.isArray(next)) {
-                    target[key] = [...next]
-                    target = target[key] as unknown as Record<string, unknown>
-                } else if (next && typeof next === "object") {
-                    target[key] = {...(next as Record<string, unknown>)}
-                    target = target[key] as Record<string, unknown>
-                } else {
-                    target[key] = {}
-                    target = target[key] as Record<string, unknown>
-                }
-            }
-            target[path[path.length - 1]] = value
-
-            // Update the draft (not the base data) so isDirty becomes true
-            updateDraft(entityId, updated)
-        },
-        [parameters, entityId, data, updateDraft],
-    )
-
-    const getRootItems = useCallback(() => {
-        return Object.keys(parameters)
-            .sort()
-            .map((key) => ({
-                key,
-                name: key,
-                value: parameters[key],
-                isColumn: false,
-            }))
-    }, [parameters])
 
     return (
         <>
@@ -138,16 +196,10 @@ function BaseRunnableConfigSection({entityId}: BaseRunnableConfigSectionProps) {
                 </div>
             </section>
             {hasParameters ? (
-                <div className="flex-1 overflow-auto p-3">
-                    <DrillInContent
-                        getValue={getValue}
-                        setValue={setValue}
-                        getRootItems={getRootItems}
-                        rootTitle="Configuration"
-                        editable
-                        valueMode="native"
-                    />
-                </div>
+                <PlaygroundConfigSection
+                    revisionId={entityId}
+                    moleculeAdapter={baseRunnableConfigAdapter}
+                />
             ) : (
                 <div className="px-3 py-4 text-[rgba(0,0,0,0.45)] text-sm">
                     No configuration parameters
