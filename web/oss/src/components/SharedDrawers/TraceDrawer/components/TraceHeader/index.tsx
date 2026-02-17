@@ -1,10 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {extractAgData} from "@agenta/entities/trace"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
+import {ArrowLeft, CaretDown, CaretUp, Play} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {openTraceInPlaygroundAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/openInPlayground"
 import {
     setTraceDrawerTraceAtom,
     traceDrawerBackTargetAtom,
@@ -19,8 +21,11 @@ import {
 } from "@/oss/services/tracing/lib/helpers"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
+import {useAppNavigation} from "@/oss/state/appState"
 import {useObservability} from "@/oss/state/newObservability"
 import buildTraceQueryParams from "@/oss/state/newObservability/utils/buildTraceQueryParams"
+import {urlAtom} from "@/oss/state/url"
+import {buildPlaygroundUrl} from "@/oss/state/url/playground"
 
 import {getNodeTimestamp, getSpanIdFromNode, getTraceIdFromNode, toISOString} from "./assets/helper"
 import {NavSource, NavState, TraceHeaderProps} from "./assets/types"
@@ -47,6 +52,9 @@ const TraceHeader = ({
     const backTarget = useAtomValue(traceDrawerBackTargetAtom)
     const isLinkedView = useAtomValue(traceDrawerIsLinkedViewAtom)
     const internalSetTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
+    const setOpenInPlayground = useSetAtom(openTraceInPlaygroundAtom)
+    const url = useAtomValue(urlAtom)
+    const navigation = useAppNavigation()
 
     const tableTraces = useMemo(() => tableTracesRaw as TraceSpanNode[], [tableTracesRaw])
 
@@ -444,6 +452,31 @@ const TraceHeader = ({
 
     const displayTrace = propActiveTrace || drawerTraces?.[0]
 
+    const targetSpan = useMemo(
+        () => (propActiveTrace || drawerTraces?.[0]) as TraceSpanNode | undefined,
+        [propActiveTrace, drawerTraces],
+    )
+
+    const canOpenInPlayground = useMemo(() => {
+        if (!targetSpan) return false
+        const agData = extractAgData(targetSpan)
+        return Boolean(agData?.parameters || agData?.inputs)
+    }, [targetSpan])
+
+    const handleOpenInPlayground = useCallback(() => {
+        if (!targetSpan) return
+        const result = setOpenInPlayground(targetSpan)
+        if (url.projectURL && result?.entityId) {
+            // For baseRunnable entities, build URL with snapshot hash
+            // For existing revisions, use simple revision query param
+            const playgroundUrl =
+                result.type === "baseRunnable"
+                    ? buildPlaygroundUrl([result.entityId], `${url.projectURL}/playground`)
+                    : `${url.projectURL}/playground?revisions=${result.entityId}`
+            navigation.push(playgroundUrl)
+        }
+    }, [targetSpan, setOpenInPlayground, url.projectURL, navigation])
+
     return (
         <>
             <div className="flex items-center justify-between">
@@ -483,6 +516,15 @@ const TraceHeader = ({
                         </Tag>
                     </TooltipWithCopyAction>
                 </Space>
+                <Button
+                    type="default"
+                    size="small"
+                    icon={<Play size={14} />}
+                    disabled={!canOpenInPlayground}
+                    onClick={handleOpenInPlayground}
+                >
+                    Open in Playground
+                </Button>
             </div>
         </>
     )
