@@ -105,7 +105,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     form,
 }) => {
     const settingsValue = Form.useWatch(name, form)
-    const runtime = Form.useWatch(["settings_values", "runtime"], form)
+    const runtime = Form.useWatch(["parameters", "runtime"], form)
 
     const classes = useStyles()
     const {token} = theme.useToken()

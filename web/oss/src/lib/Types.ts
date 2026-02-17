@@ -650,6 +650,7 @@ export interface Evaluator {
     key: string
     settings_presets?: SettingsPreset[]
     settings_template: Record<string, EvaluationSettingsTemplate>
+    outputs_schema?: Record<string, any>
     icon_url?: string | StaticImageData
     color?: string
     direct_use?: boolean
@@ -658,6 +659,76 @@ export interface Evaluator {
     requires_llm_api_keys?: boolean
     tags: string[]
     archived?: boolean
+}
+
+export interface SimpleEvaluatorData {
+    version?: string
+    uri?: string
+    url?: string
+    headers?: Record<string, string>
+    schemas?: Record<string, any>
+    script?: {content?: string; runtime?: string}
+    parameters?: Record<string, any>
+    service?: Record<string, any>
+    configuration?: Record<string, any>
+}
+
+export interface SimpleEvaluatorFlags {
+    is_custom?: boolean
+    is_evaluator?: boolean
+    is_human?: boolean
+    requires_llm_api_keys?: boolean
+    evaluator_key?: string
+    color?: string
+}
+
+export interface SimpleEvaluator {
+    id: string
+    slug: string
+    name?: string
+    description?: string
+    tags?: string[]
+    meta?: Record<string, any>
+    flags?: SimpleEvaluatorFlags
+    data?: SimpleEvaluatorData
+    created_at?: string
+    updated_at?: string
+    deleted_at?: string | null
+    created_by_id?: string
+    updated_by_id?: string
+    deleted_by_id?: string
+    color?: string
+    icon_url?: string | StaticImageData
+}
+
+export interface SimpleEvaluatorCreate {
+    slug: string
+    name?: string
+    description?: string
+    tags?: string[]
+    meta?: Record<string, any>
+    flags?: SimpleEvaluatorFlags
+    data?: SimpleEvaluatorData
+}
+
+export interface SimpleEvaluatorEdit {
+    id: string
+    name?: string
+    description?: string
+    tags?: string[]
+    meta?: Record<string, any>
+    flags?: SimpleEvaluatorFlags
+    data?: SimpleEvaluatorData
+}
+
+export interface SimpleEvaluatorResponse {
+    count: number
+    evaluator: SimpleEvaluator | null
+}
+
+export interface SimpleEvaluatorsResponse {
+    count: number
+    evaluators: SimpleEvaluator[]
 }
 
 export interface EvaluatorConfig {
