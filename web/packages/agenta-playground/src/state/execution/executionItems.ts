@@ -933,6 +933,12 @@ function buildRequestBody(
         delete requestBody.repetitions
     }
 
+    // Add references from requestPayload for trace attribution
+    const payloadRefs = asRecord((requestPayload as Record<string, unknown> | null)?.references)
+    if (payloadRefs && Object.keys(payloadRefs).length > 0) {
+        requestBody.references = payloadRefs
+    }
+
     return requestBody
 }
 

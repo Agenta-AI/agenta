@@ -315,6 +315,19 @@ export const requestPayloadAtomFamily = atomFamily((revisionId: string) =>
             // best-effort
         }
 
+        // Build references for trace attribution
+        // Use nested format: application { id, variant_id, revision_id }
+        const appId = entityData.appId ?? (entityRecord.app_id as string | undefined)
+        const variantId = entityData.variantId ?? (entityRecord.variant_id as string | undefined)
+        const references: Record<string, Record<string, string | undefined>> = {}
+        if (appId) {
+            references.application = {
+                id: appId,
+                variant_id: variantId,
+                revision_id: revisionId,
+            }
+        }
+
         return {
             ag_config: agConfig,
             isChat,
@@ -325,7 +338,9 @@ export const requestPayloadAtomFamily = atomFamily((revisionId: string) =>
             spec: openApiSchema,
             routePath: routePath || undefined,
             isCustom: appType?.toLowerCase() === "custom" || undefined,
-            appId: entityData.appId ?? (entityRecord.app_id as string | undefined) ?? null,
+            appId: appId ?? null,
+            // Include references for trace attribution
+            references: Object.keys(references).length > 0 ? references : undefined,
         }
     }),
 )
