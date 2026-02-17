@@ -21,8 +21,15 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
+import type {RevisionSchemaState} from "../appRevision/core"
+import {
+    completionServiceSchemaAtom,
+    chatServiceSchemaAtom,
+} from "../appRevision/state/serviceSchemaAtoms"
+import {getSchemaPropertyAtPath} from "../legacyAppRevision/state/schemaAtoms"
 import type {RunnableInputPort, RunnableOutputPort} from "../runnable/types"
 import {extractVariablesFromConfig} from "../runnable/utils"
+import type {EntitySchema, EntitySchemaProperty} from "../shared"
 import type {BridgeQueryState} from "../shared/entityBridge"
 import {generateLocalId} from "../shared/utils/helpers"
 
@@ -264,6 +271,104 @@ const baseRunnableRequestPayloadFamily = atomFamily((id: string) =>
 )
 
 // ============================================================================
+// SCHEMA ATOMS
+// ============================================================================
+
+/**
+ * Schema query result shape matching SchemaQueryResult from schemaAtoms.
+ */
+interface BaseRunnableSchemaQueryResult {
+    data: RevisionSchemaState
+    isPending: boolean
+    isError: boolean
+    error: Error | null
+}
+
+const emptySchemaState: RevisionSchemaState = {
+    openApiSchema: null,
+    agConfigSchema: null,
+    endpoints: {
+        test: null,
+        run: null,
+        generate: null,
+        generateDeployed: null,
+        root: null,
+    },
+    availableEndpoints: [],
+    isChatVariant: false,
+}
+
+/**
+ * Schema query for baseRunnable — routes to the correct service schema
+ * (chat or completion) based on the entity's detected execution mode.
+ *
+ * BaseRunnable has no per-revision URI, so it always uses the service schema
+ * fast path. The isChat detection from baseRunnableIsChatFamily determines
+ * which service schema to read.
+ */
+const baseRunnableSchemaQueryFamily = atomFamily((id: string) =>
+    atom<BaseRunnableSchemaQueryResult>((get) => {
+        const data = get(baseRunnableDataFamily(id))
+        if (!data) {
+            return {data: emptySchemaState, isPending: false, isError: false, error: null}
+        }
+
+        const isChat = get(baseRunnableIsChatFamily(id))
+        const serviceQuery = get(isChat ? chatServiceSchemaAtom : completionServiceSchemaAtom)
+
+        if (serviceQuery.isPending) {
+            return {data: emptySchemaState, isPending: true, isError: false, error: null}
+        }
+
+        if (serviceQuery.isError || !serviceQuery.data) {
+            return {
+                data: emptySchemaState,
+                isPending: false,
+                isError: serviceQuery.isError,
+                error: serviceQuery.error ?? null,
+            }
+        }
+
+        return {data: serviceQuery.data, isPending: false, isError: false, error: null}
+    }),
+)
+
+/**
+ * agConfigSchema selector — extracts agConfigSchema from the service schema result.
+ */
+const baseRunnableAgConfigSchemaFamily = atomFamily((id: string) =>
+    atom<EntitySchema | null>((get) => {
+        const schemaQuery = get(baseRunnableSchemaQueryFamily(id))
+        return schemaQuery.data?.agConfigSchema ?? null
+    }),
+)
+
+/**
+ * Schema at path selector — traverses schema tree for drill-in adapter support.
+ */
+const baseRunnableSchemaAtPathFamily = atomFamily(
+    ({id, path}: {id: string; path: (string | number)[]}) =>
+        atom<EntitySchemaProperty | null>((get) => {
+            const agConfigSchema = get(baseRunnableAgConfigSchemaFamily(id))
+            return getSchemaPropertyAtPath(agConfigSchema, path)
+        }),
+    (a, b) => a.id === b.id && JSON.stringify(a.path) === JSON.stringify(b.path),
+)
+
+/**
+ * Server data for baseRunnable — the base (pre-draft) parameters.
+ * For local entities, this is the originally injected data's parameters.
+ * Named "serverData" for compatibility with PlaygroundConfigSection
+ * which expects this atom shape.
+ */
+const baseRunnableServerDataParametersFamily = atomFamily((id: string) =>
+    atom<BaseRunnableDraft | null>((get) => {
+        const data = get(baseRunnableDataFamily(id))
+        return data?.parameters ?? null
+    }),
+)
+
+// ============================================================================
 // REDUCERS
 // ============================================================================
 
@@ -310,6 +415,10 @@ export const baseRunnableMolecule = {
         inputPorts: (id: string): Atom<RunnableInputPort[]> => baseRunnableInputPortsFamily(id),
         outputPorts: (id: string): Atom<RunnableOutputPort[]> => baseRunnableOutputPortsFamily(id),
         isChatVariant: (id: string): Atom<boolean> => baseRunnableIsChatFamily(id),
+        schemaAtPath: (params: {
+            id: string
+            path: (string | number)[]
+        }): Atom<EntitySchemaProperty | null> => baseRunnableSchemaAtPathFamily(params),
     },
     /**
      * Atom families for AdaptableMolecule interface (drill-in view).
@@ -321,6 +430,15 @@ export const baseRunnableMolecule = {
         draft: (id: string): Atom<BaseRunnableDraft | null> => baseRunnableDraftFamily(id),
         isDirty: (id: string): Atom<boolean> => baseRunnableIsDirtyFamily(id),
         requestPayload: (id: string) => baseRunnableRequestPayloadFamily(id),
+        /** Schema query (full state) — derived from service schema based on execution mode */
+        schemaQuery: (id: string): Atom<BaseRunnableSchemaQueryResult> =>
+            baseRunnableSchemaQueryFamily(id),
+        /** ag_config schema from the matching service schema */
+        agConfigSchema: (id: string): Atom<EntitySchema | null> =>
+            baseRunnableAgConfigSchemaFamily(id),
+        /** Base parameters (pre-draft) — "server data" equivalent for local entities */
+        serverData: (id: string): Atom<BaseRunnableDraft | null> =>
+            baseRunnableServerDataParametersFamily(id),
     },
     /** Reducers for AdaptableMolecule interface */
     reducers: {
@@ -334,7 +452,6 @@ export const baseRunnableMolecule = {
             _params: BaseRunnableDraft | null,
             rootData: unknown,
             _path: DataPath,
-            _value: unknown,
         ): BaseRunnableDraft | null => {
             if (!rootData || typeof rootData !== "object") return null
             return rootData as BaseRunnableDraft
