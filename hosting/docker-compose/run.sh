@@ -18,7 +18,8 @@ show_usage() {
     echo ""
     echo "Options:"
     echo "  --license <oss|ee>      Specify the license type (default: oss)"
-    echo "  --dev                   Set the stage to 'dev' or 'gh.ssl' for https (default: gh)"
+    echo "  --dev                   Set the stage to 'dev' (default: gh)"
+    echo "  --local                 Set the stage to 'gh.local' (build .gh Dockerfiles locally)"
     echo "  --no-web                Run web with no container (default: web in container)"
     echo "  --nginx                 Run with nginx as the proxy service (default: traefik)"
     echo "  --web-domain <URL>      Set the web domain (default: from env var or http://localhost:3000)"
@@ -52,6 +53,9 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         --gh)
             STAGE="gh"
+            ;;
+        --local)
+            STAGE="gh.local"
             ;;
         --ssl)
             STAGE="gh.ssl"
@@ -118,8 +122,13 @@ fi
 COMPOSE_CMD="docker compose -f $COMPOSE_FILE"
 
 # If ENV_FILE is not provided, set it explicitly
+# gh.local reuses the gh env file
 if [[ -z "$ENV_FILE" ]]; then
-    ENV_FILE=".env.$LICENSE.$STAGE"
+    if [[ "$STAGE" == "gh.local" ]]; then
+        ENV_FILE=".env.$LICENSE.gh"
+    else
+        ENV_FILE=".env.$LICENSE.$STAGE"
+    fi
 fi
 
 if [[ "$ENV_FILE" = /* || "$ENV_FILE" == ./* || "$ENV_FILE" == ../* || "$ENV_FILE" == */* ]]; then
@@ -143,6 +152,18 @@ if $WITH_NGINX; then
     COMPOSE_CMD+=" --profile with-nginx"
 else
     COMPOSE_CMD+=" --profile with-traefik"
+fi
+
+# For gh.local builds, always copy the local SDK into api/ and services/ build contexts
+# so that Dockerfile.gh can COPY it (Docker BuildKit doesn't follow symlinks outside context)
+# This is necessary even without --build because docker compose up will auto-build missing images
+if [[ "$STAGE" == "gh.local" ]]; then
+    echo "Copying local SDK into build contexts..."
+    rm -rf api/sdk services/sdk
+    cp -r sdk api/sdk
+    cp -r sdk services/sdk
+    cleanup_sdk_copies() { rm -rf api/sdk services/sdk; }
+    trap cleanup_sdk_copies EXIT
 fi
 
 if $NO_CACHE; then

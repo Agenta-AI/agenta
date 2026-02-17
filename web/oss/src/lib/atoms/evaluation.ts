@@ -1,7 +1,7 @@
 import {atom} from "jotai"
 
-import {Evaluator, EvaluatorConfig} from "../Types"
+import {Evaluator, SimpleEvaluator} from "../Types"
 
 export const evaluatorsAtom = atom<Evaluator[]>([])
 
-export const evaluatorConfigsAtom = atom<EvaluatorConfig[]>([])
+export const evaluatorConfigsAtom = atom<SimpleEvaluator[]>([])

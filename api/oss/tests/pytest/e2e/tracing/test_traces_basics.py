@@ -1,16 +1,6 @@
-import time
 from uuid import uuid4
 
-
-def _wait_for_trace(authed_api, trace_id, *, expect_count=1, max_retries=15, delay=0.5):
-    """Poll until the trace appears (or disappears) in the DB."""
-    resp = None
-    for _ in range(max_retries):
-        resp = authed_api("GET", f"/preview/tracing/traces/{trace_id}")
-        if resp.status_code == 200 and resp.json()["count"] == expect_count:
-            return resp
-        time.sleep(delay)
-    return resp
+from utils.polling import wait_for_response
 
 
 class TestTraceBasics:
@@ -142,7 +132,12 @@ class TestTraceBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = _wait_for_trace(authed_api, trace_id, expect_count=1)
+        response = wait_for_response(
+            authed_api,
+            "GET",
+            f"/preview/tracing/traces/{trace_id}",
+            condition_fn=lambda r: r.json()["count"] == 1,
+        )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
@@ -192,7 +187,12 @@ class TestTraceBasics:
         response = response.json()
         assert response["count"] == 2
 
-        _wait_for_trace(authed_api, trace_id, expect_count=1)
+        wait_for_response(
+            authed_api,
+            "GET",
+            f"/preview/tracing/traces/{trace_id}",
+            condition_fn=lambda r: r.json()["count"] == 1,
+        )
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -296,7 +296,12 @@ class TestTraceBasics:
         response = response.json()
         assert response["count"] == 1
 
-        _wait_for_trace(authed_api, trace_id, expect_count=1)
+        wait_for_response(
+            authed_api,
+            "GET",
+            f"/preview/tracing/traces/{trace_id}",
+            condition_fn=lambda r: r.json()["count"] == 1,
+        )
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -311,7 +316,12 @@ class TestTraceBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = _wait_for_trace(authed_api, trace_id, expect_count=0)
+        response = wait_for_response(
+            authed_api,
+            "GET",
+            f"/preview/tracing/traces/{trace_id}",
+            condition_fn=lambda r: r.json()["count"] == 0,
+        )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------

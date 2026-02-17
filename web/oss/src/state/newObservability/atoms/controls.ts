@@ -3,10 +3,11 @@ import type {Key} from "react"
 
 import dayjs from "dayjs"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily, atomWithStorage} from "jotai/utils"
 
 import type {SortResult} from "@/oss/components/Filters/Sort"
 import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
+import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import type {Filter} from "@/oss/lib/Types"
 
 import {routerAppIdAtom} from "../../app"
@@ -18,6 +19,47 @@ export const DEFAULT_SORT: SortResult = {
     type: "standard",
     sorted: dayjs().utc().subtract(24, "hours").toISOString().split(".")[0],
 }
+
+const HAS_RECEIVED_TRACES_STORAGE_KEY = "agenta:observability:has-received-traces"
+const HAS_RECEIVED_SESSIONS_STORAGE_KEY = "agenta:observability:has-received-sessions"
+
+const createHasReceivedTracesStorageKey = (userId: string) =>
+    `${HAS_RECEIVED_TRACES_STORAGE_KEY}:${userId}`
+const createHasReceivedSessionsStorageKey = (userId: string) =>
+    `${HAS_RECEIVED_SESSIONS_STORAGE_KEY}:${userId}`
+
+const hasReceivedTracesAtomFamily = atomFamily((userId: string) =>
+    atomWithStorage<boolean>(createHasReceivedTracesStorageKey(userId), false),
+)
+const hasReceivedSessionsAtomFamily = atomFamily((userId: string) =>
+    atomWithStorage<boolean>(createHasReceivedSessionsStorageKey(userId), false),
+)
+
+export const hasReceivedTracesAtom = atom(
+    (get) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return false
+        return get(hasReceivedTracesAtomFamily(userId))
+    },
+    (get, set, next: boolean) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return
+        set(hasReceivedTracesAtomFamily(userId), next)
+    },
+)
+
+export const hasReceivedSessionsAtom = atom(
+    (get) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return false
+        return get(hasReceivedSessionsAtomFamily(userId))
+    },
+    (get, set, next: boolean) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return
+        set(hasReceivedSessionsAtomFamily(userId), next)
+    },
+)
 
 // Global active tab state
 export const observabilityTabAtom = atom<ObservabilityTabInfo>("traces")

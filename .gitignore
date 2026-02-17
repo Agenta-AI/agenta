@@ -48,7 +48,15 @@ web/ee/public/__env.js
 web/oss/public/__env.js
 
 web/oss/tests/datalayer/results
+api/tests/results/
+sdk/tests/results/
 .*
+!api/.dockerignore
+!services/.dockerignore
+
+# Temporary SDK symlinks created by run.sh --local
+api/sdk
+services/sdk
 
 # IDE/LSP config (local tooling)
 pyrightconfig.json
