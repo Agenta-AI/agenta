@@ -35,6 +35,18 @@ export interface DrillInContextValue<TEntity = unknown> {
      */
     isDirty: boolean
 
+    /**
+     * Root data extracted from entity via molecule.drillIn.getRootData().
+     * This is the navigable data subset (e.g., just `parameters` instead of the full entity).
+     */
+    rootData: unknown
+
+    /**
+     * Optional: Get JSON schema for a field at a given path.
+     * When provided, enables schema-aware rendering (rich controls for numbers, enums, messages, etc.)
+     */
+    getSchemaAtPath?: (path: DataPath) => import("jotai").Atom<unknown>
+
     // ========== NAVIGATION ==========
     /**
      * Current navigation path
