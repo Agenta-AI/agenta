@@ -44,6 +44,9 @@ def _is_localhost_or_ip(hostname: str | None) -> bool:
     if normalized == "localhost":
         return True
 
+    # Handle IPv6 literals that may be enclosed in brackets, e.g. "[::1]"
+    if normalized.startswith("[") and normalized.endswith("]"):
+        normalized = normalized[1:-1]
     try:
         ipaddress.ip_address(normalized)
         return True
