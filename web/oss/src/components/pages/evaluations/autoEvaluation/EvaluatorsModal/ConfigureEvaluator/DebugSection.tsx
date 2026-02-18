@@ -37,6 +37,7 @@ import type {LoadTestsetSelectionPayload} from "@/oss/components/Playground/Comp
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
+import {buildEvaluatorUri, resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
 import {
     extractChatMessages,
@@ -59,11 +60,11 @@ import {
 } from "@/oss/lib/transformers"
 import {BaseResponse, ChatMessage, JSSTheme, Parameter, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
-import {
-    createEvaluatorDataMapping,
-    createEvaluatorRunExecution,
-} from "@/oss/services/evaluations/api_ee"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
+import {
+    invokeEvaluator,
+    mapWorkflowResponseToEvaluatorOutput,
+} from "@/oss/services/workflows/invoke"
 import {useAppsData} from "@/oss/state/app/hooks"
 import {revision} from "@/oss/state/entities/testset"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
@@ -77,6 +78,7 @@ import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {
     playgroundEvaluatorAtom,
+    playgroundEditValuesAtom,
     playgroundFormRefAtom,
     playgroundLastAppIdAtom,
     playgroundLastVariantIdAtom,
@@ -160,6 +162,7 @@ const DebugSection = () => {
     const traceTree = useAtomValue(playgroundTraceTreeAtom)
     const setTraceTree = useSetAtom(playgroundTraceTreeAtom)
     const selectedEvaluator = useAtomValue(playgroundEvaluatorAtom)
+    const evaluatorConfig = useAtomValue(playgroundEditValuesAtom)
     const form = useAtomValue(playgroundFormRefAtom)
     const [lastAppId, setLastAppId] = useAtom(playgroundLastAppIdAtom)
     const [lastVariantId, setLastVariantId] = useAtom(playgroundLastVariantIdAtom)
@@ -402,8 +405,8 @@ const DebugSection = () => {
             setEvalOutputStatus({success: false, error: false})
             setIsLoadingResult(true)
 
-            const settingsValues = form.getFieldValue("settings_values") || {}
-            let normalizedSettings = {...settingsValues}
+            const parameters = form.getFieldValue("parameters") || {}
+            let normalizedSettings = {...parameters}
 
             if (typeof normalizedSettings.json_schema === "string") {
                 try {
@@ -429,68 +432,85 @@ const DebugSection = () => {
                 return
             }
 
-            const {testcaseObj, evalMapObj} = mapTestcaseAndEvalValues(
+            const {testcaseObj} = mapTestcaseAndEvalValues(
                 normalizedSettings,
                 selectedTestcase.testcase,
             )
 
             let outputs = {}
 
-            if (Object.keys(evalMapObj).length && selectedEvaluator.key.startsWith("rag_")) {
-                const mapResponse = await createEvaluatorDataMapping({
-                    inputs: baseResponseData,
-                    mapping: transformTraceKeysInSettings(evalMapObj),
-                })
-                outputs = {...outputs, ...mapResponse.outputs}
-            }
-
             if (Object.keys(testcaseObj).length) {
                 outputs = {...outputs, ...testcaseObj}
             }
 
-            if (!selectedEvaluator.key.startsWith("rag_")) {
-                const correctAnswerKey = settingsValues.correct_answer_key
-                const groundTruthKey =
-                    typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
-                        ? correctAnswerKey.split(".")[1]
-                        : correctAnswerKey
+            const correctAnswerKey = parameters.correct_answer_key
+            const groundTruthKey =
+                typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
+                    ? correctAnswerKey.split(".")[1]
+                    : correctAnswerKey
 
-                const normalizeCompact = (val: any) => {
-                    try {
-                        if (val === undefined || val === null) return ""
-                        const str = typeof val === "string" ? val : JSON.stringify(val)
-                        const parsed = safeJson5Parse(str)
-                        if (parsed && typeof parsed === "object") {
-                            return JSON.stringify(parsed)
-                        }
-                        return str
-                    } catch {
-                        return typeof val === "string" ? val : JSON.stringify(val)
+            const normalizeCompact = (val: any) => {
+                try {
+                    if (val === undefined || val === null) return ""
+                    const str = typeof val === "string" ? val : JSON.stringify(val)
+                    const parsed = safeJson5Parse(str)
+                    if (parsed && typeof parsed === "object") {
+                        return JSON.stringify(parsed)
                     }
-                }
-
-                const rawGT = selectedTestcase?.["testcase"]?.[groundTruthKey]
-                const ground_truth = normalizeCompact(rawGT)
-                const prediction = normalizeCompact(variantResult)
-
-                outputs = {
-                    ...outputs,
-                    ...selectedTestcase.testcase,
-                    ground_truth,
-                    [groundTruthKey]: ground_truth,
-                    prediction,
-                    ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
+                    return str
+                } catch {
+                    return typeof val === "string" ? val : JSON.stringify(val)
                 }
             }
 
-            const runResponse = await createEvaluatorRunExecution(
-                selectedEvaluator.key,
-                {
-                    inputs: outputs,
-                    settings: transformTraceKeysInSettings(normalizedSettings),
-                },
-                {signal: controller.signal},
-            )
+            const hasValidGroundTruthKey =
+                typeof groundTruthKey === "string" && groundTruthKey.trim().length > 0
+
+            const rawGT = hasValidGroundTruthKey
+                ? selectedTestcase?.["testcase"]?.[groundTruthKey]
+                : undefined
+            const ground_truth = normalizeCompact(rawGT)
+            const prediction = normalizeCompact(variantResult)
+
+            outputs = {
+                ...outputs,
+                ...selectedTestcase.testcase,
+                ...(hasValidGroundTruthKey ? {ground_truth, [groundTruthKey]: ground_truth} : {}),
+                prediction,
+                ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
+            }
+
+            const evaluatorKey = resolveEvaluatorKey(evaluatorConfig) || selectedEvaluator?.key
+            const evaluatorUri =
+                evaluatorConfig?.data?.uri ||
+                (evaluatorKey ? buildEvaluatorUri(evaluatorKey) : undefined)
+            const evaluatorUrl = evaluatorConfig?.data?.url
+
+            if (!evaluatorUri && !evaluatorUrl) {
+                setOutputResult(
+                    "Evaluator interface is missing (uri/url). Save the evaluator and try again.",
+                )
+                setEvalOutputStatus({success: false, error: true})
+                return
+            }
+
+            const evaluatorParameters = transformTraceKeysInSettings(normalizedSettings)
+            const parsedVariantOutput = safeParse(variantResult, variantResult)
+            const workflowOutputs =
+                variantResult !== ""
+                    ? parsedVariantOutput
+                    : (baseResponseData?.data ?? parsedVariantOutput)
+
+            const workflowResponse = await invokeEvaluator({
+                uri: evaluatorUri,
+                url: evaluatorUrl,
+                evaluator: evaluatorConfig,
+                inputs: outputs,
+                outputs: workflowOutputs,
+                parameters: evaluatorParameters,
+                options: {signal: controller.signal},
+            })
+            const runResponse = mapWorkflowResponseToEvaluatorOutput(workflowResponse)
             setEvalOutputStatus({success: true, error: false})
 
             setOutputResult(getStringOrJson(runResponse.outputs))

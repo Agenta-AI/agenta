@@ -440,13 +440,15 @@ export const createAppMutationAtom = atom(
                 message: `App "${appName}" created successfully with initial revision`,
             }
         } catch (error: any) {
-            if (error?.status === 400) {
+            const status = error?.status ?? error?.response?.status
+
+            if (status === 400 || status === 409 || status === 422) {
                 onStatusChange?.("bad_request", error)
                 return {
                     success: false,
                     error: error.message || "Bad request during app creation",
                 }
-            } else if (error?.status === 403) {
+            } else if (status === 403) {
                 onStatusChange?.("permission_denied", error)
                 return {
                     success: false,
