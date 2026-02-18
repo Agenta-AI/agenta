@@ -6,6 +6,8 @@ from fastapi import HTTPException, Request
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.exceptions import build_entity_creation_conflict_message
+from oss.src.core.shared.exceptions import EntityCreationConflict
 
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import db_manager, app_manager
@@ -245,24 +247,25 @@ async def create_app(
 
     adapter = get_legacy_adapter()
 
-    # Check if app already exists
-    existing_app = await adapter.fetch_app_by_name(
-        project_id=UUID(request.state.project_id),
-        app_name=payload.app_name,
-    )
-    if existing_app is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="App with the same name already exists",
+    try:
+        app_output = await adapter.create_app(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            app_name=payload.app_name,
+            folder_id=UUID(payload.folder_id) if payload.folder_id else None,
+            template_key=payload.template_key,
         )
-
-    app_output = await adapter.create_app(
-        project_id=UUID(request.state.project_id),
-        user_id=UUID(request.state.user_id),
-        app_name=payload.app_name,
-        folder_id=UUID(payload.folder_id) if payload.folder_id else None,
-        template_key=payload.template_key,
-    )
+    except EntityCreationConflict as e:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": build_entity_creation_conflict_message(
+                    conflict=e.conflict,
+                    default_message=e.message,
+                ),
+                "conflict": e.conflict,
+            },
+        ) from e
 
     if app_output is None:
         raise HTTPException(
@@ -508,6 +511,17 @@ async def add_variant_from_url(
 
     except HTTPException:
         raise
+    except EntityCreationConflict as e:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": build_entity_creation_conflict_message(
+                    conflict=e.conflict,
+                    default_message=e.message,
+                ),
+                "conflict": e.conflict,
+            },
+        ) from e
     except Exception as e:
         log.error(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
