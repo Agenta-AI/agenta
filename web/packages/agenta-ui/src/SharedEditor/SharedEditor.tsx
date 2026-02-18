@@ -145,9 +145,18 @@ const SharedEditor = ({
                 isEditorFocused && "!border-[#BDC7D1]",
                 className,
             )}
+            {...props}
+            style={{
+                ...props.style,
+                interpolateSize: "allow-keywords",
+                height: "var(--editor-h, auto)",
+                overflow: "hidden",
+                transitionProperty: "height",
+                transitionDuration: "300ms",
+                transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+            } as React.CSSProperties}
             onFocus={() => setIsEditorFocused(true)}
             onBlur={() => setIsEditorFocused(false)}
-            {...props}
         >
             {header}
 
