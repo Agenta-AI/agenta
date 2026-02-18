@@ -53,7 +53,7 @@ def _is_localhost_or_ip(hostname: str | None) -> bool:
 
 @lru_cache(maxsize=1)
 def get_local_cookie_port_suffix() -> str:
-    port = _get_local_port_from_url(env.agenta.api_url)
+    port = _get_local_port_from_url(env.agenta.web_url)
     if port is None:
         return ""
     return f"_{port}"
@@ -100,5 +100,5 @@ def apply_supertokens_cookie_name_overrides() -> None:
         log.info(
             "Using SuperTokens cookie suffix '%s' for local host '%s'",
             suffix,
-            urlparse(env.agenta.api_url).hostname,
+            urlparse(env.agenta.web_url).hostname,
         )

@@ -54,7 +54,8 @@ def _is_localhost_or_ip(hostname: Optional[str]) -> bool:
 
 
 def _get_access_token_cookie_name(host: str) -> str:
-    parsed = urlparse(host if "://" in host else f"//{host}")
+    cookie_host = getenv("AGENTA_WEB_URL") or host
+    parsed = urlparse(cookie_host if "://" in cookie_host else f"//{cookie_host}")
     try:
         port = parsed.port
     except ValueError:
