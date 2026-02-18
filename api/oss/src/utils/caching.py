@@ -1,6 +1,7 @@
 from typing import Any, Type, Optional, Union
 from random import random
 from asyncio import sleep
+from uuid import uuid4
 
 import orjson
 from cachetools import TTLCache
@@ -24,6 +25,7 @@ AGENTA_CACHE_LOCK_TTL = 1  # TTL for cache locks
 
 AGENTA_CACHE_SCAN_BATCH_SIZE = 500
 AGENTA_CACHE_DELETE_BATCH_SIZE = 1000
+AGENTA_LOCK_SOCKET_TIMEOUT = 2.0  # Locks should be more reliable than cache lookups
 
 CACHE_DEBUG = False
 CACHE_DEBUG_VALUE = False
@@ -39,6 +41,28 @@ r = Redis.from_url(
     decode_responses=False,
     socket_timeout=0.5,  # read/write timeout
 )
+
+# Dedicated Redis client for distributed locks with a longer timeout.
+r_lock = Redis.from_url(
+    url=env.redis.uri_volatile,
+    decode_responses=False,
+    socket_timeout=AGENTA_LOCK_SOCKET_TIMEOUT,
+)
+
+# Ownership-safe lock scripts. Owner token must match to renew/release.
+_LOCK_RENEW_IF_OWNER_SCRIPT = """
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("EXPIRE", KEYS[1], tonumber(ARGV[2]))
+end
+return 0
+"""
+
+_LOCK_RELEASE_IF_OWNER_SCRIPT = """
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("DEL", KEYS[1])
+end
+return 0
+"""
 
 
 # HELPERS ----------------------------------------------------------------------
@@ -556,6 +580,7 @@ async def acquire_lock(
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
     ttl: int = AGENTA_LOCK_TTL,
+    strict: bool = False,
 ) -> Optional[str]:
     """Acquire a distributed lock using Redis SET NX (atomic check-and-set).
 
@@ -568,13 +593,14 @@ async def acquire_lock(
         project_id: Optional project scope
         user_id: Optional user scope
         ttl: Lock expiration time in seconds (default: 10). Auto-releases after TTL.
+        strict: If True, re-raise Redis errors instead of returning None.
 
     Returns:
-        Lock key string if lock was acquired, None if lock is already held by another process.
+        Lock owner token if lock was acquired, None if lock is already held by another process.
 
     Example:
-        lock_key = await acquire_lock(namespace="account-creation", key=email, ttl=10)
-        if not lock_key:
+        lock_owner = await acquire_lock(namespace="account-creation", key=email, ttl=10)
+        if not lock_owner:
             # Another process has the lock
             return
 
@@ -583,7 +609,11 @@ async def acquire_lock(
             await create_account(email)
         finally:
             # Always release the lock
-            await release_lock(lock_key)
+            await release_lock(
+                namespace="account-creation",
+                key=email,
+                owner=lock_owner,
+            )
     """
     try:
         lock_key = _pack(
@@ -592,9 +622,10 @@ async def acquire_lock(
             project_id=project_id,
             user_id=user_id,
         )
+        lock_owner = uuid4().hex
 
         # Atomic SET NX: Returns True if lock acquired, False if already held
-        acquired = await r.set(lock_key, "1", nx=True, ex=ttl)
+        acquired = await r_lock.set(lock_key, lock_owner, nx=True, ex=ttl)
 
         if acquired:
             if CACHE_DEBUG:
@@ -603,7 +634,7 @@ async def acquire_lock(
                     key=lock_key,
                     ttl=ttl,
                 )
-            return lock_key
+            return lock_owner
         else:
             if CACHE_DEBUG:
                 log.debug(
@@ -617,6 +648,8 @@ async def acquire_lock(
             f"[lock] ACQUIRE ERROR: namespace={namespace} key={key} error={e}",
             exc_info=True,
         )
+        if strict:
+            raise
         return None
 
 
@@ -626,11 +659,13 @@ async def renew_lock(
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
     ttl: int = AGENTA_LOCK_TTL,
+    owner: Optional[str] = None,
 ) -> bool:
     """Renew (extend) the TTL of an existing distributed lock.
 
     Use this to prevent lock expiration during long-running operations.
-    Only succeeds if the lock key still exists in Redis.
+    Only succeeds if the lock key still exists in Redis. If an owner token is
+    provided, renewal only succeeds when ownership matches.
 
     Args:
         namespace: Lock namespace (same as used in acquire_lock)
@@ -638,6 +673,7 @@ async def renew_lock(
         project_id: Optional project ID (same as used in acquire_lock)
         user_id: Optional user ID (same as used in acquire_lock)
         ttl: New expiration time in seconds
+        owner: Optional owner token returned by acquire_lock
 
     Returns:
         True if lock was renewed, False if lock has already expired or on error
@@ -650,7 +686,16 @@ async def renew_lock(
             user_id=user_id,
         )
 
-        renewed = await r.expire(lock_key, ttl)
+        if owner:
+            renewed = await r_lock.eval(
+                _LOCK_RENEW_IF_OWNER_SCRIPT,
+                1,
+                lock_key,
+                owner,
+                str(ttl),
+            )
+        else:
+            renewed = await r_lock.expire(lock_key, ttl)
 
         if renewed:
             if CACHE_DEBUG:
@@ -661,7 +706,9 @@ async def renew_lock(
                 )
             return True
         else:
-            log.warn(f"[lock] RENEW FAILED (expired): namespace={namespace} key={key}")
+            log.warn(
+                f"[lock] RENEW FAILED (expired or lost ownership): namespace={namespace} key={key}"
+            )
             return False
 
     except Exception as e:
@@ -677,6 +724,7 @@ async def release_lock(
     key: Optional[Union[str, dict]] = None,
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
+    owner: Optional[str] = None,
 ) -> bool:
     """Release a distributed lock acquired with acquire_lock().
 
@@ -685,6 +733,7 @@ async def release_lock(
         key: Lock key (same as used in acquire_lock)
         project_id: Optional project ID (same as used in acquire_lock)
         user_id: Optional user ID (same as used in acquire_lock)
+        owner: Optional owner token returned by acquire_lock
 
     Returns:
         True if lock was released, False if already expired or on error
@@ -705,7 +754,15 @@ async def release_lock(
             user_id=user_id,
         )
 
-        deleted = await r.delete(lock_key)
+        if owner:
+            deleted = await r_lock.eval(
+                _LOCK_RELEASE_IF_OWNER_SCRIPT,
+                1,
+                lock_key,
+                owner,
+            )
+        else:
+            deleted = await r_lock.delete(lock_key)
 
         if deleted:
             if CACHE_DEBUG:
@@ -717,7 +774,7 @@ async def release_lock(
         else:
             if CACHE_DEBUG:
                 log.debug(
-                    "[lock] ALREADY EXPIRED",
+                    "[lock] ALREADY EXPIRED OR OWNED BY ANOTHER WORKER",
                     key=lock_key,
                 )
             return False

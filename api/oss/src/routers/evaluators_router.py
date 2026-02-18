@@ -19,6 +19,7 @@ from oss.src.core.evaluators.dtos import (
 from oss.src.core.evaluators.utils import build_evaluator_data
 from oss.src.core.shared.dtos import Reference
 from oss.src.utils.helpers import get_slug_from_name_and_id
+from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.models.api.evaluation_model import (
     EvaluatorConfig,
     EvaluatorInputInterface,
@@ -300,6 +301,7 @@ async def get_evaluator_config(
 
 
 @router.post("/configs/", response_model=EvaluatorConfig)
+@intercept_exceptions()
 async def create_new_evaluator_config(
     payload: NewEvaluatorConfig,
     request: Request,
