@@ -454,7 +454,7 @@ const NewEvaluationModalInner = ({
                     })
 
                     // Extract run ID from response and build link to results
-                    const runId = response.data?.runs?.[0]?.id
+                    const runId = response.data?.evaluation?.id
                     if (runId) {
                         const scope = isAppScoped ? "app" : "project"
                         const resultsUrl = buildEvaluationNavigationUrl({

@@ -6,6 +6,7 @@ from fastapi import Request
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.utils.caching import invalidate_cache
+from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.models.api.api_models import DeployToEnvironmentPayload
 from oss.src.services.legacy_adapter import get_legacy_environments_adapter
 
@@ -19,6 +20,7 @@ log = get_module_logger(__name__)
 
 
 @router.post("/deploy/", operation_id="deploy_to_environment")
+@intercept_exceptions()
 async def deploy_to_environment(
     payload: DeployToEnvironmentPayload,
     request: Request,
