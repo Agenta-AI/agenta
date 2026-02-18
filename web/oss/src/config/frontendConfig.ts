@@ -5,6 +5,7 @@ import PasswordlessReact from "supertokens-auth-react/recipe/passwordless"
 import SessionReact from "supertokens-auth-react/recipe/session"
 import ThirdPartyReact from "supertokens-auth-react/recipe/thirdparty"
 
+import {createLocalSupertokensCookieHandler} from "../lib/helpers/auth/supertokensCookieHandler"
 import {getEffectiveAuthConfig} from "../lib/helpers/dynamicEnv"
 
 import {appInfo} from "./appInfo"
@@ -99,5 +100,6 @@ export const frontendConfig = (): SuperTokensConfig => {
                 },
             }
         },
+        cookieHandler: (oI: any) => createLocalSupertokensCookieHandler(oI),
     }
 }

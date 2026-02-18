@@ -135,6 +135,9 @@ GET {{apiBaseUrl}}/authorisationurl?thirdPartyId=github&redirectURIOnProviderDas
 # 5. SESSION MANAGEMENT (ALWAYS AVAILABLE)
 ################################################################################
 # These endpoints are available regardless of which auth method was used
+# Local multi-env note:
+# - If AGENTA_API_URL is localhost/IP with an explicit port (e.g. :8000),
+#   cookie names are suffixed by port (e.g. sAccessToken_8000, sRefreshToken_8000).
 
 ### 5a. Verify Session
 GET {{apiBaseUrl}}/session/verify
@@ -386,4 +389,5 @@ GET {{baseUrl}}/auth/dashboard
 # Session cookies:
 # - sAccessToken: Short-lived access token
 # - sRefreshToken: Long-lived refresh token
+# - Localhost/IP with explicit API port: sAccessToken_<port>, sRefreshToken_<port>
 # - Both are httpOnly, secure, sameSite=lax

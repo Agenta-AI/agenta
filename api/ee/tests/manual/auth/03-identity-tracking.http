@@ -173,6 +173,8 @@
 # Example protected endpoint (if you have one):
 # GET {{apiUrl}}/me
 # Cookie: sAccessToken=...; sRefreshToken=...
+# Localhost/IP with explicit API port:
+# Cookie: sAccessToken_<port>=...; sRefreshToken_<port>=...
 
 # The endpoint handler can access session like:
 # session = await verify_session(request)

@@ -1,6 +1,8 @@
 from typing import Callable, Optional, Dict
 from os import getenv
 from json import dumps
+from urllib.parse import urlparse
+import ipaddress
 
 import httpx
 
@@ -35,6 +37,32 @@ _ALWAYS_ALLOW_LIST = [
 ]
 
 _cache = TTLLRUCache()
+
+
+def _is_localhost_or_ip(hostname: Optional[str]) -> bool:
+    if not hostname:
+        return False
+
+    if hostname.lower() == "localhost":
+        return True
+
+    try:
+        ipaddress.ip_address(hostname)
+        return True
+    except ValueError:
+        return False
+
+
+def _get_access_token_cookie_name(host: str) -> str:
+    parsed = urlparse(host if "://" in host else f"//{host}")
+    try:
+        port = parsed.port
+    except ValueError:
+        return "sAccessToken"
+
+    if _is_localhost_or_ip(parsed.hostname) and port:
+        return f"sAccessToken_{port}"
+    return "sAccessToken"
 
 
 class DenyResponse(JSONResponse):
@@ -95,8 +123,9 @@ async def get_credentials(
         headers = {"Authorization": authorization} if authorization else None
 
         # COOKIES
-        access_token = request.cookies.get("sAccessToken", None)
-        cookies = {"sAccessToken": access_token} if access_token else None
+        access_cookie_name = _get_access_token_cookie_name(host)
+        access_token = request.cookies.get(access_cookie_name, None)
+        cookies = {access_cookie_name: access_token} if access_token else None
 
         # PARAMS
         params = {}
