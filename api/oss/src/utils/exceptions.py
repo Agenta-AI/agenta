@@ -13,6 +13,26 @@ from oss.src.core.shared.exceptions import EntityCreationConflict
 log = get_module_logger(__name__)
 
 
+def build_entity_creation_conflict_message(
+    *,
+    conflict: Optional[dict],
+    default_message: str,
+) -> str:
+    """Build a user-friendly conflict message from unique-key conflict data."""
+    if not conflict:
+        return default_message
+
+    slug = conflict.get("slug")
+    if slug:
+        return f"A resource with slug '{slug}' already exists in this project."
+
+    name = conflict.get("name")
+    if name:
+        return f"A resource named '{name}' already exists in this project."
+
+    return default_message
+
+
 class suppress(AbstractContextManager):  # pylint: disable=invalid-name
     def __init__(
         self,
@@ -93,7 +113,10 @@ def intercept_exceptions(
                     e: EntityCreationConflict
 
                     raise ConflictException(
-                        message=e.message,
+                        message=build_entity_creation_conflict_message(
+                            conflict=e.conflict,
+                            default_message=e.message,
+                        ),
                         conflict=e.conflict,
                     ) from e
 
