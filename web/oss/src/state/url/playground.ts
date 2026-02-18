@@ -564,10 +564,18 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
         )
 
         if (isPlaygroundRoute) {
-            if (lastPlaygroundAppId && currentAppId && lastPlaygroundAppId !== currentAppId) {
-                if (currentSelected.length > 0) {
-                    store.set(playgroundController.actions.setEntityIds, [])
-                }
+            // Clear stale selection when the app changes.
+            // This covers both direct app→app navigation (lastPlaygroundAppId !== currentAppId)
+            // and app→home→app navigation (lastPlaygroundAppId is null because non-playground
+            // routes reset it). In the latter case, any existing selection from the previous
+            // app would remain and cause ensurePlaygroundDefaults to skip, so we must also
+            // clear when re-entering a playground route from a non-playground route.
+            const appChanged =
+                currentAppId &&
+                currentSelected.length > 0 &&
+                (lastPlaygroundAppId !== currentAppId || lastPlaygroundAppId === null)
+            if (appChanged) {
+                store.set(playgroundController.actions.setEntityIds, [])
             }
             lastPlaygroundAppId = currentAppId
             ensurePlaygroundDefaults(store)
