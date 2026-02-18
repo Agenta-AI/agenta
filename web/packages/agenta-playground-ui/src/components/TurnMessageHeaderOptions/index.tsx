@@ -265,11 +265,7 @@ const TurnMessageHeaderOptions = ({
                 />
             </Tooltip>
 
-            <CollapseToggleButton
-                collapsed={isCollapsed}
-                onToggle={handleToggleCollapse}
-                disabled={disabled}
-            />
+            <CollapseToggleButton collapsed={isCollapsed} onToggle={handleToggleCollapse} />
 
             {children}
         </div>

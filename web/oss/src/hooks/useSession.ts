@@ -6,6 +6,8 @@ import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
 
+import {setSessionAtom} from "@agenta/shared/state"
+
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {resetOrganizationData} from "@/oss/state/org"
 import {resetProfileData} from "@/oss/state/profile"
@@ -19,6 +21,7 @@ export const useSession: () => {
 } = () => {
     const res = useSessionContext()
     const setSessionExists = useSetAtom(sessionExistsAtom)
+    const setSharedSession = useSetAtom(setSessionAtom)
     const setSessionLoading = useSetAtom(sessionLoadingAtom)
     const setAuthFlow = useSetAtom(authFlowAtom)
     const authFlow = useAtomValue(authFlowAtom)
@@ -30,6 +33,7 @@ export const useSession: () => {
         setSessionLoading(res.loading)
         if (!res.loading) {
             setSessionExists((res as any).doesSessionExist)
+            setSharedSession((res as any).doesSessionExist)
             if (authFlow !== "authing") {
                 setAuthFlow((res as any).doesSessionExist ? "authed" : "unauthed")
             }
@@ -38,6 +42,7 @@ export const useSession: () => {
         res.loading,
         (res as any).doesSessionExist,
         setSessionExists,
+        setSharedSession,
         setSessionLoading,
         setAuthFlow,
         authFlow,
@@ -93,6 +98,7 @@ export const useSession: () => {
 
             // Update session state
             setSessionExists(false)
+            setSharedSession(false)
             setAuthFlow("unauthed")
             setOnboardingStorageUserId(null)
 

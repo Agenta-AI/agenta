@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
+import {getCollapseStyle} from "@agenta/ui/components/presentational"
 import {TOGGLE_MARKDOWN_VIEW, EditorProvider, useLexicalComposerContext} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Typography} from "antd"
@@ -125,7 +126,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     )
 
     return (
-        <div ref={containerRef}>
+        <div ref={containerRef} style={getCollapseStyle(collapsed)}>
             <EditorProvider
                 id={editorId}
                 initialValue={value}
@@ -161,12 +162,6 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                     disabled={disabled || disableForCustom}
                     className={clsx(
                         "relative flex flex-col gap-1 rounded-[theme(spacing.2)]",
-                        {
-                            "[&_.agenta-editor-wrapper]:max-h-[calc(8px+calc(3*19.88px))] [&_.agenta-editor-wrapper]:overflow-y-auto [&_.agenta-editor-wrapper]:!mb-0 [&_.agenta-editor-wrapper]:transition-[max-height] [&_.agenta-editor-wrapper]:duration-300":
-                                collapsed,
-                            "[&_.agenta-editor-wrapper]:max-h-[9999px] [&_.agenta-editor-wrapper]:transition-[max-height] [&_.agenta-editor-wrapper]:duration-300":
-                                !collapsed,
-                        },
                         viewType === "single" && view !== "focus" ? "" : "bg-transparent",
                         className,
                     )}

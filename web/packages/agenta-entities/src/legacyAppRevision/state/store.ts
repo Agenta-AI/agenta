@@ -12,7 +12,7 @@
  * @packageDocumentation
  */
 
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {produce} from "immer"
 import {atom} from "jotai"
 import type {Atom, WritableAtom} from "jotai"
@@ -119,7 +119,7 @@ export const localDraftSourceRefsByIdAtom = atomWithStorage<Record<string, Local
 export const variantDetailCacheAtomFamily = atomFamily((variantId: string) =>
     atomWithQuery<VariantDetail | null>((get) => {
         const projectId = get(projectIdAtom)
-        const enabled = !!variantId && !!projectId
+        const enabled = get(sessionAtom) && !!variantId && !!projectId
 
         return {
             queryKey: ["variantDetail", variantId, projectId],
@@ -149,7 +149,8 @@ const directQueryAtomFamily = atomFamily((revisionId: string) =>
         // Placeholder IDs are temporary IDs used during pending hydrations (e.g., "__pending_hydration__dk-xxx")
         const isLocal = isLocalDraftId(revisionId)
         const isPlaceholder = isPlaceholderId(revisionId)
-        const enabled = !!revisionId && !!projectId && !isLocal && !isPlaceholder
+        const enabled =
+            get(sessionAtom) && !!revisionId && !!projectId && !isLocal && !isPlaceholder
 
         return {
             queryKey: ["legacyAppRevision", revisionId, projectId],
@@ -175,7 +176,7 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
         // Skip queries for local draft IDs and placeholder IDs
         const isLocal = parsed ? isLocalDraftId(parsed.revisionId) : false
         const isPlaceholder = parsed ? isPlaceholderId(parsed.revisionId) : false
-        const enabled = !!parsed && !!projectId && !isLocal && !isPlaceholder
+        const enabled = get(sessionAtom) && !!parsed && !!projectId && !isLocal && !isPlaceholder
 
         return {
             queryKey: ["legacyAppRevisionEnriched", key, projectId],
@@ -405,7 +406,7 @@ export type {AppListItem, VariantListItem, RevisionListItem}
 export const variantsQueryAtomFamily = atomFamily((appId: string) =>
     atomWithQuery<VariantListItem[]>((get) => {
         const projectId = get(projectIdAtom)
-        const enabled = !!projectId && !!appId
+        const enabled = get(sessionAtom) && !!projectId && !!appId
 
         return {
             queryKey: ["oss-variants-for-selection", appId, projectId],
@@ -437,7 +438,7 @@ export const variantsListDataAtomFamily = atomFamily((appId: string) =>
 export const revisionsQueryAtomFamily = atomFamily((variantId: string) =>
     atomWithQuery<RevisionListItem[]>((get) => {
         const projectId = get(projectIdAtom)
-        const enabled = !!projectId && !!variantId
+        const enabled = get(sessionAtom) && !!projectId && !!variantId
 
         return {
             queryKey: ["oss-revisions-for-selection", variantId, projectId],
@@ -468,7 +469,7 @@ export const revisionsListDataAtomFamily = atomFamily((variantId: string) =>
  */
 export const appsQueryAtom = atomWithQuery<AppListItem[]>((get) => {
     const projectId = get(projectIdAtom)
-    const enabled = !!projectId
+    const enabled = get(sessionAtom) && !!projectId
 
     return {
         queryKey: ["apps-for-selection", projectId],
@@ -923,7 +924,7 @@ export const appRevisionsWithDraftsAtomFamily = atomFamily((appId: string) =>
 const latestServerRevisionIdQueryAtomFamily = atomFamily((appId: string) =>
     atomWithQuery<string | null>((get) => {
         const projectId = get(projectIdAtom)
-        const enabled = !!projectId && !!appId
+        const enabled = get(sessionAtom) && !!projectId && !!appId
 
         return {
             queryKey: ["latest-server-revision-id", appId, projectId],

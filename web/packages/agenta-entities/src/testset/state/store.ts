@@ -5,7 +5,7 @@
  * These provide the single source of truth for server data.
  */
 
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher, isValidUUID} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 import type {PrimitiveAtom} from "jotai"
@@ -134,7 +134,8 @@ export const setRevisionIdsAtom = atom(null, (_get, set, ids: string[]) => {
 export const revisionQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery<Revision | null>((get) => {
         const projectId = get(projectIdAtom)
-        const isEnabled = Boolean(projectId && revisionId && isValidUUID(revisionId))
+        const isEnabled =
+            get(sessionAtom) && Boolean(projectId && revisionId && isValidUUID(revisionId))
 
         return {
             queryKey: ["revision", projectId, revisionId],
@@ -305,7 +306,7 @@ export const revisionsListQueryAtomFamily = atomFamily((testsetId: string) =>
         const projectId = projectIdMap.get(testsetId) ?? null
         const requested = get(revisionsListRequestedAtom)
         const isRequested = requested.has(testsetId)
-        const isEnabled = Boolean(projectId && testsetId && isRequested)
+        const isEnabled = get(sessionAtom) && Boolean(projectId && testsetId && isRequested)
 
         return {
             queryKey: ["revisions-list", projectId, testsetId],
@@ -389,7 +390,8 @@ export const testsetQueryAtomFamily = atomFamily((testsetId: string) =>
         const mockTestset = isNew ? createMockTestset() : undefined
         const cachedData =
             testsetId && !isNew ? findTestsetInCache(queryClient, testsetId) : undefined
-        const isEnabled = Boolean(projectId && testsetId && !cachedData && !isNew)
+        const isEnabled =
+            get(sessionAtom) && Boolean(projectId && testsetId && !cachedData && !isNew)
 
         return {
             queryKey: ["testset", projectId, testsetId],
@@ -419,7 +421,7 @@ export const testsetsListQueryAtomFamily = atomFamily((searchQuery: string | nul
                 if (!projectId) return {testsets: [], count: 0}
                 return fetchTestsetsList({projectId, searchQuery})
             },
-            enabled: Boolean(projectId),
+            enabled: get(sessionAtom) && Boolean(projectId),
             staleTime: 60_000,
             gcTime: 5 * 60_000,
         }
@@ -463,7 +465,7 @@ export const variantQueryAtomFamily = atomFamily((variantId: string) =>
                 return fetchVariantDetail({id: variantId, projectId})
             },
             initialData: cachedData ?? undefined,
-            enabled: Boolean(projectId && variantId && !cachedData),
+            enabled: get(sessionAtom) && Boolean(projectId && variantId && !cachedData),
             staleTime: 60_000,
             gcTime: 5 * 60_000,
         }

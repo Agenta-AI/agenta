@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
@@ -64,7 +64,7 @@ export const evaluatorsListQueryAtom = atomWithQuery((get) => {
             if (!projectId) return {count: 0, workflows: []}
             return queryEvaluators({projectId})
         },
-        enabled: !!projectId,
+        enabled: get(sessionAtom) && !!projectId,
         staleTime: 30_000,
     }
 })
@@ -102,7 +102,7 @@ export const evaluatorVariantsQueryAtomFamily = atomFamily((workflowId: string) 
                 if (!projectId || !workflowId) return {count: 0, workflow_variants: []}
                 return queryEvaluatorVariants(workflowId, projectId)
             },
-            enabled: !!projectId && !!workflowId,
+            enabled: get(sessionAtom) && !!projectId && !!workflowId,
             staleTime: 30_000,
         }
     }),
@@ -135,7 +135,7 @@ export const evaluatorRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowI
                 if (!projectId || !workflowId) return {count: 0, workflow_revisions: []}
                 return queryEvaluatorRevisionsByWorkflow(workflowId, projectId)
             },
-            enabled: !!projectId && !!workflowId,
+            enabled: get(sessionAtom) && !!projectId && !!workflowId,
             staleTime: 30_000,
         }
     }),
@@ -168,7 +168,7 @@ export const evaluatorRevisionsQueryAtomFamily = atomFamily((variantId: string) 
                 if (!projectId || !variantId) return {count: 0, workflow_revisions: []}
                 return queryEvaluatorRevisions(variantId, projectId)
             },
-            enabled: !!projectId && !!variantId,
+            enabled: get(sessionAtom) && !!projectId && !!variantId,
             staleTime: 30_000,
         }
     }),
@@ -202,7 +202,7 @@ export const evaluatorQueryAtomFamily = atomFamily((evaluatorId: string) =>
                 if (!projectId || !evaluatorId) return null
                 return fetchEvaluator({id: evaluatorId, projectId})
             },
-            enabled: !!projectId && !!evaluatorId,
+            enabled: get(sessionAtom) && !!projectId && !!evaluatorId,
             staleTime: 30_000,
         }
     }),

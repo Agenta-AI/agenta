@@ -10,7 +10,7 @@
  * @packageDocumentation
  */
 
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
@@ -55,7 +55,7 @@ export const legacyEvaluatorsListQueryAtom = atomWithQuery((get) => {
             if (!projectId) return {count: 0, evaluators: []}
             return queryLegacyEvaluators({projectId})
         },
-        enabled: !!projectId,
+        enabled: get(sessionAtom) && !!projectId,
         staleTime: 30_000,
     }
 })
@@ -101,7 +101,7 @@ export const legacyEvaluatorQueryAtomFamily = atomFamily((evaluatorId: string) =
                 if (!projectId || !evaluatorId) return null
                 return fetchLegacyEvaluator({id: evaluatorId, projectId})
             },
-            enabled: !!projectId && !!evaluatorId,
+            enabled: get(sessionAtom) && !!projectId && !!evaluatorId,
             staleTime: 30_000,
         }
     }),

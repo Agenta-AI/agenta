@@ -13,7 +13,7 @@ import {
 import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 
-import {CollapseToggleButton} from "../../components/presentational/buttons"
+import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
 import {cn, flexLayouts, gapClasses} from "../../utils/styles"
 
 import AttachmentButton from "./AttachmentButton"
@@ -85,17 +85,17 @@ const ChatMessageItem: React.FC<{
     const hasAttachmentsFlag = attachments.length > 0
 
     return (
-        <div className={cn(flexLayouts.column)} ref={containerRef}>
+        <div
+            className={cn(flexLayouts.column)}
+            ref={containerRef}
+            style={getCollapseStyle(isMinimized, 72)}
+        >
             <ChatMessageEditor
                 id={`chat-msg-${index}`}
                 role={msg.role}
                 text={textContent}
                 disabled={disabled}
-                className={cn(
-                    messageClassName,
-                    isMinimized &&
-                        "[&_.agenta-editor-wrapper]:max-h-[calc(8px+calc(2*19.88px))] [&_.agenta-editor-wrapper]:overflow-y-auto [&_.agenta-editor-wrapper]:!mb-0",
-                )}
+                className={cn(messageClassName)}
                 placeholder={placeholder}
                 onChangeRole={(role) => onRoleChange(index, role)}
                 onChangeText={(text) => onTextChange(index, text)}
@@ -152,6 +152,7 @@ const ChatMessageItem: React.FC<{
                             collapsed={isMinimized}
                             onToggle={() => onToggleMinimize(index)}
                             contentRef={containerRef}
+                            collapsedMaxHeight={48}
                         />
                     </div>
                 }

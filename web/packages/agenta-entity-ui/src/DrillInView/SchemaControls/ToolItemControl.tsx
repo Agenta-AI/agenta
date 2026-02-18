@@ -19,7 +19,7 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {safeStringify} from "@agenta/shared/utils"
-import {CollapseToggleButton} from "@agenta/ui/components/presentational"
+import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
 import {CopySimple, MinusCircle} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -513,11 +513,8 @@ export const ToolItemControl = memo(function ToolItemControl({
     return (
         <div
             ref={containerRef}
-            className={clsx(
-                "group/tool flex flex-col",
-                "w-full max-w-full overflow-y-auto",
-                className,
-            )}
+            style={getCollapseStyle(minimized)}
+            className={clsx("group/tool flex flex-col", "w-full max-w-full", className)}
         >
             <SharedEditor
                 initialValue={editorText}
@@ -536,12 +533,7 @@ export const ToolItemControl = memo(function ToolItemControl({
                 disableDebounce
                 syncWithInitialValueChanges
                 editorType="border"
-                className={clsx(
-                    "group/tool",
-                    minimized
-                        ? "[&_.agenta-editor-wrapper]:max-h-[calc(8px+calc(3*19.88px))] [&_.agenta-editor-wrapper]:overflow-y-auto [&_.agenta-editor-wrapper]:!mb-0"
-                        : "[&_.agenta-editor-wrapper]:h-fit",
-                )}
+                className={clsx("group/tool")}
                 state={isReadOnly ? "readOnly" : "filled"}
                 header={
                     <ToolHeader

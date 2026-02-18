@@ -9,9 +9,12 @@ export {default as RunButton, type RunButtonProps} from "./RunButton"
 export {
     default as CollapseToggleButton,
     useCollapseToggle,
+    useCollapseStyle,
     useContentOverflow,
     getCollapseIcon,
     getCollapseLabel,
+    getCollapseStyle,
+    DEFAULT_COLLAPSED_MAX_HEIGHT,
     type CollapseToggleButtonProps,
     type UseCollapseToggleOptions,
     type UseCollapseToggleReturn,

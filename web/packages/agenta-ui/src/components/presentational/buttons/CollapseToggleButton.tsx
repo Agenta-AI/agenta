@@ -9,7 +9,7 @@
  * a consistent API.
  */
 
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {CaretLineDown, CaretLineUp} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
@@ -90,17 +90,23 @@ export function getCollapseLabel(collapsed: boolean): string {
  * @param childSelector - Optional CSS selector to find the actual scrollable
  *   child within the container (e.g. `".agenta-editor-wrapper"`). When omitted,
  *   the ref element itself is checked.
- * @returns `true` when `scrollHeight > clientHeight`
+ * @param maxHeight - Optional height threshold in pixels. When provided,
+ *   checks `scrollHeight > maxHeight` instead of `scrollHeight > clientHeight`.
+ *   Use this when the element has no height constraint (e.g. `h-fit`) so that
+ *   overflow is detected based on the collapsed height rather than the current
+ *   unconstrained height.
+ * @returns `true` when content exceeds the comparison height
  *
  * @example
  * ```tsx
  * const ref = useRef<HTMLDivElement>(null)
- * const overflows = useContentOverflow(ref, ".agenta-editor-wrapper")
+ * const overflows = useContentOverflow(ref, ".agenta-editor-wrapper", 68)
  * ```
  */
 export function useContentOverflow(
     ref: React.RefObject<HTMLElement | null>,
     childSelector?: string,
+    maxHeight?: number,
 ): boolean {
     const [overflows, setOverflows] = useState(false)
 
@@ -113,16 +119,69 @@ export function useContentOverflow(
 
         const check = () => {
             const el = resolve()
-            if (el) setOverflows(el.scrollHeight > el.clientHeight)
+            if (el) {
+                const threshold = maxHeight ?? el.clientHeight
+                setOverflows(el.scrollHeight > threshold)
+            }
         }
         check()
 
         const ro = new ResizeObserver(check)
         ro.observe(root)
         return () => ro.disconnect()
-    }, [ref, childSelector])
+    }, [ref, childSelector, maxHeight])
 
     return overflows
+}
+
+// ============================================================================
+// COLLAPSE STYLE HELPER
+// ============================================================================
+
+/** Default collapsed max-height used across playground components: 8px + 3 * 19.88px ≈ 68px */
+export const DEFAULT_COLLAPSED_MAX_HEIGHT = 108
+
+/**
+ * Returns inline styles for a collapsible container that animates height
+ * between a collapsed pixel value and `auto` using `interpolate-size`.
+ *
+ * Apply to the element whose height should animate (e.g. the editor wrapper).
+ *
+ * @param collapsed - Whether the content is currently collapsed
+ * @param collapsedHeight - Pixel height when collapsed (default: 68)
+ * @param durationMs - Transition duration in ms (default: 200)
+ *
+ * @example
+ * ```tsx
+ * <div style={getCollapseStyle(isCollapsed)}>
+ *   <Editor />
+ * </div>
+ * ```
+ */
+export function getCollapseStyle(
+    collapsed: boolean,
+    collapsedHeight = DEFAULT_COLLAPSED_MAX_HEIGHT,
+): React.CSSProperties {
+    return {
+        "--editor-h": collapsed ? `${collapsedHeight}px` : "auto",
+        "--editor-overflow": collapsed ? "auto" : "visible",
+    } as React.CSSProperties
+}
+
+/**
+ * React hook wrapper around `getCollapseStyle` — returns a memoized style object.
+ *
+ * @example
+ * ```tsx
+ * const collapseStyle = useCollapseStyle(isCollapsed)
+ * <div style={collapseStyle}><Editor /></div>
+ * ```
+ */
+export function useCollapseStyle(
+    collapsed: boolean,
+    collapsedHeight = DEFAULT_COLLAPSED_MAX_HEIGHT,
+): React.CSSProperties {
+    return useMemo(() => getCollapseStyle(collapsed, collapsedHeight), [collapsed, collapsedHeight])
 }
 
 // ============================================================================
@@ -139,7 +198,7 @@ export interface CollapseToggleButtonProps {
     /**
      * Optional ref to the collapsible content container.
      * When provided, the button auto-disables if the content fits
-     * within the container without overflow (nothing to collapse).
+     * within the collapsed height (nothing to collapse).
      */
     contentRef?: React.RefObject<HTMLElement | null>
     /**
@@ -147,6 +206,13 @@ export interface CollapseToggleButtonProps {
      * Defaults to `".agenta-editor-wrapper"` when contentRef is provided.
      */
     childSelector?: string
+    /**
+     * Height threshold in pixels for overflow detection.
+     * When contentRef is provided, the button disables if the content's
+     * natural height is within this threshold (nothing to collapse).
+     * Defaults to 68 (standard 3-line collapsed height).
+     */
+    collapsedMaxHeight?: number
     /** Additional CSS class */
     className?: string
     /** Button size (default: "small") */
@@ -170,12 +236,17 @@ export default function CollapseToggleButton({
     disabled,
     contentRef,
     childSelector,
+    collapsedMaxHeight = DEFAULT_COLLAPSED_MAX_HEIGHT,
     className,
     size = "small",
     iconSize = 14,
 }: CollapseToggleButtonProps) {
     const effectiveSelector = contentRef ? (childSelector ?? ".agenta-editor-wrapper") : undefined
-    const overflows = useContentOverflow(contentRef ?? {current: null}, effectiveSelector)
+    const overflows = useContentOverflow(
+        contentRef ?? {current: null},
+        effectiveSelector,
+        collapsedMaxHeight,
+    )
     const isDisabled = disabled || (contentRef ? !overflows && !collapsed : false)
 
     return (

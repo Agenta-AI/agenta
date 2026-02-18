@@ -15,6 +15,7 @@ import {
     AttachmentButton,
     MessageAttachments,
 } from "@agenta/ui/chat-message"
+import {getCollapseStyle} from "@agenta/ui/components/presentational"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import JSON5 from "json5"
@@ -113,6 +114,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const [isMessageCollapsed, setIsMessageCollapsed] = useState(false)
     const isToolKind = kind === "tool"
     const sessionId = `sess:${entityId}`
+
+    const editorCollapseStyle = getCollapseStyle(isMessageCollapsed)
 
     // Build the message target for reducer dispatches
     const messageTarget: MessageTarget = useMemo(
@@ -390,13 +393,9 @@ const TurnMessageAdapter: React.FC<Props> = ({
         toolPayloads.map((p) => (
             <div
                 key={p.callId}
+                style={editorCollapseStyle}
                 className={clsx(
                     "w-full",
-                    {
-                        "[&_.agenta-editor-wrapper]:max-h-[calc(8px+calc(3*19.88px))] [&_.agenta-editor-wrapper]:overflow-y-auto [&_.agenta-editor-wrapper]:!mb-0":
-                            isMessageCollapsed,
-                        "[&_.agenta-editor-wrapper]:max-h-none": !isMessageCollapsed,
-                    },
                     {
                         " [&_.message-user-select]:text-[red]": isError,
                     },
@@ -466,13 +465,9 @@ const TurnMessageAdapter: React.FC<Props> = ({
         ))
     ) : msg ? (
         <div
+            style={editorCollapseStyle}
             className={clsx(
                 "w-full",
-                {
-                    "[&_.agenta-editor-wrapper]:h-[calc(8px+calc(3*19.88px))] [&_.agenta-editor-wrapper]:overflow-y-auto [&_.agenta-editor-wrapper]:!mb-0":
-                        isMessageCollapsed,
-                    "[&_.agenta-editor-wrapper]:h-fit": !isMessageCollapsed,
-                },
                 {
                     " [&_.message-user-select]:text-[red]": isError,
                 },

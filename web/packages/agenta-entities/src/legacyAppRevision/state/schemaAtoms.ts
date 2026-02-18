@@ -18,7 +18,7 @@
  * @packageDocumentation
  */
 
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {atom, type Atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -114,7 +114,7 @@ const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
         const projectId = get(projectIdAtom)
         const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const uri = entityData?.uri
-        const enabled = !!revisionId && !!uri && !!projectId
+        const enabled = get(sessionAtom) && !!revisionId && !!uri && !!projectId
 
         return {
             queryKey: ["legacyAppRevisionSchema", revisionId, uri, projectId],

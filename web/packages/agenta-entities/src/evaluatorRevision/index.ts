@@ -14,7 +14,7 @@
  * ```
  */
 
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {atom, type Atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -56,7 +56,7 @@ const evaluatorRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
                 if (!projectId || !revisionId) return null
                 return fetchEvaluatorRevisionById(revisionId, projectId)
             },
-            enabled: !!projectId && !!revisionId,
+            enabled: get(sessionAtom) && !!projectId && !!revisionId,
             staleTime: 30_000,
         }
     }),
@@ -79,7 +79,7 @@ const evaluatorRevisionInspectAtomFamily = atomFamily((revisionId: string) =>
                 if (!projectId || !uri) return null
                 return inspectWorkflow(uri, projectId)
             },
-            enabled: !!projectId && !!uri,
+            enabled: get(sessionAtom) && !!projectId && !!uri,
             staleTime: 60_000,
         }
     }),
