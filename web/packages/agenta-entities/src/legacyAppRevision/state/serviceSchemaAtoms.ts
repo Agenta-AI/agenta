@@ -14,7 +14,7 @@
  * @see appRevision/state/serviceSchemaAtoms.ts — Original implementation
  */
 
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -56,7 +56,7 @@ const serviceSchemaQueryAtomFamily = atomFamily((serviceType: AppServiceType) =>
             gcTime: 1000 * 60 * 60, // 1 hour garbage collection
             refetchOnWindowFocus: false,
             refetchOnMount: false,
-            enabled: !!projectId,
+            enabled: get(sessionAtom) && !!projectId,
         }
     }),
 )

@@ -17,7 +17,7 @@
  */
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher, isValidUUID} from "@agenta/shared/utils"
 import {atom, type PrimitiveAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
@@ -436,7 +436,9 @@ export const testcaseQueryAtomFamily = atomFamily((testcaseId: string) =>
             },
             initialData: cachedData ?? undefined,
             // Disable query for local entities - they only exist in draft state
-            enabled: Boolean(!isLocalEntity && projectId && testcaseId && !cachedData),
+            enabled: Boolean(
+                get(sessionAtom) && !isLocalEntity && projectId && testcaseId && !cachedData,
+            ),
             staleTime: Infinity,
             gcTime: Infinity,
         }

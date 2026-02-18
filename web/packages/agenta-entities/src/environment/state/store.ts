@@ -5,7 +5,7 @@
  * These provide the single source of truth for server data.
  */
 
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {isValidUUID} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 import type {PrimitiveAtom} from "jotai"
@@ -35,7 +35,7 @@ export const environmentQueryAtomFamily = atomFamily((environmentId: string) =>
                 }
                 return fetchEnvironmentDetail({id: environmentId, projectId})
             },
-            enabled: isEnabled,
+            enabled: get(sessionAtom) && isEnabled,
             staleTime: 30_000,
             gcTime: 5 * 60_000,
         }
@@ -58,7 +58,7 @@ export const environmentsListQueryAtomFamily = atomFamily((includeArchived: bool
                     includeArchived: includeArchived ?? false,
                 })
             },
-            enabled: Boolean(projectId),
+            enabled: get(sessionAtom) && Boolean(projectId),
             staleTime: 30_000,
             gcTime: 5 * 60_000,
         }
@@ -123,7 +123,7 @@ export const revisionsListQueryAtomFamily = atomFamily((environmentId: string) =
         const projectId = projectIdMap.get(environmentId) ?? null
         const requested = get(revisionsListRequestedAtom)
         const isRequested = requested.has(environmentId)
-        const isEnabled = Boolean(projectId && environmentId && isRequested)
+        const isEnabled = get(sessionAtom) && Boolean(projectId && environmentId && isRequested)
 
         return {
             queryKey: ["environment-revisions-list", projectId, environmentId],
