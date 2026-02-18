@@ -141,12 +141,12 @@ async def create_accounts(
 
     # Atomically acquire a distributed lock to prevent race conditions
     # where multiple concurrent requests create duplicate accounts
-    lock_acquired = await acquire_lock(
+    lock_owner = await acquire_lock(
         namespace="account-creation",
         key=email,
     )
 
-    if not lock_acquired:
+    if not lock_owner:
         # Another request is already creating this account - just return the existing user
         log.info("[scopes] account creation lock already taken")
         user = await db_manager.get_user_with_email(email=email)
@@ -238,6 +238,7 @@ async def create_accounts(
         released = await release_lock(
             namespace="account-creation",
             key=email,
+            owner=lock_owner,
         )
         if released:
             log.info("[scopes] account creation lock released")
