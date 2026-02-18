@@ -20,6 +20,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {safeStringify} from "@agenta/shared/utils"
 import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
+import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {CopySimple, MinusCircle} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -350,6 +351,15 @@ const ToolHeader = memo(function ToolHeader({
 // MAIN COMPONENT
 // ============================================================================
 
+/**
+ * Default provider icon renderer using getProviderIcon from @agenta/ui
+ */
+function defaultRenderProviderIcon(providerKey: string): React.ReactNode {
+    const Icon = getProviderIcon(providerKey)
+    if (!Icon) return null
+    return <Icon className="w-4 h-4" />
+}
+
 export interface ToolItemControlProps {
     /** Tool value (object or JSON string) */
     value: unknown
@@ -377,6 +387,10 @@ export const ToolItemControl = memo(function ToolItemControl({
     renderProviderIcon,
 }: ToolItemControlProps) {
     const {SharedEditor} = useDrillInUI()
+
+    // Use prop if provided, otherwise use default
+    const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
+
     const isReadOnly = disabled
     const [minimized, setMinimized] = useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
@@ -454,11 +468,11 @@ export const ToolItemControl = memo(function ToolItemControl({
     }, [agentaMetadata, inferredToolInfo, fallbackToolLabel])
 
     const providerIcon = useMemo(() => {
-        if (renderProviderIcon && providerKey) {
-            return renderProviderIcon(providerKey)
+        if (effectiveRenderProviderIcon && providerKey) {
+            return effectiveRenderProviderIcon(providerKey)
         }
         return null
-    }, [renderProviderIcon, providerKey])
+    }, [effectiveRenderProviderIcon, providerKey])
 
     // Fallback when SharedEditor is not injected
     if (!SharedEditor) {

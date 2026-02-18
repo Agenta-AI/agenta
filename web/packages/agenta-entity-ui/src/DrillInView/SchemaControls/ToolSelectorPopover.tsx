@@ -8,6 +8,7 @@
 
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {Button, Input, Popover} from "antd"
 
@@ -93,12 +94,24 @@ function groupByProvider(
 // COMPONENT
 // ============================================================================
 
+/**
+ * Default provider icon renderer using getProviderIcon from @agenta/ui
+ */
+function defaultRenderProviderIcon(providerKey: string): React.ReactNode {
+    const Icon = getProviderIcon(providerKey)
+    if (!Icon) return null
+    return <Icon className="w-4 h-4" />
+}
+
 export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     onAddTool,
     disabled = false,
     renderProviderIcon,
     existingToolCount = 0,
 }: ToolSelectorPopoverProps) {
+    // Use prop if provided, otherwise use default
+    const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
+
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState("")
 
@@ -173,9 +186,9 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                     <div key={group.providerKey} className="flex flex-col">
                         {/* Provider header */}
                         <div className="flex items-center gap-1.5 py-1.5 px-1">
-                            {renderProviderIcon && (
+                            {effectiveRenderProviderIcon && (
                                 <span className="flex h-5 w-5 items-center justify-center">
-                                    {renderProviderIcon(group.providerKey)}
+                                    {effectiveRenderProviderIcon(group.providerKey)}
                                 </span>
                             )}
                             <span className="font-medium text-zinc-700">{group.providerLabel}</span>

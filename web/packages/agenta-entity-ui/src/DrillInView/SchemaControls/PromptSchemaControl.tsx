@@ -18,6 +18,7 @@ import {memo, useCallback, useMemo, useState} from "react"
 import type {SchemaProperty} from "@agenta/entities"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
+import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Plus} from "@phosphor-icons/react"
 import {Button, Select} from "antd"
@@ -127,6 +128,15 @@ const TEMPLATE_FORMAT_OPTIONS = [
 ]
 
 /**
+ * Default provider icon renderer using getProviderIcon from @agenta/ui
+ */
+function defaultRenderProviderIcon(providerKey: string): React.ReactNode {
+    const Icon = getProviderIcon(providerKey)
+    if (!Icon) return null
+    return <Icon className="w-4 h-4" />
+}
+
+/**
  * Schema-driven control for prompt objects.
  *
  * Renders the complete prompt UI matching the app playground:
@@ -164,6 +174,9 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
 }: PromptSchemaControlProps) {
     // Get injected EditorProvider from context
     const {EditorProvider} = useDrillInUI()
+
+    // Use prop if provided, otherwise use default
+    const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
 
     // Local template format state (initialized from props, can be changed by user)
     const [localTemplateFormat, setLocalTemplateFormat] = useState<"curly" | "fstring" | "jinja2">(
@@ -369,7 +382,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                                     disabled ? undefined : () => handleToolDuplicate(index)
                                 }
                                 disabled={disabled}
-                                renderProviderIcon={renderProviderIcon}
+                                renderProviderIcon={effectiveRenderProviderIcon}
                             />
                         )
 
@@ -409,7 +422,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                     <ToolSelectorPopover
                         onAddTool={handleAddTool}
                         disabled={disabled}
-                        renderProviderIcon={renderProviderIcon}
+                        renderProviderIcon={effectiveRenderProviderIcon}
                         existingToolCount={tools.length}
                     />
 
