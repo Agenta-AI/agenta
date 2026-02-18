@@ -72,6 +72,10 @@ class SecretDTO(BaseModel):
             values["data"] = data
 
         if kind == SecretKind.PROVIDER_KEY.value:
+            # Fix inconsistent API naming - normalize 'together_ai' to 'togetherai'
+            if data.get("kind", "") == "together_ai":
+                data["kind"] = "togetherai"
+
             if not isinstance(data, dict):
                 raise ValueError(
                     "The provided request secret dto is not a valid type for StandardProviderDTO"
@@ -86,10 +90,9 @@ class SecretDTO(BaseModel):
                 )
 
         elif kind == SecretKind.CUSTOM_PROVIDER.value:
-            # Fix inconsistent API naming - Users might enter 'togetherai' but the API requires 'together_ai'
-            # This ensures compatibility with LiteLLM which requires the provider in "together_ai" format
-            if data.get("kind", "") == "togetherai":
-                data["kind"] = "together_ai"
+            # Fix inconsistent API naming - normalize 'together_ai' to 'togetherai'
+            if data.get("kind", "") == "together_ai":
+                data["kind"] = "togetherai"
 
             if not isinstance(data, dict):
                 raise ValueError(

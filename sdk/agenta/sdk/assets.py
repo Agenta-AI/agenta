@@ -169,7 +169,7 @@ supported_llm_models = {
         "perplexity/sonar-reasoning",
         "perplexity/sonar-reasoning-pro",
     ],
-    "together_ai": [
+    "togetherai": [
         "together_ai/deepseek-ai/DeepSeek-R1",
         "together_ai/deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
         "together_ai/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",

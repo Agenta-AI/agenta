@@ -44,7 +44,7 @@ export const transformSecret = (secrets: CustomSecretDTO[] | StandardSecretDTO[]
                 mistralai: "MISTRALAI_API_KEY",
                 anthropic: "ANTHROPIC_API_KEY",
                 perplexityai: "PERPLEXITYAI_API_KEY",
-                together_ai: "TOGETHERAI_API_KEY",
+                togetherai: "TOGETHERAI_API_KEY",
                 openrouter: "OPENROUTER_API_KEY",
                 gemini: "GEMINI_API_KEY",
             }

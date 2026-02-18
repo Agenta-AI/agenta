@@ -451,7 +451,7 @@ export enum SecretDTOProvider {
     MISTRALAI = "mistralai",
     ANTHROPIC = "anthropic",
     PERPLEXITYAI = "perplexityai",
-    TOGETHERAI = "together_ai",
+    TOGETHERAI = "togetherai",
     OPENROUTER = "openrouter",
     GEMINI = "gemini",
 }
@@ -467,7 +467,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
     mistralai: "Mistral AI",
     anthropic: "Anthropic",
     perplexityai: "Perplexity AI",
-    together_ai: "Together AI",
+    togetherai: "Together AI",
     openrouter: "OpenRouter",
     gemini: "Google Gemini",
     vertex_ai: "Google Vertex AI",
