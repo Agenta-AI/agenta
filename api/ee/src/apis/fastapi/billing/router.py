@@ -164,6 +164,13 @@ class BillingRouter:
         )
 
         self.admin_router.add_api_route(
+            "/usage/report/unlock",
+            self.unlock_report_usage,
+            methods=["POST"],
+            operation_id="admin_unlock_report_usage",
+        )
+
+        self.admin_router.add_api_route(
             "/usage/flush",
             self.flush_usage,
             methods=["POST"],
@@ -866,13 +873,14 @@ class BillingRouter:
         LOCK_TTL = 3600  # 1 hour
 
         try:
-            lock_key = await acquire_lock(
+            lock_owner = await acquire_lock(
                 namespace="meters:report",
                 key={},
                 ttl=LOCK_TTL,
+                strict=True,
             )
 
-            if not lock_key:
+            if not lock_owner:
                 log.info("[report] [endpoint] Skipped (ongoing)")
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
@@ -886,6 +894,7 @@ class BillingRouter:
                     namespace="meters:report",
                     key={},
                     ttl=LOCK_TTL,
+                    owner=lock_owner,
                 )
 
             try:
@@ -909,11 +918,15 @@ class BillingRouter:
                 )
 
             finally:
-                await release_lock(
+                released = await release_lock(
                     namespace="meters:report",
                     key={},
+                    owner=lock_owner,
                 )
-                log.info("[report] [endpoint] Lock released")
+                if released:
+                    log.info("[report] [endpoint] Lock released")
+                else:
+                    log.warn("[report] [endpoint] Lock release skipped (expired/lost)")
 
         except Exception:
             # Catch-all for any errors, including cache errors
@@ -927,19 +940,44 @@ class BillingRouter:
             )
 
     @intercept_exceptions()
+    async def unlock_report_usage(
+        self,
+    ):
+        log.warn("[report] [unlock] Trigger")
+
+        released = await release_lock(
+            namespace="meters:report",
+            key={},
+        )
+
+        if released:
+            log.warn("[report] [unlock] Lock force-released")
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={"status": "success", "released": True},
+            )
+
+        log.info("[report] [unlock] No lock found")
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "noop", "released": False},
+        )
+
+    @intercept_exceptions()
     async def flush_usage(
         self,
     ):
         log.info("[flush] [endpoint] Trigger")
 
         try:
-            lock_key = await acquire_lock(
+            lock_owner = await acquire_lock(
                 namespace="spans:flush",
                 key={},
                 ttl=3600,  # 1 hour
+                strict=True,
             )
 
-            if not lock_key:
+            if not lock_owner:
                 log.info("[flush] [endpoint] Skipped (ongoing)")
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
@@ -969,11 +1007,15 @@ class BillingRouter:
                 )
 
             finally:
-                await release_lock(
+                released = await release_lock(
                     namespace="spans:flush",
                     key={},
+                    owner=lock_owner,
                 )
-                log.info("[flush] [endpoint] Lock released")
+                if released:
+                    log.info("[flush] [endpoint] Lock released")
+                else:
+                    log.warn("[flush] [endpoint] Lock release skipped (expired/lost)")
 
         except Exception:
             log.error(
