@@ -9,7 +9,7 @@ import {fileURLToPath} from "url"
 import {StandardSecretDTO} from "../../oss/src/lib/Types"
 
 const LOCALHOST_OR_IPV4_REGEX =
-    /^(localhost|((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?))$/i
+    /^(localhost|((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?))$/i
 
 const getSupertokensAccessCookieName = (...urls: string[]): string => {
     for (const currentURL of urls) {
