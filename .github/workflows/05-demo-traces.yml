@@ -47,7 +47,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.DEMO_OPENAI_API_KEY }}
           QDRANT_URL: ${{ secrets.DEMO_QDRANT_URL }}
           QDRANT_API_KEY: ${{ secrets.DEMO_QDRANT_API_KEY }}
-          COLLECTION_NAME: agenta_docs
+          COLLECTION_NAME: agenta_docs_2026_02
           EMBEDDING_MODEL: openai
           TOP_K: '5'
           LLM_MODEL: gpt-4o-mini

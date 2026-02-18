@@ -1,4 +1,5 @@
 from typing import Awaitable, Tuple, Callable, List, Optional
+from uuid import uuid4
 
 import stripe
 
@@ -84,6 +85,8 @@ class MetersService:
         log.info("[report] ============================================")
         log.info("[report] Starting meter report job")
         log.info("[report] ============================================")
+        job_id = uuid4().hex[:12]
+        log.info(f"[report] Job id: {job_id}")
 
         BATCH_SIZE = 100
         MAX_BATCHES = 50  # Safety limit: 50 batches * 100 meters = 5000 meters max
@@ -200,6 +203,12 @@ class MetersService:
                             quantity = meter.value
                             items = [{"id": _id, "quantity": quantity}]
 
+                            log.info(
+                                f"[stripe] gauge-update attempt: job={job_id} "
+                                f"org={meter.organization_id} key={meter.key} "
+                                f"period={meter.year}-{meter.month} synced={meter.synced} value={meter.value} "
+                                f"subscription={subscription_id} customer={customer_id} item={_id} quantity={quantity}"
+                            )
                             stripe.Subscription.modify(
                                 subscription_id,
                                 items=items,
@@ -208,6 +217,12 @@ class MetersService:
                             reported_count += 1
                             meters_to_bump.append(meter)
                             log.info(
+                                f"[stripe] gauge-update success: job={job_id} "
+                                f"org={meter.organization_id} key={meter.key} "
+                                f"period={meter.year}-{meter.month} synced={meter.synced} value={meter.value} "
+                                f"subscription={subscription_id} customer={customer_id} item={_id} quantity={quantity}"
+                            )
+                            log.info(
                                 f"[stripe] updating:  {meter.organization_id} |         | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value}"
                             )
 
@@ -215,7 +230,10 @@ class MetersService:
                             # Actual Stripe API failure — do NOT bump so it
                             # gets retried on the next run.
                             log.error(
-                                f"[report] Error modifying subscription for {meter.organization_id}/{meter.key}:",
+                                f"[report] Error modifying subscription for "
+                                f"job={job_id} org={meter.organization_id} key={meter.key} "
+                                f"period={meter.year}-{meter.month} synced={meter.synced} value={meter.value} "
+                                f"subscription={subscription_id} customer={customer_id}",
                                 exc_info=True,
                             )
                             error_count += 1
@@ -233,14 +251,33 @@ class MetersService:
                                 continue
 
                             payload = {"delta": delta, "customer_id": customer_id}
+                            event_identifier = (
+                                f"{meter.organization_id}:"
+                                f"{meter.key.value}:"
+                                f"{meter.year}:{meter.month}:"
+                                f"{meter.synced}"
+                            )
 
+                            log.info(
+                                f"[stripe] counter-event attempt: job={job_id} "
+                                f"org={meter.organization_id} key={meter.key} "
+                                f"period={meter.year}-{meter.month} synced={meter.synced} value={meter.value} delta={delta} "
+                                f"event={event_name} customer={customer_id} identifier={event_identifier}"
+                            )
                             stripe.billing.MeterEvent.create(
                                 event_name=event_name,
                                 payload=payload,
+                                identifier=event_identifier,
                             )
 
                             reported_count += 1
                             meters_to_bump.append(meter)
+                            log.info(
+                                f"[stripe] counter-event success: job={job_id} "
+                                f"org={meter.organization_id} key={meter.key} "
+                                f"period={meter.year}-{meter.month} synced={meter.synced} value={meter.value} delta={delta} "
+                                f"event={event_name} customer={customer_id} identifier={event_identifier}"
+                            )
                             log.info(
                                 f"[stripe] reporting: {meter.organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value - meter.synced}"
                             )
@@ -249,7 +286,10 @@ class MetersService:
                             # Actual Stripe API failure — do NOT bump so it
                             # gets retried on the next run.
                             log.error(
-                                f"[report] Error creating meter event for {meter.organization_id}/{meter.key}:",
+                                f"[report] Error creating meter event for "
+                                f"job={job_id} org={meter.organization_id} key={meter.key} "
+                                f"period={meter.year}-{meter.month} synced={meter.synced} value={meter.value} delta={delta} "
+                                f"event={event_name} customer={customer_id} identifier={event_identifier}",
                                 exc_info=True,
                             )
                             error_count += 1
@@ -289,14 +329,21 @@ class MetersService:
                     f"[report] ❌ Error bumping batch #{batch_number}:", exc_info=True
                 )
                 total_errors += len(meters)
-                continue
+                # Avoid re-reporting the same unsynced batch in this same run.
+                break
 
             # Renew lock after each batch to prevent expiration during long runs
             if renew:
                 try:
-                    await renew()
+                    renewed = await renew()
+                    if not renewed:
+                        log.error(
+                            "[report] Lock renewal rejected (expired or lost ownership), stopping job"
+                        )
+                        break
                 except Exception:
                     log.error("[report] Failed to renew lock", exc_info=True)
+                    break
 
             # Update totals
             total_reported += reported_count

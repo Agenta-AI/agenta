@@ -100,53 +100,146 @@ class MetersDAO(MetersDAOInterface):
             return
 
         log.info(f"[report] [bump] Starting for {len(meters)} meters")
+        chunk_size = 25
 
         sorted_meters = sorted(
             meters,
             key=lambda m: (m.organization_id, m.key, m.year, m.month),
         )
+        total_attempted = len(sorted_meters)
+        unique_rows = len(
+            {(m.organization_id, m.key, m.year, m.month) for m in sorted_meters}
+        )
+
+        if unique_rows != total_attempted:
+            log.warn(
+                f"[report] [bump] Duplicate meter rows in batch: attempted={total_attempted} unique={unique_rows}"
+            )
+
+        updated_count = 0
+        missing_count = 0
+        missing_samples: list[str] = []
+        failed_count = 0
+        failed_samples: list[str] = []
+
+        total_chunks = (len(sorted_meters) + chunk_size - 1) // chunk_size
+        for idx in range(0, len(sorted_meters), chunk_size):
+            chunk = sorted_meters[idx : idx + chunk_size]
+            chunk_no = idx // chunk_size + 1
+            log.info(
+                f"[report] [bump] Chunk {chunk_no}/{total_chunks}: size={len(chunk)}"
+            )
+            try:
+                log.info(f"[report] [bump] Chunk {chunk_no}/{total_chunks}: committing")
+                (
+                    chunk_updated,
+                    chunk_missing,
+                    chunk_missing_samples,
+                ) = await self._bump_commit_chunk(
+                    meters=chunk,
+                )
+                updated_count += chunk_updated
+                missing_count += chunk_missing
+                for sample in chunk_missing_samples:
+                    if len(missing_samples) < 5:
+                        missing_samples.append(sample)
+                log.info(
+                    f"[report] [bump] Chunk {chunk_no}/{total_chunks}: committed "
+                    f"updated={chunk_updated} missing={chunk_missing}"
+                )
+            except Exception:
+                log.error(
+                    f"[report] [bump] ❌ Chunk {chunk_no}/{total_chunks} commit failed, retrying row-by-row",
+                    exc_info=True,
+                )
+                for meter in chunk:
+                    meter_id = f"{meter.organization_id}/{meter.key}:{meter.year}-{meter.month}"
+                    try:
+                        (
+                            row_updated,
+                            row_missing,
+                            row_missing_samples,
+                        ) = await self._bump_commit_chunk(
+                            meters=[meter],
+                        )
+                        updated_count += row_updated
+                        missing_count += row_missing
+                        for sample in row_missing_samples:
+                            if len(missing_samples) < 5:
+                                missing_samples.append(sample)
+                    except Exception:
+                        failed_count += 1
+                        if len(failed_samples) < 5:
+                            failed_samples.append(meter_id)
+                        log.error(
+                            f"[report] [bump] ❌ Row fallback failed for {meter_id} synced={meter.synced} value={meter.value}",
+                            exc_info=True,
+                        )
+
+        if missing_count > 0:
+            log.warn(
+                f"[report] [bump] Missing rows after commits: "
+                f"attempted={total_attempted} updated={updated_count} missing={missing_count} "
+                f"samples={missing_samples}"
+            )
+
+        log.info(
+            f"[report] [bump] ✅ Bump summary: attempted={total_attempted} "
+            f"updated={updated_count} missing={missing_count} failed={failed_count}"
+        )
+
+        if failed_count > 0:
+            raise RuntimeError(
+                "[report] [bump] unresolved failures after row fallback: "
+                f"failed={failed_count} samples={failed_samples}"
+            )
+
+    async def _bump_commit_chunk(
+        self,
+        *,
+        meters: list[MeterDTO],
+    ) -> tuple[int, int, list[str]]:
+        updated_count = 0
+        missing_count = 0
+        missing_samples: list[str] = []
 
         async with engine.core_session() as session:
-            updated_count = 0
-
-            for meter in sorted_meters:
-                try:
-                    stmt = (
-                        update(MeterDBE)
-                        .where(
-                            MeterDBE.organization_id == meter.organization_id,
-                            MeterDBE.key == meter.key,
-                            MeterDBE.year == meter.year,
-                            MeterDBE.month == meter.month,
-                        )
-                        .values(synced=meter.synced)
+            for meter in meters:
+                stmt = (
+                    update(MeterDBE)
+                    .where(
+                        MeterDBE.organization_id == meter.organization_id,
+                        MeterDBE.key == meter.key,
+                        MeterDBE.year == meter.year,
+                        MeterDBE.month == meter.month,
                     )
+                    .values(synced=meter.synced)
+                )
 
-                    result = await session.execute(stmt)
+                result = await session.execute(stmt)
+                rowcount = int(result.rowcount or 0)
 
-                    if result.rowcount == 0:
-                        log.warn(
-                            f"[report] [bump] No rows updated for {meter.organization_id}/{meter.key}"
+                if rowcount == 0:
+                    missing_count += 1
+                    if len(missing_samples) < 5:
+                        missing_samples.append(
+                            f"{meter.organization_id}/{meter.key}:{meter.year}-{meter.month}"
                         )
-                    else:
-                        updated_count += result.rowcount
-
-                except Exception:
-                    log.error(
-                        f"[report] [bump] Error updating meter {meter.organization_id}/{meter.key}",
-                        exc_info=True,
+                    log.warn(
+                        f"[report] [bump] No rows updated for "
+                        f"org={meter.organization_id} key={meter.key} "
+                        f"period={meter.year}-{meter.month} synced={meter.synced} value={meter.value}"
                     )
-                    raise
-
-            log.info(f"[report] [bump] Committing {updated_count} updates")
+                else:
+                    updated_count += rowcount
 
             try:
                 await session.commit()
-                log.info("[report] [bump] ✅ Committed successfully")
             except Exception:
-                log.error("[report] [bump] ❌ Commit failed", exc_info=True)
                 await session.rollback()
                 raise
+
+        return updated_count, missing_count, missing_samples
 
     async def fetch(
         self,
