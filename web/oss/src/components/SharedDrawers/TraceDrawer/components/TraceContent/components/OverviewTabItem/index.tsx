@@ -1,4 +1,6 @@
-import {Space} from "antd"
+import {useCallback, useMemo, useState} from "react"
+
+import {Button, Space} from "antd"
 import {useAtomValue} from "jotai"
 
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
@@ -16,6 +18,32 @@ import {
 import AccordionTreePanel from "../../../AccordionTreePanel"
 import {transformDataInputs} from "../../utils"
 
+interface RoleMessage {
+    role?: string
+    content?: unknown
+    contents?: {message_content?: {text?: string}}[]
+    [key: string]: unknown
+}
+
+const getCollapsedMessageIndices = (messages: RoleMessage[]): Set<number> => {
+    const keep = new Set<number>()
+    if (!messages.length) return keep
+
+    const firstSystem = messages.findIndex((message) => message.role === "system")
+    const lastUser = messages.findLastIndex((message) => message.role === "user")
+    const lastAssistant = messages.findLastIndex((message) => message.role === "assistant")
+
+    if (firstSystem >= 0) keep.add(firstSystem)
+    if (lastUser >= 0) keep.add(lastUser)
+    if (lastAssistant >= 0) keep.add(lastAssistant)
+
+    if (keep.size === 0) {
+        keep.add(messages.length - 1)
+    }
+
+    return keep
+}
+
 const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const metaConfig = useAtomValue(spanMetaConfigurationAtomFamily(activeTrace))
     const inputs = useAtomValue(spanDataInputsAtomFamily(activeTrace))
@@ -23,6 +51,116 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const internals = useAtomValue(spanDataInternalsAtomFamily(activeTrace))
     const nodeType = useAtomValue(spanNodeTypeAtomFamily(activeTrace))
     const exception = useAtomValue(spanExceptionAtomFamily(activeTrace))
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+
+    const toggleGroup = useCallback((groupKey: string) => {
+        setExpandedGroups((prev) => ({...prev, [groupKey]: !prev[groupKey]}))
+    }, [])
+
+    const renderMessagePanels = useCallback(
+        ({
+            messages,
+            groupKey,
+            isOutput = false,
+            bgColor,
+        }: {
+            messages: RoleMessage[]
+            groupKey: string
+            isOutput?: boolean
+            bgColor?: string
+        }) => {
+            const keepIndices = getCollapsedMessageIndices(messages)
+            const hiddenCount = Math.max(messages.length - keepIndices.size, 0)
+            const shouldCollapse = messages.length > 3 && hiddenCount > 0
+            const expanded = expandedGroups[groupKey] ?? false
+
+            const visibleEntries = messages
+                .map((message, index) => ({message, index}))
+                .filter((entry) => !shouldCollapse || expanded || keepIndices.has(entry.index))
+
+            return (
+                <Space key={groupKey} orientation="vertical" className="w-full" size={8}>
+                    {shouldCollapse && (
+                        <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-gray-200" />
+                            <Button
+                                type="text"
+                                size="small"
+                                onClick={() => toggleGroup(groupKey)}
+                                className="text-gray-500"
+                            >
+                                {expanded
+                                    ? "Hide intermediate messages"
+                                    : `Show all messages (${hiddenCount} hidden)`}
+                            </Button>
+                            <div className="h-px flex-1 bg-gray-200" />
+                        </div>
+                    )}
+
+                    {visibleEntries.map(({message: rawMessage, index}) => {
+                        const param =
+                            rawMessage && typeof rawMessage === "object"
+                                ? (rawMessage as RoleMessage)
+                                : ({content: rawMessage} as RoleMessage)
+                        const rawRole = typeof param.role === "string" ? param.role : undefined
+                        const role = isOutput ? rawRole || "assistant" : rawRole || "user"
+                        const panelKey = `${groupKey}-${index}-${role}`
+
+                        if (param.content !== undefined) {
+                            return (
+                                <AccordionTreePanel
+                                    key={panelKey}
+                                    label={role}
+                                    value={param.content}
+                                    useDrillInView
+                                    viewModePreset="message"
+                                    enableFormatSwitcher
+                                    bgColor={bgColor}
+                                />
+                            )
+                        }
+
+                        if (
+                            param.contents &&
+                            Array.isArray(param.contents) &&
+                            param.contents.length === 1 &&
+                            param.contents[0].message_content?.text
+                        ) {
+                            return (
+                                <AccordionTreePanel
+                                    key={panelKey}
+                                    label={role}
+                                    value={param.contents[0].message_content.text}
+                                    useDrillInView
+                                    viewModePreset="message"
+                                    enableFormatSwitcher
+                                    bgColor={bgColor}
+                                />
+                            )
+                        }
+
+                        const {role: _role, ...withoutRole} = param
+                        const displayRole = isOutput ? rawRole || "assistant" : rawRole || "user"
+
+                        return (
+                            <AccordionTreePanel
+                                key={panelKey}
+                                label={displayRole}
+                                value={withoutRole}
+                                useDrillInView
+                                viewModePreset="message"
+                                enableFormatSwitcher
+                                bgColor={bgColor}
+                            />
+                        )
+                    })}
+                </Space>
+            )
+        },
+        [expandedGroups, toggleGroup],
+    )
+
+    const transformedInputs = useMemo(() => transformDataInputs(inputs), [inputs])
 
     return (
         <Space orientation="vertical" size={24} className="w-full">
@@ -51,58 +189,12 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     Array.isArray(inputs?.prompt) &&
                     inputs?.prompt.length > 0 &&
                     inputs?.prompt.every((item: any) => "role" in item) ? (
-                        Object.entries(transformDataInputs(inputs)).map(([key, values]) => {
+                        Object.entries(transformedInputs).map(([key, values]) => {
                             if (key === "prompt") {
                                 return Array.isArray(values)
-                                    ? values.map((param, index) => {
-                                          // First check for content
-                                          if (param.content !== undefined) {
-                                              return (
-                                                  <AccordionTreePanel
-                                                      key={index}
-                                                      label={param.role}
-                                                      value={param.content}
-                                                      enableFormatSwitcher={
-                                                          param.role === "assistant" ||
-                                                          param.role === "tool"
-                                                      }
-                                                  />
-                                              )
-                                          }
-                                          // Then check for contents with proper structure
-                                          else if (
-                                              param.contents &&
-                                              Array.isArray(param.contents) &&
-                                              param.contents.length === 1 &&
-                                              param.contents[0].message_content?.text
-                                          ) {
-                                              return (
-                                                  <AccordionTreePanel
-                                                      key={index}
-                                                      label={param.role}
-                                                      value={param.contents[0].message_content.text}
-                                                      enableFormatSwitcher={
-                                                          param.role === "assistant" ||
-                                                          param.role === "tool"
-                                                      }
-                                                  />
-                                              )
-                                          }
-                                          // Otherwise show the whole object minus the role
-                                          else {
-                                              // Create a copy without the role property
-                                              const {role, ...paramWithoutRole} = param
-                                              return (
-                                                  <AccordionTreePanel
-                                                      key={index}
-                                                      label={role}
-                                                      value={paramWithoutRole}
-                                                      enableFormatSwitcher={
-                                                          role === "assistant" || role === "tool"
-                                                      }
-                                                  />
-                                              )
-                                          }
+                                    ? renderMessagePanels({
+                                          messages: values as RoleMessage[],
+                                          groupKey: "inputs-prompt",
                                       })
                                     : null
                             } else {
@@ -111,13 +203,19 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                                         key={key}
                                         label="tools"
                                         value={values as any[]}
+                                        useDrillInView
                                         enableFormatSwitcher
                                     />
                                 ) : null
                             }
                         })
                     ) : (
-                        <AccordionTreePanel label={"inputs"} value={inputs} enableFormatSwitcher />
+                        <AccordionTreePanel
+                            label={"inputs"}
+                            value={inputs}
+                            useDrillInView
+                            enableFormatSwitcher
+                        />
                     )}
                 </Space>
             ) : null}
@@ -129,57 +227,13 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     Array.isArray(outputs?.completion) &&
                     outputs?.completion.length > 0 &&
                     outputs?.completion.every((item: any) => "role" in item) ? (
-                        Object.values(outputs).map((item) =>
+                        Object.entries(outputs).map(([outputKey, item]) =>
                             Array.isArray(item)
-                                ? item.map((param: any, index) => {
-                                      // First check for content
-                                      if (param.content !== undefined) {
-                                          return (
-                                              <AccordionTreePanel
-                                                  key={index}
-                                                  label={param.role || "assistant"}
-                                                  value={param.content}
-                                                  enableFormatSwitcher={
-                                                      param.role === "assistant" || !param.role
-                                                  }
-                                                  bgColor={"#E6FFFB"}
-                                              />
-                                          )
-                                      }
-                                      // Then check for contents with proper structure
-                                      else if (
-                                          param.contents &&
-                                          Array.isArray(param.contents) &&
-                                          param.contents.length === 1 &&
-                                          param.contents[0].message_content?.text
-                                      ) {
-                                          return (
-                                              <AccordionTreePanel
-                                                  key={index}
-                                                  label={param.role || "assistant"}
-                                                  value={param.contents[0].message_content.text}
-                                                  enableFormatSwitcher={
-                                                      param.role === "assistant" || !param.role
-                                                  }
-                                                  bgColor={"#E6FFFB"}
-                                              />
-                                          )
-                                      }
-                                      // Otherwise show the whole object minus the role
-                                      else {
-                                          // Create a copy without the role property
-                                          const {role, ...paramWithoutRole} = param
-                                          const displayRole = role || "assistant"
-                                          return (
-                                              <AccordionTreePanel
-                                                  key={index}
-                                                  label={displayRole}
-                                                  value={paramWithoutRole}
-                                                  enableFormatSwitcher={displayRole === "assistant"}
-                                                  bgColor={"#E6FFFB"}
-                                              />
-                                          )
-                                      }
+                                ? renderMessagePanels({
+                                      messages: item as RoleMessage[],
+                                      groupKey: `outputs-${outputKey}`,
+                                      isOutput: true,
+                                      bgColor: "#E6FFFB",
                                   })
                                 : null,
                         )
@@ -187,6 +241,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                         <AccordionTreePanel
                             label={"outputs"}
                             value={outputs}
+                            useDrillInView
                             enableFormatSwitcher
                         />
                     )}
@@ -199,6 +254,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                         <AccordionTreePanel
                             label={"internals"}
                             value={internals}
+                            useDrillInView
                             enableFormatSwitcher
                         />
                     )}
@@ -210,6 +266,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     <AccordionTreePanel
                         label={"Exception"}
                         value={exception}
+                        useDrillInView
                         enableFormatSwitcher
                         bgColor="#FBE7E7"
                     />

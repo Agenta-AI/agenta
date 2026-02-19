@@ -1,22 +1,22 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {
     ArrowDownIcon,
     ArrowUpIcon,
+    CaretUpDown,
     CopyIcon,
     DownloadIcon,
     FileTextIcon,
     MagnifyingGlassIcon,
-    MarkdownLogoIcon,
-    TextAaIcon,
     XIcon,
 } from "@phosphor-icons/react"
-import {ButtonProps, Collapse, Input, Radio, Space, theme} from "antd"
+import {Button, Collapse, Dropdown, Input, Space, theme} from "antd"
 import yaml from "js-yaml"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
+import {DrillInContent} from "@/oss/components/DrillInView"
 import EditorWrapper, {
     EditorProvider,
     useLexicalComposerContext,
@@ -37,10 +37,139 @@ type AccordionTreePanelProps = {
     bgColor?: string
     fullEditorHeight?: boolean
     enableSearch?: boolean
+    useDrillInView?: boolean
+    viewModePreset?: "default" | "message"
 } & React.ComponentProps<typeof Collapse>
 
+type PanelViewMode = "json" | "yaml" | "rendered-json" | "text" | "markdown"
+
+const PANEL_VIEW_MODE_LABELS: Record<PanelViewMode, string> = {
+    json: "JSON",
+    yaml: "YAML",
+    "rendered-json": "Rendered JSON",
+    text: "Text",
+    markdown: "Markdown",
+}
+
+interface DrillInPathItem {
+    key: string
+    name: string
+    value: unknown
+    isColumn?: boolean
+}
+
+const DRILL_IN_SECTION_ROOT_KEY = "__section_root__"
+
+const tryParseJsonString = (value: string): unknown | null => {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    try {
+        return JSON.parse(trimmed)
+    } catch {
+        return null
+    }
+}
+
+const getValueAtPath = (value: unknown, path: string[]): unknown => {
+    if (path.length === 0) return value
+
+    let current: unknown = value
+    for (const segment of path) {
+        if (typeof current === "string") {
+            const parsed = tryParseJsonString(current)
+            if (parsed === null) return undefined
+            current = parsed
+        }
+
+        if (Array.isArray(current)) {
+            const index = Number(segment)
+            if (Number.isNaN(index)) return undefined
+            current = current[index]
+            continue
+        }
+
+        if (current && typeof current === "object") {
+            current = (current as Record<string, unknown>)[segment]
+            continue
+        }
+
+        return undefined
+    }
+
+    return current
+}
+
+const getRootItemsForValue = (value: unknown, label: string): DrillInPathItem[] => {
+    if (value === undefined) return []
+    return [
+        {
+            key: DRILL_IN_SECTION_ROOT_KEY,
+            name: label,
+            value,
+            isColumn: false,
+        },
+    ]
+}
+
+const parseStructuredJson = (value: string): unknown | null => {
+    const trimmed = value.trim()
+    if (
+        !(
+            (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+            (trimmed.startsWith("[") && trimmed.endsWith("]"))
+        )
+    ) {
+        return null
+    }
+
+    try {
+        return JSON.parse(trimmed)
+    } catch {
+        return null
+    }
+}
+
+const renderStringifiedJson = (value: unknown): {value: unknown; didRender: boolean} => {
+    if (typeof value === "string") {
+        const parsed = parseStructuredJson(value)
+        if (parsed === null) return {value, didRender: false}
+        const nested = renderStringifiedJson(parsed)
+        return {value: nested.value, didRender: true}
+    }
+
+    if (Array.isArray(value)) {
+        let didRender = false
+        const rendered = value.map((item) => {
+            const next = renderStringifiedJson(item)
+            if (next.didRender) didRender = true
+            return next.value
+        })
+        return {value: rendered, didRender}
+    }
+
+    if (value && typeof value === "object") {
+        let didRender = false
+        const rendered = Object.fromEntries(
+            Object.entries(value).map(([key, nestedValue]) => {
+                const next = renderStringifiedJson(nestedValue)
+                if (next.didRender) didRender = true
+                return [key, next.value]
+            }),
+        )
+        return {value: rendered, didRender}
+    }
+
+    return {value, didRender: false}
+}
+
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    collapseContainer: ({bgColor}: {bgColor?: string}) => ({
+    collapseContainer: ({
+        bgColor,
+        useDrillInView,
+    }: {
+        bgColor?: string
+        useDrillInView?: boolean
+    }) => ({
         backgroundColor: "unset",
         display: "flex",
         flexDirection: "column",
@@ -49,7 +178,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             display: "flex !important",
             flexDirection: "column",
             height: "100%",
-            background: theme.colorFillAlter,
+            background: useDrillInView ? theme.colorBgContainer : theme.colorFillAlter,
             borderRadius: `${theme.borderRadiusLG}px !important`,
             border: `1px solid ${theme.colorBorder}`,
             overflowY: "auto",
@@ -60,6 +189,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-collapse-header": {
             alignItems: "center !important",
             height: 42,
+            backgroundColor: useDrillInView ? `${theme.colorBgContainer} !important` : undefined,
         },
         "& .ant-collapse-panel": {
             borderTop: `1px solid ${theme.colorBorder} !important`,
@@ -99,6 +229,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         gap: 4,
         border: `1px solid ${theme.colorBorder}`,
     },
+    drillInContainer: {
+        "& .drill-in-field-header": {
+            backgroundColor: `${theme.colorBgContainer} !important`,
+        },
+    },
 }))
 
 const LanguageAwareViewer = ({
@@ -107,7 +242,7 @@ const LanguageAwareViewer = ({
     searchProps,
 }: {
     initialValue: string
-    language: "json" | "yaml"
+    language: "json" | "yaml" | "rendered-json"
     searchProps?: {
         searchTerm: string
         currentResultIndex: number
@@ -123,8 +258,10 @@ const LanguageAwareViewer = ({
     )
 
     useEffect(() => {
-        if (language === "json" || language === "yaml") {
-            changeLanguage(language)
+        if (language === "json" || language === "rendered-json") {
+            changeLanguage("json")
+        } else if (language === "yaml") {
+            changeLanguage("yaml")
         }
         editor.setEditable(false)
     }, [language, changeLanguage, editor])
@@ -144,7 +281,7 @@ const LanguageAwareViewer = ({
     return (
         <EditorWrapper
             initialValue={initialValue}
-            language={language as "json" | "yaml"}
+            language={language === "rendered-json" ? "json" : (language as "json" | "yaml")}
             codeOnly={true}
             showToolbar={false}
             enableTokens={false}
@@ -156,23 +293,56 @@ const LanguageAwareViewer = ({
     )
 }
 
-const MarkdownToggleButton = ({...props}: ButtonProps) => {
+const MarkdownModeSync = ({isMarkdownView}: {isMarkdownView: boolean}) => {
     const [editor] = useLexicalComposerContext()
-    const [markdownView, setMarkdownView] = useState(false)
+    const previousModeRef = useRef<boolean | null>(null)
 
-    return (
-        <EnhancedButton
-            icon={!markdownView ? <TextAaIcon size={14} /> : <MarkdownLogoIcon size={14} />}
-            type="text"
-            onClick={() => {
-                setMarkdownView((prev) => !prev)
+    useEffect(() => {
+        if (previousModeRef.current === null) {
+            if (isMarkdownView) {
                 editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
-            }}
-            tooltipProps={{
-                title: !markdownView ? "Preview text" : "Preview markdown",
-            }}
-            {...props}
-        />
+            }
+            previousModeRef.current = isMarkdownView
+            return
+        }
+
+        if (previousModeRef.current !== isMarkdownView) {
+            editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
+            previousModeRef.current = isMarkdownView
+        }
+    }, [editor, isMarkdownView])
+
+    return null
+}
+
+const TextModeViewer = ({
+    editorId,
+    value,
+    mode,
+}: {
+    editorId: string
+    value: string
+    mode: "text" | "markdown"
+}) => {
+    return (
+        <EditorProvider
+            id={editorId}
+            initialValue={value}
+            showToolbar={false}
+            enableTokens
+            readOnly
+        >
+            <MarkdownModeSync isMarkdownView={mode === "markdown"} />
+            <EditorWrapper
+                initialValue={value}
+                disabled
+                codeOnly={false}
+                showToolbar={false}
+                boundHeight={false}
+                noProvider
+                readOnly
+            />
+        </EditorProvider>
     )
 }
 
@@ -183,12 +353,17 @@ const AccordionTreePanel = ({
     bgColor,
     fullEditorHeight = false,
     enableSearch = false,
+    useDrillInView = false,
+    viewModePreset = "default",
     ...props
 }: AccordionTreePanelProps) => {
     const {token} = theme.useToken()
-    const classes = useStyles({bgColor, theme: token})
-    const [segmentedValue, setSegmentedValue] = useState<"json" | "yaml">("json")
+    const classes = useStyles({bgColor, useDrillInView, theme: token})
+    const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(
+        viewModePreset === "message" ? "text" : "json",
+    )
     const editorRef = useRef<HTMLDivElement>(null)
+    const textViewerId = useId().replace(/:/g, "")
 
     // Search State
     const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -221,6 +396,63 @@ const AccordionTreePanel = ({
         return sanitizeDataWithBlobUrls(incomingValue)
     }, [incomingValue])
     const isStringValue = typeof sanitizedValue === "string"
+    const parsedStructuredString = useMemo(
+        () => (isStringValue ? parseStructuredJson(sanitizedValue) : null),
+        [isStringValue, sanitizedValue],
+    )
+
+    const renderedJsonResult = useMemo(() => {
+        return renderStringifiedJson(sanitizedValue)
+    }, [sanitizedValue])
+
+    const availableViewModes = useMemo<PanelViewMode[]>(() => {
+        if (viewModePreset === "message") {
+            const modes: PanelViewMode[] = ["text", "markdown"]
+            if (isStringValue && parsedStructuredString !== null) {
+                modes.push("rendered-json")
+            }
+            return modes
+        }
+
+        const modes: PanelViewMode[] = ["json"]
+        if (!isStringValue || parsedStructuredString !== null) {
+            modes.push("yaml")
+        }
+        if (renderedJsonResult.didRender) {
+            modes.push("rendered-json")
+        }
+        if (isStringValue) {
+            modes.push("text", "markdown")
+        }
+        return modes
+    }, [isStringValue, parsedStructuredString, renderedJsonResult.didRender, viewModePreset])
+
+    useEffect(() => {
+        if (!availableViewModes.includes(panelViewMode)) {
+            setPanelViewMode(availableViewModes[0] ?? "json")
+        }
+    }, [availableViewModes, panelViewMode])
+
+    const activeDrillInValue = useMemo(() => {
+        return panelViewMode === "rendered-json" ? renderedJsonResult.value : sanitizedValue
+    }, [panelViewMode, renderedJsonResult.value, sanitizedValue])
+
+    const shouldUseDrillInBody =
+        useDrillInView &&
+        (!enableSearch || !isSearchOpen) &&
+        (panelViewMode === "json" || panelViewMode === "rendered-json")
+
+    const drillInRootItems = useMemo(
+        () => getRootItemsForValue(activeDrillInValue, label),
+        [activeDrillInValue, label],
+    )
+    const drillInGetValue = useCallback(
+        (path: string[]) => {
+            const normalizedPath = path[0] === DRILL_IN_SECTION_ROOT_KEY ? path.slice(1) : path
+            return getValueAtPath(activeDrillInValue, normalizedPath)
+        },
+        [activeDrillInValue],
+    )
 
     useEffect(() => {
         closeSearch()
@@ -233,23 +465,56 @@ const AccordionTreePanel = ({
         link.click()
     }, [])
 
+    const jsonOutput = useMemo(() => getStringOrJson(sanitizedValue), [sanitizedValue])
+
+    const renderedJsonOutput = useMemo(() => {
+        if (panelViewMode !== "rendered-json") return ""
+        const next = JSON.stringify(renderedJsonResult.value, null, 2)
+        return next ?? "null"
+    }, [panelViewMode, renderedJsonResult.value])
+
     const yamlOutput = useMemo(() => {
-        if (
-            segmentedValue === "yaml" &&
-            sanitizedValue &&
-            typeof sanitizedValue === "object" &&
-            Object.keys(sanitizedValue).length
-        ) {
-            try {
-                const jsonObject = JSON.parse(getStringOrJson(sanitizedValue))
-                return yaml.dump(jsonObject)
-            } catch (error: any) {
-                console.error("Failed to convert JSON to YAML:", error)
-                return `Error: Failed to convert JSON to YAML. Please ensure the data is valid. (${error?.message})`
-            }
+        if (panelViewMode !== "yaml") return ""
+        const yamlSource = isStringValue
+            ? (parsedStructuredString ?? sanitizedValue)
+            : sanitizedValue
+        try {
+            return yaml.dump(yamlSource, {lineWidth: 120})
+        } catch (error: any) {
+            console.error("Failed to convert value to YAML:", error)
+            return `Error: Failed to convert content to YAML. (${error?.message || "Unknown error"})`
         }
-        return ""
-    }, [segmentedValue, sanitizedValue])
+    }, [isStringValue, panelViewMode, parsedStructuredString, sanitizedValue])
+
+    const textOutput = useMemo(() => {
+        if (typeof sanitizedValue === "string") return sanitizedValue
+        return getStringOrJson(sanitizedValue)
+    }, [sanitizedValue])
+
+    const isTextViewMode = panelViewMode === "text" || panelViewMode === "markdown"
+    const codeViewerLanguage: "json" | "yaml" | "rendered-json" =
+        panelViewMode === "yaml"
+            ? "yaml"
+            : panelViewMode === "rendered-json"
+              ? "rendered-json"
+              : "json"
+
+    const codeViewerValue =
+        panelViewMode === "yaml"
+            ? yamlOutput
+            : panelViewMode === "rendered-json"
+              ? renderedJsonOutput
+              : jsonOutput
+
+    const viewModeMenuItems = useMemo(
+        () =>
+            availableViewModes.map((mode) => ({
+                key: mode,
+                label: PANEL_VIEW_MODE_LABELS[mode],
+                onClick: () => setPanelViewMode(mode),
+            })),
+        [availableViewModes],
+    )
 
     const collapse = (
         <div className="relative">
@@ -312,16 +577,27 @@ const AccordionTreePanel = ({
                                     overflowY: "auto",
                                 }}
                             >
-                                {isStringValue ? (
+                                {shouldUseDrillInBody ? (
+                                    <div className={`p-2 ${classes.drillInContainer}`}>
+                                        <DrillInContent
+                                            getValue={drillInGetValue}
+                                            setValue={() => {}}
+                                            getRootItems={() => drillInRootItems}
+                                            rootTitle={label}
+                                            editable={false}
+                                            enableFieldViewModes
+                                            hideBreadcrumb
+                                            hideSingleFieldHeader
+                                            showFieldCollapse={false}
+                                            showFieldDrillIn={false}
+                                        />
+                                    </div>
+                                ) : isTextViewMode ? (
                                     <div className="p-2">
-                                        <EditorWrapper
-                                            initialValue={sanitizedValue as string}
-                                            disabled
-                                            codeOnly={false}
-                                            showToolbar={false}
-                                            boundHeight={false}
-                                            noProvider
-                                            readOnly
+                                        <TextModeViewer
+                                            editorId={`${textViewerId}-${label}`}
+                                            value={textOutput}
+                                            mode={panelViewMode}
                                         />
                                     </div>
                                 ) : (
@@ -335,12 +611,8 @@ const AccordionTreePanel = ({
                                         noProvider
                                     >
                                         <LanguageAwareViewer
-                                            initialValue={
-                                                segmentedValue === "json"
-                                                    ? getStringOrJson(sanitizedValue)
-                                                    : yamlOutput
-                                            }
-                                            language={segmentedValue}
+                                            initialValue={codeViewerValue}
+                                            language={codeViewerLanguage}
                                             searchProps={
                                                 isSearchOpen
                                                     ? {
@@ -366,24 +638,30 @@ const AccordionTreePanel = ({
                                         tooltipProps={{title: "Search"}}
                                     />
                                 )}
-                                {enableFormatSwitcher && !isStringValue && (
-                                    <Radio.Group
-                                        value={segmentedValue}
-                                        onChange={(e) =>
-                                            setSegmentedValue(e.target.value as "json" | "yaml")
-                                        }
-                                        size="small"
+                                {enableFormatSwitcher && availableViewModes.length > 0 && (
+                                    <Dropdown
+                                        trigger={["click"]}
+                                        menu={{
+                                            items: viewModeMenuItems,
+                                            selectable: true,
+                                            selectedKeys: [panelViewMode],
+                                            className: "[&_.ant-dropdown-menu-item]:!py-2",
+                                        }}
+                                        overlayStyle={{minWidth: 168}}
                                     >
-                                        <Radio.Button value="json">JSON</Radio.Button>
-                                        <Radio.Button value="yaml">YAML</Radio.Button>
-                                    </Radio.Group>
+                                        <Button size="small" type="text">
+                                            {PANEL_VIEW_MODE_LABELS[panelViewMode]}
+                                            <CaretUpDown size={14} />
+                                        </Button>
+                                    </Dropdown>
                                 )}
-                                {isStringValue && <MarkdownToggleButton size="small" />}
                                 <CopyButton
                                     text={
-                                        segmentedValue === "json"
-                                            ? getStringOrJson(sanitizedValue)
-                                            : yamlOutput
+                                        panelViewMode === "yaml"
+                                            ? yamlOutput
+                                            : panelViewMode === "rendered-json"
+                                              ? renderedJsonOutput
+                                              : textOutput
                                     }
                                     icon={true}
                                     buttonText={null}
@@ -399,20 +677,6 @@ const AccordionTreePanel = ({
             />
         </div>
     )
-
-    if (isStringValue) {
-        return (
-            <EditorProvider
-                initialValue={sanitizedValue as string}
-                disabled
-                showToolbar={false}
-                className={classes.editor}
-                readOnly
-            >
-                {collapse}
-            </EditorProvider>
-        )
-    }
 
     return (
         <>

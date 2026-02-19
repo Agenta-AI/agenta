@@ -61,6 +61,7 @@ const TraceContent = ({
                         <AccordionTreePanel
                             label={errorPayload ? "Error" : "Raw Data"}
                             value={rawPayload as any}
+                            useDrillInView
                             enableFormatSwitcher
                             fullEditorHeight
                             enableSearch
@@ -83,6 +84,7 @@ const TraceContent = ({
                     <AccordionTreePanel
                         label={"Raw Data"}
                         value={{...filteredTrace}}
+                        useDrillInView
                         enableFormatSwitcher
                         fullEditorHeight
                         enableSearch
