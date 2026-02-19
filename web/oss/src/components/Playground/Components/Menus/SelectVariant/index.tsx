@@ -12,6 +12,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
+import {workflowMolecule, workflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {
     CascadingVariant,
     createWorkflowRevisionAdapter,
@@ -20,7 +21,7 @@ import {
 } from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
 import {DownOutlined} from "@ant-design/icons"
-import {CopySimple, Plus} from "@phosphor-icons/react"
+import {Plus} from "@phosphor-icons/react"
 import {Button, Popover, Space, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -285,6 +286,24 @@ const SelectVariant = ({
         [handleSelect],
     )
 
+    // Read the raw workflow entity data (includes workflow_id, workflow_variant_id)
+    // runnableBridge.data() normalizes away hierarchy IDs, so we read the molecule directly
+    // Must be called before any early returns to keep hook order stable.
+    const rawWorkflowEntity = useAtomValue(
+        workflowMolecule.selectors.data(singleSelectedValue || ""),
+    )
+
+    // Look up the parent workflow name for browse mode trigger label
+    const workflowsList = useAtomValue(workflowsListQueryStateAtom)
+    const workflowName = useMemo(() => {
+        if (mode !== "browse") return null
+        const workflowId = (rawWorkflowEntity as {workflow_id?: string | null} | null)
+            ?.workflow_id
+        if (!workflowId) return null
+        const wf = workflowsList.data.find((w) => w.id === workflowId)
+        return wf?.name ?? null
+    }, [mode, rawWorkflowEntity, workflowsList.data])
+
     // Build display label from already-fetched individual revision data.
     // Uses singleSelectedValue directly (not selectedValueForControl which
     // may be undefined while the existence check resolves).
@@ -294,13 +313,33 @@ const SelectVariant = ({
             return selectedRevisionData?.name ?? "Draft"
         }
         if (selectedRevisionQuery.isPending) return "Loading..."
-        return selectedRevisionData?.name ?? selectPlaceholder
+        const variantName = selectedRevisionData?.name ?? selectPlaceholder
+        // In browse mode, prefix with the workflow (app/evaluator) name
+        if (mode === "browse" && workflowName) {
+            return `${workflowName} / ${variantName}`
+        }
+        return variantName
     }, [
         singleSelectedValue,
         selectedRevisionData,
         selectedRevisionQuery.isPending,
         selectPlaceholder,
+        mode,
+        workflowName,
     ])
+
+    // Build initial selections for browse mode from currently selected revision data
+    const browseInitialSelections = useMemo(() => {
+        if (!rawWorkflowEntity) return undefined
+        const rev = rawWorkflowEntity as {
+            workflow_id?: string | null
+            workflow_variant_id?: string | null
+        }
+        const workflowId = rev.workflow_id
+        const variantId = rev.workflow_variant_id
+        if (!workflowId) return undefined
+        return [workflowId, variantId ?? null, singleSelectedValue]
+    }, [rawWorkflowEntity, singleSelectedValue])
 
     // Handle browse mode selection — wraps handleSelect to also close the popover
     const handleBrowseSelect = useCallback(
@@ -353,7 +392,7 @@ const SelectVariant = ({
     // Browse mode: cascading dropdowns (Workflow → Variant → Revision) inside a Popover
     if (mode === "browse") {
         return (
-            <div style={style ?? {width: 160}}>
+            <div style={style ?? {width: 200}}>
                 <Popover
                     content={
                         <div className="p-3 w-[320px]">
@@ -361,6 +400,7 @@ const SelectVariant = ({
                                 <CascadingVariant<WorkflowRevisionSelectionResult>
                                     adapter={browseAdapter}
                                     onSelect={handleBrowseSelect}
+                                    initialSelections={browseInitialSelections}
                                     showLabels
                                     layout="vertical"
                                     size="small"
@@ -377,13 +417,17 @@ const SelectVariant = ({
                     destroyOnHidden
                     styles={{body: {padding: 0}}}
                 >
-                    <Button
-                        size="small"
-                        className="w-full flex items-center justify-between text-left overflow-hidden"
-                    >
-                        <span className="truncate text-xs">{triggerLabel}</span>
-                        <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
-                    </Button>
+                    <Tooltip title={triggerLabel} mouseEnterDelay={0.5}>
+                        <Button
+                            size="small"
+                            className="w-full flex items-center justify-between text-left overflow-hidden"
+                        >
+                            <span className="truncate text-xs">{triggerLabel}</span>
+                            <DownOutlined
+                                style={{fontSize: 10, marginLeft: 4, flexShrink: 0}}
+                            />
+                        </Button>
+                    </Tooltip>
                 </Popover>
             </div>
         )
