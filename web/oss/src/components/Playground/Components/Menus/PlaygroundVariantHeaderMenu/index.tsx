@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {MoreOutlined} from "@ant-design/icons"
@@ -8,6 +8,7 @@ import {ArrowCounterClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {discardEntityDraft} from "../../../assets/entityHelpers"
 import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
 
 import {PlaygroundVariantHeaderMenuProps} from "./types"
@@ -18,7 +19,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
 }) => {
     const selectedVariants = useAtomValue(playgroundController.selectors.entityIds())
     const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
-    const isDirty = useAtomValue(legacyAppRevisionMolecule.atoms.isDirty(variantId || ""))
+    const isDirty = useAtomValue(runnableBridge.isDirty(variantId || ""))
 
     const closePanelDisabled = useMemo(() => {
         return selectedVariants.length === 1 && selectedVariants.includes(variantId)
@@ -32,7 +33,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
         e?.domEvent?.stopPropagation()
         if (!variantId) return
         try {
-            legacyAppRevisionMolecule.set.discard(variantId)
+            discardEntityDraft(variantId)
             message.success("Draft changes discarded")
         } catch (err) {
             message.error("Failed to discard draft changes")

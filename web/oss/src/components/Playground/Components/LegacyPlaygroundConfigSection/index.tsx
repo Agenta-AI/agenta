@@ -1,24 +1,19 @@
 /**
  * LegacyPlaygroundConfigSection
  *
- * Schema-driven configuration renderer for legacyAppRevision entities.
- * Replaces the legacy PlaygroundVariantConfigEditors → PlaygroundVariantConfigPrompt →
- * PlaygroundVariantPropertyControl → renderMap pipeline with entity-ui's SchemaPropertyRenderer.
+ * Schema-driven configuration renderer for playground entities.
+ * Uses runnableBridge for all entity data, schemas, and draft updates.
  *
  * Data wiring:
- * - Reads from legacyAppRevisionMolecule (data, schema, isDirty)
- * - Writes directly to parameters via molecule update (no enhanced values)
- * - Schema drives control selection (no metadata store)
+ * - Reads from runnableBridge (data, query) for entity data
+ * - Reads from runnableBridge (parametersSchema) for JSON Schema
+ * - Writes via runnableBridge (update) for draft parameter changes
  */
 
-import {memo, useMemo, useCallback, useEffect, useState} from "react"
+import {memo, useMemo, useCallback, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
-import {
-    legacyAppRevisionMolecule,
-    useLegacyAppRevisionController,
-} from "@agenta/entities/legacyAppRevision"
-import {isLocalDraftId} from "@agenta/entities/shared"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {
     SchemaPropertyRenderer,
     useDrillInUI,
@@ -35,7 +30,7 @@ import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {CaretDown, MagicWand} from "@phosphor-icons/react"
 import {Button, Collapse, Popover, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import LLMIconMap from "@/oss/components/LLMIcons"
@@ -73,14 +68,19 @@ interface RootItem {
     value: unknown
 }
 
-function hasParameters(data: {parameters?: Record<string, unknown>} | null | undefined): boolean {
-    return Boolean(data?.parameters && Object.keys(data.parameters).length > 0)
-}
-
-function readStringField(data: unknown, key: string): string | null {
-    if (!data || typeof data !== "object") return null
-    const value = (data as Record<string, unknown>)[key]
-    return typeof value === "string" && value.length > 0 ? value : null
+interface ModelConfigInfo {
+    modelSchema: SchemaProperty | null
+    modelOptions: ReturnType<typeof getOptionsFromSchema> extends infer R
+        ? R extends {options: infer O}
+            ? O
+            : never[]
+        : never[]
+    currentModel: string | undefined
+    promptValue: Record<string, unknown> | null
+    llmConfigValue: Record<string, unknown> | null
+    llmConfigProps: Record<string, SchemaProperty>
+    /** True when model info is extracted from evaluator's flat config (root-level model) */
+    isEvaluator: boolean
 }
 
 export interface LegacyPlaygroundConfigSectionProps {
@@ -93,39 +93,30 @@ export interface LegacyPlaygroundConfigSectionProps {
 function LegacyPlaygroundConfigSection({
     revisionId,
     disabled = false,
-    useServerData = false,
     className,
 }: LegacyPlaygroundConfigSectionProps) {
     const {llmProviderConfig} = useDrillInUI()
 
-    // Use controller for state + dispatch
-    const [state, dispatch] = useLegacyAppRevisionController(revisionId)
-
-    // For "Original" view, read server data directly
-    const serverDataAtom = useMemo(
-        () => legacyAppRevisionMolecule.atoms.serverData(revisionId),
-        [revisionId],
+    // Use runnableBridge for entity-type-aware data access
+    const runnableData = useAtomValue(useMemo(() => runnableBridge.data(revisionId), [revisionId]))
+    const runnableQuery = useAtomValue(
+        useMemo(() => runnableBridge.query(revisionId), [revisionId]),
     )
-    const serverData = useAtomValue(serverDataAtom)
-
-    // Schema for the ag_config
-    const schemaAtom = useMemo(
-        () => legacyAppRevisionMolecule.atoms.agConfigSchema(revisionId),
-        [revisionId],
+    const parametersSchema = useAtomValue(
+        useMemo(() => runnableBridge.parametersSchema(revisionId), [revisionId]),
     )
-    const schema = useAtomValue(schemaAtom)
-    const schemaQuery = useAtomValue(
-        useMemo(() => legacyAppRevisionMolecule.atoms.schemaQuery(revisionId), [revisionId]),
-    )
+    const setUpdate = useSetAtom(runnableBridge.update)
 
-    // Choose the best available source. During hydration, prefer whichever side has parameters.
-    const activeData = useMemo(() => {
-        if (useServerData) return serverData
-        if (hasParameters(state.data)) return state.data
-        if (hasParameters(serverData)) return serverData
-        return state.data ?? serverData
-    }, [useServerData, state.data, serverData])
-    const parameters = (activeData?.parameters ?? {}) as Record<string, unknown>
+    // Derive parameters and schema from runnableBridge
+    const parameters = useMemo<Record<string, unknown>>(() => {
+        return (runnableData?.configuration as Record<string, unknown>) ?? {}
+    }, [runnableData])
+
+    const schema = useMemo(() => {
+        return (parametersSchema as SchemaProperty | null) ?? null
+    }, [parametersSchema])
+
+    const isConfigLoading = runnableQuery.isPending
 
     // Derive root items from parameters
     const rootItems: RootItem[] = useMemo(() => {
@@ -137,34 +128,69 @@ function LegacyPlaygroundConfigSection({
         }))
     }, [parameters])
 
-    // Extract model + LLM config info from prompt section for header popover
-    const promptModelInfo = useMemo(() => {
-        const promptItem = rootItems.find((item) => item.key === "prompt")
-        if (!promptItem) return null
+    // Detect evaluator flat config pattern: root-level "model" + "prompt_template", no "prompt" key
+    const isEvaluatorFlatConfig = useMemo(
+        () =>
+            !rootItems.find((i) => i.key === "prompt") &&
+            typeof parameters.model === "string" &&
+            Array.isArray(parameters.prompt_template),
+        [rootItems, parameters],
+    )
 
-        const promptValue = promptItem.value as Record<string, unknown> | null
-        if (!promptValue) return null
-
-        const promptSchema = getPropertySchema(schema, "prompt")
-        const modelSchema = getModelSchema(promptSchema)
-        const optionsResult = getOptionsFromSchema(modelSchema)
-        const modelOptions = optionsResult?.options ?? []
-
-        const llmConfigValue = getLLMConfigValue(promptValue)
-        const currentModel = llmConfigValue?.model as string | undefined
-
-        // Extract LLM config property schemas for sliders
-        const llmConfigProps = getLLMConfigProperties(promptSchema)
-
-        return {
-            modelSchema,
-            modelOptions,
-            currentModel,
-            promptValue,
-            llmConfigValue,
-            llmConfigProps,
+    // For evaluators, hide "model" from root items (shown in header popover instead)
+    const displayItems = useMemo(() => {
+        if (isEvaluatorFlatConfig) {
+            return rootItems.filter((i) => i.key !== "model")
         }
-    }, [rootItems, schema])
+        return rootItems
+    }, [rootItems, isEvaluatorFlatConfig])
+
+    // Extract model + LLM config info from prompt section (app) or root level (evaluator)
+    const modelConfigInfo = useMemo((): ModelConfigInfo | null => {
+        // App workflow: "prompt" key with nested model
+        const promptItem = rootItems.find((item) => item.key === "prompt")
+        if (promptItem) {
+            const promptValue = promptItem.value as Record<string, unknown> | null
+            if (!promptValue) return null
+
+            const promptSchema = getPropertySchema(schema, "prompt")
+            const modelSchema = getModelSchema(promptSchema)
+            const optionsResult = getOptionsFromSchema(modelSchema)
+            const modelOptions = optionsResult?.options ?? []
+
+            const llmConfigValue = getLLMConfigValue(promptValue)
+            const currentModel = llmConfigValue?.model as string | undefined
+
+            const llmConfigProps = getLLMConfigProperties(promptSchema)
+
+            return {
+                modelSchema,
+                modelOptions,
+                currentModel,
+                promptValue,
+                llmConfigValue,
+                llmConfigProps,
+                isEvaluator: false,
+            }
+        }
+
+        // Evaluator flat config: root-level "model" + "prompt_template"
+        if (isEvaluatorFlatConfig) {
+            const modelSchema = getPropertySchema(schema, "model")
+            const optionsResult = getOptionsFromSchema(modelSchema)
+            return {
+                modelSchema,
+                modelOptions: optionsResult?.options ?? [],
+                currentModel: parameters.model as string,
+                promptValue: null,
+                llmConfigValue: null,
+                llmConfigProps: {},
+                isEvaluator: true,
+            }
+        }
+
+        return null
+    }, [rootItems, schema, isEvaluatorFlatConfig, parameters])
 
     // Popover open state
     const [isModelConfigOpen, setIsModelConfigOpen] = useState(false)
@@ -173,10 +199,31 @@ function LegacyPlaygroundConfigSection({
     const [refineModalOpen, setRefineModalOpen] = useState(false)
     const [refinePromptKey, setRefinePromptKey] = useState<string | null>(null)
 
+    // Dispatch parameter updates via runnableBridge
+    const dispatchParameterUpdate = useCallback(
+        (newParameters: Record<string, unknown>) => {
+            if (disabled) return
+            setUpdate(revisionId, newParameters)
+        },
+        [disabled, revisionId, setUpdate],
+    )
+
+    // Handle property value changes
+    const handlePropertyChange = useCallback(
+        (propertyKey: string, value: unknown) => {
+            if (disabled) return
+            dispatchParameterUpdate({
+                ...parameters,
+                [propertyKey]: value,
+            })
+        },
+        [disabled, parameters, dispatchParameterUpdate],
+    )
+
     // Helper to update a key inside the prompt's llm_config (or root level)
     const updatePromptLLMConfigKey = useCallback(
         (key: string, newValue: unknown) => {
-            if (disabled || !activeData) return
+            if (disabled) return
 
             const currentPrompt = (parameters.prompt as Record<string, unknown>) || {}
             const hasNestedLLMConfig = currentPrompt.llm_config || currentPrompt.llmConfig
@@ -198,40 +245,31 @@ function LegacyPlaygroundConfigSection({
                 }
             }
 
-            dispatch.update({
-                parameters: {
-                    ...parameters,
-                    prompt: updatedPrompt,
-                },
+            dispatchParameterUpdate({
+                ...parameters,
+                prompt: updatedPrompt,
             })
         },
-        [disabled, activeData, parameters, dispatch],
+        [disabled, parameters, dispatchParameterUpdate],
     )
 
     // Handle model change from header popover
     const handleModelChange = useCallback(
-        (newModel: string | undefined) => updatePromptLLMConfigKey("model", newModel),
-        [updatePromptLLMConfigKey],
+        (newModel: string | undefined) => {
+            if (modelConfigInfo?.isEvaluator) {
+                // Evaluator: model is at root level
+                handlePropertyChange("model", newModel)
+            } else {
+                updatePromptLLMConfigKey("model", newModel)
+            }
+        },
+        [modelConfigInfo, handlePropertyChange, updatePromptLLMConfigKey],
     )
 
     // Handle LLM config slider change from header popover
     const handleLLMConfigChange = useCallback(
         (key: string, newValue: number | null) => updatePromptLLMConfigKey(key, newValue),
         [updatePromptLLMConfigKey],
-    )
-
-    // Handle property value changes
-    const handlePropertyChange = useCallback(
-        (propertyKey: string, value: unknown) => {
-            if (disabled) return
-            dispatch.update({
-                parameters: {
-                    ...parameters,
-                    [propertyKey]: value,
-                },
-            })
-        },
-        [disabled, parameters, dispatch],
     )
 
     // Render LLM provider icons for tool headers
@@ -244,24 +282,6 @@ function LegacyPlaygroundConfigSection({
         return <Icon className="h-4 w-4" />
     }, [])
 
-    const isConfigLoading = schemaQuery.isPending || (state.isPending && !hasParameters(activeData))
-    const isLocalDraft = isLocalDraftId(revisionId)
-    const localRefInfo = useMemo(() => {
-        const candidates = [state.data, serverData, activeData]
-        const pick = (key: string): string | null => {
-            for (const candidate of candidates) {
-                const value = readStringField(candidate, key)
-                if (value) return value
-            }
-            return null
-        }
-        return {
-            localSourceRevisionId: pick("_sourceRevisionId"),
-            localBaseRevisionId: pick("_baseId") ?? pick("baseId"),
-            localSourceVariantId: pick("_sourceVariantId"),
-        }
-    }, [state.data, serverData, activeData])
-
     if (isConfigLoading) {
         return (
             <div className={clsx("p-4 flex flex-col gap-3", className)}>
@@ -272,22 +292,32 @@ function LegacyPlaygroundConfigSection({
         )
     }
 
-    if (rootItems.length === 0) {
+    if (displayItems.length === 0) {
         return null
     }
 
     return (
         <div className={clsx("flex flex-col", className)}>
             <Collapse
-                defaultActiveKey={rootItems.map((item) => item.key)}
+                defaultActiveKey={displayItems.map((item) => item.key)}
                 ghost
-                items={rootItems.map((item) => {
-                    const isPromptWithPopover = item.key === "prompt" && !!promptModelInfo
+                items={displayItems.map((item) => {
+                    // App: "prompt" key gets the model popover
+                    // Evaluator: "prompt_template" key gets the model popover
+                    const isPromptWithPopover =
+                        (item.key === "prompt" &&
+                            !!modelConfigInfo &&
+                            !modelConfigInfo.isEvaluator) ||
+                        (item.key === "prompt_template" && !!modelConfigInfo?.isEvaluator)
 
                     // For prompt, strip model + entire llm_config from content schema
                     // (model selector + LLM config sliders are in the header popover)
                     let contentSchema = getPropertySchema(schema, item.key)
-                    if (isPromptWithPopover && contentSchema?.properties) {
+                    if (
+                        isPromptWithPopover &&
+                        !modelConfigInfo?.isEvaluator &&
+                        contentSchema?.properties
+                    ) {
                         const props = {
                             ...(contentSchema.properties as Record<string, SchemaProperty>),
                         }
@@ -300,11 +330,32 @@ function LegacyPlaygroundConfigSection({
                         }
                     }
 
+                    // For evaluator's prompt_template without schema, provide synthetic
+                    // messages schema so SchemaPropertyRenderer renders chat messages
+                    if (
+                        item.key === "prompt_template" &&
+                        !contentSchema &&
+                        Array.isArray(item.value)
+                    ) {
+                        contentSchema = {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    role: {type: "string"},
+                                    content: {type: "string"},
+                                },
+                            },
+                        } as SchemaProperty
+                    }
+
                     // Determine if this is a prompt-like section (has messages array)
+                    const itemValue = item.value as Record<string, unknown> | null
                     const hasMessages =
-                        !!item.value &&
-                        typeof item.value === "object" &&
-                        Array.isArray((item.value as Record<string, unknown>).messages)
+                        (!!itemValue &&
+                            typeof itemValue === "object" &&
+                            Array.isArray(itemValue.messages)) ||
+                        (item.key === "prompt_template" && Array.isArray(item.value))
 
                     return {
                         key: item.key,
@@ -318,9 +369,7 @@ function LegacyPlaygroundConfigSection({
                                     className="flex items-center gap-2 flex-shrink-0"
                                 >
                                     {!disabled && hasMessages && (
-                                        <Tooltip
-                                            title={"Refine prompt with AI" as string}
-                                        >
+                                        <Tooltip title={"Refine prompt with AI" as string}>
                                             <Button
                                                 type="text"
                                                 size="small"
@@ -347,59 +396,63 @@ function LegacyPlaygroundConfigSection({
                                                     <Typography.Text strong>
                                                         Model Parameters
                                                     </Typography.Text>
-                                                    <Button
-                                                        size="small"
-                                                        onClick={() => {
-                                                            // Reset all LLM config params to defaults
-                                                            const currentPrompt =
-                                                                (parameters.prompt as Record<
-                                                                    string,
-                                                                    unknown
-                                                                >) || {}
-                                                            const hasNested =
-                                                                currentPrompt.llm_config ||
-                                                                currentPrompt.llmConfig
-                                                            if (hasNested) {
-                                                                const llmKey =
-                                                                    currentPrompt.llm_config
-                                                                        ? "llm_config"
-                                                                        : "llmConfig"
-                                                                const currentLLM =
-                                                                    (currentPrompt[
-                                                                        llmKey
-                                                                    ] as Record<string, unknown>) ||
-                                                                    {}
-                                                                const resetLLM = {
-                                                                    model: currentLLM.model,
-                                                                }
-                                                                dispatch.update({
-                                                                    parameters: {
+                                                    {!modelConfigInfo?.isEvaluator && (
+                                                        <Button
+                                                            size="small"
+                                                            onClick={() => {
+                                                                // Reset all LLM config params to defaults
+                                                                const currentPrompt =
+                                                                    (parameters.prompt as Record<
+                                                                        string,
+                                                                        unknown
+                                                                    >) || {}
+                                                                const hasNested =
+                                                                    currentPrompt.llm_config ||
+                                                                    currentPrompt.llmConfig
+                                                                if (hasNested) {
+                                                                    const llmKey =
+                                                                        currentPrompt.llm_config
+                                                                            ? "llm_config"
+                                                                            : "llmConfig"
+                                                                    const currentLLM =
+                                                                        (currentPrompt[
+                                                                            llmKey
+                                                                        ] as Record<
+                                                                            string,
+                                                                            unknown
+                                                                        >) || {}
+                                                                    const resetLLM = {
+                                                                        model: currentLLM.model,
+                                                                    }
+                                                                    dispatchParameterUpdate({
                                                                         ...parameters,
                                                                         prompt: {
                                                                             ...currentPrompt,
                                                                             [llmKey]: resetLLM,
                                                                         },
-                                                                    },
-                                                                })
-                                                            }
-                                                        }}
-                                                    >
-                                                        Reset default
-                                                    </Button>
+                                                                    })
+                                                                }
+                                                            }}
+                                                        >
+                                                            Reset default
+                                                        </Button>
+                                                    )}
                                                 </div>
                                                 <SelectLLMProviderBase
                                                     options={[
                                                         ...(llmProviderConfig?.extraOptionGroups ??
                                                             []),
-                                                        ...promptModelInfo.modelOptions,
+                                                        ...(modelConfigInfo?.modelOptions ?? []),
                                                     ]}
-                                                    value={promptModelInfo.currentModel}
+                                                    value={modelConfigInfo?.currentModel}
                                                     onChange={handleModelChange}
                                                     size="small"
                                                     footerContent={llmProviderConfig?.footerContent}
                                                 />
-                                                {Object.entries(promptModelInfo.llmConfigProps).map(
-                                                    ([key, propSchema]) => {
+                                                {modelConfigInfo &&
+                                                    Object.entries(
+                                                        modelConfigInfo.llmConfigProps,
+                                                    ).map(([key, propSchema]) => {
                                                         const resolved =
                                                             resolveAnyOfSchema(propSchema)
                                                         const schemaType = resolved?.type
@@ -420,7 +473,7 @@ function LegacyPlaygroundConfigSection({
                                                                     </Typography.Text>
                                                                     <Select
                                                                         value={
-                                                                            (promptModelInfo
+                                                                            (modelConfigInfo
                                                                                 .llmConfigValue?.[
                                                                                 key
                                                                             ] as string | null) ??
@@ -460,7 +513,7 @@ function LegacyPlaygroundConfigSection({
                                                                     schema={propSchema}
                                                                     label={formatLabel(key)}
                                                                     value={
-                                                                        (promptModelInfo
+                                                                        (modelConfigInfo
                                                                             .llmConfigValue?.[
                                                                             key
                                                                         ] as number | null) ?? null
@@ -477,13 +530,12 @@ function LegacyPlaygroundConfigSection({
                                                         }
 
                                                         return null
-                                                    },
-                                                )}
+                                                    })}
                                             </div>
                                         }
                                     >
                                         <Button size="small" type="default">
-                                            {promptModelInfo.currentModel || "Select model"}
+                                            {modelConfigInfo?.currentModel || "Select model"}
                                             <CaretDown size={12} />
                                         </Button>
                                     </Popover>

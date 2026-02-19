@@ -15,7 +15,6 @@ import type {VariantConfigComponentProps} from "./types"
  * Features:
  * - Displays variant configuration header
  * - Renders prompt configuration interface
- * - Handles styling for collapsed sections
  *
  * @component
  * @example

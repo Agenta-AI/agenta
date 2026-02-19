@@ -1,15 +1,15 @@
-import {useCallback, useMemo, useState} from "react"
+import React, {useCallback, useMemo, useState} from "react"
 
 import {getEvaluatorColor} from "@agenta/entities/evaluator"
-import {getEvaluatorColor as getLegacyEvaluatorColor} from "@agenta/entities/legacyEvaluator"
-import {runnableBridge, type RunnableType} from "@agenta/entities/runnable"
-import type {
-    EvaluatorRevisionSelectionResult,
-    LegacyEvaluatorSelectionResult,
-} from "@agenta/entity-ui"
+import {runnableBridge} from "@agenta/entities/runnable"
+import {
+    createWorkflowRevisionAdapter,
+    type WorkflowRevisionSelectionResult,
+} from "@agenta/entity-ui/selection"
 import {EntityPicker} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
+import {RevisionLabel} from "@agenta/ui/components/presentational"
 import {DisconnectOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {LinkSimple, PencilSimple, Plus} from "@phosphor-icons/react"
 import {Button, Dropdown, Popover, Space, Typography} from "antd"
@@ -18,9 +18,9 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {currentAppAtom} from "@/oss/state/app"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
+import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
 import type {BaseContainerProps} from "../types"
 
@@ -41,15 +41,34 @@ const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
 
 type PlaygroundHeaderProps = BaseContainerProps
 
-// Feature flag: when true, use legacyEvaluator (flat SimpleEvaluator facade)
-// instead of evaluatorRevision (3-level hierarchy).
-// Remove this once the feature is fully released.
-const USE_LEGACY_EVALUATOR =
-    getEnv("NEXT_PUBLIC_PLAYGROUND_EVALUATOR_LEGACY").toLowerCase() === "true"
+/** Entity types that represent evaluator downstream nodes */
+const EVALUATOR_ENTITY_TYPES = ["workflow"]
 
-const EVALUATOR_ENTITY_TYPES: RunnableType[] = USE_LEGACY_EVALUATOR
-    ? ["legacyEvaluator", "evaluator", "evaluatorRevision"]
-    : ["evaluatorRevision", "evaluator"]
+/** Resolves a user UUID to a display name via workspace members */
+const MemberAuthor: React.FC<{userId: string}> = ({userId}) => {
+    const memberAtom = useMemo(() => workspaceMemberByIdFamily(userId), [userId])
+    const member = useAtomValue(memberAtom)
+    const name = member?.user?.username || member?.user?.email || userId
+    return <span>by {name}</span>
+}
+
+/** Custom revision label that resolves author UUIDs to names */
+const renderWorkflowRevisionLabel = (entity: unknown) => {
+    const r = entity as {
+        version?: number
+        name?: string
+        created_at?: string
+        created_by_id?: string
+    }
+    return React.createElement(RevisionLabel, {
+        version: r.version ?? 0,
+        message: r.name,
+        createdAt: r.created_at,
+        author: r.created_by_id,
+        renderAuthor: (id: string) => React.createElement(MemberAuthor, {userId: id}),
+        maxMessageWidth: 180,
+    })
+}
 
 const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divProps}) => {
     const classes = useStyles()
@@ -73,30 +92,19 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const connectedEvaluatorNode = useMemo(
         () =>
             nodes.find(
-                (n) => n.depth > 0 && EVALUATOR_ENTITY_TYPES.includes(n.entityType as RunnableType),
+                (n) => n.depth > 0 && EVALUATOR_ENTITY_TYPES.includes(n.entityType),
             ),
         [nodes],
     )
 
-    const connectedEvaluatorRunnableType = useMemo<RunnableType | null>(() => {
-        if (!connectedEvaluatorNode) return null
-        if (EVALUATOR_ENTITY_TYPES.includes(connectedEvaluatorNode.entityType as RunnableType)) {
-            return connectedEvaluatorNode.entityType as RunnableType
-        }
-        return null
-    }, [connectedEvaluatorNode])
-
-    // Read runnable data in a type-specific way so UI logic is decoupled from concrete molecules.
+    // Read runnable data via the bridge (routes to the correct molecule by entity type).
     const connectedEvaluatorRunnableData = useAtomValue(
         useMemo(
             () =>
-                connectedEvaluatorNode?.entityId && connectedEvaluatorRunnableType
-                    ? runnableBridge.dataForType(
-                          connectedEvaluatorRunnableType,
-                          connectedEvaluatorNode.entityId,
-                      )
+                connectedEvaluatorNode?.entityId
+                    ? runnableBridge.data(connectedEvaluatorNode.entityId)
                     : atom(null),
-            [connectedEvaluatorNode?.entityId, connectedEvaluatorRunnableType],
+            [connectedEvaluatorNode?.entityId],
         ),
     ) as {
         name?: string | null
@@ -106,8 +114,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
 
     const connectedEvaluatorColor = useMemo(() => {
         if (!connectedEvaluatorRunnableData?.uri) return undefined
-        const colorFn = USE_LEGACY_EVALUATOR ? getLegacyEvaluatorColor : getEvaluatorColor
-        return colorFn(connectedEvaluatorRunnableData.uri) ?? undefined
+        return getEvaluatorColor(connectedEvaluatorRunnableData.uri) ?? undefined
     }, [connectedEvaluatorRunnableData])
 
     const connectedEvaluatorLabel = useMemo(() => {
@@ -127,14 +134,14 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     }, [connectedEvaluatorNode, connectedEvaluatorRunnableData])
 
     const handleEvaluatorSelect = useCallback(
-        (selection: EvaluatorRevisionSelectionResult | LegacyEvaluatorSelectionResult) => {
+        (selection: WorkflowRevisionSelectionResult) => {
             const rootNode = nodes.find((n) => n.depth === 0)
             if (!rootNode) return
 
             connectDownstreamNode({
                 sourceNodeId: rootNode.id,
                 entity: {
-                    type: USE_LEGACY_EVALUATOR ? "legacyEvaluator" : "evaluatorRevision",
+                    type: "workflow",
                     id: selection.id,
                     label: selection.label,
                     metadata: selection.metadata,
@@ -150,10 +157,20 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         if (connectedEvaluatorNode?.entityType) {
             disconnectDownstreamNode(connectedEvaluatorNode.entityType)
         } else {
-            disconnectDownstreamNode(USE_LEGACY_EVALUATOR ? "legacyEvaluator" : "evaluatorRevision")
+            disconnectDownstreamNode("workflow")
         }
         setEvaluatorPopoverOpen(false)
     }, [connectedEvaluatorNode?.entityType, disconnectDownstreamNode])
+
+    // Workflow adapter filtered to evaluator-type workflows (3-level: Workflow → Variant → Revision)
+    const evaluatorWorkflowAdapter = useMemo(
+        () =>
+            createWorkflowRevisionAdapter({
+                flags: {is_evaluator: true},
+                revisionOverrides: {getLabelNode: renderWorkflowRevisionLabel},
+            }),
+        [],
+    )
 
     // Simplified refresh function - atoms will handle the data updates automatically
     const handleUpdate = useCallback(async () => {
@@ -261,61 +278,32 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             styles={{body: {padding: 0}}}
                             content={
                                 <div style={{width: 320}}>
-                                    {USE_LEGACY_EVALUATOR ? (
-                                        <EntityPicker<LegacyEvaluatorSelectionResult>
-                                            variant="breadcrumb"
-                                            adapter="legacyEvaluator"
-                                            onSelect={handleEvaluatorSelect}
-                                            showSearch
-                                            showBreadcrumb
-                                            showBackButton
-                                            rootLabel="Evaluators"
-                                            emptyMessage="No evaluators available"
-                                            loadingMessage="Loading evaluators..."
-                                            maxHeight={250}
-                                            instanceId="playground-header-evaluator"
-                                            breadcrumbActions={
-                                                connectedEvaluatorNode ? (
-                                                    <Button
-                                                        size="small"
-                                                        danger
-                                                        icon={<DisconnectOutlined />}
-                                                        className="!h-6 !px-2 !text-xs whitespace-nowrap"
-                                                        onClick={handleDisconnectEvaluator}
-                                                    >
-                                                        Disconnect
-                                                    </Button>
-                                                ) : undefined
-                                            }
-                                        />
-                                    ) : (
-                                        <EntityPicker<EvaluatorRevisionSelectionResult>
-                                            variant="breadcrumb"
-                                            adapter="evaluatorRevision"
-                                            onSelect={handleEvaluatorSelect}
-                                            showSearch
-                                            showBreadcrumb
-                                            showBackButton
-                                            rootLabel="Evaluators"
-                                            emptyMessage="No evaluators available"
-                                            loadingMessage="Loading evaluators..."
-                                            maxHeight={250}
-                                            instanceId="playground-header-evaluator"
-                                            breadcrumbActions={
-                                                connectedEvaluatorNode ? (
-                                                    <Button
-                                                        size="small"
-                                                        danger
-                                                        icon={<DisconnectOutlined />}
-                                                        className="!h-6 !px-2 !text-xs whitespace-nowrap"
-                                                        onClick={handleDisconnectEvaluator}
-                                                    >
-                                                        Disconnect
-                                                    </Button>
-                                                ) : undefined
-                                            }
-                                        />
-                                    )}
+                                    <EntityPicker<WorkflowRevisionSelectionResult>
+                                        variant="breadcrumb"
+                                        adapter={evaluatorWorkflowAdapter}
+                                        onSelect={handleEvaluatorSelect}
+                                        showSearch
+                                        showBreadcrumb
+                                        showBackButton
+                                        rootLabel="Evaluators"
+                                        emptyMessage="No evaluators available"
+                                        loadingMessage="Loading evaluators..."
+                                        maxHeight={250}
+                                        instanceId="playground-header-evaluator"
+                                        breadcrumbActions={
+                                            connectedEvaluatorNode ? (
+                                                <Button
+                                                    size="small"
+                                                    danger
+                                                    icon={<DisconnectOutlined />}
+                                                    className="!h-6 !px-2 !text-xs whitespace-nowrap"
+                                                    onClick={handleDisconnectEvaluator}
+                                                >
+                                                    Disconnect
+                                                </Button>
+                                            ) : undefined
+                                        }
+                                    />
                                 </div>
                             }
                         >
