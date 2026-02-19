@@ -123,6 +123,13 @@ export interface CascadingVariantProps<
      * @default true
      */
     showAutoIndicator?: boolean
+
+    /**
+     * Initial selections to pre-populate levels.
+     * Array of entity IDs matching hierarchy levels (e.g., [workflowId, variantId, revisionId]).
+     * Null entries are skipped.
+     */
+    initialSelections?: (string | null)[]
 }
 
 // ============================================================================
