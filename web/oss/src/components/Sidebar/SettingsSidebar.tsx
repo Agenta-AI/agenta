@@ -1,6 +1,14 @@
 import {FC, useEffect, useMemo} from "react"
 
-import {ArrowLeft, Sparkle, Receipt, Key, Buildings, UsersThree} from "@phosphor-icons/react"
+import {
+    ArrowLeft,
+    Sparkle,
+    Receipt,
+    Key,
+    Buildings,
+    UsersThree,
+    Wrench,
+} from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
@@ -48,8 +56,13 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             },
             {
                 key: "secrets",
-                title: "Providers & Models",
+                title: "Models",
                 icon: <Sparkle size={16} className="mt-0.5" />,
+            },
+            {
+                key: "tools",
+                title: "Tools",
+                icon: <Wrench size={16} className="mt-0.5" />,
                 divider: true,
             },
             {

@@ -4,6 +4,8 @@
 **/*.next
 **/*.pnpm-store
 **/*.env*
+!**/*.env.example*
+!**/*env.example*
 **/*.DS_Store
 **/*.vscode
 **/*.pem
@@ -50,9 +52,14 @@ web/oss/public/__env.js
 web/oss/tests/datalayer/results
 api/tests/results/
 sdk/tests/results/
+
+# Generated catalog files
+api/oss/src/core/tools/providers/*/catalog.json
+
 .*
 !api/.dockerignore
 !services/.dockerignore
+!.env.example
 
 # Temporary SDK symlinks created by run.sh --local
 api/sdk

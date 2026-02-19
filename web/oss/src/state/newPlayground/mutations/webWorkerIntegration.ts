@@ -341,6 +341,7 @@ export const triggerWebWorkerTestAtom = atom(
                                 } catch (err) {
                                     x.push({
                                         role: "tool",
+                                        tool_call_id: toolMsg?.toolCallId?.value ?? undefined,
                                         content:
                                             toolMsg?.content?.value ??
                                             toolMsg?.content ??

@@ -34,6 +34,10 @@ const ProjectsSettings = dynamic(() => import("@/oss/components/pages/settings/P
     ssr: false,
 })
 
+const Tools = dynamic(() => import("@/oss/components/pages/settings/Tools/Tools"), {
+    ssr: false,
+})
+
 const Organization = dynamic(() => import("@/oss/components/pages/settings/Organization"), {
     ssr: false,
 })
@@ -91,7 +95,9 @@ const Settings: React.FC = () => {
                         case "projects":
                             return "Projects"
                         case "secrets":
-                            return "Providers & Models"
+                            return "Models"
+                        case "tools":
+                            return "Tools"
                         case "apiKeys":
                             return "API Keys"
                         case "billing":
@@ -133,7 +139,9 @@ const Settings: React.FC = () => {
                     ),
                 }
             case "secrets":
-                return {content: <Secrets />, title: "Providers & Models"}
+                return {content: <Secrets />, title: "Models"}
+            case "tools":
+                return {content: <Tools />, title: "Tools"}
             case "apiKeys":
                 return {content: <APIKeys />, title: "API Keys"}
             case "billing":
