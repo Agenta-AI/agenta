@@ -29,6 +29,9 @@ export type SelectableEntityType =
     | "evaluatorRevision"
     | "playgroundVariant"
     | "playgroundRevision"
+    | "workflow"
+    | "workflowVariant"
+    | "workflowRevision"
 
 // ============================================================================
 // SELECTION RESULT

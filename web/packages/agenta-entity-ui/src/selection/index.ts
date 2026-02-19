@@ -199,6 +199,8 @@ export {
     setEvaluatorRevisionAtoms,
     evaluatorRevisionRelationAdapter,
     testsetAdapter,
+    workflowRevisionAdapter,
+    createWorkflowRevisionAdapter,
 } from "./adapters"
 
 export type {
@@ -210,6 +212,8 @@ export type {
     EvaluatorRevisionSelectionResult,
     EvaluatorRevisionRelationSelectionResult,
     TestsetSelectionResult,
+    WorkflowRevisionSelectionResult,
+    CreateWorkflowRevisionAdapterOptions,
 } from "./adapters"
 
 // Initialization

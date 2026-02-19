@@ -8,10 +8,10 @@
  * Designed for use cases like the Compare button dropdown in Playground.
  */
 
-import React, {useCallback, useId} from "react"
+import React, {useCallback, useEffect, useId, useRef} from "react"
 
 import {cn} from "@agenta/ui/styles"
-import {Input, Spin, Tree} from "antd"
+import {Input, type InputRef, Spin, Tree} from "antd"
 
 import {useTreeSelectMode, type TreeSelectNode} from "../../../hooks"
 import type {EntitySelectionResult} from "../../../types"
@@ -98,6 +98,41 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
         childFilter,
     })
 
+    // Ref for scroll container — used to auto-scroll to selected item
+    const scrollContainerRef = useRef<HTMLDivElement>(null)
+    // Ref for search input — auto-focus on mount
+    const searchInputRef = useRef<InputRef>(null)
+
+    // Auto-focus the search input when the popup mounts
+    useEffect(() => {
+        if (!showSearch) return
+        const timer = setTimeout(() => searchInputRef.current?.focus(), 0)
+        return () => clearTimeout(timer)
+    }, [showSearch])
+
+    // Auto-scroll to the selected item when the popup opens.
+    // Retries across frames since the Tree component may render asynchronously.
+    const scrollRetryRef = useRef(0)
+    useEffect(() => {
+        if (!selectedValueProp || treeData.length === 0) return
+        scrollRetryRef.current = 0
+        let rafId: number
+        const attempt = () => {
+            const el = scrollContainerRef.current
+            if (!el) return
+            const hit = el.querySelector(
+                ".ant-tree-treenode-selected, .ant-tree-treenode-checkbox-checked",
+            )
+            if (hit) {
+                hit.scrollIntoView({block: "center"})
+                return
+            }
+            if (++scrollRetryRef.current < 5) rafId = requestAnimationFrame(attempt)
+        }
+        rafId = requestAnimationFrame(attempt)
+        return () => cancelAnimationFrame(rafId)
+    }, [selectedValueProp, treeData])
+
     // Get display messages
     const displayEmptyMessage = emptyMessage ?? resolvedAdapter.emptyMessage ?? "No items found"
     const displayLoadingMessage = loadingMessage ?? resolvedAdapter.loadingMessage ?? "Loading..."
@@ -129,6 +164,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                 <div className="flex items-center gap-2 px-2 py-1.5 border-b border-gray-100">
                     {showSearch && (
                         <Input
+                            ref={searchInputRef}
                             className="flex-1"
                             variant="borderless"
                             placeholder="Search"
@@ -166,7 +202,11 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
 
             {/* Tree list */}
             {!isLoadingParents && !parentsError && treeData.length > 0 && (
-                <div style={{maxHeight, overflow: "auto"}} className="tree-popup-compact">
+                <div
+                    ref={scrollContainerRef}
+                    style={{maxHeight, overflow: "auto"}}
+                    className="tree-popup-compact"
+                >
                     <style>{`
                         .tree-popup-compact .ant-tree-treenode-leaf .ant-tree-indent { display: none !important; }
                         .tree-popup-compact .ant-tree-treenode-leaf { padding-left: 24px !important; }
@@ -177,6 +217,13 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                         .tree-popup-compact .ant-tree-switcher-noop { display: none !important; }
                         .tree-popup-compact .ant-tree-title { width: 100%; }
                         .tree-popup-compact .ant-tree-treenode-disabled > .ant-tree-node-content-wrapper { opacity: 0.5; cursor: not-allowed; background: transparent !important; }
+                        /* Allow sticky positioning through intermediate Tree wrappers */
+                        .tree-popup-compact .ant-tree-list,
+                        .tree-popup-compact .ant-tree-list-holder,
+                        .tree-popup-compact .ant-tree-list-holder > div,
+                        .tree-popup-compact .ant-tree-list-holder-inner { overflow: visible !important; }
+                        /* Sticky parent group headers */
+                        .tree-popup-compact .ant-tree-treenode:not(.ant-tree-treenode-leaf) { position: sticky; top: 0; z-index: 1; background: var(--ant-color-bg-elevated, #fff); }
                     `}</style>
                     <Tree
                         treeData={treeData}
