@@ -12,12 +12,11 @@
  * Types of entities that can be added to the playground
  */
 export type EntityType =
-    | "appRevision"
-    | "legacyAppRevision"
     | "evaluator"
     | "legacyEvaluator"
     | "evaluatorRevision"
-    | "baseRunnable"
+    | "legacyAppRevision"
+    | "workflow"
     | "testcase"
     | "span"
 
@@ -25,12 +24,11 @@ export type EntityType =
  * Types of runnables (entities that can be executed)
  */
 export type RunnableType =
-    | "appRevision"
-    | "legacyAppRevision"
     | "evaluator"
     | "legacyEvaluator"
     | "evaluatorRevision"
-    | "baseRunnable"
+    | "legacyAppRevision"
+    | "workflow"
 
 /**
  * Execution mode for a runnable.
@@ -328,19 +326,6 @@ export interface RunnableData {
     invocationUrl?: string
     /** Entity URI (e.g., "agenta:builtin:auto_exact_match:v0" for evaluators) */
     uri?: string
-}
-
-/**
- * App revision specific data
- */
-export interface AppRevisionData extends RunnableData {
-    type: "appRevision"
-    appId?: string
-    variantId?: string
-    variantSlug?: string
-    version?: number
-    /** Alias for version - used by Version component */
-    revision?: number
 }
 
 /**

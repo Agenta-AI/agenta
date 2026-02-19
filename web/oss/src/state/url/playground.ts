@@ -1,15 +1,10 @@
-// Import legacyAppRevision and baseRunnable to ensure snapshot adapters are registered
-// These side-effect imports must happen before any snapshot operations
-import "@agenta/entities/legacyAppRevision"
-import "@agenta/entities/baseRunnable"
+// Import workflow to ensure the snapshot adapter is registered
+import "@agenta/entities/workflow"
 
-import {baseRunnableMolecule} from "@agenta/entities/baseRunnable"
-import {
-    legacyAppRevisionMolecule,
-    latestServerRevisionIdAtomFamily,
-    appRevisionsWithDraftsAtomFamily,
-} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
+// App-scoped revision list query — stays entity-specific because it queries
+// the parent (app/workflow) for its child revisions, which is not per-entity.
+import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {
     urlSnapshotController,
     setRunnableTypeResolver,
@@ -26,8 +21,18 @@ import {
 import {atom, getDefaultStore} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
-import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
+import {routerAppIdAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
+
+// ============================================================================
+// ENTITY MODE
+// ============================================================================
+
+/**
+ * Determines which entity system the current playground uses.
+ * Currently always "workflow" (modern /preview/workflows/ API).
+ */
+export const playgroundEntityModeAtom = atom<"workflow">("workflow")
 
 // ============================================================================
 // OSS RUNNABLE TYPE RESOLVER
@@ -35,12 +40,12 @@ import {appStateSnapshotAtom} from "@/oss/state/appState"
 
 /**
  * Register the OSS runnable type resolver.
- * Detects baseRunnable from ID prefix, otherwise defaults to legacyAppRevision.
+ * Reads from playgroundEntityModeAtom to determine the entity type.
  */
 setRunnableTypeResolver({
-    getType: (id: string) => {
-        if (id.startsWith("base-runnable-")) return "baseRunnable"
-        return "legacyAppRevision"
+    getType: () => {
+        const store = getDefaultStore()
+        return store.get(playgroundEntityModeAtom)
     },
 })
 
@@ -112,10 +117,6 @@ const extractSnapshotFromHash = (url: URL): string | null => {
  */
 let lastWrittenSnapshotHash: string | null = null
 
-// Flag to skip URL revision processing after ephemeral entity hydration
-// until the URL is updated with the new entity IDs
-let skipUrlRevisionsUntilUpdate = false
-
 const sanitizeRevisionList = (values: (string | null | undefined)[]) => {
     const seen = new Set<string>()
     const result: string[] = []
@@ -146,21 +147,9 @@ interface HydratedEntityDescriptor {
     label?: string
 }
 
-type RunnableType =
-    | "appRevision"
-    | "legacyAppRevision"
-    | "evaluator"
-    | "legacyEvaluator"
-    | "evaluatorRevision"
-    | "baseRunnable"
+type RunnableType = "evaluator" | "legacyEvaluator" | "evaluatorRevision" | "workflow"
 
-type PlaygroundEntityType =
-    | "appRevision"
-    | "legacyAppRevision"
-    | "evaluator"
-    | "legacyEvaluator"
-    | "evaluatorRevision"
-    | "baseRunnable"
+type PlaygroundEntityType = "evaluator" | "legacyEvaluator" | "evaluatorRevision" | "workflow"
 
 interface SnapshotSelectionInput {
     id: string
@@ -180,18 +169,14 @@ interface PlaygroundNode {
 
 const entityTypeToRunnableType = (entityType: string | undefined): RunnableType | null => {
     switch (entityType) {
-        case "appRevision":
-            return "appRevision"
-        case "legacyAppRevision":
-            return "legacyAppRevision"
         case "evaluator":
             return "evaluator"
         case "legacyEvaluator":
             return "legacyEvaluator"
         case "evaluatorRevision":
             return "evaluatorRevision"
-        case "baseRunnable":
-            return "baseRunnable"
+        case "workflow":
+            return "workflow"
         default:
             return null
     }
@@ -199,18 +184,14 @@ const entityTypeToRunnableType = (entityType: string | undefined): RunnableType 
 
 const runnableTypeToEntityType = (runnableType: RunnableType): PlaygroundEntityType | null => {
     switch (runnableType) {
-        case "appRevision":
-            return "appRevision"
-        case "legacyAppRevision":
-            return "legacyAppRevision"
         case "evaluator":
             return "evaluator"
         case "legacyEvaluator":
             return "legacyEvaluator"
         case "evaluatorRevision":
             return "evaluatorRevision"
-        case "baseRunnable":
-            return "baseRunnable"
+        case "workflow":
+            return "workflow"
         default:
             return null
     }
@@ -231,11 +212,8 @@ const buildSnapshotSelectionInputs = (
 
     for (const rootEntityId of rootEntityIds) {
         const node = rootNodeByEntityId.get(rootEntityId)
-        // Detect baseRunnable from ID prefix if node doesn't have entityType yet
-        const isBaseRunnable = rootEntityId.startsWith("base-runnable-")
-        const runnableType = isBaseRunnable
-            ? "baseRunnable"
-            : (entityTypeToRunnableType(node?.entityType) ?? resolver.getType(rootEntityId))
+        const runnableType =
+            entityTypeToRunnableType(node?.entityType) ?? resolver.getType(rootEntityId)
         snapshotInputs.push({
             id: rootEntityId,
             runnableType,
@@ -313,6 +291,7 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
             const store = getDefaultStore()
             const nodes = store.get(playgroundController.selectors.nodes())
             const snapshotSelection = buildSnapshotSelectionInputs(sanitized, nodes)
+            console.log("[writePlaygroundSelection] snapshotSelection:", snapshotSelection)
 
             // Build the new URL with query params and hash
             const url = new URL(window.location.href)
@@ -322,6 +301,7 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
                 urlSnapshotController.actions.buildUrlComponents,
                 snapshotSelection,
             )
+            console.log("[writePlaygroundSelection] urlComponents:", urlComponents)
 
             if (!urlComponents.ok) {
                 console.warn("Failed to build URL components:", urlComponents.error)
@@ -397,11 +377,7 @@ const applyPlaygroundSelection = (
     )
     const rootEntityIdsFromRunnableType = sanitizeRevisionList(
         normalizedHydratedEntities
-            .filter(
-                (entity) =>
-                    entity.runnableType === "appRevision" ||
-                    entity.runnableType === "legacyAppRevision",
-            )
+            .filter((entity) => entity.runnableType === "workflow")
             .map((entity) => entity.id),
     )
     const rootEntityIds =
@@ -433,7 +409,7 @@ const applyPlaygroundSelection = (
             (primaryHydratedEntity
                 ? runnableTypeToEntityType(primaryHydratedEntity.runnableType)
                 : null) ??
-            "legacyAppRevision"
+            "workflow"
 
         // No nodes yet — use addPrimaryNode for the first entity so the
         // loadable is linked to the runnable and an initial testcase row
@@ -518,34 +494,24 @@ export const ensurePlaygroundDefaults = (store: Store): boolean => {
         return true
     }
 
-    // Use URL-based app ID only — on project-level playground (no app in URL),
-    // we don't apply defaults since there's no single app to derive a default from.
-    const appId = store.get(routerAppIdAtom)
+    const rawAppId = store.get(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
+
     if (!appId) {
-        console.log("[ensureDefaults] project-level playground, no default selection")
-        return true // Mark as "applied" so we don't keep retrying
+        console.log("[ensureDefaults] no appId available")
+        return false
     }
 
-    const latestRevisionId = store.get(latestServerRevisionIdAtomFamily(appId))
+    const revisions = store.get(workflowRevisionsByWorkflowListDataAtomFamily(appId))
+    const latest = revisions[0]
+    if (latest) {
+        console.log("[ensureDefaults] applying default:", [latest.id])
+        applyPlaygroundSelection(store, [latest.id])
+        return true
+    }
 
-    // Debug: show all available revisions and which one is picked
-    const allRevisions = store.get(appRevisionsWithDraftsAtomFamily(appId))
-    console.log("[ensureDefaults] appId:", appId, {
-        totalRevisions: allRevisions.length,
-        revisions: allRevisions.map((r) => ({
-            id: r.id,
-            revision: r.revision,
-            variantName: r.variantName,
-            isLocalDraft: r.isLocalDraft,
-            updatedAt: r.updatedAtTimestamp,
-        })),
-        pickedLatestRevisionId: latestRevisionId,
-    })
-    if (!latestRevisionId) return false
-
-    console.log("[ensureDefaults] applying default selection:", [latestRevisionId])
-    applyPlaygroundSelection(store, [latestRevisionId])
-    return true
+    console.log("[ensureDefaults] no workflow revisions found for:", appId)
+    return false
 }
 
 /**
@@ -589,29 +555,8 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
                     hydrateResult.entities as HydratedEntityDescriptor[] | undefined,
                 )
 
-                // For ephemeral entities, the restored entity ID differs from the URL's query param.
-                // Update the URL to reflect the new entity IDs so subsequent syncs don't re-apply stale IDs.
-                const hasEphemeralEntities = hydrateResult.entities?.some(
-                    (e) => e.runnableType === "baseRunnable",
-                )
-                if (hasEphemeralEntities) {
-                    // Set flag to skip URL revision processing until URL is updated
-                    skipUrlRevisionsUntilUpdate = true
-                    // Update URL with new selection (deferred to avoid sync loop)
-                    requestAnimationFrame(() => {
-                        writePlaygroundSelectionToQuery(hydrateResult.selection)
-                        skipUrlRevisionsUntilUpdate = false
-                    })
-                }
-
                 return
             }
-        }
-
-        // Skip URL revision processing if we just hydrated ephemeral entities
-        // and haven't updated the URL yet
-        if (skipUrlRevisionsUntilUpdate && isPlaygroundRoute) {
-            return
         }
 
         // Skip URL revision processing if there are pending hydrations
@@ -672,26 +617,12 @@ const selectedDraftHashAtom = atom((get) => {
     const nodes = get(playgroundController.selectors.nodes())
 
     const parts = selectedVariants.map((revisionId) => {
-        const node = nodes.find((n) => n.entityId === revisionId)
-        const entityType = node?.entityType
-
-        // Handle baseRunnable entities - track their data for URL sync
-        if (entityType === "baseRunnable") {
-            const data = get(baseRunnableMolecule.selectors.data(revisionId))
-            const isDirty = get(baseRunnableMolecule.selectors.isDirty(revisionId))
-            // Include parameters hash to detect changes
-            const dataHash = data?.parameters ? JSON.stringify(data.parameters) : ""
-            return `${revisionId}:${isDirty}:${dataHash}`
-        }
-
-        // Skip other non-legacyAppRevision entities (e.g. evaluator)
-        if (entityType && entityType !== "legacyAppRevision") {
-            return `${revisionId}:false:`
-        }
-
-        const isDirty = get(legacyAppRevisionMolecule.atoms.isDirty(revisionId))
-        const draft = get(legacyAppRevisionMolecule.atoms.draft(revisionId))
+        const isDirty = get(runnableBridge.isDirty(revisionId))
+        const draft = get(runnableBridge.draft(revisionId))
         const draftHash = draft ? JSON.stringify(draft) : ""
+        if (process.env.NODE_ENV !== "production") {
+            console.log("[selectedDraftHashAtom]", {revisionId, isDirty, hasDraft: !!draft})
+        }
         return `${revisionId}:${isDirty}:${draftHash}`
     })
 
@@ -790,7 +721,7 @@ playgroundSyncAtom.onMount = (set) => {
         // }
         // Collect unique source IDs that are ready, then apply via the ordered helper
         const readySourceIds = new Set<string>()
-        for (const [, hydration] of pending.entries()) {
+        for (const hydration of pending.values()) {
             const query = store.get(runnableBridge.query(hydration.sourceRevisionId))
             // if (process.env.NODE_ENV !== "production") {
             //     console.debug("[hydration-sync] query state for", key, {
@@ -832,7 +763,7 @@ playgroundSyncAtom.onMount = (set) => {
         // Bump the revision cache version so that revisionListItemFromCacheAtomFamily
         // re-evaluates now that revision list queries have completed and populated the
         // React Query cache. This unlocks the fast enriched query path for entity data.
-        legacyAppRevisionMolecule.set.invalidateCache()
+        runnableBridge.invalidateAllCaches()
 
         if (selected.length > 0) {
             hasAppliedDefaults = true
@@ -890,32 +821,19 @@ playgroundSyncAtom.onMount = (set) => {
                     tryApplyDefaults()
                 },
             )
-            // Subscribe to latestServerRevisionIdAtomFamily so we retry
-            // when entity data finishes loading (now uses lightweight 1-call query).
+            // Subscribe to entity data so we retry when it finishes loading.
             // Only needed when no URL selection exists and we must find a default.
             if (currentAppId) {
                 currentLatestRevUnsub = store.sub(
-                    latestServerRevisionIdAtomFamily(currentAppId),
+                    workflowRevisionsByWorkflowListDataAtomFamily(currentAppId),
                     () => {
-                        console.log(
-                            "[SUB2] latestServerRevisionId changed:",
-                            store.get(latestServerRevisionIdAtomFamily(currentAppId)),
-                        )
+                        console.log("[SUB2] workflow revisions changed")
                         tryApplyDefaults()
                     },
                 )
             }
             // Immediate check in case already ready
             tryApplyDefaults()
-        }
-
-        // Always subscribe to latestServerRevisionIdAtomFamily (cheap: 1 API call)
-        // so the "Latest" badge can resolve even when URL already has a selection.
-        if (currentAppId && !currentLatestRevUnsub) {
-            currentLatestRevUnsub = store.sub(
-                latestServerRevisionIdAtomFamily(currentAppId),
-                () => {},
-            )
         }
     }
     bindRevisionsReady()
@@ -931,8 +849,10 @@ playgroundSyncAtom.onMount = (set) => {
     // SUB 3: Update URL when draft content changes
     // -----------------------------------------------------------------------
     let prevDraftHash = store.get(selectedDraftHashAtom)
+    console.log("[SUB3] initial draft hash:", prevDraftHash)
     const unsubDraftHash = store.sub(selectedDraftHashAtom, () => {
         const hash = store.get(selectedDraftHashAtom)
+        console.log("[SUB3] draft hash changed:", {prev: prevDraftHash, next: hash})
         if (hash !== prevDraftHash) {
             prevDraftHash = hash
             updatePlaygroundUrlWithDrafts()

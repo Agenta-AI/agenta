@@ -1,6 +1,6 @@
 import {memo, useCallback, useMemo} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {
     executionController,
@@ -32,11 +32,15 @@ const VariantNavigationCard = ({
 }: VariantNavigationCardProps) => {
     const classes = useStyles()
 
-    // Use molecule-backed variant for single source of truth
-    const variant = useAtomValue(legacyAppRevisionMolecule.atoms.data(revisionId)) as any
+    // Use runnableBridge for entity-type-aware data access
+    const runnableData = useAtomValue(runnableBridge.data(revisionId))
     const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
-    const isDirty = useAtomValue(legacyAppRevisionMolecule.atoms.isDirty(revisionId))
+    const isDirty = useAtomValue(runnableBridge.isDirty(revisionId))
     const isLocalDraftVariant = isLocalDraftId(revisionId)
+
+    // Map RunnableData fields to display values
+    const variantName = runnableData?.name ?? ""
+    const variantVersion = runnableData?.version as number | undefined
 
     // Handle close with confirmation only if there are actual committable changes
     // A local draft without changes (isDirty === false) should close without confirmation
@@ -73,7 +77,7 @@ const VariantNavigationCard = ({
                 for (const rowId of rowIds) {
                     // Read full result from package store
                     const fullResult = get(
-                        executionItemController.selectors.fullResult({rowId, revisionId}),
+                        executionItemController.selectors.fullResult({rowId, entityId: revisionId}),
                     )
                     if (fullResult?.output) {
                         const output = fullResult.output
@@ -172,18 +176,15 @@ const VariantNavigationCard = ({
                                 <DraftTag />
                                 <Text className="text-gray-500">
                                     from{" "}
-                                    {String(variant?.variantName ?? "").replace(
-                                        /\s*\(Draft\)$/,
-                                        "",
-                                    )}{" "}
-                                    v{variant?.revision}
+                                    {String(variantName).replace(/\s*\(Draft\)$/, "")}{" "}
+                                    v{variantVersion}
                                 </Text>
                             </>
                         ) : (
                             // Regular revision: show name and version tag, with Draft tag if dirty
                             <>
-                                <Text>{variant?.variantName}</Text>
-                                <Version revision={variant?.revision as number} />
+                                <Text>{variantName}</Text>
+                                <Version revision={variantVersion as number} />
                                 {isDirty && <DraftTag />}
                             </>
                         )}

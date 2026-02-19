@@ -11,18 +11,12 @@ import {useEffect, useMemo, type ReactNode} from "react"
 
 import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import {evaluatorRevisionMolecule} from "@agenta/entities/evaluatorRevision"
-import {
-    legacyAppRevisionMolecule,
-    appRevisionsWithDraftsAtomFamily,
-    ossAppToVariantRelation,
-    ossVariantToRevisionRelation,
-} from "@agenta/entities/legacyAppRevision"
 import {legacyEvaluatorMolecule} from "@agenta/entities/legacyEvaluator"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {
     PlaygroundEntityProvider,
     type PlaygroundEntityProviders,
     executionItemController,
-    playgroundController,
 } from "@agenta/playground"
 import {useSetAtom} from "jotai"
 
@@ -30,26 +24,17 @@ import {getJWT} from "@/oss/services/api"
 
 // Side-effect: registers runnableBridge + CRUD callbacks with playground package
 import "@/oss/state/newPlayground/legacyEntityBridge"
+// Side-effect: registers workflow commit/archive callbacks
+import "@/oss/state/newPlayground/workflowEntityBridge"
 
 const ossEntityProviders: PlaygroundEntityProviders = {
-    appRevision: {
+    // Workflow entity (modern /preview/workflows/ API)
+    workflow: {
         selectors: {
-            data: (id: string) => legacyAppRevisionMolecule.atoms.data(id),
-            query: (id: string) => legacyAppRevisionMolecule.atoms.query(id),
-            isDirty: (id: string) => legacyAppRevisionMolecule.atoms.isDirty(id),
+            data: (id: string) => workflowMolecule.selectors.data(id),
+            query: (id: string) => workflowMolecule.selectors.query(id),
+            isDirty: (id: string) => workflowMolecule.selectors.isDirty(id),
         },
-        lists: {
-            variantsForApp: (appId: string) => ossAppToVariantRelation.listAtomFamily?.(appId),
-            revisionsForVariant: (variantId: string) =>
-                ossVariantToRevisionRelation.listAtomFamily?.(variantId),
-            allRevisions: appRevisionsWithDraftsAtomFamily,
-            isReady: playgroundController.selectors.revisionsReady(),
-        },
-        // CRUD actions are handled via runnableBridge (registered in legacyEntityBridge.ts).
-        // invalidateQueries is available here for direct provider consumers.
-        actions: {
-            invalidateQueries: playgroundController.actions.invalidateQueries,
-        } as PlaygroundEntityProviders["appRevision"]["actions"],
     },
     // New evaluator entity (workflow-based SimpleEvaluator)
     evaluator: {

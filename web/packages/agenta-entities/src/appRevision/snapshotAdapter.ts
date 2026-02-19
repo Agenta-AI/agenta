@@ -14,6 +14,7 @@ import {
     type RunnableDraftPatch,
     type BuildDraftPatchResult,
 } from "../runnable/snapshotAdapter"
+import type {RunnableType} from "../runnable/types"
 import {isLocalDraftId, extractSourceIdFromDraft} from "../shared/utils/revisionLabel"
 
 import type {AppRevisionData} from "./core"
@@ -161,7 +162,7 @@ export function applyAppRevisionDraftPatch(
  * the AppRevision entity type.
  */
 export const appRevisionSnapshotAdapter: RunnableSnapshotAdapter = {
-    type: "appRevision",
+    type: "appRevision" as RunnableType,
 
     buildDraftPatch(revisionId: string): BuildDraftPatchResult {
         return buildAppRevisionDraftPatch(revisionId)

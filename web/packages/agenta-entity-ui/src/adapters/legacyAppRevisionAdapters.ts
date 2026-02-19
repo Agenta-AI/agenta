@@ -33,6 +33,7 @@ import {
     enhancedPromptsToParameters,
     enhancedCustomPropertiesToParameters,
 } from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
@@ -43,6 +44,16 @@ import {
     type CommitParams,
     type EntityModalAdapter,
 } from "../modals"
+
+/**
+ * Extended type for legacy app revision data that includes draft-overlay fields.
+ * The molecule's `data` atom merges draft fields (enhancedPrompts, enhancedCustomProperties)
+ * into the base LegacyAppRevisionData at runtime.
+ */
+type LegacyAppRevisionDataWithDraft = LegacyAppRevisionData & {
+    enhancedPrompts?: unknown[]
+    enhancedCustomProperties?: Record<string, unknown>
+}
 
 // ============================================================================
 // DATA ATOM
@@ -165,7 +176,7 @@ function stripLegacyPromptFields(value: unknown): unknown {
  * into nested objects for granular diffs.
  */
 function buildComparableParameters(
-    data: LegacyAppRevisionData | null,
+    data: LegacyAppRevisionDataWithDraft | null,
     baseParameters?: Record<string, unknown>,
 ): Record<string, unknown> {
     if (!data) return {}
@@ -193,7 +204,7 @@ function buildComparableParameters(
 }
 
 function extractDiffableData(
-    data: LegacyAppRevisionData | null,
+    data: LegacyAppRevisionDataWithDraft | null,
     baseParameters?: Record<string, unknown>,
 ): Record<string, unknown> {
     if (!data) return {}
@@ -344,8 +355,8 @@ function getNonPromptOnlyValue(value: unknown): unknown {
  * Returns a simple summary of what changed.
  */
 function countChanges(
-    serverData: LegacyAppRevisionData | null,
-    draftData: LegacyAppRevisionData | null,
+    serverData: LegacyAppRevisionDataWithDraft | null,
+    draftData: LegacyAppRevisionDataWithDraft | null,
 ): {promptChanges: number; propertyChanges: number; description?: string} {
     if (!draftData) {
         return {promptChanges: 0, propertyChanges: 0}
@@ -376,8 +387,107 @@ function countChanges(
 // ============================================================================
 
 /**
+ * Build commit context for legacy app revision entities.
+ * Uses enhanced prompts extraction and volatile key stripping for accurate diffs.
+ */
+function buildLegacyCommitContext(
+    draftData: LegacyAppRevisionDataWithDraft,
+    serverData: LegacyAppRevisionDataWithDraft | null,
+    isLocalDraft: boolean,
+): CommitContext {
+    let currentVersion: number
+    let targetVersion: number
+
+    if (isLocalDraft) {
+        const sourceRevision = (draftData as Record<string, unknown>)._sourceRevision as
+            | number
+            | null
+        currentVersion = sourceRevision ?? 0
+        targetVersion = currentVersion + 1
+    } else {
+        currentVersion = draftData.revision ?? 0
+        targetVersion = currentVersion + 1
+    }
+
+    const {promptChanges, propertyChanges} = countChanges(serverData, draftData)
+    const hasChanges = promptChanges > 0 || propertyChanges > 0 || isLocalDraft
+
+    const descriptions: string[] = []
+    if (promptChanges > 0) descriptions.push("Prompt configuration modified")
+    if (propertyChanges > 0) descriptions.push("Custom properties modified")
+    if (isLocalDraft && descriptions.length === 0) {
+        descriptions.push("New draft variant")
+    }
+
+    const originalStructure = extractDiffableData(serverData)
+    const modifiedStructure = extractDiffableData(draftData, serverData?.parameters)
+
+    const original = stableStringify(originalStructure)
+    const modified = stableStringify(modifiedStructure)
+    const hasDiff = original !== modified
+
+    return {
+        versionInfo: {
+            currentVersion,
+            targetVersion,
+            latestVersion: currentVersion,
+        },
+        changesSummary: hasChanges
+            ? {
+                  modifiedCount: promptChanges + propertyChanges,
+                  description: descriptions.join(", "),
+              }
+            : undefined,
+        diffData: hasDiff ? {original, modified, language: "json"} : undefined,
+    }
+}
+
+/**
+ * Build commit context for generic entities via runnableBridge.
+ * Compares server configuration vs current configuration as JSON.
+ */
+function buildGenericCommitContext(
+    currentConfig: Record<string, unknown> | null,
+    serverConfig: Record<string, unknown> | null,
+    version: number | undefined,
+    isLocalDraft: boolean,
+): CommitContext {
+    const currentVersion = version ?? 0
+    const targetVersion = currentVersion + 1
+
+    const original = stableStringify({parameters: serverConfig ?? {}})
+    const modified = stableStringify({parameters: currentConfig ?? {}})
+    const hasDiff = original !== modified
+
+    const descriptions: string[] = []
+    if (hasDiff) descriptions.push("Configuration modified")
+    if (isLocalDraft && descriptions.length === 0) {
+        descriptions.push("New draft variant")
+    }
+
+    return {
+        versionInfo: {
+            currentVersion,
+            targetVersion,
+            latestVersion: currentVersion,
+        },
+        changesSummary:
+            hasDiff || isLocalDraft
+                ? {
+                      modifiedCount: hasDiff ? 1 : 0,
+                      description: descriptions.join(", "),
+                  }
+                : undefined,
+        diffData: hasDiff ? {original, modified, language: "json"} : undefined,
+    }
+}
+
+/**
  * Commit context atom factory for variant.
  * Provides version info, changes summary, and diff data for the commit modal.
+ *
+ * Supports both legacy app revision entities (with enhanced prompts) and
+ * generic entities (workflow, evaluator, etc.) via the runnableBridge.
  *
  * Note: This does NOT include the actual commit atom because OSS variant commits
  * require complex orchestration that should stay in the playground layer.
@@ -386,72 +496,26 @@ const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string,
     atom((get): CommitContext | null => {
         const isLocalDraft = isLocalDraftId(revisionId)
 
-        // Get current draft data (merged server + local changes)
-        const draftData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
-        if (!draftData) return null
-
-        // Get server data for comparison
-        const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId))
-
-        // Determine version info
-        let currentVersion: number
-        let targetVersion: number
-
-        if (isLocalDraft) {
-            // Local draft: get source version from metadata
-            const sourceRevision = (draftData as Record<string, unknown>)._sourceRevision as
-                | number
-                | null
-            currentVersion = sourceRevision ?? 0
-            targetVersion = currentVersion + 1
-        } else {
-            // Regular revision: use current revision number
-            currentVersion = draftData.revision ?? 0
-            targetVersion = currentVersion + 1
+        // Try legacy app revision molecule first (has entity-specific diff logic)
+        const legacyData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
+        if (legacyData) {
+            const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId))
+            return buildLegacyCommitContext(legacyData, serverData, isLocalDraft)
         }
 
-        // Count changes
-        const {promptChanges, propertyChanges} = countChanges(serverData, draftData)
-        const hasChanges = promptChanges > 0 || propertyChanges > 0 || isLocalDraft
+        // Fallback: use runnableBridge for generic entities (workflow, evaluator, etc.)
+        const runnableData = get(runnableBridge.data(revisionId))
+        if (!runnableData) return null
 
-        // Build changes description
-        const descriptions: string[] = []
-        if (promptChanges > 0) descriptions.push("Prompt configuration modified")
-        if (propertyChanges > 0) descriptions.push("Custom properties modified")
-        if (isLocalDraft && descriptions.length === 0) {
-            descriptions.push("New draft variant")
-        }
+        const currentConfig = get(runnableBridge.configuration(revisionId))
+        const serverConfig = get(runnableBridge.serverConfiguration(revisionId))
 
-        // Build diff data
-        const originalStructure = extractDiffableData(serverData)
-        const modifiedStructure = extractDiffableData(draftData, serverData?.parameters)
-
-        const original = stableStringify(originalStructure)
-        const modified = stableStringify(modifiedStructure)
-
-        // Only include diff data if there are actual changes
-        const hasDiff = original !== modified
-
-        return {
-            versionInfo: {
-                currentVersion,
-                targetVersion,
-                latestVersion: currentVersion, // In OSS, we don't track latest across all variants
-            },
-            changesSummary: hasChanges
-                ? {
-                      modifiedCount: promptChanges + propertyChanges,
-                      description: descriptions.join(", "),
-                  }
-                : undefined,
-            diffData: hasDiff
-                ? {
-                      original,
-                      modified,
-                      language: "json",
-                  }
-                : undefined,
-        }
+        return buildGenericCommitContext(
+            currentConfig,
+            serverConfig,
+            runnableData.version,
+            isLocalDraft,
+        )
     })
 
 // ============================================================================

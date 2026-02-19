@@ -1,6 +1,6 @@
-import {cloneElement, isValidElement, useMemo, useState} from "react"
+import {cloneElement, isValidElement, useCallback, useMemo, useState} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {CloudArrowUp} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -27,22 +27,22 @@ const DeployVariantButton = ({
         isEnvironmentsLoading,
     } = useEnvironments()
 
-    // Use molecule-backed variant for single source of truth
-    const variant = useAtomValue(legacyAppRevisionMolecule.atoms.data(revisionId)) as any
+    // Use runnableBridge for entity-type-aware data access
+    const runnableData = useAtomValue(runnableBridge.data(revisionId || ""))
 
     const {environments, variantName, revision} = useMemo(() => {
         return {
-            variantName: variant?.variantName || "",
-            revision: (variant as any)?.revisionNumber ?? (variant as any)?.revision ?? "",
+            variantName: runnableData?.name || "",
+            revision: runnableData?.version ?? "",
             environments: _environments,
         }
-    }, [variant, _environments])
+    }, [runnableData, _environments])
 
-    const onSuccess = async () => {
-        // Just refetch environments - the appRevisionsWithDraftsAtomFamily will automatically update
-        // when the deployment state changes through SWR revalidation
+    const onSuccess = useCallback(async () => {
         await mutateEnv()
-    }
+    }, [mutateEnv])
+
+    const handleCloseDeployModal = useCallback(() => setIsDeployModalOpen(false), [])
 
     return (
         <>
@@ -70,7 +70,7 @@ const DeployVariantButton = ({
 
             <DeployVariantModal
                 open={isDeployModalOpen}
-                onCancel={() => setIsDeployModalOpen(false)}
+                onCancel={handleCloseDeployModal}
                 variantId={variantId}
                 revisionId={revisionId}
                 environments={environments}

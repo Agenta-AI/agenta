@@ -69,7 +69,6 @@ export type {
     RunnableInputPort,
     RunnableOutputPort,
     RunnableData,
-    AppRevisionData,
     EvaluatorRevisionData,
     // Path types
     PathInfo,

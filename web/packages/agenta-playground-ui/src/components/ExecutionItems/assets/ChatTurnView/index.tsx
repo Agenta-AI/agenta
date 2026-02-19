@@ -1,9 +1,7 @@
 import React, {useMemo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
 import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
-import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import type {SimpleChatMessage} from "@agenta/playground"
 import {
@@ -20,20 +18,14 @@ import {TurnMessageAdapter} from "@agenta/playground-ui/adapters"
 
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useExecutionCell} from "../../../../hooks/useExecutionCell"
+import {EvaluatorFieldGrid} from "../../../shared/EvaluatorFieldGrid"
+import {extractDisplayEntries} from "../../../shared/EvaluatorFieldGrid/utils"
 import {ClickRunPlaceholder} from "../ResultPlaceholder"
 import TypingIndicator from "../TypingIndicator"
 
 // ============================================================================
 // HELPERS
 // ============================================================================
-
-/** Convert snake_case/camelCase key to human-readable label */
-function formatLabel(key: string): string {
-    return key
-        .replace(/_/g, " ")
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/^./, (c) => c.toUpperCase())
-}
 
 // ============================================================================
 // SUB-COMPONENT: Evaluator result popover for chat turns
@@ -66,14 +58,6 @@ const EvaluatorResultPopover = ({
         ),
     )
 
-    const schemaMap = useMemo(() => {
-        const map: Record<string, SchemaProperty | undefined> = {}
-        for (const port of outputPorts) {
-            map[port.key] = port.schema as SchemaProperty | undefined
-        }
-        return map
-    }, [outputPorts])
-
     const status = fullResult?.status ?? "idle"
 
     // Determine compact label + color for the tag
@@ -89,17 +73,11 @@ const EvaluatorResultPopover = ({
         }
 
         // Success — try to extract a single summary value for the tag
-        const output = fullResult.output as Record<string, unknown> | undefined
-        const responseData = output?.response as Record<string, unknown> | undefined
-        const nestedData = responseData?.data as Record<string, unknown> | undefined
-        const displayData =
-            nestedData?.outputs ?? responseData?.outputs ?? nestedData ?? responseData
+        const entries = extractDisplayEntries(fullResult.output)
 
-        if (!displayData || typeof displayData !== "object") {
+        if (!entries) {
             return {tagLabel: "Done", tagColor: "success" as const}
         }
-
-        const entries = Object.entries(displayData).filter(([, v]) => v !== undefined && v !== null)
 
         if (entries.length === 1) {
             const [, value] = entries[0]
@@ -119,12 +97,7 @@ const EvaluatorResultPopover = ({
             return <span className="text-[#bdc7d1] text-xs">Pending run</span>
         }
         if (status === "running" || status === "pending") {
-            return (
-                <span className="flex items-center gap-1 text-[#bdc7d1] text-xs">
-                    <LoadingOutlined style={{fontSize: 12}} spin />
-                    Running...
-                </span>
-            )
+            return <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
         }
         if (status === "error") {
             const errorMsg =
@@ -138,36 +111,11 @@ const EvaluatorResultPopover = ({
             )
         }
 
-        const output = fullResult.output as Record<string, unknown> | undefined
-        const responseData = output?.response as Record<string, unknown> | undefined
-        const nestedData = responseData?.data as Record<string, unknown> | undefined
-        const displayData =
-            nestedData?.outputs ?? responseData?.outputs ?? nestedData ?? responseData
+        const entries = extractDisplayEntries(fullResult.output)
+        if (!entries) return <span className="text-xs">—</span>
 
-        if (!displayData || typeof displayData !== "object")
-            return <span className="text-xs">—</span>
-
-        const entries = Object.entries(displayData).filter(([, v]) => v !== undefined && v !== null)
-        if (entries.length === 0) return <span className="text-xs">—</span>
-
-        return (
-            <div
-                className="grid items-baseline text-xs leading-5"
-                style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 4}}
-            >
-                {entries.map(([key, value]) => (
-                    <React.Fragment key={key}>
-                        <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap">
-                            {formatLabel(key)}:
-                        </span>
-                        <span className="break-words min-w-0">
-                            <RunnableOutputValue value={value} schema={schemaMap[key]} />
-                        </span>
-                    </React.Fragment>
-                ))}
-            </div>
-        )
-    }, [fullResult, status, schemaMap])
+        return <EvaluatorFieldGrid entries={entries} outputPorts={outputPorts} />
+    }, [fullResult, status, outputPorts])
 
     return (
         <Popover

@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo} from "react"
 
-import {legacyAppRevisionMolecule, publishMutationAtom} from "@agenta/entities/legacyAppRevision"
+import {publishMutationAtom} from "@agenta/entities/runnable"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {message} from "@agenta/ui/app-message"
 import {Rocket} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -42,9 +43,9 @@ const DeployVariantModal = ({
 
     // Derive appId from the revision's entity data (for analytics only)
     const revisionData = useAtomValue(
-        useMemo(() => legacyAppRevisionMolecule.atoms.data(revisionId ?? ""), [revisionId]),
-    ) as {appId?: string} | null
-    const appId = revisionData?.appId ?? null
+        useMemo(() => runnableBridge.data(revisionId ?? ""), [revisionId]),
+    ) as {appId?: string; workflow_id?: string} | null
+    const appId = revisionData?.appId ?? revisionData?.workflow_id ?? null
 
     // Ensure Jotai store has the necessary identifiers when this modal is used directly
     useEffect(() => {
@@ -61,7 +62,7 @@ const DeployVariantModal = ({
     const onClose = useCallback(() => {
         props.onCancel?.({} as any)
         resetDeploy()
-    }, [resetDeploy, props])
+    }, [resetDeploy, props.onCancel])
 
     const deployVariants = useCallback(async () => {
         // Ensure latest props are in the store before submitting

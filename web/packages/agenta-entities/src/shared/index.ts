@@ -252,6 +252,10 @@ export {
     // Factories
     createLoadableBridge,
     createRunnableBridge,
+    // Type hint registry (prevent spurious cross-molecule probing)
+    registerRunnableTypeHint,
+    clearRunnableTypeHint,
+    clearAllRunnableTypeHints,
     // Internal state (advanced)
     loadableStateFamily,
 } from "./createEntityBridge"

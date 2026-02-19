@@ -1,6 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
 import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {RunnableOutputValue} from "@agenta/entity-ui"
@@ -12,7 +11,6 @@ import {
     EnhancedButton,
     RunButton,
 } from "@agenta/ui/components/presentational"
-import {LoadingOutlined} from "@ant-design/icons"
 import {
     ArrowsOutLineHorizontalIcon,
     CopyIcon,
@@ -37,6 +35,8 @@ import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import ExecutionResultView from "../../../ExecutionResultView"
 import CollapseToggleButton from "../../../shared/CollapseToggleButton"
+import {EvaluatorFieldGrid} from "../../../shared/EvaluatorFieldGrid"
+import {extractDisplayEntries, buildSchemaMap} from "../../../shared/EvaluatorFieldGrid/utils"
 
 interface Props {
     rowId: string
@@ -167,14 +167,6 @@ const StepCollapsedSummary = ({
     )
 }
 
-/** Convert snake_case/camelCase key to human-readable label */
-function formatLabel(key: string): string {
-    return key
-        .replace(/_/g, " ")
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/^./, (c) => c.toUpperCase())
-}
-
 /** Flat row for evaluator result: tag on the left, content (single or stacked) on the right */
 const EvaluatorResultRow = ({
     name,
@@ -240,15 +232,6 @@ const DownstreamNodeResult = ({
         ),
     )
 
-    // Build a schema map: { fieldKey -> SchemaProperty }
-    const schemaMap = useMemo(() => {
-        const map: Record<string, SchemaProperty | undefined> = {}
-        for (const port of outputPorts) {
-            map[port.key] = port.schema as SchemaProperty | undefined
-        }
-        return map
-    }, [outputPorts])
-
     const status = fullResult?.status ?? "idle"
 
     // Idle / cancelled / no result -> "Pending run" placeholder
@@ -256,17 +239,12 @@ const DownstreamNodeResult = ({
         return <EvaluatorResultRow name={nodeName} content="Pending run" isPlaceholder />
     }
 
-    // Running / pending -> spinner + "Running..."
+    // Running / pending -> schema-based skeleton fields
     if (status === "running" || status === "pending") {
         return (
             <EvaluatorResultRow
                 name={nodeName}
-                content={
-                    <span className="flex items-center gap-1 text-[#bdc7d1]">
-                        <LoadingOutlined style={{fontSize: 12}} spin />
-                        Running...
-                    </span>
-                }
+                content={<EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />}
                 isPlaceholder
             />
         )
@@ -287,28 +265,16 @@ const DownstreamNodeResult = ({
     }
 
     // Success -> extract and display value(s)
-    // Response shapes vary by entity type:
-    //   legacyEvaluator: output.response.data.outputs = {score, reasoning, ...}
-    //   evaluatorRevision: output.response.outputs = {score, reasoning, ...}
-    //   generic: output.response = {key: value, ...}
-    const output = fullResult.output as Record<string, unknown> | undefined
-    const responseData = output?.response as Record<string, unknown> | undefined
-    const nestedData = responseData?.data as Record<string, unknown> | undefined
-    const displayData = nestedData?.outputs ?? responseData?.outputs ?? nestedData ?? responseData
+    const entries = extractDisplayEntries(fullResult.output)
 
-    if (!displayData || typeof displayData !== "object") {
+    if (!entries) {
         return <EvaluatorResultRow name={nodeName} content="—" />
     }
 
-    const entries = Object.entries(displayData).filter(([, v]) => v !== undefined && v !== null)
-
-    if (entries.length === 0) {
-        return <EvaluatorResultRow name={nodeName} content="—" />
-    }
-
-    // Single field: show value directly with schema-aware rendering
+    // Single field: show value directly with schema-aware rendering (compact)
     if (entries.length === 1) {
         const [key, value] = entries[0]
+        const schemaMap = buildSchemaMap(outputPorts)
         return (
             <EvaluatorResultRow
                 name={nodeName}
@@ -317,27 +283,11 @@ const DownstreamNodeResult = ({
         )
     }
 
-    // Multi-field: tag once on the left, stacked fields on the right
+    // Multi-field: shared grid with field labels + values
     return (
         <EvaluatorResultRow
             name={nodeName}
-            content={
-                <div
-                    className="grid items-baseline text-xs leading-5"
-                    style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 4}}
-                >
-                    {entries.map(([key, value]) => (
-                        <React.Fragment key={key}>
-                            <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap leading-5">
-                                {formatLabel(key)}:
-                            </span>
-                            <span className="break-words min-w-0 leading-5">
-                                <RunnableOutputValue value={value} schema={schemaMap[key]} />
-                            </span>
-                        </React.Fragment>
-                    ))}
-                </div>
-            }
+            content={<EvaluatorFieldGrid entries={entries} outputPorts={outputPorts} />}
         />
     )
 }

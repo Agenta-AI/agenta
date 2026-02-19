@@ -39,7 +39,6 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-import {appRevisionMolecule} from "../appRevision"
 import {loadableColumnsFromRunnableAtomFamily} from "../runnable/bridge"
 import type {Testcase} from "../testcase/core"
 import {testcaseMolecule} from "../testcase/state/molecule"
@@ -493,7 +492,7 @@ const newColumnKeysAtomFamily = atomFamily((loadableId: string) =>
 
 /**
  * Reactively derives column changes by comparing:
- * - Expected columns from runnable (via appRevisionMolecule.inputPorts)
+ * - Expected columns from runnable (via loadableColumnsFromRunnableAtomFamily)
  * - Server columns from testcase data
  *
  * This is used by the adapter layer to combine with core testset changesSummary.
@@ -521,12 +520,7 @@ export const derivedColumnChangesAtomFamily = atomFamily((loadableId: string) =>
 
         // Get expected columns from runnable (if linked)
         let expectedKeys = new Set<string>()
-        if (linkedRunnableType === "appRevision" && linkedRunnableId) {
-            // Use the inputPorts from appRevisionMolecule - single source of truth
-            const inputPorts = get(appRevisionMolecule.selectors.inputPorts(linkedRunnableId))
-            expectedKeys = new Set(inputPorts.map((p) => p.key))
-        } else {
-            // Fallback to loadableColumnsFromRunnableAtomFamily for other runnable types
+        {
             const expectedColumns = get(loadableColumnsFromRunnableAtomFamily(loadableId))
             expectedKeys = new Set(expectedColumns.map((c) => c.key))
         }
@@ -1152,52 +1146,12 @@ const saveAsNewTestsetAtom = atom(
 /**
  * Selector: determines if output mappings should be auto-initialized.
  *
- * Returns true when:
- * - Loadable is linked to an appRevision runnable
- * - No output mappings exist yet
- * - Schema has loaded with real output ports (not just default "output" fallback)
- *
- * This is a pure derived selector - no side effects.
+ * Currently always returns false — the appRevision entity type that
+ * powered this feature has been removed. Kept as a stub so downstream
+ * consumers (autoInitOutputMappingsEffectAtomFamily) continue to compile.
  */
-const shouldAutoInitOutputMappingsAtomFamily = atomFamily((loadableId: string) =>
-    atom((get) => {
-        const state = get(loadableStateAtomFamily(loadableId))
-
-        // Must be linked to a runnable
-        if (!state.linkedRunnableId || !state.linkedRunnableType) {
-            return false
-        }
-
-        // Must not already have mappings
-        if (state.outputMappings.length > 0) {
-            return false
-        }
-
-        // Only auto-init for appRevision type
-        if (state.linkedRunnableType !== "appRevision") {
-            return false
-        }
-
-        // Check if schema has loaded with real output ports
-        const schemaQuery = get(appRevisionMolecule.selectors.schemaQuery(state.linkedRunnableId))
-
-        // Still loading - not ready yet
-        if (schemaQuery.isPending) {
-            return false
-        }
-
-        // Error loading schema - don't auto-init
-        if (schemaQuery.isError) {
-            return false
-        }
-
-        // Schema loaded - check for real output ports
-        const outputPorts = get(appRevisionMolecule.selectors.outputPorts(state.linkedRunnableId))
-        const hasRealOutputPorts =
-            outputPorts.length > 1 || (outputPorts.length === 1 && outputPorts[0].key !== "output")
-
-        return hasRealOutputPorts
-    }),
+const shouldAutoInitOutputMappingsAtomFamily = atomFamily((_loadableId: string) =>
+    atom(() => false),
 )
 
 /**
@@ -1937,11 +1891,7 @@ const defaultOutputMappingsAtomFamily = atomFamily((loadableId: string) =>
         }
 
         // Get output ports from the linked runnable via the molecule abstraction
-        let outputPorts: {key: string; name?: string; type?: string}[] = []
-        if (linkedRunnableType === "appRevision") {
-            // Use the molecule's outputPorts selector (derives from schema query)
-            outputPorts = get(appRevisionMolecule.selectors.outputPorts(linkedRunnableId))
-        }
+        const outputPorts: {key: string; name?: string; type?: string}[] = []
 
         // For simple outputs, use data.outputs directly
         // The trace data typically stores the output at data.outputs (not data.outputs.{key})

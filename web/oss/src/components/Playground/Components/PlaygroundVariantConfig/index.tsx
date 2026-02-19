@@ -22,7 +22,7 @@ const RefinePromptModal = dynamic(
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
  *
  * Routes to entity-type specific config sections:
- * - legacyAppRevision: PlaygroundConfigSection (schema-driven)
+ * - legacyAppRevision / workflow: PlaygroundConfigSection (schema-driven)
  * - baseRunnable: BaseRunnableConfigSection (read-only key-value display)
  */
 

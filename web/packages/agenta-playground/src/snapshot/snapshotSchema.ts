@@ -67,7 +67,7 @@ export interface CommitSelectionItem extends SnapshotEntityMetadata {
     kind: "commit"
     /** Revision ID */
     id: string
-    /** Runnable type (e.g., 'legacyAppRevision', 'appRevision', 'evaluatorRevision') */
+    /** Runnable type (e.g., 'legacyAppRevision', 'evaluatorRevision') */
     runnableType: RunnableType
 }
 
@@ -79,7 +79,7 @@ export interface DraftSelectionItem extends SnapshotEntityMetadata {
     kind: "draft"
     /** Key referencing a draft in the drafts array */
     draftKey: string
-    /** Runnable type (e.g., 'legacyAppRevision', 'appRevision', 'evaluatorRevision') */
+    /** Runnable type (e.g., 'legacyAppRevision', 'evaluatorRevision') */
     runnableType: RunnableType
 }
 

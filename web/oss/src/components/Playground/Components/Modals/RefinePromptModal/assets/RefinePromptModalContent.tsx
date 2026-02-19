@@ -11,10 +11,10 @@
 
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Switch, Typography} from "antd"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {
     refineDiffViewAtomFamily,
@@ -42,8 +42,8 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
     const promptVersion = useAtomValue(workingPromptVersionAtomFamily(promptKey))
     const [showDiff, setShowDiff] = useAtom(refineDiffViewAtomFamily(promptKey))
 
-    const dataAtom = useMemo(() => legacyAppRevisionMolecule.atoms.data(revisionId), [revisionId])
-    const entityData = useAtomValue(dataAtom)
+    const dataAtom = useMemo(() => runnableBridge.data(revisionId), [revisionId])
+    const runnableData = useAtomValue(dataAtom)
 
     const hasRefinedPrompt = workingPrompt !== null && iterations.length > 0
 
@@ -63,24 +63,24 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
         return () => document.removeEventListener("keydown", handler, {capture: true})
     }, [])
 
+    const setUpdate = useSetAtom(runnableBridge.update)
+
     const handleUseRefinedPrompt = useCallback(() => {
-        if (!workingPrompt || !entityData) return
+        if (!workingPrompt || !runnableData) return
 
-        const parameters = (entityData.parameters ?? {}) as Record<string, unknown>
-        const currentPrompt = (parameters[promptKey] ?? {}) as Record<string, unknown>
+        const configuration = (runnableData.configuration ?? {}) as Record<string, unknown>
+        const currentPrompt = (configuration[promptKey] ?? {}) as Record<string, unknown>
 
-        legacyAppRevisionMolecule.set.update(revisionId, {
-            parameters: {
-                ...parameters,
-                [promptKey]: {
-                    ...currentPrompt,
-                    messages: workingPrompt.messages,
-                },
+        setUpdate(revisionId, {
+            ...configuration,
+            [promptKey]: {
+                ...currentPrompt,
+                messages: workingPrompt.messages,
             },
         })
 
         onClose()
-    }, [workingPrompt, entityData, promptKey, revisionId, onClose])
+    }, [workingPrompt, runnableData, promptKey, revisionId, onClose, setUpdate])
 
     return (
         <div className="flex h-full min-h-0 flex-1">

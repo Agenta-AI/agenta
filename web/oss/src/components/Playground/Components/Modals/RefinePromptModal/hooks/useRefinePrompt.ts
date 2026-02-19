@@ -13,7 +13,7 @@
 
 import {useCallback, useMemo, useRef} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {generateId} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -122,8 +122,8 @@ export function useRefinePrompt({
     revisionId,
     promptKey,
 }: UseRefinePromptParams): UseRefinePromptReturn {
-    const dataAtom = useMemo(() => legacyAppRevisionMolecule.atoms.data(revisionId), [revisionId])
-    const entityData = useAtomValue(dataAtom)
+    const dataAtom = useMemo(() => runnableBridge.data(revisionId), [revisionId])
+    const runnableData = useAtomValue(dataAtom)
 
     // Setters (stable references from Jotai)
     const setOriginalSnapshot = useSetAtom(originalPromptSnapshotAtomFamily(promptKey))
@@ -138,14 +138,14 @@ export function useRefinePrompt({
     // Use refs for values only read inside callbacks to keep refine stable
     const workingPromptRef = useRef<PromptTemplate | null>(null)
     const originalSnapshotRef = useRef<PromptTemplate | null>(null)
-    const entityDataRef = useRef(entityData)
+    const runnableDataRef = useRef(runnableData)
 
     // Sync refs on each render
     const workingPrompt = useAtomValue(workingPromptAtomFamily(promptKey))
     const originalSnapshot = useAtomValue(originalPromptSnapshotAtomFamily(promptKey))
     workingPromptRef.current = workingPrompt
     originalSnapshotRef.current = originalSnapshot
-    entityDataRef.current = entityData
+    runnableDataRef.current = runnableData
 
     const refine = useCallback(
         async (guidelines: string) => {
@@ -158,10 +158,10 @@ export function useRefinePrompt({
                 // Use working prompt if we have one, else extract from entity data
                 let promptToRefine = workingPromptRef.current
                 if (!promptToRefine) {
-                    const parameters = entityDataRef.current?.parameters as
+                    const configuration = runnableDataRef.current?.configuration as
                         | Record<string, unknown>
                         | undefined
-                    const promptValue = parameters?.[promptKey]
+                    const promptValue = configuration?.[promptKey]
                     promptToRefine = extractPromptTemplate(promptValue)
                 }
 

@@ -1,6 +1,6 @@
 import {cloneElement, isValidElement, useCallback, useState} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {FloppyDiskBack} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -20,13 +20,13 @@ const CommitVariantChangesButton = ({
     ...props
 }: CommitVariantChangesButtonProps) => {
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
-    const hasChanges = useAtomValue(legacyAppRevisionMolecule.atoms.hasChanges(variantId || ""))
+    const hasChanges = useAtomValue(runnableBridge.isDirty(variantId || ""))
     const disabled = !variantId || !hasChanges
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const handleSuccess = useCallback(
         (payload?: {revisionId?: string; variantId?: string}) => {
             recordWidgetEvent("playground_committed_change")
-            onSuccess?.(payload)
+            onSuccess?.(payload ?? {})
         },
         [recordWidgetEvent, onSuccess],
     )

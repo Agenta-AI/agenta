@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {Tag, Typography} from "antd"
 import clsx from "clsx"
@@ -11,29 +11,14 @@ interface GenerationComparisonOutputHeaderProps {
     entityId: string
 }
 
-const asRecord = (value: unknown): Record<string, unknown> | null => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return null
-    return value as Record<string, unknown>
-}
-
 const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeaderProps> = ({
     className,
     entityId,
 }) => {
-    const data = useAtomValue(
-        useMemo(() => legacyAppRevisionMolecule.atoms.data(entityId), [entityId]),
-    )
+    const data = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
 
-    const sourceRevisionRaw = asRecord(data)?._sourceRevision
-    const sourceRevision =
-        typeof sourceRevisionRaw === "number"
-            ? sourceRevisionRaw
-            : typeof sourceRevisionRaw === "string"
-              ? Number(sourceRevisionRaw)
-              : null
-    const label = isLocalDraftId(entityId)
-        ? formatLocalDraftLabel(sourceRevision)
-        : getVersionLabel(data?.revision)
+    const version = (data as Record<string, unknown> | null)?.version as number | undefined
+    const label = isLocalDraftId(entityId) ? formatLocalDraftLabel(null) : getVersionLabel(version)
 
     return (
         <div
@@ -42,7 +27,7 @@ const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeade
                 className,
             )}
         >
-            <Typography>{data?.variantName ?? null}</Typography>
+            <Typography>{data?.name ?? null}</Typography>
             <Tag color="default" variant="filled" className="bg-[rgba(5,23,41,0.06)]">
                 {label}
             </Tag>

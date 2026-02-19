@@ -1,20 +1,20 @@
 import {useCallback, useMemo} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
-import {getSourceRevisionId} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
-import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
+import {discardEntityDraft} from "../../../assets/entityHelpers"
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
@@ -36,52 +36,34 @@ const PlaygroundVariantConfigHeader = ({
     ...divProps
 }: PlaygroundVariantConfigHeaderProps & {embedded?: boolean}) => {
     const classes = useStyles()
-    const setSelectedVariants = useSetAtom(playgroundController.actions.setEntityIds)
 
-    // Check if this is a local draft
+    // Check if this is a local draft (browser-only clone)
     const isLocalDraftVariant = variantId ? isLocalDraftId(variantId) : false
 
-    // Read baseline revision directly from the source of truth (appRevisionsWithDraftsAtomFamily)
-    // For local drafts, use molecule data instead
-    const baseline = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId || ""))
-    const moleculeData = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId || ""))
-    const deployment = useAtomValue(
-        environmentMolecule.atoms.revisionDeployment((baseline?.id as string) || ""),
-    )
-    const latestAppRevisionId = useAtomValue(legacyAppRevisionMolecule.atoms.latestRevisionId)
+    // Use runnableBridge for entity-type-aware data access
+    const runnableData = useAtomValue(runnableBridge.data(variantId || ""))
+    const isDirty = useAtomValue(runnableBridge.isDirty(variantId || ""))
 
-    // For local drafts, get data from molecule
-    const effectiveData = isLocalDraftVariant ? moleculeData : baseline
-    const _sourceRevisionId = isLocalDraftVariant ? getSourceRevisionId(variantId || "") : null
+    // Deployment info: look up which environments this revision is deployed to
+    // Local drafts have no deployments
+    const deploymentEntityId = (runnableData?.id as string) || ""
+    const deployment = useAtomValue(
+        environmentMolecule.atoms.revisionDeployment(deploymentEntityId),
+    )
 
     // Extract revision display data with fallbacks for embedded usage
-    const _variantId = effectiveData?.id ?? (isLocalDraftVariant ? variantId : null)
-    const variantRevision = revisionOverride ?? (effectiveData as any)?.revision ?? null
-    // For local drafts, strip the "(Draft)" suffix from variant name since we show DraftTag separately
-    const rawVariantName =
-        variantNameOverride ??
-        (effectiveData as any)?.variantName ??
-        (effectiveData as any)?.name ??
-        "Variant"
-    const displayName = isLocalDraftVariant
-        ? String(rawVariantName).replace(/\s*\(Draft\)$/, "")
-        : rawVariantName
-    // latestAppRevisionIdAtom is now cheap (1 API call via /preview/applications/revisions/query)
-    const isLatestRevision =
-        typeof (effectiveData as any)?.isLatestRevision === "boolean"
-            ? (effectiveData as any).isLatestRevision
-            : _variantId === latestAppRevisionId
-    const hasChanges = useAtomValue(
-        legacyAppRevisionMolecule.atoms.hasChanges((_variantId as string) || ""),
-    )
-    // Keep the full deployment objects so downstream components (e.g., EnvironmentStatus)
-    // can access env.name and other fields.
-    // Local drafts have no deployments
+    const _variantId = runnableData?.id ?? null
+    const variantRevision = revisionOverride ?? (runnableData?.version as number | null) ?? null
+    const rawVariantName = variantNameOverride ?? runnableData?.name ?? "Variant"
+    const isLatestRevision = useAtomValue(runnableBridge.isLatestRevision(variantId || ""))
+    const hasChanges = isDirty
+
     const deployedIn = isLocalDraftVariant
         ? []
         : Array.isArray(deployment)
           ? (deployment as any[])
           : []
+
     // Stable minimal variant shape for presentational children
     const variantMin = useMemo(
         () => ({
@@ -93,6 +75,7 @@ const PlaygroundVariantConfigHeader = ({
     )
 
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
+    const removeEntity = useSetAtom(playgroundController.actions.removeEntity)
 
     const handleSwitchVariant = useCallback(
         (newVariantId: string) => {
@@ -104,26 +87,18 @@ const PlaygroundVariantConfigHeader = ({
         [switchEntity, variantId],
     )
 
-    const handleDiscardDraft = useCallback(() => {
+    // Discard handler for local drafts — removes the draft from selection
+    const handleDiscardLocalDraft = useCallback(() => {
         if (!variantId || !isLocalDraftVariant) return
-        // When discarding the last entity, fall back to source revision
-        // instead of leaving the playground empty
-        setSelectedVariants((prev) => {
-            const updated = prev.filter((id) => id !== variantId)
-            if (updated.length === 0 && _sourceRevisionId) {
-                return [_sourceRevisionId]
-            }
-            return updated
-        })
-        // Discard draft
-        legacyAppRevisionMolecule.set.discard(variantId)
-    }, [variantId, isLocalDraftVariant, setSelectedVariants, _sourceRevisionId])
+        removeEntity(variantId)
+        discardEntityDraft(variantId)
+    }, [variantId, isLocalDraftVariant, removeEntity])
 
     // Discard handler for regular revisions (shown in DraftTag dropdown)
     const handleRevisionDiscardDraft = useCallback(() => {
         if (!_variantId) return
         try {
-            legacyAppRevisionMolecule.set.discard(_variantId as string)
+            discardEntityDraft(_variantId as string)
             message.success("Draft changes discarded")
         } catch (e) {
             message.error("Failed to discard draft changes")
@@ -133,19 +108,17 @@ const PlaygroundVariantConfigHeader = ({
 
     return (
         <section
-            className={clsx(
-                "w-full",
-                "h-[48px]",
-                "flex items-center justify-between",
-                embedded ? undefined : "sticky top-0 z-[10]",
-                classes.container,
-                className,
-            )}
+            className={`w-full h-[48px] flex items-center justify-between ${embedded ? "" : "sticky top-0 z-[10]"} ${classes.container} ${className ?? ""}`}
             {...divProps}
         >
             <div className="flex items-center gap-2 grow">
                 {!embedded && !isLocalDraftVariant && (
                     <SelectVariant
+                        mode={
+                            getEnv("NEXT_PUBLIC_PLAYGROUND_EVALUATOR_WORKFLOWS") === "true"
+                                ? "browse"
+                                : "scoped"
+                        }
                         onChange={(value) => handleSwitchVariant?.(value)}
                         value={_variantId ?? undefined}
                     />
@@ -156,18 +129,18 @@ const PlaygroundVariantConfigHeader = ({
                         <DraftTag />
                         {variantRevision !== null && variantRevision !== undefined && (
                             <span className="text-gray-500">
-                                from {displayName} v{variantRevision}
+                                from {rawVariantName} v{variantRevision}
                             </span>
                         )}
                     </div>
                 )}
-                {/* Don't show VariantDetailsWithStatus for local drafts - we already show source info above */}
+                {/* Don't show VariantDetailsWithStatus for local drafts — source info is shown above */}
                 {!isLocalDraftVariant && (
                     <>
-                        {embedded && !effectiveData ? (
+                        {embedded && !runnableData ? (
                             <div className="flex items-center gap-2 grow mr-4">
                                 <span className="text-sm text-gray-700 truncate">
-                                    {displayName as any}
+                                    {rawVariantName as any}
                                 </span>
                                 {variantRevision !== null && variantRevision !== undefined && (
                                     <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
@@ -180,9 +153,9 @@ const PlaygroundVariantConfigHeader = ({
                                 className="grow mr-4"
                                 revision={variantRevision ?? null}
                                 variant={variantMin}
-                                showBadges={true}
+                                showBadges
                                 hideName={!embedded}
-                                variantName={displayName as any}
+                                variantName={rawVariantName as any}
                                 showRevisionAsTag={true}
                                 hasChanges={hasChanges}
                                 isLatest={isLatestRevision}
@@ -195,7 +168,6 @@ const PlaygroundVariantConfigHeader = ({
             {!embedded && (
                 <div className="flex items-center gap-2">
                     {isLocalDraftVariant ? (
-                        // Local draft actions
                         <>
                             <CommitVariantChangesButton
                                 variantId={variantId}
@@ -209,12 +181,11 @@ const PlaygroundVariantConfigHeader = ({
                                     size="small"
                                     danger
                                     icon={<Trash size={16} />}
-                                    onClick={handleDiscardDraft}
+                                    onClick={handleDiscardLocalDraft}
                                 />
                             </Tooltip>
                         </>
                     ) : (
-                        // Regular revision actions
                         <>
                             <DeployVariantButton revisionId={variantId} />
 
