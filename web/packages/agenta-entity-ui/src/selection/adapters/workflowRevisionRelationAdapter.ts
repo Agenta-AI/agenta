@@ -43,7 +43,7 @@ import {
     workflowRevisionsListQueryStateAtomFamily,
     type WorkflowQueryFlags,
 } from "@agenta/entities/workflow"
-import {RevisionLabel, VariantListItemLabel} from "@agenta/ui/components/presentational"
+import {EntityListItemLabel} from "@agenta/ui/components/presentational"
 import {atom} from "jotai"
 import type {Atom} from "jotai"
 
@@ -55,6 +55,100 @@ import type {
 } from "../types"
 
 import {createThreeLevelAdapter, createTwoLevelAdapter} from "./createAdapterFromRelations"
+import {createRevisionLevel} from "./revisionLevelFactory"
+
+// ============================================================================
+// WORKFLOW TYPE GROUPING HELPERS
+// ============================================================================
+
+const WORKFLOW_GROUP_LABELS: Record<string, string> = {
+    completion: "Completion",
+    chat: "Chat",
+    custom: "Custom",
+    evaluator: "Evaluator",
+    human: "Human",
+}
+
+function getWorkflowGroupKey(entity: unknown): string {
+    const flags = (entity as {flags?: Record<string, boolean> | null}).flags
+    if (flags?.is_evaluator) return "evaluator"
+    if (flags?.is_chat) return "chat"
+    if (flags?.is_custom) return "custom"
+    if (flags?.is_human) return "human"
+    return "completion"
+}
+
+function getWorkflowGroupLabel(key: string): string {
+    return WORKFLOW_GROUP_LABELS[key] ?? key
+}
+
+/**
+ * Render a workflow list item with a type tag trailing element.
+ * Shows: "workflow name" + [Completion] / [Chat] / etc.
+ * Only shows the tag when it's NOT the default "completion" type.
+ */
+function renderWorkflowLabelNode(entity: unknown): React.ReactNode {
+    const w = entity as {name?: string; flags?: Record<string, boolean> | null}
+    const groupKey = getWorkflowGroupKey(entity)
+    const tag =
+        groupKey !== "completion"
+            ? React.createElement(
+                  "span",
+                  {
+                      className: "text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500",
+                  },
+                  getWorkflowGroupLabel(groupKey),
+              )
+            : undefined
+
+    return React.createElement(EntityListItemLabel, {
+        label: w.name ?? "Unnamed",
+        trailing: tag,
+    })
+}
+
+// ============================================================================
+// WORKFLOW VARIANT SUBTITLE HELPER
+// ============================================================================
+
+/**
+ * Extract a subtitle for workflow variant display.
+ * Shows description if available, otherwise falls back to updated_at or created_at date.
+ */
+function getWorkflowVariantSubtitle(entity: unknown): string | undefined {
+    const v = entity as {
+        description?: string | null
+        updated_at?: string | null
+        created_at?: string | null
+    }
+    if (v.description) return v.description
+
+    const dateStr = v.updated_at ?? v.created_at
+    if (dateStr) {
+        const date = new Date(dateStr)
+        if (!isNaN(date.getTime())) {
+            const label = v.updated_at ? "Updated" : "Created"
+            return `${label} ${date.toLocaleDateString(undefined, {month: "short", day: "numeric", year: "numeric"})}`
+        }
+    }
+    return undefined
+}
+
+// ============================================================================
+// SHARED WORKFLOW REVISION LEVEL
+// ============================================================================
+
+/**
+ * Shared revision level config created via the revisionLevelFactory.
+ * Provides:
+ * - Standard version/date field extraction (no commit message — keeps layout to 2 lines)
+ * - Author resolution via UserAuthorLabel (resolveAuthor: true by default)
+ * - Consistent RevisionLabel rendering with renderAuthor
+ * - Proper placeholder nodes
+ */
+const workflowRevisionLevel = createRevisionLevel({
+    type: "workflowRevision",
+})
 
 // ============================================================================
 // TYPES
@@ -91,6 +185,9 @@ export const workflowRevisionAdapter = createThreeLevelAdapter<WorkflowRevisionS
     grandparentOverrides: {
         getId: (entity: unknown) => (entity as {id: string}).id,
         getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+        getLabelNode: renderWorkflowLabelNode,
+        getGroupKey: getWorkflowGroupKey,
+        getGroupLabel: getWorkflowGroupLabel,
         hasChildren: true,
         isSelectable: false,
     },
@@ -103,16 +200,11 @@ export const workflowRevisionAdapter = createThreeLevelAdapter<WorkflowRevisionS
         getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
         getLabelNode: (entity: unknown) => {
             const v = entity as {name?: string}
-            return React.createElement(VariantListItemLabel, {
-                name: v.name ?? "Unnamed",
-                reserveSubtitleSpace: true,
+            return React.createElement(EntityListItemLabel, {
+                label: v.name ?? "Unnamed",
+                subtitle: getWorkflowVariantSubtitle(entity),
             })
         },
-        getPlaceholderNode: (text: string) =>
-            React.createElement(VariantListItemLabel, {
-                name: text,
-                reserveSubtitleSpace: true,
-            }),
         hasChildren: true,
         isSelectable: false,
     },
@@ -121,28 +213,10 @@ export const workflowRevisionAdapter = createThreeLevelAdapter<WorkflowRevisionS
     childRelation: workflowVariantToRevisionRelation as EntityRelation<unknown, unknown>,
     childOverrides: {
         autoSelectSingle: true,
-        getLabelNode: (entity: unknown) => {
-            const r = entity as {
-                version?: number
-                name?: string
-                created_at?: string
-                created_by_id?: string
-            }
-            return React.createElement(RevisionLabel, {
-                version: r.version ?? 0,
-                message: r.name,
-                createdAt: r.created_at,
-                author: r.created_by_id,
-                maxMessageWidth: 180,
-            })
-        },
-        getPlaceholderNode: (text: string) =>
-            React.createElement(
-                "div",
-                {className: "flex flex-col gap-0.5"},
-                React.createElement("span", {className: "text-zinc-400"}, text),
-                React.createElement("span", {className: "invisible"}, "\u00A0"),
-            ),
+        getId: workflowRevisionLevel.getId,
+        getLabel: workflowRevisionLevel.getLabel,
+        getLabelNode: workflowRevisionLevel.getLabelNode,
+        getPlaceholderNode: workflowRevisionLevel.getPlaceholderNode,
     },
     selectionType: "workflowRevision",
     toSelection: (
@@ -332,7 +406,15 @@ export function createWorkflowRevisionAdapter(
                 getLabel:
                     variantOverrides.getLabel ??
                     ((v: unknown) => (v as {name?: string}).name ?? "Unnamed"),
-                getLabelNode: variantOverrides.getLabelNode,
+                getLabelNode:
+                    variantOverrides.getLabelNode ??
+                    ((entity: unknown) => {
+                        const v = entity as {name?: string}
+                        return React.createElement(EntityListItemLabel, {
+                            label: v.name ?? "Unnamed",
+                            subtitle: getWorkflowVariantSubtitle(entity),
+                        })
+                    }),
                 hasChildren: variantOverrides.hasChildren ?? true,
                 isSelectable: variantOverrides.isSelectable ?? false,
             },
@@ -343,28 +425,10 @@ export function createWorkflowRevisionAdapter(
                 listAtomFamily: resolvedRevisionsListAtomFamily,
             } as EntityRelation<unknown, unknown>,
             childOverrides: {
-                getId: revisionOverrides.getId ?? ((r: unknown) => (r as {id: string}).id ?? ""),
-                getLabel:
-                    revisionOverrides.getLabel ??
-                    ((r: unknown) => {
-                        const rev = r as {version?: number}
-                        return `v${rev.version ?? 0}`
-                    }),
-                getLabelNode:
-                    revisionOverrides.getLabelNode ??
-                    ((r: unknown) => {
-                        const rev = r as {
-                            version?: number
-                            name?: string
-                            created_at?: string
-                        }
-                        return React.createElement(RevisionLabel, {
-                            version: rev.version ?? 0,
-                            message: rev.name,
-                            createdAt: rev.created_at,
-                            maxMessageWidth: 180,
-                        })
-                    }),
+                getId: revisionOverrides.getId ?? workflowRevisionLevel.getId,
+                getLabel: revisionOverrides.getLabel ?? workflowRevisionLevel.getLabel,
+                getLabelNode: revisionOverrides.getLabelNode ?? workflowRevisionLevel.getLabelNode,
+                getPlaceholderNode: workflowRevisionLevel.getPlaceholderNode,
                 filterItems: excludeRevisionZero
                     ? (r: unknown) => (r as {version?: number}).version !== 0
                     : undefined,
@@ -420,6 +484,9 @@ export function createWorkflowRevisionAdapter(
         grandparentOverrides: {
             getId: (entity: unknown) => (entity as {id: string}).id,
             getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+            getLabelNode: renderWorkflowLabelNode,
+            getGroupKey: getWorkflowGroupKey,
+            getGroupLabel: getWorkflowGroupLabel,
             hasChildren: true,
             isSelectable: false,
         },
@@ -432,14 +499,15 @@ export function createWorkflowRevisionAdapter(
             getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
             getLabelNode: (entity: unknown) => {
                 const v = entity as {name?: string}
-                return React.createElement(VariantListItemLabel, {
-                    name: v.name ?? "Unnamed",
+                return React.createElement(EntityListItemLabel, {
+                    label: v.name ?? "Unnamed",
+                    subtitle: getWorkflowVariantSubtitle(entity),
                     reserveSubtitleSpace: true,
                 })
             },
             getPlaceholderNode: (text: string) =>
-                React.createElement(VariantListItemLabel, {
-                    name: text,
+                React.createElement(EntityListItemLabel, {
+                    label: text,
                     reserveSubtitleSpace: true,
                 }),
             hasChildren: true,
@@ -450,30 +518,10 @@ export function createWorkflowRevisionAdapter(
         childRelation: workflowVariantToRevisionRelation as EntityRelation<unknown, unknown>,
         childOverrides: {
             autoSelectSingle: true,
-            getLabelNode:
-                revisionOverrides.getLabelNode ??
-                ((entity: unknown) => {
-                    const r = entity as {
-                        version?: number
-                        name?: string
-                        created_at?: string
-                        created_by_id?: string
-                    }
-                    return React.createElement(RevisionLabel, {
-                        version: r.version ?? 0,
-                        message: r.name,
-                        createdAt: r.created_at,
-                        author: r.created_by_id,
-                        maxMessageWidth: 180,
-                    })
-                }),
-            getPlaceholderNode: (text: string) =>
-                React.createElement(
-                    "div",
-                    {className: "flex flex-col gap-0.5"},
-                    React.createElement("span", {className: "text-zinc-400"}, text),
-                    React.createElement("span", {className: "invisible"}, "\u00A0"),
-                ),
+            getId: workflowRevisionLevel.getId,
+            getLabel: workflowRevisionLevel.getLabel,
+            getLabelNode: revisionOverrides.getLabelNode ?? workflowRevisionLevel.getLabelNode,
+            getPlaceholderNode: workflowRevisionLevel.getPlaceholderNode,
         },
         selectionType: "workflowRevision",
         toSelection:
