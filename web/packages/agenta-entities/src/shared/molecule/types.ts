@@ -704,6 +704,8 @@ export interface RelationSelectionConfig {
     icon?: unknown
     /** How to display an entity in the list */
     displayName?: (entity: unknown) => string
+    /** How to display a subtitle / description for an entity in the list */
+    displayDescription?: (entity: unknown) => string | undefined
     /** Auto-select if only one item */
     autoSelectSingle?: boolean
     /** Auto-select the latest (most recent) item */

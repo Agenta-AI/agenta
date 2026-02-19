@@ -157,6 +157,19 @@ export const workflowToVariantRelation: EntityRelation<Workflow, WorkflowVariant
             const variant = entity as WorkflowVariant
             return variant.name || "Unnamed"
         },
+        displayDescription: (entity: unknown) => {
+            const variant = entity as WorkflowVariant
+            if (variant.description) return variant.description
+            const dateStr = variant.updated_at ?? variant.created_at
+            if (dateStr) {
+                const date = new Date(dateStr)
+                if (!isNaN(date.getTime())) {
+                    const label = variant.updated_at ? "Updated" : "Created"
+                    return `${label} ${date.toLocaleDateString(undefined, {month: "short", day: "numeric", year: "numeric"})}`
+                }
+            }
+            return undefined
+        },
     },
 }
 
