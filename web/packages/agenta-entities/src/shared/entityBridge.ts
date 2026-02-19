@@ -90,8 +90,16 @@ export interface BaseMolecule {
     // Nested API (backwards compatible)
     selectors: BaseMoleculeSelectors
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types for action registries
-    actions?: Record<string, WritableAtom<any, any[], any>>
+    actions: {
+        /** Update entity draft */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        update: WritableAtom<any, any[], any>
+        /** Discard entity draft */
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        discard: WritableAtom<any, any[], any>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        [key: string]: WritableAtom<any, any[], any>
+    }
 }
 
 // ============================================================================
@@ -321,6 +329,23 @@ export interface RunnableTypeConfig<T = unknown> {
      */
     schemasSelector?: (id: string) => Atom<{inputSchema?: unknown; outputSchema?: unknown} | null>
     /**
+     * Selector atom for the parameters/configuration JSON schema.
+     * This schema drives the configuration form UI (e.g. prompt settings, LLM config).
+     * Separate from I/O schemas which describe the execution interface.
+     */
+    parametersSchemaSelector?: (id: string) => Atom<Record<string, unknown> | null>
+    /**
+     * Selector atom for the raw draft state (local edits not yet merged).
+     * Used for hash-based change detection (e.g., URL sync).
+     * If not provided, the bridge returns null for draft reads.
+     */
+    draftSelector?: (id: string) => Atom<unknown>
+    /**
+     * Invalidate all caches for this entity type.
+     * Called by `runnableBridge.invalidateAllCaches()` to refresh stale data.
+     */
+    invalidateCache?: () => void
+    /**
      * Selector atom for input ports (preferred over getInputPorts).
      * Use this when input ports are derived reactively from entity state.
      */
@@ -358,6 +383,29 @@ export interface RunnableTypeConfig<T = unknown> {
         output: unknown
         trace?: {id: string} | undefined
     }
+    /**
+     * Selector atom for the latest revision ID given a parent entity ID (e.g., workflow ID).
+     * Used by `isLatestRevision` to compare a revision against the most recent one.
+     */
+    latestRevisionIdSelector?: (parentId: string) => Atom<string | null>
+    /**
+     * Extract the parent entity ID from entity data.
+     * For workflows: extracts `workflow_id`. For legacy: extracts variant/app ID.
+     * Used together with `latestRevisionIdSelector` for `isLatestRevision`.
+     */
+    parentIdExtractor?: (entity: unknown) => string | null
+    /**
+     * Create a local (browser-only) draft by cloning a server revision.
+     * Returns the new local draft ID, or null on failure.
+     * Each entity type implements this with its own molecule/storage.
+     */
+    createLocalDraft?: (sourceRevisionId: string, appId?: string) => string | null
+    /**
+     * Selector atom for server data (before draft overlay).
+     * Returns the raw entity data from the server, without any local edits merged.
+     * Used for commit diff generation (comparing original vs modified).
+     */
+    serverDataSelector?: (id: string) => Atom<unknown | null>
     /** Additional selectors specific to this runnable type */
     extraSelectors?: Record<string, (id: string) => Atom<unknown>>
     /** Additional actions specific to this runnable type */
@@ -394,12 +442,22 @@ export interface RunnableBridgeSelectors {
     configuration: (runnableId: string) => Atom<Record<string, unknown> | null>
     /** Get invocation URL */
     invocationUrl: (runnableId: string) => Atom<string | null>
-    /** Get schemas */
+    /** Get I/O schemas */
     schemas: (runnableId: string) => Atom<{inputSchema?: unknown; outputSchema?: unknown} | null>
+    /** Get parameters/configuration JSON schema (drives config form UI) */
+    parametersSchema: (runnableId: string) => Atom<Record<string, unknown> | null>
     /** Get execution mode ("chat" or "completion") */
     executionMode: (runnableId: string) => Atom<"chat" | "completion">
     /** Get pre-built request payload (config portion of API request body) */
     requestPayload: (runnableId: string) => Atom<unknown | null>
+    /** Get raw draft state (local edits before merge) for change detection */
+    draft: (runnableId: string) => Atom<unknown>
+    /** Check if a revision is the latest for its parent entity */
+    isLatestRevision: (runnableId: string) => Atom<boolean>
+    /** Get server data (before draft overlay) as RunnableData */
+    serverData: (runnableId: string) => Atom<RunnableData | null>
+    /** Get server configuration (before draft overlay) */
+    serverConfiguration: (runnableId: string) => Atom<Record<string, unknown> | null>
 }
 
 /**
@@ -434,8 +492,13 @@ export interface TypeScopedRunnableSelectors {
     inputPorts: (runnableId: string) => Atom<RunnablePort[]>
     outputPorts: (runnableId: string) => Atom<RunnablePort[]>
     schemas: (runnableId: string) => Atom<{inputSchema?: unknown; outputSchema?: unknown} | null>
+    parametersSchema: (runnableId: string) => Atom<Record<string, unknown> | null>
     query: (runnableId: string) => Atom<BridgeQueryState<RunnableData>>
     isDirty: (runnableId: string) => Atom<boolean>
+    draft: (runnableId: string) => Atom<unknown>
+    isLatestRevision: (runnableId: string) => Atom<boolean>
+    serverData: (runnableId: string) => Atom<RunnableData | null>
+    serverConfiguration: (runnableId: string) => Atom<Record<string, unknown> | null>
 }
 
 /**
@@ -486,6 +549,44 @@ export interface RunnableBridge extends RunnableBridgeSelectors {
      * Playground-specific orchestration is handled via registered callbacks.
      */
     crud: RunnableBridgeCrudActions
+
+    /**
+     * Update draft parameters for an entity.
+     * Routes to the correct molecule's update action based on the type hint.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
+    update: WritableAtom<any, [string, Record<string, unknown>], void>
+
+    /**
+     * Discard draft changes for an entity.
+     * Routes to the correct molecule's discard action based on the type hint.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
+    discard: WritableAtom<any, [string], void>
+
+    /**
+     * Get raw draft state for an entity (local edits before merge).
+     * Used for hash-based change detection (e.g., URL sync).
+     */
+    draft: RunnableBridgeSelectors["draft"]
+
+    /**
+     * Invalidate all caches across all registered entity types.
+     * Call this after CRUD operations to refresh stale data.
+     */
+    invalidateAllCaches: () => void
+
+    /**
+     * Create a local (browser-only) draft by cloning a server revision.
+     * Routes to the correct entity type's createLocalDraft implementation.
+     * Returns the new local draft ID, or null on failure.
+     */
+    createLocalDraft: (sourceRevisionId: string, appId?: string) => string | null
+
+    /** Get server data (before draft overlay) as RunnableData */
+    serverData: RunnableBridgeSelectors["serverData"]
+    /** Get server configuration (before draft overlay) */
+    serverConfiguration: RunnableBridgeSelectors["serverConfiguration"]
 }
 
 // ============================================================================

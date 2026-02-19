@@ -508,24 +508,69 @@ export function createLoadableBridge(config: CreateLoadableBridgeConfig): Loadab
  * })
  * ```
  */
+/**
+ * Type hint registry for runnable IDs.
+ *
+ * When a runnable ID has a registered type hint, bridge selectors skip probing
+ * other molecule types and go directly to the hinted type's molecule. This
+ * prevents spurious API calls (e.g., querying the legacy API for workflow IDs).
+ *
+ * The playground registers hints when nodes are created/updated.
+ */
+const _runnableTypeHints = new Map<string, string>()
+
+/** Register a type hint for a runnable ID */
+export function registerRunnableTypeHint(id: string, type: string): void {
+    _runnableTypeHints.set(id, type)
+}
+
+/** Clear a type hint for a runnable ID */
+export function clearRunnableTypeHint(id: string): void {
+    _runnableTypeHints.delete(id)
+}
+
+/** Clear all type hints (for cleanup) */
+export function clearAllRunnableTypeHints(): void {
+    _runnableTypeHints.clear()
+}
+
 export function createRunnableBridge(config: CreateRunnableBridgeConfig): RunnableBridge {
     const {runnables, crud} = config
 
-    // Create selectors
-    const selectors: RunnableBridgeSelectors = {
-        data: (runnableId: string) =>
-            atom((get) => {
-                // Try each runnable type to find data
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const entity = get(config.molecule.selectors.data(runnableId))
-                    if (entity) {
-                        return config.toRunnable(entity)
-                    }
-                }
-                return null
-            }),
+    /**
+     * Helper: resolve the runnable config for a given ID.
+     * If a type hint exists, return only that config. Otherwise return null
+     * to indicate the caller should probe all types.
+     */
+    const getHintedConfig = (runnableId: string) => {
+        const hintedType = _runnableTypeHints.get(runnableId)
+        if (hintedType && runnables[hintedType]) {
+            return {type: hintedType, config: runnables[hintedType]}
+        }
+        return null
+    }
 
-        dataForType: (runnableType: string, runnableId: string) =>
+    // Atom families for stable references — each selector returns the SAME atom
+    // instance for the same runnableId across renders.
+    const dataFamily = atomFamily((runnableId: string) =>
+        atom((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                const entity = get(hinted.config.molecule.selectors.data(runnableId))
+                return entity ? hinted.config.toRunnable(entity) : null
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (entity) {
+                    return config.toRunnable(entity)
+                }
+            }
+            return null
+        }),
+    )
+
+    const dataForTypeFamily = atomFamily(
+        ({runnableType, runnableId}: {runnableType: string; runnableId: string}) =>
             atom((get) => {
                 const config = runnables[runnableType]
                 if (!config) return null
@@ -533,133 +578,334 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                 if (!entity) return null
                 return config.toRunnable(entity)
             }),
+        (a, b) => a.runnableType === b.runnableType && a.runnableId === b.runnableId,
+    )
 
-        query: (runnableId: string) =>
-            atom((get) => {
-                // Try each runnable type to find query state
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const query = get(config.molecule.selectors.query(runnableId))
-                    if (query.data || query.isPending || query.isError) {
-                        return query as BridgeQueryState<RunnableData>
+    const queryFamily = atomFamily((runnableId: string) =>
+        atom((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                const query = get(hinted.config.molecule.selectors.query(runnableId))
+                return query as BridgeQueryState<RunnableData>
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const query = get(config.molecule.selectors.query(runnableId))
+                if (query.data || query.isPending || query.isError) {
+                    return query as BridgeQueryState<RunnableData>
+                }
+            }
+            return {
+                data: null,
+                isPending: false,
+                isError: false,
+                error: null,
+            }
+        }),
+    )
+
+    const isDirtyFamily = atomFamily((runnableId: string) =>
+        atom((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                return get(hinted.config.molecule.selectors.isDirty(runnableId))
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const isDirty = get(config.molecule.selectors.isDirty(runnableId))
+                if (isDirty) return true
+            }
+            return false
+        }),
+    )
+
+    const inputPortsFamily = atomFamily((runnableId: string) =>
+        atom((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                const entity = get(hinted.config.molecule.selectors.data(runnableId))
+                if (!entity) return []
+                if (hinted.config.inputPortsSelector) {
+                    return get(hinted.config.inputPortsSelector(runnableId))
+                }
+                return hinted.config.getInputPorts(entity)
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (entity) {
+                    if (config.inputPortsSelector) {
+                        return get(config.inputPortsSelector(runnableId))
                     }
+                    return config.getInputPorts(entity)
                 }
-                return {
-                    data: null,
-                    isPending: false,
-                    isError: false,
-                    error: null,
-                }
-            }),
+            }
+            return []
+        }),
+    )
 
-        isDirty: (runnableId: string) =>
-            atom((get) => {
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const isDirty = get(config.molecule.selectors.isDirty(runnableId))
-                    if (isDirty) return true
+    const outputPortsFamily = atomFamily((runnableId: string) =>
+        atom((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                const entity = get(hinted.config.molecule.selectors.data(runnableId))
+                if (!entity) return []
+                if (hinted.config.outputPortsSelector) {
+                    return get(hinted.config.outputPortsSelector(runnableId))
                 }
-                return false
-            }),
-
-        inputPorts: (runnableId: string) =>
-            atom((get) => {
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const entity = get(config.molecule.selectors.data(runnableId))
-                    if (entity) {
-                        // Prefer selector atom if provided (reactive derivation)
-                        if (config.inputPortsSelector) {
-                            return get(config.inputPortsSelector(runnableId))
-                        }
-                        // Fallback to extraction function
-                        return config.getInputPorts(entity)
+                return hinted.config.getOutputPorts(entity)
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (entity) {
+                    if (config.outputPortsSelector) {
+                        return get(config.outputPortsSelector(runnableId))
                     }
+                    return config.getOutputPorts(entity)
                 }
-                return []
-            }),
+            }
+            return []
+        }),
+    )
 
-        outputPorts: (runnableId: string) =>
-            atom((get) => {
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const entity = get(config.molecule.selectors.data(runnableId))
-                    if (entity) {
-                        // Prefer selector atom if provided (reactive derivation)
-                        if (config.outputPortsSelector) {
-                            return get(config.outputPortsSelector(runnableId))
-                        }
-                        // Fallback to extraction function
-                        return config.getOutputPorts(entity)
-                    }
+    const configurationFamily = atomFamily((runnableId: string) =>
+        atom((get) => {
+            const data = get(dataFamily(runnableId))
+            return data?.configuration ?? null
+        }),
+    )
+
+    const invocationUrlFamily = atomFamily((runnableId: string) =>
+        atom((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                const entity = get(hinted.config.molecule.selectors.data(runnableId))
+                if (!entity) return null
+                if (hinted.config.invocationUrlSelector) {
+                    return get(hinted.config.invocationUrlSelector(runnableId))
                 }
-                return []
-            }),
-
-        configuration: (runnableId: string) =>
-            atom((get) => {
-                const data = get(selectors.data(runnableId))
-                return data?.configuration ?? null
-            }),
-
-        invocationUrl: (runnableId: string) =>
-            atom((get) => {
-                // Try each runnable type to find invocation URL
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const entity = get(config.molecule.selectors.data(runnableId))
-                    if (entity) {
-                        // Prefer selector atom if provided (computed from schema)
-                        if (config.invocationUrlSelector) {
-                            return get(config.invocationUrlSelector(runnableId))
-                        }
-                        // Fallback to toRunnable extraction
-                        const data = config.toRunnable(entity)
-                        return data?.invocationUrl ?? null
+                const data = hinted.config.toRunnable(entity)
+                return data?.invocationUrl ?? null
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (entity) {
+                    if (config.invocationUrlSelector) {
+                        return get(config.invocationUrlSelector(runnableId))
                     }
-                }
-                return null
-            }),
-
-        schemas: (runnableId: string) =>
-            atom((get) => {
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const entity = get(config.molecule.selectors.data(runnableId))
-                    if (!entity) continue
-
-                    // Prefer entity-level schema selector when provided.
-                    if (config.schemasSelector) {
-                        return get(config.schemasSelector(runnableId))
-                    }
-
                     const data = config.toRunnable(entity)
-                    return data?.schemas ?? null
+                    return data?.invocationUrl ?? null
+                }
+            }
+            return null
+        }),
+    )
+
+    const schemasFamily = atomFamily((runnableId: string) =>
+        atom((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                const entity = get(hinted.config.molecule.selectors.data(runnableId))
+                if (!entity) return null
+                if (hinted.config.schemasSelector) {
+                    return get(hinted.config.schemasSelector(runnableId))
+                }
+                const data = hinted.config.toRunnable(entity)
+                return data?.schemas ?? null
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (!entity) continue
+                if (config.schemasSelector) {
+                    return get(config.schemasSelector(runnableId))
+                }
+                const data = config.toRunnable(entity)
+                return data?.schemas ?? null
+            }
+            return null
+        }),
+    )
+
+    const parametersSchemaFamily = atomFamily((runnableId: string) =>
+        atom<Record<string, unknown> | null>((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                const entity = get(hinted.config.molecule.selectors.data(runnableId))
+                if (!entity) return null
+                if (hinted.config.parametersSchemaSelector) {
+                    return get(hinted.config.parametersSchemaSelector(runnableId))
                 }
                 return null
-            }),
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (!entity) continue
+                if (config.parametersSchemaSelector) {
+                    return get(config.parametersSchemaSelector(runnableId))
+                }
+            }
+            return null
+        }),
+    )
 
-        executionMode: (runnableId: string) =>
-            atom<"chat" | "completion">((get) => {
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const entity = get(config.molecule.selectors.data(runnableId))
-                    if (entity) {
-                        if (config.executionModeSelector) {
-                            return get(config.executionModeSelector(runnableId))
-                        }
-                        return "completion"
+    const draftFamily = atomFamily((runnableId: string) =>
+        atom<unknown>((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                if (hinted.config.draftSelector) {
+                    return get(hinted.config.draftSelector(runnableId))
+                }
+                return null
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (entity) {
+                    if (config.draftSelector) {
+                        return get(config.draftSelector(runnableId))
                     }
+                    return null
+                }
+            }
+            return null
+        }),
+    )
+
+    const serverDataFamily = atomFamily((runnableId: string) =>
+        atom<RunnableData | null>((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                if (!hinted.config.serverDataSelector) return null
+                const entity = get(hinted.config.serverDataSelector(runnableId))
+                return entity ? hinted.config.toRunnable(entity) : null
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                if (!config.serverDataSelector) continue
+                const entity = get(config.serverDataSelector(runnableId))
+                if (entity) {
+                    return config.toRunnable(entity)
+                }
+            }
+            return null
+        }),
+    )
+
+    const serverConfigurationFamily = atomFamily((runnableId: string) =>
+        atom<Record<string, unknown> | null>((get) => {
+            const data = get(serverDataFamily(runnableId))
+            return data?.configuration ?? null
+        }),
+    )
+
+    const isLatestRevisionFamily = atomFamily((runnableId: string) =>
+        atom<boolean>((get) => {
+            if (!runnableId) return false
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                const entity = get(hinted.config.molecule.selectors.data(runnableId))
+                if (
+                    !entity ||
+                    !hinted.config.parentIdExtractor ||
+                    !hinted.config.latestRevisionIdSelector
+                )
+                    return false
+                const parentId = hinted.config.parentIdExtractor(entity)
+                if (!parentId) return false
+                const latestId = get(hinted.config.latestRevisionIdSelector(parentId))
+                return runnableId === latestId
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (entity) {
+                    if (!config.parentIdExtractor || !config.latestRevisionIdSelector) return false
+                    const parentId = config.parentIdExtractor(entity)
+                    if (!parentId) return false
+                    const latestId = get(config.latestRevisionIdSelector(parentId))
+                    return runnableId === latestId
+                }
+            }
+            return false
+        }),
+    )
+
+    const executionModeFamily = atomFamily((runnableId: string) =>
+        atom<"chat" | "completion">((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                const entity = get(hinted.config.molecule.selectors.data(runnableId))
+                if (!entity) return "completion"
+                if (hinted.config.executionModeSelector) {
+                    return get(hinted.config.executionModeSelector(runnableId))
                 }
                 return "completion"
-            }),
-
-        requestPayload: (runnableId: string) =>
-            atom((get) => {
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const entity = get(config.molecule.selectors.data(runnableId))
-                    if (entity) {
-                        if (config.requestPayloadSelector) {
-                            return get(config.requestPayloadSelector(runnableId))
-                        }
-                        return null
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (entity) {
+                    if (config.executionModeSelector) {
+                        return get(config.executionModeSelector(runnableId))
                     }
+                    return "completion"
+                }
+            }
+            return "completion"
+        }),
+    )
+
+    const requestPayloadFamily = atomFamily((runnableId: string) =>
+        atom((get) => {
+            const hinted = getHintedConfig(runnableId)
+            if (hinted) {
+                const entity = get(hinted.config.molecule.selectors.data(runnableId))
+                if (!entity) return null
+                if (hinted.config.requestPayloadSelector) {
+                    return get(hinted.config.requestPayloadSelector(runnableId))
                 }
                 return null
-            }),
+            }
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (entity) {
+                    if (config.requestPayloadSelector) {
+                        return get(config.requestPayloadSelector(runnableId))
+                    }
+                    return null
+                }
+            }
+            return null
+        }),
+    )
+
+    // Create selectors using stable atom families
+    const selectors: RunnableBridgeSelectors = {
+        data: (runnableId: string) => dataFamily(runnableId),
+
+        dataForType: (runnableType: string, runnableId: string) =>
+            dataForTypeFamily({runnableType, runnableId}),
+
+        query: (runnableId: string) => queryFamily(runnableId),
+
+        isDirty: (runnableId: string) => isDirtyFamily(runnableId),
+
+        inputPorts: (runnableId: string) => inputPortsFamily(runnableId),
+
+        outputPorts: (runnableId: string) => outputPortsFamily(runnableId),
+
+        configuration: (runnableId: string) => configurationFamily(runnableId),
+
+        invocationUrl: (runnableId: string) => invocationUrlFamily(runnableId),
+
+        schemas: (runnableId: string) => schemasFamily(runnableId),
+
+        parametersSchema: (runnableId: string) => parametersSchemaFamily(runnableId),
+
+        executionMode: (runnableId: string) => executionModeFamily(runnableId),
+
+        requestPayload: (runnableId: string) => requestPayloadFamily(runnableId),
+
+        draft: (runnableId: string) => draftFamily(runnableId),
+
+        isLatestRevision: (runnableId: string) => isLatestRevisionFamily(runnableId),
+
+        serverData: (runnableId: string) => serverDataFamily(runnableId),
+
+        serverConfiguration: (runnableId: string) => serverConfigurationFamily(runnableId),
     }
 
     // Build normalizeResponse utility: finds the matching type config for a
@@ -669,10 +915,19 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
         responseData: unknown,
     ): {output: unknown; trace?: {id: string} | undefined} => {
         const store = getDefaultStore()
-        for (const [_type, cfg] of Object.entries(runnables)) {
-            const entity = store.get(cfg.molecule.selectors.data(runnableId))
-            if (entity && cfg.normalizeResponse) {
-                return cfg.normalizeResponse(responseData)
+        // Fast path: use type hint
+        const hinted = getHintedConfig(runnableId)
+        if (hinted) {
+            const entity = store.get(hinted.config.molecule.selectors.data(runnableId))
+            if (entity && hinted.config.normalizeResponse) {
+                return hinted.config.normalizeResponse(responseData)
+            }
+        } else {
+            for (const [_type, cfg] of Object.entries(runnables)) {
+                const entity = store.get(cfg.molecule.selectors.data(runnableId))
+                if (entity && cfg.normalizeResponse) {
+                    return cfg.normalizeResponse(responseData)
+                }
             }
         }
         // Default: standard response parsing
@@ -714,8 +969,13 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                     inputPorts: selectors.inputPorts,
                     outputPorts: selectors.outputPorts,
                     schemas: selectors.schemas,
+                    parametersSchema: selectors.parametersSchema,
                     query: selectors.query,
                     isDirty: selectors.isDirty,
+                    draft: selectors.draft,
+                    isLatestRevision: selectors.isLatestRevision,
+                    serverData: selectors.serverData,
+                    serverConfiguration: selectors.serverConfiguration,
                 }
             }
 
@@ -789,6 +1049,15 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                         const data = config.toRunnable(entity)
                         return data?.schemas ?? null
                     }),
+                parametersSchema: (runnableId: string) =>
+                    atom<Record<string, unknown> | null>((get) => {
+                        const entity = get(config.molecule.selectors.data(runnableId))
+                        if (!entity) return null
+                        if (config.parametersSchemaSelector) {
+                            return get(config.parametersSchemaSelector(runnableId))
+                        }
+                        return null
+                    }),
                 query: (runnableId: string) =>
                     atom((get) => {
                         const query = get(config.molecule.selectors.query(runnableId))
@@ -797,6 +1066,42 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                 isDirty: (runnableId: string) =>
                     atom((get) => {
                         return get(config.molecule.selectors.isDirty(runnableId))
+                    }),
+                draft: (runnableId: string) =>
+                    atom<unknown>((get) => {
+                        if (config.draftSelector) {
+                            return get(config.draftSelector(runnableId))
+                        }
+                        return null
+                    }),
+                isLatestRevision: (runnableId: string) =>
+                    atom<boolean>((get) => {
+                        if (
+                            !runnableId ||
+                            !config.parentIdExtractor ||
+                            !config.latestRevisionIdSelector
+                        )
+                            return false
+                        const entity = get(config.molecule.selectors.data(runnableId))
+                        if (!entity) return false
+                        const parentId = config.parentIdExtractor(entity)
+                        if (!parentId) return false
+                        const latestId = get(config.latestRevisionIdSelector(parentId))
+                        return runnableId === latestId
+                    }),
+                serverData: (runnableId: string) =>
+                    atom<RunnableData | null>((get) => {
+                        if (!config.serverDataSelector) return null
+                        const entity = get(config.serverDataSelector(runnableId))
+                        return entity ? config.toRunnable(entity) : null
+                    }),
+                serverConfiguration: (runnableId: string) =>
+                    atom<Record<string, unknown> | null>((get) => {
+                        if (!config.serverDataSelector) return null
+                        const entity = get(config.serverDataSelector(runnableId))
+                        if (!entity) return null
+                        const data = config.toRunnable(entity)
+                        return data?.configuration ?? null
                     }),
             }
         },
@@ -825,15 +1130,93 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
         config: selectors.configuration,
         /** Get invocation URL */
         invocationUrl: selectors.invocationUrl,
-        /** Get schemas */
+        /** Get I/O schemas */
         schemas: selectors.schemas,
+        /** Get parameters/configuration JSON schema */
+        parametersSchema: selectors.parametersSchema,
         /** Get execution mode ("chat" or "completion") */
         executionMode: selectors.executionMode,
         /** Get pre-built request payload (config portion of API request body) */
         requestPayload: selectors.requestPayload,
+        /** Get raw draft state for change detection */
+        draft: selectors.draft,
+        /** Check if revision is the latest for its parent entity */
+        isLatestRevision: selectors.isLatestRevision,
+        /** Get server data (before draft overlay) as RunnableData */
+        serverData: selectors.serverData,
+        /** Get server configuration (before draft overlay) */
+        serverConfiguration: selectors.serverConfiguration,
 
         /** Entity-level CRUD actions */
         crud: crud ?? _noopCrud,
+
+        /** Update draft parameters for an entity (routes to correct molecule) */
+        update: atom(null, (_get, set, entityId: string, parameters: Record<string, unknown>) => {
+            const hinted = getHintedConfig(entityId)
+            if (hinted) {
+                set(hinted.config.molecule.actions.update, entityId, {
+                    data: {parameters},
+                })
+                return
+            }
+            // Probe all types — update the first match
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = _get(config.molecule.selectors.data(entityId))
+                if (entity) {
+                    set(config.molecule.actions.update, entityId, {
+                        data: {parameters},
+                    })
+                    return
+                }
+            }
+        }),
+
+        /** Discard draft changes for an entity (routes to correct molecule) */
+        discard: atom(null, (_get, set, entityId: string) => {
+            const hinted = getHintedConfig(entityId)
+            if (hinted) {
+                set(hinted.config.molecule.actions.discard, entityId)
+                return
+            }
+            // Probe all types — discard the first match
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = _get(config.molecule.selectors.data(entityId))
+                if (entity) {
+                    set(config.molecule.actions.discard, entityId)
+                    return
+                }
+            }
+        }),
+
+        /** Invalidate all caches across all registered entity types */
+        invalidateAllCaches: () => {
+            for (const [_type, config] of Object.entries(runnables)) {
+                config.invalidateCache?.()
+            }
+        },
+
+        /** Create a local draft by cloning a server revision */
+        createLocalDraft: (sourceRevisionId: string, appId?: string): string | null => {
+            const store = getDefaultStore()
+            const hinted = getHintedConfig(sourceRevisionId)
+            if (hinted) {
+                if (hinted.config.createLocalDraft) {
+                    return hinted.config.createLocalDraft(sourceRevisionId, appId)
+                }
+                return null
+            }
+            // Probe all types — use the first match
+            for (const [_type, config] of Object.entries(runnables)) {
+                const entity = store.get(config.molecule.selectors.data(sourceRevisionId))
+                if (entity) {
+                    if (config.createLocalDraft) {
+                        return config.createLocalDraft(sourceRevisionId, appId)
+                    }
+                    return null
+                }
+            }
+            return null
+        },
     }
 }
 
