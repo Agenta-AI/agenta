@@ -1,9 +1,7 @@
 import React, {useMemo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {runnableBridge} from "@agenta/entities/runnable"
-import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {Collapse} from "antd"
 import {atom} from "jotai"
@@ -12,6 +10,8 @@ import {useAtomValue} from "jotai"
 import {usePlaygroundUI} from "../../../context"
 import {playgroundFocusDrawerAtom} from "../../../state"
 import ExecutionResultView from "../../ExecutionResultView"
+import {EvaluatorFieldGrid} from "../../shared/EvaluatorFieldGrid"
+import {extractDisplayEntries} from "../../shared/EvaluatorFieldGrid/utils"
 
 // ============================================================================
 // SUB-COMPONENT: Single input variable
@@ -95,14 +95,6 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
 // SUB-COMPONENT: Downstream node result (evaluator)
 // ============================================================================
 
-/** Convert snake_case/camelCase key to human-readable label */
-function formatFieldLabel(key: string): string {
-    return key
-        .replace(/_/g, " ")
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/^./, (c) => c.toUpperCase())
-}
-
 function DownstreamOutput({
     rowId,
     node,
@@ -131,47 +123,28 @@ function DownstreamOutput({
         ),
     )
 
-    const schemaMap = useMemo(() => {
-        const map: Record<string, SchemaProperty | undefined> = {}
-        for (const port of outputPorts) {
-            map[port.key] = port.schema as SchemaProperty | undefined
-        }
-        return map
-    }, [outputPorts])
+    const status = fullResult?.status ?? "idle"
 
-    if (!fullResult || fullResult.status === "idle" || !fullResult.output) {
+    // Idle / cancelled / no result -> hidden
+    if (!fullResult || status === "idle" || status === "cancelled") {
         return null
     }
 
-    // Extract display data — same path as SingleLayout DownstreamNodeResult
-    const output = fullResult.output as Record<string, unknown> | undefined
-    const responseData = output?.response as Record<string, unknown> | undefined
-    const nestedData = responseData?.data as Record<string, unknown> | undefined
-    const displayData = nestedData?.outputs ?? responseData?.outputs ?? nestedData ?? responseData
+    const isLoading = status === "running" || status === "pending"
+    const entries = isLoading ? null : extractDisplayEntries(fullResult.output)
 
-    if (!displayData || typeof displayData !== "object") return null
-
-    const entries = Object.entries(displayData).filter(([, v]) => v !== undefined && v !== null)
-    if (entries.length === 0) return null
+    // Success but no displayable data -> hidden
+    if (!isLoading && !entries) return null
 
     return (
         <div className="pt-3 mt-3 border-0 border-t border-solid border-[var(--ant-color-border-secondary)]">
             <span className="text-sm font-medium text-[var(--ant-color-text)]">{nodeName}</span>
-            <div
-                className="grid items-baseline leading-5 mt-2"
-                style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 4}}
-            >
-                {entries.map(([key, value]) => (
-                    <React.Fragment key={key}>
-                        <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap">
-                            {formatFieldLabel(key)}:
-                        </span>
-                        <span className="break-words min-w-0">
-                            <RunnableOutputValue value={value} schema={schemaMap[key]} />
-                        </span>
-                    </React.Fragment>
-                ))}
-            </div>
+            <EvaluatorFieldGrid
+                entries={entries}
+                outputPorts={outputPorts}
+                loading={isLoading}
+                className="mt-2"
+            />
         </div>
     )
 }

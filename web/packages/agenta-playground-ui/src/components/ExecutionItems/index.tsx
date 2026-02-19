@@ -1,6 +1,5 @@
 import {useMemo} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {executionController} from "@agenta/playground"
 import {useAtomValue} from "jotai"
@@ -41,15 +40,7 @@ const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({
     // Use app-level chat mode detection (first revision) for rendering mode
     const isChat = useAtomValue(useMemo(() => executionController.selectors.isChatMode, []))
     const runnableQuery = useAtomValue(useMemo(() => runnableBridge.query(entityId), [entityId]))
-    const requestPayload = useAtomValue(
-        useMemo(() => runnableBridge.requestPayload(entityId), [entityId]),
-    )
-    const schemaLoading = useAtomValue(
-        useMemo(() => legacyAppRevisionMolecule.atoms.schemaLoading(entityId), [entityId]),
-    )
-    const usesSchemaPayload = requestPayload !== null
-    const isExecutionLoading =
-        runnableQuery.isPending || isChat === undefined || (usesSchemaPayload && schemaLoading)
+    const isExecutionLoading = runnableQuery.isPending || isChat === undefined
 
     if (isExecutionLoading) {
         return (

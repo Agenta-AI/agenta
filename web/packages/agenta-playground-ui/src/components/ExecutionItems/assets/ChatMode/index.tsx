@@ -1,11 +1,11 @@
 import {useMemo} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {executionItemController} from "@agenta/playground"
 import {extractPromptTemplateContext, normalizeEnhancedMessages} from "@agenta/shared/utils"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import {HeightCollapse} from "@agenta/ui/components"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {useExecutionCell} from "../../../../hooks/useExecutionCell"
 import ControlsBar from "../../../ControlsBar"
@@ -64,17 +64,14 @@ const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeP
             Array.from(new Set(renderableItemsForExecution.map((item) => item.rowId))) as string[],
         [renderableItemsForExecution],
     )
-    // Config messages (read-only) — read raw parameters and extract messages from prompt configs
-    const entityData = useAtomValue(
-        useMemo(
-            () => (entityId ? legacyAppRevisionMolecule.atoms.data(entityId) : atom(null)),
-            [entityId],
-        ),
+    // Config messages (read-only) — read configuration from the runnable bridge
+    const entityConfig = useAtomValue(
+        useMemo(() => runnableBridge.configuration(entityId || ""), [entityId]),
     )
     const agConfig = useMemo(() => {
-        const params = entityData?.parameters as Record<string, unknown> | undefined
+        const params = entityConfig as Record<string, unknown> | undefined
         return (params?.ag_config || params || {}) as Record<string, unknown>
-    }, [entityData?.parameters])
+    }, [entityConfig])
 
     // Extract prompt config objects from ag_config (objects with messages or llm_config)
     const promptConfigs = useMemo(() => {
