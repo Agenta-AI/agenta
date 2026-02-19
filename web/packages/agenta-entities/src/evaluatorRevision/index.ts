@@ -214,5 +214,9 @@ export const evaluatorRevisionMolecule = {
                 // TODO: implement preset application
             },
         ),
+        /** No-op - update not yet implemented for evaluator revisions */
+        update: atom(null, (_get, _set, _id: string, _updates: unknown) => {}),
+        /** No-op - discard not yet implemented for evaluator revisions */
+        discard: atom(null, (_get, _set, _id: string) => {}),
     },
 }
