@@ -21,10 +21,9 @@
  */
 
 import {getAgentaApiUrl} from "@agenta/shared/api"
-import {atom, type Atom} from "jotai"
+import {Atom, atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
-import {appRevisionMolecule} from "../appRevision"
 import {evaluatorMolecule} from "../evaluator"
 import {parseEvaluatorKeyFromUri} from "../evaluator/core/schema"
 import {
@@ -40,8 +39,22 @@ import {
 } from "../legacyEvaluator/state/runnableSetup"
 import {loadableStateAtomFamily, loadableColumnsAtomFamily} from "../loadable/store"
 import {createRunnableBridge, type RunnableData, type RunnablePort} from "../shared"
+import {workflowMolecule} from "../workflow"
+import {commitWorkflowRevisionAtom, archiveWorkflowRevisionAtom} from "../workflow/state/commit"
+import {
+    invocationUrlAtomFamily as workflowInvocationUrlAtomFamily,
+    requestPayloadAtomFamily as workflowRequestPayloadAtomFamily,
+    executionModeAtomFamily as workflowExecutionModeAtomFamily,
+} from "../workflow/state/runnableSetup"
+import {
+    workflowLatestRevisionIdAtomFamily,
+    workflowQueryAtomFamily,
+    workflowLocalServerDataAtomFamily,
+    createLocalDraftFromWorkflowRevision,
+} from "../workflow/state/store"
 
 import type {PathItem, RunnableType, TestsetColumn} from "./types"
+import {extractVariablesFromConfig} from "./utils"
 
 // ============================================================================
 // EXECUTION MODE HELPERS
@@ -465,6 +478,183 @@ function evaluatorRevisionSchemasSelector(revisionId: string) {
 }
 
 // ============================================================================
+// WORKFLOW CONFIGURATION
+// ============================================================================
+
+/**
+ * Workflow entity from the preview API (`POST /preview/workflows/query`).
+ * Maps to `Workflow` type from `@agenta/entities/workflow`.
+ *
+ * Unlike evaluator, workflow supports all flag combinations:
+ * is_custom, is_evaluator, is_human, is_chat.
+ */
+interface WorkflowEntity {
+    id: string
+    name?: string | null
+    slug?: string | null
+    version?: number | null
+    flags?: {
+        is_custom?: boolean
+        is_evaluator?: boolean
+        is_human?: boolean
+        is_chat?: boolean
+    } | null
+    data?: {
+        uri?: string | null
+        url?: string | null
+        parameters?: Record<string, unknown> | null
+        configuration?: Record<string, unknown> | null
+        schemas?: {
+            inputs?: Record<string, unknown> | null
+            outputs?: Record<string, unknown> | null
+            parameters?: Record<string, unknown> | null
+        } | null
+    } | null
+}
+
+function workflowToRunnable(entity: unknown): RunnableData {
+    const e = entity as WorkflowEntity
+    return {
+        id: e.id,
+        name: e.name || e.slug || undefined,
+        slug: e.slug || undefined,
+        version: e.version ?? undefined,
+        configuration: e.data?.parameters ?? e.data?.configuration ?? undefined,
+        invocationUrl: e.data?.url || undefined,
+        uri: e.data?.uri || undefined,
+        schemas: {
+            inputSchema: e.data?.schemas?.inputs ?? undefined,
+            outputSchema: e.data?.schemas?.outputs ?? undefined,
+        },
+    } as RunnableData
+}
+
+function getWorkflowInputPorts(entity: unknown): RunnablePort[] {
+    const e = entity as WorkflowEntity
+    const schemaPorts = extractInputPortsFromSchema(e.data?.schemas?.inputs)
+    if (schemaPorts.length > 0) return schemaPorts
+
+    // Fallback: derive input variables from prompt templates in parameters
+    const params = e.data?.parameters ?? e.data?.configuration
+    if (params) {
+        const vars = extractVariablesFromConfig(params as Record<string, unknown>)
+        if (vars.length > 0) {
+            return vars.map((key) => ({key, name: key, type: "string", required: true}))
+        }
+    }
+    return []
+}
+
+function getWorkflowOutputPorts(entity: unknown): RunnablePort[] {
+    const e = entity as WorkflowEntity
+    const schemaOutputs = extractOutputPortsFromSchema(e.data?.schemas?.outputs)
+    if (schemaOutputs.length > 0) return schemaOutputs
+
+    // Evaluator-type workflows default to score/number (same as evaluator entities)
+    if (e.flags?.is_evaluator) {
+        return [{key: "score", name: "Score", type: "number"}]
+    }
+
+    // Default output for app workflows
+    return [
+        {
+            key: "output",
+            name: "Output",
+            type: "string",
+        },
+    ]
+}
+
+/**
+ * Reactive input ports selector for workflows.
+ */
+function workflowInputPortsSelector(workflowId: string) {
+    return atom<RunnablePort[]>((get) => {
+        const entity = get(workflowMolecule.selectors.data(workflowId)) as WorkflowEntity | null
+        if (!entity) return []
+
+        const schemaPorts = extractInputPortsFromSchema(entity.data?.schemas?.inputs)
+        if (schemaPorts.length > 0) return schemaPorts
+
+        // Fallback: derive input variables from prompt templates in parameters
+        const params = entity.data?.parameters ?? entity.data?.configuration
+        if (params) {
+            const vars = extractVariablesFromConfig(params as Record<string, unknown>)
+            if (vars.length > 0) {
+                return vars.map((key) => ({key, name: key, type: "string", required: true}))
+            }
+        }
+        return []
+    })
+}
+
+/**
+ * Reactive output ports selector for workflows.
+ */
+function workflowOutputPortsSelector(workflowId: string) {
+    return atom<RunnablePort[]>((get) => {
+        const entity = get(workflowMolecule.selectors.data(workflowId)) as WorkflowEntity | null
+        const schemaOutputs = extractOutputPortsFromSchema(entity?.data?.schemas?.outputs)
+        if (schemaOutputs.length > 0) return schemaOutputs
+
+        // Evaluator-type workflows default to score/number
+        if (entity?.flags?.is_evaluator) {
+            return [{key: "score", name: "Score", type: "number"}]
+        }
+        return [{key: "output", name: "Output", type: "string"}]
+    })
+}
+
+/**
+ * Reactive schemas selector for workflows.
+ */
+function workflowSchemasSelector(workflowId: string) {
+    return atom<{inputSchema?: unknown; outputSchema?: unknown} | null>((get) => {
+        const entity = get(workflowMolecule.selectors.data(workflowId)) as WorkflowEntity | null
+        if (!entity?.data?.schemas) {
+            return {}
+        }
+        return {
+            inputSchema: entity.data.schemas.inputs ?? undefined,
+            outputSchema: entity.data.schemas.outputs ?? undefined,
+        }
+    })
+}
+
+/**
+ * Reactive parameters schema selector for workflows.
+ * Returns the JSON schema that describes the configuration form (prompt, LLM config, etc.).
+ */
+function workflowParametersSchemaSelector(workflowId: string) {
+    return atom<Record<string, unknown> | null>((get) => {
+        const entity = get(workflowMolecule.selectors.data(workflowId)) as WorkflowEntity | null
+        return (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
+    })
+}
+
+// ============================================================================
+// SERVER DATA SELECTORS (for commit diff generation)
+// ============================================================================
+
+/**
+ * Server data selector for workflows.
+ * Returns the raw entity data before draft overlay — used as the "original"
+ * baseline for commit diff comparisons.
+ *
+ * For regular revisions: reads from the query atom (server data).
+ * For local drafts: reads from local storage (cloned source data).
+ */
+function workflowServerDataSelector(workflowId: string) {
+    return atom<WorkflowEntity | null>((get) => {
+        const localData = get(workflowLocalServerDataAtomFamily(workflowId))
+        if (localData) return localData as WorkflowEntity
+
+        const query = get(workflowQueryAtomFamily(workflowId))
+        return (query.data as WorkflowEntity) ?? null
+    })
+}
+
+// ============================================================================
 // CONFIGURED BRIDGE
 // ============================================================================
 
@@ -472,16 +662,13 @@ function evaluatorRevisionSchemasSelector(revisionId: string) {
  * Runnable bridge configured with available runnable types
  *
  * Currently supports:
- * - **appRevision**: App revision via appRevisionMolecule (revision-config model)
- * - **legacyAppRevision**: OSS app revision via legacyAppRevisionMolecule (variant model for OSS playground)
+ * - **workflow**: Generic workflow via workflowMolecule (supports all flag combinations)
+ * - **evaluator**: New evaluator entity via evaluatorMolecule
+ * - **legacyEvaluator**: Legacy evaluator via legacyEvaluatorMolecule
  * - **evaluatorRevision**: Evaluator revision via evaluatorRevisionMolecule (stub in OSS)
  */
 export const runnableBridge = createRunnableBridge({
     runnables: {
-        // legacyAppRevision must come before appRevision so the OSS playground
-        // (which writes to legacyAppRevision) reads its own draft-aware data.
-        // If appRevision is checked first, it returns stale server data and
-        // the legacyAppRevision requestPayloadSelector is never reached.
         legacyAppRevision: {
             molecule: legacyAppRevisionMolecule,
             toRunnable: legacyAppRevisionToRunnable,
@@ -503,20 +690,21 @@ export const runnableBridge = createRunnableBridge({
             ),
             requestPayloadSelector: (id: string) =>
                 legacyAppRevisionMolecule.atoms.requestPayload(id),
+            serverDataSelector: (id: string) => legacyAppRevisionMolecule.selectors.serverData(id),
         },
-        appRevision: {
-            molecule: appRevisionMolecule,
-            toRunnable: appRevisionToRunnable,
-            getInputPorts: getAppRevisionInputPorts,
-            getOutputPorts: getAppRevisionOutputPorts,
-            // Use molecule selectors for reactive derivation (preferred over extraction functions)
-            inputPortsSelector: (id: string) => appRevisionMolecule.selectors.inputPorts(id),
-            outputPortsSelector: (id: string) => appRevisionMolecule.selectors.outputPorts(id),
-            invocationUrlSelector: (id: string) => appRevisionMolecule.atoms.invocationUrl(id),
-            executionModeSelector: createExecutionModeSelector((id: string) =>
-                appRevisionMolecule.selectors.isChatVariant(id),
-            ),
-        },
+        // appRevision: {
+        //     molecule: appRevisionMolecule,
+        //     toRunnable: appRevisionToRunnable,
+        //     getInputPorts: getAppRevisionInputPorts,
+        //     getOutputPorts: getAppRevisionOutputPorts,
+        //     // Use molecule selectors for reactive derivation (preferred over extraction functions)
+        //     inputPortsSelector: (id: string) => appRevisionMolecule.selectors.inputPorts(id),
+        //     outputPortsSelector: (id: string) => appRevisionMolecule.selectors.outputPorts(id),
+        //     invocationUrlSelector: (id: string) => appRevisionMolecule.atoms.invocationUrl(id),
+        //     executionModeSelector: createExecutionModeSelector((id: string) =>
+        //         appRevisionMolecule.selectors.isChatVariant(id),
+        //     ),
+        // },
         evaluator: {
             molecule: evaluatorMolecule,
             toRunnable: evaluatorToRunnable,
@@ -567,11 +755,43 @@ export const runnableBridge = createRunnableBridge({
                 applyPreset: evaluatorRevisionMolecule.actions.applyPreset,
             },
         },
+        workflow: {
+            molecule: workflowMolecule,
+            toRunnable: workflowToRunnable,
+            getInputPorts: getWorkflowInputPorts,
+            getOutputPorts: getWorkflowOutputPorts,
+            schemasSelector: workflowSchemasSelector,
+            parametersSchemaSelector: workflowParametersSchemaSelector,
+            draftSelector: (id: string) => workflowMolecule.atoms.draft(id),
+            invalidateCache: () => workflowMolecule.cache.invalidateList(),
+            serverDataSelector: workflowServerDataSelector,
+            inputPortsSelector: workflowInputPortsSelector,
+            outputPortsSelector: workflowOutputPortsSelector,
+            executionModeSelector: (id: string) => workflowExecutionModeAtomFamily(id),
+            invocationUrlSelector: (id: string) => workflowInvocationUrlAtomFamily(id),
+            requestPayloadSelector: (id: string) => workflowRequestPayloadAtomFamily(id),
+            normalizeResponse: (responseData: unknown) => {
+                // Workflow invoke returns { data: { outputs: {...} }, status: {...}, ... }
+                const data = responseData as Record<string, unknown> | null | undefined
+                const nestedData = data?.data as Record<string, unknown> | undefined
+                const output = nestedData?.outputs ?? data?.outputs ?? data
+                return {output}
+            },
+            latestRevisionIdSelector: (parentId: string) =>
+                workflowLatestRevisionIdAtomFamily(parentId),
+            parentIdExtractor: (entity: unknown) => {
+                const e = entity as {workflow_id?: string | null}
+                return e.workflow_id ?? null
+            },
+            createLocalDraft: createLocalDraftFromWorkflowRevision,
+        },
     },
     crud: {
-        createVariant: legacyAppRevisionMolecule.actions.createVariant,
-        commitRevision: legacyAppRevisionMolecule.actions.commit,
-        deleteRevision: legacyAppRevisionMolecule.actions.deleteRevision,
+        createVariant: atom(null, async () => {
+            throw new Error("createVariant not supported for workflow entities")
+        }),
+        commitRevision: commitWorkflowRevisionAtom,
+        deleteRevision: archiveWorkflowRevisionAtom,
     },
 })
 
@@ -590,9 +810,8 @@ export const runnableBridge = createRunnableBridge({
  * This enables reactive updates - when user edits {{newVar}} in prompt,
  * the columns automatically update without any React effects.
  *
- * For appRevision: Uses appRevisionMolecule.selectors.inputPorts (consolidated)
- * For legacyAppRevision: Uses legacyAppRevisionMolecule.selectors.inputPorts (template vars)
- * For evaluatorRevision: Reads from evaluator schema directly
+ * For workflow: Reads from workflow entity's input schema
+ * For evaluator/legacyEvaluator/evaluatorRevision: Reads from evaluator schema
  */
 export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: string) =>
     atom<TestsetColumn[]>((get) => {
@@ -605,40 +824,17 @@ export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: str
         }
 
         // Get columns from linked runnable's inputPorts
-        if (linkedRunnableType === "appRevision") {
-            // Use inputPorts selector - single source of truth for revision inputs
-            // This selector already handles extraction from agConfig prompt messages
-            const inputPorts = get(appRevisionMolecule.selectors.inputPorts(linkedRunnableId))
-
-            if (inputPorts.length > 0) {
-                return inputPorts.map((port) => ({
-                    key: port.key,
-                    name: port.name,
-                    type: port.type,
-                }))
-            }
-        } else if (linkedRunnableType === "legacyAppRevision") {
-            // Use inputPorts selector - extracts template variables from prompts
-            const inputPorts = get(legacyAppRevisionMolecule.selectors.inputPorts(linkedRunnableId))
-
-            if (inputPorts.length > 0) {
-                return inputPorts.map((port) => ({
-                    key: port.key,
-                    name: port.name,
-                    type: port.type,
-                }))
-            }
-        } else if (
+        if (
             linkedRunnableType === "evaluator" ||
             linkedRunnableType === "legacyEvaluator" ||
             linkedRunnableType === "evaluatorRevision"
         ) {
             // Read from evaluator entity's schema
-            const evaluatorDataAtom =
+            const entityData = (
                 linkedRunnableType === "legacyEvaluator"
-                    ? legacyEvaluatorMolecule.selectors.data(linkedRunnableId)
-                    : evaluatorMolecule.selectors.data(linkedRunnableId)
-            const entityData = get(evaluatorDataAtom) as Record<string, unknown> | null
+                    ? get(legacyEvaluatorMolecule.selectors.data(linkedRunnableId))
+                    : get(evaluatorMolecule.selectors.data(linkedRunnableId))
+            ) as Record<string, unknown> | null
             if (entityData) {
                 const data = (entityData as {data?: Record<string, unknown>}).data
                 const schemas = data?.schemas as Record<string, unknown> | undefined
@@ -673,6 +869,39 @@ export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: str
                                 type: "string" as const,
                             }))
                         }
+                    }
+                }
+            }
+        } else if (linkedRunnableType === "workflow") {
+            // Read from workflow entity's schema
+            const entityData = get(workflowMolecule.selectors.data(linkedRunnableId)) as Record<
+                string,
+                unknown
+            > | null
+            if (entityData) {
+                const data = (entityData as {data?: Record<string, unknown>}).data
+                const schemas = data?.schemas as Record<string, unknown> | undefined
+                const inputSchema = schemas?.inputs as Record<string, unknown> | undefined
+                if (inputSchema?.properties) {
+                    const inputKeys = Object.keys(inputSchema.properties as Record<string, unknown>)
+                    if (inputKeys.length > 0) {
+                        return inputKeys.map((key) => ({
+                            key,
+                            name: key,
+                            type: "string" as const,
+                        }))
+                    }
+                }
+                // Fallback: derive from prompt template variables
+                const params = data?.parameters ?? data?.configuration
+                if (params) {
+                    const vars = extractVariablesFromConfig(params as Record<string, unknown>)
+                    if (vars.length > 0) {
+                        return vars.map((key) => ({
+                            key,
+                            name: key,
+                            type: "string" as const,
+                        }))
                     }
                 }
             }

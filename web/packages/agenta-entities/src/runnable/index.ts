@@ -61,7 +61,6 @@ export type {
     RunnableInputPort,
     RunnableOutputPort,
     RunnableData,
-    AppRevisionData,
     EvaluatorRevisionData,
     // Path types
     PathInfo,
@@ -137,6 +136,13 @@ export {
     extractVariablesFromConfig,
 } from "./utils"
 export type {PathSource, ExecuteRunnableOptions, EvaluatorInputContext} from "./utils"
+
+// ============================================================================
+// DEPLOYMENT
+// ============================================================================
+
+export {publishMutationAtom} from "./deploy"
+export type {PublishPayload, PublishRevisionPayload, PublishVariantPayload} from "./deploy"
 
 // ============================================================================
 // SNAPSHOT ADAPTER

@@ -178,6 +178,33 @@ export interface EvaluatorRawData {
 }
 
 /**
+ * Workflow raw data (as returned by the workflow molecule)
+ */
+export interface WorkflowRawData {
+    id: string
+    name?: string | null
+    slug?: string | null
+    version?: number | null
+    workflow_id?: string | null
+    flags?: {
+        is_custom?: boolean
+        is_evaluator?: boolean
+        is_human?: boolean
+        is_chat?: boolean
+    } | null
+    data?: {
+        uri?: string | null
+        url?: string | null
+        parameters?: Record<string, unknown> | null
+        schemas?: {
+            inputs?: Record<string, unknown> | null
+            outputs?: Record<string, unknown> | null
+            parameters?: Record<string, unknown> | null
+        } | null
+    } | null
+}
+
+/**
  * Evaluator revision raw data (as returned by the legacy stub controller)
  * @deprecated Use EvaluatorRawData instead
  */
@@ -221,10 +248,15 @@ export interface EvaluatorSelectors extends EntityRevisionSelectors<EvaluatorRaw
  * playground to work with different entity implementations.
  */
 export interface PlaygroundEntityProviders {
-    appRevision: {
+    /** @deprecated Legacy app revision entity — use `workflow` instead */
+    legacyAppRevision?: {
         selectors: EntityRevisionSelectors<AppRevisionRawData>
         lists?: AppRevisionListSelectors
         actions?: AppRevisionActions
+    }
+    /** Workflow entity (modern /preview/workflows/ API) */
+    workflow?: {
+        selectors: EntityRevisionSelectors<WorkflowRawData>
     }
     /** New evaluator entity (workflow-based SimpleEvaluator) */
     evaluator?: {
