@@ -19,13 +19,13 @@
  * ```
  */
 
-import {appRevisionSnapshotAdapter} from "@agenta/entities/appRevision"
-import {legacyAppRevisionSnapshotAdapter} from "@agenta/entities/legacyAppRevision"
+// import {legacyAppRevisionSnapshotAdapter} from "@agenta/entities/legacyAppRevision"
 import {
     snapshotAdapterRegistry,
     type RunnableDraftPatch,
     type RunnableType,
 } from "@agenta/entities/runnable"
+import {workflowSnapshotAdapter} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {v4 as uuidv4} from "uuid"
@@ -41,8 +41,8 @@ import {
 
 // Ensure adapters are registered before any snapshot operations.
 // Cannot rely on side-effect imports — tree-shaken by sideEffects: false.
-snapshotAdapterRegistry.register(legacyAppRevisionSnapshotAdapter)
-snapshotAdapterRegistry.register(appRevisionSnapshotAdapter)
+// snapshotAdapterRegistry.register(legacyAppRevisionSnapshotAdapter)
+snapshotAdapterRegistry.register(workflowSnapshotAdapter)
 
 // ============================================================================
 // TYPES

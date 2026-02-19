@@ -18,15 +18,15 @@
  *
  * // Compound actions for multi-step operations
  * const addPrimary = useSetAtom(playgroundController.actions.addPrimaryNode)
- * addPrimary({ type: 'appRevision', id: 'rev-123', label: 'My Revision' })
+ * addPrimary({ type: 'legacyAppRevision', id: 'rev-123', label: 'My Revision' })
  * ```
  */
 
-import {evaluatorMolecule} from "@agenta/entities/evaluator"
-import {evaluatorRevisionMolecule} from "@agenta/entities/evaluatorRevision"
 import {fetchOssRevisionById} from "@agenta/entities/legacyAppRevision"
-import {legacyEvaluatorMolecule} from "@agenta/entities/legacyEvaluator"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
+import {registerRunnableTypeHint, clearRunnableTypeHint} from "@agenta/entities/shared"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {commitWorkflowRevisionAtom, archiveWorkflowRevisionAtom} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -157,6 +157,9 @@ const addPrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => {
         depth: 0,
     }
 
+    // Register type hint so runnableBridge skips probing other molecule types
+    registerRunnableTypeHint(entity.id, entity.type)
+
     // Reset state and add the primary node
     set(playgroundNodesAtom, [node])
     set(selectedNodeIdAtom, nodeId)
@@ -206,6 +209,9 @@ const addDownstreamNodeAtom = atom(
             depth: sourceNode.depth + 1,
         }
 
+        // Register type hint so runnableBridge skips probing other molecule types
+        registerRunnableTypeHint(entity.id, entity.type)
+
         set(playgroundNodesAtom, [...nodes, node])
         _onSelectionChange?.(get(entityIdsAtom), [])
 
@@ -226,8 +232,17 @@ const removeNodeAtom = atom(null, (get, set, nodeId: string): string[] => {
     if (nodeIndex === -1) return []
     const removedEntityId = nodes[nodeIndex]?.entityId
 
+    // Clear type hint for removed entity
+    if (removedEntityId) {
+        clearRunnableTypeHint(removedEntityId)
+    }
+
     // If removing primary node, reset everything
     if (nodeIndex === 0) {
+        // Clear all hints since we're resetting
+        for (const node of nodes) {
+            clearRunnableTypeHint(node.entityId)
+        }
         set(playgroundNodesAtom, [])
         set(selectedNodeIdAtom, null)
         set(outputConnectionsAtom, [])
@@ -304,24 +319,14 @@ const connectDownstreamNodeAtom = atom(
             },
         ])
 
-        // For evaluator entities, eagerly subscribe to the appropriate molecule's
-        // query atom so the per-ID fetch fires immediately. We subscribe directly
-        // to the molecule instead of runnableBridge.data() because the bridge
-        // probes ALL registered molecules in order, which would trigger spurious
-        // fetches on unrelated molecules (e.g. legacyAppRevision).
-        if (
-            entity.type === "evaluator" ||
-            entity.type === "evaluatorRevision" ||
-            entity.type === "legacyEvaluator"
-        ) {
+        // For downstream entities, eagerly subscribe to the molecule's query atom
+        // so the per-ID fetch fires immediately. We subscribe directly to the
+        // molecule instead of runnableBridge.data() because the bridge probes ALL
+        // registered molecules in order, which would trigger spurious fetches on
+        // unrelated molecules (e.g. legacyAppRevision).
+        if (entity.type === "workflow") {
             const store = getDefaultStore()
-            const molecule =
-                entity.type === "legacyEvaluator"
-                    ? legacyEvaluatorMolecule
-                    : entity.type === "evaluatorRevision"
-                      ? evaluatorRevisionMolecule
-                      : evaluatorMolecule
-            const unsub = store.sub(molecule.selectors.data(entity.id), () => {})
+            const unsub = store.sub(workflowMolecule.selectors.data(entity.id), () => {})
             // Unsubscribe after a generous window — the query cache keeps the data alive.
             setTimeout(() => unsub(), 60_000)
         }
@@ -650,7 +655,6 @@ const addOutputMappingColumnAtom = atom(
  */
 const invalidateQueriesAtom = atom(null, async () => {
     const {queryClient} = await import("@agenta/shared/api")
-    const {legacyAppRevisionMolecule} = await import("@agenta/entities/legacyAppRevision")
 
     const queryKeys = [
         ["variants"],
@@ -674,7 +678,8 @@ const invalidateQueriesAtom = atom(null, async () => {
     )
 
     // Bump the revision cache version so cache-derived atoms re-evaluate
-    legacyAppRevisionMolecule.set.invalidateCache()
+    const bridge = getRunnableBridge()
+    bridge.invalidateAllCaches()
 })
 
 // ============================================================================
@@ -692,6 +697,23 @@ const controllerCreateVariantAtom = atom(
 const controllerCommitRevisionAtom = atom(
     null,
     async (get, set, payload: AppRevisionCommitPayload): Promise<AppRevisionCrudResult> => {
+        // Check if this entity is a workflow type
+        const nodes = get(playgroundNodesAtom)
+        const node = nodes.find((n) => n.entityId === payload.revisionId)
+
+        if (node?.entityType === "workflow") {
+            const result = await set(commitWorkflowRevisionAtom, {
+                revisionId: payload.revisionId,
+                commitMessage: payload.commitMessage ?? payload.note,
+            })
+            return {
+                success: result.success,
+                newRevisionId: result.success ? result.newRevisionId : undefined,
+                error: result.success ? undefined : result.error.message,
+            }
+        }
+
+        // Legacy path (unchanged)
         const bridge = getRunnableBridge()
         const runnableData = get(bridge.selectors.data(payload.revisionId)) as
             | ({configuration?: Record<string, unknown>; variantId?: string} & Record<
@@ -721,8 +743,30 @@ const controllerCommitRevisionAtom = atom(
 
 const controllerDeleteRevisionAtom = atom(
     null,
-    async (_get, set, revisionId: string): Promise<AppRevisionCrudResult> => {
+    async (get, set, revisionId: string): Promise<AppRevisionCrudResult> => {
+        // Check if this entity is a workflow type
+        const nodes = get(playgroundNodesAtom)
+        const node = nodes.find((n) => n.entityId === revisionId)
         const bridge = getRunnableBridge()
+
+        if (node?.entityType === "workflow") {
+            // Read entity data via bridge to extract parent workflow ID
+            const store = getDefaultStore()
+            const runnableData = store.get(bridge.data(revisionId)) as
+                | ({workflow_id?: string} & Record<string, unknown>)
+                | null
+            const workflowId = runnableData?.workflow_id ?? runnableData?.id ?? revisionId
+            const result = await set(archiveWorkflowRevisionAtom, {
+                revisionId,
+                workflowId,
+            })
+            return {
+                success: result.success,
+                error: result.success ? undefined : result.error.message,
+            }
+        }
+
+        // Legacy path (unchanged)
         return set(bridge.crud.deleteRevision, revisionId)
     },
 )
@@ -780,14 +824,23 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
     const newRootNodes: PlaygroundNode[] = newIds.map((entityId) => {
         const existing = existingByEntityId.get(entityId)
         if (existing) return existing
+        const entityType = resolver?.getType(entityId) ?? "legacyAppRevision"
+        // Register type hint so runnableBridge skips probing other molecule types
+        registerRunnableTypeHint(entityId, entityType)
         return {
             id: `node-${entityId}`,
-            entityType: resolver?.getType(entityId) ?? "legacyAppRevision",
+            entityType,
             entityId,
             label: entityId,
             depth: 0,
         }
     })
+    // Clear hints for removed entities
+    for (const node of currentRootNodes) {
+        if (!newIds.includes(node.entityId)) {
+            clearRunnableTypeHint(node.entityId)
+        }
+    }
     // Preserve downstream nodes (e.g. evaluators at depth > 0) when updating root selection.
     // If root selection is cleared entirely, downstream nodes are also removed.
     set(playgroundNodesAtom, newRootNodes.length > 0 ? [...newRootNodes, ...downstreamNodes] : [])

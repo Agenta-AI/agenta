@@ -54,7 +54,7 @@ export interface RunnableTypeResolver {
      * Get the runnable type for a given revision ID.
      *
      * @param revisionId - The revision ID to resolve
-     * @returns The runnable type (e.g., 'legacyAppRevision', 'appRevision')
+     * @returns The runnable type (e.g., 'legacyAppRevision', 'workflow')
      */
     getType(revisionId: string): RunnableType
 }
