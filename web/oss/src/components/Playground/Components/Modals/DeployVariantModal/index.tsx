@@ -1,6 +1,6 @@
 import {useCallback, useEffect} from "react"
 
-import {publishMutationAtom} from "@agenta/entities/legacyAppRevision"
+import {publishMutationAtom} from "@agenta/entities/runnable"
 import {message} from "@agenta/ui/app-message"
 import {Rocket} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -58,7 +58,7 @@ const DeployVariantModal = ({
     const onClose = useCallback(() => {
         props.onCancel?.({} as any)
         resetDeploy()
-    }, [resetDeploy, props])
+    }, [resetDeploy, props.onCancel])
 
     const deployVariants = useCallback(async () => {
         // Ensure latest props are in the store before submitting

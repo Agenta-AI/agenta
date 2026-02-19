@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {legacyAppRevisionMolecule, publishMutationAtom} from "@agenta/entities/legacyAppRevision"
+import {publishMutationAtom, runnableBridge} from "@agenta/entities/runnable"
 import {EntityCommitModal} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
@@ -9,6 +9,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
+import {selectedAppIdAtom} from "@/oss/state/app"
 
 import {CommitVariantChangesModalProps} from "./assets/types"
 
@@ -20,8 +21,11 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     ...props
 }) => {
     const {onCancel, open} = props
-    const variant = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId || ""))
 
+    // Use runnableBridge for entity-type-aware data access
+    const runnableData = useAtomValue(runnableBridge.data(variantId || ""))
+
+    const appId = useAtomValue(selectedAppIdAtom)
     const commitRevision = useSetAtom(playgroundController.actions.commitRevision)
     const createVariant = useSetAtom(playgroundController.actions.createVariant)
     const {mutateAsync: publish} = useAtomValue(publishMutationAtom)
@@ -29,6 +33,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const [newVariantName, setNewVariantName] = useState("")
     const [shouldDeploy, setShouldDeploy] = useState(false)
     const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(null)
+
+    const variantName = runnableData?.name || "Variant"
+    const variantSlug = runnableData?.slug
+    const configuration = runnableData?.configuration
 
     const environmentOptions = useMemo(
         () =>
@@ -56,7 +64,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             if (selectedMode === "variant") {
                 const result = await createVariant({
                     baseRevisionId: variantId,
-                    baseVariantName: variant?.variantName || "",
+                    baseVariantName: variantName,
                     newVariantName: newVariantName,
                     note,
                     callback: (newRevision, state) => {
@@ -78,10 +86,11 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                         type: "revision",
                         revision_id: result.newRevisionId,
                         environment_ref: selectedEnvironment,
+                        application_id: appId || undefined,
                         note,
                     })
                     message.success(
-                        `Published ${variant?.variantName || "variant"} to ${selectedEnvironment}`,
+                        `Published ${variantName} to ${selectedEnvironment}`,
                     )
                 }
 
@@ -93,8 +102,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 revisionId: variantId,
                 note,
                 commitMessage: note,
-                variantId: variant?.variantId,
-                parameters: variant?.parameters ?? {},
+                variantId: variantSlug,
+                parameters: configuration ?? {},
             })
 
             if (!result.success || !result.newRevisionId) {
@@ -109,28 +118,37 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     type: "revision",
                     revision_id: result.newRevisionId,
                     environment_ref: selectedEnvironment,
+                    application_id: appId || undefined,
                     note,
                 })
                 message.success(
-                    `Published ${variant?.variantName || "variant"} to ${selectedEnvironment}`,
+                    `Published ${variantName} to ${selectedEnvironment}`,
                 )
             }
 
-            onSuccess?.({revisionId: result.newRevisionId, variantId: variant?.variantId})
+            onSuccess?.({revisionId: result.newRevisionId, variantId: variantSlug})
             return {success: true, newRevisionId: result.newRevisionId}
         },
         [
             createVariant,
             variantId,
-            variant,
+            variantName,
+            variantSlug,
+            configuration,
             newVariantName,
             shouldDeploy,
             selectedEnvironment,
             publish,
+            appId,
             onSuccess,
             commitRevision,
         ],
     )
+
+    const commitModes = [
+        {id: "version", label: "As a new version"},
+        {id: "variant", label: "As a new variant"},
+    ]
 
     return (
         <EntityCommitModal
@@ -139,12 +157,9 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             entity={{
                 type: "variant",
                 id: variantId,
-                name: variant?.variantName || "Variant",
+                name: variantName,
             }}
-            commitModes={[
-                {id: "version", label: "As a new version"},
-                {id: "variant", label: "As a new variant"},
-            ]}
+            commitModes={commitModes}
             defaultCommitMode="version"
             renderModeContent={({mode}) => (
                 <div className="flex flex-col gap-3">

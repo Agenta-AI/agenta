@@ -1,6 +1,5 @@
 import {useMemo} from "react"
 
-import {extractAllEndpointSchemas} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {atom, useAtomValue} from "jotai"
@@ -10,8 +9,6 @@ import {Testset} from "@/oss/lib/Types"
 import {useInputsVsColumns} from "./useInputsVsColumns"
 
 export interface UseTestsetInputsAnalysisParams {
-    // Optional: pass routePath to fetch schema meta via atom
-    routePath?: string
     // Explicit overrides to decouple from atoms when desired
     displayedVariablesOverride?: string[]
     schemaInputKeysOverride?: string[]
@@ -37,13 +34,12 @@ export interface UseTestsetInputsAnalysisResult {
 /**
  * High-level hook that can operate in two modes:
  * 1) Controlled mode: receive explicit schema/vars via overrides (no atom reads)
- * 2) Atom-backed mode: provide routePath and it will read from atoms
+ * 2) Atom-backed mode: reads input ports from runnableBridge for the primary entity
  */
 export function useTestsetInputsAnalysis(
     params: UseTestsetInputsAnalysisParams,
 ): UseTestsetInputsAnalysisResult {
     const {
-        routePath,
         displayedVariablesOverride,
         schemaInputKeysOverride,
         requestSchemaMetaOverride,
@@ -60,7 +56,7 @@ export function useTestsetInputsAnalysis(
     const schemaInputKeysFromAtoms = useAtomValue(executionItemController.selectors.schemaInputKeys)
     const schemaInputKeys = schemaInputKeysOverride ?? schemaInputKeysFromAtoms
 
-    // Resolve schema meta from the primary entity's request payload
+    // Resolve schema meta from the primary entity's input ports (via runnableBridge)
     const requestSchemaMetaFromAtom = useAtomValue(
         useMemo(
             () =>
@@ -72,26 +68,14 @@ export function useTestsetInputsAnalysis(
                     const meta = {
                         required: [] as string[],
                         inputKeys: [] as string[],
-                        hasMessages: false,
                     }
                     if (!primaryId) return meta
-                    const scoped = runnableBridge.forType(rootNode.entityType)
-                    const payload = get(scoped.requestPayload(primaryId)) as any
-                    if (!payload?.spec) return meta
-                    const rp = payload.routePath || routePath
-                    const {primaryEndpoint} = extractAllEndpointSchemas(payload.spec, rp)
-                    if (!primaryEndpoint) return meta
-                    const rawReqSchema = primaryEndpoint.requestSchema as any
-                    meta.required = Array.isArray(rawReqSchema?.required)
-                        ? rawReqSchema.required
-                        : []
-                    meta.inputKeys = (primaryEndpoint.requestProperties || []).filter(
-                        (k: string) => !["ag_config", "messages"].includes(k),
-                    )
-                    meta.hasMessages = Boolean(primaryEndpoint.messagesSchema)
+                    const ports = get(runnableBridge.inputPorts(primaryId))
+                    meta.inputKeys = ports.map((p) => p.key)
+                    meta.required = ports.filter((p) => p.required).map((p) => p.key)
                     return meta
                 }),
-            [routePath],
+            [],
         ),
     )
     const requestSchemaMeta = requestSchemaMetaOverride ?? requestSchemaMetaFromAtom
