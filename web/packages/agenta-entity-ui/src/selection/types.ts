@@ -257,6 +257,19 @@ export interface HierarchyLevel<T = unknown> {
      * ```
      */
     filterItems?: (entity: T) => boolean
+
+    /**
+     * Get a group key for this entity (for grouped select rendering).
+     * Items with the same key are grouped under a shared header.
+     * Return null/undefined for ungrouped items.
+     */
+    getGroupKey?: (entity: T) => string | null | undefined
+
+    /**
+     * Map a group key to a human-readable display label.
+     * Falls back to the key itself if not provided.
+     */
+    getGroupLabel?: (key: string) => string
 }
 
 /**
