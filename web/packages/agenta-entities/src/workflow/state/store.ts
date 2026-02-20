@@ -12,6 +12,7 @@
  */
 
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import isEqual from "fast-deep-equal"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
@@ -23,13 +24,14 @@ import {
     fetchWorkflow,
     fetchWorkflowRevisionById,
     inspectWorkflow,
+    fetchInterfaceSchemas,
     fetchWorkflowAppOpenApiSchema,
     queryWorkflows,
     queryWorkflowVariants,
     queryWorkflowRevisionsByWorkflow,
     queryWorkflowRevisions,
 } from "../api"
-import type {InspectWorkflowResponse, AppOpenApiSchemas} from "../api"
+import type {InspectWorkflowResponse, InterfaceSchemasResponse, AppOpenApiSchemas} from "../api"
 import type {
     Workflow,
     WorkflowsResponse,
@@ -391,6 +393,55 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
 )
 
 // ============================================================================
+// INTERFACE SCHEMAS QUERY (builtin workflow fallback)
+// ============================================================================
+
+/**
+ * Helper to check if a URI is a builtin workflow URI.
+ */
+function isBuiltinUri(uri: string | null | undefined): boolean {
+    if (!uri) return false
+    return uri.startsWith("agenta:builtin:")
+}
+
+/**
+ * Interface schemas query atom family.
+ * For builtin workflows, fetches the interface schemas from the
+ * `/preview/workflows/interfaces/schemas` endpoint.
+ *
+ * This is a lightweight fallback that returns static schema definitions
+ * for builtin evaluators without requiring the handler to be running.
+ *
+ * **Only fires for builtin workflows** (URI starts with "agenta:builtin:").
+ */
+export const workflowInterfaceSchemasAtomFamily = atomFamily((revisionId: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(workflowProjectIdAtom)
+        const revisionQuery = get(workflowQueryAtomFamily(revisionId))
+        const serverData = revisionQuery.data ?? null
+        const uri = serverData?.data?.uri ?? null
+
+        // Check if schemas are already present in server data
+        const existingSchemas = serverData?.data?.schemas
+        const hasParametersSchema = !!existingSchemas?.parameters
+        const hasInputsSchema = !!existingSchemas?.inputs
+
+        // Only fetch if it's a builtin URI and missing schemas
+        const needsSchemaFetch = isBuiltinUri(uri) && (!hasParametersSchema || !hasInputsSchema)
+
+        return {
+            queryKey: ["workflows", "interfaceSchemas", revisionId, uri, projectId],
+            queryFn: async (): Promise<InterfaceSchemasResponse | null> => {
+                if (!projectId || !uri) return null
+                return fetchInterfaceSchemas(uri, projectId)
+            },
+            enabled: get(sessionAtom) && !!projectId && !!uri && needsSchemaFetch,
+            staleTime: Infinity, // Static schemas never change
+        }
+    }),
+)
+
+// ============================================================================
 // DRAFT STATE
 // ============================================================================
 
@@ -411,7 +462,8 @@ export const workflowDraftAtomFamily = atomFamily((_workflowId: string) =>
  * 2. Schema resolution (flag-gated):
  *    - **Evaluator workflows**: inspect endpoint fills missing schemas
  *    - **App workflows**: OpenAPI spec fetch fills missing schemas
- * 3. Local draft overlay (user edits)
+ * 3. Interface schemas fallback (for builtin workflows missing schemas)
+ * 4. Local draft overlay (user edits)
  *
  * Local drafts already contain fully-merged data from the source revision,
  * so they skip the schema resolution stage.
@@ -503,6 +555,30 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
+        // Interface schemas fallback: for builtin workflows that still have missing schemas
+        // This is a lightweight fallback that works for any builtin URI
+        const uri = merged.data?.uri ?? null
+        if (isBuiltinUri(uri)) {
+            const interfaceSchemasQuery = get(workflowInterfaceSchemasAtomFamily(workflowId))
+            const interfaceSchemas = interfaceSchemasQuery.data?.schemas ?? null
+
+            if (interfaceSchemas) {
+                merged = {
+                    ...merged,
+                    data: {
+                        ...merged.data,
+                        schemas: {
+                            ...merged.data?.schemas,
+                            inputs: merged.data?.schemas?.inputs ?? interfaceSchemas.inputs,
+                            outputs: merged.data?.schemas?.outputs ?? interfaceSchemas.outputs,
+                            parameters:
+                                merged.data?.schemas?.parameters ?? interfaceSchemas.parameters,
+                        },
+                    },
+                } as Workflow
+            }
+        }
+
         if (!draft) return merged
 
         return {
@@ -519,9 +595,10 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
 /**
  * Is the workflow dirty (has local edits)?
  *
- * Checks whether a draft overlay exists for this entity.
- * For local drafts this starts as `false` (freshly cloned, no edits)
- * and becomes `true` when the user modifies parameters.
+ * Compares draft parameters with server parameters to determine if there are
+ * actual changes. Returns false if:
+ * - No draft exists
+ * - Draft parameters match server parameters (user reverted their changes)
  *
  * URL snapshot persistence is handled separately by the snapshot system
  * which encodes `createLocalDraft` flags — it does not depend on isDirty.
@@ -529,7 +606,83 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
 export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
     atom<boolean>((get) => {
         const draft = get(workflowDraftAtomFamily(workflowId))
-        return draft !== null
+        if (!draft) return false
+
+        // Get server data to compare
+        const localData = get(workflowLocalServerDataAtomFamily(workflowId))
+        const query = get(workflowQueryAtomFamily(workflowId))
+        const serverData = localData ?? query.data ?? null
+
+        if (!serverData) return true // No server data, draft is dirty
+
+        // Compare draft parameters with server parameters
+        const draftParams = draft.data?.parameters
+        const serverParams = serverData.data?.parameters
+
+        // If no draft parameters, check if draft has any other changes
+        if (!draftParams) {
+            // Draft exists but no parameter changes - still dirty if draft has other data
+            if (!draft.data) return false
+            const dataKeys = Object.keys(draft.data as Record<string, unknown>)
+            return dataKeys.length > 0
+        }
+
+        // Recursively sort object keys for consistent comparison
+        // This handles json_schema property order differences
+        const sortObjectKeys = (obj: unknown): unknown => {
+            if (obj === null || obj === undefined) return obj
+            if (Array.isArray(obj)) return obj.map(sortObjectKeys)
+            if (typeof obj !== "object") return obj
+            const sorted: Record<string, unknown> = {}
+            for (const key of Object.keys(obj as Record<string, unknown>).sort()) {
+                sorted[key] = sortObjectKeys((obj as Record<string, unknown>)[key])
+            }
+            return sorted
+        }
+
+        // Normalize parameters for comparison
+        const normalizeForComparison = (params: unknown): unknown => {
+            if (!params || typeof params !== "object") return params
+            const p = params as Record<string, unknown>
+
+            // Normalize prompt_template content (trim trailing whitespace)
+            let normalized = {...p}
+            if (Array.isArray(p.prompt_template)) {
+                normalized.prompt_template = (p.prompt_template as unknown[]).map((msg) => {
+                    if (!msg || typeof msg !== "object") return msg
+                    const m = msg as Record<string, unknown>
+                    if (typeof m.content !== "string") return msg
+                    const content = m.content
+                        .split("\n")
+                        .map((line: string) => line.trimEnd())
+                        .join("\n")
+                        .trimEnd()
+                    return {...m, content}
+                })
+            }
+
+            // Sort all object keys recursively (handles json_schema property order)
+            return sortObjectKeys(normalized)
+        }
+
+        // Deep compare normalized parameters using fast-deep-equal
+        const normalizedDraft = normalizeForComparison(draftParams)
+        const normalizedServer = normalizeForComparison(serverParams)
+        const isDirty = !isEqual(normalizedDraft, normalizedServer)
+
+        // DEBUG: Log comparison
+        if (isDirty) {
+            console.log(
+                "[isDirty DEBUG] normalizedDraft:",
+                JSON.stringify(normalizedDraft, null, 2),
+            )
+            console.log(
+                "[isDirty DEBUG] normalizedServer:",
+                JSON.stringify(normalizedServer, null, 2),
+            )
+        }
+
+        return isDirty
     }),
 )
 

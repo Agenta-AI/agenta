@@ -298,6 +298,61 @@ export async function inspectWorkflow(
 }
 
 // ============================================================================
+// INTERFACE SCHEMAS FETCH (for builtin workflows)
+// ============================================================================
+
+/**
+ * Response shape from the interface schemas endpoint.
+ * Returns schemas for a builtin workflow URI.
+ */
+export interface InterfaceSchemasResponse {
+    uri?: string | null
+    schemas?: {
+        parameters?: Record<string, unknown> | null
+        inputs?: Record<string, unknown> | null
+        outputs?: Record<string, unknown> | null
+    } | null
+}
+
+/**
+ * Fetch interface schemas for a builtin workflow URI.
+ *
+ * This endpoint returns the parameters, inputs, and outputs schemas
+ * for builtin workflow URIs (e.g., "agenta:builtin:auto_ai_critique:v0").
+ *
+ * This is useful as a fallback when revision data doesn't contain
+ * the full schemas, allowing the frontend to dynamically render
+ * configuration forms and validate inputs.
+ *
+ * Endpoint: `POST /preview/workflows/interfaces/schemas`
+ *
+ * @param uri - The workflow URI (e.g., "agenta:builtin:auto_exact_match:v0")
+ * @param projectId - Project ID
+ * @returns Interface schemas response with parameters, inputs, outputs
+ */
+export async function fetchInterfaceSchemas(
+    uri: string,
+    projectId: string,
+): Promise<InterfaceSchemasResponse | null> {
+    if (!projectId || !uri) {
+        return null
+    }
+
+    try {
+        const response = await axios.post(
+            `${getAgentaApiUrl()}/preview/workflows/interfaces/schemas`,
+            {uri},
+            {params: {project_id: projectId}},
+        )
+
+        return response.data ?? null
+    } catch (error) {
+        console.error("[fetchInterfaceSchemas] Failed to fetch schemas", {uri, error})
+        return null
+    }
+}
+
+// ============================================================================
 // OPENAPI SCHEMA FETCH (for app workflows that don't have schemas from inspect)
 // ============================================================================
 

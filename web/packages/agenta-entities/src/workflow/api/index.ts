@@ -15,6 +15,9 @@ export {
     // Inspect (resolve full schema including inputs)
     inspectWorkflow,
     type InspectWorkflowResponse,
+    // Interface schemas fetch (builtin workflow fallback)
+    fetchInterfaceSchemas,
+    type InterfaceSchemasResponse,
     // OpenAPI schema fetch (app workflow fallback)
     fetchWorkflowAppOpenApiSchema,
     type AppOpenApiSchemas,
