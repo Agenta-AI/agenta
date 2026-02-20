@@ -1154,8 +1154,11 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
         update: atom(null, (_get, set, entityId: string, parameters: Record<string, unknown>) => {
             const hinted = getHintedConfig(entityId)
             if (hinted) {
+                const finalParams = hinted.config.updateTransform
+                    ? hinted.config.updateTransform(entityId, parameters, _get as never)
+                    : parameters
                 set(hinted.config.molecule.actions.update, entityId, {
-                    data: {parameters},
+                    data: {parameters: finalParams},
                 })
                 return
             }
@@ -1163,8 +1166,11 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = _get(config.molecule.selectors.data(entityId))
                 if (entity) {
+                    const finalParams = config.updateTransform
+                        ? config.updateTransform(entityId, parameters, _get as never)
+                        : parameters
                     set(config.molecule.actions.update, entityId, {
-                        data: {parameters},
+                        data: {parameters: finalParams},
                     })
                     return
                 }

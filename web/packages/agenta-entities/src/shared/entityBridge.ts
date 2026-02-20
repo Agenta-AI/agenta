@@ -411,6 +411,21 @@ export interface RunnableTypeConfig<T = unknown> {
     /** Additional actions specific to this runnable type */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types
     extraActions?: Record<string, WritableAtom<any, any[], any>>
+    /**
+     * Transform parameters before writing to the molecule.
+     * Used when the bridge transforms data for display (e.g., nesting evaluator params)
+     * and needs to reverse the transformation for storage.
+     *
+     * @param entityId - The entity being updated
+     * @param params - The parameters as sent from the UI (possibly transformed for display)
+     * @param get - Jotai getter to read current entity state
+     * @returns Parameters in the format the molecule expects
+     */
+    updateTransform?: (
+        entityId: string,
+        params: Record<string, unknown>,
+        get: (atom: Atom<unknown>) => unknown,
+    ) => Record<string, unknown>
 }
 
 /**
