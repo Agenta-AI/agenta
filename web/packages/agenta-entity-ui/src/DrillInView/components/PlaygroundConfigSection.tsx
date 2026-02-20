@@ -28,6 +28,7 @@ import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {LoadEvaluatorPresetModal} from "../../modals/preset"
 import {useDrillInUI} from "../context/DrillInUIContext"
 import {
     getModelSchema,
@@ -141,7 +142,8 @@ function buildRunnableBridgeAdapter(): ConfigSectionMoleculeAdapter {
                 atom((get) => {
                     const d = get(runnableBridge.data(id))
                     if (!d) return null
-                    return {parameters: (d.configuration ?? {}) as Record<string, unknown>}
+                    const params = (d.configuration ?? {}) as Record<string, unknown>
+                    return {parameters: params}
                 }),
             ),
             serverData: memoAtom((id: string) =>
@@ -180,7 +182,9 @@ function buildRunnableBridgeAdapter(): ConfigSectionMoleculeAdapter {
         drillIn: {
             getRootData: (data: unknown) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
-                return d?.parameters && Object.keys(d.parameters).length > 0 ? d.parameters : d
+                const rootData =
+                    d?.parameters && Object.keys(d.parameters).length > 0 ? d.parameters : d
+                return rootData
             },
             getRootItems: (data: unknown) => {
                 const d = data as {parameters?: Record<string, unknown>} | null
@@ -203,6 +207,10 @@ function buildRunnableBridgeAdapter(): ConfigSectionMoleculeAdapter {
                 setValueAtPath(params, path, value)
                 return params
             },
+            getChangesFromRoot: (_entity: unknown, rootData: unknown, _path: DataPath) => {
+                // rootData is the updated parameters object
+                return rootData as Record<string, unknown>
+            },
         },
         selectors: {
             schemaAtPath: memoAtom((key: string) => {
@@ -223,7 +231,7 @@ function bridgeSchemaAtPath(params: {id: string; path: (string | number)[]}): At
         cached = atom((get) => {
             const schema = get(runnableBridge.parametersSchema(params.id))
             if (!schema) return null
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bridge schema is Record<string, unknown>
+
             return getSchemaAtPathUtil(schema as any, params.path) ?? null
         })
         bridgeSchemaAtPathCache.set(key, cached)
@@ -247,6 +255,13 @@ const defaultAdapter = buildDefaultAdapter()
 // COMPONENT
 // ============================================================================
 
+/** Evaluator preset definition */
+export interface EvaluatorPresetConfig {
+    key: string
+    name: string
+    values: Record<string, unknown>
+}
+
 export interface PlaygroundConfigSectionProps {
     revisionId: string
     disabled?: boolean
@@ -256,6 +271,12 @@ export interface PlaygroundConfigSectionProps {
     moleculeAdapter?: ConfigSectionMoleculeAdapter
     /** Called when the user clicks "Refine prompt with AI" on a prompt section header */
     onRefinePrompt?: (promptKey: string) => void
+    /** Evaluator presets for "Load Preset" functionality (evaluator workflows only) */
+    presets?: EvaluatorPresetConfig[]
+    /** Called when a preset is loaded */
+    onLoadPreset?: (preset: EvaluatorPresetConfig) => void
+    /** Evaluator name/label to show in header (evaluator workflows only) */
+    evaluatorLabel?: string
 }
 
 function PlaygroundConfigSection({
@@ -265,7 +286,12 @@ function PlaygroundConfigSection({
     className,
     moleculeAdapter,
     onRefinePrompt,
+    presets,
+    onLoadPreset,
+    evaluatorLabel,
 }: PlaygroundConfigSectionProps) {
+    // Preset modal state
+    const [isPresetModalOpen, setIsPresetModalOpen] = useState(false)
     const {llmProviderConfig} = useDrillInUI()
     const mol = moleculeAdapter ?? defaultAdapter
     const dispatchUpdate = useSetAtom(mol.reducers.update)
@@ -295,16 +321,6 @@ function PlaygroundConfigSection({
     }, [useServerData, data, serverData])
 
     const parameters = (activeData?.parameters ?? {}) as Record<string, unknown>
-
-    // ========== EVALUATOR FLAT CONFIG DETECTION ==========
-    // Detect evaluator flat config pattern: root-level "model" + "prompt_template", no "prompt" key
-    const isEvaluatorFlatConfig = useMemo(
-        () =>
-            !parameters.prompt &&
-            typeof parameters.model === "string" &&
-            Array.isArray(parameters.prompt_template),
-        [parameters],
-    )
 
     // ========== ADAPTER ==========
     // Build adapter with schema support, swapping data source for useServerData
@@ -342,54 +358,33 @@ function PlaygroundConfigSection({
     // ========== MODEL CONFIG POPOVER ==========
     const [isModelConfigOpen, setIsModelConfigOpen] = useState(false)
 
-    // Extract model + LLM config info from prompt section (app) or root level (evaluator)
+    // Extract model + LLM config info from prompt section
     const promptModelInfo = useMemo(() => {
-        // App workflow: "prompt" key with nested model
         const promptValue = parameters.prompt as Record<string, unknown> | null
-        if (promptValue) {
-            const promptSchema = schema?.properties
-                ? ((schema.properties as Record<string, SchemaProperty>).prompt ?? null)
-                : null
-            const modelSchema = getModelSchema(promptSchema)
-            const optionsResult = getOptionsFromSchema(modelSchema)
-            const modelOptions = optionsResult?.options ?? []
+        if (!promptValue) return null
 
-            const llmConfigValue = getLLMConfigValue(promptValue)
-            const currentModel = llmConfigValue?.model as string | undefined
+        const promptSchema = schema?.properties
+            ? ((schema.properties as Record<string, SchemaProperty>).prompt ?? null)
+            : null
+        const modelSchema = getModelSchema(promptSchema)
+        const optionsResult = getOptionsFromSchema(modelSchema)
+        const modelOptions = optionsResult?.options ?? []
 
-            // Extract LLM config property schemas for sliders
-            const llmConfigProps = getLLMConfigProperties(promptSchema)
+        const llmConfigValue = getLLMConfigValue(promptValue)
+        const currentModel = llmConfigValue?.model as string | undefined
 
-            return {
-                modelSchema,
-                modelOptions,
-                currentModel,
-                promptValue,
-                llmConfigValue,
-                llmConfigProps,
-                isEvaluator: false,
-            }
+        // Extract LLM config property schemas for sliders
+        const llmConfigProps = getLLMConfigProperties(promptSchema)
+
+        return {
+            modelSchema,
+            modelOptions,
+            currentModel,
+            promptValue,
+            llmConfigValue,
+            llmConfigProps,
         }
-
-        // Evaluator flat config: root-level "model" + "prompt_template"
-        if (isEvaluatorFlatConfig) {
-            const modelSchema = schema?.properties
-                ? ((schema.properties as Record<string, SchemaProperty>).model ?? null)
-                : null
-            const optionsResult = getOptionsFromSchema(modelSchema)
-            return {
-                modelSchema,
-                modelOptions: optionsResult?.options ?? [],
-                currentModel: parameters.model as string,
-                promptValue: null,
-                llmConfigValue: null,
-                llmConfigProps: {} as Record<string, SchemaProperty>,
-                isEvaluator: true,
-            }
-        }
-
-        return null
-    }, [parameters, schema, isEvaluatorFlatConfig])
+    }, [parameters, schema])
 
     // Helper to update a key inside the prompt's llm_config (or root level)
     const updatePromptLLMConfigKey = useCallback(
@@ -426,17 +421,9 @@ function PlaygroundConfigSection({
 
     const handleModelChange = useCallback(
         (newModel: string | undefined) => {
-            if (isEvaluatorFlatConfig) {
-                // Evaluator: model is at root level
-                dispatchUpdate(revisionId, {
-                    ...parameters,
-                    model: newModel,
-                })
-            } else {
-                updatePromptLLMConfigKey("model", newModel)
-            }
+            updatePromptLLMConfigKey("model", newModel)
         },
-        [isEvaluatorFlatConfig, dispatchUpdate, revisionId, parameters, updatePromptLLMConfigKey],
+        [updatePromptLLMConfigKey],
     )
 
     const handleLLMConfigChange = useCallback(
@@ -457,23 +444,17 @@ function PlaygroundConfigSection({
             const isTopLevel = props.path.length === 1
             if (!isTopLevel) return props.defaultRender()
 
-            // Hide the "model" field for evaluator flat config (shown in popover instead)
-            if (isEvaluatorFlatConfig && fieldKey === "model") return null
-
-            // Show model popover on "prompt" (app) or "prompt_template" (evaluator)
-            const isPromptWithPopover =
-                (fieldKey === "prompt" && !!promptModelInfo && !promptModelInfo.isEvaluator) ||
-                (fieldKey === "prompt_template" && !!promptModelInfo?.isEvaluator)
+            // Show model popover on "prompt" section header
+            const isPromptWithPopover = fieldKey === "prompt" && !!promptModelInfo
             const isCollapsed = !!collapsedSections[fieldKey]
 
             // Determine if this field has messages for the refine button
             const fieldValue = parameters[fieldKey]
             const hasMessages =
-                (!!fieldValue &&
-                    typeof fieldValue === "object" &&
-                    !Array.isArray(fieldValue) &&
-                    Array.isArray((fieldValue as Record<string, unknown>).messages)) ||
-                (fieldKey === "prompt_template" && Array.isArray(fieldValue))
+                !!fieldValue &&
+                typeof fieldValue === "object" &&
+                !Array.isArray(fieldValue) &&
+                Array.isArray((fieldValue as Record<string, unknown>).messages)
 
             return (
                 <div
@@ -522,43 +503,41 @@ function PlaygroundConfigSection({
                                             <Typography.Text strong>
                                                 Model Parameters
                                             </Typography.Text>
-                                            {!promptModelInfo.isEvaluator && (
-                                                <Button
-                                                    size="small"
-                                                    onClick={() => {
-                                                        const currentPrompt =
-                                                            (parameters.prompt as Record<
+                                            <Button
+                                                size="small"
+                                                onClick={() => {
+                                                    const currentPrompt =
+                                                        (parameters.prompt as Record<
+                                                            string,
+                                                            unknown
+                                                        >) || {}
+                                                    const hasNested =
+                                                        currentPrompt.llm_config ||
+                                                        currentPrompt.llmConfig
+                                                    if (hasNested) {
+                                                        const llmKey = currentPrompt.llm_config
+                                                            ? "llm_config"
+                                                            : "llmConfig"
+                                                        const currentLLM =
+                                                            (currentPrompt[llmKey] as Record<
                                                                 string,
                                                                 unknown
                                                             >) || {}
-                                                        const hasNested =
-                                                            currentPrompt.llm_config ||
-                                                            currentPrompt.llmConfig
-                                                        if (hasNested) {
-                                                            const llmKey = currentPrompt.llm_config
-                                                                ? "llm_config"
-                                                                : "llmConfig"
-                                                            const currentLLM =
-                                                                (currentPrompt[llmKey] as Record<
-                                                                    string,
-                                                                    unknown
-                                                                >) || {}
-                                                            const resetLLM = {
-                                                                model: currentLLM.model,
-                                                            }
-                                                            dispatchUpdate(revisionId, {
-                                                                ...parameters,
-                                                                prompt: {
-                                                                    ...currentPrompt,
-                                                                    [llmKey]: resetLLM,
-                                                                },
-                                                            })
+                                                        const resetLLM = {
+                                                            model: currentLLM.model,
                                                         }
-                                                    }}
-                                                >
-                                                    Reset default
-                                                </Button>
-                                            )}
+                                                        dispatchUpdate(revisionId, {
+                                                            ...parameters,
+                                                            prompt: {
+                                                                ...currentPrompt,
+                                                                [llmKey]: resetLLM,
+                                                            },
+                                                        })
+                                                    }
+                                                }}
+                                            >
+                                                Reset default
+                                            </Button>
                                         </div>
                                         <SelectLLMProviderBase
                                             options={[
@@ -655,7 +634,6 @@ function PlaygroundConfigSection({
             toggleSection,
             promptModelInfo,
             isModelConfigOpen,
-            isEvaluatorFlatConfig,
             disabled,
             parameters,
             revisionId,
@@ -686,6 +664,17 @@ function PlaygroundConfigSection({
         [collapsedSections],
     )
 
+    // ========== PRESET HANDLER ==========
+    const handleLoadPreset = useCallback(
+        (preset: EvaluatorPresetConfig) => {
+            setIsPresetModalOpen(false)
+            onLoadPreset?.(preset)
+        },
+        [onLoadPreset],
+    )
+
+    const hasPresets = presets && presets.length > 0
+
     // ========== LOADING / EMPTY STATE ==========
     const isConfigLoading = schemaQuery.isPending && !hasParameters(activeData)
 
@@ -706,6 +695,23 @@ function PlaygroundConfigSection({
     // ========== RENDER ==========
     return (
         <div className={clsx("flex flex-col", className)}>
+            {/* Evaluator config header with Load Preset button */}
+            {hasPresets && (
+                <div className="h-[40px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-[#FAFAFB] flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-800">Configuration</span>
+                        {evaluatorLabel && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                                {evaluatorLabel}
+                            </span>
+                        )}
+                    </div>
+                    <Button size="small" onClick={() => setIsPresetModalOpen(true)}>
+                        Load Preset
+                    </Button>
+                </div>
+            )}
+
             <MoleculeDrillInView
                 entityId={revisionId}
                 molecule={drillInAdapter}
@@ -719,6 +725,16 @@ function PlaygroundConfigSection({
                     fieldContent: fieldContentSlot,
                 }}
             />
+
+            {/* Load Preset Modal */}
+            {hasPresets && (
+                <LoadEvaluatorPresetModal
+                    open={isPresetModalOpen}
+                    onCancel={() => setIsPresetModalOpen(false)}
+                    presets={presets}
+                    onLoadPreset={handleLoadPreset}
+                />
+            )}
         </div>
     )
 }

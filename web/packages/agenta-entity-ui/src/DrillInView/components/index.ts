@@ -12,4 +12,5 @@ export {default as PlaygroundConfigSection} from "./PlaygroundConfigSection"
 export type {
     PlaygroundConfigSectionProps,
     ConfigSectionMoleculeAdapter,
+    EvaluatorPresetConfig,
 } from "./PlaygroundConfigSection"

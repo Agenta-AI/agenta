@@ -71,6 +71,12 @@ export interface FieldItemContentProps {
     schema?: SchemaProperty | null
 
     /**
+     * Original server value for preserving custom descriptions.
+     * Passed to FeedbackConfigurationControl via SchemaPropertyRenderer.
+     */
+    originalValue?: unknown
+
+    /**
      * CSS class names
      */
     classNames: {
@@ -100,6 +106,7 @@ export function FieldItemContent({
     onDrillIn,
     onChange,
     schema,
+    originalValue,
     classNames,
     styles,
 }: FieldItemContentProps) {
@@ -113,7 +120,7 @@ export function FieldItemContent({
     )
 
     // Check if an expandable value should be rendered inline via SchemaPropertyRenderer
-    // (prompt objects, inline objects, messages arrays)
+    // (prompt objects, inline objects, messages arrays, feedback_config)
     const shouldRenderInline = useMemo(() => {
         if (!isExpandable) return false
         // Schema-based detection
@@ -121,6 +128,9 @@ export function FieldItemContent({
             if (isPromptSchema(schema)) return true
             if (isMessagesSchema(schema)) return true
             if (shouldRenderObjectInline(schema)) return true
+            // Check for feedback_config x-parameter
+            const xParam = schema["x-parameter"] as string | undefined
+            if (xParam === "feedback_config") return true
         }
         // Value-based detection (no schema)
         if (isPromptValue(item.value)) return true
@@ -153,6 +163,7 @@ export function FieldItemContent({
                     onChange={handleChange}
                     disabled={!isEditable}
                     path={path}
+                    originalValue={originalValue}
                 />
             </div>
         </div>

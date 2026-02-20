@@ -54,6 +54,7 @@ export {
     useDrillIn,
     type PlaygroundConfigSectionProps,
     type ConfigSectionMoleculeAdapter,
+    type EvaluatorPresetConfig,
     // Types - Molecule Config
     type DrillInMoleculeConfig,
     type DrillInDisplayConfig,
@@ -203,6 +204,11 @@ export {
     type MessagesSchemaControlProps,
     type ResponseFormatValue,
     type ResponseFormatControlProps,
+    FeedbackConfigurationControl,
+    type FeedbackConfigurationControlProps,
+    type FeedbackConfig,
+    type ResponseFormatType,
+    type CategoricalOption,
     type PromptSchemaControlProps,
     type ToolItemControlProps,
     type ToolObj,
@@ -362,6 +368,10 @@ export {
     // Combined provider (recommended)
     EntityModalsProvider,
     type EntityModalsProviderProps,
+    // Preset modal
+    LoadEvaluatorPresetModal,
+    type EvaluatorPreset,
+    type LoadEvaluatorPresetModalProps,
 } from "./modals"
 
 // ============================================================================

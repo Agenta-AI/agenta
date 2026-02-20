@@ -51,6 +51,7 @@ export type {
     MoleculeDrillInProviderProps,
     PlaygroundConfigSectionProps,
     ConfigSectionMoleculeAdapter,
+    EvaluatorPresetConfig,
 } from "./components"
 
 // ============================================================================
@@ -232,6 +233,7 @@ export {
     isMessagesSchema,
     ResponseFormatControl,
     responseFormatModalOpenAtom,
+    FeedbackConfigurationControl,
     PromptSchemaControl,
     isPromptSchema,
     isPromptValue,
@@ -269,6 +271,10 @@ export type {
     MessagesSchemaControlProps,
     ResponseFormatValue,
     ResponseFormatControlProps,
+    FeedbackConfigurationControlProps,
+    FeedbackConfig,
+    ResponseFormatType,
+    CategoricalOption,
     PromptSchemaControlProps,
     ToolItemControlProps,
     ToolSelectorPopoverProps,
