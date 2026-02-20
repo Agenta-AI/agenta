@@ -3,6 +3,7 @@ import {useCallback, useMemo} from "react"
 import {environmentMolecule} from "@agenta/entities/environment"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
+import {workflowMolecule, workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
@@ -12,7 +13,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
+import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
 import {discardEntityDraft} from "../../../assets/entityHelpers"
 import SelectVariant from "../../Menus/SelectVariant"
@@ -37,6 +38,11 @@ const PlaygroundVariantConfigHeader = ({
 }: PlaygroundVariantConfigHeaderProps & {embedded?: boolean}) => {
     const classes = useStyles()
 
+    // Project-scoped playground (no app in URL) → browse all workflows
+    // App-scoped playground → scoped to current app only
+    const appId = useAtomValue(routerAppIdAtom)
+    const isProjectScoped = !appId
+
     // Check if this is a local draft (browser-only clone)
     const isLocalDraftVariant = variantId ? isLocalDraftId(variantId) : false
 
@@ -55,7 +61,14 @@ const PlaygroundVariantConfigHeader = ({
     const _variantId = runnableData?.id ?? null
     const variantRevision = revisionOverride ?? (runnableData?.version as number | null) ?? null
     const rawVariantName = variantNameOverride ?? runnableData?.name ?? "Variant"
-    const isLatestRevision = useAtomValue(runnableBridge.isLatestRevision(variantId || ""))
+
+    // Read workflow_id from the raw entity and compare against the latest revision
+    // for this workflow. This avoids the bridge's probe loop (which triggers N queries
+    // across all molecule types) and uses a single targeted query instead.
+    const rawEntity = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
+    const workflowId = (rawEntity as {workflow_id?: string | null} | null)?.workflow_id ?? ""
+    const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(workflowId))
+    const isLatestRevision = !!variantId && variantId === latestRevisionId
     const hasChanges = isDirty
 
     const deployedIn = isLocalDraftVariant
@@ -114,11 +127,7 @@ const PlaygroundVariantConfigHeader = ({
             <div className="flex items-center gap-2 grow">
                 {!embedded && !isLocalDraftVariant && (
                     <SelectVariant
-                        mode={
-                            getEnv("NEXT_PUBLIC_PLAYGROUND_EVALUATOR_WORKFLOWS") === "true"
-                                ? "browse"
-                                : "scoped"
-                        }
+                        mode={isProjectScoped ? "browse" : "scoped"}
                         onChange={(value) => handleSwitchVariant?.(value)}
                         value={_variantId ?? undefined}
                     />
