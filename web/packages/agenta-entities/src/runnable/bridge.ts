@@ -342,6 +342,223 @@ function getEvaluatorOutputPorts(entity: unknown): RunnablePort[] {
 }
 
 // ============================================================================
+// EVALUATOR CONFIG TRANSFORMATION
+// ============================================================================
+
+/**
+ * Detect if the parameters are evaluator flat config that should be nested.
+ * Flat evaluator configs have `prompt_template` + `model` at root, no `prompt`.
+ */
+function isEvaluatorFlatParams(params: Record<string, unknown> | null | undefined): boolean {
+    if (!params) return false
+    return (
+        !params.prompt && typeof params.model === "string" && Array.isArray(params.prompt_template)
+    )
+}
+
+/**
+ * Transform flat evaluator parameters to nested prompt structure.
+ * Aligns evaluator config with app workflow config for consistent UI rendering.
+ *
+ * FROM: { prompt_template: [...], model: "...", response_type: "...", json_schema: {...}, correct_answer_key: "...", threshold: ..., version: "..." }
+ * TO:   { prompt: { messages: [...], llm_config: { model: "..." } }, feedback_config: { type: "...", json_schema: {...} }, advanced_config: {...} }
+ *
+ * Also handles already-nested data by extracting feedback_config from prompt.llm_config.response_format.
+ *
+ * Hidden fields (not rendered): version, correct_answer_key, threshold
+ * These are stored but not shown in the UI config section.
+ */
+function nestEvaluatorConfiguration(flat: Record<string, unknown>): Record<string, unknown> {
+    // Handle already-nested data: extract feedback_config from prompt.llm_config.response_format
+    if (!isEvaluatorFlatParams(flat)) {
+        // Check if data is already nested with prompt.llm_config.response_format
+        const prompt = flat.prompt as Record<string, unknown> | undefined
+        const llmConfig = (prompt?.llm_config ?? prompt?.llmConfig) as
+            | Record<string, unknown>
+            | undefined
+        const responseFormat = llmConfig?.response_format as Record<string, unknown> | undefined
+
+        // If response_format exists in llm_config, move it to top-level feedback_config
+        if (responseFormat && !flat.feedback_config) {
+            const {response_format: _rf, ...restLlmConfig} = llmConfig as Record<string, unknown>
+            return {
+                ...flat,
+                prompt: {
+                    ...prompt,
+                    llm_config: restLlmConfig,
+                },
+                feedback_config: responseFormat,
+            }
+        }
+        return flat
+    }
+
+    const {
+        prompt_template,
+        model,
+        response_type,
+        json_schema,
+        // Hidden fields - stored in __evaluator_meta for persistence but not rendered
+        version: _version,
+        correct_answer_key: _correctAnswerKey,
+        threshold: _threshold,
+        ...rest
+    } = flat
+
+    // Build feedback_config object if response_type is present
+    // This matches the schema structure where feedback_config is a top-level property
+    const feedbackConfig: Record<string, unknown> | undefined = response_type
+        ? {
+              type: response_type,
+              ...(json_schema ? {json_schema} : {}),
+          }
+        : undefined
+
+    const result = {
+        prompt: {
+            messages: prompt_template,
+            llm_config: {
+                model,
+            },
+        },
+        // Feedback configuration as a top-level section (matches schema)
+        ...(feedbackConfig ? {feedback_config: feedbackConfig} : {}),
+        // Store evaluator-specific fields in a named section
+        advanced_config: {
+            correct_answer_key: _correctAnswerKey,
+            threshold: _threshold,
+        },
+        ...rest,
+    }
+    return result
+}
+
+/**
+ * Reverse transform: nested prompt structure back to flat evaluator parameters.
+ * Restores hidden fields from advanced_config and extracts feedback_config.
+ */
+
+function flattenEvaluatorConfiguration(
+    nested: Record<string, unknown>,
+    originalFlat: Record<string, unknown> | null,
+): Record<string, unknown> {
+    const prompt = nested.prompt as Record<string, unknown> | undefined
+    if (!prompt || !prompt.messages) return nested
+
+    const llmConfig = (prompt.llm_config ?? prompt.llmConfig) as Record<string, unknown> | undefined
+
+    // Extract feedback_config from top level (new structure)
+    const feedbackConfig = nested.feedback_config as Record<string, unknown> | undefined
+
+    // Extract advanced config fields or fall back to originalFlat
+    const advancedConfig = nested.advanced_config as Record<string, unknown> | undefined
+
+    // Start with original flat params to preserve all fields, then override with changes
+    const result: Record<string, unknown> = {
+        ...(originalFlat ?? {}),
+        prompt_template: prompt.messages,
+        model: llmConfig?.model ?? originalFlat?.model,
+    }
+
+    // Extract response_type and json_schema from feedback_config (if provided)
+    if (feedbackConfig?.type !== undefined) {
+        result.response_type = feedbackConfig.type
+    }
+    if (feedbackConfig?.json_schema !== undefined) {
+        result.json_schema = feedbackConfig.json_schema
+    }
+
+    // Override advanced config fields if provided
+    if (advancedConfig?.correct_answer_key !== undefined) {
+        result.correct_answer_key = advancedConfig.correct_answer_key
+    }
+    if (advancedConfig?.threshold !== undefined) {
+        result.threshold = advancedConfig.threshold
+    }
+
+    return result
+}
+
+/**
+ * Transform flat evaluator parameters schema to nested prompt structure.
+ * Aligns evaluator schema with app workflow schema for consistent UI rendering.
+ *
+ * FROM schema: { properties: { prompt_template: {...}, model: {...}, response_type: {...}, json_schema: {...}, version: {...}, ... } }
+ * TO schema:   { properties: { prompt: { properties: { messages: {...}, llm_config: { properties: { model: {...}, response_format: {...} } } } } } }
+ *
+ * Hidden fields (not in output schema): version, correct_answer_key, threshold
+ */
+function nestEvaluatorSchema(flatSchema: Record<string, unknown>): Record<string, unknown> {
+    const properties = flatSchema.properties as Record<string, unknown> | undefined
+    if (!properties || !properties.prompt_template || !properties.model) return flatSchema
+
+    const {
+        prompt_template,
+        model,
+        response_type,
+        json_schema,
+        // Hidden fields - excluded from top-level schema
+        version: _version,
+        correct_answer_key,
+        threshold,
+        ...restProps
+    } = properties
+
+    // Build feedback_config schema as a top-level collapsible section
+    // Use x-parameter: "feedback_config" to trigger FeedbackConfigurationControl
+    const feedbackConfigSchema = response_type
+        ? {
+              type: "object",
+              title: "Feedback Configuration",
+              "x-parameter": "feedback_config",
+              properties: {
+                  type: response_type,
+                  ...(json_schema ? {json_schema} : {}),
+              },
+          }
+        : undefined
+
+    // Build advanced_config schema if any of the fields exist
+    const hasAdvancedFields = correct_answer_key || threshold
+    const advancedConfigSchema = hasAdvancedFields
+        ? {
+              type: "object",
+              title: "Advanced Configuration",
+              "x-parameter": "inline", // Render properties inline, not as drill-in
+              properties: {
+                  ...(correct_answer_key ? {correct_answer_key} : {}),
+                  ...(threshold ? {threshold} : {}),
+              },
+          }
+        : undefined
+
+    return {
+        ...flatSchema,
+        properties: {
+            prompt: {
+                type: "object",
+                title: "Prompt",
+                "x-parameter": "prompt",
+                properties: {
+                    messages: prompt_template,
+                    llm_config: {
+                        type: "object",
+                        title: "LLM Config",
+                        properties: {
+                            model,
+                        },
+                    },
+                },
+            },
+            // Feedback Configuration as a top-level collapsible section
+            ...(feedbackConfigSchema ? {feedback_config: feedbackConfigSchema} : {}),
+            ...(advancedConfigSchema ? {advanced_config: advancedConfigSchema} : {}),
+            ...restProps,
+        },
+    }
+}
+
+// ============================================================================
 // EVALUATOR REVISION CONFIGURATION
 // ============================================================================
 
@@ -353,14 +570,18 @@ function getEvaluatorOutputPorts(entity: unknown): RunnablePort[] {
  * The revision data may also contain legacy fields:
  * - `data.service` — legacy service config
  * - `data.configuration` — legacy parameters (same as `data.parameters`)
+ *
+ * Configuration is transformed from flat to nested prompt structure for UI alignment
+ * with app workflow config rendering (see nestEvaluatorConfiguration).
  */
 function evaluatorRevisionToRunnable(entity: unknown): RunnableData {
     const e = entity as EvaluatorEntity
+    const flatParams = e.data?.parameters ?? undefined
     return {
         id: e.id,
         name: e.name || e.slug || undefined,
         slug: e.slug || undefined,
-        configuration: e.data?.parameters ?? undefined,
+        configuration: flatParams ? nestEvaluatorConfiguration(flatParams) : undefined,
         invocationUrl: e.data?.url || undefined,
         uri: e.data?.uri || undefined,
         schemas: {
@@ -477,6 +698,23 @@ function evaluatorRevisionSchemasSelector(revisionId: string) {
     })
 }
 
+/**
+ * Parameters schema selector for evaluator revisions.
+ * Transforms the flat evaluator parameters schema into a nested prompt structure
+ * to align with app workflow config rendering.
+ */
+function evaluatorRevisionParametersSchemaSelector(revisionId: string) {
+    return atom<Record<string, unknown> | null>((get) => {
+        const entity = get(
+            evaluatorRevisionMolecule.selectors.data(revisionId),
+        ) as EvaluatorEntity | null
+        const flatSchema =
+            (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
+        if (!flatSchema) return null
+        return nestEvaluatorSchema(flatSchema)
+    })
+}
+
 // ============================================================================
 // WORKFLOW CONFIGURATION
 // ============================================================================
@@ -514,12 +752,24 @@ interface WorkflowEntity {
 
 function workflowToRunnable(entity: unknown): RunnableData {
     const e = entity as WorkflowEntity
+    const flatParams = e.data?.parameters ?? e.data?.configuration ?? undefined
+
+    // Check if this is an evaluator workflow
+    const isEvaluator =
+        e.flags?.is_evaluator || (e.data?.uri && e.data.uri.startsWith("agenta:builtin:"))
+
+    // Transform evaluator config to nested prompt structure
+    const configuration =
+        isEvaluator && flatParams
+            ? nestEvaluatorConfiguration(flatParams as Record<string, unknown>)
+            : flatParams
+
     return {
         id: e.id,
         name: e.name || e.slug || undefined,
         slug: e.slug || undefined,
         version: e.version ?? undefined,
-        configuration: e.data?.parameters ?? e.data?.configuration ?? undefined,
+        configuration,
         invocationUrl: e.data?.url || undefined,
         uri: e.data?.uri || undefined,
         schemas: {
@@ -624,11 +874,28 @@ function workflowSchemasSelector(workflowId: string) {
 /**
  * Reactive parameters schema selector for workflows.
  * Returns the JSON schema that describes the configuration form (prompt, LLM config, etc.).
+ *
+ * For evaluator workflows (is_evaluator flag or builtin URI), applies nestEvaluatorSchema
+ * to transform flat evaluator parameters into nested prompt structure for consistent UI.
  */
 function workflowParametersSchemaSelector(workflowId: string) {
     return atom<Record<string, unknown> | null>((get) => {
         const entity = get(workflowMolecule.selectors.data(workflowId)) as WorkflowEntity | null
-        return (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
+        const flatSchema =
+            (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
+        if (!flatSchema) return null
+
+        // Check if this is an evaluator workflow
+        const isEvaluator =
+            entity?.flags?.is_evaluator ||
+            (entity?.data?.uri && entity.data.uri.startsWith("agenta:builtin:"))
+
+        if (isEvaluator) {
+            const nested = nestEvaluatorSchema(flatSchema) as Record<string, unknown>
+            return nested
+        }
+
+        return flatSchema
     })
 }
 
@@ -736,11 +1003,20 @@ export const runnableBridge = createRunnableBridge({
             getInputPorts: getEvaluatorRevisionInputPorts,
             getOutputPorts: getEvaluatorRevisionOutputPorts,
             schemasSelector: evaluatorRevisionSchemasSelector,
+            parametersSchemaSelector: evaluatorRevisionParametersSchemaSelector,
             inputPortsSelector: evaluatorRevisionInputPortsSelector,
             outputPortsSelector: evaluatorRevisionOutputPortsSelector,
             executionModeSelector: () => atom<"chat" | "completion">("completion"),
             invocationUrlSelector: evaluatorRevisionInvocationUrlSelector,
             requestPayloadSelector: evaluatorRevisionRequestPayloadSelector,
+            updateTransform: (entityId, params, get) => {
+                const entity = get(
+                    evaluatorRevisionMolecule.selectors.data(entityId) as never,
+                ) as EvaluatorEntity | null
+                const originalFlat =
+                    (entity?.data?.parameters as Record<string, unknown> | null) ?? null
+                return flattenEvaluatorConfiguration(params, originalFlat)
+            },
             normalizeResponse: (responseData: unknown) => {
                 // Evaluator endpoint returns {outputs: {score, reasoning, ...}}
                 // No trace_id is returned.
@@ -770,6 +1046,28 @@ export const runnableBridge = createRunnableBridge({
             executionModeSelector: (id: string) => workflowExecutionModeAtomFamily(id),
             invocationUrlSelector: (id: string) => workflowInvocationUrlAtomFamily(id),
             requestPayloadSelector: (id: string) => workflowRequestPayloadAtomFamily(id),
+            updateTransform: (entityId, params, get) => {
+                // For evaluator workflows, flatten nested config back to flat format
+                // IMPORTANT: Use pure server data (workflowQueryAtomFamily), NOT merged entity data
+                // Using merged data causes flaky isDirty because originalFlat would include draft changes
+                const localServerData = get(
+                    workflowLocalServerDataAtomFamily(entityId),
+                ) as WorkflowEntity | null
+                const queryAtom = workflowQueryAtomFamily(entityId)
+                const queryResult = get(queryAtom) as {data?: WorkflowEntity | null} | null
+                const serverData: WorkflowEntity | null =
+                    localServerData ?? queryResult?.data ?? null
+                const isEvaluator =
+                    serverData?.flags?.is_evaluator ||
+                    (serverData?.data?.uri && serverData.data.uri.startsWith("agenta:builtin:"))
+                if (isEvaluator) {
+                    // Use PURE server params, not merged entity params
+                    const originalFlat =
+                        (serverData?.data?.parameters as Record<string, unknown> | null) ?? null
+                    return flattenEvaluatorConfiguration(params, originalFlat)
+                }
+                return params
+            },
             normalizeResponse: (responseData: unknown) => {
                 // Workflow invoke returns { data: { outputs: {...} }, status: {...}, ... }
                 const data = responseData as Record<string, unknown> | null | undefined
