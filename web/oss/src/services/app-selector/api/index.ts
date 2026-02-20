@@ -233,7 +233,7 @@ export const createAndStartTemplate = async ({
 
         onStatusChange?.("success", undefined, app.app_id)
 
-        const baseAppURL = (await waitForValidURL({requireApp: true}))?.baseAppURL
+        const baseAppURL = (await waitForValidURL())?.baseAppURL
         const revisionId =
             variant?.id ??
             variant?.revision_id ??
