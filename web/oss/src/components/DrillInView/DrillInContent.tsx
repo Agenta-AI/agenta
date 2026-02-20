@@ -1,6 +1,6 @@
 import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {InputNumber, Select, Switch} from "antd"
+import {Button, InputNumber, Select, Switch} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
 
@@ -61,6 +61,9 @@ const VIEW_MODE_LABELS: Record<FieldViewMode, string> = {
     text: "Text",
     markdown: "Markdown",
 }
+const TEXT_TRUNCATION_CHAR_THRESHOLD = 6000
+const TEXT_TRUNCATION_LINE_THRESHOLD = 60
+const TEXT_TRUNCATION_MAX_HEIGHT = 360
 
 export interface PathItem {
     key: string
@@ -445,13 +448,20 @@ export function DrillInContent({
         (value: unknown, dataType: DataType): {value: FieldViewMode; label: string}[] => {
             if (!enableFieldViewModes || dataType === "messages") return []
 
-            const options: FieldViewMode[] = ["json", "yaml"]
+            const isStringValue = typeof value === "string"
+            const parsedStructuredString = isStringValue ? tryParseStructuredJson(value) : null
+
+            const options: FieldViewMode[] = ["json"]
+            if (!isStringValue || parsedStructuredString !== null) {
+                options.push("yaml")
+            }
+
             const rendered = renderStringifiedJson(value)
             if (rendered.didRender) {
                 options.push("rendered-json")
             }
 
-            if (typeof value === "string") {
+            if (isStringValue) {
                 options.push("text", "markdown")
             }
 
@@ -992,9 +1002,81 @@ function ReadOnlyCodeView({
                     language,
                     showToolbar: false,
                     showLineNumbers: true,
-                    disableLongText: true,
                 }}
             />
+        </EditorProvider>
+    )
+}
+
+function ReadOnlyTextView({
+    editorId,
+    textValue,
+    selectedViewMode,
+    fieldKey,
+    registerMarkdownToggle,
+}: {
+    editorId: string
+    textValue: string
+    selectedViewMode: Extract<FieldViewMode, "text" | "markdown">
+    fieldKey: string
+    registerMarkdownToggle: (fieldKey: string, toggleFn: () => void) => void
+}) {
+    const [isExpanded, setIsExpanded] = useState(false)
+    const shouldShowTextTruncation = useMemo(() => {
+        const lineCount = textValue.split("\n").length
+        return (
+            textValue.length > TEXT_TRUNCATION_CHAR_THRESHOLD ||
+            lineCount > TEXT_TRUNCATION_LINE_THRESHOLD
+        )
+    }, [textValue])
+
+    useEffect(() => {
+        setIsExpanded(false)
+    }, [textValue, selectedViewMode])
+
+    return (
+        <EditorProvider
+            key={`${editorId}-provider`}
+            id={editorId}
+            initialValue={textValue}
+            showToolbar={false}
+            enableTokens
+        >
+            <EditorMarkdownToggleExposer
+                onToggleReady={(toggleFn) => registerMarkdownToggle(fieldKey, toggleFn)}
+            />
+            <MarkdownViewSync
+                editorId={editorId}
+                isMarkdownView={selectedViewMode === "markdown"}
+            />
+            <div
+                style={
+                    shouldShowTextTruncation && !isExpanded
+                        ? {
+                              maxHeight: TEXT_TRUNCATION_MAX_HEIGHT,
+                              overflow: "hidden",
+                          }
+                        : undefined
+                }
+            >
+                <SharedEditor
+                    id={editorId}
+                    initialValue={textValue}
+                    editorType="border"
+                    className="overflow-hidden"
+                    disableDebounce
+                    noProvider
+                    disabled
+                    state="readOnly"
+                />
+            </div>
+            {shouldShowTextTruncation && (
+                <div className="flex justify-end mt-2">
+                    <Button type="text" size="small" onClick={() => setIsExpanded((prev) => !prev)}>
+                        {isExpanded ? "Collapse text" : "Expand full text"}
+                    </Button>
+                </div>
+            )}
         </EditorProvider>
     )
 }
@@ -1067,31 +1149,13 @@ function renderFieldContentByMode({
               : String(item.value ?? "")
 
     return (
-        <EditorProvider
-            key={`${editorId}-provider`}
-            id={editorId}
-            initialValue={textValue}
-            showToolbar={false}
-            enableTokens
-        >
-            <EditorMarkdownToggleExposer
-                onToggleReady={(toggleFn) => registerMarkdownToggle(fieldKey, toggleFn)}
-            />
-            <MarkdownViewSync
-                editorId={editorId}
-                isMarkdownView={selectedViewMode === "markdown"}
-            />
-            <SharedEditor
-                id={editorId}
-                initialValue={textValue}
-                editorType="border"
-                className="overflow-hidden"
-                disableDebounce
-                noProvider
-                disabled
-                state="readOnly"
-            />
-        </EditorProvider>
+        <ReadOnlyTextView
+            editorId={editorId}
+            textValue={textValue}
+            selectedViewMode={selectedViewMode}
+            fieldKey={fieldKey}
+            registerMarkdownToggle={registerMarkdownToggle}
+        />
     )
 }
 
