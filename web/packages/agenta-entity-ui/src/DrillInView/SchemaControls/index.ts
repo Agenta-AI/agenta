@@ -39,6 +39,14 @@ export type {MessagesSchemaControlProps} from "./MessagesSchemaControl"
 export {ResponseFormatControl, responseFormatModalOpenAtom} from "./ResponseFormatControl"
 export type {ResponseFormatValue, ResponseFormatControlProps} from "./ResponseFormatControl"
 
+export {FeedbackConfigurationControl} from "./FeedbackConfigurationControl"
+export type {
+    FeedbackConfigurationControlProps,
+    FeedbackConfig,
+    ResponseFormatType,
+    CategoricalOption,
+} from "./FeedbackConfigurationControl"
+
 export {PromptSchemaControl, isPromptSchema, isPromptValue} from "./PromptSchemaControl"
 export type {PromptSchemaControlProps} from "./PromptSchemaControl"
 

@@ -145,7 +145,14 @@ export function shouldRenderObjectInline(schema: SchemaProperty | null | undefin
         (schema.title as string | undefined) ||
         ""
     ).toLowerCase()
-    const inlineNames = ["llm_config", "llmconfig", "model_config", "modelconfig"]
+    const inlineNames = [
+        "llm_config",
+        "llmconfig",
+        "model_config",
+        "modelconfig",
+        "advanced_config",
+        "advanced configuration",
+    ]
     if (inlineNames.includes(name)) {
         return true
     }

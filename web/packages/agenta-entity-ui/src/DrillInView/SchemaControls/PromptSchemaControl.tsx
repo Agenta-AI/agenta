@@ -215,6 +215,13 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
 
     const responseFormatSchema = useMemo(() => getResponseFormatSchema(schema), [schema])
 
+    // Check if response format exists and should be shown
+    // If responseFormatSchema is null/empty, don't show the response format control
+    // (evaluators have feedback_config as a separate top-level section)
+    const hasResponseFormat = useMemo(() => {
+        return !!responseFormatSchema && Object.keys(responseFormatSchema).length > 0
+    }, [responseFormatSchema])
+
     // Handle messages change
     const handleMessagesChange = useCallback(
         (newMessages: SimpleChatMessage[]) => {
@@ -427,14 +434,17 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                     />
 
                     {/* Output type (response format) with JSON schema editing */}
-                    <ResponseFormatControl
-                        controlId={entityId || "response-format"}
-                        schema={responseFormatSchema}
-                        value={responseFormatValue}
-                        onChange={handleResponseFormatChange}
-                        disabled={disabled}
-                        size="small"
-                    />
+                    {/* Only show if responseFormatSchema exists (evaluators have feedback_config as separate section) */}
+                    {hasResponseFormat && (
+                        <ResponseFormatControl
+                            controlId={entityId || "response-format"}
+                            schema={responseFormatSchema}
+                            value={responseFormatValue}
+                            onChange={handleResponseFormatChange}
+                            disabled={disabled}
+                            size="small"
+                        />
+                    )}
 
                     {/* Template format */}
                     <Select

@@ -22,6 +22,7 @@ import {formatLabel} from "../utils"
 
 import {BooleanToggleControl} from "./BooleanToggleControl"
 import {EnumSelectControl} from "./EnumSelectControl"
+import {FeedbackConfigurationControl} from "./FeedbackConfigurationControl"
 import {GroupedChoiceControl} from "./GroupedChoiceControl"
 import {MessagesSchemaControl, isMessagesSchema} from "./MessagesSchemaControl"
 import {NumberSliderControl} from "./NumberSliderControl"
@@ -60,6 +61,12 @@ export interface SchemaPropertyRendererProps {
     hideModelSelector?: boolean
     /** Optional renderer for provider icons in tool headers */
     renderProviderIcon?: (providerKey: string) => React.ReactNode
+    /**
+     * Original server value for preserving custom descriptions.
+     * Used by FeedbackConfigurationControl to maintain custom descriptions
+     * when regenerating schemas from UI changes.
+     */
+    originalValue?: unknown
 }
 
 /**
@@ -82,8 +89,15 @@ function getControlType(
     | "messages"
     | "prompt"
     | "grouped_choice"
+    | "feedback_config"
     | "unknown" {
     if (forceType) return forceType
+
+    // Check for x-parameter hints first
+    const xParam = schema?.["x-parameter"] as string | undefined
+    if (xParam === "feedback_config") {
+        return "feedback_config"
+    }
 
     // When schema is null, fall back to value-based detection
     if (!schema) {
@@ -220,6 +234,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
     as,
     hideModelSelector = false,
     renderProviderIcon,
+    originalValue,
 }: SchemaPropertyRendererProps) {
     // Resolve anyOf/oneOf schemas for rendering
     const resolvedSchema = useMemo(() => resolveAnyOfSchema(schema), [schema])
@@ -325,7 +340,8 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
             )
 
         case "object_inline":
-            // Render object properties inline (e.g., llm_config)
+            // Render object properties inline (e.g., llm_config, advanced_config)
+            // Hide header for top-level fields (path.length === 1) since they already have a section header
             return (
                 <ObjectSchemaControl
                     schema={resolvedSchema}
@@ -337,6 +353,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     disabled={disabled}
                     path={path}
                     className={className}
+                    showHeader={path && path.length > 1}
                     SchemaPropertyRenderer={SchemaPropertyRenderer}
                 />
             )
@@ -368,6 +385,28 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     className={className}
                     hideModelSelector={hideModelSelector}
                     renderProviderIcon={renderProviderIcon}
+                />
+            )
+
+        case "feedback_config":
+            // Render feedback configuration control directly (outer collapse is handled by PlaygroundConfigSection)
+            return (
+                <FeedbackConfigurationControl
+                    value={(value as Record<string, unknown>)?.json_schema ?? value}
+                    originalValue={
+                        (originalValue as Record<string, unknown>)?.json_schema ?? originalValue
+                    }
+                    onChange={(schema: unknown) => {
+                        // Update the response_format object with the new json_schema
+                        const currentValue = (value as Record<string, unknown>) ?? {}
+                        onChange({
+                            ...currentValue,
+                            type: "json_schema",
+                            json_schema: schema,
+                        })
+                    }}
+                    disabled={disabled}
+                    className={className}
                 />
             )
 
