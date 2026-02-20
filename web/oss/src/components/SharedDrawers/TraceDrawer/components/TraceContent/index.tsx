@@ -4,7 +4,7 @@ import {Skeleton, Splitter, Tabs, TabsProps} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
-import AccordionTreePanel from "@/oss/components/SharedDrawers/TraceDrawer/components/AccordionTreePanel"
+import {TraceSpanDrillInView} from "@/oss/components/DrillInView/TraceSpanDrillInView"
 import {traceSidePanelOpenAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
 import TraceSidePanel from "../TraceSidePanel"
@@ -33,10 +33,11 @@ const TraceContent = ({
 }: TraceContentProps) => {
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
     const activeTrace = active
-    const {key, children, spans, invocationIds, ...filteredTrace} = activeTrace || {}
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
 
+    const spanId = activeTrace?.span_id
+    console.log("activeTrace", activeTrace, spanId)
     const items: TabsProps["items"] = useMemo(() => {
         if (isLoading && !activeTrace) {
             return [
@@ -51,22 +52,16 @@ const TraceContent = ({
         // When activeTrace is missing (e.g., failed generation), show just Raw Data/Error
         if (!activeTrace) {
             const errorPayload = error
-            const rawPayload =
-                traceResponse?.response || (errorPayload ? {error: errorPayload} : {})
             return [
                 {
                     key: "raw_data",
                     label: "Raw Data",
-                    children: (
-                        <AccordionTreePanel
-                            label={errorPayload ? "Error" : "Raw Data"}
-                            value={rawPayload as any}
-                            useDrillInView
-                            enableFormatSwitcher
-                            fullEditorHeight
-                            enableSearch
+                    children: spanId ? (
+                        <TraceSpanDrillInView
+                            spanId={spanId}
+                            title={errorPayload ? "Error" : "Raw Data"}
                         />
-                    ),
+                    ) : null,
                 },
             ]
         }
@@ -75,21 +70,12 @@ const TraceContent = ({
             {
                 key: "overview",
                 label: "Overview",
-                children: <OverviewTabItem activeTrace={activeTrace} />,
+                children: <OverviewTabItem spanId={spanId} activeTrace={activeTrace} />,
             },
             {
                 key: "raw_data",
                 label: "Raw Data",
-                children: (
-                    <AccordionTreePanel
-                        label={"Raw Data"}
-                        value={{...filteredTrace}}
-                        useDrillInView
-                        enableFormatSwitcher
-                        fullEditorHeight
-                        enableSearch
-                    />
-                ),
+                children: spanId ? <TraceSpanDrillInView spanId={spanId} title="Raw Data" /> : null,
             },
             {
                 key: "linked-span",
@@ -102,7 +88,7 @@ const TraceContent = ({
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
             },
         ]
-    }, [activeTrace, filteredTrace, isLoading, traceResponse, error, tab])
+    }, [spanId, activeTrace, isLoading, traceResponse, error, tab])
 
     // Ensure active tab exists in items; if not, switch to first tab
     const itemKeys = useMemo(() => (items || []).map((it) => String(it?.key)), [items])

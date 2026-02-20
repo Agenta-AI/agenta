@@ -39,6 +39,12 @@ export interface TraceSpanDrillInViewProps extends Omit<
     onPropertyClick?: (path: string) => void
     /** Initial path to start navigation at */
     initialPath?: string | string[]
+    /** Hide breadcrumb row (useful when parent already handles navigation layout) */
+    hideBreadcrumb?: boolean
+    /** Enables drill-in action button in field headers (default: true) */
+    showFieldDrillIn?: boolean
+    /** Enables explicit view mode selector for field content (JSON/YAML/Text/Markdown) */
+    enableFieldViewModes?: boolean
 }
 
 // ============================================================================
@@ -88,6 +94,9 @@ export const TraceSpanDrillInView = memo(
         onFocusPathHandled,
         onPropertyClick,
         initialPath,
+        hideBreadcrumb,
+        showFieldDrillIn,
+        enableFieldViewModes,
     }: TraceSpanDrillInViewProps) => {
         // Type assertion needed because traceSpan.drillIn is optional in the general type
         // but we know it's configured for the trace entity
@@ -116,6 +125,10 @@ export const TraceSpanDrillInView = memo(
                 onMapToColumn={onMapToColumn}
                 onUnmap={onUnmap}
                 mappedPaths={mappedPaths}
+                // Display control props
+                hideBreadcrumb={hideBreadcrumb}
+                showFieldDrillIn={showFieldDrillIn}
+                enableFieldViewModes={enableFieldViewModes}
             />
         )
     },

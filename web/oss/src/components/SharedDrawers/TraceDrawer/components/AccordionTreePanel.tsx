@@ -17,6 +17,7 @@ import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import {DrillInContent} from "@/oss/components/DrillInView"
+import {TraceSpanDrillInView} from "@/oss/components/DrillInView/TraceSpanDrillInView"
 import EditorWrapper, {
     EditorProvider,
     useLexicalComposerContext,
@@ -59,9 +60,6 @@ interface DrillInPathItem {
 }
 
 const DRILL_IN_SECTION_ROOT_KEY = "__section_root__"
-const TEXT_TRUNCATION_CHAR_THRESHOLD = 6000
-const TEXT_TRUNCATION_LINE_THRESHOLD = 60
-const TEXT_TRUNCATION_MAX_HEIGHT = 360
 
 const tryParseJsonString = (value: string): unknown | null => {
     const trimmed = value.trim()
@@ -351,6 +349,7 @@ const TextModeViewer = ({
 
 const AccordionTreePanel = ({
     value: incomingValue,
+    spanId,
     label,
     enableFormatSwitcher = false,
     bgColor,
@@ -373,7 +372,6 @@ const AccordionTreePanel = ({
     const [searchTerm, setSearchTerm] = useState("")
     const [currentResultIndex, setCurrentResultIndex] = useState(0)
     const [resultCount, setResultCount] = useState(0)
-    const [isTextExpanded, setIsTextExpanded] = useState(false)
 
     const handleNextMatch = () => {
         if (resultCount === 0) return
@@ -441,10 +439,10 @@ const AccordionTreePanel = ({
         return panelViewMode === "rendered-json" ? renderedJsonResult.value : sanitizedValue
     }, [panelViewMode, renderedJsonResult.value, sanitizedValue])
 
-    const shouldUseDrillInBody =
-        useDrillInView &&
-        (!enableSearch || !isSearchOpen) &&
-        (panelViewMode === "json" || panelViewMode === "rendered-json")
+    const shouldUseDrillInBody = true
+    // useDrillInView &&
+    // (!enableSearch || !isSearchOpen) &&
+    // (panelViewMode === "json" || panelViewMode === "rendered-json")
 
     const drillInRootItems = useMemo(
         () => getRootItemsForValue(activeDrillInValue, label),
@@ -461,10 +459,6 @@ const AccordionTreePanel = ({
     useEffect(() => {
         closeSearch()
     }, [sanitizedValue])
-
-    useEffect(() => {
-        setIsTextExpanded(false)
-    }, [panelViewMode, sanitizedValue])
 
     const downloadFile = useCallback((url: string) => {
         const link = document.createElement("a")
@@ -500,15 +494,6 @@ const AccordionTreePanel = ({
     }, [sanitizedValue])
 
     const isTextViewMode = panelViewMode === "text" || panelViewMode === "markdown"
-    const shouldShowTextTruncation = useMemo(() => {
-        if (!isTextViewMode) return false
-        const lineCount = textOutput.split("\n").length
-        return (
-            textOutput.length > TEXT_TRUNCATION_CHAR_THRESHOLD ||
-            lineCount > TEXT_TRUNCATION_LINE_THRESHOLD
-        )
-    }, [isTextViewMode, textOutput])
-
     const codeViewerLanguage: "json" | "yaml" | "rendered-json" =
         panelViewMode === "yaml"
             ? "yaml"
@@ -533,6 +518,7 @@ const AccordionTreePanel = ({
         [availableViewModes],
     )
 
+    console.log("spanId shit", spanId)
     const collapse = (
         <div className="relative">
             {isSearchOpen && (
@@ -594,7 +580,11 @@ const AccordionTreePanel = ({
                                     overflowY: "auto",
                                 }}
                             >
-                                {shouldUseDrillInBody ? (
+                                <TraceSpanDrillInView
+                                    spanId={spanId}
+                                    initialPath={"data.ag.data.inputs.parameters"}
+                                />
+                                {/* {shouldUseDrillInBody ? (
                                     <div className={`p-2 ${classes.drillInContainer}`}>
                                         <DrillInContent
                                             getValue={drillInGetValue}
@@ -611,37 +601,11 @@ const AccordionTreePanel = ({
                                     </div>
                                 ) : isTextViewMode ? (
                                     <div className="p-2">
-                                        <div
-                                            style={
-                                                shouldShowTextTruncation && !isTextExpanded
-                                                    ? {
-                                                          maxHeight: TEXT_TRUNCATION_MAX_HEIGHT,
-                                                          overflow: "hidden",
-                                                      }
-                                                    : undefined
-                                            }
-                                        >
-                                            <TextModeViewer
-                                                editorId={`${textViewerId}-${label}`}
-                                                value={textOutput}
-                                                mode={panelViewMode}
-                                            />
-                                        </div>
-                                        {shouldShowTextTruncation && (
-                                            <div className="flex justify-end mt-2">
-                                                <Button
-                                                    type="text"
-                                                    size="small"
-                                                    onClick={() =>
-                                                        setIsTextExpanded((prev) => !prev)
-                                                    }
-                                                >
-                                                    {isTextExpanded
-                                                        ? "Collapse text"
-                                                        : "Expand full text"}
-                                                </Button>
-                                            </div>
-                                        )}
+                                        <TextModeViewer
+                                            editorId={`${textViewerId}-${label}`}
+                                            value={textOutput}
+                                            mode={panelViewMode}
+                                        />
                                     </div>
                                 ) : (
                                     <EditorProvider
@@ -667,7 +631,7 @@ const AccordionTreePanel = ({
                                             }
                                         />
                                     </EditorProvider>
-                                )}
+                                )} */}
                             </div>
                         ),
                         extra: (
