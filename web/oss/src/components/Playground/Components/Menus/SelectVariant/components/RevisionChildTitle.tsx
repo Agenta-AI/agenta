@@ -1,7 +1,5 @@
-import {runnableBridge} from "@agenta/entities/runnable"
 import {CopySimple} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
-import {useAtomValue} from "jotai"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 
@@ -14,6 +12,7 @@ interface RevisionChildTitleProps {
     showLatestTag: boolean
     showAsCompare: boolean
     onCreateLocalCopy: (revisionId: string, e: React.MouseEvent) => void
+    latestRevisionId?: string | null
 }
 
 const RevisionChildTitle = ({
@@ -25,8 +24,9 @@ const RevisionChildTitle = ({
     showLatestTag,
     showAsCompare,
     onCreateLocalCopy,
+    latestRevisionId,
 }: RevisionChildTitleProps) => {
-    const isLatest = useAtomValue(runnableBridge.isLatestRevision(revisionId))
+    const isLatest = !!latestRevisionId && revisionId === latestRevisionId
 
     return (
         <div

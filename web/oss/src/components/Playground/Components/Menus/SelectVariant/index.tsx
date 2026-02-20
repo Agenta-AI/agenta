@@ -12,7 +12,11 @@ import {useCallback, useMemo, useState} from "react"
 
 import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
-import {workflowMolecule, workflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {
+    workflowMolecule,
+    workflowsListQueryStateAtom,
+    workflowLatestRevisionIdAtomFamily,
+} from "@agenta/entities/workflow"
 import {
     CascadingVariant,
     createWorkflowRevisionAdapter,
@@ -213,6 +217,11 @@ const SelectVariant = ({
         return <VariantGroupTitle parent={p} defaultNode={defaultNode} />
     }, [])
 
+    // Read the latest revision ID for the current workflow (app) — used to tag
+    // the most recent revision in the scoped select list. One query per workflow,
+    // not one per list item.
+    const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(appId))
+
     // Custom child title renderer (revisions)
     const renderChildTitle = useCallback(
         (child: unknown, _parent: unknown, _defaultNode: React.ReactNode) => {
@@ -233,10 +242,11 @@ const SelectVariant = ({
                     showLatestTag={showLatestTag}
                     showAsCompare={showAsCompare}
                     onCreateLocalCopy={handleCreateLocalCopy}
+                    latestRevisionId={latestRevisionId}
                 />
             )
         },
-        [showLatestTag, showAsCompare, handleCreateLocalCopy, disabledIds],
+        [showLatestTag, showAsCompare, handleCreateLocalCopy, disabledIds, latestRevisionId],
     )
 
     const renderSelectedLabel = useCallback(
