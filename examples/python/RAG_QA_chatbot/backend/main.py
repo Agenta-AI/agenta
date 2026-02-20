@@ -1,17 +1,19 @@
 """FastAPI server for RAG chatbot."""
 
 import json
-from typing import List
+import uuid
+from typing import Any, Dict, List, Optional
 
 import agenta as ag
 import litellm
+from opentelemetry.trace import format_trace_id
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from sse_starlette.sse import EventSourceResponse
+from pydantic import BaseModel, model_validator
+from fastapi.responses import StreamingResponse
 
 from .config import settings
-from .rag import generate, retrieve
+from .rag import format_context, generate, retrieve
 
 # Initialize Agenta for observability
 ag.init(api_key=settings.AGENTA_API_KEY, host=settings.AGENTA_HOST)
@@ -36,16 +38,30 @@ app.add_middleware(
 
 
 class ChatMessage(BaseModel):
-    """A chat message."""
+    """A chat message. Accepts both AI SDK v3 (content string) and v4+ (parts array) formats."""
 
     role: str
-    content: str
+    content: Optional[str] = None
+    parts: Optional[List[Dict[str, Any]]] = None
+
+    @model_validator(mode="after")
+    def resolve_content(self) -> "ChatMessage":
+        """Normalize parts-based messages (AI SDK v4+) to a content string."""
+        if self.content is None and self.parts:
+            texts = [p["text"] for p in self.parts if p.get("type") == "text"]
+            self.content = " ".join(texts)
+        return self
+
+    def get_text(self) -> str:
+        return self.content or ""
 
 
 class ChatRequest(BaseModel):
     """Request body for chat endpoint."""
 
     messages: List[ChatMessage]
+
+    model_config = {"extra": "ignore"}  # tolerate id, trigger, etc. from AI SDK v4+
 
 
 @app.get("/health")
@@ -62,48 +78,61 @@ async def chat(request: ChatRequest):
     Compatible with the Vercel AI SDK useChat hook.
     """
 
-    async def event_generator():
-        # Get the last user message
+    async def stream_generator():
+        def event(obj) -> str:
+            return f"data: {json.dumps(obj)}\n\n"
+
         user_messages = [m for m in request.messages if m.role == "user"]
         if not user_messages:
+            yield event({"type": "finish"})
+            yield "data: [DONE]\n\n"
             return
 
-        query = user_messages[-1].content
+        query = user_messages[-1].get_text()
+        message_id = str(uuid.uuid4())
+        text_id = str(uuid.uuid4())
 
-        # Create a new trace for this request
-        with ag.tracing.start_span(name="chat_request") as span:
-            # First, retrieve relevant documents
+        yield event({"type": "start", "messageId": message_id})
+
+        with ag.tracer.start_as_current_span("chat_request") as span:
+            root = ag.tracing.get_current_span()
+            root.set_attributes({"inputs": {"query": query}}, namespace="data")
+
             docs = retrieve(query)
+            context = format_context(docs)
 
-            # Send sources as data parts
-            for doc in docs[:5]:  # Limit to top 5 sources
-                source_data = {
-                    "type": "source-url",
-                    "url": doc.url,
-                }
-                yield {"event": "data", "data": json.dumps([source_data])}
+            # Source URLs
+            for doc in docs[:5]:
+                yield event({"type": "source-url", "sourceId": doc.url, "url": doc.url})
 
-            # Stream the response using retrieved docs
+            # Streamed text
             full_response = ""
-            async for chunk in generate(query, docs):
+            yield event({"type": "text-start", "id": text_id})
+            async for chunk in generate(query, context):
                 full_response += chunk
-                # Format for Vercel AI SDK text streaming
-                yield {"event": "data", "data": json.dumps(chunk)}
+                yield event({"type": "text-delta", "id": text_id, "delta": chunk})
+            yield event({"type": "text-end", "id": text_id})
 
-            # Send trace URL as data part
-            trace_id = span.get_trace_id()
-            if trace_id:
+            root.set_attributes({"outputs": {"response": full_response}}, namespace="data")
+
+            # Trace URL as custom data part
+            ctx = span.get_span_context()
+            if ctx.is_valid:
+                trace_id = format_trace_id(ctx.trace_id)
                 trace_url = f"{settings.AGENTA_HOST}/observability/traces/{trace_id}"
-                trace_data = {
-                    "type": "data-trace",
-                    "data": {"url": trace_url},
-                }
-                yield {"event": "data", "data": json.dumps([trace_data])}
+                yield event({"type": "data-trace", "data": {"url": trace_url}})
 
-            # Signal end of stream
-            yield {"event": "data", "data": "[DONE]"}
+            yield event({"type": "finish"})
+            yield "data: [DONE]\n\n"
 
-    return EventSourceResponse(event_generator())
+    return StreamingResponse(
+        stream_generator(),
+        media_type="text/event-stream",
+        headers={
+            "x-vercel-ai-ui-message-stream": "v1",
+            "cache-control": "no-cache",
+        },
+    )
 
 
 @app.get("/api/retrieve")

@@ -483,6 +483,20 @@ export const inProgressFeatures: PlannedFeature[] = [
 
 export const plannedFeatures: PlannedFeature[] = [
   {
+    id: "trace-usage-limits",
+    title: "Usage Limits for Traces (Hard and Soft Caps)",
+    description:
+      "Set usage limits for traces at the project level. Configure a hard cap to stop accepting new traces once the limit is reached, or a soft cap to receive an alert while continuing to accept traces. Gives teams cost predictability and control in production.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3784",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+
+  {
     id: "prompt-caching-sdk",
     title: "Prompt Caching in the SDK",
     description: "We are adding the ability to cache prompts in the SDK.",
