@@ -60,6 +60,10 @@ const TraceContent = ({
                         <TraceSpanDrillInView
                             spanId={spanId}
                             title={errorPayload ? "Error" : "Raw Data"}
+                            rootScope="span"
+                            hideBreadcrumb
+                            showFieldDrillIn={false}
+                            enableFieldViewModes
                         />
                     ) : null,
                 },
@@ -75,7 +79,16 @@ const TraceContent = ({
             {
                 key: "raw_data",
                 label: "Raw Data",
-                children: spanId ? <TraceSpanDrillInView spanId={spanId} title="Raw Data" /> : null,
+                children: spanId ? (
+                    <TraceSpanDrillInView
+                        spanId={spanId}
+                        title="Raw Data"
+                        rootScope="span"
+                        hideBreadcrumb
+                        showFieldDrillIn={false}
+                        enableFieldViewModes
+                    />
+                ) : null,
             },
             {
                 key: "linked-span",
