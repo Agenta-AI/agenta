@@ -1011,6 +1011,18 @@ function safeJsonStringify(value: unknown): string {
     return stringified ?? "null"
 }
 
+function toStringifiedJsonLiteral(value: unknown): string {
+    const compactJsonString =
+        typeof value === "string"
+            ? (() => {
+                  const parsed = tryParseStructuredJson(value)
+                  return parsed !== null ? (JSON.stringify(parsed) ?? "null") : value
+              })()
+            : (JSON.stringify(value) ?? "null")
+
+    return JSON.stringify(compactJsonString) ?? '""'
+}
+
 function ReadOnlyCodeView({
     editorId,
     language,
@@ -1094,25 +1106,8 @@ function renderFieldContentByMode({
     }
 
     if (selectedViewMode === "rendered-json") {
-        // Field Rendering mode - use custom components when available
-        if (dataType === "messages") {
-            return (
-                <ChatMessageList
-                    messages={parseMessages(stringValue)}
-                    onChange={() => {}}
-                    disabled
-                    showControls={false}
-                />
-            )
-        }
-        // Fallback to JSON view if no custom rendering available
-        let jsonValue: string
-        if (typeof item.value === "string") {
-            const parsed = tryParseStructuredJson(item.value)
-            jsonValue = parsed !== null ? safeJsonStringify(parsed) : safeJsonStringify(item.value)
-        } else {
-            jsonValue = safeJsonStringify(item.value)
-        }
+        // Render as a valid JSON string literal (escaped stringified JSON)
+        const jsonValue = toStringifiedJsonLiteral(item.value)
         return (
             <ReadOnlyCodeView
                 editorId={`drill-field-${fieldKey}`}
