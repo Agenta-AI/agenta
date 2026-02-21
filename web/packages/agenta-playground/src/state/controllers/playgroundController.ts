@@ -275,12 +275,14 @@ const removeNodeAtom = atom(null, (get, set, nodeId: string): string[] => {
 })
 
 /**
- * Connect a downstream node, replacing any existing node of the same entity type.
+ * Connect a downstream node.
  *
  * This compound action atomically:
- * 1. Removes any existing downstream node matching the entity type
- * 2. Adds the new downstream node
- * 3. Creates the output connection
+ * 1. Adds the new downstream node
+ * 2. Creates the output connection
+ *
+ * Multiple downstream nodes of the same entity type are allowed (e.g. multiple evaluators).
+ * If the exact same entity (by ID) is already connected, the call is a no-op.
  *
  * Use this instead of manually calling addDownstreamNode + addConnection
  * to keep the UI decoupled from state management details.
@@ -295,11 +297,9 @@ const connectDownstreamNodeAtom = atom(
         const {sourceNodeId, entity} = params
         const nodes = get(playgroundNodesAtom)
 
-        // Remove any existing downstream node of the same entity type
-        const existing = nodes.find((n) => n.depth > 0 && n.entityType === entity.type)
-        if (existing) {
-            set(removeNodeAtom, existing.id)
-        }
+        // Skip if this exact entity is already connected as a downstream node
+        const alreadyConnected = nodes.some((n) => n.depth > 0 && n.entityId === entity.id)
+        if (alreadyConnected) return null
 
         // Add the new downstream node
         const result = set(addDownstreamNodeAtom, {sourceNodeId, entity})
@@ -342,6 +342,17 @@ const disconnectDownstreamNodeAtom = atom(null, (get, set, entityType: string) =
     const nodes = get(playgroundNodesAtom)
     const toRemove = nodes.filter((n) => n.depth > 0 && n.entityType === entityType)
     for (const node of toRemove) {
+        set(removeNodeAtom, node.id)
+    }
+})
+
+/**
+ * Disconnect a single downstream node by its node ID.
+ */
+const disconnectSingleDownstreamNodeAtom = atom(null, (get, set, nodeId: string) => {
+    const nodes = get(playgroundNodesAtom)
+    const node = nodes.find((n) => n.id === nodeId && n.depth > 0)
+    if (node) {
         set(removeNodeAtom, node.id)
     }
 })
@@ -992,6 +1003,9 @@ export const playgroundController = {
 
         /** Disconnect all downstream nodes of a given entity type */
         disconnectDownstreamNode: disconnectDownstreamNodeAtom,
+
+        /** Disconnect a single downstream node by its node ID */
+        disconnectSingleDownstreamNode: disconnectSingleDownstreamNodeAtom,
 
         /** Remove a node */
         removeNode: removeNodeAtom,
