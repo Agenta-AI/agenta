@@ -176,15 +176,17 @@ const VariantNavigationCard = ({
                                 <DraftTag />
                                 <Text className="text-gray-500">
                                     from{" "}
-                                    {String(variantName).replace(/\s*\(Draft\)$/, "")}{" "}
-                                    v{variantVersion}
+                                    {String(variantName).replace(/\s*\(Draft\)$/, "")}
+                                    {variantVersion != null ? ` v${variantVersion}` : ""}
                                 </Text>
                             </>
                         ) : (
                             // Regular revision: show name and version tag, with Draft tag if dirty
                             <>
                                 <Text>{variantName}</Text>
-                                <Version revision={variantVersion as number} />
+                                {variantVersion != null && (
+                                    <Version revision={variantVersion} />
+                                )}
                                 {isDirty && <DraftTag />}
                             </>
                         )}

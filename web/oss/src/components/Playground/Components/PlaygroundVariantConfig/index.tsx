@@ -52,22 +52,12 @@ const PlaygroundVariantConfig: React.FC<
     // Determine if this is an evaluator workflow and get its presets
     const evaluatorInfo = useMemo(() => {
         const uri = runnableData?.uri as string | undefined
-        console.log("[PlaygroundVariantConfig] evaluatorInfo check:", {
-            uri,
-            evaluatorDefinitionsCount: evaluatorDefinitions.length,
-            evaluatorDefinitions: evaluatorDefinitions.map((e) => e.key),
-        })
         if (!uri || !uri.startsWith("agenta:builtin:")) return null
 
         const evaluatorKey = parseEvaluatorKeyFromUri(uri)
         if (!evaluatorKey) return null
 
         const evaluatorDef = evaluatorDefinitions.find((e) => e.key === evaluatorKey)
-        console.log("[PlaygroundVariantConfig] evaluatorDef lookup:", {
-            evaluatorKey,
-            found: !!evaluatorDef,
-            presets: evaluatorDef?.settings_presets,
-        })
         if (!evaluatorDef) return null
 
         return {
