@@ -342,6 +342,21 @@ export interface CreateWorkflowRevisionAdapterOptions {
      * ```
      */
     flags?: WorkflowQueryFlags
+
+    /**
+     * Custom filter function for the workflow list (3-level mode only).
+     * Applied after flag filtering. Return true to include the workflow.
+     *
+     * @example
+     * ```typescript
+     * // Exclude human evaluators from the list
+     * filterWorkflows: (entity) => {
+     *     const w = entity as { flags?: { is_human?: boolean } }
+     *     return !w.flags?.is_human
+     * }
+     * ```
+     */
+    filterWorkflows?: (entity: unknown) => boolean
 }
 
 /**
@@ -379,6 +394,7 @@ export function createWorkflowRevisionAdapter(
         emptyMessage,
         loadingMessage,
         flags,
+        filterWorkflows,
     } = options
 
     const emptyListState: ListQueryState<unknown> = {
@@ -479,21 +495,32 @@ export function createWorkflowRevisionAdapter(
     }
 
     // 3-level mode: Workflow → Variant → Revision
-    // When flags are provided, create a filtered adapter; otherwise use the default
-    if (!flags) {
+    // When no customizations are needed, return the default adapter
+    const hasGrandparentOverrides = Object.keys(grandparentOverrides).length > 0
+    if (!flags && !filterWorkflows && !hasGrandparentOverrides && !revisionOverrides.getLabelNode) {
         return workflowRevisionAdapter
     }
 
-    // Client-side filtered workflow list atom
-    const filteredWorkflowsListAtom = atom<ListQueryState<unknown>>((get) => {
-        const state = get(workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
-        const filtered = (state.data ?? []).filter((w) => {
-            const wf = w as {flags?: Record<string, boolean> | null}
-            if (!wf.flags) return false
-            return Object.entries(flags).every(([key, val]) => wf.flags?.[key] === val)
-        })
-        return {...state, data: filtered}
-    })
+    // Client-side filtered workflow list atom (applies flags + filterWorkflows)
+    const needsFiltering = !!flags || !!filterWorkflows
+    const filteredWorkflowsListAtom = needsFiltering
+        ? atom<ListQueryState<unknown>>((get) => {
+              const state = get(workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
+              const filtered = (state.data ?? []).filter((w) => {
+                  if (flags) {
+                      const wf = w as {flags?: Record<string, boolean> | null}
+                      if (!wf.flags) return false
+                      const flagsMatch = Object.entries(flags).every(
+                          ([key, val]) => wf.flags?.[key] === val,
+                      )
+                      if (!flagsMatch) return false
+                  }
+                  if (filterWorkflows && !filterWorkflows(w)) return false
+                  return true
+              })
+              return {...state, data: filtered}
+          })
+        : (workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
 
     return createThreeLevelAdapter<WorkflowRevisionSelectionResult>({
         name: "workflowRevision",
