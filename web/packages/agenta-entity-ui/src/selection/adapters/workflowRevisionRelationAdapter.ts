@@ -275,6 +275,24 @@ export interface CreateWorkflowRevisionAdapterOptions {
     excludeRevisionZero?: boolean
 
     /**
+     * Custom workflow (grandparent) level overrides (3-level mode only).
+     * Use this to customize how workflow items are rendered in the picker.
+     *
+     * @example
+     * ```typescript
+     * // Custom label rendering for evaluator workflows
+     * grandparentOverrides: {
+     *     getLabelNode: (entity) => <MyCustomLabel entity={entity} />,
+     * }
+     * ```
+     */
+    grandparentOverrides?: {
+        getLabelNode?: (entity: unknown) => React.ReactNode
+        getGroupKey?: (entity: unknown) => string
+        getGroupLabel?: (key: string) => string
+    }
+
+    /**
      * Custom variant level overrides.
      */
     variantOverrides?: {
@@ -354,6 +372,7 @@ export function createWorkflowRevisionAdapter(
         workflowId,
         workflowIdAtom,
         excludeRevisionZero = false,
+        grandparentOverrides = {},
         variantOverrides = {},
         revisionOverrides = {},
         toSelection,
@@ -484,9 +503,9 @@ export function createWorkflowRevisionAdapter(
         grandparentOverrides: {
             getId: (entity: unknown) => (entity as {id: string}).id,
             getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
-            getLabelNode: renderWorkflowLabelNode,
-            getGroupKey: getWorkflowGroupKey,
-            getGroupLabel: getWorkflowGroupLabel,
+            getLabelNode: grandparentOverrides.getLabelNode ?? renderWorkflowLabelNode,
+            getGroupKey: grandparentOverrides.getGroupKey ?? getWorkflowGroupKey,
+            getGroupLabel: grandparentOverrides.getGroupLabel ?? getWorkflowGroupLabel,
             hasChildren: true,
             isSelectable: false,
         },

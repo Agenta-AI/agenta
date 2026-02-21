@@ -66,6 +66,9 @@ export interface TransformToRequestBodyParams {
     appType?: string
     variables?: string[]
     variableValues?: Record<string, any>
+    /** Pre-resolved ag_config from the caller (e.g. runnableBridge.configuration).
+     *  Used as fallback when prompt/custom extraction yields an empty config. */
+    rawAgConfig?: Record<string, any>
 }
 
 /**
@@ -90,6 +93,7 @@ export function transformToRequestBody({
     appType,
     variables,
     variableValues,
+    rawAgConfig,
 }: TransformToRequestBodyParams): Record<string, any> {
     const data = {} as Record<string, any>
     const spec = _spec
@@ -262,6 +266,13 @@ export function transformToRequestBody({
     let ag_config = {
         ...promptConfigs,
         ...customConfigs,
+    }
+
+    // When prompt/custom extraction produced an empty config but the caller
+    // provided a pre-resolved ag_config (e.g. from runnableBridge.configuration),
+    // use it as a fallback so the backend receives the actual parameters.
+    if (Object.keys(ag_config).length === 0 && rawAgConfig && Object.keys(rawAgConfig).length > 0) {
+        ag_config = {...rawAgConfig}
     }
 
     // Sanitize response_format within each prompt's llm_config to avoid backend validation errors

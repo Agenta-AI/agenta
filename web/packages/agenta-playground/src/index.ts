@@ -77,6 +77,6 @@ export type {PlaygroundEntityProviders} from "./state"
 // TYPES (Only types actually consumed externally)
 // ============================================================================
 
-export type {PlaygroundTestResult} from "./state"
+export type {PlaygroundTestResult, PlaygroundNode} from "./state"
 export type {ChatMessage, SimpleChatMessage, MessageTarget} from "./state"
 export type {ChainExecutionResult, ChainNodeInfo} from "./state"
