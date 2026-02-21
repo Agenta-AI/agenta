@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import type {RunnablePort} from "@agenta/entities/runnable"
 import {playgroundController} from "@agenta/playground"
 import {deriveToolViewModelFromResult} from "@agenta/shared/utils"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -10,6 +11,8 @@ import {usePlaygroundUIOptional} from "../../context/PlaygroundUIContext"
 import RepetitionNavigation from "../ExecutionItems/assets/RepetitionNavigation"
 import {ClickRunPlaceholder} from "../ExecutionItems/assets/ResultPlaceholder"
 import TypingIndicator from "../ExecutionItems/assets/TypingIndicator"
+import {EvaluatorFieldGrid} from "../shared/EvaluatorFieldGrid"
+import {extractDisplayEntries} from "../shared/EvaluatorFieldGrid/utils"
 import ToolCallView from "../ToolCallView"
 
 interface ExecutionResultViewProps {
@@ -30,6 +33,10 @@ interface ExecutionResultViewProps {
         onPrev: () => void
     }
     showEmptyPlaceholder?: boolean
+    /** Output ports for evaluator-style result rendering (score/reasoning grid) */
+    outputPorts?: RunnablePort[]
+    /** Feedback configuration for enriching evaluator score rendering with range context */
+    feedbackConfig?: Record<string, unknown> | null
 }
 
 /**
@@ -46,6 +53,8 @@ export default function ExecutionResultView({
     traceId,
     repetitionProps,
     showEmptyPlaceholder = true,
+    outputPorts,
+    feedbackConfig,
 }: ExecutionResultViewProps) {
     const providers = usePlaygroundUIOptional()
     const SharedGenerationResultUtils = providers?.SharedGenerationResultUtils
@@ -60,6 +69,10 @@ export default function ExecutionResultView({
     }
 
     if (!currentResult) {
+        // Evaluator-style nodes with known output ports: show field labels with dashes
+        if (outputPorts && outputPorts.length > 0) {
+            return <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} idle />
+        }
         if (!showEmptyPlaceholder) return null
         return <ClickRunPlaceholder />
     }
@@ -90,6 +103,8 @@ export default function ExecutionResultView({
                 footer={traceFooter}
                 repetitionProps={repetitionProps}
                 isComparisonView={isComparisonView}
+                outputPorts={outputPorts}
+                feedbackConfig={feedbackConfig}
             />
         </div>
     )
@@ -138,7 +153,7 @@ function ErrorContent({
             readOnly
             disabled
             error
-            className="w-full"
+            className="w-full !border-none !p-0 [&_.agenta-rich-text-editor]:!min-h-0"
             editorClassName="min-h-4 [&_p:first-child]:!mt-0"
             footer={footer}
             handleChange={() => undefined}
@@ -151,6 +166,8 @@ function ResponseContent({
     footer,
     repetitionProps,
     isComparisonView,
+    outputPorts,
+    feedbackConfig,
 }: {
     result: unknown
     footer: React.ReactNode
@@ -161,14 +178,46 @@ function ResponseContent({
         onPrev: () => void
     }
     isComparisonView: boolean
+    outputPorts?: RunnablePort[]
+    feedbackConfig?: Record<string, unknown> | null
 }) {
     const {toolData, isJSON, displayValue} = useMemo(
         () => deriveToolViewModelFromResult(result),
         [result],
     )
 
+    // Detect evaluator-style structured output (score/reasoning) when the
+    // standard text extraction produces nothing meaningful.
+    const evaluatorEntries = useMemo(() => {
+        if (toolData || displayValue) return null
+        return extractDisplayEntries(result as Record<string, unknown>)
+    }, [toolData, displayValue, result])
+
     if (toolData) {
         return <ToolCallView resultData={toolData} className="w-full" footer={footer} />
+    }
+
+    // Evaluator-style output: render via EvaluatorFieldGrid
+    if (evaluatorEntries) {
+        return (
+            <div>
+                {repetitionProps && !isComparisonView && (
+                    <div className="flex gap-1 items-center mb-1">
+                        <Typography.Text type="secondary" className="text-[10px] text-nowrap">
+                            Total repeats
+                        </Typography.Text>
+                        <RepetitionNavigation {...repetitionProps} />
+                    </div>
+                )}
+                <EvaluatorFieldGrid
+                    entries={evaluatorEntries}
+                    outputPorts={outputPorts ?? []}
+                    feedbackConfig={feedbackConfig}
+                    className="py-2"
+                />
+                {footer}
+            </div>
+        )
     }
 
     return (
@@ -189,7 +238,7 @@ function ResponseContent({
                 readOnly
                 editorProps={{codeOnly: isJSON}}
                 disabled
-                className="w-full"
+                className="w-full !border-none !p-0 [&_.agenta-rich-text-editor]:!min-h-0"
                 editorClassName="min-h-4 [&_p:first-child]:!mt-0"
                 footer={footer}
                 handleChange={() => undefined}
