@@ -29,12 +29,12 @@ import {Plus} from "@phosphor-icons/react"
 import {Button, Popover, Space, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {selectedAppIdAtom} from "@/oss/state/app"
-
 import RevisionChildTitle from "./components/RevisionChildTitle"
 import VariantGroupTitle from "./components/VariantGroupTitle"
 import {SelectVariantProps} from "./types"
+
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
+import {selectedAppIdAtom} from "@/oss/state/app"
 
 const SelectVariant = ({
     value,
@@ -42,6 +42,7 @@ const SelectVariant = ({
     showCreateNew = true,
     showLatestTag = true,
     mode = "scoped",
+    customBrowseAdapter,
     style,
     ...props
 }: SelectVariantProps) => {
@@ -159,13 +160,14 @@ const SelectVariant = ({
     )
 
     // Browse adapter: 3-level (Workflow → Variant → Revision), all workflows
-    const browseAdapter = useMemo(
+    const defaultBrowseAdapter = useMemo(
         () =>
             createWorkflowRevisionAdapter({
                 excludeRevisionZero: true,
             }),
         [],
     )
+    const browseAdapter = customBrowseAdapter ?? defaultBrowseAdapter
 
     // Memoize the disabled IDs set to avoid recreation on each render
     const disabledIds = useMemo(() => new Set(selectedVariants), [selectedVariants])
@@ -307,8 +309,7 @@ const SelectVariant = ({
     const workflowsList = useAtomValue(workflowsListQueryStateAtom)
     const workflowName = useMemo(() => {
         if (mode !== "browse") return null
-        const workflowId = (rawWorkflowEntity as {workflow_id?: string | null} | null)
-            ?.workflow_id
+        const workflowId = (rawWorkflowEntity as {workflow_id?: string | null} | null)?.workflow_id
         if (!workflowId) return null
         const wf = workflowsList.data.find((w) => w.id === workflowId)
         return wf?.name ?? null
@@ -433,9 +434,7 @@ const SelectVariant = ({
                             className="w-full flex items-center justify-between text-left overflow-hidden"
                         >
                             <span className="truncate text-xs">{triggerLabel}</span>
-                            <DownOutlined
-                                style={{fontSize: 10, marginLeft: 4, flexShrink: 0}}
-                            />
+                            <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
                         </Button>
                     </Tooltip>
                 </Popover>

@@ -1,23 +1,14 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import React, {useCallback, useMemo, useState} from "react"
 
-import {
-    getEvaluatorColor,
-    parseEvaluatorKeyFromUri,
-    evaluatorsListDataAtom,
-} from "@agenta/entities/evaluator"
+import {getEvaluatorColor} from "@agenta/entities/evaluator"
 import type {EvaluatorColor} from "@agenta/entities/evaluator"
 import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {EntityPicker} from "@agenta/entity-ui"
-import {
-    createWorkflowRevisionAdapter,
-    type WorkflowRevisionSelectionResult,
-} from "@agenta/entity-ui/selection"
+import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
-import {axios, getAgentaApiUrl} from "@agenta/shared/api"
-import {projectIdAtom} from "@agenta/shared/state"
-import {EntityListItemLabel, RevisionLabel} from "@agenta/ui/components/presentational"
+import {RevisionLabel} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {LinkSimple, PencilSimple, Plus} from "@phosphor-icons/react"
 import {Button, Dropdown, Popover, Space, Tag, Typography} from "antd"
@@ -25,16 +16,16 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
-import {currentAppAtom} from "@/oss/state/app"
-import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
-
+import {useEvaluatorOnlyAdapter} from "../../hooks/useEvaluatorBrowseAdapter"
 import type {BaseContainerProps} from "../types"
 
 import RunEvaluationButton from "./RunEvaluationButton"
 import {useStyles} from "./styles"
+
+import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
+import {currentAppAtom} from "@/oss/state/app"
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
+import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
@@ -77,130 +68,6 @@ const renderWorkflowRevisionLabel = (entity: unknown) => {
         renderAuthor: (id: string) => React.createElement(MemberAuthor, {userId: id}),
         maxMessageWidth: 180,
     })
-}
-
-// ---------------------------------------------------------------------------
-// Evaluator key lookup map: workflowId → evaluatorKey
-// Batch-fetches revision data for all evaluator workflows to resolve URIs.
-// ---------------------------------------------------------------------------
-
-/**
- * Hook that batch-fetches evaluator revisions and returns a
- * workflowId → evaluatorKey lookup map.
- *
- * Fetches once per set of workflow IDs and caches the result.
- */
-function useEvaluatorKeyMap(workflowIds: string[]): Map<string, string> {
-    const projectId = useAtomValue(projectIdAtom)
-    const [keyMap, setKeyMap] = useState<Map<string, string>>(new Map())
-    const fetchedRef = useRef<string>("")
-
-    // Stable key for the current set of workflow IDs
-    const idsKey = useMemo(() => [...workflowIds].sort().join(","), [workflowIds])
-
-    useEffect(() => {
-        if (!projectId || workflowIds.length === 0 || idsKey === fetchedRef.current) return
-        fetchedRef.current = idsKey
-
-        const fetchKeys = async () => {
-            try {
-                const response = await axios.post(
-                    `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
-                    {
-                        workflow_refs: workflowIds.map((id) => ({id})),
-                    },
-                    {params: {project_id: projectId}},
-                )
-
-                const revisions = response.data?.workflow_revisions ?? []
-                const map = new Map<string, string>()
-
-                for (const rev of revisions) {
-                    const workflowId = rev.workflow_id
-                    const uri = rev.data?.uri
-                    if (workflowId && uri) {
-                        const key = parseEvaluatorKeyFromUri(uri)
-                        if (key) {
-                            map.set(workflowId, key)
-                        }
-                    }
-                }
-
-                setKeyMap(map)
-            } catch (err) {
-                console.warn("[useEvaluatorKeyMap] Failed to fetch evaluator revisions:", err)
-            }
-        }
-
-        void fetchKeys()
-    }, [projectId, workflowIds, idsKey])
-
-    return keyMap
-}
-
-/**
- * Build a getLabelNode callback for the evaluator picker grandparent level.
- * Uses pre-fetched evaluator key map and evaluator definitions for display names.
- */
-function buildEvaluatorPickerLabelNode(
-    evaluatorKeyMap: Map<string, string>,
-    evaluatorDefsByKey: Map<string, string>,
-) {
-    return (entity: unknown): React.ReactNode => {
-        const w = entity as {
-            id: string
-            name?: string
-            flags?: {is_human?: boolean; is_custom?: boolean} | null
-        }
-        const name = w.name ?? "Unnamed"
-
-        // Resolve tag label and color key:
-        // 1. For human evaluators, use "Human" label directly from flags
-        // 2. For custom evaluators, use "Custom Code" label directly from flags
-        // 3. For built-in evaluators, look up from revision data URI → evaluator defs
-        let tagLabel: string | null = null
-        let colorSource: string | null = null
-
-        if (w.flags?.is_human) {
-            tagLabel = "Human"
-            colorSource = "human"
-        } else if (w.flags?.is_custom) {
-            tagLabel = "Custom Code"
-            colorSource = "custom"
-        } else {
-            const evaluatorKey = evaluatorKeyMap.get(w.id)
-            if (evaluatorKey) {
-                tagLabel = evaluatorDefsByKey.get(evaluatorKey) ?? null
-                colorSource = evaluatorKey
-            }
-        }
-
-        const color = colorSource ? getEvaluatorColor(colorSource) : null
-
-        const tag = tagLabel
-            ? React.createElement(
-                  "span",
-                  {
-                      className: "text-[10px] px-1.5 py-0.5 rounded",
-                      style: color
-                          ? {
-                                backgroundColor: color.bg,
-                                color: color.text,
-                                borderColor: color.border,
-                                borderWidth: "1px",
-                                borderStyle: "solid",
-                            }
-                          : undefined,
-                  },
-                  tagLabel,
-              )
-            : undefined
-
-        return React.createElement(EntityListItemLabel, {
-            label: name,
-            trailing: tag,
-        })
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -314,40 +181,8 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         [disconnectSingleDownstreamNode],
     )
 
-    // Read evaluator definitions for picker label rendering
-    const evaluatorDefs = useAtomValue(evaluatorsAtom)
-
-    // Build a stable lookup map: evaluator key → display name
-    const evaluatorDefsByKey = useMemo(
-        () => new Map(evaluatorDefs.map((d) => [d.key, d.name])),
-        [evaluatorDefs],
-    )
-
-    // Get evaluator workflow IDs from the evaluator entity list
-    const evaluatorWorkflows = useAtomValue(evaluatorsListDataAtom)
-    const evaluatorWorkflowIds = useMemo(
-        () => evaluatorWorkflows.map((w) => w.id),
-        [evaluatorWorkflows],
-    )
-
-    // Batch-fetch evaluator keys from revision data
-    const evaluatorKeyMap = useEvaluatorKeyMap(evaluatorWorkflowIds)
-
-    // Workflow adapter filtered to evaluator-type workflows (3-level: Workflow → Variant → Revision)
-    const evaluatorWorkflowAdapter = useMemo(
-        () =>
-            createWorkflowRevisionAdapter({
-                flags: {is_evaluator: true, is_human: false},
-                grandparentOverrides: {
-                    getLabelNode: buildEvaluatorPickerLabelNode(
-                        evaluatorKeyMap,
-                        evaluatorDefsByKey,
-                    ),
-                },
-                revisionOverrides: {getLabelNode: renderWorkflowRevisionLabel},
-            }),
-        [evaluatorKeyMap, evaluatorDefsByKey],
-    )
+    // Evaluator-only adapter with colored type tags, human filtering, and custom revision labels
+    const evaluatorWorkflowAdapter = useEvaluatorOnlyAdapter(renderWorkflowRevisionLabel)
 
     // Simplified refresh function - atoms will handle the data updates automatically
     const handleUpdate = useCallback(async () => {

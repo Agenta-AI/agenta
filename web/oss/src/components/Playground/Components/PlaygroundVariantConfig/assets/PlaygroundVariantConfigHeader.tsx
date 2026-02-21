@@ -12,16 +12,17 @@ import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
-
 import {discardEntityDraft} from "../../../assets/entityHelpers"
+import {useEvaluatorBrowseAdapter} from "../../../hooks/useEvaluatorBrowseAdapter"
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
 
 import {useStyles} from "./styles"
 import {PlaygroundVariantConfigHeaderProps} from "./types"
+
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
+import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
@@ -42,6 +43,9 @@ const PlaygroundVariantConfigHeader = ({
     // App-scoped playground → scoped to current app only
     const appId = useAtomValue(routerAppIdAtom)
     const isProjectScoped = !appId
+
+    // Custom browse adapter with colored evaluator tags and human evaluator filtering
+    const evaluatorBrowseAdapter = useEvaluatorBrowseAdapter()
 
     // Check if this is a local draft (browser-only clone)
     const isLocalDraftVariant = variantId ? isLocalDraftId(variantId) : false
@@ -128,6 +132,7 @@ const PlaygroundVariantConfigHeader = ({
                 {!embedded && !isLocalDraftVariant && (
                     <SelectVariant
                         mode={isProjectScoped ? "browse" : "scoped"}
+                        customBrowseAdapter={isProjectScoped ? evaluatorBrowseAdapter : undefined}
                         onChange={(value) => handleSwitchVariant?.(value)}
                         value={_variantId ?? undefined}
                     />
