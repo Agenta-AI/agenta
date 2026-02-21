@@ -25,6 +25,21 @@ export const shippedFeatures: ShippedFeature[] = [
   // Observability: DE74FF
   // Evaluation: 86B7FF
   // Integration: FFA500
+  // Security: 000000
+  {
+    id: "enterprise-compliance",
+    title: "Enterprise Compliance Features",
+    description:
+      "Multi-organization support, SSO with any OIDC provider, domain verification with auto-join, and a US region.",
+    changelogPath: "/docs/changelog/enterprise-compliance-features",
+    shippedAt: "2026-02-17",
+    labels: [
+      {
+        name: "Security",
+        color: "000000",
+      },
+    ],
+  },
   {
     id: "prompt-folders",
     title: "Folders for Prompt Organization",
@@ -437,32 +452,7 @@ export const inProgressFeatures: PlannedFeature[] = [
       },
     ],
   },
-  {
-    id: "enterprise-sso",
-    title: "Enterprise SSO",
-    description:
-      "Single sign-on (SSO) support for enterprise customers. Integrate your identity provider using SAML or OIDC for secure, centralized authentication. Log in with existing corporate credentials and control user provisioning and access.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3703",
-    labels: [
-      {
-        name: "Security",
-        color: "000000",
-      },
-    ],
-  },
-  {
-    id: "us-region",
-    title: "US Region for Agenta Cloud",
-    description:
-      "Agenta Cloud is adding a US-based region. Run your projects with all data stored within the United States. This helps meet data residency requirements that need data to stay in a specific geography.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3704",
-    labels: [
-      {
-        name: "Misc",
-        color: "000000",
-      },
-    ],
-  },
+
   {
     id: "agents-from-ui",
     title: "Creating Agents from the UI",
@@ -492,6 +482,20 @@ export const inProgressFeatures: PlannedFeature[] = [
 ];
 
 export const plannedFeatures: PlannedFeature[] = [
+  {
+    id: "trace-usage-limits",
+    title: "Usage Limits for Traces (Hard and Soft Caps)",
+    description:
+      "Set usage limits for traces at the project level. Configure a hard cap to stop accepting new traces once the limit is reached, or a soft cap to receive an alert while continuing to accept traces. Gives teams cost predictability and control in production.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3784",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+
   {
     id: "prompt-caching-sdk",
     title: "Prompt Caching in the SDK",

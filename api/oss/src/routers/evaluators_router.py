@@ -19,6 +19,7 @@ from oss.src.core.evaluators.dtos import (
 from oss.src.core.evaluators.utils import build_evaluator_data
 from oss.src.core.shared.dtos import Reference
 from oss.src.utils.helpers import get_slug_from_name_and_id
+from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.models.api.evaluation_model import (
     EvaluatorConfig,
     EvaluatorInputInterface,
@@ -43,6 +44,17 @@ router = APIRouter()
 log = get_module_logger(__name__)
 # TEMPORARY: Disabling name editing
 RENAME_EVALUATORS_DISABLED_MESSAGE = "Renaming evaluators is temporarily disabled."
+
+
+def _build_rename_evaluators_disabled_detail(*, existing_name: Optional[str]) -> str:
+    if existing_name:
+        return (
+            f"{RENAME_EVALUATORS_DISABLED_MESSAGE} "
+            f"Current evaluator name is '{existing_name}'."
+        )
+
+    return RENAME_EVALUATORS_DISABLED_MESSAGE
+
 
 # Load builtin evaluators once at module load
 BUILTIN_EVALUATORS: List[LegacyEvaluator] = [
@@ -300,6 +312,7 @@ async def get_evaluator_config(
 
 
 @router.post("/configs/", response_model=EvaluatorConfig)
+@intercept_exceptions()
 async def create_new_evaluator_config(
     payload: NewEvaluatorConfig,
     request: Request,
@@ -381,7 +394,9 @@ async def update_evaluator_config(
     if "name" in updates and updates["name"] and updates["name"] != old_evaluator.name:
         raise HTTPException(
             status_code=400,
-            detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+            detail=_build_rename_evaluators_disabled_detail(
+                existing_name=old_evaluator.name
+            ),
         )
 
     # Build new name

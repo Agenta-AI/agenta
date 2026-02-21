@@ -112,6 +112,7 @@ const SessionsTable: React.FC = () => {
                 <div className="flex flex-col gap-2">
                     <EnhancedTable<SessionRow>
                         uniqueKey="observability-sessions-table"
+                        className="[&_.ant-table-tbody_.ant-table-cell]:align-top"
                         rowKey="session_id"
                         loading={loadingFirstPage}
                         columns={columns}
