@@ -251,6 +251,8 @@ export {
     executionRowIdsForEntityAtomFamily,
     // Variable names (from entity input ports)
     inputVariableNamesAtom,
+    // Variable schema map (type + schema per key)
+    inputPortSchemaMapAtom,
     // App-level mode selectors
     isChatModeAtom,
     appTypeAtom,

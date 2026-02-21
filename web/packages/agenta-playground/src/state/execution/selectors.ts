@@ -729,6 +729,30 @@ export const inputVariableNamesAtom = atom<string[]>((get) => {
     return names
 })
 
+/**
+ * Schema map for input variables.
+ *
+ * Maps each variable key to its RunnablePort type and full schema.
+ * Used by VariableControlAdapter to render schema-aware controls
+ * (e.g. JSON editor for object types, number input for numbers).
+ */
+export const inputPortSchemaMapAtom = atom<Record<string, {type: string; schema?: unknown}>>(
+    (get) => {
+        const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
+        const map: Record<string, {type: string; schema?: unknown}> = {}
+        for (const node of nodes) {
+            const scoped = runnableBridge.forType(node.entityType)
+            const ports = get(scoped.inputPorts(node.entityId)) as RunnablePort[]
+            for (const port of ports || []) {
+                if (port.key && !(port.key in map)) {
+                    map[port.key] = {type: port.type, schema: port.schema}
+                }
+            }
+        }
+        return map
+    },
+)
+
 // ============================================================================
 // COMPARISON STATE (derived from playground nodes)
 // ============================================================================

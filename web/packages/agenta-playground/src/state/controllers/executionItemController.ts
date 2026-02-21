@@ -51,6 +51,7 @@ import {
     rowVariableValueAtomFamily,
     rowVariableKeysWithContextAtom,
     schemaInputKeysAtom,
+    inputPortSchemaMapAtom,
     repetitionCountAtom,
     repetitionIndexAtomFamily,
     allRowsCollapsedAtom,
@@ -167,6 +168,9 @@ export const executionItemController = {
 
         /** Schema-derived input keys for custom app variable gating */
         schemaInputKeys: schemaInputKeysAtom,
+
+        /** Input port schema map — variable key → { type, schema } for schema-aware rendering */
+        inputPortSchemaMap: inputPortSchemaMapAtom,
 
         // ----------------------------------------------------------------
         // Direct testcase entity access (bypasses loadable indirection)
