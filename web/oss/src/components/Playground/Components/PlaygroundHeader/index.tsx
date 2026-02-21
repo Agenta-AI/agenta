@@ -1,23 +1,32 @@
-import React, {useCallback, useMemo, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {getEvaluatorColor} from "@agenta/entities/evaluator"
+import {
+    getEvaluatorColor,
+    parseEvaluatorKeyFromUri,
+    evaluatorsListDataAtom,
+} from "@agenta/entities/evaluator"
+import type {EvaluatorColor} from "@agenta/entities/evaluator"
 import {runnableBridge} from "@agenta/entities/runnable"
+import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {EntityPicker} from "@agenta/entity-ui"
 import {
     createWorkflowRevisionAdapter,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
-import {EntityPicker} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
-import {RevisionLabel} from "@agenta/ui/components/presentational"
-import {DisconnectOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
+import {EntityListItemLabel, RevisionLabel} from "@agenta/ui/components/presentational"
+import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {LinkSimple, PencilSimple, Plus} from "@phosphor-icons/react"
-import {Button, Dropdown, Popover, Space, Typography} from "antd"
+import {Button, Dropdown, Popover, Space, Tag, Typography} from "antd"
 import clsx from "clsx"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
+import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {currentAppAtom} from "@/oss/state/app"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
@@ -70,6 +79,184 @@ const renderWorkflowRevisionLabel = (entity: unknown) => {
     })
 }
 
+// ---------------------------------------------------------------------------
+// Evaluator key lookup map: workflowId → evaluatorKey
+// Batch-fetches revision data for all evaluator workflows to resolve URIs.
+// ---------------------------------------------------------------------------
+
+/**
+ * Hook that batch-fetches evaluator revisions and returns a
+ * workflowId → evaluatorKey lookup map.
+ *
+ * Fetches once per set of workflow IDs and caches the result.
+ */
+function useEvaluatorKeyMap(workflowIds: string[]): Map<string, string> {
+    const projectId = useAtomValue(projectIdAtom)
+    const [keyMap, setKeyMap] = useState<Map<string, string>>(new Map())
+    const fetchedRef = useRef<string>("")
+
+    // Stable key for the current set of workflow IDs
+    const idsKey = useMemo(() => [...workflowIds].sort().join(","), [workflowIds])
+
+    useEffect(() => {
+        if (!projectId || workflowIds.length === 0 || idsKey === fetchedRef.current) return
+        fetchedRef.current = idsKey
+
+        const fetchKeys = async () => {
+            try {
+                const response = await axios.post(
+                    `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
+                    {
+                        workflow_refs: workflowIds.map((id) => ({id})),
+                    },
+                    {params: {project_id: projectId}},
+                )
+
+                const revisions = response.data?.workflow_revisions ?? []
+                const map = new Map<string, string>()
+
+                for (const rev of revisions) {
+                    const workflowId = rev.workflow_id
+                    const uri = rev.data?.uri
+                    if (workflowId && uri) {
+                        const key = parseEvaluatorKeyFromUri(uri)
+                        if (key) {
+                            map.set(workflowId, key)
+                        }
+                    }
+                }
+
+                setKeyMap(map)
+            } catch (err) {
+                console.warn("[useEvaluatorKeyMap] Failed to fetch evaluator revisions:", err)
+            }
+        }
+
+        void fetchKeys()
+    }, [projectId, workflowIds, idsKey])
+
+    return keyMap
+}
+
+/**
+ * Build a getLabelNode callback for the evaluator picker grandparent level.
+ * Uses pre-fetched evaluator key map and evaluator definitions for display names.
+ */
+function buildEvaluatorPickerLabelNode(
+    evaluatorKeyMap: Map<string, string>,
+    evaluatorDefsByKey: Map<string, string>,
+) {
+    return (entity: unknown): React.ReactNode => {
+        const w = entity as {
+            id: string
+            name?: string
+            flags?: {is_human?: boolean; is_custom?: boolean} | null
+        }
+        const name = w.name ?? "Unnamed"
+
+        // Resolve tag label and color key:
+        // 1. For human evaluators, use "Human" label directly from flags
+        // 2. For custom evaluators, use "Custom Code" label directly from flags
+        // 3. For built-in evaluators, look up from revision data URI → evaluator defs
+        let tagLabel: string | null = null
+        let colorSource: string | null = null
+
+        if (w.flags?.is_human) {
+            tagLabel = "Human"
+            colorSource = "human"
+        } else if (w.flags?.is_custom) {
+            tagLabel = "Custom Code"
+            colorSource = "custom"
+        } else {
+            const evaluatorKey = evaluatorKeyMap.get(w.id)
+            if (evaluatorKey) {
+                tagLabel = evaluatorDefsByKey.get(evaluatorKey) ?? null
+                colorSource = evaluatorKey
+            }
+        }
+
+        const color = colorSource ? getEvaluatorColor(colorSource) : null
+
+        const tag = tagLabel
+            ? React.createElement(
+                  "span",
+                  {
+                      className: "text-[10px] px-1.5 py-0.5 rounded",
+                      style: color
+                          ? {
+                                backgroundColor: color.bg,
+                                color: color.text,
+                                borderColor: color.border,
+                                borderWidth: "1px",
+                                borderStyle: "solid",
+                            }
+                          : undefined,
+                  },
+                  tagLabel,
+              )
+            : undefined
+
+        return React.createElement(EntityListItemLabel, {
+            label: name,
+            trailing: tag,
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// EvaluatorTag — renders a single connected evaluator as a colored tag
+// with its own runnable data subscription and close button.
+// ---------------------------------------------------------------------------
+const EvaluatorTag: React.FC<{
+    node: PlaygroundNode
+    onDisconnect: (nodeId: string) => void
+}> = ({node, onDisconnect}) => {
+    const runnableData = useAtomValue(
+        useMemo(() => runnableBridge.data(node.entityId), [node.entityId]),
+    ) as {name?: string | null; slug?: string | null; uri?: string | null} | null
+
+    const color: EvaluatorColor | undefined = useMemo(() => {
+        if (!runnableData?.uri) return undefined
+        return getEvaluatorColor(runnableData.uri) ?? undefined
+    }, [runnableData])
+
+    const label = useMemo(() => {
+        const nodeLabel = node.label?.trim()
+        if (nodeLabel && nodeLabel !== node.entityId) return nodeLabel
+        const fetchedName = runnableData?.name?.trim()
+        if (fetchedName) return fetchedName
+        const fetchedSlug = runnableData?.slug?.trim()
+        if (fetchedSlug) return fetchedSlug
+        return "Evaluator"
+    }, [node, runnableData])
+
+    return (
+        <Tag
+            closable
+            closeIcon={<CloseOutlined style={{fontSize: 10}} />}
+            onClose={(e) => {
+                e.preventDefault()
+                onDisconnect(node.id)
+            }}
+            className="flex items-center gap-1 !mr-0 max-w-[160px]"
+            style={
+                color
+                    ? {
+                          backgroundColor: color.bg,
+                          color: color.text,
+                          borderColor: color.border,
+                      }
+                    : undefined
+            }
+        >
+            <span className="truncate">{label}</span>
+        </Tag>
+    )
+}
+
+// ---------------------------------------------------------------------------
+// PlaygroundHeader
+// ---------------------------------------------------------------------------
 const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divProps}) => {
     const classes = useStyles()
 
@@ -84,54 +271,18 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const disconnectDownstreamNode = useSetAtom(
         playgroundController.actions.disconnectDownstreamNode,
     )
+    const disconnectSingleDownstreamNode = useSetAtom(
+        playgroundController.actions.disconnectSingleDownstreamNode,
+    )
     const [evaluatorPopoverOpen, setEvaluatorPopoverOpen] = useState(false)
 
     const hasRootNode = useMemo(() => nodes.some((n) => n.depth === 0), [nodes])
 
-    // Find connected evaluator node (any downstream node with evaluator type)
-    const connectedEvaluatorNode = useMemo(
-        () =>
-            nodes.find(
-                (n) => n.depth > 0 && EVALUATOR_ENTITY_TYPES.includes(n.entityType),
-            ),
+    // Find all connected evaluator nodes
+    const connectedEvaluatorNodes = useMemo(
+        () => nodes.filter((n) => n.depth > 0 && EVALUATOR_ENTITY_TYPES.includes(n.entityType)),
         [nodes],
     )
-
-    // Read runnable data via the bridge (routes to the correct molecule by entity type).
-    const connectedEvaluatorRunnableData = useAtomValue(
-        useMemo(
-            () =>
-                connectedEvaluatorNode?.entityId
-                    ? runnableBridge.data(connectedEvaluatorNode.entityId)
-                    : atom(null),
-            [connectedEvaluatorNode?.entityId],
-        ),
-    ) as {
-        name?: string | null
-        slug?: string | null
-        uri?: string | null
-    } | null
-
-    const connectedEvaluatorColor = useMemo(() => {
-        if (!connectedEvaluatorRunnableData?.uri) return undefined
-        return getEvaluatorColor(connectedEvaluatorRunnableData.uri) ?? undefined
-    }, [connectedEvaluatorRunnableData])
-
-    const connectedEvaluatorLabel = useMemo(() => {
-        if (!connectedEvaluatorNode) return "Evaluator"
-
-        // Prefer snapshot/selection-provided label (includes evaluator + variant + revision context).
-        const nodeLabel = connectedEvaluatorNode.label?.trim()
-        if (nodeLabel && nodeLabel !== connectedEvaluatorNode.entityId) return nodeLabel
-
-        const fetchedName = connectedEvaluatorRunnableData?.name?.trim()
-        if (fetchedName) return fetchedName
-
-        const fetchedSlug = connectedEvaluatorRunnableData?.slug?.trim()
-        if (fetchedSlug) return fetchedSlug
-
-        return "Evaluator"
-    }, [connectedEvaluatorNode, connectedEvaluatorRunnableData])
 
     const handleEvaluatorSelect = useCallback(
         (selection: WorkflowRevisionSelectionResult) => {
@@ -147,29 +298,55 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     metadata: selection.metadata,
                 },
             })
-
-            setEvaluatorPopoverOpen(false)
         },
         [nodes, connectDownstreamNode],
     )
 
-    const handleDisconnectEvaluator = useCallback(() => {
-        if (connectedEvaluatorNode?.entityType) {
-            disconnectDownstreamNode(connectedEvaluatorNode.entityType)
-        } else {
-            disconnectDownstreamNode("workflow")
-        }
+    const handleDisconnectAll = useCallback(() => {
+        disconnectDownstreamNode("workflow")
         setEvaluatorPopoverOpen(false)
-    }, [connectedEvaluatorNode?.entityType, disconnectDownstreamNode])
+    }, [disconnectDownstreamNode])
+
+    const handleDisconnectSingle = useCallback(
+        (nodeId: string) => {
+            disconnectSingleDownstreamNode(nodeId)
+        },
+        [disconnectSingleDownstreamNode],
+    )
+
+    // Read evaluator definitions for picker label rendering
+    const evaluatorDefs = useAtomValue(evaluatorsAtom)
+
+    // Build a stable lookup map: evaluator key → display name
+    const evaluatorDefsByKey = useMemo(
+        () => new Map(evaluatorDefs.map((d) => [d.key, d.name])),
+        [evaluatorDefs],
+    )
+
+    // Get evaluator workflow IDs from the evaluator entity list
+    const evaluatorWorkflows = useAtomValue(evaluatorsListDataAtom)
+    const evaluatorWorkflowIds = useMemo(
+        () => evaluatorWorkflows.map((w) => w.id),
+        [evaluatorWorkflows],
+    )
+
+    // Batch-fetch evaluator keys from revision data
+    const evaluatorKeyMap = useEvaluatorKeyMap(evaluatorWorkflowIds)
 
     // Workflow adapter filtered to evaluator-type workflows (3-level: Workflow → Variant → Revision)
     const evaluatorWorkflowAdapter = useMemo(
         () =>
             createWorkflowRevisionAdapter({
-                flags: {is_evaluator: true},
+                flags: {is_evaluator: true, is_human: false},
+                grandparentOverrides: {
+                    getLabelNode: buildEvaluatorPickerLabelNode(
+                        evaluatorKeyMap,
+                        evaluatorDefsByKey,
+                    ),
+                },
                 revisionOverrides: {getLabelNode: renderWorkflowRevisionLabel},
             }),
-        [],
+        [evaluatorKeyMap, evaluatorDefsByKey],
     )
 
     // Simplified refresh function - atoms will handle the data updates automatically
@@ -207,7 +384,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         }
 
         void writePlaygroundSelectionToQuery([])
-        console.warn("🚨 [PlaygroundHeader] No valid variant IDs found in selection:", value)
+        console.warn("[PlaygroundHeader] No valid variant IDs found in selection:", value)
     }, [])
 
     return (
@@ -251,77 +428,65 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <Space.Compact size="small">
+                    {connectedEvaluatorNodes.length > 0 && (
+                        <div className="flex items-center gap-1">
+                            {connectedEvaluatorNodes.map((node) => (
+                                <EvaluatorTag
+                                    key={node.id}
+                                    node={node}
+                                    onDisconnect={handleDisconnectSingle}
+                                />
+                            ))}
+                        </div>
+                    )}
+                    <Popover
+                        open={evaluatorPopoverOpen}
+                        onOpenChange={setEvaluatorPopoverOpen}
+                        trigger="click"
+                        placement="bottomRight"
+                        arrow={false}
+                        destroyOnHidden
+                        styles={{body: {padding: 0}}}
+                        content={
+                            <div style={{width: 320}}>
+                                <EntityPicker<WorkflowRevisionSelectionResult>
+                                    variant="breadcrumb"
+                                    adapter={evaluatorWorkflowAdapter}
+                                    onSelect={handleEvaluatorSelect}
+                                    showSearch
+                                    showBreadcrumb
+                                    showBackButton
+                                    rootLabel="Evaluators"
+                                    emptyMessage="No evaluators available"
+                                    loadingMessage="Loading evaluators..."
+                                    maxHeight={250}
+                                    instanceId="playground-header-evaluator"
+                                    breadcrumbActions={
+                                        connectedEvaluatorNodes.length > 0 ? (
+                                            <Button
+                                                size="small"
+                                                danger
+                                                className="!h-6 !px-2 !text-xs whitespace-nowrap"
+                                                onClick={handleDisconnectAll}
+                                            >
+                                                Disconnect all
+                                            </Button>
+                                        ) : undefined
+                                    }
+                                />
+                            </div>
+                        }
+                    >
                         <Button
+                            size="small"
                             className="flex items-center gap-1"
                             icon={<LinkSimple size={14} />}
                             disabled={!hasRootNode}
-                            style={
-                                connectedEvaluatorColor
-                                    ? {
-                                          backgroundColor: connectedEvaluatorColor.bg,
-                                          color: connectedEvaluatorColor.text,
-                                          borderColor: connectedEvaluatorColor.border,
-                                      }
-                                    : undefined
-                            }
                         >
-                            {connectedEvaluatorLabel}
+                            Evaluator
+                            <DownOutlined style={{fontSize: 10}} />
                         </Button>
-                        <Popover
-                            open={evaluatorPopoverOpen}
-                            onOpenChange={setEvaluatorPopoverOpen}
-                            trigger="click"
-                            placement="bottomRight"
-                            arrow={false}
-                            destroyOnHidden
-                            styles={{body: {padding: 0}}}
-                            content={
-                                <div style={{width: 320}}>
-                                    <EntityPicker<WorkflowRevisionSelectionResult>
-                                        variant="breadcrumb"
-                                        adapter={evaluatorWorkflowAdapter}
-                                        onSelect={handleEvaluatorSelect}
-                                        showSearch
-                                        showBreadcrumb
-                                        showBackButton
-                                        rootLabel="Evaluators"
-                                        emptyMessage="No evaluators available"
-                                        loadingMessage="Loading evaluators..."
-                                        maxHeight={250}
-                                        instanceId="playground-header-evaluator"
-                                        breadcrumbActions={
-                                            connectedEvaluatorNode ? (
-                                                <Button
-                                                    size="small"
-                                                    danger
-                                                    icon={<DisconnectOutlined />}
-                                                    className="!h-6 !px-2 !text-xs whitespace-nowrap"
-                                                    onClick={handleDisconnectEvaluator}
-                                                >
-                                                    Disconnect
-                                                </Button>
-                                            ) : undefined
-                                        }
-                                    />
-                                </div>
-                            }
-                        >
-                            <Button
-                                icon={<DownOutlined style={{fontSize: 10}} />}
-                                disabled={!hasRootNode}
-                                style={
-                                    connectedEvaluatorColor
-                                        ? {
-                                              backgroundColor: connectedEvaluatorColor.bg,
-                                              color: connectedEvaluatorColor.text,
-                                              borderColor: connectedEvaluatorColor.border,
-                                          }
-                                        : undefined
-                                }
-                            />
-                        </Popover>
-                    </Space.Compact>
+                    </Popover>
                     <RunEvaluationButton />
                     <SelectVariant
                         showAsCompare
