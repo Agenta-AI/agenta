@@ -48,7 +48,7 @@ import {
 import {
     workflowLatestRevisionIdAtomFamily,
     workflowQueryAtomFamily,
-    workflowLocalServerDataAtomFamily,
+    workflowServerDataSelectorFamily,
     createLocalDraftFromWorkflowRevision,
 } from "../workflow/state/store"
 
@@ -910,16 +910,12 @@ function workflowParametersSchemaSelector(workflowId: string) {
  * Returns the raw entity data before draft overlay — used as the "original"
  * baseline for commit diff comparisons.
  *
- * For regular revisions: reads from the query atom (server data).
- * For local drafts: reads from local storage (cloned source data).
+ * Delegates to `workflowServerDataSelectorFamily` which redirects local
+ * draft IDs to the source entity's live server data automatically.
  */
 function workflowServerDataSelector(workflowId: string) {
     return atom<WorkflowEntity | null>((get) => {
-        const localData = get(workflowLocalServerDataAtomFamily(workflowId))
-        if (localData) return localData as WorkflowEntity
-
-        const query = get(workflowQueryAtomFamily(workflowId))
-        return (query.data as WorkflowEntity) ?? null
+        return get(workflowServerDataSelectorFamily(workflowId)) as WorkflowEntity | null
     })
 }
 
@@ -1050,15 +1046,12 @@ export const runnableBridge = createRunnableBridge({
             requestPayloadSelector: (id: string) => workflowRequestPayloadAtomFamily(id),
             updateTransform: (entityId, params, get) => {
                 // For evaluator workflows, flatten nested config back to flat format
-                // IMPORTANT: Use pure server data (workflowQueryAtomFamily), NOT merged entity data
+                // IMPORTANT: Use pure server data, NOT merged entity data
                 // Using merged data causes flaky isDirty because originalFlat would include draft changes
-                const localServerData = get(
-                    workflowLocalServerDataAtomFamily(entityId),
+                // workflowServerDataSelectorFamily redirects local drafts to source's server data.
+                const serverData = get(
+                    workflowServerDataSelectorFamily(entityId),
                 ) as WorkflowEntity | null
-                const queryAtom = workflowQueryAtomFamily(entityId)
-                const queryResult = get(queryAtom) as {data?: WorkflowEntity | null} | null
-                const serverData: WorkflowEntity | null =
-                    localServerData ?? queryResult?.data ?? null
                 const isEvaluator =
                     serverData?.flags?.is_evaluator ||
                     (serverData?.data?.uri && serverData.data.uri.startsWith("agenta:builtin:"))
