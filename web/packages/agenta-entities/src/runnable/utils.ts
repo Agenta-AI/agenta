@@ -116,6 +116,7 @@ export function resolveChainInputs(
     const incomingConnection = connections.find((c) => c.targetNodeId === targetNodeId)
 
     if (!incomingConnection) {
+        console.debug(`[resolveChainInputs] No incoming connection for node ${targetNodeId}`)
         return result
     }
 
@@ -123,6 +124,19 @@ export function resolveChainInputs(
     const sourceNodeId = incomingConnection.sourceNodeId
     const sourceResult = nodeResults[sourceNodeId]
     const upstreamOutput = sourceResult?.output ?? sourceResult?.structuredOutput ?? {}
+
+    console.debug(`[resolveChainInputs] Node ${targetNodeId}`, {
+        connectionId: incomingConnection.id,
+        sourceNodeId,
+        mappingCount: mappings.length,
+        mappings: mappings.map((m) => ({
+            targetKey: m.targetKey,
+            sourcePath: m.sourcePath,
+            status: m.status,
+        })),
+        hasUpstreamResult: !!sourceResult,
+        testcaseDataKeys: testcaseData ? Object.keys(testcaseData) : [],
+    })
 
     // When there are no explicit input mappings (e.g., evaluators whose input
     // schema has no fixed properties), fall back to the DebugSection pattern:
@@ -521,30 +535,157 @@ export interface EvaluatorInputContext {
     upstreamOutput: unknown
     /** Evaluator's configuration / parameters (settings) */
     settings: Record<string, unknown>
+    /**
+     * The evaluator's input schema from the inspect response.
+     * When provided, inputs are built dynamically from schema properties
+     * instead of using hardcoded field names.
+     *
+     * Expected shape: `{ type: "object", properties: {...}, additionalProperties?: boolean }`
+     */
+    inputSchema?: Record<string, unknown> | null
 }
 
+/** Known input keys that map to upstream output */
+const UPSTREAM_OUTPUT_KEYS = new Set(["outputs", "prediction"])
+
+/** Known input keys that map to the testcase data as a whole object */
+const TESTCASE_OBJECT_KEYS = new Set(["inputs"])
+
 /**
- * Build evaluator execution inputs following the DebugSection pattern.
+ * Build evaluator execution inputs using the evaluator's input schema.
  *
- * This is the **entity-owned** input construction logic for evaluators.
- * The execution runner should call this instead of inlining evaluator-specific
- * knowledge.
+ * When `inputSchema` is provided (from the inspect response), inputs are built
+ * dynamically by iterating over the schema's `properties`:
  *
- * Flow (mirrors DebugSection.fetchEvalMapper):
- * 1. Normalize `prediction` from upstream output.
- * 2. Extract `correct_answer_key` from settings to derive `ground_truth`.
- * 3. Spread testcase data into inputs.
- * 4. Merge `prediction`, `ground_truth`, and `[groundTruthKey]: ground_truth`.
+ * 1. For each schema property, check if a corresponding `{key}_key` setting
+ *    exists (e.g., `correct_answer` input ← `correct_answer_key` setting).
+ *    If so, use the setting's value as the testcase column name to look up.
+ * 2. If the property matches a known upstream output key (`outputs`, `prediction`),
+ *    use the normalized upstream output.
+ * 3. Otherwise, try to find the value directly in testcase data.
+ * 4. If the schema allows `additionalProperties`, spread remaining testcase data.
+ *
+ * When `inputSchema` is not available, falls back to legacy behavior:
+ * spread testcase data + prediction + ground_truth from correct_answer_key.
  *
  * @returns The `inputs` object to send in `{ inputs, settings }` to the evaluator endpoint.
  */
 export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Record<string, unknown> {
-    const {testcaseData, upstreamOutput, settings} = ctx
+    const {testcaseData, upstreamOutput, settings, inputSchema} = ctx
 
-    // --- Normalize prediction (same as DebugSection.normalizeCompact) ---
     const prediction = normalizeCompact(upstreamOutput)
 
-    // --- Derive ground_truth from correct_answer_key in settings ---
+    const schemaProperties =
+        inputSchema?.properties && typeof inputSchema.properties === "object"
+            ? (inputSchema.properties as Record<string, unknown>)
+            : null
+
+    console.debug("[buildEvaluatorExecutionInputs]", {
+        hasInputSchema: !!schemaProperties,
+        schemaPropertyKeys: schemaProperties ? Object.keys(schemaProperties) : [],
+        testcaseDataKeys: Object.keys(testcaseData),
+        settingsKeys: Object.keys(settings),
+        upstreamOutputType: typeof upstreamOutput,
+    })
+
+    if (schemaProperties) {
+        return buildFromSchema({
+            schemaProperties,
+            inputSchema: inputSchema!,
+            testcaseData,
+            upstreamOutput,
+            prediction,
+            settings,
+        })
+    }
+
+    // Legacy fallback — no schema available
+    return buildLegacy({testcaseData, prediction, settings})
+}
+
+/**
+ * Schema-driven input construction.
+ * Iterates schema properties and resolves each input from settings, upstream output, or testcase data.
+ */
+function buildFromSchema(ctx: {
+    schemaProperties: Record<string, unknown>
+    inputSchema: Record<string, unknown>
+    testcaseData: Record<string, unknown>
+    upstreamOutput: unknown
+    prediction: string
+    settings: Record<string, unknown>
+}): Record<string, unknown> {
+    const {schemaProperties, inputSchema, testcaseData, upstreamOutput, prediction, settings} = ctx
+    const inputs: Record<string, unknown> = {}
+
+    for (const key of Object.keys(schemaProperties)) {
+        // 1. Check for a corresponding _key setting that maps to a testcase column
+        //    e.g., input "correct_answer" ← setting "correct_answer_key" → testcase column
+        const keySettingName = `${key}_key`
+        const keySettingValue = settings[keySettingName]
+
+        if (typeof keySettingValue === "string" && keySettingValue) {
+            const columnName = keySettingValue.startsWith("testcase.")
+                ? keySettingValue.split(".")[1]
+                : keySettingValue
+            inputs[key] = normalizeCompact(testcaseData[columnName])
+            continue
+        }
+
+        // 2. Known upstream output keys
+        if (UPSTREAM_OUTPUT_KEYS.has(key)) {
+            inputs[key] = key === "prediction" ? prediction : normalizeCompact(upstreamOutput)
+            continue
+        }
+
+        // 3. Known testcase object keys — pass testcase data as a whole object
+        //    e.g., auto_ai_critique expects "inputs" as the original workflow inputs
+        if (TESTCASE_OBJECT_KEYS.has(key)) {
+            inputs[key] = testcaseData
+            continue
+        }
+
+        // 4. Direct testcase column match
+        if (key in testcaseData) {
+            inputs[key] = testcaseData[key]
+            continue
+        }
+    }
+
+    // 5. If schema allows additionalProperties, spread remaining testcase data
+    if (inputSchema.additionalProperties !== false) {
+        for (const [key, value] of Object.entries(testcaseData)) {
+            if (!(key in inputs)) {
+                inputs[key] = value
+            }
+        }
+    }
+
+    // Ensure upstream output is always present in some form
+    if (!("prediction" in inputs) && !("outputs" in inputs)) {
+        inputs.prediction = prediction
+        inputs.outputs = upstreamOutput
+    }
+
+    console.debug("[buildEvaluatorExecutionInputs] schema-driven result", {
+        keys: Object.keys(inputs),
+        inputs,
+    })
+
+    return inputs
+}
+
+/**
+ * Legacy input construction (no schema available).
+ * Spreads testcase data + prediction + ground_truth from correct_answer_key.
+ */
+function buildLegacy(ctx: {
+    testcaseData: Record<string, unknown>
+    prediction: string
+    settings: Record<string, unknown>
+}): Record<string, unknown> {
+    const {testcaseData, prediction, settings} = ctx
+
     const correctAnswerKey = settings.correct_answer_key
     const groundTruthKey =
         typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
@@ -556,7 +697,13 @@ export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Recor
     const rawGT = groundTruthKey ? testcaseData[groundTruthKey] : undefined
     const ground_truth = normalizeCompact(rawGT)
 
-    // --- Build inputs: testcase + prediction + ground_truth ---
+    console.debug("[buildEvaluatorExecutionInputs] legacy fallback", {
+        correct_answer_key: correctAnswerKey ?? "(not set)",
+        groundTruthKey: groundTruthKey ?? "(none)",
+        rawGT,
+        ground_truth,
+    })
+
     const inputs: Record<string, unknown> = {
         ...testcaseData,
         prediction,
@@ -566,6 +713,11 @@ export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Recor
         inputs.ground_truth = ground_truth
         inputs[groundTruthKey] = ground_truth
     }
+
+    console.debug("[buildEvaluatorExecutionInputs] legacy result", {
+        keys: Object.keys(inputs),
+        inputs,
+    })
 
     return inputs
 }
