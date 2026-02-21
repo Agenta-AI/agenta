@@ -26,6 +26,8 @@ export interface VariableControlAdapterProps {
     collapsed?: boolean
     /** Ref attached to the outer container — used for overflow detection by CollapseToggleButton */
     containerRef?: React.RefObject<HTMLDivElement | null>
+    /** When true, hides the variable name label (useful when an outer wrapper already shows it) */
+    hideLabel?: boolean
 }
 
 const MarkdownToggleRegistrar: React.FC<{
@@ -96,6 +98,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     onMarkdownToggleReady,
     collapsed = false,
     containerRef,
+    hideLabel,
 }) => {
     // Direct testcase entity access — rowId IS the testcaseId.
     // Uses testcaseMolecule.atoms.cell under the hood (selectAtom with equality check),
@@ -175,14 +178,19 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
             <div ref={containerRef} style={getCollapseStyle(collapsed)}>
                 <div
                     className={clsx(
-                        "relative flex flex-col gap-1 p-[11px] rounded-lg border border-solid",
-                        viewType === "single" && view !== "focus"
-                            ? "border-[#BDC7D1]"
-                            : "border-transparent bg-transparent",
+                        "relative flex flex-col gap-1",
+                        hideLabel
+                            ? "p-0"
+                            : clsx(
+                                  "p-[11px] rounded-lg border border-solid",
+                                  viewType === "single" && view !== "focus"
+                                      ? "border-[#BDC7D1]"
+                                      : "border-transparent bg-transparent",
+                              ),
                         className,
                     )}
                 >
-                    <VariableHeader name={name} headerActions={headerActions} />
+                    {!hideLabel && <VariableHeader name={name} headerActions={headerActions} />}
                     <InputNumber
                         value={numValue != null && !isNaN(numValue) ? numValue : undefined}
                         onChange={(v) => handleChange(v != null ? String(v) : "")}
@@ -202,14 +210,19 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
             <div ref={containerRef} style={getCollapseStyle(collapsed)}>
                 <div
                     className={clsx(
-                        "relative flex flex-col gap-1 p-[11px] rounded-lg border border-solid",
-                        viewType === "single" && view !== "focus"
-                            ? "border-[#BDC7D1]"
-                            : "border-transparent bg-transparent",
+                        "relative flex flex-col gap-1",
+                        hideLabel
+                            ? "p-0"
+                            : clsx(
+                                  "p-[11px] rounded-lg border border-solid",
+                                  viewType === "single" && view !== "focus"
+                                      ? "border-[#BDC7D1]"
+                                      : "border-transparent bg-transparent",
+                              ),
                         className,
                     )}
                 >
-                    <VariableHeader name={name} headerActions={headerActions} />
+                    {!hideLabel && <VariableHeader name={name} headerActions={headerActions} />}
                     <Switch
                         checked={value === "true"}
                         onChange={(checked) => handleChange(String(checked))}
@@ -243,9 +256,19 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 <SharedEditor
                     id={editorId}
                     noProvider
-                    header={<VariableHeader name={name} headerActions={headerActions} />}
+                    header={
+                        !hideLabel ? (
+                            <VariableHeader name={name} headerActions={headerActions} />
+                        ) : undefined
+                    }
                     key={variableKey}
-                    editorType={viewType === "single" && view !== "focus" ? "border" : "borderless"}
+                    editorType={
+                        hideLabel
+                            ? "borderless"
+                            : viewType === "single" && view !== "focus"
+                              ? "border"
+                              : "borderless"
+                    }
                     useAntdInput={false}
                     disableContainerTransition
                     handleChange={handleChange}
@@ -255,7 +278,11 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                     disabled={isEffectivelyDisabled}
                     className={clsx(
                         "relative flex flex-col gap-1 rounded-[theme(spacing.2)]",
-                        viewType === "single" && view !== "focus" ? "" : "bg-transparent",
+                        hideLabel
+                            ? "!p-0 !border-none bg-transparent"
+                            : viewType === "single" && view !== "focus"
+                              ? ""
+                              : "bg-transparent",
                         isJsonType && "!pt-[11px] !pb-0 [&_.agenta-editor-wrapper]:!mb-0",
                         className,
                     )}
