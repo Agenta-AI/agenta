@@ -1,17 +1,22 @@
-import React, {useMemo} from "react"
+import React, {useCallback, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {MarkdownLogoIcon} from "@phosphor-icons/react"
 import {Collapse} from "antd"
+import clsx from "clsx"
 import {atom} from "jotai"
 import {useAtomValue} from "jotai"
 
-import {usePlaygroundUI} from "../../../context"
+import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
+
 import {playgroundFocusDrawerAtom} from "../../../state"
 import ExecutionResultView from "../../ExecutionResultView"
+import CollapseToggleButton from "../../shared/CollapseToggleButton"
 import {EvaluatorFieldGrid} from "../../shared/EvaluatorFieldGrid"
 import {
     extractDisplayEntries,
@@ -21,36 +26,84 @@ import {
 import {NodeResultCard, ensureNodeCardKeyframes, type NodeStatus} from "../../shared/NodeResultCard"
 
 // ============================================================================
-// SUB-COMPONENT: Single input variable
+// SUB-COMPONENT: Input variables section with collapse support
 // ============================================================================
 
-function InputVariable({rowId, variableKey}: {rowId: string; variableKey: string}) {
-    const {SimpleSharedEditor} = usePlaygroundUI()
-    const value = useAtomValue(
-        useMemo(
-            () =>
-                executionItemController.selectors.testcaseCellValue({
-                    testcaseId: rowId,
-                    column: variableKey,
-                }),
-            [rowId, variableKey],
-        ),
-    ) as string | undefined
+function InputVariablesSection({
+    rowId,
+    entityId,
+    variableKeys,
+}: {
+    rowId: string
+    entityId: string
+    variableKeys: string[]
+}) {
+    const [collapsedInputs, setCollapsedInputs] = useState<Record<string, boolean>>({})
+    const refsMap = useRef<Map<string, React.RefObject<HTMLDivElement | null>>>(new Map())
+    const [markdownToggles, setMarkdownToggles] = useState<
+        Record<string, (() => void) | undefined>
+    >({})
 
-    if (!SimpleSharedEditor) return null
+    const getRef = useCallback((id: string) => {
+        if (!refsMap.current.has(id)) {
+            refsMap.current.set(id, React.createRef<HTMLDivElement>())
+        }
+        return refsMap.current.get(id)!
+    }, [])
+
+    const toggleCollapse = useCallback((id: string) => {
+        setCollapsedInputs((prev) => ({...prev, [id]: !prev[id]}))
+    }, [])
 
     return (
-        <SimpleSharedEditor
-            value={String(value ?? "")}
-            initialValue={String(value ?? "")}
-            defaultMinimized
-            isJSON={false}
-            isMinimizeVisible
-            isFormatVisible={false}
-            headerName={variableKey}
-            editorType="border"
-            headerClassName="text-[#1677FF]"
-        />
+        <div className="flex flex-col gap-2">
+            {variableKeys.map((key) => (
+                <div
+                    key={key}
+                    className={clsx(
+                        "relative group/item w-full",
+                        "hover:[&_.collapse-icon]:opacity-100",
+                    )}
+                >
+                    <VariableControlAdapter
+                        entityId={entityId}
+                        variableKey={key}
+                        rowId={rowId}
+                        view="focus"
+                        collapsed={collapsedInputs[key] || false}
+                        containerRef={getRef(key)}
+                        className="w-full overflow-hidden"
+                        onMarkdownToggleReady={(toggle) => {
+                            setMarkdownToggles((prev) => ({
+                                ...(prev[key] === (toggle ?? undefined)
+                                    ? prev
+                                    : {...prev, [key]: toggle ?? undefined}),
+                            }))
+                        }}
+                        headerActions={
+                            <>
+                                <EnhancedButton
+                                    size="small"
+                                    type="text"
+                                    icon={<MarkdownLogoIcon size={14} />}
+                                    onClick={() => markdownToggles[key]?.()}
+                                    disabled={!markdownToggles[key]}
+                                    tooltipProps={{title: "Preview markdown"}}
+                                />
+                                <CollapseToggleButton
+                                    className="collapse-icon"
+                                    collapsed={collapsedInputs[key] || false}
+                                    onToggle={() => toggleCollapse(key)}
+                                    contentRef={getRef(key)}
+                                />
+                            </>
+                        }
+                        editorProps={{enableTokens: false}}
+                    />
+                </div>
+            ))}
+            {variableKeys.length === 0 && <div className="text-gray-400">No inputs available</div>}
+        </div>
     )
 }
 
@@ -76,25 +129,7 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
     const output = fullResult?.output ?? null
     const error = fullResult?.error
 
-    // Output ports for schema-aware result rendering (evaluator score/reasoning grid)
-    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
-        | PlaygroundNode[]
-        | null
-    const primaryNode = useMemo(
-        () => nodes?.find((n) => n.entityId === entityId),
-        [nodes, entityId],
-    )
-    const primaryOutputPorts = useAtomValue(
-        useMemo(
-            () =>
-                primaryNode
-                    ? runnableBridge
-                          .forType(primaryNode.entityType)
-                          .outputPorts(primaryNode.entityId)
-                    : atom([]),
-            [primaryNode],
-        ),
-    )
+    // Feedback config for schema-aware result rendering
     const primaryData = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
     const feedbackConfig =
         (primaryData?.configuration?.feedback_config as Record<string, unknown>) ?? null
@@ -117,7 +152,6 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
             currentResult={currentResult}
             traceId={traceId}
             showEmptyPlaceholder={false}
-            outputPorts={primaryOutputPorts}
             feedbackConfig={feedbackConfig}
         />
     )
@@ -134,19 +168,24 @@ function DownstreamNodeCard({
     rowId,
     node,
     nodeName,
+    rootEntityId,
 }: {
     rowId: string
     node: PlaygroundNode
     nodeName: string
+    /** Parent variant's entity ID — scopes the result lookup per-variant */
+    rootEntityId: string
 }) {
+    // Session key is scoped per-variant: sess:rootEntityId:nodeEntityId
+    const scopedEntityId = `${rootEntityId}:${node.entityId}`
     const fullResult = useAtomValue(
         useMemo(
             () =>
                 executionItemController.selectors.fullResult({
                     rowId,
-                    entityId: node.entityId,
+                    entityId: scopedEntityId,
                 }),
-            [rowId, node.entityId],
+            [rowId, scopedEntityId],
         ),
     ) as {status?: string; output?: unknown; error?: {message: string} | null} | null
 
@@ -297,14 +336,11 @@ const FocusDrawerContent = () => {
                         key: "input",
                         label: "Input",
                         children: (
-                            <div className="flex flex-col gap-2">
-                                {variableKeys.map((key) => (
-                                    <InputVariable key={key} rowId={rowId} variableKey={key} />
-                                ))}
-                                {variableKeys.length === 0 && (
-                                    <div className="text-gray-400">No inputs available</div>
-                                )}
-                            </div>
+                            <InputVariablesSection
+                                rowId={rowId}
+                                entityId={primaryEntityId}
+                                variableKeys={variableKeys}
+                            />
                         ),
                     },
                 ]}
@@ -361,6 +397,7 @@ const FocusDrawerContent = () => {
                                             rowId={rowId}
                                             node={node}
                                             nodeName={label}
+                                            rootEntityId={primaryEntityId}
                                         />
                                     )
                                 })}

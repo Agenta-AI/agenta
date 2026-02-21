@@ -32,19 +32,25 @@ const DownstreamNodeCard = ({
     rowId,
     node,
     nodeName,
+    rootEntityId,
 }: {
     rowId: string
     node: PlaygroundNode
     nodeName: string
+    /** Parent variant's entity ID — scopes the result lookup per-variant */
+    rootEntityId: string
 }) => {
+    // Session key is scoped per-variant: sess:rootEntityId:nodeEntityId
+    // so comparison mode results don't collide.
+    const scopedEntityId = `${rootEntityId}:${node.entityId}`
     const fullResult = useAtomValue(
         useMemo(
             () =>
                 executionItemController.selectors.fullResult({
                     rowId,
-                    entityId: node.entityId,
+                    entityId: scopedEntityId,
                 }),
-            [rowId, node.entityId],
+            [rowId, scopedEntityId],
         ),
     ) as {status?: string; output?: unknown; error?: {message: string} | null} | null
 
@@ -203,22 +209,7 @@ const GenerationComparisonCompletionOutput = ({
         )
     }, [nodes, entityId, nodeNames])
 
-    // Output ports + feedback config for schema-aware result rendering (evaluator score/reasoning grid)
-    const primaryNode = useMemo(
-        () => nodes?.find((n) => n.entityId === entityId),
-        [nodes, entityId],
-    )
-    const primaryOutputPorts = useAtomValue(
-        useMemo(
-            () =>
-                primaryNode
-                    ? runnableBridge
-                          .forType(primaryNode.entityType)
-                          .outputPorts(primaryNode.entityId)
-                    : atom([]),
-            [primaryNode],
-        ),
-    )
+    // Feedback config for schema-aware result rendering
     const primaryData = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
     const feedbackConfig =
         (primaryData?.configuration?.feedback_config as Record<string, unknown>) ?? null
@@ -287,29 +278,30 @@ const GenerationComparisonCompletionOutput = ({
                                 currentResult={currentResult}
                                 traceId={traceId}
                                 repetitionProps={repetitionProps}
-                                outputPorts={primaryOutputPorts}
                                 feedbackConfig={feedbackConfig}
                             />
                         </div>
                     </NodeResultCard>
-                    {/* Downstream nodes: each in its own bordered card */}
-                    {downstreamNodes.map((node) => {
-                        const resolvedName = nodeNames[node.id]
-                        const label =
-                            resolvedName ||
-                            (node.label && !/^[0-9a-f]{8}-/.test(node.label)
-                                ? node.label
-                                : node.entityType.charAt(0).toUpperCase() +
-                                  node.entityType.slice(1))
-                        return (
-                            <DownstreamNodeCard
-                                key={node.entityId}
-                                rowId={rowId}
-                                node={node}
-                                nodeName={label}
-                            />
-                        )
-                    })}
+                    {/* Downstream nodes: only render when primary has been run */}
+                    {(currentResult || isRunning) &&
+                        downstreamNodes.map((node) => {
+                            const resolvedName = nodeNames[node.id]
+                            const label =
+                                resolvedName ||
+                                (node.label && !/^[0-9a-f]{8}-/.test(node.label)
+                                    ? node.label
+                                    : node.entityType.charAt(0).toUpperCase() +
+                                      node.entityType.slice(1))
+                            return (
+                                <DownstreamNodeCard
+                                    key={node.entityId}
+                                    rowId={rowId}
+                                    node={node}
+                                    nodeName={label}
+                                    rootEntityId={entityId}
+                                />
+                            )
+                        })}
                 </div>
             </div>
         </>
