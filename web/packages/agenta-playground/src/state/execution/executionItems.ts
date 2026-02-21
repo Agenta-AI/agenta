@@ -953,6 +953,15 @@ function buildExecutionItem(
               // When inputValues are provided (e.g. from chain execution),
               // merge them into the raw body's inputs field.
               if (params.inputValues && Object.keys(params.inputValues).length > 0) {
+                  console.debug(
+                      `[executionItems] __rawBody path: merging inputValues for ${params.entityId}`,
+                      {
+                          inputValueKeys: Object.keys(params.inputValues),
+                          inputValues: params.inputValues,
+                          hasDataObj: !!(body.data && typeof body.data === "object"),
+                          bodyKeys: Object.keys(body),
+                      },
+                  )
                   // For workflow invoke payloads with nested `data` structure
                   // (e.g. POST /preview/workflows/invoke), populate data.inputs
                   // with all input values and data.outputs with the upstream
@@ -961,15 +970,17 @@ function buildExecutionItem(
                   if (body.data && typeof body.data === "object") {
                       const dataObj = body.data as Record<string, unknown>
                       const iv = params.inputValues as Record<string, unknown>
-                      // All fields (testcase + prediction + ground_truth) go into data.inputs
                       dataObj.inputs = iv
-                      // The prediction field is the normalized upstream output —
-                      // set it as data.outputs (a plain string) for template resolution.
-                      if (iv.prediction !== undefined) {
-                          dataObj.outputs = iv.prediction
+                      // Set data.outputs from the upstream output value.
+                      // Schema-driven inputs use "outputs" key; legacy uses "prediction".
+                      const upstreamOutputValue = iv.outputs ?? iv.prediction
+                      if (upstreamOutputValue !== undefined) {
+                          dataObj.outputs = upstreamOutputValue
                       }
+                  } else {
+                      // Fallback for payloads without nested data structure
+                      body.inputs = params.inputValues
                   }
-                  body.inputs = params.inputValues
               }
               return body
           })()

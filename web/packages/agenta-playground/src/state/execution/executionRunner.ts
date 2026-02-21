@@ -226,17 +226,28 @@ export async function executeStepForSessionWithExecutionItems(
             if (node.depth === 0) {
                 nodeInputs = {...data}
             } else {
-                // Try resolveChainInputs first (uses inputMappings from connection config)
-                const resolved = resolveChainInputs(allConnections, nodeId, nodeResults, data)
+                // Check whether the incoming connection has explicit valid mappings.
+                // resolveChainInputs always returns non-empty (fallback spreads testcaseData
+                // + prediction), so we can't rely on its result length alone.
+                const incomingConnection = allConnections.find((c) => c.targetNodeId === nodeId)
+                const hasExplicitMappings =
+                    incomingConnection?.inputMappings?.some(
+                        (m) => m.status === "valid" && m.sourcePath,
+                    ) ?? false
 
-                if (Object.keys(resolved).length > 0) {
+                if (hasExplicitMappings) {
+                    // Use resolveChainInputs with explicit inputMappings
+                    const resolved = resolveChainInputs(allConnections, nodeId, nodeResults, data)
+                    console.debug(
+                        `[executionRunner] Node "${nodeLabel}" (${nodeId}): using resolveChainInputs (explicit mappings)`,
+                        {resolvedKeys: Object.keys(resolved), resolved},
+                    )
                     nodeInputs = resolved
                 } else {
-                    // Fallback: inputMappings is empty (default for new connections).
-                    // Delegate to entity-owned input construction (DebugSection pattern).
-                    const upstreamNodeId = allConnections.find(
-                        (c) => c.targetNodeId === nodeId,
-                    )?.sourceNodeId
+                    // No explicit mappings — delegate to entity-owned input construction
+                    // (DebugSection pattern). This handles evaluator-specific logic like
+                    // correct_answer_key → ground_truth resolution.
+                    const upstreamNodeId = incomingConnection?.sourceNodeId
                     const upstreamResult = upstreamNodeId ? nodeResults[upstreamNodeId] : undefined
                     const upstreamOutput =
                         upstreamResult?.output ?? upstreamResult?.structuredOutput
@@ -247,12 +258,38 @@ export async function executeStepForSessionWithExecutionItems(
                         typeScopedData.data(node.entity.id as string),
                     ) as RunnableData | null
 
+                    // Extract inputSchema from the bridge's RunnableData.
+                    // The bridge returns { schemas: { inputSchema, outputSchema } }.
+                    const bridgeSchemas = (stageRunnableData as Record<string, unknown> | null)
+                        ?.schemas as {inputSchema?: Record<string, unknown>} | undefined
+                    const inputSchema = bridgeSchemas?.inputSchema ?? null
+
+                    console.debug(
+                        `[executionRunner] Node "${nodeLabel}" (${nodeId}): no explicit mappings, using buildEvaluatorExecutionInputs`,
+                        {
+                            testcaseDataKeys: Object.keys(data),
+                            testcaseData: data,
+                            upstreamOutput,
+                            settings: stageRunnableData?.configuration ?? {},
+                            hasInputSchema: !!inputSchema,
+                            inputSchemaProperties: inputSchema?.properties
+                                ? Object.keys(inputSchema.properties as Record<string, unknown>)
+                                : [],
+                        },
+                    )
+
                     nodeInputs = buildEvaluatorExecutionInputs({
                         testcaseData: data,
                         upstreamOutput,
                         settings: stageRunnableData?.configuration ?? {},
+                        inputSchema,
                     })
                 }
+
+                console.debug(
+                    `[executionRunner] Node "${nodeLabel}" (${nodeId}): final nodeInputs`,
+                    {keys: Object.keys(nodeInputs), nodeInputs},
+                )
             }
 
             const stageRunnableId =
@@ -276,6 +313,14 @@ export async function executeStepForSessionWithExecutionItems(
             })
             if (!stageExecutionItem) {
                 throw new Error(`Failed to build execution item for ${stageRunnableId}`)
+            }
+
+            if (node.depth > 0) {
+                console.debug(`[executionRunner] Node "${nodeLabel}" (${nodeId}): final request`, {
+                    invocationUrl: stageExecutionItem.invocation.invocationUrl,
+                    requestBodyKeys: Object.keys(stageExecutionItem.invocation.requestBody),
+                    requestBody: stageExecutionItem.invocation.requestBody,
+                })
             }
 
             // Use the execution item's invocationUrl and requestBody directly.
@@ -314,10 +359,12 @@ export async function executeStepForSessionWithExecutionItems(
                 metrics: result.metrics,
             }
 
-            if (result.status === "error") {
+            if (result.status === "error" && node.depth === 0) {
+                // Root node failure is fatal — downstream nodes depend on its output.
                 lifecycle.onFail({error: result.error || {message: "Execution failed"}})
                 return
             }
+            // Downstream node errors are recorded in chainResults but don't stop siblings.
         }
 
         const primaryResult = nodeResults[rootNode.id]
