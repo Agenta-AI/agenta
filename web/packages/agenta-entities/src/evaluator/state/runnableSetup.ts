@@ -29,7 +29,6 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
 import type {StoreOptions} from "../../shared"
-import {parseEvaluatorKeyFromUri} from "../core/schema"
 
 import {evaluatorEntityAtomFamily} from "./store"
 
@@ -60,13 +59,8 @@ export const executionModeAtomFamily = atomFamily((_evaluatorId: string) =>
 /**
  * Invocation URL for evaluator execution.
  *
- * For built-in evaluators, this constructs the legacy run endpoint:
- *   `POST /evaluators/{key}/run/`
- *
- * For custom evaluators with a webhook URL, uses `data.url`.
- *
- * For native workflow invoke, the playground should use `data.uri`
- * with the `/preview/workflows/invoke` endpoint instead.
+ * All evaluators use the unified `/preview/workflows/invoke` endpoint.
+ * Custom evaluators with a webhook URL use `data.url` directly.
  */
 export const invocationUrlAtomFamily = atomFamily((evaluatorId: string) =>
     atom<string | null>((get) => {
@@ -78,14 +72,9 @@ export const invocationUrlAtomFamily = atomFamily((evaluatorId: string) =>
             return entity.data.url
         }
 
-        // Built-in evaluators use the legacy /evaluators/{key}/run endpoint.
-        // Build an absolute URL using the API base to avoid mismatches
-        // between Next.js proxy paths and direct backend paths.
+        // All URI-based evaluators use the unified workflow invoke endpoint
         if (entity.data.uri) {
-            const key = parseEvaluatorKeyFromUri(entity.data.uri)
-            if (key) {
-                return `${getAgentaApiUrl()}/evaluators/${key}/run`
-            }
+            return `${getAgentaApiUrl()}/preview/workflows/invoke`
         }
 
         return null
@@ -164,14 +153,11 @@ export const evaluatorUriAtomFamily = atomFamily((evaluatorId: string) =>
 // ============================================================================
 
 /**
- * Request payload for evaluator execution via the legacy /evaluators/{key}/run endpoint.
+ * Request payload for evaluator execution via the unified
+ * `/preview/workflows/invoke` endpoint.
  *
- * Builds a `{inputs, settings}` body matching the DebugSection pattern.
- * The `__rawBody` flag signals the execution pipeline to use this payload
- * as the request body directly (instead of building a legacy ag_config body).
- *
- * The `inputs` field will be populated at execution time by the execution
- * item builder from the testcase row and prior chain step results.
+ * Builds `{interface, configuration, data}` matching the DebugSection pattern.
+ * The `data.inputs` and `data.outputs` fields are populated at execution time.
  */
 export const requestPayloadAtomFamily = atomFamily((evaluatorId: string) =>
     atom<Record<string, unknown> | null>((get) => {
@@ -179,12 +165,21 @@ export const requestPayloadAtomFamily = atomFamily((evaluatorId: string) =>
         if (!entity?.data) return null
 
         const uri = entity.data.uri
-        if (!uri) return null
+        const url = entity.data.url
+        if (!uri && !url) return null
+
+        const parameters = entity.data.parameters ?? entity.data.configuration ?? {}
 
         return {
             __rawBody: true,
-            inputs: {},
-            settings: entity.data.parameters ?? entity.data.configuration ?? {},
+            interface: uri ? {uri} : {url},
+            configuration:
+                parameters && Object.keys(parameters).length > 0 ? {parameters} : undefined,
+            data: {
+                inputs: {},
+                outputs: {},
+                parameters,
+            },
         }
     }),
 )

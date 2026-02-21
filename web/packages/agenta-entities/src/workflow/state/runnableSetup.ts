@@ -35,7 +35,6 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
 import type {StoreOptions} from "../../shared"
-import {parseWorkflowKeyFromUri} from "../core/schema"
 
 import {workflowEntityAtomFamily} from "./store"
 
@@ -71,9 +70,8 @@ export const executionModeAtomFamily = atomFamily((workflowId: string) =>
  *
  * Resolution order:
  * 1. `data.url` → use directly (custom/webhook workflow)
- * 2. `data.uri` with `flags.is_evaluator` → legacy evaluator endpoint
- * 3. `data.uri` → native workflow invoke endpoint
- * 4. null
+ * 2. `data.uri` → native workflow invoke endpoint (`/preview/workflows/invoke`)
+ * 3. null
  */
 export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
     atom<string | null>((get) => {
@@ -89,17 +87,9 @@ export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
             return `${entity.data.url}/test`
         }
 
-        // URI-based invocation
+        // URI-based invocation — all workflows (including evaluators) use
+        // the unified /preview/workflows/invoke endpoint.
         if (entity.data.uri) {
-            // Evaluator workflows use the legacy /evaluators/{key}/run endpoint
-            if (entity.flags?.is_evaluator) {
-                const key = parseWorkflowKeyFromUri(entity.data.uri)
-                if (key) {
-                    return `${getAgentaApiUrl()}/evaluators/${key}/run`
-                }
-            }
-
-            // Non-evaluator workflows use the native invoke endpoint
             return `${getAgentaApiUrl()}/preview/workflows/invoke`
         }
 
@@ -181,25 +171,41 @@ export const workflowUriAtomFamily = atomFamily((workflowId: string) =>
 /**
  * Request payload for workflow execution.
  *
- * Builds the appropriate request body based on workflow type:
- * - Evaluator workflows: `{inputs, settings}` for legacy evaluator endpoint
- * - Other workflows: `{inputs, settings}` with `__rawBody` flag
+ * Only **evaluator** workflows use the `{interface, configuration, data}`
+ * format for the unified `/preview/workflows/invoke` endpoint.
  *
- * The `inputs` field will be populated at execution time by the execution
- * item builder from the testcase row and prior chain step results.
+ * Non-evaluator workflows (regular apps) return `null` so the standard
+ * `buildRequestBody()` path constructs the flat request body expected
+ * by their custom `/test` endpoints.
  */
 export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
         const entity = get(workflowEntityAtomFamily(workflowId))
         if (!entity?.data) return null
 
+        // Only evaluator workflows use the raw body format.
+        // Regular app workflows fall through to buildRequestBody().
+        const isEvaluator =
+            entity.flags?.is_evaluator ||
+            (entity.data.uri && entity.data.uri.startsWith("agenta:builtin:"))
+        if (!isEvaluator) return null
+
         const uri = entity.data.uri
-        if (!uri) return null
+        const url = entity.data.url
+        if (!uri && !url) return null
+
+        const parameters = entity.data.parameters ?? entity.data.configuration ?? {}
 
         return {
             __rawBody: true,
-            inputs: {},
-            settings: entity.data.parameters ?? entity.data.configuration ?? {},
+            interface: uri ? {uri} : {url},
+            configuration:
+                parameters && Object.keys(parameters).length > 0 ? {parameters} : undefined,
+            data: {
+                inputs: {},
+                outputs: {},
+                parameters,
+            },
         }
     }),
 )
