@@ -20,6 +20,9 @@ import {
     workflowDraftAtomFamily,
     updateWorkflowDraftAtom,
     workflowLocalServerDataAtomFamily,
+    workflowServerDataSelectorFamily,
+    workflowEntityAtomFamily,
+    createLocalDraftFromWorkflowRevision,
 } from "./state/store"
 
 // ============================================================================
@@ -48,17 +51,35 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
 
     buildDraftPatch(revisionId: string): BuildDraftPatchResult {
         const store = getDefaultStore()
-        const draft = store.get(workflowDraftAtomFamily(revisionId))
-        if (!draft) {
+
+        // For local drafts, edits may be baked into the clone (no draft atom).
+        // Use the full entity data as the effective current state.
+        const isLocal = isLocalDraftId(revisionId)
+        if (!isLocal) {
+            const draft = store.get(workflowDraftAtomFamily(revisionId))
+            if (!draft) {
+                return {hasDraft: false, patch: null, sourceRevisionId: revisionId}
+            }
+        }
+
+        // Get effective current parameters from the entity (clone + draft overlay)
+        const entityData = store.get(workflowEntityAtomFamily(revisionId))
+        const entityParams = (entityData?.data?.parameters as Record<string, unknown>) ?? {}
+
+        // Compare with source server data to detect actual changes.
+        // workflowServerDataSelectorFamily redirects local drafts to the
+        // source entity's live server data automatically.
+        const serverData = store.get(workflowServerDataSelectorFamily(revisionId))
+        const serverParams = (serverData?.data?.parameters as Record<string, unknown>) ?? {}
+
+        const hasChanges = JSON.stringify(entityParams) !== JSON.stringify(serverParams)
+        if (!hasChanges) {
             return {hasDraft: false, patch: null, sourceRevisionId: revisionId}
         }
+
         return {
             hasDraft: true,
-            patch: {
-                parameters:
-                    (draft as {data?: {parameters?: Record<string, unknown>}}).data?.parameters ??
-                    {},
-            },
+            patch: {parameters: entityParams},
             sourceRevisionId: revisionId,
         }
     },
@@ -71,6 +92,16 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
                 parseResult.error.message,
             )
             return false
+        }
+
+        // Empty patch means "no changes" — skip writing to avoid overwriting
+        // existing parameters with an empty object during draft merge.
+        const isEmptyPatch =
+            !parseResult.data.parameters ||
+            Object.keys(parseResult.data.parameters).length === 0
+
+        if (isEmptyPatch) {
+            return true
         }
 
         const store = getDefaultStore()
@@ -99,6 +130,48 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
             | (Record<string, unknown> & {_sourceRevisionId?: string})
             | null
         return localData?._sourceRevisionId ?? null
+    },
+
+    createLocalDraftWithPatch(sourceRevisionId: string, patch: RunnableDraftPatch): string | null {
+        const parseResult = workflowPatchSchema.safeParse(patch)
+        if (!parseResult.success) {
+            console.warn(
+                "[WorkflowSnapshotAdapter] Invalid patch format for createLocalDraftWithPatch:",
+                parseResult.error.message,
+            )
+            return null
+        }
+
+        try {
+            const localDraftId = createLocalDraftFromWorkflowRevision(sourceRevisionId)
+
+            if (!localDraftId) {
+                return null
+            }
+
+            // Only apply the draft overlay if the patch has actual parameter changes.
+            // An empty patch ({parameters: {}}) means "no changes from source" — the
+            // local clone already has the full source data, so setting an empty draft
+            // would overwrite the cloned parameters during merge.
+            const isEmptyPatch =
+                !parseResult.data.parameters ||
+                Object.keys(parseResult.data.parameters).length === 0
+
+            if (!isEmptyPatch) {
+                const store = getDefaultStore()
+                store.set(updateWorkflowDraftAtom, localDraftId, {
+                    data: {parameters: parseResult.data.parameters},
+                })
+            }
+
+            return localDraftId
+        } catch (error) {
+            console.error(
+                "[WorkflowSnapshotAdapter] Failed to create local draft with patch:",
+                error,
+            )
+            return null
+        }
     },
 }
 

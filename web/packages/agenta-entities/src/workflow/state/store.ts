@@ -595,35 +595,43 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
 /**
  * Is the workflow dirty (has local edits)?
  *
- * Compares draft parameters with server parameters to determine if there are
- * actual changes. Returns false if:
- * - No draft exists
- * - Draft parameters match server parameters (user reverted their changes)
+ * For **regular** entities: checks if a draft overlay exists and its parameters
+ * differ from the server data.
  *
- * URL snapshot persistence is handled separately by the snapshot system
- * which encodes `createLocalDraft` flags — it does not depend on isDirty.
+ * For **local draft** entities (browser-only clones): compares the full entity
+ * data (clone + any draft overlay) against the source entity's live server data
+ * via `workflowServerDataSelectorFamily`. Local clones may have edits baked in
+ * from the source's draft at clone time, so we can't rely on the draft atom
+ * alone — the clone itself may already differ from the server.
  */
 export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
     atom<boolean>((get) => {
-        const draft = get(workflowDraftAtomFamily(workflowId))
-        if (!draft) return false
+        const isLocal = isLocalDraftId(workflowId)
 
-        // Get server data to compare
-        const localData = get(workflowLocalServerDataAtomFamily(workflowId))
-        const query = get(workflowQueryAtomFamily(workflowId))
-        const serverData = localData ?? query.data ?? null
+        // For regular entities, no draft atom means no local edits — fast exit.
+        // For local drafts, edits may be baked into the clone, so skip this check.
+        if (!isLocal) {
+            const draft = get(workflowDraftAtomFamily(workflowId))
+            if (!draft) return false
+        }
 
-        if (!serverData) return true // No server data, draft is dirty
+        // Get the effective current parameters (entity = server/clone + draft overlay)
+        const entityData = get(workflowEntityAtomFamily(workflowId))
 
-        // Compare draft parameters with server parameters
-        const draftParams = draft.data?.parameters
+        // Get the comparison baseline — for local drafts this redirects to the
+        // source entity's live server data via workflowServerDataSelectorFamily.
+        const serverData = get(workflowServerDataSelectorFamily(workflowId))
+
+        if (!serverData) return !!entityData // No server data, dirty if entity exists
+        if (!entityData) return false
+
+        const entityParams = entityData.data?.parameters
         const serverParams = serverData.data?.parameters
 
-        // If no draft parameters, check if draft has any other changes
-        if (!draftParams) {
-            // Draft exists but no parameter changes - still dirty if draft has other data
-            if (!draft.data) return false
-            const dataKeys = Object.keys(draft.data as Record<string, unknown>)
+        // No parameters on entity side — check for other data changes
+        if (!entityParams) {
+            if (!entityData.data) return false
+            const dataKeys = Object.keys(entityData.data as Record<string, unknown>)
             return dataKeys.length > 0
         }
 
@@ -666,23 +674,9 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
         }
 
         // Deep compare normalized parameters using fast-deep-equal
-        const normalizedDraft = normalizeForComparison(draftParams)
+        const normalizedEntity = normalizeForComparison(entityParams)
         const normalizedServer = normalizeForComparison(serverParams)
-        const isDirty = !isEqual(normalizedDraft, normalizedServer)
-
-        // DEBUG: Log comparison
-        if (isDirty) {
-            console.log(
-                "[isDirty DEBUG] normalizedDraft:",
-                JSON.stringify(normalizedDraft, null, 2),
-            )
-            console.log(
-                "[isDirty DEBUG] normalizedServer:",
-                JSON.stringify(normalizedServer, null, 2),
-            )
-        }
-
-        return isDirty
+        return !isEqual(normalizedEntity, normalizedServer)
     }),
 )
 
@@ -736,6 +730,46 @@ export const workflowLocalServerDataAtomFamily = atomFamily((_localDraftId: stri
 )
 
 /**
+ * Server data selector for comparison purposes.
+ *
+ * For **regular** revision IDs: returns server query data (fully merged with
+ * schema resolution but without draft overlay).
+ *
+ * For **local draft** IDs: redirects to the *source* entity's fully-merged
+ * server data via `workflowEntityAtomFamily(sourceRevisionId)`.  This single
+ * redirect point ensures all downstream comparison consumers (isDirty,
+ * buildDraftPatch, etc.) automatically compare against the canonical source
+ * without each needing individual handling.
+ *
+ * NOTE: Does **not** include the draft overlay — that is intentional so that
+ * isDirty can compare draft vs server cleanly.
+ */
+export const workflowServerDataSelectorFamily = atomFamily((workflowId: string) =>
+    atom<Workflow | null>((get) => {
+        if (isLocalDraftId(workflowId)) {
+            const localData = get(workflowLocalServerDataAtomFamily(workflowId))
+            const sourceRevisionId =
+                (localData as (Workflow & {_sourceRevisionId?: string}) | null)
+                    ?._sourceRevisionId
+            if (sourceRevisionId) {
+                // Read the source entity's fully-merged data (server + schema
+                // resolution, but NOT its draft — we want the clean baseline).
+                const sourceQuery = get(workflowQueryAtomFamily(sourceRevisionId))
+                const sourceServerData = sourceQuery.data ?? null
+                if (sourceServerData) {
+                    return sourceServerData
+                }
+            }
+            // Fallback to the clone if source is unavailable
+            return localData
+        }
+
+        const query = get(workflowQueryAtomFamily(workflowId))
+        return query.data ?? null
+    }),
+)
+
+/**
  * Create a local (browser-only) draft by cloning a workflow revision.
  *
  * Reads the source revision data from the store, clones it with a new
@@ -754,7 +788,17 @@ export function createLocalDraftFromWorkflowRevision(
 
     const sourceData = store.get(workflowEntityAtomFamily(sourceRevisionId))
     if (!sourceData) {
-        console.warn("[createLocalDraftFromWorkflowRevision] no sourceData for:", sourceRevisionId)
+        return null
+    }
+
+    // For non-evaluator app workflows that have a URL but no schemas yet,
+    // the OpenAPI schema query hasn't resolved. Return null so hydration
+    // retries once schemas are available — without schemas the config panel
+    // would be empty.
+    const isEvaluator = sourceData.flags?.is_evaluator ?? false
+    const hasUrl = !!sourceData.data?.url
+    const hasSchemas = !!(sourceData.data?.schemas?.parameters || sourceData.data?.schemas?.inputs)
+    if (!isEvaluator && hasUrl && !hasSchemas) {
         return null
     }
 

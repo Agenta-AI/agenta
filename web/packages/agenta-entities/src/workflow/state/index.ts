@@ -46,6 +46,7 @@ export {
     workflowsListQueryStateAtom,
     // Local drafts
     workflowLocalServerDataAtomFamily,
+    workflowServerDataSelectorFamily,
     createLocalDraftFromWorkflowRevision,
     // Latest revision (derived from already-fetched data)
     workflowLatestRevisionIdAtomFamily,
