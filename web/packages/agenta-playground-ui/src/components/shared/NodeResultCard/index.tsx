@@ -43,11 +43,14 @@ export const NodeResultCard = ({
     status = "idle",
     children,
     className,
+    headerActions,
 }: {
     name: string
     status?: NodeStatus
     children: React.ReactNode
     className?: string
+    /** Optional actions rendered next to the name tag in the legend area */
+    headerActions?: React.ReactNode
 }) => {
     const isRunning = status === "running" || status === "pending"
     const isError = status === "error"
@@ -60,11 +63,19 @@ export const NodeResultCard = ({
     if (isRunning) {
         return (
             <div
-                className={clsx("node-result-card relative", className)}
+                className={clsx("node-result-card relative group/item", className)}
                 style={{paddingTop: LEGEND_HEIGHT}}
             >
-                <div className="absolute bg-white px-1 z-[2]" style={{top: 0, left: 10}}>
+                <div
+                    className="absolute bg-white px-1 z-[2] flex items-center gap-1"
+                    style={{top: 0, left: 10}}
+                >
                     <NodeNameTag name={name} />
+                    {headerActions ? (
+                        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100">
+                            {headerActions}
+                        </div>
+                    ) : null}
                 </div>
                 <div
                     className="node-result-card--running relative overflow-hidden"
@@ -101,11 +112,19 @@ export const NodeResultCard = ({
 
     return (
         <div
-            className={clsx("node-result-card relative", className)}
+            className={clsx("node-result-card relative group/item", className)}
             style={{paddingTop: LEGEND_HEIGHT}}
         >
-            <div className="absolute bg-white px-1 z-[1]" style={{top: 0, left: 10}}>
+            <div
+                className="absolute bg-white px-1 z-[1] flex items-center gap-1"
+                style={{top: 0, left: 10}}
+            >
                 <NodeNameTag name={name} />
+                {headerActions ? (
+                    <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100">
+                        {headerActions}
+                    </div>
+                ) : null}
             </div>
             <div
                 className={clsx(
