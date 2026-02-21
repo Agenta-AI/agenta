@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import type {SchemaProperty} from "@agenta/entities"
 import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {RunnableOutputValue} from "@agenta/entity-ui"
@@ -36,7 +37,16 @@ import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import ExecutionResultView from "../../../ExecutionResultView"
 import CollapseToggleButton from "../../../shared/CollapseToggleButton"
 import {EvaluatorFieldGrid} from "../../../shared/EvaluatorFieldGrid"
-import {extractDisplayEntries, buildSchemaMap} from "../../../shared/EvaluatorFieldGrid/utils"
+import {
+    extractDisplayEntries,
+    buildSchemaMap,
+    formatFieldLabel,
+} from "../../../shared/EvaluatorFieldGrid/utils"
+import {
+    NodeResultCard,
+    ensureNodeCardKeyframes,
+    type NodeStatus,
+} from "../../../shared/NodeResultCard"
 
 interface Props {
     rowId: string
@@ -167,44 +177,15 @@ const StepCollapsedSummary = ({
     )
 }
 
-/** Flat row for evaluator result: tag on the left, content (single or stacked) on the right */
-const EvaluatorResultRow = ({
-    name,
-    content,
-    isPlaceholder,
-}: {
-    name: string
-    content: React.ReactNode
-    isPlaceholder?: boolean
-}) => (
-    <div className="flex items-start gap-2">
-        <div className="shrink-0 h-6 flex items-center">
-            <Tag
-                variant="filled"
-                className="!m-0 rounded-[6px] px-2 py-[1px] text-xs leading-[22px] bg-[#0517290F] text-[#344054] border border-solid border-transparent"
-            >
-                {name}
-            </Tag>
-        </div>
-        <div
-            className={clsx(
-                "flex-1 min-w-0 text-xs leading-5 break-words",
-                isPlaceholder ? "text-[#bdc7d1]" : "text-[var(--ant-color-text)]",
-            )}
-        >
-            {content}
-        </div>
-    </div>
-)
+// Inject CSS keyframes for NodeResultCard animations (runs once)
+ensureNodeCardKeyframes()
 
 /**
- * Renders a single downstream node's execution result (e.g. evaluator output).
- * Flat row layout: [Tag (name)] [Content (value / placeholder)]
- *
- * Uses the runnable bridge output ports to get per-field schemas,
- * then renders values with schema-aware formatting via RunnableOutputValue.
+ * Self-contained bordered card for a downstream node's execution result.
+ * Renders the node name as a legend-style label on the top border,
+ * with status-aware border color and animation.
  */
-const DownstreamNodeResult = ({
+const DownstreamNodeCard = ({
     rowId,
     node,
     nodeName,
@@ -231,64 +212,91 @@ const DownstreamNodeResult = ({
             [node.entityType, node.entityId],
         ),
     )
+    const nodeData = useAtomValue(
+        useMemo(() => runnableBridge.data(node.entityId), [node.entityId]),
+    )
 
-    const status = fullResult?.status ?? "idle"
+    const schemaMap = useMemo(() => {
+        const map = buildSchemaMap(outputPorts)
+        // Enrich score schema with feedback_config constraints (min/max)
+        const fbConfig = nodeData?.configuration?.feedback_config as
+            | Record<string, unknown>
+            | undefined
+        if (fbConfig) {
+            const jsonSchema = fbConfig.json_schema as
+                | {schema?: {properties?: {score?: Record<string, unknown>}}}
+                | undefined
+            const scoreConstraints = jsonSchema?.schema?.properties?.score
+            if (scoreConstraints) {
+                const existing = map.score ?? ({} as Record<string, unknown>)
+                map.score = {...existing, ...scoreConstraints} as SchemaProperty
+            }
+        }
+        return map
+    }, [outputPorts, nodeData])
 
-    // Idle / cancelled / no result -> "Pending run" placeholder
+    const status = (fullResult?.status ?? "idle") as NodeStatus
+
+    // Idle / cancelled / no result — show expected fields with placeholder dashes
     if (!fullResult || status === "idle" || status === "cancelled") {
-        return <EvaluatorResultRow name={nodeName} content="Pending run" isPlaceholder />
-    }
-
-    // Running / pending -> schema-based skeleton fields
-    if (status === "running" || status === "pending") {
         return (
-            <EvaluatorResultRow
-                name={nodeName}
-                content={<EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />}
-                isPlaceholder
-            />
+            <NodeResultCard name={nodeName} status={status}>
+                <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} idle />
+            </NodeResultCard>
         )
     }
 
-    // Error -> red error text
+    // Running / pending -> loading skeleton
+    if (status === "running" || status === "pending") {
+        return (
+            <NodeResultCard name={nodeName} status={status}>
+                <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
+            </NodeResultCard>
+        )
+    }
+
+    // Error
     if (status === "error") {
         const errorMsg =
             typeof fullResult.error === "object" && fullResult.error?.message
                 ? fullResult.error.message
                 : "Error"
         return (
-            <EvaluatorResultRow
-                name={nodeName}
-                content={<span className="text-[var(--ant-color-error)]">{errorMsg}</span>}
-            />
+            <NodeResultCard name={nodeName} status={status}>
+                <span className="text-[var(--ant-color-error)] text-xs leading-5">{errorMsg}</span>
+            </NodeResultCard>
         )
     }
 
     // Success -> extract and display value(s)
     const entries = extractDisplayEntries(fullResult.output)
 
-    if (!entries) {
-        return <EvaluatorResultRow name={nodeName} content="—" />
-    }
-
-    // Single field: show value directly with schema-aware rendering (compact)
-    if (entries.length === 1) {
-        const [key, value] = entries[0]
-        const schemaMap = buildSchemaMap(outputPorts)
+    if (!entries || entries.length === 0) {
         return (
-            <EvaluatorResultRow
-                name={nodeName}
-                content={<RunnableOutputValue value={value} schema={schemaMap[key]} />}
-            />
+            <NodeResultCard name={nodeName} status="success">
+                <span className="text-xs leading-5">—</span>
+            </NodeResultCard>
         )
     }
 
-    // Multi-field: shared grid with field labels + values
     return (
-        <EvaluatorResultRow
-            name={nodeName}
-            content={<EvaluatorFieldGrid entries={entries} outputPorts={outputPorts} />}
-        />
+        <NodeResultCard name={nodeName} status="success">
+            <div
+                className="grid items-baseline text-xs leading-5"
+                style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}
+            >
+                {entries.map(([key, value]) => (
+                    <React.Fragment key={key}>
+                        <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap leading-5">
+                            {formatFieldLabel(key)}:
+                        </span>
+                        <span className="break-words min-w-0 leading-5">
+                            <RunnableOutputValue value={value} schema={schemaMap[key]} />
+                        </span>
+                    </React.Fragment>
+                ))}
+            </div>
+        </NodeResultCard>
     )
 }
 
@@ -456,6 +464,26 @@ const SingleView = ({
         entityId,
         result,
     })
+
+    // Output ports + feedback config for schema-aware result rendering (evaluator score/reasoning grid)
+    const primaryNode = useMemo(
+        () => nodes?.find((n) => n.entityId === entityId),
+        [nodes, entityId],
+    )
+    const primaryOutputPorts = useAtomValue(
+        useMemo(
+            () =>
+                primaryNode
+                    ? runnableBridge
+                          .forType(primaryNode.entityType)
+                          .outputPorts(primaryNode.entityId)
+                    : atom([]),
+            [primaryNode],
+        ),
+    )
+    const primaryData = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
+    const feedbackConfig =
+        (primaryData?.configuration?.feedback_config as Record<string, unknown>) ?? null
 
     const executionRowIds = useAtomValue(
         executionItemController.selectors.executionRowIds,
@@ -647,7 +675,7 @@ const SingleView = ({
                                     <div
                                         key={id}
                                         className={clsx([
-                                            "relative group/item px-0 py-2 w-full",
+                                            "relative group/item px-0 w-full",
                                             "hover:[&_.collapse-icon]:opacity-100",
                                         ])}
                                     >
@@ -708,45 +736,57 @@ const SingleView = ({
                 </div>
                 {!inputOnly && !isWaitingForVariableControls ? (
                     <div
-                        className={clsx(["w-full flex flex-col gap-3 pb-2 relative group/output"])}
+                        className={clsx([
+                            "w-full flex flex-col gap-3 pb-2 relative group/output",
+                            "border-0 border-t border-solid border-[rgba(5,23,41,0.06)] pt-3",
+                        ])}
                     >
-                        <div className="relative w-full">
-                            <ExecutionResultView
-                                isRunning={isBusy}
-                                currentResult={currentResult}
-                                traceId={traceId}
-                                repetitionProps={repetitionProps}
-                                showEmptyPlaceholder={isChain || !showHeaderRunHint}
-                            />
-                        </div>
-                        {isChain &&
-                            (() => {
-                                const downstreamNodes = nodes?.filter(
-                                    (n) => n.depth > 0 && n.entityId !== entityId,
-                                )
-                                if (!downstreamNodes?.length) return null
+                        {/* Primary node */}
+                        <NodeResultCard
+                            name={primaryNodeLabel}
+                            status={isBusy ? "running" : currentResult ? "success" : "idle"}
+                        >
+                            <div
+                                className={clsx(
+                                    "min-w-0",
+                                    !currentResult && !isBusy && "text-[#bdc7d1]",
+                                )}
+                            >
+                                <ExecutionResultView
+                                    isRunning={isBusy}
+                                    currentResult={currentResult}
+                                    traceId={traceId}
+                                    repetitionProps={repetitionProps}
+                                    showEmptyPlaceholder={!showHeaderRunHint}
+                                    outputPorts={primaryOutputPorts}
+                                    feedbackConfig={feedbackConfig}
+                                />
+                            </div>
+                        </NodeResultCard>
+                        {/* Downstream nodes: each in its own bordered card */}
+                        {(() => {
+                            const downstreamNodes = nodes?.filter(
+                                (n) => n.depth > 0 && n.entityId !== entityId,
+                            )
+                            if (!downstreamNodes?.length) return null
+                            return downstreamNodes.map((node) => {
+                                const resolvedName = nodeNames[node.id]
+                                const label =
+                                    resolvedName ||
+                                    (node.label && !/^[0-9a-f]{8}-/.test(node.label)
+                                        ? node.label
+                                        : node.entityType.charAt(0).toUpperCase() +
+                                          node.entityType.slice(1))
                                 return (
-                                    <div className="flex flex-col gap-2">
-                                        {downstreamNodes.map((node) => {
-                                            const resolvedName = nodeNames[node.id]
-                                            const label =
-                                                resolvedName ||
-                                                (node.label && !/^[0-9a-f]{8}-/.test(node.label)
-                                                    ? node.label
-                                                    : node.entityType.charAt(0).toUpperCase() +
-                                                      node.entityType.slice(1))
-                                            return (
-                                                <DownstreamNodeResult
-                                                    key={node.entityId}
-                                                    rowId={rowId}
-                                                    node={node}
-                                                    nodeName={label}
-                                                />
-                                            )
-                                        })}
-                                    </div>
+                                    <DownstreamNodeCard
+                                        key={node.entityId}
+                                        rowId={rowId}
+                                        node={node}
+                                        nodeName={label}
+                                    />
                                 )
-                            })()}
+                            })
+                        })()}
                     </div>
                 ) : null}
             </HeightCollapse>
