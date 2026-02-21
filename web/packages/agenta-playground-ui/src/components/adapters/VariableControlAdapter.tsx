@@ -4,7 +4,7 @@ import {executionItemController, playgroundController} from "@agenta/playground"
 import {getCollapseStyle} from "@agenta/ui/components/presentational"
 import {TOGGLE_MARKDOWN_VIEW, EditorProvider, useLexicalComposerContext} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Typography} from "antd"
+import {InputNumber, Switch, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -53,12 +53,34 @@ const MarkdownToggleRegistrar: React.FC<{
 }
 
 /**
+ * Shared header for all variable control types.
+ * Renders the variable name label and optional header actions.
+ */
+const VariableHeader: React.FC<{
+    name: string | undefined
+    headerActions?: React.ReactNode
+}> = ({name, headerActions}) => (
+    <div className="w-full flex items-start justify-between gap-2">
+        <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
+            {name}
+        </Typography>
+        {headerActions ? (
+            <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100">
+                {headerActions}
+            </div>
+        ) : null}
+    </div>
+)
+
+/**
  * VariableControlAdapter
  *
- * Adapter for rendering and editing generation variables using the same
- * control renderers as PlaygroundVariantPropertyControl, without touching
- * prompt configuration state. Reads from normalized generation selectors
- * and writes to normalized input rows.
+ * Adapter for rendering and editing generation variables using schema-aware
+ * controls. Reads input port schema to select the appropriate editor:
+ * - object/array → JSON code editor (SharedEditor with codeOnly)
+ * - number/integer → InputNumber
+ * - boolean → Switch
+ * - string (default) → SharedEditor (rich text)
  */
 const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     rowId,
@@ -94,6 +116,13 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         [variableKeys, variableKey],
     )
 
+    // Schema-aware type detection from input port definitions
+    const schemaMap = useAtomValue(executionItemController.selectors.inputPortSchemaMap) as Record<
+        string,
+        {type: string; schema?: unknown}
+    >
+    const portType = schemaMap[variableKey]?.type ?? "string"
+
     // Custom app variable gating: disable controls for names not in schema keys
     const schemaKeys = useAtomValue(
         useMemo(() => executionItemController.selectors.schemaInputKeys, []),
@@ -105,6 +134,18 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     }, [isCustom, schemaKeys, name])
 
     const setCellValue = useSetAtom(executionItemController.actions.setTestcaseCellValue)
+
+    // For object/array types, provide a sensible default when value is empty
+    const isJsonType = portType === "object" || portType === "array"
+    const jsonDefault = portType === "array" ? "[]" : "{}"
+    const effectiveValue = isJsonType && (!value || value === "") ? jsonDefault : value
+
+    // Seed the default back to the store so the execution payload has the correct value
+    useEffect(() => {
+        if (isJsonType && (!value || value === "")) {
+            setCellValue({testcaseId: rowId, column: variableKey, value: jsonDefault})
+        }
+    }, [isJsonType, value, jsonDefault, setCellValue, rowId, variableKey])
 
     const handleChange = useCallback(
         (nextText: unknown) => {
@@ -125,51 +166,100 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         [rowId, variableKey],
     )
 
+    const isEffectivelyDisabled = disabled || disableForCustom
+
+    // Number/integer type → InputNumber
+    if (portType === "number" || portType === "integer") {
+        const numValue = value !== "" && value != null ? Number(value) : undefined
+        return (
+            <div ref={containerRef} style={getCollapseStyle(collapsed)}>
+                <div
+                    className={clsx(
+                        "relative flex flex-col gap-1 p-[11px] rounded-lg border border-solid",
+                        viewType === "single" && view !== "focus"
+                            ? "border-[#BDC7D1]"
+                            : "border-transparent bg-transparent",
+                        className,
+                    )}
+                >
+                    <VariableHeader name={name} headerActions={headerActions} />
+                    <InputNumber
+                        value={numValue != null && !isNaN(numValue) ? numValue : undefined}
+                        onChange={(v) => handleChange(v != null ? String(v) : "")}
+                        disabled={isEffectivelyDisabled}
+                        placeholder={effectivePlaceholder}
+                        className="w-full"
+                        size="small"
+                    />
+                </div>
+            </div>
+        )
+    }
+
+    // Boolean type → Switch
+    if (portType === "boolean") {
+        return (
+            <div ref={containerRef} style={getCollapseStyle(collapsed)}>
+                <div
+                    className={clsx(
+                        "relative flex flex-col gap-1 p-[11px] rounded-lg border border-solid",
+                        viewType === "single" && view !== "focus"
+                            ? "border-[#BDC7D1]"
+                            : "border-transparent bg-transparent",
+                        className,
+                    )}
+                >
+                    <VariableHeader name={name} headerActions={headerActions} />
+                    <Switch
+                        checked={value === "true"}
+                        onChange={(checked) => handleChange(String(checked))}
+                        disabled={isEffectivelyDisabled}
+                        size="small"
+                        className="w-fit"
+                    />
+                </div>
+            </div>
+        )
+    }
+
+    // Object/array types → JSON code editor
+    const mergedEditorProps = isJsonType
+        ? {codeOnly: true, language: "json", enableResize: false, boundWidth: true, ...editorProps}
+        : {enableResize: false, boundWidth: true, ...editorProps}
+
     return (
         <div ref={containerRef} style={getCollapseStyle(collapsed)}>
             <EditorProvider
                 id={editorId}
-                initialValue={value}
+                initialValue={effectiveValue}
                 placeholder={effectivePlaceholder}
                 showToolbar={false}
-                enableTokens={!editorProps?.codeOnly}
-                disabled={disabled || disableForCustom}
+                codeOnly={isJsonType || !!editorProps?.codeOnly}
+                language={isJsonType ? "json" : undefined}
+                enableTokens={!isJsonType && !editorProps?.codeOnly}
+                disabled={isEffectivelyDisabled}
             >
                 <MarkdownToggleRegistrar onMarkdownToggleReady={onMarkdownToggleReady} />
                 <SharedEditor
                     id={editorId}
                     noProvider
-                    header={
-                        <div className="w-full flex items-start justify-between gap-2">
-                            <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
-                                {name}
-                            </Typography>
-                            {headerActions ? (
-                                <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100">
-                                    {headerActions}
-                                </div>
-                            ) : null}
-                        </div>
-                    }
+                    header={<VariableHeader name={name} headerActions={headerActions} />}
                     key={variableKey}
                     editorType={viewType === "single" && view !== "focus" ? "border" : "borderless"}
                     useAntdInput={false}
                     disableContainerTransition
                     handleChange={handleChange}
-                    initialValue={value}
+                    initialValue={effectiveValue}
                     editorClassName={className}
                     placeholder={effectivePlaceholder}
-                    disabled={disabled || disableForCustom}
+                    disabled={isEffectivelyDisabled}
                     className={clsx(
                         "relative flex flex-col gap-1 rounded-[theme(spacing.2)]",
                         viewType === "single" && view !== "focus" ? "" : "bg-transparent",
+                        isJsonType && "!pt-[11px] !pb-0 [&_.agenta-editor-wrapper]:!mb-0",
                         className,
                     )}
-                    editorProps={{
-                        enableResize: false,
-                        boundWidth: true,
-                        ...editorProps,
-                    }}
+                    editorProps={mergedEditorProps}
                 />
             </EditorProvider>
         </div>
