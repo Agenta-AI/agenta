@@ -117,9 +117,23 @@ const RunnableOutputValue = memo(function RunnableOutputValue({
         )
     }
 
-    // Number → formatted
+    // Number → formatted, with optional range from schema min/max
     if (effectiveType === "number" || effectiveType === "integer" || typeof value === "number") {
         const display = typeof value === "number" ? formatDisplayNumber(value) : String(value)
+        const resolved = schema ? resolveAnyOfSchema(schema) : null
+        const hasRange =
+            resolved && typeof resolved.maximum === "number" && typeof resolved.minimum === "number"
+
+        if (hasRange) {
+            return (
+                <span className={className}>
+                    {display}
+                    <span className="text-[var(--ant-color-text-quaternary)] ml-1">
+                        / {formatDisplayNumber(resolved.maximum as number)}
+                    </span>
+                </span>
+            )
+        }
         return <span className={className}>{display}</span>
     }
 
