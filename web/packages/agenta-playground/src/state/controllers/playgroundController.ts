@@ -856,6 +856,32 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
     // If root selection is cleared entirely, downstream nodes are also removed.
     set(playgroundNodesAtom, newRootNodes.length > 0 ? [...newRootNodes, ...downstreamNodes] : [])
 
+    // Remap connections: if root nodes were removed, any downstream connections
+    // that referenced them should be remapped to the new primary root.
+    // This prevents evaluators from becoming disconnected when switching from
+    // comparison mode back to single mode.
+    if (newRootNodes.length > 0 && downstreamNodes.length > 0) {
+        const newRootNodeIds = new Set(newRootNodes.map((n) => n.id))
+        const newPrimaryNodeId = newRootNodes[0].id
+        const connections = get(outputConnectionsAtom)
+        const hasStaleSource = connections.some(
+            (c) =>
+                !newRootNodeIds.has(c.sourceNodeId) &&
+                currentRootNodes.some((n) => n.id === c.sourceNodeId),
+        )
+        if (hasStaleSource) {
+            set(
+                outputConnectionsAtom,
+                connections.map((c) =>
+                    !newRootNodeIds.has(c.sourceNodeId) &&
+                    currentRootNodes.some((n) => n.id === c.sourceNodeId)
+                        ? {...c, sourceNodeId: newPrimaryNodeId}
+                        : c,
+                ),
+            )
+        }
+    }
+
     // Ensure primary runnable is linked so loadable-derived columns/rows
     // (including initial variable row) are initialized for the current selection.
     const primary = newRootNodes[0]
