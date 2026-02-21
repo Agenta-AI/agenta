@@ -255,10 +255,15 @@ vault_service = VaultService(
     secrets_dao=secrets_dao,
 )
 
+
 webhooks_service = WebhooksService(
     dao=webhooks_dao,
     webhooks_worker=webhooks_worker,
 )
+
+# Helper for legacy routers (deprecated)
+# from oss.src.core.webhooks.trigger import trigger_webhook
+
 
 tracing_service = TracingService(
     tracing_dao=tracing_dao,

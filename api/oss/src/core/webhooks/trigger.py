@@ -28,42 +28,19 @@ if TYPE_CHECKING:
 log = get_module_logger(__name__)
 
 # Global instances (lazy initialization)
+# Global instances (lazy initialization)
 _dao: Optional[WebhooksDAOInterface] = None
 _worker: Optional["WebhooksWorker"] = None
-_initialized = False
-
-
-def initialize_trigger(
-    dao: WebhooksDAOInterface,
-    worker: Optional["WebhooksWorker"] = None,
-) -> None:
-    """
-    Initialize the trigger utility with DAO and worker instances.
-
-    This should be called once at application startup (in entrypoint/composition root).
-
-    Args:
-        dao: WebhooksDAO instance
-        worker: WebhooksWorker instance (optional - for testing or if worker not available)
-    """
-    global _dao, _worker, _initialized
-    _dao = dao
-    _worker = worker
-    _initialized = True
-    log.info("Webhook trigger utility initialized")
 
 
 def _get_dao() -> WebhooksDAOInterface:
     """Get the WebhooksDAO instance."""
-    global _dao, _initialized
+    global _dao
 
-    if not _initialized or _dao is None:
-        # Fallback: Create DAO on-demand (for backwards compatibility)
-        log.warning("Webhook trigger not initialized, creating DAO on-demand")
+    if _dao is None:
         from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 
         _dao = WebhooksDAO()
-        _initialized = True
 
     return _dao
 
@@ -71,6 +48,17 @@ def _get_dao() -> WebhooksDAOInterface:
 def _get_worker() -> Optional["WebhooksWorker"]:
     """Get the WebhooksWorker instance."""
     global _worker
+
+    if _worker is None:
+        try:
+            # Lazy import to avoid circular dependency
+            from entrypoints.worker_webhooks import webhooks_worker
+
+            _worker = webhooks_worker
+        except ImportError:
+            log.warning("Could not import webhooks_worker from entrypoints")
+            return None
+
     return _worker
 
 
@@ -130,16 +118,24 @@ async def trigger_webhook(
             )
             return
 
+        import uuid_utils.compat as uuid
+
         # 2. Create deliveries and enqueue tasks
         for sub in subscriptions:
             try:
+                # Generate tracking ID for this delivery group
+                delivery_id = uuid.uuid7()
+
+                # Create initial pending record
                 delivery = await dao.create_delivery(
+                    delivery_id=delivery_id,
                     subscription_id=sub.id,
                     event_type=event_type,
                     payload=payload,
+                    url=sub.url,
                 )
 
-                await worker.deliver_webhook.kiq(delivery_id=delivery.id)
+                await worker.deliver_webhook.kiq(delivery_id=delivery_id)
                 log.info(
                     f"Enqueued webhook delivery {delivery.id} for subscription {sub.id}"
                 )

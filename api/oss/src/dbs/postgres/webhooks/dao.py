@@ -1,16 +1,14 @@
 """Data access object for webhooks."""
 
-from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, func
+import uuid_utils.compat as uuid
+from sqlalchemy import select, func, desc
 
 from oss.src.dbs.postgres.shared.engine import engine
-from oss.src.dbs.postgres.webhooks.dbes import (
-    WebhookSubscriptionDBE,
-    WebhookDeliveryDBE,
-)
+from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
+from oss.src.dbs.postgres.tracing.webhook_dbes import WebhookDeliveryDBE
 from oss.src.dbs.postgres.webhooks.mappings import (
     map_subscription_dto_to_dbe,
     map_subscription_dbe_to_dto,
@@ -33,6 +31,8 @@ class WebhooksDAO(WebhooksDAOInterface):
 
     def __init__(self):
         pass
+
+    # ---- Subscription operations (core database) ----
 
     async def create_subscription(
         self,
@@ -180,6 +180,8 @@ class WebhooksDAO(WebhooksDAOInterface):
         self, project_id: UUID, subscription_id: UUID
     ) -> Optional[WebhookSubscriptionResponseDTO]:
         async with engine.core_session() as session:
+            from datetime import datetime, timezone
+
             stmt = select(WebhookSubscriptionDBE).filter_by(
                 id=subscription_id, project_id=project_id, archived_at=None
             )
@@ -211,80 +213,140 @@ class WebhooksDAO(WebhooksDAOInterface):
                 for dbe in subscription_dbes
             ]
 
+    # ---- Delivery operations (tracing database, append-only) ----
+
     async def create_delivery(
         self,
+        delivery_id: UUID,
         subscription_id: UUID,
         event_type: str,
         payload: dict,
+        url: str,
     ) -> WebhookDeliveryResponseDTO:
+        """Create first delivery record (attempt_number=1, status=pending)."""
         delivery_dbe = WebhookDeliveryDBE(
+            delivery_id=delivery_id,
             subscription_id=subscription_id,
             event_type=event_type,
             payload=payload,
-            status="pending",
-            attempts=0,
+            attempt_number=1,
             max_attempts=WEBHOOK_MAX_RETRIES,
+            status="pending",
+            url=url,
         )
 
-        async with engine.core_session() as session:
+        async with engine.tracing_session() as session:
             session.add(delivery_dbe)
             await session.commit()
             await session.refresh(delivery_dbe)
 
         return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
 
-    async def get_delivery(
-        self, delivery_id: UUID
-    ) -> Optional[WebhookDeliveryResponseDTO]:
-        async with engine.core_session() as session:
-            stmt = select(WebhookDeliveryDBE).filter_by(id=delivery_id)
-            result = await session.execute(stmt)
-            delivery_dbe = result.scalar_one_or_none()
-
-            if not delivery_dbe:
-                return None
-
-            return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
-
-    async def update_delivery_status(
+    async def create_retry(
         self,
         delivery_id: UUID,
+        subscription_id: UUID,
+        event_type: str,
+        payload: dict,
+        url: str,
+        attempt_number: int,
         status: str,
-        response_status_code: Optional[int] = None,
+        status_code: Optional[int] = None,
         response_body: Optional[str] = None,
-        duration_ms: Optional[int] = None,
         error_message: Optional[str] = None,
-        next_retry_at: Optional[datetime] = None,
-    ) -> Optional[WebhookDeliveryResponseDTO]:
-        async with engine.core_session() as session:
-            stmt = select(WebhookDeliveryDBE).filter_by(id=delivery_id)
-            result = await session.execute(stmt)
-            delivery_dbe = result.scalar_one_or_none()
+        duration_ms: Optional[int] = None,
+    ) -> WebhookDeliveryResponseDTO:
+        """Create an immutable delivery attempt record. Never updates existing records."""
+        delivery_dbe = WebhookDeliveryDBE(
+            delivery_id=delivery_id,
+            subscription_id=subscription_id,
+            event_type=event_type,
+            payload=payload,
+            attempt_number=attempt_number,
+            max_attempts=WEBHOOK_MAX_RETRIES,
+            status=status,
+            status_code=status_code,
+            response_body=response_body,
+            error_message=error_message,
+            duration_ms=duration_ms,
+            url=url,
+        )
 
-            if not delivery_dbe:
-                return None
-
-            delivery_dbe.status = status
-            if response_status_code is not None:
-                delivery_dbe.response_status_code = response_status_code
-            if response_body is not None:
-                delivery_dbe.response_body = response_body
-            if duration_ms is not None:
-                delivery_dbe.duration_ms = duration_ms
-            if error_message is not None:
-                delivery_dbe.error_message = error_message
-            if next_retry_at is not None:
-                delivery_dbe.next_retry_at = next_retry_at
-
-            if status == "success":
-                delivery_dbe.delivered_at = datetime.now(timezone.utc)
-            elif status == "failed":
-                delivery_dbe.failed_at = datetime.now(timezone.utc)
-
-            if status in ["success", "failed", "retrying"]:
-                delivery_dbe.attempts += 1
-
+        async with engine.tracing_session() as session:
+            session.add(delivery_dbe)
             await session.commit()
             await session.refresh(delivery_dbe)
 
+        return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
+
+    async def get_latest_delivery(
+        self, delivery_id: UUID
+    ) -> Optional[WebhookDeliveryResponseDTO]:
+        """Get the most recent attempt for a delivery_id."""
+        async with engine.tracing_session() as session:
+            stmt = (
+                select(WebhookDeliveryDBE)
+                .filter_by(delivery_id=delivery_id)
+                .order_by(desc(WebhookDeliveryDBE.attempt_number))
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            delivery_dbe = result.scalar_one_or_none()
+
+            if not delivery_dbe:
+                return None
+
             return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
+
+    async def get_delivery_history(
+        self, delivery_id: UUID
+    ) -> List[WebhookDeliveryResponseDTO]:
+        """Get all attempts for a delivery_id, ordered by attempt_number."""
+        async with engine.tracing_session() as session:
+            stmt = (
+                select(WebhookDeliveryDBE)
+                .filter_by(delivery_id=delivery_id)
+                .order_by(WebhookDeliveryDBE.attempt_number)
+            )
+            result = await session.execute(stmt)
+            delivery_dbes = result.scalars().all()
+
+            return [map_delivery_dbe_to_dto(delivery_dbe=dbe) for dbe in delivery_dbes]
+
+    async def record_test_delivery(
+        self,
+        subscription_id: UUID,
+        event_type: str,
+        payload: dict,
+        url: str,
+        status: str,
+        status_code: Optional[int] = None,
+        response_body: Optional[str] = None,
+        error_message: Optional[str] = None,
+        duration_ms: Optional[int] = None,
+    ) -> WebhookDeliveryResponseDTO:
+        """Create a single delivery record for a test event (synchronous result)."""
+        # Generate a new delivery ID for this test
+        delivery_id = uuid.uuid4()
+
+        delivery_dbe = WebhookDeliveryDBE(
+            delivery_id=delivery_id,
+            subscription_id=subscription_id,
+            event_type=event_type,
+            payload=payload,
+            attempt_number=1,
+            max_attempts=1,  # Test is single attempt
+            status=status,
+            status_code=status_code,
+            response_body=response_body,
+            error_message=error_message,
+            duration_ms=duration_ms,
+            url=url,
+        )
+
+        async with engine.tracing_session() as session:
+            session.add(delivery_dbe)
+            await session.commit()
+            await session.refresh(delivery_dbe)
+
+        return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)

@@ -35,7 +35,12 @@ class WebhookSubscriptionDBA:
 
 
 class WebhookDeliveryDBA:
-    """Abstract base for webhook delivery."""
+    """Abstract base for webhook delivery (append-only).
+
+    Each HTTP delivery attempt creates one immutable record.
+    Records are NEVER updated after creation.
+    Retry attempts are grouped by delivery_id.
+    """
 
     __abstract__ = True
 
@@ -46,18 +51,17 @@ class WebhookDeliveryDBA:
         unique=True,
         nullable=False,
     )
+    delivery_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     event_type = Column(String(100), nullable=False)
     payload = Column(JSONB, nullable=False)
-    status = Column(String(20), default="pending", nullable=False)
-    attempts = Column(Integer, default=0, nullable=False)
+    attempt_number = Column(Integer, nullable=False, default=1)
     max_attempts = Column(Integer, nullable=False)
-    next_retry_at = Column(DateTime(timezone=True), nullable=True)
-    response_status_code = Column(Integer, nullable=True)
+    status = Column(String(20), nullable=False)
+    status_code = Column(Integer, nullable=True)
     response_body = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
     duration_ms = Column(Integer, nullable=True)
-    created_at = Column(
+    url = Column(String(2048), nullable=False)
+    delivered_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-    delivered_at = Column(DateTime(timezone=True), nullable=True)
-    failed_at = Column(DateTime(timezone=True), nullable=True)

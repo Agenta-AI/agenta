@@ -125,7 +125,12 @@ class WebhooksService:
                 )
 
     async def test_webhook(
-        self, url: str, event_type: str, project_id: UUID, user_id: UUID
+        self,
+        url: str,
+        event_type: str,
+        project_id: UUID,
+        user_id: UUID,
+        subscription_id: Optional[UUID] = None,
     ) -> dict:
         """
         Tests a webhook endpoint with valid signature.
@@ -141,6 +146,7 @@ class WebhooksService:
             event_type: Event type to test (e.g., "config.deployed")
             project_id: Actual project ID
             user_id: User triggering the test
+            subscription_id: Optional subscription ID to record delivery against
 
         Returns:
             Dict with success status, response details, and test secret for verification
@@ -186,6 +192,16 @@ class WebhooksService:
             "User-Agent": "Agenta-Webhook-Test/1.0",
         }
 
+        response_data = {
+            "success": False,
+            "status_code": None,
+            "response_body": None,
+            "duration_ms": 0,
+            "test_secret": test_secret,
+            "signature_format": "t=<timestamp>,v1=<hmac_sha256_hex>",
+            "signing_payload": f"{timestamp}.{payload_json[:100]}...",
+        }
+
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 start_time = datetime.now(timezone.utc)
@@ -194,22 +210,40 @@ class WebhooksService:
                     datetime.now(timezone.utc) - start_time
                 ).total_seconds() * 1000
 
-                return {
-                    "success": response.is_success,
-                    "status_code": response.status_code,
-                    "response_body": response.text[:1000],
-                    "duration_ms": int(duration),
-                    # Return test secret for signature verification
-                    "test_secret": test_secret,
-                    "signature_format": "t=<timestamp>,v1=<hmac_sha256_hex>",
-                    "signing_payload": f"{timestamp}.{payload_json[:100]}...",
-                }
+                response_data.update(
+                    {
+                        "success": response.is_success,
+                        "status_code": response.status_code,
+                        "response_body": response.text[:1000],
+                        "duration_ms": int(duration),
+                    }
+                )
+
         except Exception as e:
-            return {
-                "success": False,
-                "status_code": None,
-                "response_body": str(e),
-                "duration_ms": 0,
-                "test_secret": test_secret,
-                "signature_format": "t=<timestamp>,v1=<hmac_sha256_hex>",
-            }
+            response_data.update(
+                {
+                    "success": False,
+                    "response_body": str(e),
+                }
+            )
+
+        # Record delivery if subscription_id is provided
+        if subscription_id:
+            try:
+                await self.dao.record_test_delivery(
+                    subscription_id=subscription_id,
+                    event_type=event_type,
+                    payload=payload,
+                    url=url,
+                    status="success" if response_data["success"] else "failed",
+                    status_code=response_data["status_code"],
+                    response_body=response_data["response_body"],
+                    error_message=response_data["response_body"]
+                    if not response_data["success"]
+                    else None,
+                    duration_ms=response_data["duration_ms"],
+                )
+            except Exception as e:
+                log.error(f"Failed to record test delivery: {e}")
+
+        return response_data

@@ -894,7 +894,7 @@ async def configs_deploy(
             )
             if revision:
                 await trigger_webhook(
-                    workspace_id=UUID(request.state.workspace_id),
+                    project_id=UUID(request.state.project_id),
                     event_type=WebhookEventType.CONFIG_DEPLOYED,
                     payload={
                         "variant_id": str(revision.variant_id),

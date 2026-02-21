@@ -2,10 +2,8 @@
 
 from uuid import UUID
 
-from oss.src.dbs.postgres.webhooks.dbes import (
-    WebhookSubscriptionDBE,
-    WebhookDeliveryDBE,
-)
+from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
+from oss.src.dbs.postgres.tracing.webhook_dbes import WebhookDeliveryDBE
 from oss.src.core.webhooks.dtos import (
     CreateWebhookSubscriptionDTO,
     UpdateWebhookSubscriptionDTO,
@@ -73,25 +71,24 @@ def map_subscription_dto_to_dbe_update(
             setattr(subscription_dbe, key, value)
 
 
-# Delivery mappings
+# Delivery mappings (append-only)
 def map_delivery_dbe_to_dto(
     *, delivery_dbe: WebhookDeliveryDBE
 ) -> WebhookDeliveryResponseDTO:
     """Map WebhookDeliveryDBE to response DTO."""
     return WebhookDeliveryResponseDTO(
         id=delivery_dbe.id,
+        delivery_id=delivery_dbe.delivery_id,
         subscription_id=delivery_dbe.subscription_id,
         event_type=delivery_dbe.event_type,
         payload=delivery_dbe.payload,
-        status=delivery_dbe.status,
-        attempts=delivery_dbe.attempts,
+        attempt_number=delivery_dbe.attempt_number,
         max_attempts=delivery_dbe.max_attempts,
-        next_retry_at=delivery_dbe.next_retry_at,
-        response_status_code=delivery_dbe.response_status_code,
+        status=delivery_dbe.status,
+        status_code=delivery_dbe.status_code,
         response_body=delivery_dbe.response_body,
         error_message=delivery_dbe.error_message,
         duration_ms=delivery_dbe.duration_ms,
-        created_at=delivery_dbe.created_at,
+        url=delivery_dbe.url,
         delivered_at=delivery_dbe.delivered_at,
-        failed_at=delivery_dbe.failed_at,
     )

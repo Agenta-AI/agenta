@@ -39,31 +39,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("id"),
     )
-    op.create_table(
-        "webhook_deliveries",
-        sa.Column("subscription_id", sa.UUID(), nullable=False),
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("event_type", sa.String(length=100), nullable=False),
-        sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("status", sa.String(length=20), nullable=False),
-        sa.Column("attempts", sa.Integer(), nullable=False),
-        sa.Column("max_attempts", sa.Integer(), nullable=False),
-        sa.Column("next_retry_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("response_status_code", sa.Integer(), nullable=True),
-        sa.Column("response_body", sa.Text(), nullable=True),
-        sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("duration_ms", sa.Integer(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("delivered_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("failed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["subscription_id"], ["webhook_subscriptions.id"], ondelete="CASCADE"
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("id"),
-    )
 
 
 def downgrade() -> None:
-    op.drop_table("webhook_deliveries")
     op.drop_table("webhook_subscriptions")

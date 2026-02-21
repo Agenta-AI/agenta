@@ -46,23 +46,22 @@ class WebhookSubscriptionResponseDTO(BaseModel):
 
 
 class WebhookDeliveryResponseDTO(BaseModel):
-    """DTO for webhook delivery responses."""
+    """DTO for webhook delivery responses (append-only)."""
 
     id: UUID
+    delivery_id: UUID
     subscription_id: UUID
     event_type: str
     payload: dict
-    status: str
-    attempts: int
+    attempt_number: int
     max_attempts: int
-    next_retry_at: Optional[datetime]
-    response_status_code: Optional[int]
+    status: str
+    status_code: Optional[int]
     response_body: Optional[str]
     error_message: Optional[str]
     duration_ms: Optional[int]
-    created_at: datetime
-    delivered_at: Optional[datetime]
-    failed_at: Optional[datetime]
+    url: str
+    delivered_at: datetime
 
 
 class WebhookSubscriptionQueryDTO(BaseModel):

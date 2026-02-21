@@ -312,5 +312,6 @@ class WebhooksRouter:
             event_type=body.event_type,
             project_id=UUID(request.state.project_id),
             user_id=request.state.user_id,
+            subscription_id=body.subscription_id,
         )
         return response

@@ -72,6 +72,7 @@ class TestWebhookRequest(BaseModel):
 
     url: HttpUrl
     event_type: str = "config.deployed"
+    subscription_id: Optional[UUID] = None
 
 
 class TestWebhookResponse(BaseModel):

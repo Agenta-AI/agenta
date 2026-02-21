@@ -1,6 +1,5 @@
 """Interfaces for webhooks data access."""
 
-from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
@@ -70,25 +69,50 @@ class WebhooksDAOInterface:
     # Delivery operations
     async def create_delivery(
         self,
+        delivery_id: UUID,
         subscription_id: UUID,
         event_type: str,
         payload: dict,
+        url: str,
     ) -> WebhookDeliveryResponseDTO:
         raise NotImplementedError
 
-    async def get_delivery(
+    async def create_retry(
+        self,
+        delivery_id: UUID,
+        subscription_id: UUID,
+        event_type: str,
+        payload: dict,
+        url: str,
+        attempt_number: int,
+        status: str,
+        status_code: Optional[int] = None,
+        response_body: Optional[str] = None,
+        error_message: Optional[str] = None,
+        duration_ms: Optional[int] = None,
+    ) -> WebhookDeliveryResponseDTO:
+        raise NotImplementedError
+
+    async def get_latest_delivery(
         self, delivery_id: UUID
     ) -> Optional[WebhookDeliveryResponseDTO]:
         raise NotImplementedError
 
-    async def update_delivery_status(
+    async def get_delivery_history(
+        self, delivery_id: UUID
+    ) -> List[WebhookDeliveryResponseDTO]:
+        raise NotImplementedError
+
+    async def record_test_delivery(
         self,
-        delivery_id: UUID,
+        subscription_id: UUID,
+        event_type: str,
+        payload: dict,
+        url: str,
         status: str,
-        response_status_code: Optional[int] = None,
+        status_code: Optional[int] = None,
         response_body: Optional[str] = None,
-        duration_ms: Optional[int] = None,
         error_message: Optional[str] = None,
-        next_retry_at: Optional[datetime] = None,
-    ) -> Optional[WebhookDeliveryResponseDTO]:
+        duration_ms: Optional[int] = None,
+    ) -> WebhookDeliveryResponseDTO:
         raise NotImplementedError
