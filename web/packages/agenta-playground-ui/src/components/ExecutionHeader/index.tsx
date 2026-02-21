@@ -93,7 +93,13 @@ const ExecutionHeader = ({
                 {showCollapseToggle ? (
                     <div className="flex items-center">
                         <CollapsibleGroupHeader
-                            label="Generations"
+                            label={
+                                isChatMode
+                                    ? "Chat"
+                                    : isComparisonView
+                                      ? "Generations"
+                                      : "Generations"
+                            }
                             isCollapsed={isAllCollapsed}
                             onClick={() => setIsAllCollapsed(!isAllCollapsed)}
                             iconSize={16}
@@ -109,7 +115,7 @@ const ExecutionHeader = ({
                                 : "text-[16px] leading-[18px] font-[600]",
                         )}
                     >
-                        Generations
+                        {isChatMode ? "Chat" : isComparisonView ? "Generations" : "Generations"}
                     </Typography>
                 )}
             </div>
