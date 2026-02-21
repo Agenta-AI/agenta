@@ -137,7 +137,7 @@ const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeP
                         )}
                     </div>
                 </HeightCollapse>
-                <div className="flex flex-col gap-2 px-4 pb-4">
+                <div className="flex flex-col gap-2 px-4 pt-2 pb-4">
                     {turnIds.map((turnId) => (
                         <ChatTurnView
                             key={turnId}

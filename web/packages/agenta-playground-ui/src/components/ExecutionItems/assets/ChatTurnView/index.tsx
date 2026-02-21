@@ -33,21 +33,26 @@ import TypingIndicator from "../TypingIndicator"
 
 const EvaluatorResultPopover = ({
     rowId,
+    rootEntityId,
     node,
     nodeName,
 }: {
     rowId: string
+    rootEntityId: string
     node: PlaygroundNode
     nodeName: string
 }) => {
+    // Session key is scoped per-variant: sess:rootEntityId:nodeEntityId
+    // (matches the key used by webWorkerIntegration.ts when storing results)
+    const scopedEntityId = `${rootEntityId}:${node.entityId}`
     const fullResult = useAtomValue(
         useMemo(
             () =>
                 executionItemController.selectors.fullResult({
                     rowId,
-                    entityId: node.entityId,
+                    entityId: scopedEntityId,
                 }),
-            [rowId, node.entityId],
+            [rowId, scopedEntityId],
         ),
     ) as {status?: string; output?: unknown; error?: {message: string} | null} | null
 
@@ -320,6 +325,7 @@ const ChatTurnView = ({
                                             <EvaluatorResultPopover
                                                 key={node.entityId}
                                                 rowId={turnId}
+                                                rootEntityId={entityId as string}
                                                 node={node}
                                                 nodeName={label}
                                             />

@@ -189,19 +189,24 @@ const DownstreamNodeCard = ({
     rowId,
     node,
     nodeName,
+    rootEntityId,
 }: {
     rowId: string
     node: PlaygroundNode
     nodeName: string
+    /** Parent variant's entity ID — scopes the result lookup per-variant */
+    rootEntityId: string
 }) => {
+    // Session key is scoped per-variant: sess:rootEntityId:nodeEntityId
+    const scopedEntityId = `${rootEntityId}:${node.entityId}`
     const fullResult = useAtomValue(
         useMemo(
             () =>
                 executionItemController.selectors.fullResult({
                     rowId,
-                    entityId: node.entityId,
+                    entityId: scopedEntityId,
                 }),
-            [rowId, node.entityId],
+            [rowId, scopedEntityId],
         ),
     ) as {status?: string; output?: unknown; error?: {message: string} | null} | null
 
@@ -465,22 +470,7 @@ const SingleView = ({
         result,
     })
 
-    // Output ports + feedback config for schema-aware result rendering (evaluator score/reasoning grid)
-    const primaryNode = useMemo(
-        () => nodes?.find((n) => n.entityId === entityId),
-        [nodes, entityId],
-    )
-    const primaryOutputPorts = useAtomValue(
-        useMemo(
-            () =>
-                primaryNode
-                    ? runnableBridge
-                          .forType(primaryNode.entityType)
-                          .outputPorts(primaryNode.entityId)
-                    : atom([]),
-            [primaryNode],
-        ),
-    )
+    // Feedback config for schema-aware result rendering
     const primaryData = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
     const feedbackConfig =
         (primaryData?.configuration?.feedback_config as Record<string, unknown>) ?? null
@@ -679,55 +669,52 @@ const SingleView = ({
                                             "hover:[&_.collapse-icon]:opacity-100",
                                         ])}
                                     >
-                                        <div className="relative w-full">
-                                            <VariableControlAdapter
-                                                entityId={entityId}
-                                                variableKey={id}
-                                                key={id}
-                                                rowId={rowId}
-                                                appType={appType}
-                                                collapsed={isVariableInputCollapsed}
-                                                containerRef={getVariableRef(id)}
-                                                className="*:!border-none w-full overflow-hidden"
-                                                onMarkdownToggleReady={(toggle) => {
-                                                    setMarkdownToggles((prev) => ({
-                                                        ...(prev[id] === (toggle ?? undefined)
-                                                            ? prev
-                                                            : {
-                                                                  ...prev,
-                                                                  [id]: toggle ?? undefined,
-                                                              }),
-                                                    }))
-                                                }}
-                                                headerActions={
-                                                    <>
-                                                        <EnhancedButton
-                                                            size="small"
-                                                            type="text"
-                                                            icon={<MarkdownLogoIcon size={14} />}
-                                                            onClick={() => markdownToggles[id]?.()}
-                                                            disabled={!markdownToggles[id]}
-                                                            tooltipProps={{
-                                                                title: "Preview markdown",
-                                                            }}
-                                                        />
-                                                        <CopyVariableButton
-                                                            rowId={rowId}
-                                                            variableKey={id}
-                                                        />
-                                                        <CollapseToggleButton
-                                                            className="collapse-icon"
-                                                            collapsed={isVariableInputCollapsed}
-                                                            onToggle={() =>
-                                                                toggleVariableInputCollapse(id)
-                                                            }
-                                                            contentRef={getVariableRef(id)}
-                                                        />
-                                                    </>
-                                                }
-                                                editorProps={{enableTokens: false}}
-                                            />
-                                        </div>
+                                        <VariableControlAdapter
+                                            entityId={entityId}
+                                            variableKey={id}
+                                            rowId={rowId}
+                                            appType={appType}
+                                            collapsed={isVariableInputCollapsed}
+                                            containerRef={getVariableRef(id)}
+                                            className="*:!border-none w-full overflow-hidden"
+                                            onMarkdownToggleReady={(toggle) => {
+                                                setMarkdownToggles((prev) => ({
+                                                    ...(prev[id] === (toggle ?? undefined)
+                                                        ? prev
+                                                        : {
+                                                              ...prev,
+                                                              [id]: toggle ?? undefined,
+                                                          }),
+                                                }))
+                                            }}
+                                            headerActions={
+                                                <>
+                                                    <EnhancedButton
+                                                        size="small"
+                                                        type="text"
+                                                        icon={<MarkdownLogoIcon size={14} />}
+                                                        onClick={() => markdownToggles[id]?.()}
+                                                        disabled={!markdownToggles[id]}
+                                                        tooltipProps={{
+                                                            title: "Preview markdown",
+                                                        }}
+                                                    />
+                                                    <CopyVariableButton
+                                                        rowId={rowId}
+                                                        variableKey={id}
+                                                    />
+                                                    <CollapseToggleButton
+                                                        className="collapse-icon"
+                                                        collapsed={isVariableInputCollapsed}
+                                                        onToggle={() =>
+                                                            toggleVariableInputCollapse(id)
+                                                        }
+                                                        contentRef={getVariableRef(id)}
+                                                    />
+                                                </>
+                                            }
+                                            editorProps={{enableTokens: false}}
+                                        />
                                     </div>
                                 )
                             })}
@@ -758,13 +745,13 @@ const SingleView = ({
                                     traceId={traceId}
                                     repetitionProps={repetitionProps}
                                     showEmptyPlaceholder={!showHeaderRunHint}
-                                    outputPorts={primaryOutputPorts}
                                     feedbackConfig={feedbackConfig}
                                 />
                             </div>
                         </NodeResultCard>
-                        {/* Downstream nodes: each in its own bordered card */}
+                        {/* Downstream nodes: only render when primary has been run */}
                         {(() => {
+                            if (!currentResult && !isBusy) return null
                             const downstreamNodes = nodes?.filter(
                                 (n) => n.depth > 0 && n.entityId !== entityId,
                             )
@@ -783,6 +770,7 @@ const SingleView = ({
                                         rowId={rowId}
                                         node={node}
                                         nodeName={label}
+                                        rootEntityId={entityId}
                                     />
                                 )
                             })
@@ -814,7 +802,7 @@ const SingleView = ({
                                 <StepCollapsedSummary
                                     key={node.entityId}
                                     rowId={rowId}
-                                    entityId={node.entityId}
+                                    entityId={`${entityId}:${node.entityId}`}
                                     stepName={label}
                                     icon={<ExamIcon size={12} />}
                                 />
