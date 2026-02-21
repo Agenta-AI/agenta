@@ -473,7 +473,11 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
             return null
         }
 
-        const variableSourceDataForExecution = inputValues ?? variableSourceRowData
+        // Use inputValues when provided with actual data (chain downstream nodes).
+        // An empty inputValues ({}) from the runner means "no override from upstream"
+        // — fall through to the loadable row data which has the user-entered values.
+        const hasInputValues = inputValues != null && Object.keys(inputValues).length > 0
+        const variableSourceDataForExecution = hasInputValues ? inputValues : variableSourceRowData
 
         const variableValues = resolveVariableValues({
             allowedVariableKeys: variables,

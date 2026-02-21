@@ -147,9 +147,14 @@ export const triggerExecutionAtom = atom(
         const nodes = get(playgroundNodesAtom)
         const connections = get(outputConnectionsAtom)
 
-        const rootNode = nodes.find((n) => n.depth === 0)
-        if (!rootNode) return
-        const rootEntityId = rootNode.entityId
+        // In comparison mode there are multiple depth-0 nodes (one per variant).
+        // Find the structural root (first depth-0) for chain topology, and the
+        // effective root that matches the entity being executed for payload scoping.
+        const structuralRootNode = nodes.find((n) => n.depth === 0)
+        if (!structuralRootNode) return
+        const effectiveRootNode =
+            nodes.find((n) => n.depth === 0 && n.entityId === effectiveId) || structuralRootNode
+        const rootEntityId = effectiveRootNode.entityId
         if (!rootEntityId) return
 
         // Skip downstream entities ONLY when no targetNodeId is provided.
@@ -200,10 +205,11 @@ export const triggerExecutionAtom = atom(
         // - Targeted downstream: mark ONLY the target (don't reset root's result)
         if (isTargetingDownstream) {
             // Only mark the downstream target — preserve root's existing result
+            // Session ID is scoped per-variant (rootEntityId:nodeEntityId).
             set(startRunAtom, {
                 loadableId,
                 stepId: rowId,
-                sessionId: `sess:${targetNode.entityId}`,
+                sessionId: `sess:${rootEntityId}:${targetNode.entityId}`,
                 runId,
             })
         } else {
@@ -212,13 +218,14 @@ export const triggerExecutionAtom = atom(
 
             if (!params.targetNodeId) {
                 // Full chain: mark all downstream nodes too
+                // Session ID is scoped per-variant so comparison mode doesn't collide.
                 for (const n of nodes) {
                     if (n.depth === 0) continue
                     if (connections.some((c) => c.targetNodeId === n.id)) {
                         set(startRunAtom, {
                             loadableId,
                             stepId: rowId,
-                            sessionId: `sess:${n.entityId}`,
+                            sessionId: `sess:${rootEntityId}:${n.entityId}`,
                             runId,
                         })
                     }
@@ -232,6 +239,24 @@ export const triggerExecutionAtom = atom(
         } | null
         const testcaseData: Record<string, unknown> = rowEntry?.data ?? {}
 
+        // In comparison mode, filter nodes to only include the effective variant's
+        // root + downstream nodes. Other depth-0 comparison variants are excluded
+        // so the runner sees a single-root topology.
+        const effectiveNodeId = effectiveRootNode.id
+        const executionNodes = nodes.filter((n) => n.id === effectiveNodeId || n.depth > 0)
+
+        // Remap connections: evaluators connect to the structural root node,
+        // but for this execution they should connect to the effective root.
+        const structuralNodeId = structuralRootNode.id
+        const executionConnections =
+            effectiveNodeId !== structuralNodeId
+                ? connections.map((c) =>
+                      c.sourceNodeId === structuralNodeId
+                          ? {...c, sourceNodeId: effectiveNodeId}
+                          : c,
+                  )
+                : connections
+
         await executeStepForSessionWithExecutionItems({
             get,
             set,
@@ -240,12 +265,12 @@ export const triggerExecutionAtom = atom(
             session: {
                 id: sessionId,
                 runnableId: rootEntityId,
-                runnableType: (rootNode.entityType || "legacyAppRevision") as RunnableType,
+                runnableType: (effectiveRootNode.entityType || "legacyAppRevision") as RunnableType,
                 mode,
             },
             data: testcaseData,
-            nodes,
-            allConnections: connections,
+            nodes: executionNodes,
+            allConnections: executionConnections,
             sessionOptions: {[sessionId]: {headers}},
             targetNodeId: params.targetNodeId,
             lifecycle: {
@@ -263,11 +288,13 @@ export const triggerExecutionAtom = atom(
 
                     // Publish completed stage outputs incrementally so already-finished
                     // chain steps render while downstream steps are still running.
+                    // Session ID is scoped per-variant (rootEntityId:nodeEntityId)
+                    // so comparison mode results don't overwrite each other.
                     if (chainResults) {
                         for (const [nodeId, stageResult] of Object.entries(chainResults)) {
                             const node = nodeById.get(nodeId)
                             if (!node) continue
-                            const stageSessionId = `sess:${node.entityId}`
+                            const stageSessionId = `sess:${rootEntityId}:${node.entityId}`
                             if (stageResult.status === "error") {
                                 set(failRunAtom, {
                                     loadableId,
@@ -348,11 +375,13 @@ export const triggerExecutionAtom = atom(
 
                     // Store separate result entries for each downstream node
                     // so the UI can look them up by their own entityId.
+                    // Session ID is scoped per-variant (rootEntityId:nodeEntityId)
+                    // so comparison mode results don't overwrite each other.
                     if (result.chainResults) {
                         for (const [nodeId, stageResult] of Object.entries(result.chainResults)) {
                             const node = nodes.find((n) => n.id === nodeId)
                             if (!node || node.depth === 0) continue
-                            const stageSessionId = `sess:${node.entityId}`
+                            const stageSessionId = `sess:${rootEntityId}:${node.entityId}`
                             if (stageResult.status === "error") {
                                 set(failRunAtom, {
                                     loadableId,
@@ -382,7 +411,7 @@ export const triggerExecutionAtom = atom(
                 onFail: ({error: err}) => {
                     // For targeted downstream runs, fail the target session, not root
                     const failSessionId = isTargetingDownstream
-                        ? `sess:${targetNode.entityId}`
+                        ? `sess:${rootEntityId}:${targetNode.entityId}`
                         : sessionId
                     console.error("[triggerExecution] onFail:", {
                         error: err,
@@ -399,7 +428,7 @@ export const triggerExecutionAtom = atom(
                 },
                 onCancel: () => {
                     const cancelSessionId = isTargetingDownstream
-                        ? `sess:${targetNode.entityId}`
+                        ? `sess:${rootEntityId}:${targetNode.entityId}`
                         : sessionId
                     set(cancelRunAtom, {loadableId, stepId: rowId, sessionId: cancelSessionId})
                 },

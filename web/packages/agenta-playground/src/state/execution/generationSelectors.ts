@@ -391,7 +391,12 @@ export const chainExecutionStatusAtomFamily = atomFamily(
                 : undefined
 
             for (const entityId of entityIds) {
-                const result = get(fullResultByRowEntityAtomFamily({rowId, entityId})) as {
+                // Downstream entities use scoped session keys: rootEntityId:nodeEntityId
+                const lookupId =
+                    entityId === rootEntityId ? entityId : `${rootEntityId}:${entityId}`
+                const result = get(
+                    fullResultByRowEntityAtomFamily({rowId, entityId: lookupId}),
+                ) as {
                     status?: string
                 } | null
                 const rawStatus = result?.status
