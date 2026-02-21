@@ -25,7 +25,6 @@ import {Atom, atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
 import {evaluatorMolecule} from "../evaluator"
-import {parseEvaluatorKeyFromUri} from "../evaluator/core/schema"
 import {
     invocationUrlAtomFamily as evaluatorInvocationUrlAtomFamily,
     requestPayloadAtomFamily as evaluatorRequestPayloadAtomFamily,
@@ -601,8 +600,8 @@ function getEvaluatorRevisionOutputPorts(entity: unknown): RunnablePort[] {
 
 /**
  * Invocation URL selector for evaluator revisions.
- * Reads from the evaluatorRevision molecule's merged entity data
- * (which includes inspect-resolved schemas).
+ * All evaluators (built-in and custom) use the unified
+ * `/preview/workflows/invoke` endpoint.
  */
 function evaluatorRevisionInvocationUrlSelector(revisionId: string) {
     return atom<string | null>((get) => {
@@ -614,11 +613,9 @@ function evaluatorRevisionInvocationUrlSelector(revisionId: string) {
         // Custom evaluators with webhook URL
         if (entity.data.url) return entity.data.url
 
-        // Built-in evaluators: build an absolute URL using the API base
-        // to avoid mismatches between proxy paths and direct backend paths.
+        // All URI-based evaluators use the unified workflow invoke endpoint
         if (entity.data.uri) {
-            const key = parseEvaluatorKeyFromUri(entity.data.uri)
-            if (key) return `${getAgentaApiUrl()}/evaluators/${key}/run`
+            return `${getAgentaApiUrl()}/preview/workflows/invoke`
         }
 
         return null
@@ -627,7 +624,8 @@ function evaluatorRevisionInvocationUrlSelector(revisionId: string) {
 
 /**
  * Request payload selector for evaluator revisions.
- * Builds `{inputs, settings}` body for the legacy evaluator run endpoint.
+ * Builds `{interface, configuration, data}` body for the unified
+ * `/preview/workflows/invoke` endpoint.
  */
 function evaluatorRevisionRequestPayloadSelector(revisionId: string) {
     return atom<Record<string, unknown> | null>((get) => {
@@ -637,17 +635,21 @@ function evaluatorRevisionRequestPayloadSelector(revisionId: string) {
         if (!entity?.data) return null
 
         const uri = entity.data.uri
-        if (!uri) return null
+        const url = entity.data.url
+        if (!uri && !url) return null
 
-        // Build an absolute invocation URL using the API base.
-        const key = parseEvaluatorKeyFromUri(uri)
-        const invocationUrl = key ? `${getAgentaApiUrl()}/evaluators/${key}/run` : undefined
+        const parameters = entity.data.parameters ?? {}
 
         return {
             __rawBody: true,
-            invocationUrl,
-            inputs: {},
-            settings: entity.data.parameters ?? {},
+            interface: uri ? {uri} : {url},
+            configuration:
+                parameters && Object.keys(parameters).length > 0 ? {parameters} : undefined,
+            data: {
+                inputs: {},
+                outputs: {},
+                parameters,
+            },
         }
     })
 }
@@ -1069,10 +1071,21 @@ export const runnableBridge = createRunnableBridge({
                 return params
             },
             normalizeResponse: (responseData: unknown) => {
-                // Workflow invoke returns { data: { outputs: {...} }, status: {...}, ... }
+                // Workflow invoke returns either:
+                // - v3 format: { version: "3.0", data: "plain text", tree: {...} }
+                // - legacy: { data: { outputs: {...} }, status: {...} }
                 const data = responseData as Record<string, unknown> | null | undefined
-                const nestedData = data?.data as Record<string, unknown> | undefined
-                const output = nestedData?.outputs ?? data?.outputs ?? data
+                const nestedData = data?.data
+                // v3: data.data is a string (the plain output text)
+                if (typeof nestedData === "string") {
+                    return {
+                        output: nestedData,
+                        trace: data?.tree_id ? {id: data.tree_id as string} : undefined,
+                    }
+                }
+                // Legacy: data.data is an object with .outputs
+                const nestedObj = nestedData as Record<string, unknown> | undefined
+                const output = nestedObj?.outputs ?? data?.outputs ?? data
                 return {output}
             },
             latestRevisionIdSelector: (parentId: string) =>
