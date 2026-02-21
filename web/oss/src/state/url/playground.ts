@@ -291,7 +291,6 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
             const store = getDefaultStore()
             const nodes = store.get(playgroundController.selectors.nodes())
             const snapshotSelection = buildSnapshotSelectionInputs(sanitized, nodes)
-            console.log("[writePlaygroundSelection] snapshotSelection:", snapshotSelection)
 
             // Build the new URL with query params and hash
             const url = new URL(window.location.href)
@@ -301,7 +300,6 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
                 urlSnapshotController.actions.buildUrlComponents,
                 snapshotSelection,
             )
-            console.log("[writePlaygroundSelection] urlComponents:", urlComponents)
 
             if (!urlComponents.ok) {
                 console.warn("Failed to build URL components:", urlComponents.error)
@@ -481,7 +479,6 @@ export const ensurePlaygroundDefaults = (store: Store): boolean => {
         !appState.pathname?.includes("/playground") ||
         appState.pathname?.includes("/playground-test")
     ) {
-        console.log("[ensureDefaults] not on playground page, pathname:", appState.pathname)
         return false
     }
 
@@ -490,7 +487,6 @@ export const ensurePlaygroundDefaults = (store: Store): boolean => {
 
     // If there are valid selected revisions, don't override
     if (selected.length > 0) {
-        console.log("[ensureDefaults] already has selection:", selected)
         return true
     }
 
@@ -498,19 +494,16 @@ export const ensurePlaygroundDefaults = (store: Store): boolean => {
     const appId = typeof rawAppId === "string" ? rawAppId : null
 
     if (!appId) {
-        console.log("[ensureDefaults] no appId available")
         return false
     }
 
     const revisions = store.get(workflowRevisionsByWorkflowListDataAtomFamily(appId))
     const latest = revisions[0]
     if (latest) {
-        console.log("[ensureDefaults] applying default:", [latest.id])
         applyPlaygroundSelection(store, [latest.id])
         return true
     }
 
-    console.log("[ensureDefaults] no workflow revisions found for:", appId)
     return false
 }
 
@@ -620,9 +613,6 @@ const selectedDraftHashAtom = atom((get) => {
         const isDirty = get(runnableBridge.isDirty(revisionId))
         const draft = get(runnableBridge.draft(revisionId))
         const draftHash = draft ? JSON.stringify(draft) : ""
-        if (process.env.NODE_ENV !== "production") {
-            console.log("[selectedDraftHashAtom]", {revisionId, isDirty, hasDraft: !!draft})
-        }
         return `${revisionId}:${isDirty}:${draftHash}`
     })
 
@@ -683,7 +673,9 @@ playgroundSyncAtom.onMount = (set) => {
             if (sourceIdSubs.has(sourceId)) continue
 
             const queryAtom = runnableBridge.query(sourceId)
-            const unsub = store.sub(queryAtom, () => {
+            const dataAtom = runnableBridge.data(sourceId)
+
+            const tryApplyHydrations = () => {
                 const query = store.get(queryAtom)
                 if (!query.isPending && query.data) {
                     // Apply all pending hydrations for this source via the
@@ -692,8 +684,19 @@ playgroundSyncAtom.onMount = (set) => {
                     // cloned from clean server data.
                     applyPendingHydrationsForRevision(sourceId)
                 }
+            }
+
+            // Subscribe to both the base query AND the merged entity data.
+            // The query sub fires when server data loads; the data sub fires
+            // when secondary schema resolution completes (e.g. OpenAPI fetch
+            // for app workflows). This ensures local draft cloning retries
+            // once schemas are available.
+            const unsubQuery = store.sub(queryAtom, tryApplyHydrations)
+            const unsubData = store.sub(dataAtom, tryApplyHydrations)
+            sourceIdSubs.set(sourceId, () => {
+                unsubQuery()
+                unsubData()
             })
-            sourceIdSubs.set(sourceId, unsub)
         }
     }
 
@@ -710,27 +713,10 @@ playgroundSyncAtom.onMount = (set) => {
     // Also do an immediate check for any pending hydrations whose source data is already loaded
     {
         const pending = store.get(pendingHydrationsAtom)
-        // if (process.env.NODE_ENV !== "production" && pending.size > 0) {
-        //     const entries = Array.from(pending.entries()).map(([key, h]) => ({
-        //         key,
-        //         sourceRevisionId: h.sourceRevisionId,
-        //         createLocalDraft: h.createLocalDraft,
-        //         hasPatch: !!h.patch,
-        //     }))
-        //     // console.debug("[hydration-sync] pending hydrations at mount", entries)
-        // }
         // Collect unique source IDs that are ready, then apply via the ordered helper
         const readySourceIds = new Set<string>()
-        for (const hydration of pending.values()) {
+        for (const [, hydration] of pending.entries()) {
             const query = store.get(runnableBridge.query(hydration.sourceRevisionId))
-            // if (process.env.NODE_ENV !== "production") {
-            //     console.debug("[hydration-sync] query state for", key, {
-            //         sourceRevisionId: hydration.sourceRevisionId,
-            //         isPending: query.isPending,
-            //         hasData: !!query.data,
-            //         isError: query.isError,
-            //     })
-            // }
             if (!query.isPending && query.data) {
                 readySourceIds.add(hydration.sourceRevisionId)
             }
@@ -749,14 +735,6 @@ playgroundSyncAtom.onMount = (set) => {
     const tryApplyDefaults = () => {
         const isReady = store.get(playgroundController.selectors.revisionsReady())
         const selected = store.get(playgroundController.selectors.entityIds())
-        console.log(
-            "[tryApplyDefaults] hasAppliedDefaults:",
-            hasAppliedDefaults,
-            "isReady:",
-            isReady,
-            "selected:",
-            selected,
-        )
         if (hasAppliedDefaults) return
         if (!isReady) return
 
@@ -768,17 +746,12 @@ playgroundSyncAtom.onMount = (set) => {
         if (selected.length > 0) {
             hasAppliedDefaults = true
             store.set(playgroundInitializedAtom, true)
-            console.log("[tryApplyDefaults] already has selection, marking applied")
             return
         }
-        console.log("[tryApplyDefaults] no selection, calling ensurePlaygroundDefaults")
         const applied = ensurePlaygroundDefaults(store)
         if (applied) {
             hasAppliedDefaults = true
             store.set(playgroundInitializedAtom, true)
-            console.log("[tryApplyDefaults] defaults applied successfully")
-        } else {
-            console.log("[tryApplyDefaults] defaults not yet available, will retry")
         }
     }
     // Re-bind when the app changes so defaults apply to the new app
@@ -816,20 +789,14 @@ playgroundSyncAtom.onMount = (set) => {
         } else {
             currentRevReadyUnsub = store.sub(
                 playgroundController.selectors.revisionsReady(),
-                () => {
-                    console.log("[SUB2] revisionsReady changed")
-                    tryApplyDefaults()
-                },
+                tryApplyDefaults,
             )
             // Subscribe to entity data so we retry when it finishes loading.
             // Only needed when no URL selection exists and we must find a default.
             if (currentAppId) {
                 currentLatestRevUnsub = store.sub(
                     workflowRevisionsByWorkflowListDataAtomFamily(currentAppId),
-                    () => {
-                        console.log("[SUB2] workflow revisions changed")
-                        tryApplyDefaults()
-                    },
+                    tryApplyDefaults,
                 )
             }
             // Immediate check in case already ready
@@ -837,10 +804,7 @@ playgroundSyncAtom.onMount = (set) => {
         }
     }
     bindRevisionsReady()
-    const unsubAppChange = store.sub(routerAppIdAtom, () => {
-        console.log("[SUB2] routerAppIdAtom changed:", store.get(routerAppIdAtom))
-        bindRevisionsReady()
-    })
+    const unsubAppChange = store.sub(routerAppIdAtom, bindRevisionsReady)
     unsubs.push(unsubAppChange)
     unsubs.push(() => currentRevReadyUnsub?.())
     unsubs.push(() => currentLatestRevUnsub?.())
@@ -849,10 +813,8 @@ playgroundSyncAtom.onMount = (set) => {
     // SUB 3: Update URL when draft content changes
     // -----------------------------------------------------------------------
     let prevDraftHash = store.get(selectedDraftHashAtom)
-    console.log("[SUB3] initial draft hash:", prevDraftHash)
     const unsubDraftHash = store.sub(selectedDraftHashAtom, () => {
         const hash = store.get(selectedDraftHashAtom)
-        console.log("[SUB3] draft hash changed:", {prev: prevDraftHash, next: hash})
         if (hash !== prevDraftHash) {
             prevDraftHash = hash
             updatePlaygroundUrlWithDrafts()
@@ -874,15 +836,6 @@ playgroundSyncAtom.onMount = (set) => {
         // Don't filter until all revision queries have completed.
         const isReady = store.get(playgroundController.selectors.revisionsReady())
         if (!isReady) return
-
-        if (process.env.NODE_ENV !== "production" && !arraysEqual(displayed, selected)) {
-            const removed = selected.filter((id) => !displayed.includes(id))
-            console.log("[SUB4] Cleaning stale IDs", {
-                selected,
-                displayed,
-                removed,
-            })
-        }
 
         if (displayed.length === 0) {
             ensurePlaygroundDefaults(store)
