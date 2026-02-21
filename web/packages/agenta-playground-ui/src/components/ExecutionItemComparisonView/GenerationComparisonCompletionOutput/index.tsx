@@ -5,8 +5,6 @@ import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
-import {LoadingOutlined} from "@ant-design/icons"
-import {Tag} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
 import {useAtomValue} from "jotai"
@@ -15,24 +13,22 @@ import {useExecutionCell} from "../../../hooks/useExecutionCell"
 import {useRunnableLoading} from "../../../hooks/useRunnableLoading"
 import CompletionMode from "../../ExecutionItems/assets/CompletionMode"
 import ExecutionResultView from "../../ExecutionResultView"
+import {EvaluatorFieldGrid} from "../../shared/EvaluatorFieldGrid"
+import {
+    extractDisplayEntries,
+    buildSchemaMap,
+    formatFieldLabel,
+} from "../../shared/EvaluatorFieldGrid/utils"
+import {NodeResultCard, ensureNodeCardKeyframes, type NodeStatus} from "../../shared/NodeResultCard"
+
+// Inject CSS keyframes for NodeResultCard animations (runs once)
+ensureNodeCardKeyframes()
 
 // ============================================================================
-// HELPERS
+// SUB-COMPONENT: Downstream node card for comparison cells
 // ============================================================================
 
-/** Convert snake_case/camelCase key to human-readable label */
-function formatLabel(key: string): string {
-    return key
-        .replace(/_/g, " ")
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/^./, (c) => c.toUpperCase())
-}
-
-// ============================================================================
-// SUB-COMPONENT: Downstream node result (evaluator) for comparison cells
-// ============================================================================
-
-const DownstreamNodeResult = ({
+const DownstreamNodeCard = ({
     rowId,
     node,
     nodeName,
@@ -58,62 +54,78 @@ const DownstreamNodeResult = ({
             [node.entityType, node.entityId],
         ),
     )
+    const nodeData = useAtomValue(
+        useMemo(() => runnableBridge.data(node.entityId), [node.entityId]),
+    )
 
     const schemaMap = useMemo(() => {
-        const map: Record<string, SchemaProperty | undefined> = {}
-        for (const port of outputPorts) {
-            map[port.key] = port.schema as SchemaProperty | undefined
+        const map = buildSchemaMap(outputPorts)
+        const fbConfig = nodeData?.configuration?.feedback_config as
+            | Record<string, unknown>
+            | undefined
+        if (fbConfig) {
+            const jsonSchema = fbConfig.json_schema as
+                | {schema?: {properties?: {score?: Record<string, unknown>}}}
+                | undefined
+            const scoreConstraints = jsonSchema?.schema?.properties?.score
+            if (scoreConstraints) {
+                const existing = map.score ?? ({} as Record<string, unknown>)
+                map.score = {...existing, ...scoreConstraints} as SchemaProperty
+            }
         }
         return map
-    }, [outputPorts])
+    }, [outputPorts, nodeData])
 
-    const status = fullResult?.status ?? "idle"
+    const status = (fullResult?.status ?? "idle") as NodeStatus
 
-    const renderContent = () => {
-        if (!fullResult || status === "idle" || status === "cancelled") {
-            return <span className="text-[#bdc7d1]">Pending run</span>
-        }
-        if (status === "running" || status === "pending") {
-            return (
-                <span className="flex items-center gap-1 text-[#bdc7d1]">
-                    <LoadingOutlined style={{fontSize: 12}} spin />
-                    Running...
-                </span>
-            )
-        }
-        if (status === "error") {
-            const errorMsg =
-                typeof fullResult.error === "object" && fullResult.error?.message
-                    ? fullResult.error.message
-                    : "Error"
-            return <span className="text-[var(--ant-color-error)]">{errorMsg}</span>
-        }
-
-        const output = fullResult.output as Record<string, unknown> | undefined
-        const responseData = output?.response as Record<string, unknown> | undefined
-        const nestedData = responseData?.data as Record<string, unknown> | undefined
-        const displayData =
-            nestedData?.outputs ?? responseData?.outputs ?? nestedData ?? responseData
-
-        if (!displayData || typeof displayData !== "object") return <span>—</span>
-
-        const entries = Object.entries(displayData).filter(([, v]) => v !== undefined && v !== null)
-        if (entries.length === 0) return <span>—</span>
-
-        if (entries.length === 1) {
-            const [key, value] = entries[0]
-            return <RunnableOutputValue value={value} schema={schemaMap[key]} />
-        }
-
+    if (!fullResult || status === "idle" || status === "cancelled") {
         return (
+            <NodeResultCard name={nodeName} status={status}>
+                <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} idle />
+            </NodeResultCard>
+        )
+    }
+
+    if (status === "running" || status === "pending") {
+        return (
+            <NodeResultCard name={nodeName} status={status}>
+                <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
+            </NodeResultCard>
+        )
+    }
+
+    if (status === "error") {
+        const errorMsg =
+            typeof fullResult.error === "object" && fullResult.error?.message
+                ? fullResult.error.message
+                : "Error"
+        return (
+            <NodeResultCard name={nodeName} status={status}>
+                <span className="text-[var(--ant-color-error)] text-xs leading-5">{errorMsg}</span>
+            </NodeResultCard>
+        )
+    }
+
+    const entries = extractDisplayEntries(fullResult.output)
+
+    if (!entries || entries.length === 0) {
+        return (
+            <NodeResultCard name={nodeName} status="success">
+                <span className="text-xs leading-5">—</span>
+            </NodeResultCard>
+        )
+    }
+
+    return (
+        <NodeResultCard name={nodeName} status="success">
             <div
                 className="grid items-baseline text-xs leading-5"
-                style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 4}}
+                style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}
             >
                 {entries.map(([key, value]) => (
                     <React.Fragment key={key}>
                         <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap leading-5">
-                            {formatLabel(key)}:
+                            {formatFieldLabel(key)}:
                         </span>
                         <span className="break-words min-w-0 leading-5">
                             <RunnableOutputValue value={value} schema={schemaMap[key]} />
@@ -121,23 +133,7 @@ const DownstreamNodeResult = ({
                     </React.Fragment>
                 ))}
             </div>
-        )
-    }
-
-    return (
-        <div className="flex items-start gap-2">
-            <div className="shrink-0 h-6 flex items-center">
-                <Tag
-                    variant="filled"
-                    className="!m-0 rounded-[6px] px-2 py-[1px] text-xs leading-[22px] bg-[#0517290F] text-[#344054] border border-solid border-transparent"
-                >
-                    {nodeName}
-                </Tag>
-            </div>
-            <div className="flex-1 min-w-0 text-xs leading-5 break-words text-[var(--ant-color-text)]">
-                {renderContent()}
-            </div>
-        </div>
+        </NodeResultCard>
     )
 }
 
@@ -194,6 +190,39 @@ const GenerationComparisonCompletionOutput = ({
         return nodes.filter((n) => n.depth > 0 && n.entityId !== entityId)
     }, [isChain, nodes, entityId])
 
+    // Human-readable label for the primary (depth-0) node
+    const primaryNodeLabel = useMemo(() => {
+        const primary = nodes?.find((n) => n.entityId === entityId)
+        if (!primary) return "Output"
+        const resolvedName = nodeNames[primary.id]
+        return (
+            resolvedName ||
+            (primary.label && !/^[0-9a-f]{8}-/.test(primary.label)
+                ? primary.label
+                : primary.entityType.charAt(0).toUpperCase() + primary.entityType.slice(1))
+        )
+    }, [nodes, entityId, nodeNames])
+
+    // Output ports + feedback config for schema-aware result rendering (evaluator score/reasoning grid)
+    const primaryNode = useMemo(
+        () => nodes?.find((n) => n.entityId === entityId),
+        [nodes, entityId],
+    )
+    const primaryOutputPorts = useAtomValue(
+        useMemo(
+            () =>
+                primaryNode
+                    ? runnableBridge
+                          .forType(primaryNode.entityType)
+                          .outputPorts(primaryNode.entityId)
+                    : atom([]),
+            [primaryNode],
+        ),
+    )
+    const primaryData = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
+    const feedbackConfig =
+        (primaryData?.configuration?.feedback_config as Record<string, unknown>) ?? null
+
     if (isLoading) {
         return (
             <>
@@ -246,35 +275,42 @@ const GenerationComparisonCompletionOutput = ({
                     "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
                 ])}
             >
-                <div className="!w-full shrink-0 sticky top-9 z-[1]">
-                    <ExecutionResultView
-                        isRunning={isRunning}
-                        currentResult={currentResult}
-                        traceId={traceId}
-                        repetitionProps={repetitionProps}
-                    />
+                <div className="!w-full shrink-0 sticky top-9 z-[1] flex flex-col gap-3 px-3 py-2">
+                    {/* Primary node */}
+                    <NodeResultCard
+                        name={primaryNodeLabel}
+                        status={isRunning ? "running" : currentResult ? "success" : "idle"}
+                    >
+                        <div className="min-w-0">
+                            <ExecutionResultView
+                                isRunning={isRunning}
+                                currentResult={currentResult}
+                                traceId={traceId}
+                                repetitionProps={repetitionProps}
+                                outputPorts={primaryOutputPorts}
+                                feedbackConfig={feedbackConfig}
+                            />
+                        </div>
+                    </NodeResultCard>
+                    {/* Downstream nodes: each in its own bordered card */}
+                    {downstreamNodes.map((node) => {
+                        const resolvedName = nodeNames[node.id]
+                        const label =
+                            resolvedName ||
+                            (node.label && !/^[0-9a-f]{8}-/.test(node.label)
+                                ? node.label
+                                : node.entityType.charAt(0).toUpperCase() +
+                                  node.entityType.slice(1))
+                        return (
+                            <DownstreamNodeCard
+                                key={node.entityId}
+                                rowId={rowId}
+                                node={node}
+                                nodeName={label}
+                            />
+                        )
+                    })}
                 </div>
-                {downstreamNodes.length > 0 && (
-                    <div className="flex flex-col gap-2 px-3 pb-3">
-                        {downstreamNodes.map((node) => {
-                            const resolvedName = nodeNames[node.id]
-                            const label =
-                                resolvedName ||
-                                (node.label && !/^[0-9a-f]{8}-/.test(node.label)
-                                    ? node.label
-                                    : node.entityType.charAt(0).toUpperCase() +
-                                      node.entityType.slice(1))
-                            return (
-                                <DownstreamNodeResult
-                                    key={node.entityId}
-                                    rowId={rowId}
-                                    node={node}
-                                    nodeName={label}
-                                />
-                            )
-                        })}
-                    </div>
-                )}
             </div>
         </>
     )
