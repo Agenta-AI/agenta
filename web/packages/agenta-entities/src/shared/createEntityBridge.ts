@@ -1159,9 +1159,10 @@ export function createRunnableBridge<
                 const finalParams = hinted.config.updateTransform
                     ? hinted.config.updateTransform(entityId, parameters, _get as never)
                     : parameters
-                set(asBridgeUpdateAtom(hinted.config.molecule.actions.update), entityId, {
-                    data: {parameters: finalParams},
-                })
+                const payload = hinted.config.updatePayload
+                    ? hinted.config.updatePayload(finalParams)
+                    : {data: {parameters: finalParams}}
+                set(asBridgeUpdateAtom(hinted.config.molecule.actions.update), entityId, payload)
                 return
             }
             // Probe all types — update the first match
@@ -1171,9 +1172,10 @@ export function createRunnableBridge<
                     const finalParams = config.updateTransform
                         ? config.updateTransform(entityId, parameters, _get as never)
                         : parameters
-                    set(asBridgeUpdateAtom(config.molecule.actions.update), entityId, {
-                        data: {parameters: finalParams},
-                    })
+                    const payload = config.updatePayload
+                        ? config.updatePayload(finalParams)
+                        : {data: {parameters: finalParams}}
+                    set(asBridgeUpdateAtom(config.molecule.actions.update), entityId, payload)
                     return
                 }
             }

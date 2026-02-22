@@ -895,6 +895,8 @@ export const runnableBridge = createRunnableBridge({
             toRunnable: legacyAppRevisionToRunnable,
             getInputPorts: getLegacyAppRevisionInputPorts,
             getOutputPorts: getLegacyAppRevisionOutputPorts,
+            // Legacy revision updates expect top-level `parameters` instead of workflow-style `data.parameters`.
+            updatePayload: (params: Record<string, unknown>) => ({parameters: params}),
             schemasSelector: (id: string) =>
                 atom((get) => {
                     const schemaQuery = get(legacyAppRevisionMolecule.selectors.schemaQuery(id))

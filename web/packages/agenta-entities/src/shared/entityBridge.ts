@@ -433,6 +433,14 @@ export interface RunnableTypeConfig<T = unknown> {
         params: Record<string, unknown>,
         get: (atom: Atom<unknown>) => unknown,
     ) => Record<string, unknown>
+    /**
+     * Build the final update payload shape expected by the molecule action.
+     *
+     * Default bridge behavior sends `{data: {parameters: params}}`, which matches
+     * workflow-style molecules. Legacy molecules can override this (e.g.
+     * `{parameters: params}`) to keep update semantics correct.
+     */
+    updatePayload?: (params: Record<string, unknown>) => Record<string, unknown>
 }
 
 /**
