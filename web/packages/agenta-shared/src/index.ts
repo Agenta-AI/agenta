@@ -11,6 +11,7 @@
  *
  * ## State Atoms
  * - `projectIdAtom` - Current project ID (populated by app)
+ * - Jotai recipes: `atomWithDebounce`, `atomWithCompare`, `atomWithToggle`, etc.
  *
  * ## Chat Message Utilities
  * - Types: `SimpleChatMessage`, `MessageContent`, `ToolCall`, etc.
@@ -19,6 +20,7 @@
  *
  * ## Hooks
  * - `useDebounceInput` - Debounced input handling with synchronized state
+ * - `useReducerAtom` - Reducer ergonomics for primitive atoms
  *
  * @example
  * ```typescript
@@ -50,7 +52,19 @@ export {
 export type {AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosInterceptorConfig} from "./api"
 
 // State atoms
-export {projectIdAtom, setProjectIdAtom} from "./state"
+export {
+    projectIdAtom,
+    setProjectIdAtom,
+    atomWithRefresh,
+    atomWithCompare,
+    atomWithToggle,
+    atomWithToggleAndStorage,
+    atomWithListeners,
+    atomWithBroadcast,
+    atomWithDebounce,
+    atomWithRefreshAndDefault,
+} from "./state"
+export type {DebouncedAtomBundle} from "./state"
 
 // Utilities
 export {
@@ -175,6 +189,7 @@ export {MESSAGE_CONTENT_SCHEMA, CHAT_MESSAGE_SCHEMA, CHAT_MESSAGES_ARRAY_SCHEMA}
 export {useDebounceInput, useLazyEffect, useSelectionState, useRunAllShortcut} from "./hooks"
 export type {UseSelectionStateResult} from "./hooks"
 export type {UseRunAllShortcutParams} from "./hooks"
+export {useReducerAtom} from "./hooks"
 
 // Formatting utilities
 export {
