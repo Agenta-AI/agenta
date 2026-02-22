@@ -61,6 +61,16 @@ log = get_module_logger(__name__)
 RENAME_APPS_DISABLED_MESSAGE = "Renaming applications is temporarily disabled."
 
 
+def _build_rename_apps_disabled_detail(*, existing_name: Optional[str]) -> str:
+    if existing_name:
+        return (
+            f"{RENAME_APPS_DISABLED_MESSAGE} "
+            f"Current application name is '{existing_name}'."
+        )
+
+    return RENAME_APPS_DISABLED_MESSAGE
+
+
 class ApplicationsRouter:
     def __init__(
         self,
@@ -396,7 +406,9 @@ class ApplicationsRouter:
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=RENAME_APPS_DISABLED_MESSAGE,
+                detail=_build_rename_apps_disabled_detail(
+                    existing_name=existing_application.name
+                ),
             )
 
         application = await self.applications_service.edit_application(
@@ -1238,7 +1250,9 @@ class SimpleApplicationsRouter:
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=RENAME_APPS_DISABLED_MESSAGE,
+                detail=_build_rename_apps_disabled_detail(
+                    existing_name=existing_application.name
+                ),
             )
 
         simple_application = await self.simple_applications_service.edit(

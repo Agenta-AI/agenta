@@ -256,21 +256,27 @@ class DaytonaRunner(CodeRunner):
         correct_answer: Any,
         runtime: Optional[str] = None,
         templates: Optional[Dict[str, str]] = None,
+        *,
+        version: str = "1",
+        trace: Optional[Dict[str, Any]] = None,
     ) -> Union[float, None]:
         """
         Execute provided code in Daytona sandbox.
 
-        The code must define an `evaluate()` function that takes
-        (app_params, inputs, output, correct_answer) and returns a float (0-1).
+        The code must define an `evaluate()` function.
+        - v1: evaluate(app_params, inputs, output, correct_answer) -> float
+        - v2: evaluate(inputs, outputs, trace) -> float
 
         Args:
             code: The code to be executed
-            app_params: The parameters of the app variant
+            app_params: The parameters of the app variant (v1 only)
             inputs: Inputs to be used during code execution
             output: The output of the app variant after being called
-            correct_answer: The correct answer (or target) for comparison
+            correct_answer: The correct answer (or target) for comparison (v1 only)
             runtime: Runtime environment (python, javascript, typescript), None = python
             templates: Wrapper templates keyed by runtime.
+            version: Evaluator interface version ("1" = legacy, "2" = new)
+            trace: Full trace data (v2 only)
 
         Returns:
             Float score between 0 and 1, or None if execution fails
@@ -282,13 +288,20 @@ class DaytonaRunner(CodeRunner):
 
         with self._sandbox_context(runtime=runtime) as sandbox:
             try:
-                # Prepare all parameters as a single dict
-                params = {
-                    "app_params": app_params,
-                    "inputs": inputs,
-                    "output": output,
-                    "correct_answer": correct_answer,
-                }
+                # Prepare all parameters as a single dict based on version
+                if version == "2":
+                    params = {
+                        "inputs": inputs,
+                        "outputs": output,
+                        "trace": trace,
+                    }
+                else:
+                    params = {
+                        "app_params": app_params,
+                        "inputs": inputs,
+                        "output": output,
+                        "correct_answer": correct_answer,
+                    }
                 params_json = json.dumps(params)
 
                 if not templates:

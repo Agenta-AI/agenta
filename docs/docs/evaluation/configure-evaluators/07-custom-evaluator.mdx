@@ -1,45 +1,192 @@
 ---
 title: "Custom Code Evaluator"
+description: "Write custom evaluators in Python, JavaScript, or TypeScript with access to inputs, outputs, and full trace data."
 ---
 
-Sometimes, the default evaluators in **Agenta** may not be sufficient for your specific use case. In such cases, you can create a custom evaluator to suit your specific needs. Custom evaluators are written in Python, JavaScript, or TypeScript.
+Custom code evaluators let you write your own evaluation logic in Python, JavaScript, or TypeScript. Your code has access to the application inputs, outputs, and the full execution trace (spans, latency, token usage, costs).
 
-## Evaluation code
+## Function signature
 
-Your custom evaluator should include a function called `evaluate` with the following signature:
+Your code must define an `evaluate` function with the following signature:
 
 ```python
-from typing import Dict
+from typing import Dict, Any
 
 def evaluate(
-    app_params: Dict[str, str],
-    inputs: Dict[str, str],
-    output: str,
-    correct_answer: str
+    inputs: Dict[str, Any],
+    outputs: Any,
+    trace: Dict[str, Any],
 ) -> float:
 ```
 
-This function should return a float value representing the evaluation score. The score ranges from 0.0 to 1.0, where 0.0 indicates a failed evaluation and 1.0 indicates a perfect score.
+### Parameters
 
-The function parameters are:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `inputs` | `Dict[str, Any]` | In **batch evaluation**: the testcase data (all columns). In **online evaluation**: the application's input from the trace. |
+| `outputs` | `Any` | The application's output (string or dict). |
+| `trace` | `Dict[str, Any]` | The full execution trace with spans, metrics (latency, token counts, costs), and child spans. |
 
-1. `app_params`: A dictionary containing the configuration of the app. This
-   would include the prompt, model and all the other parameters specified in the
-   playground with the same naming.
-2. `inputs`: A dictionary containing the inputs of the app.
-3. `output`: The generated output of the app.
-4. `correct_answer`: The correct answer of the app.
+### Return value
 
-Here's an example implementation of an exact match evaluator:
+The function should return one of:
+
+- **`float`** (0.0 to 1.0) — a score where 0.0 is worst and 1.0 is best
+- **`bool`** — `True` maps to 1.0, `False` to 0.0
+
+## Examples
+
+### Exact match
 
 ```python
-from typing import Dict
+from typing import Dict, Any
 
 def evaluate(
-    app_params: Dict[str, str],
-    inputs: Dict[str, str],
-    output: str,
-    correct_answer: str
+    inputs: Dict[str, Any],
+    outputs: Any,
+    trace: Dict[str, Any],
 ) -> float:
-    return 1 if output == correct_answer else 0
+    if outputs == inputs.get("correct_answer"):
+        return 1.0
+    return 0.0
 ```
+
+### Latency check
+
+Use trace data to check whether the response was generated within a time budget:
+
+```python
+from typing import Dict, Any
+
+def evaluate(
+    inputs: Dict[str, Any],
+    outputs: Any,
+    trace: Dict[str, Any],
+) -> float:
+    if not trace or not trace.get("spans"):
+        return 0.0
+
+    root = list(trace["spans"].values())[0]
+    ag = root.get("attributes", {}).get("ag", {})
+    duration = ag.get("metrics", {}).get("unit", {}).get("duration", {}).get("total", 0)
+
+    # Fail if response took more than 5 seconds
+    if duration > 5.0:
+        return 0.0
+    return 1.0
+```
+
+### Token budget check
+
+Verify the application stayed within a token budget:
+
+```python
+from typing import Dict, Any
+
+def evaluate(
+    inputs: Dict[str, Any],
+    outputs: Any,
+    trace: Dict[str, Any],
+) -> float:
+    if not trace or not trace.get("spans"):
+        return 0.5
+
+    root = list(trace["spans"].values())[0]
+    ag = root.get("attributes", {}).get("ag", {})
+    tokens = ag.get("metrics", {}).get("unit", {}).get("tokens", {})
+    total_tokens = tokens.get("total", 0)
+
+    max_tokens = 500
+    if total_tokens <= max_tokens:
+        return 1.0
+    elif total_tokens <= max_tokens * 1.5:
+        return 0.5
+    return 0.0
+```
+
+## Accessing ground truth
+
+In batch evaluation, testcase columns are available directly in `inputs`. If your testset has a `correct_answer` column, access it as `inputs["correct_answer"]` or `inputs.get("correct_answer")`.
+
+You do not need to configure a separate "correct answer key" — just read the column name directly from `inputs`.
+
+## Accessing trace data
+
+The `trace` parameter contains the full OpenTelemetry trace serialized as a dict. The structure looks like:
+
+```python
+{
+    "spans": {
+        "<span_id>": {
+            "name": "my_app",
+            "start_time": "2025-01-15T10:30:00Z",
+            "end_time": "2025-01-15T10:30:02.5Z",
+            "status_code": "OK",
+            "attributes": {
+                "ag": {
+                    "data": {
+                        "inputs": {"country": "France"},
+                        "outputs": "The capital is Paris"
+                    },
+                    "metrics": {
+                        "unit": {
+                            "costs": {"total": 0.001},
+                            "tokens": {"prompt": 50, "completion": 20, "total": 70},
+                            "duration": {"total": 2.5}
+                        }
+                    }
+                }
+            },
+            "children": [...]
+        }
+    }
+}
+```
+
+Useful paths:
+
+| Data | Path |
+|------|------|
+| Root span | `list(trace["spans"].values())[0]` |
+| App inputs | `root["attributes"]["ag"]["data"]["inputs"]` |
+| App outputs | `root["attributes"]["ag"]["data"]["outputs"]` |
+| Latency (seconds) | `root["attributes"]["ag"]["metrics"]["unit"]["duration"]["total"]` |
+| Token counts | `root["attributes"]["ag"]["metrics"]["unit"]["tokens"]` |
+| Costs | `root["attributes"]["ag"]["metrics"]["unit"]["costs"]["total"]` |
+| Child spans | `root["children"]` |
+
+## JavaScript and TypeScript
+
+The same interface is available in JavaScript and TypeScript:
+
+**JavaScript:**
+```javascript
+function evaluate(inputs, outputs, trace) {
+  return outputs === inputs.correct_answer ? 1.0 : 0.0
+}
+```
+
+**TypeScript:**
+```typescript
+function evaluate(
+  inputs: Record<string, any>,
+  outputs: any,
+  trace: Record<string, any>
+): number {
+  return outputs === inputs.correct_answer ? 1.0 : 0.0
+}
+```
+
+## Legacy interface (v1)
+
+:::info
+Existing evaluators created before this update use the legacy 4-parameter interface:
+
+```python
+def evaluate(app_params, inputs, output, correct_answer) -> float:
+```
+
+These continue to work unchanged.
+
+If you want to migrate an existing evaluator to the new interface, update the function signature to `(inputs, outputs, trace)` and access ground truth directly from `inputs` instead of the `correct_answer` parameter.
+:::
