@@ -108,8 +108,10 @@ export const appToVariantRelation: EntityRelation<AppListItem, VariantListItem> 
 
     // No child molecule for variants (they're intermediate entities, not full entities)
     // The selection adapter uses listAtomFamily for dropdown population
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childMolecule: undefined as any,
+    childMolecule: undefined as unknown as EntityRelation<
+        AppListItem,
+        VariantListItem
+    >["childMolecule"],
 
     // List atom for selection UI
     listAtomFamily: variantListAtomFamily,
@@ -171,8 +173,10 @@ export const variantToRevisionRelation: EntityRelation<VariantListItem, Revision
     // Child molecule for fetching full revision data
     // Note: Type assertion used because molecule data type (AppRevisionData)
     // differs from list item type (RevisionListItem)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childMolecule: appRevisionMolecule as any,
+    childMolecule: appRevisionMolecule as unknown as EntityRelation<
+        VariantListItem,
+        RevisionListItem
+    >["childMolecule"],
 
     // List atom for selection UI
     listAtomFamily: revisionListAtomFamily,

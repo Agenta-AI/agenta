@@ -110,8 +110,7 @@ export const evaluatorToRevisionRelation: EntityRelation<Evaluator, Evaluator> =
     mode: "reference",
 
     // No child molecule (evaluatorRevision uses evaluatorRevisionMolecule from separate module)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childMolecule: undefined as any,
+    childMolecule: undefined as unknown as EntityRelation<Evaluator, Evaluator>["childMolecule"],
 
     // List atom for selection UI
     listAtomFamily: revisionByWorkflowListAtomFamily,

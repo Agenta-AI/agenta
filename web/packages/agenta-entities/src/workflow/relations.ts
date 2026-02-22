@@ -115,8 +115,7 @@ export const workflowToRevisionRelation: EntityRelation<Workflow, Workflow> = {
     mode: "reference",
 
     // No child molecule (workflowRevision uses its own query)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childMolecule: undefined as any,
+    childMolecule: undefined as unknown as EntityRelation<Workflow, Workflow>["childMolecule"],
 
     // List atom for selection UI
     listAtomFamily: revisionByWorkflowListAtomFamily,
@@ -147,8 +146,10 @@ export const workflowToVariantRelation: EntityRelation<Workflow, WorkflowVariant
     childIdsPath: () => [],
     childDataPath: undefined,
     mode: "reference",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childMolecule: undefined as any,
+    childMolecule: undefined as unknown as EntityRelation<
+        Workflow,
+        WorkflowVariant
+    >["childMolecule"],
     listAtomFamily: workflowVariantsListQueryStateAtomFamily,
     selection: {
         label: "Variant",
@@ -188,8 +189,10 @@ export const workflowVariantToRevisionRelation: EntityRelation<WorkflowVariant, 
     childIdsPath: () => [],
     childDataPath: undefined,
     mode: "reference",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childMolecule: undefined as any,
+    childMolecule: undefined as unknown as EntityRelation<
+        WorkflowVariant,
+        Workflow
+    >["childMolecule"],
     listAtomFamily: workflowRevisionsListQueryStateAtomFamily,
     selection: {
         label: "Revision",
