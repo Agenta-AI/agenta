@@ -15,7 +15,11 @@
 
 import {memo, useMemo, useCallback, useState} from "react"
 
-import {type SchemaProperty, getSchemaAtPath as getSchemaAtPathUtil} from "@agenta/entities"
+import {
+    type EntitySchema,
+    type EntitySchemaProperty,
+    getSchemaAtPath as getSchemaAtPathUtil,
+} from "@agenta/entities"
 import {runnableBridge} from "@agenta/entities/runnable"
 import type {DataPath} from "@agenta/shared/utils"
 import {getOptionsFromSchema, getValueAtPath, setValueAtPath} from "@agenta/shared/utils"
@@ -55,10 +59,16 @@ interface SchemaQueryResult {
     isPending: boolean
     isError: boolean
     error: Error | null
-    data: {agConfigSchema?: {properties?: Record<string, unknown>} | null} | null
+    data: {agConfigSchema?: PathSchema | null} | null
 }
 
-type EntitySchema = {properties?: Record<string, unknown>} | null
+type PathSchema = EntitySchema | EntitySchemaProperty
+
+function isEntitySchema(value: unknown): value is PathSchema {
+    if (!value || typeof value !== "object") return false
+    const schemaType = (value as Record<string, unknown>).type
+    return typeof schemaType === "string"
+}
 
 /**
  * Adapter interface for the data source that PlaygroundConfigSection reads from.
@@ -77,7 +87,7 @@ export interface ConfigSectionMoleculeAdapter {
         /** Schema query state */
         schemaQuery: (id: string) => Atom<SchemaQueryResult>
         /** ag_config schema */
-        agConfigSchema: (id: string) => Atom<EntitySchema>
+        agConfigSchema: (id: string) => Atom<PathSchema | null>
     }
     reducers: {
         update: WritableAtom<unknown, [id: string, changes: Record<string, unknown>], void>
@@ -158,7 +168,8 @@ function buildRunnableBridgeAdapter(): ConfigSectionMoleculeAdapter {
             schemaQuery: memoAtom((id: string) =>
                 atom((get) => {
                     const q = get(runnableBridge.query(id))
-                    const schema = get(runnableBridge.parametersSchema(id))
+                    const rawSchema = get(runnableBridge.parametersSchema(id))
+                    const schema = isEntitySchema(rawSchema) ? rawSchema : null
                     return {
                         isPending: q.isPending,
                         isError: q.isError,
@@ -167,8 +178,12 @@ function buildRunnableBridgeAdapter(): ConfigSectionMoleculeAdapter {
                     }
                 }),
             ),
-            agConfigSchema: (id: string) =>
-                runnableBridge.parametersSchema(id) as Atom<EntitySchema>,
+            agConfigSchema: memoAtom((id: string) =>
+                atom((get) => {
+                    const schema = get(runnableBridge.parametersSchema(id))
+                    return isEntitySchema(schema) ? schema : null
+                }),
+            ),
         },
         reducers: {
             // runnableBridge.update takes (id, flatParams) and wraps internally
@@ -230,9 +245,9 @@ function bridgeSchemaAtPath(params: {id: string; path: (string | number)[]}): At
     if (!cached) {
         cached = atom((get) => {
             const schema = get(runnableBridge.parametersSchema(params.id))
-            if (!schema) return null
+            if (!isEntitySchema(schema)) return null
 
-            return getSchemaAtPathUtil(schema as any, params.path) ?? null
+            return getSchemaAtPathUtil(schema, params.path) ?? null
         })
         bridgeSchemaAtPathCache.set(key, cached)
     }
@@ -364,7 +379,7 @@ function PlaygroundConfigSection({
         if (!promptValue) return null
 
         const promptSchema = schema?.properties
-            ? ((schema.properties as Record<string, SchemaProperty>).prompt ?? null)
+            ? ((schema.properties as Record<string, EntitySchemaProperty>).prompt ?? null)
             : null
         const modelSchema = getModelSchema(promptSchema)
         const optionsResult = getOptionsFromSchema(modelSchema)

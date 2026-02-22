@@ -290,7 +290,7 @@ function applyOverrides<T>(
  *     appName: path[0]?.label,
  *     variantId: path[1]?.id,
  *     variantName: path[1]?.label,
- *     revision: (leaf as any).revision ?? 0,
+ *     revision: (leaf as {revision?: number}).revision ?? 0,
  *   }),
  * })
  * ```

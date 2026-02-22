@@ -25,6 +25,7 @@ export type SelectableEntityType =
     | "ossVariant"
     | "legacyAppRevision"
     | "evaluator"
+    | "legacyEvaluator"
     | "evaluatorVariant"
     | "evaluatorRevision"
     | "playgroundVariant"
