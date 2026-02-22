@@ -1,7 +1,7 @@
 import {atom} from "jotai"
 import type {Atom, Getter, SetStateAction, WritableAtom} from "jotai"
 
-type OverwrittenState<Value> = {
+interface OverwrittenState<Value> {
     refreshEpoch: unknown
     value: Value
 }
