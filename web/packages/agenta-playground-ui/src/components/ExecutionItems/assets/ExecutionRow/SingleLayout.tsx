@@ -742,7 +742,7 @@ const SingleView = ({
                                 <ExecutionResultView
                                     isRunning={isBusy}
                                     currentResult={currentResult}
-                                    traceId={traceId}
+                                    traceId={traceId ?? null}
                                     repetitionProps={repetitionProps}
                                     showEmptyPlaceholder={!showHeaderRunHint}
                                     feedbackConfig={feedbackConfig}
