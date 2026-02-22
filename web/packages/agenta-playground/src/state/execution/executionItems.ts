@@ -219,6 +219,40 @@ function extractLogicalRowId(rowId: string): string {
     return sessionMatch?.[2] || rowId
 }
 
+function normalizeTransformContent(content: unknown): string | unknown[] {
+    if (Array.isArray(content)) return content
+    if (typeof content === "string") return content
+    return ""
+}
+
+function toTransformMessage(message: ChatMessage): TransformMessage {
+    const messageRecord = asRecord(message)
+    const toolCalls =
+        (messageRecord && Array.isArray(messageRecord.toolCalls)
+            ? messageRecord.toolCalls
+            : undefined) ?? (Array.isArray(message.tool_calls) ? message.tool_calls : undefined)
+    const toolCallId = readString(messageRecord?.toolCallId) ?? readString(message.tool_call_id)
+
+    const transformed: TransformMessage = {
+        role: message.role,
+        content: normalizeTransformContent(message.content),
+    }
+
+    if (typeof message.name === "string" && message.name.length > 0) {
+        transformed.name = message.name
+    }
+
+    if (toolCalls && toolCalls.length > 0) {
+        transformed.toolCalls = toolCalls
+    }
+
+    if (toolCallId) {
+        transformed.toolCallId = toolCallId
+    }
+
+    return transformed
+}
+
 function mapLifecyclePhase(status: RunStatus): ExecutionItemLifecyclePhase {
     if (status === "running" || status === "pending") return "running"
     if (status === "error") return "failed"
@@ -350,8 +384,7 @@ function buildChatHistoryFromFlatMessages(params: {
         if (!msg) continue
 
         if (msg.sessionId === sharedSessionId || msg.sessionId === sessionId) {
-            const {sessionId: _s, parentId: _p, ...apiMsg} = msg
-            history.push(apiMsg as unknown as TransformMessage)
+            history.push(toTransformMessage(msg))
         }
     }
 
@@ -867,7 +900,6 @@ function buildRequestBody(
         requestPayload,
         variables,
         variableValues,
-        entityId,
         agConfigFallbacks,
     } = params
 
@@ -887,7 +919,6 @@ function buildRequestBody(
             routePath: requestPayload?.routePath,
             variables,
             variableValues,
-            entityId,
             isChat: mode === "chat",
             isCustom: requestPayload?.isCustom,
             appType: requestPayload?.appType || undefined,
@@ -949,11 +980,9 @@ function buildExecutionItem(
     const isRawBody = !!(requestPayload as Record<string, unknown> | null)?.__rawBody
     const requestBody = isRawBody
         ? (() => {
-              const {
-                  __rawBody: _,
-                  invocationUrl: _url,
-                  ...body
-              } = requestPayload as unknown as Record<string, unknown>
+              const rawPayload = asRecord(requestPayload)
+              if (!rawPayload) return {}
+              const {__rawBody: _, invocationUrl: _url, ...body} = rawPayload
               // When inputValues are provided (e.g. from chain execution),
               // merge them into the raw body's inputs field.
               if (params.inputValues && Object.keys(params.inputValues).length > 0) {
