@@ -3,6 +3,7 @@ import React, {useCallback, useEffect, useMemo, useRef} from "react"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {getCollapseStyle} from "@agenta/ui/components/presentational"
 import {TOGGLE_MARKDOWN_VIEW, EditorProvider, useLexicalComposerContext} from "@agenta/ui/editor"
+import type {EditorProps} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InputNumber, Switch, Typography} from "antd"
 import clsx from "clsx"
@@ -20,7 +21,7 @@ export interface VariableControlAdapterProps {
     /** App type for custom app variable gating (injected by OSS) */
     appType?: string
     // forwarded to SimpleInput when `as` includes "SimpleInput"
-    editorProps?: Record<string, unknown>
+    editorProps?: EditorProps
     headerActions?: React.ReactNode
     onMarkdownToggleReady?: (toggle: (() => void) | null) => void
     collapsed?: boolean
@@ -236,7 +237,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     }
 
     // Object/array types → JSON code editor
-    const mergedEditorProps = isJsonType
+    const mergedEditorProps: EditorProps = isJsonType
         ? {codeOnly: true, language: "json", enableResize: false, boundWidth: true, ...editorProps}
         : {enableResize: false, boundWidth: true, ...editorProps}
 
