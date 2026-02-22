@@ -290,7 +290,17 @@ export function validateSnapshot(data: unknown): ValidationResult<PlaygroundSnap
         }
     }
 
-    return {ok: true, value: obj as unknown as PlaygroundSnapshot}
+    const selection = obj.selection as SelectionItem[]
+    const drafts = obj.drafts as SnapshotDraftEntry[]
+
+    return {
+        ok: true,
+        value: {
+            v: SNAPSHOT_VERSION,
+            selection,
+            drafts,
+        },
+    }
 }
 
 /**
