@@ -15,7 +15,9 @@ export interface SelectVariantProps extends TreeSelectProps {
      * When provided, overrides the default browseAdapter.
      * Use this to customize workflow rendering (e.g., colored evaluator tags, filtering).
      */
-    customBrowseAdapter?: import("@agenta/entity-ui/selection").EntitySelectionAdapter<import("@agenta/entity-ui/selection").WorkflowRevisionSelectionResult>
+    customBrowseAdapter?: import("@agenta/entity-ui/selection").EntitySelectionAdapter<
+        import("@agenta/entity-ui/selection").WorkflowRevisionSelectionResult
+    >
 }
 
 export interface TreeSelectItemRendererProps {

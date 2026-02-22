@@ -29,12 +29,12 @@ import {Plus} from "@phosphor-icons/react"
 import {Button, Popover, Space, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
+import {selectedAppIdAtom} from "@/oss/state/app"
+
 import RevisionChildTitle from "./components/RevisionChildTitle"
 import VariantGroupTitle from "./components/VariantGroupTitle"
 import {SelectVariantProps} from "./types"
-
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {selectedAppIdAtom} from "@/oss/state/app"
 
 const SelectVariant = ({
     value,

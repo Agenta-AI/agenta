@@ -16,16 +16,16 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
+import {currentAppAtom} from "@/oss/state/app"
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
+import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
+
 import {useEvaluatorOnlyAdapter} from "../../hooks/useEvaluatorBrowseAdapter"
 import type {BaseContainerProps} from "../types"
 
 import RunEvaluationButton from "./RunEvaluationButton"
 import {useStyles} from "./styles"
-
-import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-import {currentAppAtom} from "@/oss/state/app"
-import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,

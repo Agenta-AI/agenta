@@ -12,6 +12,9 @@ import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
+import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
+
 import {discardEntityDraft} from "../../../assets/entityHelpers"
 import {useEvaluatorBrowseAdapter} from "../../../hooks/useEvaluatorBrowseAdapter"
 import SelectVariant from "../../Menus/SelectVariant"
@@ -20,9 +23,6 @@ import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVa
 
 import {useStyles} from "./styles"
 import {PlaygroundVariantConfigHeaderProps} from "./types"
-
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),

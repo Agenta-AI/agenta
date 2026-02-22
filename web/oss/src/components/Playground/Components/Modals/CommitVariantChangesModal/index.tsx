@@ -89,9 +89,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                         application_id: appId || undefined,
                         note,
                     })
-                    message.success(
-                        `Published ${variantName} to ${selectedEnvironment}`,
-                    )
+                    message.success(`Published ${variantName} to ${selectedEnvironment}`)
                 }
 
                 onSuccess?.({revisionId: result.newRevisionId, variantId: undefined})
@@ -121,9 +119,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     application_id: appId || undefined,
                     note,
                 })
-                message.success(
-                    `Published ${variantName} to ${selectedEnvironment}`,
-                )
+                message.success(`Published ${variantName} to ${selectedEnvironment}`)
             }
 
             onSuccess?.({revisionId: result.newRevisionId, variantId: variantSlug})
