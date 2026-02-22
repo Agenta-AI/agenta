@@ -31,6 +31,9 @@ def execute_code_safely(
     code: Text,
     runtime: Optional[str] = None,
     templates: Optional[Dict[str, str]] = None,
+    *,
+    version: str = "1",
+    trace: Optional[Dict[str, Any]] = None,
 ) -> Union[float, None]:
     """
     Execute the provided code safely.
@@ -39,13 +42,15 @@ def execute_code_safely(
     based on the AGENTA_SERVICES_SANDBOX_RUNNER environment variable.
 
     Args:
-        - app_params (Dict[str, Any]): The parameters of the app variant.
+        - app_params (Dict[str, Any]): The parameters of the app variant. (v1 only)
         - inputs (Dict[str, Any]): Inputs to be used during code execution.
         - output (Union[dict, str]): The output of the app variant after being called.
-        - correct_answer (Any): The correct answer (or target) of the app variant.
+        - correct_answer (Any): The correct answer (or target) of the app variant. (v1 only)
         - code (Text): The code to be executed.
         - runtime (Optional[str]): Runtime environment (python, javascript, typescript). None = python.
         - templates (Optional[Dict[str, str]]): Wrapper templates keyed by runtime.
+        - version (str): Evaluator interface version ("1" = legacy, "2" = new).
+        - trace (Optional[Dict[str, Any]]): Full trace data (v2 only).
 
     Returns:
         - (float): Result of the execution if successful. Should be between 0 and 1.
@@ -64,4 +69,6 @@ def execute_code_safely(
         correct_answer,
         runtime,
         templates,
+        version=version,
+        trace=trace,
     )

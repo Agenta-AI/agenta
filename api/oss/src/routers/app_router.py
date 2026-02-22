@@ -67,6 +67,16 @@ log = get_module_logger(__name__)
 RENAME_APPS_DISABLED_MESSAGE = "Renaming applications is temporarily disabled."
 
 
+def _build_rename_apps_disabled_detail(*, existing_name: Optional[str]) -> str:
+    if existing_name:
+        return (
+            f"{RENAME_APPS_DISABLED_MESSAGE} "
+            f"Current application name is '{existing_name}'."
+        )
+
+    return RENAME_APPS_DISABLED_MESSAGE
+
+
 @router.get(
     "/{app_id}/variants/",
     response_model=List[AppVariantResponse],
@@ -377,7 +387,7 @@ async def update_app(
     ):
         raise HTTPException(
             status_code=400,
-            detail=RENAME_APPS_DISABLED_MESSAGE,
+            detail=_build_rename_apps_disabled_detail(existing_name=app.app_name),
         )
 
     updated_app = await adapter.update_app(
