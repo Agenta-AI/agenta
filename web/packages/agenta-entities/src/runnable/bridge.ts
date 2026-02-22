@@ -47,7 +47,6 @@ import {
 } from "../workflow/state/runnableSetup"
 import {
     workflowLatestRevisionIdAtomFamily,
-    workflowQueryAtomFamily,
     workflowServerDataSelectorFamily,
     createLocalDraftFromWorkflowRevision,
 } from "../workflow/state/store"
@@ -152,49 +151,6 @@ function extractOutputPortsFromSchema(schema: unknown): RunnablePort[] {
             schema: prop,
         }
     })
-}
-
-// ============================================================================
-// APP REVISION CONFIGURATION
-// ============================================================================
-
-interface AppRevisionEntity {
-    id: string
-    name?: string
-    variantSlug?: string
-    version?: number
-    agConfig?: Record<string, unknown>
-    configuration?: Record<string, unknown>
-    invocationUrl?: string
-    appId?: string
-    variantId?: string
-    schemas?: {
-        inputSchema?: unknown
-        outputSchema?: unknown
-    }
-}
-
-function appRevisionToRunnable(entity: unknown): RunnableData {
-    const e = entity as AppRevisionEntity
-    return {
-        id: e.id,
-        name: e.name || e.variantSlug,
-        version: e.version,
-        slug: e.variantSlug,
-        configuration: e.agConfig || e.configuration,
-        invocationUrl: e.invocationUrl,
-        schemas: e.schemas,
-    }
-}
-
-function getAppRevisionInputPorts(entity: unknown): RunnablePort[] {
-    const e = entity as AppRevisionEntity
-    return extractInputPortsFromSchema(e.schemas?.inputSchema)
-}
-
-function getAppRevisionOutputPorts(entity: unknown): RunnablePort[] {
-    const e = entity as AppRevisionEntity
-    return extractOutputPortsFromSchema(e.schemas?.outputSchema)
 }
 
 // ============================================================================

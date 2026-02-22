@@ -16,6 +16,7 @@ export type EntityType =
     | "legacyEvaluator"
     | "evaluatorRevision"
     | "legacyAppRevision"
+    | "baseRunnable"
     | "workflow"
     | "testcase"
     | "span"
@@ -28,6 +29,7 @@ export type RunnableType =
     | "legacyEvaluator"
     | "evaluatorRevision"
     | "legacyAppRevision"
+    | "baseRunnable"
     | "workflow"
 
 /**
