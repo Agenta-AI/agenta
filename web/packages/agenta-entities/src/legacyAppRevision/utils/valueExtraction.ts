@@ -15,6 +15,13 @@ import type {ConfigMetadata, ObjectMetadata} from "../types/enhanced"
 
 export {stripAgentaMetadataDeep, stripEnhancedWrappers}
 
+type UnknownRecord = Record<string, unknown>
+
+const isRecord = (value: unknown): value is UnknownRecord =>
+    typeof value === "object" && value !== null && !Array.isArray(value)
+
+const asRecord = (value: unknown): UnknownRecord => (isRecord(value) ? value : {})
+
 function isObjectMetadata(metadata: ConfigMetadata): metadata is ObjectMetadata {
     return metadata?.type === "object"
 }
@@ -45,7 +52,7 @@ function shouldIncludeValue(value: unknown): boolean {
     return true
 }
 
-const checkValidity = (obj: Record<string, any>, metadata: ConfigMetadata) => {
+const checkValidity = (obj: Record<string, unknown>, metadata: ConfigMetadata) => {
     if (!isObjectMetadata(metadata)) return true
     if (!metadata.properties) return true
 
@@ -98,7 +105,7 @@ const checkValidity = (obj: Record<string, any>, metadata: ConfigMetadata) => {
  * resolving each level's metadata type to determine how to extract the raw value.
  */
 export function extractValueByMetadata(
-    _enhanced: Record<string, any> | null | undefined,
+    _enhanced: unknown,
     allMetadata: Record<string, ConfigMetadata>,
     debug = false,
 ): unknown {
@@ -112,10 +119,14 @@ export function extractValueByMetadata(
         return enhanced
     }
 
-    const metadata = allMetadata ? allMetadata[enhanced.__metadata] : null
+    const enhancedRecord = asRecord(enhanced)
+    const metadataKey = enhancedRecord["__metadata"]
+    const metadata =
+        allMetadata && typeof metadataKey === "string" ? allMetadata[metadataKey] : null
 
     // Handle primitive enhanced values
     if (
+        isRecord(enhanced) &&
         "value" in enhanced &&
         (!metadata ||
             metadata.type === "string" ||
@@ -124,23 +135,18 @@ export function extractValueByMetadata(
     ) {
         // When metadata is missing and value is a complex type (array/object),
         // recursively process it to strip nested __id/__metadata wrappers
-        if (!metadata && enhanced.value !== null && enhanced.value !== undefined) {
-            if (Array.isArray(enhanced.value)) {
-                return enhanced.value
-                    .map((item: Record<string, any>) =>
-                        extractValueByMetadata(item, allMetadata, debug),
-                    )
+        const enhancedValue = enhancedRecord["value"]
+        if (!metadata && enhancedValue !== null && enhancedValue !== undefined) {
+            if (Array.isArray(enhancedValue)) {
+                return enhancedValue
+                    .map((item: unknown) => extractValueByMetadata(item, allMetadata, debug))
                     .filter(shouldIncludeValue)
             }
-            if (typeof enhanced.value === "object") {
-                return extractValueByMetadata(
-                    enhanced.value as Record<string, any>,
-                    allMetadata,
-                    debug,
-                )
+            if (typeof enhancedValue === "object") {
+                return extractValueByMetadata(enhancedValue, allMetadata, debug)
             }
         }
-        return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined
+        return shouldIncludeValue(enhancedValue) ? enhancedValue : undefined
     }
 
     if (!metadata) {
@@ -172,9 +178,10 @@ export function extractValueByMetadata(
     const extract = () => {
         switch (metadata.type) {
             case "array": {
-                if (!Array.isArray(enhanced.value)) return undefined
-                const arr = enhanced.value
-                    .map((item: Record<string, any>) => {
+                const enhancedValue = enhancedRecord["value"]
+                if (!Array.isArray(enhancedValue)) return undefined
+                const arr = enhancedValue
+                    .map((item: unknown) => {
                         return extractValueByMetadata(item, allMetadata, debug)
                     })
                     .filter(shouldIncludeValue)
@@ -183,36 +190,39 @@ export function extractValueByMetadata(
                 return arr.length > 0 ? arr : undefined
             }
             case "object": {
-                const obj = Object.entries(enhanced)
+                const obj = Object.entries(enhancedRecord)
                     .filter(([key]) => !key.startsWith("__"))
                     .reduce(
                         (acc, [key, val]) => {
                             if (key === "tools") {
-                                const toolsWithoutMetadata = (val?.value || []).map((tool: any) => {
-                                    const rawTool = tool?.value ?? tool
+                                const toolsValue = asRecord(val)["value"]
+                                const toolsWithoutMetadata = (
+                                    Array.isArray(toolsValue) ? toolsValue : []
+                                ).map((tool: unknown) => {
+                                    const rawTool = asRecord(tool)["value"] ?? tool
                                     return stripAgentaMetadataDeep(rawTool)
                                 })
 
                                 acc[key] = toolsWithoutMetadata
                             } else if (
                                 key === "toolCalls" &&
-                                val.value &&
-                                Array.isArray(val.value)
+                                Array.isArray(asRecord(val)["value"])
                             ) {
-                                const cloned = (structuredClone(val.value) || []).map(
-                                    (call: Record<string, any>) => {
-                                        call.id = call.id
-                                        delete call.__id
-                                        delete call.__metadata
+                                const cloned = (
+                                    structuredClone(asRecord(val)["value"]) as unknown[]
+                                ).map((call: unknown) => {
+                                    const callRecord = asRecord(call)
+                                    delete callRecord["__id"]
+                                    delete callRecord["__metadata"]
 
-                                        call.function.parameters = JSON.stringify(
-                                            call.function.parameters,
+                                    const fnRecord = asRecord(callRecord["function"])
+                                    if (Object.keys(fnRecord).length > 0) {
+                                        fnRecord["parameters"] = JSON.stringify(
+                                            fnRecord["parameters"],
                                         )
-                                        return call
-                                    },
-                                )
-                                delete cloned.__id
-                                delete cloned.__metadata
+                                    }
+                                    return call
+                                })
                                 acc[toSnakeCase(key)] = cloned
                             } else {
                                 const extracted = extractValueByMetadata(val, allMetadata, debug)
@@ -226,22 +236,25 @@ export function extractValueByMetadata(
                         {} as Record<string, unknown>,
                     )
 
-                if (obj.role === "tool") {
-                    if (!obj.content) {
-                        obj.content = ""
-                    } else if (Array.isArray(obj.content)) {
-                        obj.content = obj.content.map((item: any) => {
+                if (obj["role"] === "tool") {
+                    if (!obj["content"]) {
+                        obj["content"] = ""
+                    } else if (Array.isArray(obj["content"])) {
+                        obj["content"] = obj["content"].map((item: unknown) => {
                             if (!item) return item
+                            const itemRecord = asRecord(item)
+                            const typeNode = asRecord(itemRecord["type"])
+                            const textNode = asRecord(itemRecord["text"])
                             const typeValue =
-                                typeof item.type === "object" && item.type
-                                    ? (item.type.value ?? item.type)
-                                    : item.type
+                                (Object.keys(typeNode).length > 0
+                                    ? (typeNode["value"] ?? itemRecord["type"])
+                                    : itemRecord["type"]) ?? "text"
                             const textValue =
-                                typeof item.text === "object" && item.text
-                                    ? (item.text.value ?? item.text)
-                                    : (item.text ?? item.content ?? "")
+                                Object.keys(textNode).length > 0
+                                    ? (textNode["value"] ?? itemRecord["text"])
+                                    : (itemRecord["text"] ?? itemRecord["content"] ?? "")
                             return {
-                                type: typeValue || "text",
+                                type: typeof typeValue === "string" ? typeValue : "text",
                                 text:
                                     typeof textValue === "string"
                                         ? textValue
@@ -250,37 +263,33 @@ export function extractValueByMetadata(
                         })
                     }
 
-                    if ((obj as any).toolCallId && typeof (obj as any).toolCallId === "string") {
-                        obj.tool_call_id = (obj as any).toolCallId
-                        delete (obj as any).toolCallId
-                    } else if (
-                        (obj as any).tool_call_id &&
-                        typeof (obj as any).tool_call_id !== "string"
-                    ) {
-                        obj.tool_call_id = String((obj as any).tool_call_id ?? "")
+                    if (obj["toolCallId"] && typeof obj["toolCallId"] === "string") {
+                        obj["tool_call_id"] = obj["toolCallId"]
+                        delete obj["toolCallId"]
+                    } else if (obj["tool_call_id"] && typeof obj["tool_call_id"] !== "string") {
+                        obj["tool_call_id"] = String(obj["tool_call_id"] ?? "")
                     }
                 }
 
-                return Object.keys(obj).length > 0 &&
-                    checkValidity(obj, allMetadata[enhanced.__metadata])
-                    ? obj
-                    : undefined
+                return Object.keys(obj).length > 0 && checkValidity(obj, metadata) ? obj : undefined
             }
             case "compound": {
                 if (!metadata.options) return undefined
                 const options = metadata.options
                 const option = options.find(
-                    (o) =>
-                        "value" in o &&
-                        o.value ===
-                            (enhanced.selected ||
-                                ("value" in options[0] ? options[0].value : undefined)),
+                    (o: unknown) =>
+                        isRecord(o) &&
+                        o["value"] ===
+                            (enhancedRecord["selected"] ||
+                                (isRecord(options[0]) ? options[0]["value"] : undefined)),
                 )
                 if (!option) return undefined
-                return extractValueByMetadata(enhanced.value, allMetadata, debug)
+                return extractValueByMetadata(enhancedRecord["value"], allMetadata, debug)
             }
             default:
-                return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined
+                return shouldIncludeValue(enhancedRecord["value"])
+                    ? enhancedRecord["value"]
+                    : undefined
         }
     }
 
@@ -292,7 +301,7 @@ export function extractValueByMetadata(
  * Extract input keys from an OpenAPI spec, excluding ag_config and messages.
  */
 export const extractInputKeysFromSchema = (spec: OpenAPISpec, routePath = "") => {
-    const {primaryEndpoint} = extractAllEndpointSchemas(spec as any, routePath)
+    const {primaryEndpoint} = extractAllEndpointSchemas(spec as Record<string, unknown>, routePath)
     if (!primaryEndpoint?.requestProperties) return []
     return primaryEndpoint.requestProperties.filter(
         (key: string) => !["ag_config", "messages"].includes(key),
@@ -303,7 +312,7 @@ export const extractInputKeysFromSchema = (spec: OpenAPISpec, routePath = "") =>
  * Extract input values from an enhanced input row.
  * Unwraps enhanced primitive wrappers ({value: X}) and strips metadata fields.
  */
-export function extractInputValues(inputRow: Record<string, any>): Record<string, string> {
+export function extractInputValues(inputRow: Record<string, unknown>): Record<string, string> {
     return Object.entries(inputRow).reduce(
         (acc, [key, value]) => {
             if (key === "__id" || key === "__metadata" || key === "__result") {
@@ -311,7 +320,12 @@ export function extractInputValues(inputRow: Record<string, any>): Record<string
             }
 
             if (value && typeof value === "object" && "value" in value) {
-                acc[key] = (value as {value: string}).value
+                const wrappedValue = asRecord(value)["value"]
+                if (typeof wrappedValue === "string") {
+                    acc[key] = wrappedValue
+                } else if (wrappedValue !== undefined && wrappedValue !== null) {
+                    acc[key] = String(wrappedValue)
+                }
             }
             return acc
         },

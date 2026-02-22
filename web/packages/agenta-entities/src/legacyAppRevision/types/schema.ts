@@ -5,7 +5,7 @@
  * in the entity package.
  */
 
-import type {BaseOption} from "./enhanced"
+import type {BaseOption, Merge} from "./enhanced"
 
 // ============================================================================
 // BASE
@@ -169,5 +169,4 @@ export interface OpenAPISpecStrict {
 }
 
 // Re-export Merge here since schema.d.ts depends on it
-import type {Merge} from "./enhanced"
 export type {Merge}

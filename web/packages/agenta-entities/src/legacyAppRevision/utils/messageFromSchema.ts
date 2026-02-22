@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Create an Enhanced message PropertyNode tree from a ConfigMetadata schema.
  *
@@ -11,7 +10,6 @@
  * `@agenta/entities/legacyAppRevision`.
  */
 
-import type {MessageContentPart} from "@agenta/shared/types"
 import {generateId} from "@agenta/shared/utils"
 
 import type {ConfigMetadata, ObjectMetadata} from "../types/enhanced"
@@ -26,6 +24,70 @@ import {toSnakeCase} from "./valueExtraction"
 function isObjectMetadata(metadata: ConfigMetadata): metadata is ObjectMetadata {
     return metadata?.type === "object"
 }
+
+type UnknownRecord = Record<string, unknown>
+
+const isRecord = (value: unknown): value is UnknownRecord =>
+    typeof value === "object" && value !== null && !Array.isArray(value)
+
+const asRecord = (value: unknown): UnknownRecord => (isRecord(value) ? value : {})
+
+const isConfigMetadata = (value: unknown): value is ConfigMetadata =>
+    isRecord(value) && typeof value["type"] === "string"
+
+const isValueNode = (value: unknown): value is UnknownRecord & {value: unknown} =>
+    isRecord(value) && "value" in value
+
+const getLinkedMetadata = (source: unknown): ConfigMetadata | undefined => {
+    const metadataHash = asRecord(source)["__metadata"]
+    return typeof metadataHash === "string" ? getMetadataLazy(metadataHash) : undefined
+}
+
+const getArrayItemMetadata = (metadata: ConfigMetadata | null): ConfigMetadata | undefined => {
+    if (!metadata || metadata.type !== "array") return undefined
+    const itemMetadata = asRecord(metadata)["itemMetadata"]
+    return isConfigMetadata(itemMetadata) ? itemMetadata : undefined
+}
+
+const getOptionByProperty = (
+    metadata: ConfigMetadata,
+    propertyName: string,
+): ConfigMetadata | undefined => {
+    const options = asRecord(metadata)["options"]
+    if (!Array.isArray(options)) return undefined
+
+    const match = options.find((option) => {
+        const properties = asRecord(asRecord(option)["properties"])
+        return propertyName in properties
+    })
+
+    return isConfigMetadata(match) ? match : undefined
+}
+
+const setNodeValue = (parent: UnknownRecord, key: string, value: unknown): void => {
+    const node = asRecord(parent[key])
+    node["value"] = value
+    parent[key] = node
+}
+
+const ensureScalarNode = (node: unknown, metadataHash: string): UnknownRecord => {
+    if (isRecord(node)) return node
+    return {
+        __id: generateId(),
+        __metadata: metadataHash,
+        value: "",
+    }
+}
+
+const createTextContentObject = (itemMetadata: ConfigMetadata, text: string): UnknownRecord => {
+    const textOptionMetadata = getOptionByProperty(itemMetadata, "text")
+    const textObject = asRecord(createObjectFromMetadata(textOptionMetadata ?? itemMetadata))
+    setNodeValue(textObject, "type", "text")
+    setNodeValue(textObject, "text", text)
+    return textObject
+}
+
+const asStringOrEmpty = (value: unknown): string => (typeof value === "string" ? value : "")
 
 // ---------------------------------------------------------------------------
 // Metadata accessor — avoids circular imports with the molecule/store.
@@ -49,70 +111,47 @@ function getMetadataLazy(hash: string): ConfigMetadata | undefined {
 export const createMessageFromSchema = (
     metadata: ConfigMetadata,
     json?: Record<string, unknown>,
-): Record<string, any> | undefined => {
-    const properties: Record<string, any> = {}
+): Record<string, unknown> | undefined => {
+    const properties: Record<string, unknown> = {}
 
     if (isObjectMetadata(metadata)) {
         Object.entries(metadata.properties ?? {}).forEach(([key, propMetadata]) => {
             const metadataHash = hashConfigMetadata(propMetadata)
 
-            const baseValue = createObjectFromMetadata(propMetadata as ConfigMetadata)
+            const baseValue = createObjectFromMetadata(propMetadata)
 
-            if (
-                baseValue &&
-                typeof baseValue === "object" &&
-                !Array.isArray(baseValue) &&
-                "value" in baseValue
-            ) {
-                const primitiveType = (propMetadata as any)?.type
+            if (isValueNode(baseValue)) {
+                const primitiveType = propMetadata.type
 
-                if (primitiveType === "number" && (baseValue as any).value === "") {
-                    ;(baseValue as any).value = (propMetadata as any)?.nullable ? null : 0
-                } else if (primitiveType === "boolean" && (baseValue as any).value === "") {
-                    ;(baseValue as any).value = (propMetadata as any)?.nullable ? null : false
+                if (primitiveType === "number" && baseValue.value === "") {
+                    baseValue.value = propMetadata.nullable ? null : 0
+                } else if (primitiveType === "boolean" && baseValue.value === "") {
+                    baseValue.value = propMetadata.nullable ? null : false
                 }
             }
 
-            if (
-                key === "role" &&
-                baseValue &&
-                typeof baseValue === "object" &&
-                !Array.isArray(baseValue) &&
-                "value" in baseValue
-            ) {
-                ;(baseValue as any).value = "user"
+            if (key === "role" && isValueNode(baseValue)) {
+                baseValue.value = "user"
             }
 
             const jsonValue = json?.[key] ?? json?.[toSnakeCase(key)]
-            let value: any = jsonValue
+            let value: unknown = jsonValue
 
             if (key === "role") {
                 if (typeof value === "string") {
                     value = {value}
                 }
             } else if (key === "content") {
-                let newValue: any
                 if (value) {
                     if (typeof value === "string") {
-                        const contentMetadata = getMetadataLazy((propMetadata as any).__metadata)
+                        const contentMetadata = getLinkedMetadata(propMetadata)
                         const objectTypeMetadata = extractObjectSchemaFromMetadata(
                             contentMetadata || propMetadata,
                         )
+                        const itemMetadata = getArrayItemMetadata(objectTypeMetadata)
 
-                        if (
-                            objectTypeMetadata?.type === "array" &&
-                            (objectTypeMetadata as any).itemMetadata
-                        ) {
-                            const itemMetadata = (objectTypeMetadata as any).itemMetadata
-
-                            const textOptionMetadata = itemMetadata.options?.find(
-                                (opt: any) => "text" in opt.properties,
-                            )
-
-                            const textObject: any = createObjectFromMetadata(textOptionMetadata)
-
-                            textObject.type.value = "text"
-                            textObject.text.value = value
+                        if (objectTypeMetadata && itemMetadata) {
+                            const textObject = createTextContentObject(itemMetadata, value)
 
                             value = {
                                 __id: generateId(),
@@ -121,139 +160,187 @@ export const createMessageFromSchema = (
                             }
                         }
                     } else if (Array.isArray(value)) {
-                        const contentMetadata = getMetadataLazy((value as any)?.__metadata)
+                        const contentMetadata = getLinkedMetadata(value)
                         const objectTypeMetadata = extractObjectSchemaFromMetadata(
                             contentMetadata || propMetadata,
                         )
+                        const itemMetadata = getArrayItemMetadata(objectTypeMetadata)
 
-                        if (
-                            objectTypeMetadata?.type === "array" &&
-                            (objectTypeMetadata as any).itemMetadata
-                        ) {
-                            const itemMetadata = (objectTypeMetadata as any).itemMetadata
+                        if (objectTypeMetadata && itemMetadata) {
+                            const itemMetadataHash = hashConfigMetadata(itemMetadata)
 
-                            newValue = {
+                            const mappedContent = value.map((item) => {
+                                const part = asRecord(item)
+                                const generatedItem = structuredClone(
+                                    asRecord(createObjectFromMetadata(itemMetadata)),
+                                )
+
+                                Object.keys(generatedItem).forEach((k) => {
+                                    if (!["__id", "__metadata", "type"].includes(k)) {
+                                        delete generatedItem[k]
+                                    }
+                                })
+
+                                const itemType = asStringOrEmpty(part["type"])
+                                setNodeValue(generatedItem, "type", itemType)
+
+                                if (itemType === "text") {
+                                    setNodeValue(
+                                        generatedItem,
+                                        "text",
+                                        asStringOrEmpty(part["text"]),
+                                    )
+                                } else if (itemType === "image_url") {
+                                    const imageOptionMetadata =
+                                        getOptionByProperty(itemMetadata, "image_url") ??
+                                        getOptionByProperty(itemMetadata, "imageUrl")
+
+                                    const imageBase = imageOptionMetadata
+                                        ? asRecord(createObjectFromMetadata(imageOptionMetadata))
+                                        : {}
+                                    const imageProp = asRecord(
+                                        imageBase["image_url"] ??
+                                            imageBase["imageUrl"] ?? {
+                                                url: {},
+                                                detail: {},
+                                            },
+                                    )
+
+                                    const imageUrl = asRecord(part["image_url"])
+                                    const detail = imageUrl["detail"]
+
+                                    generatedItem["image_url"] = {
+                                        ...imageProp,
+                                        url: {
+                                            ...asRecord(imageProp["url"]),
+                                            value: asStringOrEmpty(imageUrl["url"]),
+                                        },
+                                        detail: {
+                                            ...asRecord(imageProp["detail"]),
+                                            value:
+                                                detail === "auto" ||
+                                                detail === "low" ||
+                                                detail === "high"
+                                                    ? detail
+                                                    : "auto",
+                                        },
+                                    }
+
+                                    if (typeof imageBase["__metadata"] === "string") {
+                                        generatedItem["__metadata"] = imageBase["__metadata"]
+                                    }
+                                    if (typeof imageBase["__id"] === "string") {
+                                        generatedItem["__id"] = imageBase["__id"]
+                                    }
+                                } else if (itemType === "file") {
+                                    const fileOptionMetadata = getOptionByProperty(
+                                        itemMetadata,
+                                        "file",
+                                    )
+
+                                    const fileBase = fileOptionMetadata
+                                        ? asRecord(createObjectFromMetadata(fileOptionMetadata))
+                                        : {}
+                                    const fileProp = asRecord(
+                                        fileBase["file"] ?? {
+                                            __id: generateId(),
+                                            __metadata: itemMetadataHash,
+                                        },
+                                    )
+                                    const file = asRecord(part["file"])
+
+                                    generatedItem["file"] = {
+                                        ...fileProp,
+                                        file_id: {
+                                            ...ensureScalarNode(
+                                                fileProp["file_id"],
+                                                itemMetadataHash,
+                                            ),
+                                            value: asStringOrEmpty(file["file_id"]),
+                                        },
+                                        file_data: {
+                                            ...ensureScalarNode(
+                                                fileProp["file_data"],
+                                                itemMetadataHash,
+                                            ),
+                                            value: asStringOrEmpty(file["file_data"]),
+                                        },
+                                        name: {
+                                            ...ensureScalarNode(fileProp["name"], itemMetadataHash),
+                                            value:
+                                                asStringOrEmpty(file["name"]) ||
+                                                asStringOrEmpty(file["filename"]),
+                                        },
+                                        filename: {
+                                            ...ensureScalarNode(
+                                                fileProp["filename"],
+                                                itemMetadataHash,
+                                            ),
+                                            value:
+                                                asStringOrEmpty(file["filename"]) ||
+                                                asStringOrEmpty(file["name"]),
+                                        },
+                                        mime_type: {
+                                            ...ensureScalarNode(
+                                                fileProp["mime_type"],
+                                                itemMetadataHash,
+                                            ),
+                                            value:
+                                                asStringOrEmpty(file["mime_type"]) ||
+                                                asStringOrEmpty(file["format"]),
+                                        },
+                                        format: {
+                                            ...ensureScalarNode(
+                                                fileProp["format"],
+                                                itemMetadataHash,
+                                            ),
+                                            value:
+                                                asStringOrEmpty(file["format"]) ||
+                                                asStringOrEmpty(file["mime_type"]),
+                                        },
+                                    }
+
+                                    if (fileBase["__metadata"] !== undefined) {
+                                        generatedItem["__metadata"] = fileBase["__metadata"]
+                                    }
+                                    if (fileBase["__id"] !== undefined) {
+                                        generatedItem["__id"] = fileBase["__id"]
+                                    }
+                                }
+
+                                return generatedItem
+                            })
+
+                            value = {
                                 __id: generateId(),
                                 __metadata: hashConfigMetadata(objectTypeMetadata),
-                                value: value.map((item: MessageContentPart) => {
-                                    const base: any = createObjectFromMetadata(itemMetadata)
-
-                                    const generatedItem = structuredClone(base)
-
-                                    Object.keys(generatedItem).forEach((k) => {
-                                        if (!["__id", "__metadata", "type"].includes(k)) {
-                                            delete generatedItem[k]
-                                        }
-                                    })
-
-                                    generatedItem.type = {
-                                        value: item.type,
-                                        __id: generateId(),
-                                        __metadata: hashConfigMetadata(itemMetadata),
-                                    }
-
-                                    if (item.type === "text") {
-                                        generatedItem.text = {
-                                            __id: generateId(),
-                                            value: item.text,
-                                            __metadata: hashConfigMetadata(itemMetadata),
-                                        }
-                                    } else if (item.type === "image_url") {
-                                        const imageOptionMetadata = itemMetadata.options?.find(
-                                            (opt: any) =>
-                                                "image_url" in opt.properties ||
-                                                "imageUrl" in opt.properties,
-                                        )
-
-                                        const imageBase: any =
-                                            createObjectFromMetadata(imageOptionMetadata)
-                                        const imageProp = imageBase?.image_url ||
-                                            imageBase?.imageUrl || {url: {}, detail: {}}
-
-                                        generatedItem.image_url = {
-                                            ...imageProp,
-                                            url: {
-                                                ...imageProp?.url,
-                                                value: item.image_url?.url || "",
-                                            },
-                                            detail: {
-                                                ...imageProp?.detail,
-                                                value: item.image_url?.detail || "auto",
-                                            },
-                                        }
-
-                                        generatedItem.__metadata = imageBase?.__metadata
-                                        generatedItem.__id = imageBase?.__id
-                                    } else if (item.type === "file") {
-                                        const fileOptionMetadata = itemMetadata.options?.find(
-                                            (opt: any) => "file" in opt.properties,
-                                        )
-
-                                        const fileBase: any =
-                                            createObjectFromMetadata(fileOptionMetadata)
-                                        const fileProp = fileBase?.file ?? {
-                                            __id: generateId(),
-                                            __metadata: hashConfigMetadata(itemMetadata),
-                                        }
-                                        const ensureScalarNode = (node: any) => {
-                                            if (node && typeof node === "object") return node
-                                            return {
-                                                __id: generateId(),
-                                                __metadata: hashConfigMetadata(itemMetadata),
-                                                value: "",
-                                            }
-                                        }
-
-                                        generatedItem.file = {
-                                            ...fileProp,
-                                            file_id: {
-                                                ...ensureScalarNode(fileProp?.file_id),
-                                                value: item.file?.file_id || "",
-                                            },
-                                            file_data: {
-                                                ...ensureScalarNode(fileProp?.file_data),
-                                                value: item.file?.file_data || "",
-                                            },
-                                            name: {
-                                                ...ensureScalarNode(fileProp?.name),
-                                                value: item.file?.name || item.file?.filename || "",
-                                            },
-                                            filename: {
-                                                ...ensureScalarNode(fileProp?.filename),
-                                                value: item.file?.filename || item.file?.name || "",
-                                            },
-                                            mime_type: {
-                                                ...ensureScalarNode(fileProp?.mime_type),
-                                                value:
-                                                    item.file?.mime_type || item.file?.format || "",
-                                            },
-                                            format: {
-                                                ...ensureScalarNode(fileProp?.format),
-                                                value:
-                                                    item.file?.format || item.file?.mime_type || "",
-                                            },
-                                        }
-
-                                        if (fileBase) {
-                                            generatedItem.__metadata = fileBase.__metadata
-                                            generatedItem.__id = fileBase.__id
-                                        }
-                                    }
-
-                                    return generatedItem
-                                }),
+                                value: mappedContent,
                             }
-
-                            value = newValue
                         }
-                    } else if (!value?.value) {
-                        const contentMetadata = getMetadataLazy(value?.__metadata)
-                        const objectTypeMetadata = extractObjectSchemaFromMetadata(
-                            contentMetadata || propMetadata,
-                        )
-                        newValue = createObjectFromMetadata(objectTypeMetadata as any)
-                        ;(newValue as any).value[0].type.value = "text"
-                        value = newValue
+                    } else {
+                        const existingValueNode = asRecord(value)
+                        if (!existingValueNode["value"]) {
+                            const contentMetadata = getLinkedMetadata(value)
+                            const objectTypeMetadata = extractObjectSchemaFromMetadata(
+                                contentMetadata || propMetadata,
+                            )
+
+                            if (objectTypeMetadata) {
+                                const newValue = asRecord(
+                                    createObjectFromMetadata(objectTypeMetadata),
+                                )
+                                const items = newValue["value"]
+
+                                if (Array.isArray(items) && items.length > 0) {
+                                    const firstItem = asRecord(items[0])
+                                    setNodeValue(firstItem, "type", "text")
+                                    items[0] = firstItem
+                                    newValue["value"] = items
+                                }
+
+                                value = newValue
+                            }
+                        }
                     }
                 } else {
                     value = {
@@ -264,38 +351,31 @@ export const createMessageFromSchema = (
                 }
             } else if (key === "toolCalls") {
                 if (Array.isArray(value)) {
-                    value = value.map((item: any) => ({
+                    value = value.map((item) => ({
                         __id: generateId(),
                         __metadata: hashConfigMetadata(propMetadata),
-                        ...structuredClone(item),
+                        ...asRecord(structuredClone(item)),
                     }))
                 }
             }
 
             if (key === "content") {
+                const valueRecord = asRecord(value)
+
                 if (
                     value === undefined ||
                     value === null ||
-                    value.value === null ||
-                    value.value === undefined
+                    valueRecord["value"] === null ||
+                    valueRecord["value"] === undefined
                 ) {
-                    const contentMetadata = getMetadataLazy((propMetadata as any).__metadata)
+                    const contentMetadata = getLinkedMetadata(propMetadata)
                     const objectTypeMetadata = extractObjectSchemaFromMetadata(
                         contentMetadata || propMetadata,
                     )
+                    const itemMetadata = getArrayItemMetadata(objectTypeMetadata)
 
-                    if (
-                        objectTypeMetadata?.type === "array" &&
-                        (objectTypeMetadata as any).itemMetadata
-                    ) {
-                        const itemMetadata = (objectTypeMetadata as any).itemMetadata
-                        const textOptionMetadata = itemMetadata.options?.find(
-                            (opt: any) => "text" in opt.properties,
-                        )
-
-                        const textObject: any = createObjectFromMetadata(textOptionMetadata)
-                        textObject.type.value = "text"
-                        textObject.text.value = ""
+                    if (objectTypeMetadata && itemMetadata) {
+                        const textObject = createTextContentObject(itemMetadata, "")
 
                         value = {
                             __id: generateId(),
@@ -318,14 +398,12 @@ export const createMessageFromSchema = (
                 (typeof value === "string" ||
                     typeof value === "number" ||
                     typeof value === "boolean") &&
-                propMetadata?.type === typeof value &&
-                (!(value as any)?.__id || !(value as any)?.__metadata)
+                propMetadata?.type === typeof value
             ) {
                 value = {value}
             }
 
-            const baseIsObject =
-                baseValue && typeof baseValue === "object" && !Array.isArray(baseValue)
+            const baseIsObject = isRecord(baseValue)
 
             if (value === undefined) {
                 if (baseIsObject) {
@@ -333,9 +411,9 @@ export const createMessageFromSchema = (
                 }
             } else if (value === null) {
                 if (baseIsObject) {
-                    const baseClone: any = structuredClone(baseValue)
+                    const baseClone = asRecord(structuredClone(baseValue))
                     if ("value" in baseClone) {
-                        baseClone.value = null
+                        baseClone["value"] = null
                     }
                     value = baseClone
                 } else {
@@ -343,21 +421,22 @@ export const createMessageFromSchema = (
                 }
             } else if (
                 baseIsObject &&
-                typeof value === "object" &&
-                !Array.isArray(value) &&
+                isRecord(value) &&
                 (!("__id" in value) || !("__metadata" in value))
             ) {
-                const baseClone = structuredClone(baseValue)
+                const baseClone = asRecord(structuredClone(baseValue))
                 value = {
-                    ...(baseClone as any),
+                    ...baseClone,
                     ...value,
                 }
             }
 
+            const valuePayload = isRecord(value) ? value : value === undefined ? {} : {value}
+
             properties[key] = {
                 __id: generateId(),
                 __metadata: metadataHash,
-                ...(value || {}),
+                ...valuePayload,
             }
         })
         const metadataHash = hashConfigMetadata(metadata)

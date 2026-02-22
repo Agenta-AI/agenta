@@ -29,11 +29,11 @@ import {
 export interface TransformVariantInput {
     id?: string
 
-    parameters?: any
+    parameters?: unknown
 
-    prompts?: any[]
+    prompts?: unknown[]
 
-    customProperties?: Record<string, any>
+    customProperties?: Record<string, unknown>
     isChat?: boolean
     [key: string]: unknown
 }
@@ -42,34 +42,41 @@ export interface TransformVariantInput {
 export interface TransformMessage {
     role: string
 
-    content: string | any[]
+    content: string | unknown[]
     name?: string
 
-    toolCalls?: any[]
+    toolCalls?: unknown[]
     toolCallId?: string
 }
 
 /** Parameters for transformToRequestBody */
 export interface TransformToRequestBodyParams {
     variant?: TransformVariantInput
-    inputRow?: Record<string, any>
-    messageRow?: Record<string, any>
+    inputRow?: Record<string, unknown>
+    messageRow?: Record<string, unknown>
     allMetadata?: Record<string, ConfigMetadata>
     chatHistory?: TransformMessage[]
     spec?: OpenAPISpec
     routePath?: string
-    prompts?: any[]
-    customProperties?: Record<string, any>
+    prompts?: unknown[]
+    customProperties?: Record<string, unknown>
     revisionId?: string
     isChat?: boolean
     isCustom?: boolean
     appType?: string
     variables?: string[]
-    variableValues?: Record<string, any>
+    variableValues?: Record<string, unknown>
     /** Pre-resolved ag_config from the caller (e.g. runnableBridge.configuration).
      *  Used as fallback when prompt/custom extraction yields an empty config. */
-    rawAgConfig?: Record<string, any>
+    rawAgConfig?: Record<string, unknown>
 }
+
+type UnknownRecord = Record<string, unknown>
+
+const isRecord = (value: unknown): value is UnknownRecord =>
+    typeof value === "object" && value !== null && !Array.isArray(value)
+
+const asRecord = (value: unknown): UnknownRecord => (isRecord(value) ? value : {})
 
 /**
  * Transform enhanced variant data back to API request shape.
@@ -94,12 +101,12 @@ export function transformToRequestBody({
     variables,
     variableValues,
     rawAgConfig,
-}: TransformToRequestBodyParams): Record<string, any> {
-    const data = {} as Record<string, any>
+}: TransformToRequestBodyParams): Record<string, unknown> {
+    const data: Record<string, unknown> = {}
     const spec = _spec
     // Inspect request schema to determine how to map inputs for custom workflows
     const {primaryEndpoint} = spec
-        ? extractAllEndpointSchemas(spec as any, routePath)
+        ? extractAllEndpointSchemas(spec as Record<string, unknown>, routePath)
         : {primaryEndpoint: null}
     const hasInputsProperty = Boolean(primaryEndpoint?.inputsSchema)
     const hasMessagesProperty = Boolean(primaryEndpoint?.messagesSchema)
@@ -112,40 +119,48 @@ export function transformToRequestBody({
     const isCustomFinal = Boolean(isCustom) || isCustomBySchema || isCustomByAppType
 
     // Helper: infer if a property schema expects a string
-    const _isStringSchema = (node: any): boolean => {
+    const _isStringSchema = (node: unknown): boolean => {
         if (!node || typeof node !== "object") return false
-        const t = (node as any).type
+        const t = (node as Record<string, unknown>).type
         if (typeof t === "string") return t === "string"
         if (Array.isArray(t)) return t.includes("string")
-        const alts = (node as any).anyOf || (node as any).oneOf || (node as any).allOf
-        if (Array.isArray(alts)) return alts.some((n: any) => _isStringSchema(n))
+        const alts =
+            (node as Record<string, unknown>).anyOf ||
+            (node as Record<string, unknown>).oneOf ||
+            (node as Record<string, unknown>).allOf
+        if (Array.isArray(alts)) return alts.some((n: unknown) => _isStringSchema(n))
         return false
     }
-    const _isNullable = (node: any): boolean => {
+    const _isNullable = (node: unknown): boolean => {
         if (!node || typeof node !== "object") return false
-        if ((node as any).nullable === true) return true
-        const t = (node as any).type
+        if ((node as Record<string, unknown>).nullable === true) return true
+        const t = (node as Record<string, unknown>).type
         if (t === "null") return true
         if (Array.isArray(t) && t.includes("null")) return true
-        const alts = (node as any).anyOf || (node as any).oneOf || (node as any).allOf
-        if (Array.isArray(alts)) return alts.some((n: any) => _isNullable(n))
+        const alts =
+            (node as Record<string, unknown>).anyOf ||
+            (node as Record<string, unknown>).oneOf ||
+            (node as Record<string, unknown>).allOf
+        if (Array.isArray(alts)) return alts.some((n: unknown) => _isNullable(n))
         return false
     }
     // reqSchema is referenced by _getPropertySchema but declared later contextually;
     // we resolve it from the primary endpoint here for closure access.
     const reqSchema = primaryEndpoint?.requestSchema
-    const _getPropertySchema = (key: string): any => {
+    const _getPropertySchema = (key: string): unknown => {
         try {
-            const top = (reqSchema as any)?.properties?.[key]
+            const reqSchemaRecord = asRecord(reqSchema)
+            const properties = asRecord(reqSchemaRecord["properties"])
+            const top = properties[key]
             if (top) return top
-            const inputs = (reqSchema as any)?.properties?.inputs?.properties?.[key]
+            const inputs = asRecord(asRecord(properties["inputs"])["properties"])[key]
             if (inputs) return inputs
         } catch {
             // ignore
         }
         return undefined
     }
-    const _defaultForKey = (key: string): any => {
+    const _defaultForKey = (key: string): unknown => {
         try {
             const prop = _getPropertySchema(key)
             if (!prop) {
@@ -155,10 +170,10 @@ export function transformToRequestBody({
             if (_isStringSchema(prop)) return ""
             // If type is unknown/unspecified but not explicitly nullable, send empty string
             const hasType =
-                Boolean((prop as any).type) ||
-                Boolean((prop as any).anyOf) ||
-                Boolean((prop as any).oneOf) ||
-                Boolean((prop as any).allOf)
+                Boolean((prop as Record<string, unknown>).type) ||
+                Boolean((prop as Record<string, unknown>).anyOf) ||
+                Boolean((prop as Record<string, unknown>).oneOf) ||
+                Boolean((prop as Record<string, unknown>).allOf)
             if (!hasType && !_isNullable(prop)) return ""
             // Fallback: default to null for non-string or explicitly nullable types
             return null
@@ -166,51 +181,67 @@ export function transformToRequestBody({
             return null
         }
     }
-    const enhancedPrompts = (prompts || variant?.prompts || []) as any[]
+    const enhancedPrompts = (prompts || variant?.prompts || []) as unknown[]
     // Get original parameters to preserve fields like input_keys, template_format
-    const originalParams = (variant?.parameters as any)?.ag_config || variant?.parameters || {}
+    const variantParameters = asRecord(variant?.parameters)
+    const originalParams = asRecord(variantParameters["ag_config"] ?? variant?.parameters)
     const promptConfigs = (enhancedPrompts || []).reduce(
-        (acc: Record<string, any>, prompt: any) => {
-            const extracted = extractValueByMetadata(prompt, allMetadata) as Record<string, any>
-            const name = prompt.__name
-            if (!name) return acc
+        (acc: Record<string, unknown>, prompt: unknown) => {
+            const promptRecord = asRecord(prompt)
+            const name = promptRecord["__name"]
+            if (typeof name !== "string" || name.length === 0) return acc
+            const extractedValue = extractValueByMetadata(prompt, allMetadata)
+            const extracted = asRecord(extractedValue)
 
             // Preserve input_keys and template_format from original parameters if they exist
-            const originalPromptConfig = (originalParams as any)[name]
-            if (originalPromptConfig) {
-                if (originalPromptConfig.input_keys && !extracted.input_keys) {
-                    extracted.input_keys = originalPromptConfig.input_keys
+            const originalPromptConfig = asRecord(originalParams[name])
+            if (Object.keys(originalPromptConfig).length > 0) {
+                if (originalPromptConfig["input_keys"] && !extracted["input_keys"]) {
+                    extracted["input_keys"] = originalPromptConfig["input_keys"]
                 }
-                if (originalPromptConfig.template_format && !extracted.template_format) {
-                    extracted.template_format = originalPromptConfig.template_format
+                if (originalPromptConfig["template_format"] && !extracted["template_format"]) {
+                    extracted["template_format"] = originalPromptConfig["template_format"]
                 }
             }
 
             acc[name] = extracted
             return acc
         },
-        {} as Record<string, any>,
+        {} as Record<string, unknown>,
     )
 
     // Fallback: if extraction produced empty messages but enhanced prompts contain messages,
     // build a minimal messages array from the enhanced structure (role/content only)
     try {
         for (const p of enhancedPrompts || []) {
-            const key = p?.__name
-            if (!key) continue
-            const cfg = promptConfigs[key] || (promptConfigs[key] = {})
-            const hasMsgs = Array.isArray(cfg?.messages) && cfg.messages.length > 0
-            const enhancedMsgs = (p as any)?.messages?.value
+            const promptRecord = asRecord(p)
+            const key = promptRecord["__name"]
+            if (typeof key !== "string" || key.length === 0) continue
+            const cfg = asRecord(promptConfigs[key] ?? (promptConfigs[key] = {}))
+            const cfgMessages = cfg["messages"]
+            const hasMsgs = Array.isArray(cfgMessages) && cfgMessages.length > 0
+            const enhancedMsgs = asRecord(promptRecord["messages"])["value"]
             if (!hasMsgs && Array.isArray(enhancedMsgs) && enhancedMsgs.length > 0) {
-                cfg.messages = enhancedMsgs.map((m: any) => {
-                    const role = m?.role?.value ?? m?.role ?? "user"
+                cfg["messages"] = enhancedMsgs.map((m: unknown) => {
+                    const messageRecord = asRecord(m)
+                    const roleNode = asRecord(messageRecord["role"])
+                    const roleValue = roleNode["value"] ?? messageRecord["role"]
+                    const role = typeof roleValue === "string" ? roleValue : "user"
                     const content = (() => {
-                        const c = m?.content?.value ?? m?.content
+                        const contentNode = asRecord(messageRecord["content"])
+                        const c = contentNode["value"] ?? messageRecord["content"]
                         if (Array.isArray(c)) {
                             // Join text parts to a simple string; keep simple for fallback
                             const texts = c
-                                .map((part: any) => part?.text?.value ?? part?.text ?? "")
-                                .filter(Boolean)
+                                .map((part: unknown) => {
+                                    const partRecord = asRecord(part)
+                                    const textNode = asRecord(partRecord["text"])
+                                    const textValue = textNode["value"] ?? partRecord["text"] ?? ""
+                                    return typeof textValue === "string"
+                                        ? textValue
+                                        : String(textValue ?? "")
+                                })
+                                .filter((text) => text.length > 0)
                             return texts.join("\n\n")
                         }
                         return c
@@ -227,7 +258,7 @@ export function transformToRequestBody({
         (extractValueByMetadata(
             customProperties || variant?.customProperties,
             allMetadata,
-        ) as Record<string, any>) || {}
+        ) as Record<string, unknown>) || {}
 
     // Preserve custom properties from original parameters that aren't in enhanced format.
     // This handles custom apps where properties like max_tweet_length, output_format, etc.
@@ -246,11 +277,11 @@ export function transformToRequestBody({
     const customKeys = new Set(Object.keys(customConfigs))
     const hasEnhancedPrompts = promptKeys.size > 0
     if (!hasExplicitCustomProperties) {
-        for (const [key, value] of Object.entries(originalParams as Record<string, any>)) {
+        for (const [key, value] of Object.entries(originalParams)) {
             // Skip if it's a prompt config or already in customConfigs
             if (promptKeys.has(key) || customKeys.has(key)) continue
             // Skip if it's a nested object with llm_config or messages (it's a prompt, not custom property)
-            if (value && typeof value === "object" && (value.llm_config || value.messages)) continue
+            if (isRecord(value) && (value["llm_config"] || value["messages"])) continue
             // When enhanced prompts exist, skip primitive legacy fields (system_prompt, temperature, etc.)
             // — they are superseded by the structured prompt format
             if (
@@ -276,40 +307,40 @@ export function transformToRequestBody({
     }
 
     // Sanitize response_format within each prompt's llm_config to avoid backend validation errors
-    const sanitizeResponseFormat = (cfg: Record<string, any>) => {
+    const sanitizeResponseFormat = (cfg: Record<string, unknown>) => {
         const allowedTypes = new Set(["text", "json_object", "json_schema"]) as Set<string>
-        Object.values(cfg || {}).forEach((promptCfg: any) => {
-            if (!promptCfg || typeof promptCfg !== "object") return
-            const llmCfg = promptCfg.llm_config
-            if (!llmCfg || typeof llmCfg !== "object") return
-            const rf = llmCfg.response_format
-            if (!rf || typeof rf !== "object") return
-            const t = rf.type
+        Object.values(cfg || {}).forEach((promptCfg: unknown) => {
+            if (!isRecord(promptCfg)) return
+            const llmCfg = promptCfg["llm_config"]
+            if (!isRecord(llmCfg)) return
+            const rf = llmCfg["response_format"]
+            if (!isRecord(rf)) return
+            const t = rf["type"]
             // If type missing or not allowed, drop response_format to default to text
             if (!t || typeof t !== "string" || !allowedTypes.has(t)) {
-                delete llmCfg.response_format
+                delete llmCfg["response_format"]
                 return
             }
             if (t === "text") {
                 // Normalize to minimal shape
-                llmCfg.response_format = {type: "text"}
+                llmCfg["response_format"] = {type: "text"}
                 return
             }
             if (t === "json_object") {
                 // Nothing else required; ensure no stray fields
-                llmCfg.response_format = {type: "json_object"}
+                llmCfg["response_format"] = {type: "json_object"}
                 return
             }
             if (t === "json_schema") {
                 // Require json_schema field; if missing, drop response_format to avoid validation error
-                if (!rf.json_schema || typeof rf.json_schema !== "object") {
-                    delete llmCfg.response_format
+                if (!isRecord(rf["json_schema"])) {
+                    delete llmCfg["response_format"]
                     return
                 }
                 // Keep only required fields
-                llmCfg.response_format = {
+                llmCfg["response_format"] = {
                     type: "json_schema",
-                    json_schema: rf.json_schema,
+                    json_schema: rf["json_schema"],
                 }
             }
         })
@@ -332,16 +363,18 @@ export function transformToRequestBody({
         } else if (!resolvedVariables || resolvedVariables.length === 0) {
             const vars = new Set<string>()
             for (const cfg of Object.values(promptConfigs || {})) {
-                const msgs = Array.isArray((cfg as any)?.messages) ? (cfg as any).messages : []
+                const cfgRecord = asRecord(cfg)
+                const msgs = Array.isArray(cfgRecord["messages"]) ? cfgRecord["messages"] : []
                 for (const m of msgs) {
-                    const content = (m as any)?.content
+                    const content = asRecord(m)["content"]
                     if (typeof content === "string") {
                         extractTemplateVariables(content).forEach((v) => vars.add(v))
                     } else if (content && (Array.isArray(content) || typeof content === "object")) {
                         extractTemplateVariablesFromJson(content).forEach((v) => vars.add(v))
                     }
                 }
-                const respFmt = (cfg as any)?.llm_config?.response_format
+                const llmConfig = asRecord(cfgRecord["llm_config"])
+                const respFmt = llmConfig["response_format"]
                 if (respFmt) {
                     extractTemplateVariablesFromJson(respFmt).forEach((v) => vars.add(v))
                 }
@@ -357,8 +390,8 @@ export function transformToRequestBody({
             // Custom workflow: put inputs at top-level according to schema input keys
             const inputKeys = spec ? extractInputKeysFromSchema(spec, routePath) : []
             for (const key of inputKeys) {
-                const node = inputRow?.[key as keyof typeof inputRow] as any
-                const value = (node as any)?.value
+                const node = inputRow?.[key as keyof typeof inputRow] as Record<string, unknown>
+                const value = (node as Record<string, unknown>)?.value
                 if (value !== undefined) {
                     data[key] = value
                 } else {
@@ -394,9 +427,11 @@ export function transformToRequestBody({
             const keys = resolvedVariables ?? (variableValues ? Object.keys(variableValues) : [])
             if (keys && keys.length > 0) {
                 const promptKey = Object.keys(ag_config || {})[0]
-                const target = promptKey ? (ag_config as any)[promptKey] : undefined
-                if (target && typeof target === "object") {
-                    target.input_keys = keys
+                const target = promptKey
+                    ? (ag_config as Record<string, unknown>)[promptKey]
+                    : undefined
+                if (isRecord(target)) {
+                    target["input_keys"] = keys
                 }
             }
         }
@@ -410,9 +445,9 @@ export function transformToRequestBody({
         // Try to set input_keys on the first prompt config if present (non-custom only)
         if (!isCustomFinal && keys && keys.length > 0) {
             const promptKey = Object.keys(ag_config || {})[0]
-            const target = promptKey ? (ag_config as any)[promptKey] : undefined
-            if (target && typeof target === "object") {
-                target.input_keys = keys
+            const target = promptKey ? (ag_config as Record<string, unknown>)[promptKey] : undefined
+            if (isRecord(target)) {
+                target["input_keys"] = keys
             }
         }
         if (variableValues && Object.keys(variableValues).length > 0) {
@@ -465,9 +500,14 @@ export function transformToRequestBody({
         if (Array.isArray(keys) && keys.length > 0) {
             for (const k of keys) {
                 if (!k || typeof k !== "string") continue
-                if (!Object.prototype.hasOwnProperty.call(data.inputs as any, k)) {
-                    const vv = variableValues ? (variableValues as any)[k] : undefined
-                    ;(data.inputs as any)[k] = vv !== undefined ? vv : _defaultForKey(k)
+                if (
+                    !Object.prototype.hasOwnProperty.call(data.inputs as Record<string, unknown>, k)
+                ) {
+                    const vv = variableValues
+                        ? (variableValues as Record<string, unknown>)[k]
+                        : undefined
+                    ;(data.inputs as Record<string, unknown>)[k] =
+                        vv !== undefined ? vv : _defaultForKey(k)
                 }
             }
         }
@@ -485,30 +525,40 @@ export function transformToRequestBody({
         const keys = resolvedVariables ?? (variables || [])
         for (const k of keys) {
             if (!k || typeof k !== "string") continue
-            if (!Object.prototype.hasOwnProperty.call(data.inputs as any, k)) {
-                ;(data.inputs as any)[k] = _defaultForKey(k)
+            if (!Object.prototype.hasOwnProperty.call(data.inputs as Record<string, unknown>, k)) {
+                ;(data.inputs as Record<string, unknown>)[k] = _defaultForKey(k)
             }
         }
     }
 
     if (isChat ?? variant?.isChat) {
-        data.messages = []
+        const messages: unknown[] = []
+        data.messages = messages
         if (chatHistory && chatHistory.length > 0) {
-            data.messages.push(...chatHistory)
+            messages.push(...chatHistory)
         } else {
-            const messageHistory = (messageRow as any)?.history?.value || []
+            const messageHistoryValue = asRecord(asRecord(messageRow)["history"])["value"]
+            const messageHistory = Array.isArray(messageHistoryValue) ? messageHistoryValue : []
 
-            data.messages.push(
+            messages.push(
                 ...messageHistory
-                    .flatMap((historyMessage: any) => {
-                        const messages = [extractValueByMetadata(historyMessage, allMetadata)]
-                        if (historyMessage.__runs) {
+                    .flatMap((historyMessage: unknown) => {
+                        const historyMessageRecord = asRecord(historyMessage)
+                        const extractedMessage = extractValueByMetadata(
+                            historyMessageRecord,
+                            allMetadata,
+                        )
+                        const extractedMessages = [extractedMessage]
+                        const runs = asRecord(historyMessageRecord["__runs"])
+                        if (Object.keys(runs).length > 0) {
                             const revisionId = _revisionId ?? variant?.id
-                            const runMessages =
-                                historyMessage.__runs[revisionId!]?.message &&
-                                Array.isArray(historyMessage.__runs[revisionId!]?.message)
-                                    ? historyMessage.__runs[revisionId!]?.message
-                                    : [historyMessage.__runs[revisionId!]?.message]
+                            const runEntry = revisionId ? asRecord(runs[revisionId]) : {}
+                            const messageValue = runEntry["message"]
+                            const runMessages = Array.isArray(messageValue)
+                                ? messageValue
+                                : messageValue !== undefined
+                                  ? [messageValue]
+                                  : []
 
                             if (runMessages && Array.isArray(runMessages)) {
                                 for (const runMessage of runMessages) {
@@ -516,12 +566,12 @@ export function transformToRequestBody({
                                         runMessage,
                                         allMetadata,
                                     )
-                                    messages.push(extracted)
+                                    extractedMessages.push(extracted)
                                 }
                             }
                         }
 
-                        return messages
+                        return extractedMessages
                     })
                     .filter(Boolean),
             )
@@ -535,17 +585,17 @@ export function transformToRequestBody({
  * Pure helper for completion-style request bodies.
  */
 export function toRequestBodyCompletion(args: {
-    prompts?: any[]
-    customProperties?: Record<string, any>
+    prompts?: unknown[]
+    customProperties?: Record<string, unknown>
     appType?: string
     variables?: string[]
-    variableValues?: Record<string, any>
+    variableValues?: Record<string, unknown>
     spec?: OpenAPISpec
     routePath?: string
     variant?: TransformVariantInput
     allMetadata?: Record<string, ConfigMetadata>
-    inputRow?: Record<string, any>
-}): Record<string, any> {
+    inputRow?: Record<string, unknown>
+}): Record<string, unknown> {
     const {
         prompts,
         customProperties,
@@ -579,8 +629,8 @@ export function toRequestBodyCompletion(args: {
  * Pure helper for chat-style request bodies.
  */
 export function toRequestBodyChat(args: {
-    prompts?: any[]
-    customProperties?: Record<string, any>
+    prompts?: unknown[]
+    customProperties?: Record<string, unknown>
     appType?: string
     variables?: string[]
     spec?: OpenAPISpec
@@ -589,8 +639,8 @@ export function toRequestBodyChat(args: {
     variant?: TransformVariantInput
     allMetadata?: Record<string, ConfigMetadata>
     chatHistory?: TransformMessage[]
-    messageRow?: Record<string, any>
-}): Record<string, any> {
+    messageRow?: Record<string, unknown>
+}): Record<string, unknown> {
     const {
         prompts,
         customProperties,
