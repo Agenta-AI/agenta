@@ -7,11 +7,8 @@
  */
 import React, {useEffect, useMemo, useRef, useState} from "react"
 
-import {
-    getEvaluatorColor,
-    parseEvaluatorKeyFromUri,
-    evaluatorsListDataAtom,
-} from "@agenta/entities/evaluator"
+import {getEvaluatorColor, parseEvaluatorKeyFromUri} from "@agenta/entities/evaluator"
+import {workflowsListDataAtom} from "@agenta/entities/workflow"
 import {createWorkflowRevisionAdapter} from "@agenta/entity-ui/selection"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -24,56 +21,178 @@ import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 // useEvaluatorKeyMap — batch-fetches evaluator revisions to resolve URIs
 // ---------------------------------------------------------------------------
 
+const evaluatorKeyCacheByProject = new Map<string, Map<string, string>>()
+const evaluatorKeyRequestedIdsByProject = new Map<string, Set<string>>()
+const evaluatorKeyPendingIdsByProject = new Map<string, Set<string>>()
+const evaluatorKeyInFlightByProject = new Map<string, Promise<void>>()
+
+function areStringMapsEqual(a: Map<string, string>, b: Map<string, string>): boolean {
+    if (a.size !== b.size) return false
+    for (const [key, value] of a.entries()) {
+        if (b.get(key) !== value) return false
+    }
+    return true
+}
+
+function getOrCreateEvaluatorKeyCache(projectId: string): Map<string, string> {
+    const existing = evaluatorKeyCacheByProject.get(projectId)
+    if (existing) return existing
+    const next = new Map<string, string>()
+    evaluatorKeyCacheByProject.set(projectId, next)
+    return next
+}
+
+function getOrCreateRequestedSet(projectId: string): Set<string> {
+    const existing = evaluatorKeyRequestedIdsByProject.get(projectId)
+    if (existing) return existing
+    const next = new Set<string>()
+    evaluatorKeyRequestedIdsByProject.set(projectId, next)
+    return next
+}
+
+function getOrCreatePendingSet(projectId: string): Set<string> {
+    const existing = evaluatorKeyPendingIdsByProject.get(projectId)
+    if (existing) return existing
+    const next = new Set<string>()
+    evaluatorKeyPendingIdsByProject.set(projectId, next)
+    return next
+}
+
+async function fetchEvaluatorKeysForIds(projectId: string, workflowIds: string[]): Promise<void> {
+    if (workflowIds.length === 0) return
+
+    const cache = getOrCreateEvaluatorKeyCache(projectId)
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
+        {
+            workflow_refs: workflowIds.map((id) => ({id})),
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const revisions = response.data?.workflow_revisions ?? []
+    for (const rev of revisions) {
+        const workflowId = rev.workflow_id
+        const uri = rev.data?.uri
+        if (!workflowId || !uri) continue
+        const key = parseEvaluatorKeyFromUri(uri)
+        if (key) cache.set(workflowId, key)
+    }
+}
+
+async function drainEvaluatorKeyQueue(projectId: string): Promise<void> {
+    const pending = getOrCreatePendingSet(projectId)
+
+    while (pending.size > 0) {
+        const batchIds = Array.from(pending)
+        pending.clear()
+        await fetchEvaluatorKeysForIds(projectId, batchIds)
+    }
+}
+
+async function ensureEvaluatorKeys(
+    projectId: string,
+    workflowIds: string[],
+): Promise<Map<string, string>> {
+    const cache = getOrCreateEvaluatorKeyCache(projectId)
+    const requested = getOrCreateRequestedSet(projectId)
+    const pending = getOrCreatePendingSet(projectId)
+
+    for (const id of workflowIds) {
+        if (cache.has(id) || requested.has(id)) continue
+        requested.add(id)
+        pending.add(id)
+    }
+
+    while (true) {
+        const currentInFlight = evaluatorKeyInFlightByProject.get(projectId)
+        if (currentInFlight) {
+            await currentInFlight
+            // Drain may have completed while new IDs were enqueued in the same tick.
+            if (pending.size > 0 && !evaluatorKeyInFlightByProject.get(projectId)) {
+                continue
+            }
+            break
+        }
+
+        if (pending.size === 0) break
+
+        const nextFetch = drainEvaluatorKeyQueue(projectId).finally(() => {
+            if (evaluatorKeyInFlightByProject.get(projectId) === nextFetch) {
+                evaluatorKeyInFlightByProject.delete(projectId)
+            }
+        })
+        evaluatorKeyInFlightByProject.set(projectId, nextFetch)
+        await nextFetch
+    }
+
+    return cache
+}
+
 /**
  * Hook that batch-fetches evaluator revisions and returns a
  * workflowId → evaluatorKey lookup map.
  *
  * Fetches once per set of workflow IDs and caches the result.
  */
-export function useEvaluatorKeyMap(workflowIds: string[]): Map<string, string> {
+export function useEvaluatorKeyMap(
+    workflowIds: string[],
+    prefilledKeys?: Map<string, string>,
+): Map<string, string> {
     const projectId = useAtomValue(projectIdAtom)
     const [keyMap, setKeyMap] = useState<Map<string, string>>(new Map())
-    const fetchedRef = useRef<string>("")
+    const appliedRef = useRef<string>("")
 
-    // Stable key for the current set of workflow IDs
-    const idsKey = useMemo(() => [...workflowIds].sort().join(","), [workflowIds])
+    const normalizedWorkflowIds = useMemo(
+        () => Array.from(new Set(workflowIds.filter(Boolean))),
+        [workflowIds],
+    )
+    const idsKey = useMemo(
+        () => [...normalizedWorkflowIds].sort().join(","),
+        [normalizedWorkflowIds],
+    )
 
     useEffect(() => {
-        if (!projectId || workflowIds.length === 0 || idsKey === fetchedRef.current) return
-        fetchedRef.current = idsKey
+        if (!projectId || normalizedWorkflowIds.length === 0) {
+            appliedRef.current = ""
+            setKeyMap(new Map())
+            return
+        }
 
-        const fetchKeys = async () => {
+        if (prefilledKeys && prefilledKeys.size > 0) {
+            const cache = getOrCreateEvaluatorKeyCache(projectId)
+            for (const [id, key] of prefilledKeys.entries()) {
+                if (id && key && !cache.has(id)) cache.set(id, key)
+            }
+        }
+
+        const mapVersionKey = `${projectId}:${idsKey}`
+        if (appliedRef.current === mapVersionKey) return
+
+        let cancelled = false
+        const loadKeys = async () => {
             try {
-                const response = await axios.post(
-                    `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
-                    {
-                        workflow_refs: workflowIds.map((id) => ({id})),
-                    },
-                    {params: {project_id: projectId}},
-                )
+                const cache = await ensureEvaluatorKeys(projectId, normalizedWorkflowIds)
+                if (cancelled) return
 
-                const revisions = response.data?.workflow_revisions ?? []
-                const map = new Map<string, string>()
-
-                for (const rev of revisions) {
-                    const workflowId = rev.workflow_id
-                    const uri = rev.data?.uri
-                    if (workflowId && uri) {
-                        const key = parseEvaluatorKeyFromUri(uri)
-                        if (key) {
-                            map.set(workflowId, key)
-                        }
-                    }
+                const scoped = new Map<string, string>()
+                for (const id of normalizedWorkflowIds) {
+                    const key = cache.get(id)
+                    if (key) scoped.set(id, key)
                 }
-
-                setKeyMap(map)
+                appliedRef.current = mapVersionKey
+                setKeyMap((prev) => (areStringMapsEqual(prev, scoped) ? prev : scoped))
             } catch (err) {
                 console.warn("[useEvaluatorKeyMap] Failed to fetch evaluator revisions:", err)
             }
         }
 
-        void fetchKeys()
-    }, [projectId, workflowIds, idsKey])
+        void loadKeys()
+        return () => {
+            cancelled = true
+        }
+    }, [projectId, normalizedWorkflowIds, idsKey, prefilledKeys])
 
     return keyMap
 }
@@ -91,66 +210,73 @@ export function buildEvaluatorPickerLabelNode(
     evaluatorKeyMap: Map<string, string>,
     evaluatorDefsByKey: Map<string, string>,
 ) {
-    return (entity: unknown): React.ReactNode => {
-        const w = entity as {
-            id: string
-            name?: string
-            flags?: {is_human?: boolean; is_custom?: boolean; is_evaluator?: boolean} | null
-        }
-        const name = w.name ?? "Unnamed"
+    return (entity: unknown): React.ReactNode =>
+        renderEvaluatorPickerLabelNode(entity, evaluatorKeyMap, evaluatorDefsByKey)
+}
 
-        // Only show colored tags for evaluator-type workflows
-        if (!w.flags?.is_evaluator) {
-            return React.createElement(EntityListItemLabel, {label: name})
-        }
-
-        // Resolve tag label and color key:
-        // 1. For human evaluators, use "Human" label directly from flags
-        // 2. For custom evaluators, use "Custom Code" label directly from flags
-        // 3. For built-in evaluators, look up from revision data URI → evaluator defs
-        let tagLabel: string | null = null
-        let colorSource: string | null = null
-
-        if (w.flags?.is_human) {
-            tagLabel = "Human"
-            colorSource = "human"
-        } else if (w.flags?.is_custom) {
-            tagLabel = "Custom Code"
-            colorSource = "custom"
-        } else {
-            const evaluatorKey = evaluatorKeyMap.get(w.id)
-            if (evaluatorKey) {
-                tagLabel = evaluatorDefsByKey.get(evaluatorKey) ?? null
-                colorSource = evaluatorKey
-            }
-        }
-
-        const color = colorSource ? getEvaluatorColor(colorSource) : null
-
-        const tag = tagLabel
-            ? React.createElement(
-                  "span",
-                  {
-                      className: "text-[10px] px-1.5 py-0.5 rounded",
-                      style: color
-                          ? {
-                                backgroundColor: color.bg,
-                                color: color.text,
-                                borderColor: color.border,
-                                borderWidth: "1px",
-                                borderStyle: "solid",
-                            }
-                          : undefined,
-                  },
-                  tagLabel,
-              )
-            : undefined
-
-        return React.createElement(EntityListItemLabel, {
-            label: name,
-            trailing: tag,
-        })
+function renderEvaluatorPickerLabelNode(
+    entity: unknown,
+    evaluatorKeyMap: Map<string, string>,
+    evaluatorDefsByKey: Map<string, string>,
+): React.ReactNode {
+    const w = entity as {
+        id: string
+        name?: string
+        flags?: {is_human?: boolean; is_custom?: boolean; is_evaluator?: boolean} | null
     }
+    const name = w.name ?? "Unnamed"
+
+    // Only show colored tags for evaluator-type workflows
+    if (!w.flags?.is_evaluator) {
+        return React.createElement(EntityListItemLabel, {label: name})
+    }
+
+    // Resolve tag label and color key:
+    // 1. For human evaluators, use "Human" label directly from flags
+    // 2. For custom evaluators, use "Custom Code" label directly from flags
+    // 3. For built-in evaluators, look up from revision data URI → evaluator defs
+    let tagLabel: string | null = null
+    let colorSource: string | null = null
+
+    if (w.flags?.is_human) {
+        tagLabel = "Human"
+        colorSource = "human"
+    } else if (w.flags?.is_custom) {
+        tagLabel = "Custom Code"
+        colorSource = "custom"
+    } else {
+        const evaluatorKey = evaluatorKeyMap.get(w.id)
+        if (evaluatorKey) {
+            tagLabel = evaluatorDefsByKey.get(evaluatorKey) ?? null
+            colorSource = evaluatorKey
+        }
+    }
+
+    const color = colorSource ? getEvaluatorColor(colorSource) : null
+
+    const tag = tagLabel
+        ? React.createElement(
+              "span",
+              {
+                  className: "text-[10px] px-1.5 py-0.5 rounded",
+                  style: color
+                      ? {
+                            backgroundColor: color.bg,
+                            color: color.text,
+                            borderColor: color.border,
+                            borderWidth: "1px",
+                            borderStyle: "solid",
+                        }
+                      : undefined,
+              },
+              tagLabel,
+          )
+        : undefined
+
+    return React.createElement(EntityListItemLabel, {
+        label: name,
+        trailing: tag,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -169,15 +295,31 @@ export function useEvaluatorEnrichedData() {
         [evaluatorDefs],
     )
 
-    // Get evaluator workflow IDs from the evaluator entity list
-    const evaluatorWorkflows = useAtomValue(evaluatorsListDataAtom)
+    // Get evaluator workflow IDs from the workflow list (shared with picker),
+    // avoiding a second dedicated evaluator list request.
+    const workflows = useAtomValue(workflowsListDataAtom)
+    const prefilledKeys = useMemo(() => {
+        const next = new Map<string, string>()
+        for (const workflow of workflows) {
+            if (!workflow.flags?.is_evaluator || !workflow.id) continue
+            const uri = workflow.data?.uri
+            if (!uri) continue
+            const key = parseEvaluatorKeyFromUri(uri)
+            if (key) next.set(workflow.id, key)
+        }
+        return next
+    }, [workflows])
     const evaluatorWorkflowIds = useMemo(
-        () => evaluatorWorkflows.map((w) => w.id),
-        [evaluatorWorkflows],
+        () =>
+            workflows
+                .filter((w) => w.flags?.is_evaluator)
+                .map((w) => w.id)
+                .filter((id): id is string => Boolean(id)),
+        [workflows],
     )
 
     // Batch-fetch evaluator keys from revision data
-    const evaluatorKeyMap = useEvaluatorKeyMap(evaluatorWorkflowIds)
+    const evaluatorKeyMap = useEvaluatorKeyMap(evaluatorWorkflowIds, prefilledKeys)
 
     return {evaluatorKeyMap, evaluatorDefsByKey}
 }
@@ -192,27 +334,34 @@ export function useEvaluatorEnrichedData() {
  */
 export function useEvaluatorBrowseAdapter() {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
+    const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
 
-    return useMemo(
-        () =>
-            createWorkflowRevisionAdapter({
-                excludeRevisionZero: true,
-                filterWorkflows: (entity: unknown) => {
-                    const w = entity as {
-                        flags?: {is_human?: boolean} | null
-                    }
-                    // Exclude human evaluators from browse mode
-                    return !w.flags?.is_human
-                },
-                grandparentOverrides: {
-                    getLabelNode: buildEvaluatorPickerLabelNode(
-                        evaluatorKeyMap,
-                        evaluatorDefsByKey,
-                    ),
-                },
-            }),
-        [evaluatorKeyMap, evaluatorDefsByKey],
-    )
+    evaluatorKeyMapRef.current = evaluatorKeyMap
+    evaluatorDefsByKeyRef.current = evaluatorDefsByKey
+
+    return useMemo(() => {
+        const getLabelNode = (entity: unknown): React.ReactNode =>
+            renderEvaluatorPickerLabelNode(
+                entity,
+                evaluatorKeyMapRef.current,
+                evaluatorDefsByKeyRef.current,
+            )
+
+        return createWorkflowRevisionAdapter({
+            excludeRevisionZero: true,
+            filterWorkflows: (entity: unknown) => {
+                const w = entity as {
+                    flags?: {is_human?: boolean} | null
+                }
+                // Exclude human evaluators from browse mode
+                return !w.flags?.is_human
+            },
+            grandparentOverrides: {
+                getLabelNode,
+            },
+        })
+    }, [])
 }
 
 /**
@@ -223,21 +372,40 @@ export function useEvaluatorOnlyAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
+    const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
+    const revisionLabelOverrideRef = useRef(revisionLabelOverride)
 
-    return useMemo(
-        () =>
-            createWorkflowRevisionAdapter({
-                flags: {is_evaluator: true, is_human: false},
-                grandparentOverrides: {
-                    getLabelNode: buildEvaluatorPickerLabelNode(
-                        evaluatorKeyMap,
-                        evaluatorDefsByKey,
-                    ),
-                },
-                ...(revisionLabelOverride
-                    ? {revisionOverrides: {getLabelNode: revisionLabelOverride}}
-                    : {}),
-            }),
-        [evaluatorKeyMap, evaluatorDefsByKey, revisionLabelOverride],
-    )
+    evaluatorKeyMapRef.current = evaluatorKeyMap
+    evaluatorDefsByKeyRef.current = evaluatorDefsByKey
+    revisionLabelOverrideRef.current = revisionLabelOverride
+
+    const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
+
+    return useMemo(() => {
+        const getLabelNode = (entity: unknown): React.ReactNode =>
+            renderEvaluatorPickerLabelNode(
+                entity,
+                evaluatorKeyMapRef.current,
+                evaluatorDefsByKeyRef.current,
+            )
+
+        const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
+            flags: {is_evaluator: true, is_human: false},
+            grandparentOverrides: {
+                getLabelNode,
+            },
+        }
+
+        if (hasRevisionLabelOverride) {
+            options.revisionOverrides = {
+                getLabelNode: (entity: unknown) =>
+                    revisionLabelOverrideRef.current
+                        ? revisionLabelOverrideRef.current(entity)
+                        : null,
+            }
+        }
+
+        return createWorkflowRevisionAdapter(options)
+    }, [hasRevisionLabelOverride])
 }
