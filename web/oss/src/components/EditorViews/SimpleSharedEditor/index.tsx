@@ -1,5 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    EditorProvider,
+    useLexicalComposerContext,
+    ON_CHANGE_LANGUAGE,
+    $isCodeBlockNode,
+    TOGGLE_MARKDOWN_VIEW,
+} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {mergeRegister} from "@lexical/utils"
 import {
@@ -18,13 +25,6 @@ import clsx from "clsx"
 import {$getRoot} from "lexical"
 import dynamic from "next/dynamic"
 
-import {
-    EditorProvider,
-    useLexicalComposerContext,
-    ON_CHANGE_LANGUAGE,
-    $isCodeBlockNode,
-    TOGGLE_MARKDOWN_VIEW,
-} from "@agenta/ui/editor"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 
 import {checkIsHTML, checkIsJSON, checkIsYAML, getDisplayedContent} from "../assets/helper"

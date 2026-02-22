@@ -2,10 +2,9 @@
 
 import {useEffect} from "react"
 
+import {setSessionAtom} from "@agenta/shared/state"
 import {useSetAtom, useAtomValue} from "jotai"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
-
-import {setSessionAtom} from "@agenta/shared/state"
 
 import {sessionExistsAtom} from "./atoms"
 

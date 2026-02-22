@@ -535,8 +535,6 @@ const SingleView = ({
     const isWaitingForVariableControls =
         variableIds.length === 0 && (schemaInputKeys.length > 0 || Boolean(runnableQuery.isPending))
     const collapseDurationMs = hasInteractedWithCollapse ? 300 : 0
-    const showHeaderRunHint =
-        !inputOnly && !isBusy && !currentResult && !isWaitingForVariableControls
 
     useEffect(() => {
         if (isInitialLoadSettled) return
@@ -744,7 +742,6 @@ const SingleView = ({
                                     currentResult={currentResult}
                                     traceId={traceId ?? null}
                                     repetitionProps={repetitionProps}
-                                    showEmptyPlaceholder={!showHeaderRunHint}
                                     feedbackConfig={feedbackConfig}
                                 />
                             </div>

@@ -1,11 +1,11 @@
 import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {ChatMessageEditor, ChatMessageList} from "@agenta/ui/chat-message"
+import {EditorProvider, DrillInProvider, markdownViewAtom} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InputNumber, Select, Switch} from "antd"
 import {useAtomValue} from "jotai"
 
-import {EditorProvider, DrillInProvider, markdownViewAtom} from "@agenta/ui/editor"
 import {
     detectDataType,
     getTextModeValue,

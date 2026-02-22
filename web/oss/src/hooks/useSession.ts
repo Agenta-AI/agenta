@@ -1,12 +1,11 @@
 import {useEffect} from "react"
 
+import {setSessionAtom} from "@agenta/shared/state"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
-
-import {setSessionAtom} from "@agenta/shared/state"
 
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {resetOrganizationData} from "@/oss/state/org"

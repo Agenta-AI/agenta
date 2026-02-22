@@ -1,9 +1,9 @@
 import {memo, useMemo} from "react"
 
+import {PlaygroundConfigSection} from "@agenta/entity-ui"
 import {Empty, Typography} from "antd"
 
 import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
-import {PlaygroundConfigSection} from "@agenta/entity-ui"
 
 import PromptConfigCardSkeleton from "./PromptConfigCardSkeleton"
 
@@ -46,11 +46,7 @@ const PromptConfigCard = ({variantId, isLoading = false, className}: PromptConfi
     return (
         <div className={className}>
             <OSSdrillInUIProvider>
-                <PlaygroundConfigSection
-                    revisionId={normalizedVariantId}
-                    disabled
-                    useServerData
-                />
+                <PlaygroundConfigSection revisionId={normalizedVariantId} disabled useServerData />
             </OSSdrillInUIProvider>
         </div>
     )
