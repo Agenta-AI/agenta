@@ -21,23 +21,23 @@
         "./types": "./src/types/index.ts"
     },
     "dependencies": {
-        "@scalar/openapi-parser": "^0.9.0",
+        "@scalar/openapi-parser": "^0.24.13",
         "dayjs": "^1.11.10",
         "json5": "^2.2.3",
-        "jsonrepair": "^3.0.0",
+        "jsonrepair": "^3.13.2",
         "uuid": "^11.1.0"
     },
     "devDependencies": {
-        "typescript": "5.8.3",
         "@types/node": "^20.8.10",
         "@types/react": "^19.0.10",
-        "@types/uuid": "^9.0.8"
+        "@types/uuid": "^9.0.8",
+        "typescript": "5.8.3"
     },
     "peerDependencies": {
+        "@tanstack/react-query": ">=5.0.0",
         "axios": ">=1.0.0",
         "jotai": ">=2.0.0",
         "jotai-tanstack-query": ">=0.9.0",
-        "@tanstack/react-query": ">=5.0.0",
         "react": ">=18.0.0"
     }
 }
