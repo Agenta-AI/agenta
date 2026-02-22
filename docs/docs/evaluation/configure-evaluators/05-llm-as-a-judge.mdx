@@ -12,16 +12,47 @@ The evaluator has the following parameters:
 
 #### The Prompt
 
-You can configure the prompt used for evaluation. The prompt can contain multiple messages in OpenAI format (role/content). All messages in the prompt have access to the inputs, outputs, and reference answers (any columns in the testset). To reference these in your prompts, use the following variables (inside double curly braces):
+You can configure the prompt used for evaluation. The prompt can contain multiple messages in OpenAI format (role/content). All messages in the prompt have access to the inputs, outputs, and reference answers through template variables.
 
-- `{{inputs}}`: all the inputs to the llm application formatted as key-value pairs
-- `{{outputs}}`: the output of the llm application
-- `{{reference}}`: the column with the reference answer in the testset (optional). You can configure the name of this column under `Advanced Setting` in the configuration modal.
-- `{{correct_answer}}`: alias for `{{reference}}` (for backward compatibility)
-- `{{prediction}}`: alias for `{{outputs}}` (for backward compatibility)
-- `{{$input_column_name}}`: the value of any input column for the given row of your testset (e.g. `{{country}}`)
+##### Template variables
+
+Use double curly braces `{{ }}` to reference variables in your prompt:
+
+| Variable | Description |
+|----------|-------------|
+| `{{inputs}}` | All inputs formatted as key-value pairs |
+| `{{outputs}}` | The application's output |
+| `{{reference}}` | The reference/ground truth answer from the testset. Configure the column name under Advanced Settings. |
+| `{{trace}}` | The full execution trace (spans, latency, tokens, costs). |
+
+##### Where inputs come from
+
+The `inputs` variable has different sources depending on the evaluation context:
+
+| Context | `inputs` source | Contains |
+|---------|-----------------|----------|
+| **Batch evaluation** | Testcase data | All testcase columns (e.g. `country`, `correct_answer`) |
+| **Online evaluation** | Trace data | The actual application inputs from the trace root span |
 
 If no `correct_answer` column is present in your testset, the variable will be left blank in the prompt.
+
+##### Accessing nested fields
+
+You can access nested fields using dot-notation:
+
+- `{{inputs.country}}` — access a specific input field
+- `{{inputs}}` — the full inputs dict (JSON-serialized)
+
+Since input fields are also flattened into the template context, you can reference testcase columns directly:
+
+- `{{country}}` — equivalent to `{{inputs.country}}` when `country` is a testcase column
+
+##### Advanced resolution
+
+In addition to dot-notation, the template engine supports:
+
+- **JSON Path**: `{{$.inputs.country}}` — standard JSONPath syntax
+- **JSON Pointer**: `{{/inputs/country}}` — RFC 6901 JSON Pointer syntax
 
 Here's the default prompt:
 

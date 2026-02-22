@@ -45,6 +45,17 @@ log = get_module_logger(__name__)
 # TEMPORARY: Disabling name editing
 RENAME_EVALUATORS_DISABLED_MESSAGE = "Renaming evaluators is temporarily disabled."
 
+
+def _build_rename_evaluators_disabled_detail(*, existing_name: Optional[str]) -> str:
+    if existing_name:
+        return (
+            f"{RENAME_EVALUATORS_DISABLED_MESSAGE} "
+            f"Current evaluator name is '{existing_name}'."
+        )
+
+    return RENAME_EVALUATORS_DISABLED_MESSAGE
+
+
 # Load builtin evaluators once at module load
 BUILTIN_EVALUATORS: List[LegacyEvaluator] = [
     LegacyEvaluator(**evaluator_dict) for evaluator_dict in get_all_evaluators()
@@ -383,7 +394,9 @@ async def update_evaluator_config(
     if "name" in updates and updates["name"] and updates["name"] != old_evaluator.name:
         raise HTTPException(
             status_code=400,
-            detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+            detail=_build_rename_evaluators_disabled_detail(
+                existing_name=old_evaluator.name
+            ),
         )
 
     # Build new name
