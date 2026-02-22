@@ -37,6 +37,96 @@ import type {RevisionDetailParams, TestsetsResponse} from "../core"
 // REVISION BATCH FETCHER
 // ============================================================================
 
+type QueryClient = import("@tanstack/react-query").QueryClient
+
+interface RevisionRequest extends RevisionDetailParams {
+    queryClient?: QueryClient
+}
+
+function primeRevisionDetailCache(
+    queryClient: QueryClient,
+    projectId: string,
+    revision: Revision | null | undefined,
+): void {
+    if (!revision?.id) return
+    queryClient.setQueryData(["revision", projectId, revision.id], revision)
+}
+
+function primeLatestRevisionCacheForTestset(
+    queryClient: QueryClient,
+    projectId: string,
+    revision: Revision | null | undefined,
+): void {
+    if (!revision?.testset_id) return
+
+    const existing = queryClient.getQueryData<Revision>([
+        "latest-revision",
+        projectId,
+        revision.testset_id,
+    ])
+    if (!existing || (revision.version ?? 0) > (existing.version ?? 0)) {
+        queryClient.setQueryData(["latest-revision", projectId, revision.testset_id], revision)
+    }
+}
+
+function findRevisionInDetailCache(
+    queryClient: QueryClient,
+    projectId: string,
+    revisionId: string,
+): Revision | undefined {
+    return queryClient.getQueryData<Revision>(["revision", projectId, revisionId])
+}
+
+function findRevisionInLatestCaches(
+    queryClient: QueryClient,
+    projectId: string,
+    revisionId: string,
+): Revision | undefined {
+    const latestQueries = queryClient.getQueriesData<Revision | null>({
+        queryKey: ["latest-revision", projectId],
+    })
+
+    for (const [_queryKey, data] of latestQueries) {
+        if (data?.id === revisionId) return data
+    }
+
+    return undefined
+}
+
+function findRevisionInCache(
+    queryClient: QueryClient,
+    projectId: string,
+    revisionId: string,
+): Revision | undefined {
+    return (
+        findRevisionInDetailCache(queryClient, projectId, revisionId) ??
+        findRevisionInLatestCaches(queryClient, projectId, revisionId)
+    )
+}
+
+function findLatestRevisionForTestsetInCache(
+    queryClient: QueryClient,
+    projectId: string,
+    testsetId: string,
+): Revision | undefined {
+    const direct = queryClient.getQueryData<Revision>(["latest-revision", projectId, testsetId])
+    if (direct) return direct
+
+    const revisionQueries = queryClient.getQueriesData<Revision | null>({
+        queryKey: ["revision", projectId],
+    })
+
+    let latest: Revision | null = null
+    for (const [_queryKey, data] of revisionQueries) {
+        if (!data || data.testset_id !== testsetId) continue
+        if (!latest || (data.version ?? 0) > (latest.version ?? 0)) {
+            latest = data
+        }
+    }
+
+    return latest ?? undefined
+}
+
 /**
  * Batch fetcher for revision requests.
  *
@@ -49,24 +139,39 @@ import type {RevisionDetailParams, TestsetsResponse} from "../core"
  * - Groups requests by project and fetches in a single API call per project
  * - Falls back to individual fetches on batch failure
  */
-const revisionBatchFetcher = createBatchFetcher<RevisionDetailParams, Revision | null>({
+const revisionBatchFetcher = createBatchFetcher<RevisionRequest, Revision | null>({
     maxBatchSize: 50,
     flushDelay: 10,
     serializeKey: (req) => `${req.projectId}:${req.id}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Revision | null>()
 
-        // Group by projectId
+        // Group by projectId and resolve from cache first
         const byProject = new Map<string, string[]>()
+        const queryClientsByProject = new Map<string, Set<QueryClient>>()
         requests.forEach((req, index) => {
             const key = serializedKeys[index]
             if (!isValidUUID(req.id)) {
                 results.set(key, null)
                 return
             }
+
+            if (req.queryClient) {
+                const cached = findRevisionInCache(req.queryClient, req.projectId, req.id)
+                if (cached) {
+                    results.set(key, cached)
+                    return
+                }
+            }
+
             const existing = byProject.get(req.projectId) || []
             existing.push(req.id)
             byProject.set(req.projectId, existing)
+            if (req.queryClient) {
+                const clients = queryClientsByProject.get(req.projectId) ?? new Set<QueryClient>()
+                clients.add(req.queryClient)
+                queryClientsByProject.set(req.projectId, clients)
+            }
         })
 
         // Fetch revisions in batch per project
@@ -76,11 +181,20 @@ const revisionBatchFetcher = createBatchFetcher<RevisionDetailParams, Revision |
             try {
                 // Use batch API for better performance
                 const batchResults = await fetchRevisionsBatch(projectId, revisionIds)
+                const queryClients = queryClientsByProject.get(projectId) ?? new Set<QueryClient>()
 
                 // Map results back to serialized keys
                 for (const revisionId of revisionIds) {
                     const key = `${projectId}:${revisionId}`
-                    results.set(key, batchResults.get(revisionId) ?? null)
+                    const revision = batchResults.get(revisionId) ?? null
+                    results.set(key, revision)
+
+                    if (revision) {
+                        queryClients.forEach((queryClient) => {
+                            primeRevisionDetailCache(queryClient, projectId, revision)
+                            primeLatestRevisionCacheForTestset(queryClient, projectId, revision)
+                        })
+                    }
                 }
             } catch (error) {
                 console.error("[revisionBatchFetcher] Batch fetch failed, falling back:", error)
@@ -91,6 +205,11 @@ const revisionBatchFetcher = createBatchFetcher<RevisionDetailParams, Revision |
                     try {
                         const revision = await fetchRevision({id: revisionId, projectId})
                         results.set(key, revision)
+                        const queryClients = queryClientsByProject.get(projectId)
+                        queryClients?.forEach((queryClient) => {
+                            primeRevisionDetailCache(queryClient, projectId, revision)
+                            primeLatestRevisionCacheForTestset(queryClient, projectId, revision)
+                        })
                     } catch (individualError) {
                         console.error(
                             "[revisionBatchFetcher] Individual fetch failed:",
@@ -134,8 +253,14 @@ export const setRevisionIdsAtom = atom(null, (_get, set, ids: string[]) => {
 export const revisionQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery<Revision | null>((get) => {
         const projectId = get(projectIdAtom)
+        const queryClient = get(queryClientAtom)
+        const detailCached =
+            projectId && revisionId
+                ? findRevisionInDetailCache(queryClient, projectId, revisionId)
+                : undefined
         const isEnabled =
-            get(sessionAtom) && Boolean(projectId && revisionId && isValidUUID(revisionId))
+            get(sessionAtom) &&
+            Boolean(projectId && revisionId && isValidUUID(revisionId) && !detailCached)
 
         return {
             queryKey: ["revision", projectId, revisionId],
@@ -143,8 +268,11 @@ export const revisionQueryAtomFamily = atomFamily((revisionId: string) =>
                 if (!projectId || !revisionId || !isValidUUID(revisionId)) {
                     return null
                 }
-                return revisionBatchFetcher({projectId, id: revisionId})
+                const cached = findRevisionInCache(queryClient, projectId, revisionId)
+                if (cached) return cached
+                return revisionBatchFetcher({projectId, id: revisionId, queryClient})
             },
+            initialData: detailCached ?? undefined,
             enabled: isEnabled,
             // Revisions are immutable - never stale
             staleTime: Infinity,
@@ -226,7 +354,13 @@ const latestRevisionBatchFetcher = createBatchFetcher<LatestRevisionRequest, Rev
  */
 const latestRevisionQuery = createLatestEntityQueryFactory<Revision>({
     queryKeyPrefix: "latest-revision",
-    fetchFn: (testsetId, projectId) => latestRevisionBatchFetcher({testsetId, projectId}),
+    fetchFn: async (testsetId, projectId) => {
+        const store = getDefaultStore()
+        const queryClient = store.get(queryClientAtom)
+        const cached = findLatestRevisionForTestsetInCache(queryClient, projectId, testsetId)
+        if (cached) return cached
+        return latestRevisionBatchFetcher({testsetId, projectId})
+    },
     staleTime: 30_000,
 })
 

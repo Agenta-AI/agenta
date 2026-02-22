@@ -371,15 +371,24 @@ export const legacyAppRevisionInputPortsAtomFamily = atomFamily((revisionId: str
         if (schemaQuery.isPending || !schemaQuery.data?.endpoints) return []
 
         const endpoints = schemaQuery.data.endpoints
+        const primaryEndpoint = endpoints.test ?? endpoints.run ?? endpoints.root ?? null
+        const inputSchemaProperties = primaryEndpoint?.inputsSchema?.properties
         const primaryProps =
-            endpoints.test?.requestProperties ??
-            endpoints.run?.requestProperties ??
-            endpoints.root?.requestProperties ??
-            []
+            inputSchemaProperties && typeof inputSchemaProperties === "object"
+                ? Object.keys(inputSchemaProperties as Record<string, unknown>)
+                : primaryEndpoint?.requestProperties || []
 
-        const reserved = ["ag_config", "messages"]
+        const reserved = new Set([
+            "ag_config",
+            "messages",
+            "inputs",
+            "environment",
+            "revision_id",
+            "variant_id",
+            "app_id",
+        ])
         return primaryProps
-            .filter((k: string) => !reserved.includes(k))
+            .filter((k: string) => k && !reserved.has(k))
             .map((key: string) => ({
                 key,
                 name: key,
@@ -1176,8 +1185,21 @@ export const updateLegacyAppRevisionAtom = atom(
             return
         }
 
+        // Accept both legacy payload shape (`{parameters}`) and bridge/workflow shape
+        // (`{data: {parameters}}`) to keep updates resilient across mixed routing paths.
+        const rawChanges = changes as Record<string, unknown>
+        const nestedParams =
+            (rawChanges.data as {parameters?: unknown} | undefined)?.parameters ?? undefined
+        const normalizedChanges: Partial<LegacyAppRevisionData> =
+            nestedParams !== undefined && rawChanges.parameters === undefined
+                ? ({
+                      ...changes,
+                      parameters: nestedParams as LegacyAppRevisionData["parameters"],
+                  } as Partial<LegacyAppRevisionData>)
+                : changes
+
         const updated = produce(base, (draft) => {
-            Object.assign(draft, changes)
+            Object.assign(draft, normalizedChanges)
         })
 
         set(getDraftAtom(revisionId), updated)

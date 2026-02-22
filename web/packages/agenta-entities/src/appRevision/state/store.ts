@@ -11,15 +11,16 @@
  */
 
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {createBatchFetcher} from "@agenta/shared/utils"
 import {produce} from "immer"
 import type {WritableAtom} from "jotai"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {QueryState} from "../../shared"
-import {isLocalDraftId, isPlaceholderId} from "../../shared"
+import {isLocalDraftId, isPlaceholderId, parseRevisionUri} from "../../shared"
 import {
     fetchVariantsList,
     fetchRevisionsList,
@@ -54,6 +55,183 @@ export interface AppRevisionInputPort {
 // QUERY ATOM FAMILY
 // ============================================================================
 
+type QueryClient = import("@tanstack/react-query").QueryClient
+
+interface AppRevisionRequest {
+    projectId: string
+    revisionId: string
+    queryClient?: QueryClient
+}
+
+function primeAppRevisionDetailCache(
+    queryClient: QueryClient,
+    projectId: string,
+    revision: AppRevisionData | null | undefined,
+): void {
+    if (!revision?.id) return
+    queryClient.setQueryData(["appRevision", revision.id, projectId], revision)
+}
+
+function findVariantInListCaches(
+    queryClient: QueryClient,
+    projectId: string,
+    variantId: string,
+): VariantListItem | undefined {
+    const variantQueries = queryClient.getQueriesData<VariantListItem[]>({
+        predicate: (query) => {
+            const key = query.queryKey
+            return key[0] === "variants-for-selection" && key[2] === projectId
+        },
+    })
+
+    for (const [_queryKey, variants] of variantQueries) {
+        const found = variants?.find((variant) => variant.id === variantId)
+        if (found) return found
+    }
+
+    return undefined
+}
+
+function mapRevisionListItemToDetail(
+    revision: RevisionListItem,
+    variant: VariantListItem | undefined,
+): AppRevisionData {
+    const uri = revision.uri ?? variant?.uri
+    const parsedUri = parseRevisionUri(uri)
+    const parameters = revision.parameters ?? {}
+
+    return {
+        id: revision.id,
+        variantId: revision.variantId || variant?.id || "",
+        appId: revision.appId ?? variant?.appId ?? "",
+        revision: revision.revision,
+        prompts: [],
+        agConfig: parameters,
+        parameters,
+        createdAt: revision.createdAt,
+        updatedAt: revision.createdAt,
+        uri,
+        runtimePrefix: parsedUri?.runtimePrefix,
+        routePath: parsedUri?.routePath,
+    }
+}
+
+function findAppRevisionInDetailCache(
+    queryClient: QueryClient,
+    projectId: string,
+    revisionId: string,
+): AppRevisionData | undefined {
+    return queryClient.getQueryData<AppRevisionData>(["appRevision", revisionId, projectId])
+}
+
+function findAppRevisionInListCaches(
+    queryClient: QueryClient,
+    projectId: string,
+    revisionId: string,
+): AppRevisionData | undefined {
+    const revisionQueries = queryClient.getQueriesData<RevisionListItem[]>({
+        predicate: (query) => {
+            const key = query.queryKey
+            return key[0] === "revisions-for-selection" && key[2] === projectId
+        },
+    })
+
+    for (const [_queryKey, revisions] of revisionQueries) {
+        const found = revisions?.find((revision) => revision.id === revisionId)
+        if (!found) continue
+        const variant = findVariantInListCaches(queryClient, projectId, found.variantId)
+        return mapRevisionListItemToDetail(found, variant)
+    }
+
+    return undefined
+}
+
+function findAppRevisionInCache(
+    queryClient: QueryClient,
+    projectId: string,
+    revisionId: string,
+): AppRevisionData | undefined {
+    return (
+        findAppRevisionInDetailCache(queryClient, projectId, revisionId) ??
+        findAppRevisionInListCaches(queryClient, projectId, revisionId)
+    )
+}
+
+const appRevisionBatchFetcher = createBatchFetcher<AppRevisionRequest, AppRevisionData | null>({
+    maxBatchSize: 50,
+    flushDelay: 10,
+    serializeKey: (req) => `${req.projectId}:${req.revisionId}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, AppRevisionData | null>()
+        const byProject = new Map<
+            string,
+            {revisionIds: string[]; keys: string[]; queryClients: Set<QueryClient>}
+        >()
+
+        requests.forEach((req, index) => {
+            const key = serializedKeys[index]
+
+            if (!req.projectId || !req.revisionId) {
+                results.set(key, null)
+                return
+            }
+
+            if (req.queryClient) {
+                const cached = findAppRevisionInCache(
+                    req.queryClient,
+                    req.projectId,
+                    req.revisionId,
+                )
+                if (cached) {
+                    results.set(key, cached)
+                    return
+                }
+            }
+
+            const existing = byProject.get(req.projectId)
+            if (existing) {
+                existing.revisionIds.push(req.revisionId)
+                existing.keys.push(key)
+                if (req.queryClient) existing.queryClients.add(req.queryClient)
+            } else {
+                byProject.set(req.projectId, {
+                    revisionIds: [req.revisionId],
+                    keys: [key],
+                    queryClients: new Set(req.queryClient ? [req.queryClient] : []),
+                })
+            }
+        })
+
+        await Promise.all(
+            Array.from(byProject.entries()).map(async ([projectId, group]) => {
+                await Promise.all(
+                    group.revisionIds.map(async (revisionId, index) => {
+                        const key = group.keys[index]
+                        try {
+                            const revision = await fetchRevisionConfig(revisionId, projectId)
+                            results.set(key, revision)
+                            if (revision) {
+                                group.queryClients.forEach((queryClient) => {
+                                    primeAppRevisionDetailCache(queryClient, projectId, revision)
+                                })
+                            }
+                        } catch (error) {
+                            console.error(
+                                "[appRevisionBatchFetcher] Failed to fetch revision:",
+                                revisionId,
+                                error,
+                            )
+                            results.set(key, null)
+                        }
+                    }),
+                )
+            }),
+        )
+
+        return results
+    },
+})
+
 /**
  * Direct query atom family that fetches revision data from API.
  *
@@ -63,14 +241,30 @@ export interface AppRevisionInputPort {
 const directQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery<AppRevisionData | null>((get) => {
         const projectId = get(projectIdAtom)
+        const queryClient = get(queryClientAtom)
         const isLocal = isLocalDraftId(revisionId)
         const isPlaceholder = isPlaceholderId(revisionId)
+        const detailCached =
+            projectId && revisionId
+                ? findAppRevisionInCache(queryClient, projectId, revisionId)
+                : undefined
         const enabled =
-            get(sessionAtom) && !!revisionId && !!projectId && !isLocal && !isPlaceholder
+            get(sessionAtom) &&
+            !!revisionId &&
+            !!projectId &&
+            !isLocal &&
+            !isPlaceholder &&
+            !detailCached
 
         return {
             queryKey: ["appRevision", revisionId, projectId],
-            queryFn: () => fetchRevisionConfig(revisionId, projectId!),
+            queryFn: async () => {
+                if (!projectId || !revisionId) return null
+                const cached = findAppRevisionInCache(queryClient, projectId, revisionId)
+                if (cached) return cached
+                return appRevisionBatchFetcher({projectId, revisionId, queryClient})
+            },
+            initialData: detailCached ?? undefined,
             staleTime: 1000 * 60, // 1 minute
             refetchOnWindowFocus: false,
             enabled,
@@ -273,11 +467,20 @@ export const variantsListDataAtomFamily = atomFamily((appId: string) =>
 export const revisionsQueryAtomFamily = atomFamily((variantId: string) =>
     atomWithQuery<RevisionListItem[]>((get) => {
         const projectId = get(projectIdAtom)
+        const queryClient = get(queryClientAtom)
         const enabled = get(sessionAtom) && !!projectId && !!variantId
 
         return {
             queryKey: ["revisions-for-selection", variantId, projectId],
-            queryFn: () => fetchRevisionsList(variantId, projectId!),
+            queryFn: async () => {
+                const revisions = await fetchRevisionsList(variantId, projectId!)
+                const variant = findVariantInListCaches(queryClient, projectId!, variantId)
+                for (const revision of revisions) {
+                    const detail = mapRevisionListItemToDetail(revision, variant)
+                    primeAppRevisionDetailCache(queryClient, projectId!, detail)
+                }
+                return revisions
+            },
             staleTime: 1000 * 60, // 1 minute
             refetchOnWindowFocus: false,
             enabled,

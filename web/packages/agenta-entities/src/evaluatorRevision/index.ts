@@ -17,10 +17,11 @@
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {atom, type Atom} from "jotai"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {fetchEvaluatorRevisionById, inspectWorkflow} from "../evaluator/api"
 import type {Evaluator} from "../evaluator/core"
+import type {EvaluatorRevisionsResponse} from "../evaluator/core"
 
 // ============================================================================
 // TYPES
@@ -39,6 +40,90 @@ interface QueryState<T = unknown> {
     error: unknown
 }
 
+type QueryClient = import("@tanstack/react-query").QueryClient
+
+function findEvaluatorRevisionInDetailCache(
+    queryClient: QueryClient,
+    projectId: string,
+    revisionId: string,
+): Evaluator | undefined {
+    return queryClient.getQueryData<Evaluator>(["evaluatorRevision", revisionId, projectId])
+}
+
+function findEvaluatorRevisionInListCaches(
+    queryClient: QueryClient,
+    projectId: string,
+    revisionId: string,
+): Evaluator | undefined {
+    const evaluatorRevisionQueries = queryClient.getQueriesData<EvaluatorRevisionsResponse>({
+        predicate: (query) => {
+            const key = query.queryKey
+            return (
+                key[0] === "evaluators" &&
+                (key[1] === "revisionsByWorkflow" || key[1] === "revisions") &&
+                key[3] === projectId
+            )
+        },
+    })
+
+    for (const [_queryKey, data] of evaluatorRevisionQueries) {
+        const revisions = data?.workflow_revisions
+        if (!Array.isArray(revisions)) continue
+        const found = revisions.find((revision) => revision.id === revisionId)
+        if (found) return found
+    }
+
+    const workflowRevisionQueries = queryClient.getQueriesData<EvaluatorRevisionsResponse>({
+        predicate: (query) => {
+            const key = query.queryKey
+            return (
+                key[0] === "workflows" &&
+                (key[1] === "revisionsByWorkflow" || key[1] === "revisions") &&
+                key[3] === projectId
+            )
+        },
+    })
+
+    for (const [_queryKey, data] of workflowRevisionQueries) {
+        const revisions = data?.workflow_revisions
+        if (!Array.isArray(revisions)) continue
+        const found = revisions.find((revision) => revision.id === revisionId)
+        if (found) return found
+    }
+
+    const evaluatorLatestQueries = queryClient.getQueriesData<Evaluator | null>({
+        predicate: (query) => {
+            const key = query.queryKey
+            return key[0] === "evaluators" && key[1] === "revision" && key[3] === projectId
+        },
+    })
+
+    for (const [_queryKey, data] of evaluatorLatestQueries) {
+        if (data?.id === revisionId) return data
+    }
+
+    const workflowDetail = queryClient.getQueryData<Evaluator>([
+        "workflows",
+        "revision",
+        revisionId,
+        projectId,
+    ])
+    if (workflowDetail) return workflowDetail
+
+    return undefined
+}
+
+function findEvaluatorRevisionInCache(
+    queryClient: QueryClient,
+    projectId: string,
+    revisionId: string,
+): Evaluator | undefined {
+    return (
+        findEvaluatorRevisionInDetailCache(queryClient, projectId, revisionId) ??
+        findEvaluatorRevisionInListCaches(queryClient, projectId, revisionId)
+    )
+}
+
 // ============================================================================
 // QUERY ATOMS
 // ============================================================================
@@ -50,13 +135,22 @@ interface QueryState<T = unknown> {
 const evaluatorRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery((get) => {
         const projectId = get(projectIdAtom)
+        const queryClient = get(queryClientAtom)
+        const detailCached =
+            projectId && revisionId
+                ? findEvaluatorRevisionInDetailCache(queryClient, projectId, revisionId)
+                : undefined
+
         return {
             queryKey: ["evaluatorRevision", revisionId, projectId],
             queryFn: async (): Promise<Evaluator | null> => {
                 if (!projectId || !revisionId) return null
+                const cached = findEvaluatorRevisionInCache(queryClient, projectId, revisionId)
+                if (cached) return cached
                 return fetchEvaluatorRevisionById(revisionId, projectId)
             },
-            enabled: get(sessionAtom) && !!projectId && !!revisionId,
+            initialData: detailCached ?? undefined,
+            enabled: get(sessionAtom) && !!projectId && !!revisionId && !detailCached,
             staleTime: 30_000,
         }
     }),

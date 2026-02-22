@@ -8,14 +8,15 @@
  */
 
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import type {StoreOptions} from "../../shared"
 import {
-    fetchEvaluator,
+    fetchEvaluatorsBatch,
     queryEvaluators,
     queryEvaluatorVariants,
     queryEvaluatorRevisionsByWorkflow,
@@ -36,6 +37,138 @@ import type {
 function getStore(options?: StoreOptions) {
     return options?.store ?? getDefaultStore()
 }
+
+type QueryClient = import("@tanstack/react-query").QueryClient
+
+interface EvaluatorLatestRevisionRequest {
+    projectId: string
+    workflowId: string
+    queryClient?: QueryClient
+}
+
+function primeEvaluatorRevisionDetailCache(
+    queryClient: QueryClient,
+    projectId: string,
+    evaluator: Evaluator | null | undefined,
+): void {
+    if (!evaluator?.id) return
+    queryClient.setQueryData(["evaluatorRevision", evaluator.id, projectId], evaluator)
+}
+
+function findLatestEvaluatorRevisionInCache(
+    queryClient: QueryClient,
+    projectId: string,
+    workflowId: string,
+): Evaluator | undefined {
+    const direct = queryClient.getQueryData<Evaluator>([
+        "evaluators",
+        "revision",
+        workflowId,
+        projectId,
+    ])
+    if (direct) return direct
+
+    const revisionsByWorkflow = queryClient.getQueryData<EvaluatorRevisionsResponse>([
+        "evaluators",
+        "revisionsByWorkflow",
+        workflowId,
+        projectId,
+    ])
+    const revisions = revisionsByWorkflow?.workflow_revisions ?? []
+    if (revisions.length === 0) return undefined
+
+    let latest: Evaluator | null = null
+    for (const revision of revisions) {
+        if (!latest || (revision.version ?? 0) > (latest.version ?? 0)) {
+            latest = revision
+        }
+    }
+
+    return latest ?? undefined
+}
+
+const evaluatorLatestRevisionBatchFetcher = createBatchFetcher<
+    EvaluatorLatestRevisionRequest,
+    Evaluator | null
+>({
+    maxBatchSize: 50,
+    flushDelay: 10,
+    serializeKey: (req) => `${req.projectId}:${req.workflowId}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, Evaluator | null>()
+        const byProject = new Map<
+            string,
+            {workflowIds: string[]; keys: string[]; queryClients: Set<QueryClient>}
+        >()
+
+        requests.forEach((req, index) => {
+            const key = serializedKeys[index]
+            if (!req.projectId || !req.workflowId) {
+                results.set(key, null)
+                return
+            }
+
+            if (req.queryClient) {
+                const cached = findLatestEvaluatorRevisionInCache(
+                    req.queryClient,
+                    req.projectId,
+                    req.workflowId,
+                )
+                if (cached) {
+                    results.set(key, cached)
+                    return
+                }
+            }
+
+            const existing = byProject.get(req.projectId)
+            if (existing) {
+                existing.workflowIds.push(req.workflowId)
+                existing.keys.push(key)
+                if (req.queryClient) existing.queryClients.add(req.queryClient)
+            } else {
+                byProject.set(req.projectId, {
+                    workflowIds: [req.workflowId],
+                    keys: [key],
+                    queryClients: new Set(req.queryClient ? [req.queryClient] : []),
+                })
+            }
+        })
+
+        await Promise.all(
+            Array.from(byProject.entries()).map(async ([projectId, group]) => {
+                try {
+                    const revisionMap = await fetchEvaluatorsBatch(projectId, group.workflowIds)
+                    group.workflowIds.forEach((workflowId, index) => {
+                        const key = group.keys[index]
+                        const revision = revisionMap.get(workflowId) ?? null
+                        results.set(key, revision)
+
+                        if (revision) {
+                            group.queryClients.forEach((queryClient) => {
+                                queryClient.setQueryData(
+                                    ["evaluators", "revision", workflowId, projectId],
+                                    revision,
+                                )
+                                primeEvaluatorRevisionDetailCache(queryClient, projectId, revision)
+                            })
+                        }
+                    })
+                } catch (error) {
+                    console.error(
+                        "[evaluatorLatestRevisionBatchFetcher] Failed to fetch latest revisions:",
+                        group.workflowIds,
+                        error,
+                    )
+                    group.keys.forEach((key) => {
+                        results.set(key, null)
+                    })
+                }
+            }),
+        )
+
+        return results
+    },
+})
 
 // ============================================================================
 // PROJECT ID ATOM
@@ -129,11 +262,31 @@ export const evaluatorVariantsListDataAtomFamily = atomFamily((workflowId: strin
 export const evaluatorRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowId: string) =>
     atomWithQuery((get) => {
         const projectId = get(evaluatorProjectIdAtom)
+        const queryClient = get(queryClientAtom)
         return {
             queryKey: ["evaluators", "revisionsByWorkflow", workflowId, projectId],
             queryFn: async (): Promise<EvaluatorRevisionsResponse> => {
                 if (!projectId || !workflowId) return {count: 0, workflow_revisions: []}
-                return queryEvaluatorRevisionsByWorkflow(workflowId, projectId)
+                const response = await queryEvaluatorRevisionsByWorkflow(workflowId, projectId)
+
+                for (const revision of response.workflow_revisions ?? []) {
+                    primeEvaluatorRevisionDetailCache(queryClient, projectId, revision)
+                }
+
+                let latest: Evaluator | null = null
+                for (const revision of response.workflow_revisions ?? []) {
+                    if (!latest || (revision.version ?? 0) > (latest.version ?? 0)) {
+                        latest = revision
+                    }
+                }
+                if (latest) {
+                    queryClient.setQueryData(
+                        ["evaluators", "revision", workflowId, projectId],
+                        latest,
+                    )
+                }
+
+                return response
             },
             enabled: get(sessionAtom) && !!projectId && !!workflowId,
             staleTime: 30_000,
@@ -162,11 +315,35 @@ export const evaluatorRevisionsByWorkflowListDataAtomFamily = atomFamily((workfl
 export const evaluatorRevisionsQueryAtomFamily = atomFamily((variantId: string) =>
     atomWithQuery((get) => {
         const projectId = get(evaluatorProjectIdAtom)
+        const queryClient = get(queryClientAtom)
         return {
             queryKey: ["evaluators", "revisions", variantId, projectId],
             queryFn: async (): Promise<EvaluatorRevisionsResponse> => {
                 if (!projectId || !variantId) return {count: 0, workflow_revisions: []}
-                return queryEvaluatorRevisions(variantId, projectId)
+                const response = await queryEvaluatorRevisions(variantId, projectId)
+
+                for (const revision of response.workflow_revisions ?? []) {
+                    primeEvaluatorRevisionDetailCache(queryClient, projectId, revision)
+                    if (revision.workflow_id) {
+                        const cachedLatest = queryClient.getQueryData<Evaluator>([
+                            "evaluators",
+                            "revision",
+                            revision.workflow_id,
+                            projectId,
+                        ])
+                        if (
+                            !cachedLatest ||
+                            (revision.version ?? 0) > (cachedLatest.version ?? 0)
+                        ) {
+                            queryClient.setQueryData(
+                                ["evaluators", "revision", revision.workflow_id, projectId],
+                                revision,
+                            )
+                        }
+                    }
+                }
+
+                return response
             },
             enabled: get(sessionAtom) && !!projectId && !!variantId,
             staleTime: 30_000,
@@ -195,14 +372,35 @@ export const evaluatorRevisionsListDataAtomFamily = atomFamily((variantId: strin
 export const evaluatorQueryAtomFamily = atomFamily((evaluatorId: string) =>
     atomWithQuery((get) => {
         const projectId = get(evaluatorProjectIdAtom)
+        const queryClient = get(queryClientAtom)
+        const detailCached = projectId
+            ? queryClient.getQueryData<Evaluator>([
+                  "evaluators",
+                  "revision",
+                  evaluatorId,
+                  projectId,
+              ])
+            : undefined
 
         return {
             queryKey: ["evaluators", "revision", evaluatorId, projectId],
             queryFn: async (): Promise<Evaluator | null> => {
                 if (!projectId || !evaluatorId) return null
-                return fetchEvaluator({id: evaluatorId, projectId})
+                const cached = findLatestEvaluatorRevisionInCache(
+                    queryClient,
+                    projectId,
+                    evaluatorId,
+                )
+                if (cached) return cached
+
+                return evaluatorLatestRevisionBatchFetcher({
+                    projectId,
+                    workflowId: evaluatorId,
+                    queryClient,
+                })
             },
-            enabled: get(sessionAtom) && !!projectId && !!evaluatorId,
+            initialData: detailCached ?? undefined,
+            enabled: get(sessionAtom) && !!projectId && !!evaluatorId && !detailCached,
             staleTime: 30_000,
         }
     }),
