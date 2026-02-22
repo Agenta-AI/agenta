@@ -2,9 +2,10 @@ import {memo, useCallback} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
 import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import type {VariantStatusInfo} from "@/oss/components/VariantDetailsWithStatus/types"
@@ -32,35 +33,32 @@ const VariantNameCell = memo(
         showBadges = false,
         showStable = false,
     }: VariantNameCellProps) => {
+        const currentRevisionId = revisionId || (revision?.id ?? "")
         const resolvedRevision = useAtomValue(
-            legacyAppRevisionMolecule.atoms.data(revisionId || (revision?.id ?? "")),
+            legacyAppRevisionMolecule.atoms.data(currentRevisionId),
         ) as Rev
 
         const rev = resolvedRevision ?? revision
 
-        const latestIdForVariant = useAtomValue(legacyAppRevisionMolecule.atoms.latestRevisionId)
+        const isLatestRevision = useAtomValue(runnableBridge.isLatestRevision(currentRevisionId))
         const deployedInFromStore = useAtomValue(
             environmentMolecule.atoms.revisionDeployment((rev && rev.id) || ""),
         )
 
-        const _isDirty = useAtomValue(legacyAppRevisionMolecule.atoms.isDirty(rev?.id || ""))
+        const _isDirty = useAtomValue(runnableBridge.isDirty(currentRevisionId))
         const isDirty = showStable ? false : _isDirty
-
-        const isLatestRevision =
-            typeof (rev as any)?.isLatestRevision === "boolean"
-                ? (rev as any).isLatestRevision
-                : rev?.id === latestIdForVariant
+        const discard = useSetAtom(runnableBridge.discard)
 
         const handleDiscardDraft = useCallback(() => {
-            if (!rev?.id) return
+            if (!currentRevisionId) return
             try {
-                legacyAppRevisionMolecule.set.discard(rev.id)
+                discard(currentRevisionId)
                 message.success("Draft changes discarded")
             } catch (e) {
                 message.error("Failed to discard draft changes")
                 console.error(e)
             }
-        }, [rev?.id])
+        }, [currentRevisionId, discard])
 
         if (!rev) {
             return (
