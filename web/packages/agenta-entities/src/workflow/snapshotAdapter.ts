@@ -97,8 +97,7 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
         // Empty patch means "no changes" — skip writing to avoid overwriting
         // existing parameters with an empty object during draft merge.
         const isEmptyPatch =
-            !parseResult.data.parameters ||
-            Object.keys(parseResult.data.parameters).length === 0
+            !parseResult.data.parameters || Object.keys(parseResult.data.parameters).length === 0
 
         if (isEmptyPatch) {
             return true

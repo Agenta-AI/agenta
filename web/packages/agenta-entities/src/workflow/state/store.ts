@@ -748,9 +748,8 @@ export const workflowServerDataSelectorFamily = atomFamily((workflowId: string) 
     atom<Workflow | null>((get) => {
         if (isLocalDraftId(workflowId)) {
             const localData = get(workflowLocalServerDataAtomFamily(workflowId))
-            const sourceRevisionId =
-                (localData as (Workflow & {_sourceRevisionId?: string}) | null)
-                    ?._sourceRevisionId
+            const sourceRevisionId = (localData as (Workflow & {_sourceRevisionId?: string}) | null)
+                ?._sourceRevisionId
             if (sourceRevisionId) {
                 // Read the source entity's fully-merged data (server + schema
                 // resolution, but NOT its draft — we want the clean baseline).

@@ -10,9 +10,11 @@
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "scripts": {
-        "build": "tsc --noEmit",
+        "build": "pnpm run types:check",
         "types:check": "tsc --noEmit",
-        "lint": "eslint --config ../eslint.config.mjs src/"
+        "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
+        "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
+        "test": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
         ".": "./src/index.ts",

@@ -511,7 +511,7 @@ const newColumnKeysAtomFamily = atomFamily((loadableId: string) =>
 export const derivedColumnChangesAtomFamily = atomFamily((loadableId: string) =>
     atom<{added: string[]; removed: string[]}>((get) => {
         const state = get(loadableStateAtomFamily(loadableId))
-        const {linkedRunnableType, linkedRunnableId, connectedSourceId} = state
+        const {connectedSourceId} = state
 
         // Not connected - no changes to report
         if (!connectedSourceId) {
