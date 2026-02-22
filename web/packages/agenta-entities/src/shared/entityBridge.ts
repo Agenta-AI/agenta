@@ -60,6 +60,17 @@ export interface BridgeQueryState<T = unknown> {
 }
 
 /**
+ * Opaque writable atom type for pass-through maps where action signatures vary.
+ * Use concrete WritableAtom generics only at invocation sites.
+ */
+export interface OpaqueWritableAtom {
+    read: unknown
+    write: unknown
+    onMount?: unknown
+    debugLabel?: string
+}
+
+/**
  * Base molecule interface that all entities must implement
  */
 export interface BaseMoleculeSelectors {
@@ -92,13 +103,10 @@ export interface BaseMolecule {
 
     actions: {
         /** Update entity draft */
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        update: WritableAtom<any, any[], any>
+        update: OpaqueWritableAtom
         /** Discard entity draft */
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        discard: WritableAtom<any, any[], any>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        [key: string]: WritableAtom<any, any[], any>
+        discard: OpaqueWritableAtom
+        [key: string]: OpaqueWritableAtom
     }
 }
 
@@ -409,8 +417,7 @@ export interface RunnableTypeConfig<T = unknown> {
     /** Additional selectors specific to this runnable type */
     extraSelectors?: Record<string, (id: string) => Atom<unknown>>
     /** Additional actions specific to this runnable type */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types
-    extraActions?: Record<string, WritableAtom<any, any[], any>>
+    extraActions?: Record<string, OpaqueWritableAtom>
     /**
      * Transform parameters before writing to the molecule.
      * Used when the bridge transforms data for display (e.g., nesting evaluator params)
@@ -431,10 +438,12 @@ export interface RunnableTypeConfig<T = unknown> {
 /**
  * Configuration for creating a runnable bridge
  */
-export interface CreateRunnableBridgeConfig {
+export interface CreateRunnableBridgeConfig<
+    TCrud extends RunnableBridgeCrudActions = RunnableBridgeCrudActions,
+> {
     runnables: Record<string, RunnableTypeConfig>
     /** Entity-level CRUD actions to expose on the bridge */
-    crud?: RunnableBridgeCrudActions
+    crud?: TCrud
 }
 
 /**
@@ -482,16 +491,17 @@ export interface RunnableBridgeSelectors {
  * Playground-specific orchestration (selection, chat history, URL sync)
  * is handled via registered callbacks at the entity layer.
  */
-export interface RunnableBridgeCrudActions {
+export interface RunnableBridgeCrudActions<
+    TCreateVariant = OpaqueWritableAtom,
+    TCommitRevision = OpaqueWritableAtom,
+    TDeleteRevision = OpaqueWritableAtom,
+> {
     /** Create a new variant from a base revision */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
-    createVariant: WritableAtom<any, any[], any>
+    createVariant: TCreateVariant
     /** Commit (save) a revision to create a new version */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
-    commitRevision: WritableAtom<any, any[], any>
+    commitRevision: TCommitRevision
     /** Delete a single revision */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
-    deleteRevision: WritableAtom<any, any[], any>
+    deleteRevision: TDeleteRevision
 }
 
 /**
@@ -522,7 +532,9 @@ export interface TypeScopedRunnableSelectors {
  * Provides both nested API (selectors.*) and flattened API
  * for cleaner imports: `runnable.inputPorts(id)` instead of `runnable.selectors.inputPorts(id)`
  */
-export interface RunnableBridge extends RunnableBridgeSelectors {
+export interface RunnableBridge<
+    TCrud extends RunnableBridgeCrudActions = RunnableBridgeCrudActions,
+> extends RunnableBridgeSelectors {
     // Nested API (backwards compatible)
     selectors: RunnableBridgeSelectors
 
@@ -532,8 +544,7 @@ export interface RunnableBridge extends RunnableBridgeSelectors {
     ) => {
         selectors: RunnableBridgeSelectors & Record<string, (id: string) => Atom<unknown>>
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
-        actions?: Record<string, WritableAtom<any, any[], any>>
+        actions?: Record<string, OpaqueWritableAtom>
     }
 
     /**
@@ -563,21 +574,19 @@ export interface RunnableBridge extends RunnableBridgeSelectors {
      * Entity-level CRUD actions with query invalidation baked in.
      * Playground-specific orchestration is handled via registered callbacks.
      */
-    crud: RunnableBridgeCrudActions
+    crud: TCrud
 
     /**
      * Update draft parameters for an entity.
      * Routes to the correct molecule's update action based on the type hint.
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
-    update: WritableAtom<any, [string, Record<string, unknown>], void>
+    update: WritableAtom<unknown, [string, Record<string, unknown>], void>
 
     /**
      * Discard draft changes for an entity.
      * Routes to the correct molecule's discard action based on the type hint.
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai WritableAtom generic
-    discard: WritableAtom<any, [string], void>
+    discard: WritableAtom<unknown, [string], void>
 
     /**
      * Get raw draft state for an entity (local edits before merge).

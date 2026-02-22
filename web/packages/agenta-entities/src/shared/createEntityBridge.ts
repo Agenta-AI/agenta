@@ -24,7 +24,7 @@
  * @module shared/createEntityBridge
  */
 
-import {atom, type Atom} from "jotai"
+import {atom, type Atom, type WritableAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
@@ -534,7 +534,9 @@ export function clearAllRunnableTypeHints(): void {
     _runnableTypeHints.clear()
 }
 
-export function createRunnableBridge(config: CreateRunnableBridgeConfig): RunnableBridge {
+export function createRunnableBridge<
+    TCrud extends RunnableBridgeCrudActions = RunnableBridgeCrudActions,
+>(config: CreateRunnableBridgeConfig<TCrud>): RunnableBridge<TCrud> {
     const {runnables, crud} = config
 
     /**
@@ -1148,7 +1150,7 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
         serverConfiguration: selectors.serverConfiguration,
 
         /** Entity-level CRUD actions */
-        crud: crud ?? _noopCrud,
+        crud: (crud ?? _noopCrud) as TCrud,
 
         /** Update draft parameters for an entity (routes to correct molecule) */
         update: atom(null, (_get, set, entityId: string, parameters: Record<string, unknown>) => {
@@ -1157,7 +1159,7 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                 const finalParams = hinted.config.updateTransform
                     ? hinted.config.updateTransform(entityId, parameters, _get as never)
                     : parameters
-                set(hinted.config.molecule.actions.update, entityId, {
+                set(asBridgeUpdateAtom(hinted.config.molecule.actions.update), entityId, {
                     data: {parameters: finalParams},
                 })
                 return
@@ -1169,7 +1171,7 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
                     const finalParams = config.updateTransform
                         ? config.updateTransform(entityId, parameters, _get as never)
                         : parameters
-                    set(config.molecule.actions.update, entityId, {
+                    set(asBridgeUpdateAtom(config.molecule.actions.update), entityId, {
                         data: {parameters: finalParams},
                     })
                     return
@@ -1181,14 +1183,14 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
         discard: atom(null, (_get, set, entityId: string) => {
             const hinted = getHintedConfig(entityId)
             if (hinted) {
-                set(hinted.config.molecule.actions.discard, entityId)
+                set(asBridgeDiscardAtom(hinted.config.molecule.actions.discard), entityId)
                 return
             }
             // Probe all types — discard the first match
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = _get(config.molecule.selectors.data(entityId))
                 if (entity) {
-                    set(config.molecule.actions.discard, entityId)
+                    set(asBridgeDiscardAtom(config.molecule.actions.discard), entityId)
                     return
                 }
             }
@@ -1225,6 +1227,16 @@ export function createRunnableBridge(config: CreateRunnableBridgeConfig): Runnab
         },
     }
 }
+
+type BridgeUpdateAtom = WritableAtom<
+    unknown,
+    [entityId: string, payload: Record<string, unknown>],
+    void
+>
+type BridgeDiscardAtom = WritableAtom<unknown, [entityId: string], void>
+
+const asBridgeUpdateAtom = (action: unknown): BridgeUpdateAtom => action as BridgeUpdateAtom
+const asBridgeDiscardAtom = (action: unknown): BridgeDiscardAtom => action as BridgeDiscardAtom
 
 /** No-op CRUD actions for when no crud config is provided */
 const _noopCrud: RunnableBridgeCrudActions = {
