@@ -73,6 +73,16 @@ log = get_module_logger(__name__)
 RENAME_EVALUATORS_DISABLED_MESSAGE = "Renaming evaluators is temporarily disabled."
 
 
+def _build_rename_evaluators_disabled_detail(*, existing_name: Optional[str]) -> str:
+    if existing_name:
+        return (
+            f"{RENAME_EVALUATORS_DISABLED_MESSAGE} "
+            f"Current evaluator name is '{existing_name}'."
+        )
+
+    return RENAME_EVALUATORS_DISABLED_MESSAGE
+
+
 class EvaluatorsRouter:
     def __init__(
         self,
@@ -405,7 +415,9 @@ class EvaluatorsRouter:
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+                detail=_build_rename_evaluators_disabled_detail(
+                    existing_name=existing_evaluator.name
+                ),
             )
 
         evaluator = await self.evaluators_service.edit_evaluator(
@@ -1223,7 +1235,9 @@ class SimpleEvaluatorsRouter:
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+                detail=_build_rename_evaluators_disabled_detail(
+                    existing_name=existing_simple_evaluator.name
+                ),
             )
 
         simple_evaluator = await self.simple_evaluators_service.edit(

@@ -1,0 +1,280 @@
+---
+title: "Tracing and Prompt Management for a RAG System"
+description: "Part 1 of 5: Add observability and prompt management to a RAG chatbot. Trace every request, manage prompts from the UI, and link traces to prompt versions."
+sidebar_label: "Part 1: Tracing and prompt management"
+sidebar_position: 2
+---
+
+import Image from "@theme/IdealImage";
+
+## What you will build
+
+By the end of this tutorial, you will have:
+
+- **Tracing** for your entire RAG pipeline. Every request is captured with its inputs, outputs, intermediate steps, costs, and latencies. You can see exactly what happened at each step and debug when things go wrong.
+- **Prompt management** connected to your application. Prompts live in Agenta, not in your codebase. Anyone on the team can edit them, and changes take effect without redeploying.
+- **Traces linked to prompt versions.** Every trace shows which prompt version produced it. You can filter, compare, and trace a bad response back to the exact prompt that caused it.
+
+### Why does this matter?
+
+The typical challenge with a RAG chatbot is that the answers are not always good. Sometimes the content is wrong. Sometimes the style does not match what you need. Sometimes the system retrieves the right context but the prompt fails to use it well.
+
+These steps give you the tools to diagnose and fix these problems:
+
+- **Tracing** lets you debug the chatbot. You can see each step of the pipeline: what the retriever found, what context the LLM received, and what it generated. If the answer is bad, you can tell whether the problem was bad retrieval or a bad prompt.
+- **Prompt management** lets you iterate quickly. Instead of changing code and redeploying, you edit the prompt in a playground. You can use real data from your traces to test changes. You get a clean version history for each prompt, which is much easier to navigate than git commits where prompt changes are mixed in with everything else.
+
+## Prerequisites
+
+We use the [RAG Q&A Chatbot example](https://github.com/Agenta-AI/agenta/tree/main/examples/python/RAG_QA_chatbot), but you can adapt the steps to your own app. You can set up the example in a few minutes by following the instructions in the README.
+
+To set up the example, you need:
+
+- An [Agenta Cloud](https://cloud.agenta.ai) account (free tier works) or a [self-hosted Agenta instance](/self-host/quick-start).
+- A Qdrant vector store. You can use a free Qdrant Cloud cluster or self-host your own.
+- Python 3.11+.
+
+Set the following environment variables in your `.env` file:
+
+```bash
+# Required
+OPENAI_API_KEY=...
+QDRANT_URL=...           # Your Qdrant instance URL
+QDRANT_API_KEY=...       # Your Qdrant API key
+COLLECTION_NAME=...      # Name of your Qdrant collection
+
+# Agenta
+AGENTA_API_KEY=...       # From cloud.agenta.ai → Settings → API Keys
+AGENTA_HOST=https://cloud.agenta.ai   # or eu.cloud.agenta.ai, us.cloud.agenta.ai, or your self-hosted URL
+
+# Optional
+EMBEDDING_MODEL=openai   # openai or cohere
+LLM_MODEL=gpt-4o-mini
+TOP_K=10
+```
+
+Then follow the instructions in the README to ingest your documentation and run the application.
+
+## The RAG app
+
+Our starting point is a documentation Q&A chatbot. It answers questions about Agenta's documentation by retrieving relevant chunks from a Qdrant vector store and generating an answer with an LLM.
+
+The logic is simple: the user sends a query, the system retrieves relevant chunks, and then calls the LLM with the query and the retrieved context. The prompt takes two variables: the user's query and the retrieved context.
+
+We created a FastAPI server for the backend and a Next.js frontend using the Vercel AI SDK to interact with it. The chatbot is stateless; it has no chat history. Each question is independent.
+
+The backend has two main functions:
+
+- `retrieve(query)`: searches Qdrant for relevant document chunks and returns them with scores.
+- `generate(query, context)`: takes the query and the retrieved context, builds a prompt, calls the LLM, and streams the response.
+
+<Image
+  img={require("/img/tutorials/rag-series/01-chatbot-ui.png")}
+  alt="The RAG documentation chatbot answering a question about instrumenting a LangChain application"
+/>
+
+When you start testing this chatbot, you quickly notice that it does not always answer well. Sometimes the answer is inaccurate. Sometimes the style is off. Sometimes it is unclear whether the problem is the retrieval or the prompt. This is where tracing comes in.
+
+## Step 1: Add tracing
+
+Tracing captures the steps your application takes for each request and sends them to Agenta. For every function call and every LLM invocation, you can see the inputs, the outputs, the cost, and the latency. This gives you visibility into what your system actually does, not just what it returns.
+
+For example, if a user gets a bad answer, tracing lets you check: was the right information part of the retrieved context? If yes, the problem is the prompt. If no, the problem is the retrieval. Without tracing, you are guessing.
+
+Tracing is usually the first thing you set up when building an LLM application. It is the foundation for everything else. Later, you will link traces to prompt versions, create test sets from trace data, and run evaluations. All of that starts with having good traces.
+
+### What to trace
+
+Before writing any code, think about what to trace and what to skip.
+
+**LLM calls.** You want to trace every LLM call automatically. In our case we use LiteLLM, a gateway library that lets you switch between model providers without changing your code. Agenta provides an auto-instrumentation callback for LiteLLM that captures every call: the model, the messages, the response, the token counts, and the cost. This includes embedding calls too, not just generation. You add one line and all LiteLLM calls are traced.
+
+**Application functions.** You do not need to instrument every function in your codebase. Instrument the ones that matter: the ones whose inputs and outputs you want to see when debugging. In our case, `retrieve` and `generate` are the interesting ones. Helper functions like `format_context` are not worth tracing separately.
+
+**Designing your spans for prompt management.** This is worth thinking about before you write any instrumentation code. Later, you will link your `generate` span to a prompt in Agenta. Agenta matches the span's input variables to the prompt's template variables. If your `generate` function receives `query` and `context` as inputs, and your prompt template uses `{{query}}` and `{{context}}`, the mapping is automatic. This makes it easy to create test sets from traces (the span inputs become your test case inputs) and to open a trace in the playground. Aligning function inputs with prompt variables from the start saves manual mapping work later.
+
+### Setting it up
+
+First, install the Agenta SDK:
+
+```bash
+pip install agenta
+```
+
+In your main application file, initialize Agenta with your credentials:
+
+```python
+import agenta as ag
+
+ag.init(api_key=settings.AGENTA_API_KEY, host=settings.AGENTA_HOST)
+```
+
+Next, add the LiteLLM auto-instrumentation callback. This single line traces all LiteLLM calls:
+
+```python
+import litellm
+
+litellm.callbacks = [ag.callbacks.litellm_handler()]
+```
+
+With just these two additions, every LLM and embedding call through LiteLLM is already traced. You can run the app, make a query, and see the LLM span in Agenta.
+
+To trace your own functions, add the `@ag.instrument()` decorator:
+
+```python
+@ag.instrument()
+def retrieve(query: str, top_k: Optional[int] = None, ...) -> List[RetrievedDoc]:
+    ...
+
+@ag.instrument()
+async def generate(query: str, context: str, model: str = None) -> AsyncGenerator[str, None]:
+    ...
+```
+
+The decorator captures the function's inputs, outputs, and timing as a span.
+
+To group `retrieve` and `generate` under a single root span for each request, wrap the request handler with `ag.tracer.start_as_current_span()`. This is the standard OpenTelemetry context manager: it creates a span, sets it as the active span for the duration of the block, and ensures all child spans created inside are automatically parented to it:
+
+```python
+with ag.tracer.start_as_current_span("chat_request") as span:
+    docs = retrieve(query)
+    context = format_context(docs)
+    async for chunk in generate(query, context):
+        yield chunk
+```
+
+This produces a clean trace tree: one root span (`chat_request`) with `retrieve` and `generate` as children, and the LLM call nested inside `generate`.
+
+<Image
+  img={require("/img/tutorials/rag-series/02-trace-view.png")}
+  alt="A trace in Agenta showing the span tree: chat_request with retrieve, generate, and the LLM call as child spans"
+/>
+
+## Step 2: Add prompt management
+
+Right now, your prompts live in your codebase. Changing them means editing code, committing, and redeploying. This is slow, and it locks out everyone who does not have access to the repo.
+
+Prompt management in Agenta solves several problems at once. It lets you update prompts from the UI, so a subject matter expert can change them directly. It gives you a clean version history for each prompt, which is much easier to navigate than git commit messages where prompt changes are mixed in with everything else. It provides multiple environments (development, staging, production), each with its own history. And it links every trace back to the exact prompt version that produced it.
+
+### Create a prompt in Agenta
+
+Open Agenta and create a new prompt. For a Q&A chatbot like ours, use a **completion** prompt (a single LLM call, not a multi-turn chat).
+
+Write a system prompt and a user prompt with two template variables: `{{query}}` for the user's question and `{{context}}` for the retrieved documentation chunks:
+
+**System prompt:**
+
+```
+You are a helpful assistant that answers questions based on the provided documentation.
+Use the context below to answer the user's question. If the answer is not in the context, say so.
+When referencing information, mention the source title.
+```
+
+**User prompt:**
+
+```
+Context:
+{{context}}
+
+Question: {{query}}
+
+Answer based on the context above:
+```
+
+The `{{query}}` and `{{context}}` variables match the inputs of your `generate` function. This is the alignment we discussed in Step 1. This will help you later create test cases from the span that map directly to the prompt variables.
+
+### Test it in the playground
+
+Before connecting anything to your code, test the prompt in the playground. Paste a chunk of your documentation into `context`, type a question into `query`, and run it. Switch models, adjust temperature, and iterate until the prompt works well.
+
+<Image
+  img={require("/img/tutorials/rag-series/03-playground.png")}
+  alt="The Agenta playground showing the prompt template with context and query variables, a test case, and the model response"
+/>
+
+### Deploy to an environment
+
+Deploy your prompt to the **production** environment from the UI by clicking commit and selecting the environment.
+
+:::tip
+You can also manage prompts programmatically using the Agenta SDK: create prompts, commit versions, and deploy to environments from code.
+:::
+
+<Image
+  img={require("/img/tutorials/rag-series/04-commit-modal.png")}
+  alt="The commit modal in Agenta showing a prompt diff and deploy to production option"
+/>
+
+### Fetch the prompt in your code
+
+Update your application to fetch the prompt from Agenta instead of using hardcoded strings. It is good practice to wrap the fetch in its own instrumented function so it appears as a separate span in the trace:
+
+```python
+from agenta.sdk.managers.shared import SharedManager
+from agenta.sdk.types import PromptTemplate
+
+@ag.instrument()
+async def get_prompt_config():
+    config = await SharedManager.afetch(
+        app_slug="your-prompt-slug",
+        environment_slug="production",
+    )
+    refs = {
+        ag.Reference.APPLICATION_ID.value: config.app_id,
+        ag.Reference.APPLICATION_SLUG.value: config.app_slug,
+        ag.Reference.VARIANT_ID.value: config.variant_id,
+        ag.Reference.VARIANT_SLUG.value: config.variant_slug,
+        ag.Reference.VARIANT_VERSION.value: str(config.variant_version),
+        ag.Reference.ENVIRONMENT_ID.value: config.environment_id,
+        ag.Reference.ENVIRONMENT_SLUG.value: config.environment_slug,
+        ag.Reference.ENVIRONMENT_VERSION.value: str(config.environment_version),
+    }
+    return config, refs
+```
+
+The `refs` dictionary stores references to the prompt version. Call `ag.tracing.store_refs(refs)` inside `generate` after unpacking the result. This links every trace to the exact prompt version that produced it.
+
+Then use the config to format and call the LLM:
+
+```python
+result = await get_prompt_config()
+if result:
+    config, refs = result
+    # Link the trace to the prompt version
+    ag.tracing.store_refs(refs)
+    prompt_template = PromptTemplate(**config.params["prompt"])
+    formatted_prompt = prompt_template.format(context=context, query=query)
+    openai_kwargs = formatted_prompt.to_openai_kwargs()
+    response = await acompletion(
+        model=openai_kwargs.get("model", model),
+        messages=openai_kwargs.get("messages", []),
+        stream=True,
+    )
+```
+
+The `to_openai_kwargs()` method converts the prompt into the format the OpenAI API (and LiteLLM) expects. Keep your original hardcoded prompts as a fallback for both a failed fetch and a failed format step, since each can fail independently.
+
+### Try it
+
+Run your app, ask a question, and verify the response comes from the Agenta-managed prompt. Then edit the prompt in the Agenta UI, deploy the new version to production, and ask the same question. The response should reflect your changes with no code change and no redeploy.
+
+Open a trace in Agenta and look at the `generate` span. The References panel shows which prompt version produced this trace: the application slug, the variant, and the environment. Every trace is now linked to the exact prompt that generated it.
+
+<Image
+  img={require("/img/tutorials/rag-series/05-trace-with-reference.png")}
+  alt="The generate span in Agenta showing the References panel with the prompt application, variant, and environment that produced this trace"
+/>
+
+## What you have now
+
+You now have a RAG system with full observability and prompt management:
+
+- Every request is traced. You can see the retrieval step, the LLM call, the formatted context, the cost, and the latency for each request.
+- Prompts are managed in Agenta. You can edit them from the UI, version them, and deploy to different environments without touching your code.
+- Every trace is linked to the prompt version that produced it. You can filter traces by version, compare performance across versions, and trace any bad response back to its prompt.
+
+This is the foundation. You can already use it to debug problems and iterate on your prompts. But right now, iteration depends on you manually browsing traces and judging quality by eye.
+
+## Next: Enable your domain experts
+
+In Part 2, you will enable subject matter experts to contribute directly. They will browse traces, annotate bad responses, create test cases from production data, and iterate on prompts in the playground. All from the browser, no code required.

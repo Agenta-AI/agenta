@@ -10,7 +10,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONUNBUFFERED=1
 
 # Install poetry system-level (outside venv) — only used for export
-RUN --mount=type=cache,target=/root/.cache/pip \
+RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
     pip install --timeout=300 "poetry==${POETRY_VERSION}" "poetry-plugin-export"
 
 COPY ./pyproject.toml ./poetry.lock* /app/
@@ -23,8 +23,8 @@ COPY ./pyproject.toml ./poetry.lock* /app/
 # Kept: litellm + provider SDKs (google-cloud-aiplatform, boto3, openai) — litellm
 #   dynamically imports these at runtime to route calls to different LLM providers
 # Kept: newrelic — used for observability
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=cache,target=/root/.cache/pypoetry \
+RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
+    --mount=type=cache,id=pypoetry-services,target=/root/.cache/pypoetry \
     python -m venv /opt/venv \
     && . /opt/venv/bin/activate \
     && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
@@ -41,7 +41,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN mkdir -p /app/sdk
 COPY ./sd[k] /app/sdk/
 
-RUN if [ -f /app/sdk/pyproject.toml ]; then \
+RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
+    if [ -f /app/sdk/pyproject.toml ]; then \
         . /opt/venv/bin/activate && \
         pip install pip && \
         pip install --editable /app/sdk && \
