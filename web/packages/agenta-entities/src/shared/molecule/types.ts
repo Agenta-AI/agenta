@@ -4,11 +4,11 @@
  * Core type definitions for the entity molecule pattern.
  */
 
-import type {Atom, WritableAtom} from "jotai"
+import type {Atom, SetStateAction, WritableAtom} from "jotai"
 import type {createStore} from "jotai/vanilla"
 
 // Import bridge types for capability interfaces
-import type {RunnablePort, LoadableRow, LoadableColumn} from "../entityBridge"
+import type {LoadableColumn, LoadableRow, OpaqueWritableAtom, RunnablePort} from "../entityBridge"
 
 // ============================================================================
 // STORE TYPES
@@ -361,8 +361,7 @@ export interface LifecycleConfig {
  */
 
 export interface FlexibleWritableAtomFamily<T, P = string> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms have specific args types that can't be unified with unknown[]
-    (param: P): WritableAtom<T, any[], void>
+    (param: P): WritableAtom<T, [SetStateAction<T>], void>
     /** Remove atom for a specific parameter */
     remove: (param: P) => void
     /** Set auto-cleanup policy */
@@ -1123,16 +1122,16 @@ export type RunnableLoadableEntity<T, TDraft = Partial<T>> = EntityController<T,
  * Used for flexible extension atoms like cell accessor with {id, column} param
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Function params are contravariant, unknown can't be assigned from specific types
-export type AnyAtomFamily = (param: any) => Atom<unknown>
+export type AnyAtomFamily = {
+    bivarianceHack(param: unknown): Atom<unknown>
+}["bivarianceHack"]
 
 /**
  * Any writable atom - supports any args and return type
  * Used for reducers that return values (not just void)
- * Note: Uses `any` for all type params due to Jotai type system requirements
+ * This is opaque because reducer signatures vary per extension.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyWritableAtom = WritableAtom<any, any[], any>
+export type AnyWritableAtom = OpaqueWritableAtom
 
 /**
  * Additional atoms to add via extendMolecule
@@ -1160,16 +1159,18 @@ export type ExtendedReducers = Record<string, AnyWritableAtom>
  * Supports any function signature, not just (id, options) => unknown
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Function params are contravariant, needs any for flexible signatures
-export type ExtendedGetters = Record<string, (...args: any[]) => unknown>
+type BivariantFn = {
+    bivarianceHack(...args: unknown[]): unknown
+}["bivarianceHack"]
+
+export type ExtendedGetters = Record<string, BivariantFn>
 
 /**
  * Additional setters to add via extendMolecule
  * Supports any function signature with any return type
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Function params are contravariant, needs any for flexible signatures
-export type ExtendedSetters = Record<string, (...args: any[]) => unknown>
+export type ExtendedSetters = Record<string, BivariantFn>
 
 /**
  * Configuration for extendMolecule
