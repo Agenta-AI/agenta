@@ -21,6 +21,21 @@ from agenta.sdk.models.workflows import (
 from agenta.sdk.utils.references import get_slug_from_name_and_id
 
 
+def _response_detail(response) -> str:
+    try:
+        data = response.json()
+    except Exception:
+        return response.text
+
+    if isinstance(data, dict) and "detail" in data:
+        detail = data.get("detail")
+        if isinstance(detail, str):
+            return detail
+        return str(detail)
+
+    return str(data)
+
+
 async def _retrieve_application(
     application_id: Optional[UUID] = None,
     application_slug: Optional[str] = None,
@@ -92,6 +107,15 @@ async def aupsert(
     name: Optional[str] = None,
     description: Optional[str] = None,
 ) -> Optional[UUID]:
+    """Upsert a simple application and return its revision ID.
+
+    Returns:
+        The application revision UUID, or None when the API responds without
+        a usable application/revision object.
+
+    Raises:
+        ValueError: If preparation fails or API create/update calls fail.
+    """
     # print("\n---------   UPSERT APPLICATION")
     try:
         if not is_workflow(handler):
@@ -209,12 +233,29 @@ async def aupsert(
             )
 
     except Exception as e:
-        print("[ERROR]: Failed to prepare application:", e)
-        return None
+        message = f"Failed to prepare application: {e}"
+        print("[ERROR]:", message)
+        raise ValueError(message) from e
 
     # print("Retrieve response:", retrieve_response)
 
     if retrieve_response and retrieve_response.id and retrieve_response.application_id:
+        # TEMPORARY: API simple application edit currently rejects renaming.
+        # Preserve the existing stored name when updating by slug/id so evaluate()
+        # can keep syncing configuration/data without triggering rename failures.
+        if (
+            retrieve_response.name
+            and name is not None
+            and name != retrieve_response.name
+        ):
+            print(
+                "[INFO]: Renaming applications is temporarily disabled. "
+                f"Using existing application name '{retrieve_response.name}'."
+            )
+            name = retrieve_response.name
+        elif retrieve_response.name and name is None:
+            name = retrieve_response.name
+
         application_id = retrieve_response.application_id
         # print(" --- Updating application...", application_id)
         application_edit_request = SimpleApplicationEdit(
@@ -246,8 +287,10 @@ async def aupsert(
         try:
             response.raise_for_status()
         except Exception as e:
-            print("[ERROR]: Failed to update application:", e)
-            return None
+            detail = _response_detail(response)
+            message = f"Failed to update application: {detail}"
+            print("[ERROR]:", message)
+            raise ValueError(message) from e
 
     else:
         # print(" --- Creating application...")
@@ -280,8 +323,10 @@ async def aupsert(
         try:
             response.raise_for_status()
         except Exception as e:
-            print("[ERROR]: Failed to create application:", e)
-            return None
+            detail = _response_detail(response)
+            message = f"Failed to create application: {detail}"
+            print("[ERROR]:", message)
+            raise ValueError(message) from e
 
     application_response = SimpleApplicationResponse(**response.json())
 
