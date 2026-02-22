@@ -274,7 +274,7 @@ const ChatTurnView = ({
     const hasFooterContent = (traceId && SharedGenerationResultUtils) || downstreamNodes.length > 0
 
     return (
-        <div className={clsx("flex flex-col gap-2", className)}>
+        <div className={clsx("flex flex-col gap-1.5", className)}>
             {!hideUserMessage ? (
                 <TurnMessageAdapter
                     entityId={entityId as string}
@@ -307,33 +307,6 @@ const ChatTurnView = ({
                         kind="assistant"
                         className="w-full"
                         headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
-                        footer={
-                            hasFooterContent ? (
-                                <div className="w-full flex items-center justify-start mt-2 gap-2 flex-wrap">
-                                    {traceId && SharedGenerationResultUtils ? (
-                                        <SharedGenerationResultUtils traceId={traceId} />
-                                    ) : null}
-                                    {downstreamNodes.map((node) => {
-                                        const resolvedName = nodeNames[node.id]
-                                        const label =
-                                            resolvedName ||
-                                            (node.label && !/^[0-9a-f]{8}-/.test(node.label)
-                                                ? node.label
-                                                : node.entityType.charAt(0).toUpperCase() +
-                                                  node.entityType.slice(1))
-                                        return (
-                                            <EvaluatorResultPopover
-                                                key={node.entityId}
-                                                rowId={turnId}
-                                                rootEntityId={entityId as string}
-                                                node={node}
-                                                nodeName={label}
-                                            />
-                                        )
-                                    })}
-                                </div>
-                            ) : null
-                        }
                         messageProps={messageProps}
                         messageOverride={messageOverride}
                         repetitionProps={repetitionProps}
@@ -351,6 +324,31 @@ const ChatTurnView = ({
                               />
                           ))
                         : null}
+                    {hasFooterContent ? (
+                        <div className="flex items-center gap-2 flex-wrap px-1">
+                            {traceId && SharedGenerationResultUtils ? (
+                                <SharedGenerationResultUtils traceId={traceId} />
+                            ) : null}
+                            {downstreamNodes.map((node) => {
+                                const resolvedName = nodeNames[node.id]
+                                const label =
+                                    resolvedName ||
+                                    (node.label && !/^[0-9a-f]{8}-/.test(node.label)
+                                        ? node.label
+                                        : node.entityType.charAt(0).toUpperCase() +
+                                          node.entityType.slice(1))
+                                return (
+                                    <EvaluatorResultPopover
+                                        key={node.entityId}
+                                        rowId={turnId}
+                                        rootEntityId={entityId as string}
+                                        node={node}
+                                        nodeName={label}
+                                    />
+                                )
+                            })}
+                        </div>
+                    ) : null}
                 </>
             ) : (
                 <ClickRunPlaceholder />
