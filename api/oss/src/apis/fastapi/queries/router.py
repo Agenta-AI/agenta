@@ -22,6 +22,12 @@ from oss.src.apis.fastapi.queries.models import (
     QueryResponse,
     QueriesResponse,
     #
+    QueryVariantCreateRequest,
+    QueryVariantEditRequest,
+    QueryVariantQueryRequest,
+    QueryVariantResponse,
+    QueryVariantsResponse,
+    #
     QueryRevisionCreateRequest,
     QueryRevisionEditRequest,
     QueryRevisionQueryRequest,
@@ -120,7 +126,65 @@ class QueriesRouter:
 
         # QUERY VARIANTS -------------------------------------------------------
 
-        # TODO: IMPLEMENT ME
+        self.router.add_api_route(
+            "/variants/",
+            self.create_query_variant,
+            methods=["POST"],
+            operation_id="create_query_variant",
+            status_code=status.HTTP_200_OK,
+            response_model=QueryVariantResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/variants/{query_variant_id}",
+            self.fetch_query_variant,
+            methods=["GET"],
+            operation_id="fetch_query_variant",
+            status_code=status.HTTP_200_OK,
+            response_model=QueryVariantResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/variants/{query_variant_id}",
+            self.edit_query_variant,
+            methods=["PUT"],
+            operation_id="edit_query_variant",
+            status_code=status.HTTP_200_OK,
+            response_model=QueryVariantResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/variants/{query_variant_id}/archive",
+            self.archive_query_variant,
+            methods=["POST"],
+            operation_id="archive_query_variant",
+            status_code=status.HTTP_200_OK,
+            response_model=QueryVariantResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/variants/{query_variant_id}/unarchive",
+            self.unarchive_query_variant,
+            methods=["POST"],
+            operation_id="unarchive_query_variant",
+            status_code=status.HTTP_200_OK,
+            response_model=QueryVariantResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/variants/query",
+            self.query_query_variants,
+            methods=["POST"],
+            operation_id="query_query_variants",
+            status_code=status.HTTP_200_OK,
+            response_model=QueryVariantsResponse,
+            response_model_exclude_none=True,
+        )
 
         # QUERY REVISIONS ------------------------------------------------------
 
@@ -420,6 +484,182 @@ class QueriesRouter:
         )
 
         return queries_response
+
+    # QUERY VARIANTS -----------------------------------------------------------
+
+    @intercept_exceptions()
+    async def create_query_variant(
+        self,
+        request: Request,
+        *,
+        query_variant_create_request: QueryVariantCreateRequest,
+    ) -> QueryVariantResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_QUERIES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        query_variant = await self.queries_service.create_query_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            query_variant_create=query_variant_create_request.query_variant,
+        )
+
+        return QueryVariantResponse(
+            count=1 if query_variant else 0,
+            query_variant=query_variant,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=QueryVariantResponse(), exclude=[HTTPException])
+    async def fetch_query_variant(
+        self,
+        request: Request,
+        *,
+        query_variant_id: UUID,
+    ) -> QueryVariantResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_QUERIES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        query_variant = await self.queries_service.fetch_query_variant(
+            project_id=UUID(request.state.project_id),
+            #
+            query_variant_ref=Reference(id=query_variant_id),
+        )
+
+        return QueryVariantResponse(
+            count=1 if query_variant else 0,
+            query_variant=query_variant,
+        )
+
+    @intercept_exceptions()
+    async def edit_query_variant(
+        self,
+        request: Request,
+        *,
+        query_variant_edit_request: QueryVariantEditRequest,
+        #
+        query_variant_id: UUID,
+    ) -> QueryVariantResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_QUERIES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if str(query_variant_id) != str(query_variant_edit_request.query_variant.id):
+            return QueryVariantResponse()
+
+        query_variant = await self.queries_service.edit_query_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            query_variant_edit=query_variant_edit_request.query_variant,
+        )
+
+        return QueryVariantResponse(
+            count=1 if query_variant else 0,
+            query_variant=query_variant,
+        )
+
+    @intercept_exceptions()
+    async def archive_query_variant(
+        self,
+        request: Request,
+        *,
+        query_variant_id: UUID,
+    ) -> QueryVariantResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_QUERIES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        query_variant = await self.queries_service.archive_query_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            query_variant_id=query_variant_id,
+        )
+
+        return QueryVariantResponse(
+            count=1 if query_variant else 0,
+            query_variant=query_variant,
+        )
+
+    @intercept_exceptions()
+    async def unarchive_query_variant(
+        self,
+        request: Request,
+        *,
+        query_variant_id: UUID,
+    ) -> QueryVariantResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_QUERIES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        query_variant = await self.queries_service.unarchive_query_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            query_variant_id=query_variant_id,
+        )
+
+        return QueryVariantResponse(
+            count=1 if query_variant else 0,
+            query_variant=query_variant,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=QueryVariantsResponse(), exclude=[HTTPException])
+    async def query_query_variants(
+        self,
+        request: Request,
+        *,
+        query_variant_query_request: QueryVariantQueryRequest,
+    ) -> QueryVariantsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_QUERIES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        query_variants = await self.queries_service.query_query_variants(
+            project_id=UUID(request.state.project_id),
+            #
+            query_variant_query=query_variant_query_request.query_variant,
+            #
+            query_refs=query_variant_query_request.query_refs,
+            query_variant_refs=query_variant_query_request.query_variant_refs,
+            #
+            include_archived=query_variant_query_request.include_archived,
+            #
+            windowing=query_variant_query_request.windowing,
+        )
+
+        return QueryVariantsResponse(
+            count=len(query_variants),
+            query_variants=query_variants,
+        )
 
     # QUERY REVISIONS ----------------------------------------------------------
 

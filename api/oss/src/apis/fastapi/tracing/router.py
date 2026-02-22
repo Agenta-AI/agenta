@@ -2,7 +2,7 @@ from typing import Optional, List, Tuple, Dict, Union
 from uuid import UUID
 from datetime import datetime
 
-from fastapi import APIRouter, Request, Depends, status, HTTPException
+from fastapi import APIRouter, Query, Request, Depends, status, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -125,7 +125,7 @@ class TracingRouter:
             "/traces/",
             self.create_trace,
             methods=["POST"],
-            operation_id="create_trace",
+            operation_id="create_trace_tracing",
             status_code=status.HTTP_202_ACCEPTED,
             response_model=OTelLinksResponse,
             response_model_exclude_none=True,
@@ -135,7 +135,7 @@ class TracingRouter:
             "/traces/{trace_id}",
             self.fetch_trace,
             methods=["GET"],
-            operation_id="fetch_trace",
+            operation_id="fetch_trace_tracing",
             status_code=status.HTTP_200_OK,
             response_model=OTelTracingResponse,
             response_model_exclude_none=True,
@@ -145,7 +145,7 @@ class TracingRouter:
             "/traces/{trace_id}",
             self.edit_trace,
             methods=["PUT"],
-            operation_id="edit_trace",
+            operation_id="edit_trace_tracing",
             status_code=status.HTTP_202_ACCEPTED,
             response_model=OTelLinksResponse,
             response_model_exclude_none=True,
@@ -155,7 +155,7 @@ class TracingRouter:
             "/traces/{trace_id}",
             self.delete_trace,
             methods=["DELETE"],
-            operation_id="delete_trace",
+            operation_id="delete_trace_tracing",
             status_code=status.HTTP_202_ACCEPTED,
             response_model=OTelLinksResponse,
             response_model_exclude_none=True,
@@ -944,3 +944,112 @@ class TracingRouter:
                 limit=input_windowing.limit,
                 order=input_windowing.order,
             )
+
+
+class TracesRouter:
+    def __init__(
+        self,
+        *,
+        tracing_router: TracingRouter,
+    ):
+        self.tracing_router = tracing_router
+        self.router = APIRouter()
+
+        # TRACES ---------------------------------------------------------------
+
+        self.router.add_api_route(
+            "/",
+            self.fetch_traces,
+            methods=["GET"],
+            operation_id="fetch_traces",
+            status_code=status.HTTP_200_OK,
+            response_model=OTelTracingResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{trace_id}",
+            self.tracing_router.fetch_trace,
+            methods=["GET"],
+            operation_id="fetch_trace",
+            status_code=status.HTTP_200_OK,
+            response_model=OTelTracingResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/query",
+            self.tracing_router.query_spans,
+            methods=["POST"],
+            operation_id="query_traces",
+            status_code=status.HTTP_200_OK,
+            response_model=OTelTracingResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/",
+            self.tracing_router.create_trace,
+            methods=["POST"],
+            operation_id="create_trace",
+            status_code=status.HTTP_202_ACCEPTED,
+            response_model=OTelLinksResponse,
+            response_model_exclude_none=True,
+        )
+
+    # TRACES -------------------------------------------------------------------
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=OTelTracingResponse(), exclude=[HTTPException])
+    async def fetch_traces(
+        self,
+        request: Request,
+        *,
+        trace_id: Optional[List[str]] = Query(default=None),
+        trace_ids: Optional[str] = Query(default=None),
+    ) -> OTelTracingResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        ids: List[str] = list(trace_id or [])
+        if trace_ids:
+            ids.extend(i.strip() for i in trace_ids.split(",") if i.strip())
+
+        if not ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one trace_id query parameter is required.",
+            )
+
+        try:
+            uuid_ids = [UUID(parse_trace_id_to_uuid(tid)) for tid in ids]
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
+
+        spans = await self.tracing_router.service.fetch(
+            project_id=UUID(request.state.project_id),
+            #
+            trace_ids=uuid_ids,
+        )
+
+        if spans is None:
+            return OTelTracingResponse()
+
+        traces = parse_spans_into_response(
+            spans,
+            focus=Focus.TRACE,
+            format=Format.AGENTA,
+        )
+
+        if not traces or isinstance(traces, list):
+            return OTelTracingResponse()
+
+        return OTelTracingResponse(
+            count=len(traces.keys()),
+            traces=traces,
+        )

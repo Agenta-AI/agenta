@@ -4,9 +4,9 @@
 
 ## 1. Testsets
 
-Base prefix: `/api/preview/testsets`
-
 ### 1.1 Testsets (Artifact)
+
+Base prefix: `/api/preview/testsets`
 
 | Method | Path                       | Operation ID           |
 |--------|----------------------------|------------------------|
@@ -19,39 +19,40 @@ Base prefix: `/api/preview/testsets`
 
 ### 1.2 Testset Variants
 
-| Method | Path                                       | Operation ID                |
-|--------|--------------------------------------------|-----------------------------|
-| POST   | `/variants/`                               | `create_testset_variant`    |
-| GET    | `/variants/{testset_variant_id}`           | `fetch_testset_variant`     |
-| PUT    | `/variants/{testset_variant_id}`           | `edit_testset_variant`      |
-| POST   | `/variants/{testset_variant_id}/archive`   | `archive_testset_variant`   |
-| POST   | `/variants/{testset_variant_id}/unarchive` | `unarchive_testset_variant` |
-| POST   | `/variants/query`                          | `query_testset_variants`    |
+Base prefix: `/api/preview/testsets/variants`
+
+| Method | Path                              | Operation ID                |
+|--------|-----------------------------------|-----------------------------|
+| POST   | `/`                               | `create_testset_variant`    |
+| GET    | `/{testset_variant_id}`           | `fetch_testset_variant`     |
+| PUT    | `/{testset_variant_id}`           | `edit_testset_variant`      |
+| POST   | `/{testset_variant_id}/archive`   | `archive_testset_variant`   |
+| POST   | `/{testset_variant_id}/unarchive` | `unarchive_testset_variant` |
+| POST   | `/query`                          | `query_testset_variants`    |
 
 ### 1.3 Testset Revisions
 
-| Method | Path                                         | Operation ID                        |
-|--------|----------------------------------------------|-------------------------------------|
-| POST   | `/revisions/`                                | `create_testset_revision`           |
-| GET    | `/revisions/{testset_revision_id}`           | `fetch_testset_revision`            |
-| PUT    | `/revisions/{testset_revision_id}`           | `edit_testset_revision`             |
-| POST   | `/revisions/{testset_revision_id}/archive`   | `archive_testset_revision`          |
-| POST   | `/revisions/{testset_revision_id}/unarchive` | `unarchive_testset_revision`        |
-| POST   | `/revisions/{testset_revision_id}/download`  | `fetch_testset_revision_to_file`    |
-| POST   | `/revisions/{testset_revision_id}/upload`    | `create_testset_revision_from_file` |
-| POST   | `/revisions/query`                           | `query_testset_revisions`           |
-| POST   | `/revisions/commit`                          | `commit_testset_revision`           |
-| POST   | `/revisions/retrieve`                        | `retrieve_testset_revision`         |
-| POST   | `/revisions/log`                             | `log_testset_revisions`             |
+Base prefix: `/api/preview/testsets/revisions`
+
+| Method | Path                               | Operation ID                        |
+|--------|------------------------------------|-------------------------------------|
+| POST   | `/`                                | `create_testset_revision`           |
+| GET    | `/{testset_revision_id}`           | `fetch_testset_revision`            |
+| PUT    | `/{testset_revision_id}`           | `edit_testset_revision`             |
+| POST   | `/{testset_revision_id}/archive`   | `archive_testset_revision`          |
+| POST   | `/{testset_revision_id}/unarchive` | `unarchive_testset_revision`        |
+| POST   | `/{testset_revision_id}/download`  | `fetch_testset_revision_to_file`    |
+| POST   | `/{testset_revision_id}/upload`    | `create_testset_revision_from_file` |
+| POST   | `/query`                           | `query_testset_revisions`           |
+| POST   | `/commit`                          | `commit_testset_revision`           |
+| POST   | `/retrieve`                        | `retrieve_testset_revision`         |
+| POST   | `/log`                             | `log_testset_revisions`             |
 
 ------------------------------------------------------------------------
 
 ## 2. (Simple) Testsets
 
 Base prefix: `/api/preview/simple/testsets`
-
-> Simplified API — wraps the artifact/variant/revision stack into a
-> single object. Intended for legacy and external integrations.
 
 | Method | Path                       | Operation ID                      |
 |--------|----------------------------|-----------------------------------|
@@ -73,6 +74,90 @@ Base prefix: `/api/preview/testcases`
 
 | Method | Path             | Operation ID      |
 |--------|------------------|-------------------|
-| GET    | `/`              | `fetch_testcases` |
 | GET    | `/{testcase_id}` | `fetch_testcase`  |
+| GET    | `/`              | `fetch_testcases` |
 | POST   | `/query`         | `query_testcases` |
+
+------------------------------------------------------------------------
+
+## 4. Queries
+
+### 4.1 Queries (Artifact)
+
+Base prefix: `/api/preview/queries`
+
+| Method | Path                      | Operation ID      |
+|--------|---------------------------|-------------------|
+| POST   | `/`                       | `create_query`    |
+| GET    | `/{query_id}`             | `fetch_query`     |
+| PUT    | `/{query_id}`             | `edit_query`      |
+| POST   | `/{query_id}/archive`     | `archive_query`   |
+| POST   | `/{query_id}/unarchive`   | `unarchive_query` |
+| POST   | `/query`                  | `query_queries`   |
+
+### 4.2 Query Variants
+
+Base prefix: `/api/preview/queries/variants`
+
+| Method | Path                              | Operation ID              |
+|--------|-----------------------------------|---------------------------|
+| POST   | `/`                               | `create_query_variant`    |
+| GET    | `/{query_variant_id}`             | `fetch_query_variant`     |
+| PUT    | `/{query_variant_id}`             | `edit_query_variant`      |
+| POST   | `/{query_variant_id}/archive`     | `archive_query_variant`   |
+| POST   | `/{query_variant_id}/unarchive`   | `unarchive_query_variant` |
+| POST   | `/query`                          | `query_query_variants`    |
+
+### 4.3 Query Revisions
+
+Base prefix: `/api/preview/queries/revisions`
+
+| Method | Path                               | Operation ID               |
+|--------|------------------------------------|----------------------------|
+| POST   | `/`                                | `create_query_revision`    |
+| GET    | `/{query_revision_id}`             | `fetch_query_revision`     |
+| PUT    | `/{query_revision_id}`             | `edit_query_revision`      |
+| POST   | `/{query_revision_id}/archive`     | `archive_query_revision`   |
+| POST   | `/{query_revision_id}/unarchive`   | `unarchive_query_revision` |
+| POST   | `/query`                           | `query_query_revisions`    |
+| POST   | `/commit`                          | `commit_query_revision`    |
+| POST   | `/retrieve`                        | `retrieve_query_revision`  |
+| POST   | `/log`                             | `log_query_revisions`      |
+
+------------------------------------------------------------------------
+
+## 5. (Simple) Queries
+
+Base prefix: `/api/preview/simple/queries`
+
+| Method | Path                      | Operation ID             |
+|--------|---------------------------|--------------------------|
+| POST   | `/`                       | `create_simple_query`    |
+| GET    | `/{query_id}`             | `fetch_simple_query`     |
+| PUT    | `/{query_id}`             | `edit_simple_query`      |
+| POST   | `/{query_id}/archive`     | `archive_simple_query`   |
+| POST   | `/{query_id}/unarchive`   | `unarchive_simple_query` |
+| POST   | `/query`                  | `query_simple_queries`   |
+
+------------------------------------------------------------------------
+
+## 6. Traces
+
+### 6.1 Traces
+
+Base prefix: `/api/preview/traces`
+
+| Method | Path           | Operation ID   |
+|--------|----------------|----------------|
+| POST   | `/`            | `create_trace` |
+| GET    | `/{trace_id}`  | `fetch_trace`  |
+| GET    | `/`            | `fetch_traces` |
+| POST   | `/query`       | `query_traces` |
+
+### 6.2 OTLP
+
+Base prefix: `/api/otlp/v1`
+
+| Method | Path       | Operation ID   |
+|--------|------------|----------------|
+| POST   | `/traces`  | `otlp_ingest`  |
