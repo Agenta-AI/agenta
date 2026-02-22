@@ -19,7 +19,7 @@
  * import { useEntitySelector } from '@agenta/playground/entity-selector'
  *
  * const { open } = useEntitySelector()
- * const selection = await open({ allowedTypes: ['appRevision', 'evaluatorRevision'] })
+ * const selection = await open({ allowedTypes: ['legacyAppRevision', 'evaluatorRevision'] })
  * ```
  */
 
@@ -65,7 +65,7 @@ function AppRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection)
     const handleSelect = useCallback(
         (selection: AppRevisionSelectionResult) => {
             onSelect({
-                type: "appRevision",
+                type: "legacyAppRevision",
                 id: selection.id,
                 label: selection.label,
                 metadata: {
@@ -250,7 +250,6 @@ function SpanSelector({onSelect}: {onSelect: (selection: EntitySelection) => voi
 // ============================================================================
 
 const ALL_ENTITY_TYPES: EntityType[] = [
-    "appRevision",
     "legacyAppRevision",
     "evaluator",
     "evaluatorRevision",
@@ -258,9 +257,8 @@ const ALL_ENTITY_TYPES: EntityType[] = [
     "span",
 ]
 
-const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
-    appRevision: "App Revision",
-    legacyAppRevision: "OSS App Revision",
+const ENTITY_TYPE_LABELS: Partial<Record<EntityType, string>> = {
+    legacyAppRevision: "App Revision",
     evaluator: "Evaluator",
     evaluatorRevision: "Evaluator Revision",
     testcase: "Testcase",
@@ -276,15 +274,15 @@ function EntitySelectorContent({
 }) {
     const allowedTypes = config.allowedTypes ?? ALL_ENTITY_TYPES
     const [entityType, setEntityType] = useState<EntityType>(
-        config.defaultType ?? allowedTypes[0] ?? "appRevision",
+        config.defaultType ?? allowedTypes[0] ?? "legacyAppRevision",
     )
 
     const tabItems = allowedTypes.map((type) => ({
         key: type,
-        label: ENTITY_TYPE_LABELS[type],
+        label: ENTITY_TYPE_LABELS[type] ?? type,
         children: (
             <div className="pt-2 min-h-[200px]">
-                {type === "appRevision" && <AppRevisionSelector onSelect={onSelect} />}
+                {type === "legacyAppRevision" && <AppRevisionSelector onSelect={onSelect} />}
                 {type === "evaluator" && <EvaluatorSelector onSelect={onSelect} />}
                 {type === "evaluatorRevision" && <EvaluatorRevisionSelector onSelect={onSelect} />}
                 {type === "testcase" && <TestcaseSelector onSelect={onSelect} />}
@@ -414,7 +412,7 @@ export function EntitySelectorProvider({children}: {children: ReactNode}) {
  * const handleConnect = async () => {
  *     const selection = await open({
  *         title: "Connect Input",
- *         allowedTypes: ["appRevision", "testcase"],
+ *         allowedTypes: ["legacyAppRevision", "testcase"],
  *     })
  *     if (selection) {
  *         // Use the selection
