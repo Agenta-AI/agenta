@@ -443,7 +443,19 @@ const DebugSection = () => {
                 outputs = {...outputs, ...testcaseObj}
             }
 
-            const correctAnswerKey = parameters.correct_answer_key
+            const parseVersion = (raw: unknown, fallback: number) => {
+                if (raw === undefined || raw === null) return fallback
+                const match = String(raw).match(/\d+(\.\d+)?/)
+                return match ? parseFloat(match[0]) : fallback
+            }
+
+            const evaluatorVersion = parseVersion(parameters.version, 1)
+
+            const allowGroundTruthKey = !(
+                selectedEvaluator.key === "auto_custom_code_run" && evaluatorVersion >= 2
+            )
+
+            const correctAnswerKey = allowGroundTruthKey ? parameters.correct_answer_key : undefined
             const groundTruthKey =
                 typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
                     ? correctAnswerKey.split(".")[1]
@@ -469,13 +481,15 @@ const DebugSection = () => {
             const rawGT = hasValidGroundTruthKey
                 ? selectedTestcase?.["testcase"]?.[groundTruthKey]
                 : undefined
-            const ground_truth = normalizeCompact(rawGT)
+            const includeGroundTruth =
+                hasValidGroundTruthKey && rawGT !== undefined && rawGT !== null
+            const ground_truth = includeGroundTruth ? normalizeCompact(rawGT) : ""
             const prediction = normalizeCompact(variantResult)
 
             outputs = {
                 ...outputs,
                 ...selectedTestcase.testcase,
-                ...(hasValidGroundTruthKey ? {ground_truth, [groundTruthKey]: ground_truth} : {}),
+                ...(includeGroundTruth ? {ground_truth, [groundTruthKey]: ground_truth} : {}),
                 prediction,
                 ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
             }
@@ -501,12 +515,27 @@ const DebugSection = () => {
                     ? parsedVariantOutput
                     : (baseResponseData?.data ?? parsedVariantOutput)
 
+            const tracePayload = (() => {
+                const t = traceTree?.trace
+                if (!t) return undefined
+                if (typeof t === "string") {
+                    try {
+                        const parsed = safeJson5Parse(t)
+                        return parsed && typeof parsed === "object" ? parsed : undefined
+                    } catch {
+                        return undefined
+                    }
+                }
+                return t
+            })()
+
             const workflowResponse = await invokeEvaluator({
                 uri: evaluatorUri,
                 url: evaluatorUrl,
                 evaluator: evaluatorConfig,
                 inputs: outputs,
                 outputs: workflowOutputs,
+                trace: tracePayload,
                 parameters: evaluatorParameters,
                 options: {signal: controller.signal},
             })

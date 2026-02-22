@@ -64,6 +64,8 @@ export interface EntityDualViewEditorProps<TEntity> {
 
     // Path persistence for navigation
     onPathChange?: (path: string[]) => void
+    /** Keys to exclude when displaying items at the initial path level */
+    excludeKeys?: string[]
 }
 
 function EntityDualViewEditorInner<TEntity>({
@@ -100,6 +102,7 @@ function EntityDualViewEditorInner<TEntity>({
     onLockedFieldTypesChange,
     getDefaultValueForType,
     onPathChange,
+    excludeKeys,
 }: EntityDualViewEditorProps<TEntity>) {
     // Internal state for uncontrolled mode
     const [internalEditMode, setInternalEditMode] = useState<EditMode>(defaultEditMode)
@@ -268,6 +271,7 @@ function EntityDualViewEditorInner<TEntity>({
                     onLockedFieldTypesChange={onLockedFieldTypesChange}
                     getDefaultValueForType={getDefaultValueForType}
                     onPathChange={onPathChange}
+                    excludeKeys={excludeKeys}
                 />
             ) : (
                 <div

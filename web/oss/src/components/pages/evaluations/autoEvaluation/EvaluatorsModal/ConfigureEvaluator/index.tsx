@@ -186,6 +186,12 @@ const ConfigureEvaluator = ({
         [selectedEvaluator],
     )
 
+    const parseVersion = useCallback((raw: unknown, fallback: number) => {
+        if (raw === undefined || raw === null) return fallback
+        const match = String(raw).match(/\d+(\.\d+)?/)
+        return match ? parseFloat(match[0]) : fallback
+    }, [])
+
     const normalizePresetMessages = useCallback((value: unknown) => {
         if (typeof value === "string") {
             if (!value.trim()) return []
@@ -264,6 +270,34 @@ const ConfigureEvaluator = ({
         return match ? parseFloat(match[0]) : 3
     }, [editEvalEditValues?.data?.parameters?.version, selectedEvaluator])
 
+    const watchedCodeEvaluatorVersion = Form.useWatch(["parameters", "version"], form)
+
+    const hasSavedCodeEvaluatorVersion = useMemo(() => {
+        const saved = editEvalEditValues?.data?.parameters?.version
+        return saved !== undefined && saved !== null && String(saved).trim() !== ""
+    }, [editEvalEditValues?.data?.parameters?.version])
+
+    const resolveCodeEvaluatorVersion = useCallback(
+        (raw: unknown): number => {
+            if (selectedEvaluator?.key !== "auto_custom_code_run") {
+                return parseVersion(raw, 1)
+            }
+
+            if ((editMode || cloneConfig) && !hasSavedCodeEvaluatorVersion) {
+                return 1
+            }
+
+            return parseVersion(raw, 1)
+        },
+        [selectedEvaluator?.key, parseVersion, editMode, cloneConfig, hasSavedCodeEvaluatorVersion],
+    )
+
+    const codeEvaluatorVersionNumber = useMemo(() => {
+        if (selectedEvaluator?.key !== "auto_custom_code_run") return null
+
+        return resolveCodeEvaluatorVersion(watchedCodeEvaluatorVersion)
+    }, [selectedEvaluator?.key, watchedCodeEvaluatorVersion, resolveCodeEvaluatorVersion])
+
     const evalFields = useMemo(() => {
         const templateEntries = Object.entries(selectedEvaluator?.settings_template || {})
         const allowStructuredOutputs = evaluatorVersionNumber >= 4
@@ -272,6 +306,13 @@ const ConfigureEvaluator = ({
             (acc, [key, field]) => {
                 const f = field as Partial<EvaluationSettingsTemplate> | undefined
                 if (!f?.type) return acc
+                if (
+                    selectedEvaluator?.key === "auto_custom_code_run" &&
+                    key === "correct_answer_key" &&
+                    (codeEvaluatorVersionNumber ?? 1) >= 2
+                ) {
+                    return acc
+                }
                 if (!allowStructuredOutputs && (key === "json_schema" || key === "response_type")) {
                     return acc
                 }
@@ -284,7 +325,7 @@ const ConfigureEvaluator = ({
             },
             [] as (EvaluationSettingsTemplate & {key: string})[],
         )
-    }, [selectedEvaluator, evaluatorVersionNumber])
+    }, [selectedEvaluator, evaluatorVersionNumber, codeEvaluatorVersionNumber])
 
     const advancedSettingsFields = evalFields.filter((field) => field.advanced)
     const basicSettingsFields = evalFields.filter((field) => !field.advanced)
@@ -293,7 +334,13 @@ const ConfigureEvaluator = ({
         try {
             setSubmitLoading(true)
             if (!selectedEvaluator?.key) throw new Error("No selected key")
-            const parameters = values.parameters || {}
+            const parameters = {...(values.parameters || {})}
+
+            const evaluatorVersion = resolveCodeEvaluatorVersion(parameters.version)
+
+            if (selectedEvaluator.key === "auto_custom_code_run" && evaluatorVersion >= 2) {
+                delete parameters.correct_answer_key
+            }
 
             const jsonSchemaFieldPath: (string | number)[] = ["parameters", "json_schema"]
             const hasJsonSchema = Object.prototype.hasOwnProperty.call(parameters, "json_schema")
@@ -334,6 +381,11 @@ const ConfigureEvaluator = ({
 
             const existingParameters = editEvalEditValues?.data?.parameters || {}
             const mergedParameters = {...existingParameters, ...parameters}
+
+            if (selectedEvaluator.key === "auto_custom_code_run" && evaluatorVersion >= 2) {
+                delete mergedParameters.correct_answer_key
+            }
+
             const createOutputsSchema = deriveEvaluatorOutputsSchema({
                 evaluatorKey: selectedEvaluator.key,
                 evaluatorTemplate: selectedEvaluator,
@@ -420,7 +472,7 @@ const ConfigureEvaluator = ({
         }
     }
 
-    useEffect(() => {
+    const initializeForm = useCallback(() => {
         // Reset form before loading new values so there are no stale values
         form.resetFields()
 
@@ -430,12 +482,26 @@ const ConfigureEvaluator = ({
                 ...editEvalEditValues,
                 parameters: editEvalEditValues.data?.parameters || {},
             })
+
+            if (
+                selectedEvaluator?.key === "auto_custom_code_run" &&
+                !editEvalEditValues.data?.parameters?.version
+            ) {
+                form.setFieldValue(["parameters", "version"], "1")
+            }
         } else if (cloneConfig && editEvalEditValues) {
             // When cloning, copy only parameters and clear the name so user provides a new name
             form.setFieldsValue({
                 parameters: editEvalEditValues.data?.parameters || {},
                 name: "",
             })
+
+            if (
+                selectedEvaluator?.key === "auto_custom_code_run" &&
+                !editEvalEditValues.data?.parameters?.version
+            ) {
+                form.setFieldValue(["parameters", "version"], "1")
+            }
         } else if (selectedEvaluator?.settings_template) {
             // Create mode: apply default values from the evaluator template
             // This is needed because form.resetFields() clears the form but Form.Item initialValue
@@ -453,6 +519,10 @@ const ConfigureEvaluator = ({
             }
         }
     }, [editMode, cloneConfig, editEvalEditValues, form, selectedEvaluator])
+
+    useEffect(() => {
+        initializeForm()
+    }, [initializeForm])
 
     // Guard: if no evaluator selected, show nothing (shouldn't happen in normal flow)
     if (!selectedEvaluator) {
@@ -493,7 +563,7 @@ const ConfigureEvaluator = ({
                             <Button
                                 size="small"
                                 type="text"
-                                onClick={() => form.resetFields()}
+                                onClick={initializeForm}
                                 disabled={submitLoading}
                             >
                                 Reset
@@ -643,7 +713,7 @@ const ConfigureEvaluator = ({
                                     {headerName || "New evaluator"}
                                 </Typography.Text>
                                 <Space>
-                                    <Button type="text" onClick={() => form.resetFields()}>
+                                    <Button type="text" onClick={initializeForm}>
                                         Reset
                                     </Button>
                                     <Button

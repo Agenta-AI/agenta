@@ -44,7 +44,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
     return (
         <Collapse
             bordered={false}
-            defaultActiveKey={["1"]}
+            defaultActiveKey={[]}
             expandIcon={({isActive}: {isActive: boolean}) => (
                 <CaretRightOutlined rotate={isActive ? 90 : 0} />
             )}

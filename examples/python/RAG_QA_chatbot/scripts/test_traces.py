@@ -30,7 +30,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 import agenta as ag  # noqa: E402
 import litellm  # noqa: E402
-from backend.rag import retrieve, generate  # noqa: E402
+from backend.rag import retrieve, generate, format_context  # noqa: E402
 
 # Initialize Agenta
 ag.init()
@@ -60,7 +60,7 @@ async def rag_query(query: str) -> str:
 
     # Generate response (will be a child span)
     response_chunks = []
-    async for chunk in generate(query, docs):
+    async for chunk in generate(query, format_context(docs)):
         response_chunks.append(chunk)
 
     return "".join(response_chunks)
