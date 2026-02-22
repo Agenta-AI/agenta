@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, {useMemo} from "react"
 
 import {CopyTooltip} from "@agenta/ui/copy-tooltip"
@@ -7,7 +6,7 @@ import clsx from "clsx"
 import JSON5 from "json5"
 
 interface ToolCallViewProps {
-    resultData?: any
+    resultData?: unknown
     className?: string
     action?: React.ReactNode
     footer?: React.ReactNode
@@ -17,6 +16,24 @@ interface Payload {
     name?: string
     callId?: string
     json: string
+}
+
+type UnknownRecord = Record<string, unknown>
+
+function isRecord(value: unknown): value is UnknownRecord {
+    return typeof value === "object" && value !== null
+}
+
+function getStringField(record: UnknownRecord | undefined, key: string): string | undefined {
+    if (!record) return undefined
+    const value = record[key]
+    return typeof value === "string" ? value : undefined
+}
+
+function getRecordField(record: UnknownRecord | undefined, key: string): UnknownRecord | undefined {
+    if (!record) return undefined
+    const value = record[key]
+    return isRecord(value) ? value : undefined
 }
 
 function parseJsonLoose(input: string): unknown {
@@ -69,56 +86,96 @@ export const ToolCallViewHeader = ({
     )
 }
 
-export const createToolCallPayloads = (resultData: any) => {
-    const raw = resultData
-    if (!raw) return [] as Payload[]
-    if (Array.isArray(raw)) {
-        const toPayload = (item: any): Payload => {
-            let fnName: string | undefined
-            let argsRaw: any = {}
-            let callId: string | undefined
-            if (item && typeof item === "object") {
-                if ((item as any).function) {
-                    fnName = (item as any).function?.name
-                    argsRaw = (item as any).function?.arguments
-                    callId = (item as any).id || (item as any).__id
-                } else if (typeof (item as any).content === "string") {
-                    try {
-                        const parsed = JSON5.parse((item as any).content)
-                        fnName = parsed?.function?.name
-                        argsRaw = parsed?.function?.arguments
-                        callId = parsed?.id || parsed?.__id
-                    } catch {
-                        // ignore
-                    }
-                }
-            }
-            const name = fnName || "tool_1"
-            const argsStr = toPrettyString(argsRaw)
-            return {name, callId, json: argsStr}
+function toArrayItemPayload(item: unknown, index: number): Payload {
+    if (!isRecord(item)) {
+        return {
+            name: `tool_${index + 1}`,
+            callId: undefined,
+            json: toPrettyString({}),
         }
-        return raw.map(toPayload)
     }
-    const inner = typeof raw === "object" ? ((raw as any).data ?? raw) : raw
-    const toolCalls = (inner as any)?.tool_calls
-    const functionCall = (inner as any)?.function_call
-    if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-        return toolCalls.map((tc: any) => ({
-            name: tc?.function?.name || tc?.name || `tool_1`,
-            callId: tc?.id || tc?.__id,
-            json: toPrettyString(tc?.function?.arguments || tc?.arguments || {}),
-        }))
+
+    let fnName = ""
+    let argsRaw: unknown = {}
+    let callId = getStringField(item, "id") ?? getStringField(item, "__id")
+
+    const functionRecord = getRecordField(item, "function")
+    if (functionRecord) {
+        fnName = getStringField(functionRecord, "name") ?? ""
+        argsRaw = functionRecord.arguments ?? {}
+    } else {
+        const content = getStringField(item, "content")
+        if (content) {
+            const parsedContent = parseJsonLoose(content)
+            if (isRecord(parsedContent)) {
+                const parsedFunction = getRecordField(parsedContent, "function")
+                fnName = getStringField(parsedFunction, "name") ?? ""
+                argsRaw = parsedFunction?.arguments ?? {}
+                callId =
+                    callId ??
+                    getStringField(parsedContent, "id") ??
+                    getStringField(parsedContent, "__id")
+            }
+        }
     }
-    if (functionCall && typeof functionCall === "object") {
-        const name = (functionCall as any).name || "function"
-        const args = (functionCall as any).arguments || {}
-        const argsStr = toPrettyString(args)
-        return [{name, callId: undefined, json: argsStr}]
+
+    return {
+        name: fnName || `tool_${index + 1}`,
+        callId,
+        json: toPrettyString(argsRaw),
     }
-    return [] as Payload[]
 }
 
-const ToolCallView: React.FC<ToolCallViewProps> = ({resultData, className, action, footer}) => {
+export const createToolCallPayloads = (resultData: unknown): Payload[] => {
+    const raw = resultData
+    if (!raw) return []
+
+    if (Array.isArray(raw)) {
+        return raw.map((item, index) => toArrayItemPayload(item, index))
+    }
+
+    const inner = isRecord(raw) ? (raw.data ?? raw) : raw
+    const innerRecord = isRecord(inner) ? inner : undefined
+    const toolCalls = innerRecord?.tool_calls
+
+    if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+        return toolCalls.map((toolCall, index) => {
+            if (!isRecord(toolCall)) {
+                return {
+                    name: `tool_${index + 1}`,
+                    callId: undefined,
+                    json: toPrettyString({}),
+                }
+            }
+
+            const functionRecord = getRecordField(toolCall, "function")
+
+            return {
+                name:
+                    getStringField(functionRecord, "name") ??
+                    getStringField(toolCall, "name") ??
+                    `tool_${index + 1}`,
+                callId: getStringField(toolCall, "id") ?? getStringField(toolCall, "__id"),
+                json: toPrettyString(functionRecord?.arguments ?? toolCall.arguments ?? {}),
+            }
+        })
+    }
+
+    const functionCall = getRecordField(innerRecord, "function_call")
+    if (functionCall) {
+        return [
+            {
+                name: getStringField(functionCall, "name") || "function",
+                callId: undefined,
+                json: toPrettyString(functionCall.arguments ?? {}),
+            },
+        ]
+    }
+
+    return []
+}
+
+const ToolCallView: React.FC<ToolCallViewProps> = ({resultData, className, footer}) => {
     const payloads = useMemo(() => {
         return createToolCallPayloads(resultData)
     }, [resultData])
