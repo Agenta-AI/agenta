@@ -1,10 +1,9 @@
 import {memo, useEffect, useMemo} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
-import {
-    legacyAppRevisionMolecule,
-    legacyAppRevisionSchemaQueryAtomFamily,
-} from "@agenta/entities/legacyAppRevision"
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
+import {PlaygroundConfigSection} from "@agenta/entity-ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Spin, Switch, Tabs, TabsProps, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -14,7 +13,6 @@ import {atomFamily} from "jotai/utils"
 import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
-import {PlaygroundConfigSection} from "@agenta/entity-ui"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
@@ -39,13 +37,9 @@ export const drawerVariantIsLoadingAtomFamily = atomFamily((revisionId: string) 
             return true
         }
 
-        const selectedVariant = get(legacyAppRevisionMolecule.atoms.data(revisionId)) as any
-        if (!selectedVariant) {
-            return true
-        }
-
-        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
-        return schemaQuery.isPending
+        const query = get(runnableBridge.query(revisionId))
+        const runnableData = get(runnableBridge.data(revisionId))
+        return query.isPending || (!query.isError && !runnableData)
     }),
 )
 
@@ -58,20 +52,24 @@ const VariantDrawerContent = ({
     onToggleOriginal,
 }: VariantDrawerContentProps) => {
     const {goToPlayground} = usePlaygroundNavigation()
+    const resolvedVariantId = variantId || EMPTY_REVISION_ID
+    const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(resolvedVariantId))
+    const runnableData = useAtomValue(runnableBridge.data(resolvedVariantId))
 
-    const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
+    const selectedVariant = useAtomValue(
+        legacyAppRevisionMolecule.atoms.data(resolvedVariantId),
+    ) as any
 
-    const selectedVariant = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId)) as any
+    const revisionId =
+        (runnableData as any)?.id || (selectedVariant as any)?.id || resolvedVariantId
 
     // Show Overview tab if we have variant data
-    const appStatus = !!selectedVariant
+    const appStatus = !!runnableData || !!selectedVariant
 
     // Focused deployed environments by revision ID
-    const deployedIn = useAtomValue(environmentMolecule.atoms.revisionDeployment(variantId))
+    const deployedIn = useAtomValue(environmentMolecule.atoms.revisionDeployment(revisionId))
     const commitMsg = selectedVariant?.commitMessage
-    const isDirty = useAtomValue(
-        legacyAppRevisionMolecule.atoms.isDirty((selectedVariant as any)?.id || variantId),
-    )
+    const isDirty = useAtomValue(runnableBridge.isDirty(revisionId || resolvedVariantId))
 
     // Ensure clean revisions don't get stuck in Original mode
     useEffect(() => {
@@ -79,8 +77,6 @@ const VariantDrawerContent = ({
             onToggleOriginal?.(false)
         }
     }, [isDirty, showOriginal, onToggleOriginal])
-
-    const revisionId = (selectedVariant as any)?.id || variantId
 
     const tabItems = useMemo(() => {
         return [
@@ -104,15 +100,12 @@ const VariantDrawerContent = ({
                 key: "json",
                 label: "JSON",
                 className: "h-full flex flex-col px-4",
-                children: isLoading ? null : selectedVariant ? (
-                    <NewVariantParametersView
-                        selectedVariant={selectedVariant}
-                        showOriginal={showOriginal}
-                    />
-                ) : null,
+                children: isLoading ? null : (
+                    <NewVariantParametersView revisionId={revisionId} showOriginal={showOriginal} />
+                ),
             },
         ].filter(Boolean) as TabsProps["items"]
-    }, [appStatus, selectedVariant, revisionId, type, showOriginal, isLoading])
+    }, [appStatus, revisionId, type, showOriginal, isLoading])
 
     if (isLoading) {
         return (
@@ -180,7 +173,7 @@ const VariantDrawerContent = ({
                             <Button
                                 icon={<ArrowSquareOut size={16} />}
                                 size="small"
-                                onClick={() => goToPlayground((selectedVariant as any)?.id)}
+                                onClick={() => goToPlayground(revisionId)}
                             />
                         </div>
                     </div>
@@ -202,7 +195,7 @@ const VariantDrawerContent = ({
                 <div className="flex flex-col gap-1">
                     <Text className="font-medium">Modified by</Text>
                     {/* Pass the revision id so selector can resolve modifiedBy correctly */}
-                    <UserAvatarTag variantId={(selectedVariant as any)?.id} />
+                    <UserAvatarTag variantId={revisionId} />
                 </div>
 
                 {commitMsg && (

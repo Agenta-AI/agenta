@@ -1,51 +1,26 @@
 import {useCallback, useMemo} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {getYamlOrJson} from "@/oss/lib/helpers/utils"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 export const NewVariantParametersView = ({
-    selectedVariant,
+    revisionId,
     showOriginal,
 }: {
-    selectedVariant: EnhancedVariant
+    revisionId: string
     showOriginal?: boolean
 }) => {
-    const revisionId = (selectedVariant as any)?._revisionId || selectedVariant?.id
-
-    const draftConfig = useAtomValue(legacyAppRevisionMolecule.atoms.draftParameters(revisionId))
-    const update = useSetAtom(legacyAppRevisionMolecule.reducers.update)
+    const config = useAtomValue(runnableBridge.configuration(revisionId))
+    const serverConfig = useAtomValue(runnableBridge.serverConfiguration(revisionId))
+    const update = useSetAtom(runnableBridge.update)
 
     const configJsonString = useMemo(() => {
-        // When viewing original, always show the saved revision parameters
-        if (showOriginal) {
-            const base = (selectedVariant as any)?.parameters ?? {}
-            return getYamlOrJson("JSON", base)
-        }
-
-        // Fall back to saved parameters when draft config is empty
-        // (e.g., drawer context where molecule data isn't populated)
-        if (!draftConfig || Object.keys(draftConfig).length === 0) {
-            const params = (selectedVariant as any)?.parameters ?? {}
-            const base = params.ag_config ?? params
-            return getYamlOrJson("JSON", base)
-        }
-
-        // DEBUG: check for enhanced wrappers in config view data
-        const configStr = JSON.stringify(draftConfig)
-        const hasEnhanced = configStr.includes("__id") || configStr.includes("__metadata")
-        console.debug("[ParametersView]", revisionId?.slice(0, 8), {
-            source: "draftConfig",
-            hasEnhancedWrappers: hasEnhanced,
-            keys: Object.keys(draftConfig),
-            sample: configStr.slice(0, 300),
-        })
-
-        return getYamlOrJson("JSON", draftConfig)
-    }, [draftConfig, showOriginal, selectedVariant, revisionId])
+        const effectiveConfig = showOriginal ? (serverConfig ?? config) : (config ?? serverConfig)
+        return getYamlOrJson("JSON", effectiveConfig ?? {})
+    }, [config, serverConfig, showOriginal])
 
     const onChange = useCallback(
         (value: string) => {
@@ -54,7 +29,7 @@ export const NewVariantParametersView = ({
 
             try {
                 const parsed = JSON.parse(value || "{}")
-                update(revisionId, {parameters: {ag_config: parsed}})
+                update(revisionId, parsed)
             } catch (error) {
                 // Ignore parse errors; editor will keep showing the current text
             }
@@ -67,7 +42,7 @@ export const NewVariantParametersView = ({
     return (
         <div className="w-full h-full self-stretch grow">
             <SharedEditor
-                key={`${selectedVariant?.id}-${showOriginal}`}
+                key={`${revisionId}-${showOriginal ? "original" : "draft"}`}
                 editorProps={{
                     codeOnly: true,
                     validationSchema: {

@@ -1,19 +1,16 @@
 import {memo, useCallback, useMemo} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp, Rocket} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
 
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
-import useURL from "@/oss/hooks/useURL"
 
 import {VariantDrawerTitleProps} from "../types"
 import {drawerVariantIsLoadingAtomFamily} from "../VariantDrawerContent"
@@ -28,14 +25,15 @@ const NavControls = memo(
     }: Pick<VariantDrawerTitleProps, "variantId" | "variantIds" | "variants" | "isLoading">) => {
         const [, updateQuery] = useQuery("replace")
         const [displayMode] = useQueryParam("displayMode")
-        const selectedVariant = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId)) as any
         const selectedParent = useMemo(() => {
-            const parentId =
-                typeof selectedVariant?._parentVariant === "string"
-                    ? selectedVariant?._parentVariant
-                    : selectedVariant?._parentVariant?.id
-            return variants.find((v) => v.id === parentId)
-        }, [variants, selectedVariant])
+            return variants.find(
+                (variant: any) =>
+                    variant?.id === variantId ||
+                    (Array.isArray(variant?.revisions)
+                        ? variant.revisions.some((revision: any) => revision?.id === variantId)
+                        : false),
+            )
+        }, [variants, variantId])
 
         const selectedVariantIndex = useMemo(() => {
             if (variantIds && variantIds.length > 1) {
@@ -145,11 +143,23 @@ const TitleActions = memo(
         const [, updateQuery] = useQuery("replace")
         const entityQuery = useAtomValue(runnableBridge.query(variantId))
         const entityReady = !entityQuery.isPending && !!entityQuery.data
-        const selectedVariant = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId)) as any
-        const isDirty = useAtomValue(legacyAppRevisionMolecule.atoms.isDirty(variantId))
+        const isDirty = useAtomValue(runnableBridge.isDirty(variantId))
         const {goToPlayground} = usePlaygroundNavigation()
-        const {appURL: _appURL} = useURL()
-        const _router = useRouter()
+        const selectedVariant = useMemo(() => {
+            for (const variant of variants ?? []) {
+                if ((variant as any)?.id === variantId) {
+                    return variant as any
+                }
+
+                const revision = (variant as any)?.revisions?.find(
+                    (candidate: any) => candidate?.id === variantId,
+                )
+                if (revision) {
+                    return revision as any
+                }
+            }
+            return null
+        }, [variants, variantId])
 
         return (
             <div className="flex items-center gap-2">
@@ -158,7 +168,7 @@ const TitleActions = memo(
                     size="small"
                     disabled={!entityReady || isLoading}
                     onClick={() => {
-                        goToPlayground(selectedVariant ?? variantId)
+                        goToPlayground(variantId)
                     }}
                 >
                     <Rocket size={14} />
@@ -178,7 +188,7 @@ const TitleActions = memo(
                 />
 
                 <CommitVariantChangesButton
-                    variantId={selectedVariant?.id}
+                    variantId={variantId}
                     label="Commit"
                     type="default"
                     size="small"
