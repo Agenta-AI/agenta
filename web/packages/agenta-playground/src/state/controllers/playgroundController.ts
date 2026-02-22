@@ -22,7 +22,12 @@
  * ```
  */
 
-import {fetchOssRevisionById} from "@agenta/entities/legacyAppRevision"
+import {
+    fetchOssRevisionById,
+    createVariantAtom as createLegacyVariantAtom,
+    commitRevisionAtom as commitLegacyRevisionAtom,
+    deleteRevisionAtom as deleteLegacyRevisionAtom,
+} from "@agenta/entities/legacyAppRevision"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
 import {registerRunnableTypeHint, clearRunnableTypeHint} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
@@ -136,6 +141,12 @@ function generateLocalTestsetName(entityLabel?: string): string {
     })
     const baseName = entityLabel || "Local"
     return `${baseName} - ${dateStr}, ${timeStr}`
+}
+
+function asNonEmptyString(value: unknown): string | undefined {
+    if (typeof value !== "string") return undefined
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : undefined
 }
 
 /**
@@ -694,14 +705,70 @@ const invalidateQueriesAtom = atom(null, async () => {
 })
 
 // ============================================================================
-// CRUD ACTIONS (delegate to runnableBridge entity-level actions)
+// CRUD ACTIONS (delegate to typed entity-level atoms)
 // ============================================================================
 
 const controllerCreateVariantAtom = atom(
     null,
-    async (_get, set, payload: AppRevisionCreateVariantPayload): Promise<AppRevisionCrudResult> => {
-        const bridge = getRunnableBridge()
-        return set(bridge.crud.createVariant, payload)
+    async (get, set, payload: AppRevisionCreateVariantPayload): Promise<AppRevisionCrudResult> => {
+        const selectedIds = get(entityIdsAtom)
+        const nodes = get(playgroundNodesAtom)
+
+        const baseRevisionId =
+            asNonEmptyString(payload.baseRevisionId) ??
+            (payload.baseVariantName
+                ? nodes.find((node) => node.label === payload.baseVariantName)?.entityId
+                : undefined) ??
+            selectedIds[0]
+
+        if (!baseRevisionId) {
+            return {
+                success: false,
+                error: "Could not resolve a base revision for variant creation",
+            }
+        }
+
+        const projectId = get(projectIdAtom)
+        if (!projectId) {
+            return {
+                success: false,
+                error: "No project ID available",
+            }
+        }
+
+        const baseRevision = await fetchOssRevisionById(baseRevisionId, projectId)
+        const appId = asNonEmptyString(baseRevision?.appId)
+        if (!appId) {
+            return {
+                success: false,
+                error: "Could not resolve app ID for base revision",
+            }
+        }
+
+        const result = await set(createLegacyVariantAtom, {
+            baseRevisionId,
+            newVariantName: payload.newVariantName,
+            commitMessage: payload.note,
+            appId,
+        })
+
+        if (!result.success) {
+            return {
+                success: false,
+                error: result.error.message,
+            }
+        }
+
+        if (payload.callback) {
+            const state = {selected: [...selectedIds]}
+            payload.callback({id: result.newRevisionId}, state)
+            set(setEntityIdsAtom, state.selected)
+        }
+
+        return {
+            success: true,
+            newRevisionId: result.newRevisionId,
+        }
     },
 )
 
@@ -734,21 +801,41 @@ const controllerCommitRevisionAtom = atom(
             | null
 
         // Resolve variantId: payload → bridge data → direct API fetch
-        let variantId = payload.variantId ?? runnableData?.variantId
+        let variantId =
+            asNonEmptyString(payload.variantId) ?? asNonEmptyString(runnableData?.variantId)
         if (!variantId) {
             const projectId = get(projectIdAtom)
             if (projectId) {
                 const fetched = await fetchOssRevisionById(payload.revisionId, projectId)
-                variantId = fetched?.variantId
+                variantId = asNonEmptyString(fetched?.variantId)
             }
         }
 
-        return set(bridge.crud.commitRevision, {
-            ...payload,
+        if (!variantId) {
+            return {
+                success: false,
+                error: "Could not resolve variant ID for commit",
+            }
+        }
+
+        const result = await set(commitLegacyRevisionAtom, {
+            revisionId: payload.revisionId,
             commitMessage: payload.commitMessage ?? payload.note,
             parameters: payload.parameters ?? runnableData?.configuration ?? {},
             variantId,
         })
+
+        if (!result.success) {
+            return {
+                success: false,
+                error: result.error.message,
+            }
+        }
+
+        return {
+            success: true,
+            newRevisionId: result.newRevisionId,
+        }
     },
 )
 
@@ -764,9 +851,12 @@ const controllerDeleteRevisionAtom = atom(
             // Read entity data via bridge to extract parent workflow ID
             const store = getDefaultStore()
             const runnableData = store.get(bridge.data(revisionId)) as
-                | ({workflow_id?: string} & Record<string, unknown>)
+                | ({workflow_id?: unknown; id?: unknown} & Record<string, unknown>)
                 | null
-            const workflowId = runnableData?.workflow_id ?? runnableData?.id ?? revisionId
+            const workflowId =
+                asNonEmptyString(runnableData?.workflow_id) ??
+                asNonEmptyString(runnableData?.id) ??
+                revisionId
             const result = await set(archiveWorkflowRevisionAtom, {
                 revisionId,
                 workflowId,
@@ -778,7 +868,14 @@ const controllerDeleteRevisionAtom = atom(
         }
 
         // Legacy path (unchanged)
-        return set(bridge.crud.deleteRevision, revisionId)
+        const result = await set(deleteLegacyRevisionAtom, {revisionId})
+        if (!result.success) {
+            return {
+                success: false,
+                error: result.error.message,
+            }
+        }
+        return {success: true}
     },
 )
 
