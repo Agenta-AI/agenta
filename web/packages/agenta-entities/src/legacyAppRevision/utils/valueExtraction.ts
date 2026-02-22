@@ -302,9 +302,30 @@ export function extractValueByMetadata(
  */
 export const extractInputKeysFromSchema = (spec: OpenAPISpec, routePath = "") => {
     const {primaryEndpoint} = extractAllEndpointSchemas(spec as Record<string, unknown>, routePath)
-    if (!primaryEndpoint?.requestProperties) return []
-    return primaryEndpoint.requestProperties.filter(
-        (key: string) => !["ag_config", "messages"].includes(key),
+    if (!primaryEndpoint) return []
+
+    const reservedInputKeys = new Set([
+        "ag_config",
+        "messages",
+        "inputs",
+        "environment",
+        "revision_id",
+        "variant_id",
+        "app_id",
+    ])
+
+    const inputSchemaProperties = primaryEndpoint.inputsSchema?.properties
+    const schemaInputKeys =
+        inputSchemaProperties && typeof inputSchemaProperties === "object"
+            ? Object.keys(inputSchemaProperties as Record<string, unknown>)
+            : []
+
+    if (schemaInputKeys.length > 0) {
+        return schemaInputKeys.filter((key) => key && !reservedInputKeys.has(key))
+    }
+
+    return (primaryEndpoint.requestProperties || []).filter(
+        (key: string) => key && !reservedInputKeys.has(key),
     )
 }
 
