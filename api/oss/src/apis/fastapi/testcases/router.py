@@ -1,6 +1,7 @@
+from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status, HTTPException
+from fastapi import APIRouter, Query, Request, status, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -48,22 +49,78 @@ class TestcasesRouter:
         # TESTCASES ------------------------------------------------------------
 
         self.router.add_api_route(
+            "/",
+            self.fetch_testcases,
+            methods=["GET"],
+            operation_id="fetch_testcases",
+            status_code=status.HTTP_200_OK,
+            response_model=TestcasesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
             "/{testcase_id}",
             self.fetch_testcase,
             methods=["GET"],
+            operation_id="fetch_testcase",
             status_code=status.HTTP_200_OK,
             response_model=TestcaseResponse,
+            response_model_exclude_none=True,
         )
 
         self.router.add_api_route(
             "/query",
             self.query_testcases,
             methods=["POST"],
+            operation_id="query_testcases",
             status_code=status.HTTP_200_OK,
             response_model=TestcasesResponse,
+            response_model_exclude_none=True,
         )
 
     # TESTCASES ----------------------------------------------------------------
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=TestcasesResponse(), exclude=[HTTPException])
+    async def fetch_testcases(
+        self,
+        request: Request,
+        *,
+        testcase_id: Optional[List[UUID]] = Query(default=None),
+        testcase_ids: Optional[str] = Query(default=None),
+    ) -> TestcasesResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        ids: List[UUID] = list(testcase_id or [])
+        if testcase_ids:
+            ids.extend(UUID(i.strip()) for i in testcase_ids.split(",") if i.strip())
+
+        if not ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one testcase_id query parameter is required.",
+            )
+
+        testcases = await self.testcases_service.query_testcases(
+            project_id=UUID(request.state.project_id),
+            #
+            testcase_ids=ids,
+            #
+            testset_id=None,
+            #
+            windowing=None,
+        )
+
+        return TestcasesResponse(
+            count=len(testcases),
+            testcases=testcases if testcases else [],
+        )
 
     @intercept_exceptions()
     @suppress_exceptions(default=TestcaseResponse(), exclude=[HTTPException])
@@ -95,20 +152,6 @@ class TestcasesRouter:
         )
 
         return testcase_response
-
-    @intercept_exceptions()
-    @suppress_exceptions(default=TestcasesResponse(), exclude=[HTTPException])
-    async def list_testcases(
-        self,
-        request: Request,
-    ) -> TestcasesResponse:
-        testcase_query_request = TestcasesQueryRequest()
-
-        return await self.query_testcases(
-            request=request,
-            #
-            testcases_query_request=testcase_query_request,
-        )
 
     @intercept_exceptions()
     @suppress_exceptions(default=TestcasesResponse(), exclude=[HTTPException])
