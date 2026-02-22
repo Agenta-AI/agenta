@@ -15,18 +15,23 @@ class LocalRunner(CodeRunner):
         correct_answer: Any,
         runtime: Optional[str] = None,
         templates: Optional[Dict[str, str]] = None,
+        *,
+        version: str = "1",
+        trace: Optional[Dict[str, Any]] = None,
     ) -> Union[float, None]:
         """
         Execute provided Python code directly.
 
         Args:
             code: The Python code to be executed
-            app_params: The parameters of the app variant
+            app_params: The parameters of the app variant (v1 only)
             inputs: Inputs to be used during code execution
             output: The output of the app variant after being called
-            correct_answer: The correct answer (or target) for comparison
+            correct_answer: The correct answer (or target) for comparison (v1 only)
             runtime: Runtime environment (only "python" is supported for local runner)
             templates: Wrapper templates keyed by runtime (unused for local runner).
+            version: Evaluator interface version ("1" = legacy, "2" = new)
+            trace: Full trace data (v2 only)
 
         Returns:
             Float score between 0 and 1, or None if execution fails
@@ -47,8 +52,12 @@ class LocalRunner(CodeRunner):
         try:
             exec(code, environment)
 
-            # Call the evaluation function
-            result = environment["evaluate"](app_params, inputs, output, correct_answer)
+            fn = environment["evaluate"]
+
+            if version == "2":
+                result = fn(inputs, output, trace)
+            else:
+                result = fn(app_params, inputs, output, correct_answer)
 
             # Attempt to convert result to float
             if isinstance(result, (float, int, str)):
