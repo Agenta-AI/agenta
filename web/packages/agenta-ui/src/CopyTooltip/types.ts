@@ -1,8 +1,12 @@
 import {TooltipProps} from "antd"
 
+interface CopyTooltipChildProps {
+    className?: string
+    onClick?: (event: React.MouseEvent<HTMLElement>) => void
+}
+
 export interface CopyTooltipProps {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    children: React.ReactElement<any>
+    children: React.ReactElement<CopyTooltipChildProps>
     title: string
     copyText?: string
     duration?: number

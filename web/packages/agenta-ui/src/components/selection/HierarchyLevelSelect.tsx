@@ -29,6 +29,7 @@
 import React, {useMemo} from "react"
 
 import {Select, Typography} from "antd"
+import type {DefaultOptionType} from "antd/es/select"
 
 import {cn, textColors} from "../../utils/styles"
 
@@ -167,6 +168,19 @@ export interface HierarchyLevelSelectProps<T> {
     className?: string
 }
 
+interface HierarchyLevelSelectLeafOption extends DefaultOptionType {
+    value: string
+    label: React.ReactNode
+    searchLabel: string
+}
+
+interface HierarchyLevelSelectGroupOption extends DefaultOptionType {
+    label: React.ReactNode
+    options: HierarchyLevelSelectLeafOption[]
+}
+
+type HierarchyLevelSelectOption = HierarchyLevelSelectLeafOption | HierarchyLevelSelectGroupOption
+
 // ============================================================================
 // COMPONENT
 // ============================================================================
@@ -231,7 +245,7 @@ export function HierarchyLevelSelect<T>({
     // Build options - use getItemLabelNode for rich rendering, keep string label for search
     // When getGroupKey is provided, produce Ant Design grouped option structure
     const options = useMemo(() => {
-        const buildOption = (item: T) => {
+        const buildOption = (item: T): HierarchyLevelSelectLeafOption => {
             const stringLabel = getItemLabel(item)
             const labelNode = getItemLabelNode?.(item)
             return {
@@ -262,10 +276,12 @@ export function HierarchyLevelSelect<T>({
             return items.map(buildOption)
         }
 
-        return Array.from(groups.entries()).map(([key, groupItems]) => ({
-            label: key === "__ungrouped__" ? "Other" : (getGroupLabel?.(key) ?? key),
-            options: groupItems.map(buildOption),
-        }))
+        return Array.from(groups.entries()).map(
+            ([key, groupItems]): HierarchyLevelSelectGroupOption => ({
+                label: key === "__ungrouped__" ? "Other" : (getGroupLabel?.(key) ?? key),
+                options: groupItems.map(buildOption),
+            }),
+        )
     }, [items, getItemId, getItemLabel, getItemLabelNode, getGroupKey, getGroupLabel])
 
     // Handle change
@@ -292,7 +308,7 @@ export function HierarchyLevelSelect<T>({
                     )}
                 </Text>
             )}
-            <Select
+            <Select<string, HierarchyLevelSelectOption>
                 className="w-full"
                 placeholder={effectivePlaceholder}
                 value={selectedId}
@@ -306,7 +322,9 @@ export function HierarchyLevelSelect<T>({
                 filterOption={(input, option) => {
                     // Use searchLabel for filtering if available, otherwise try label
                     const searchText =
-                        (option as {searchLabel?: string})?.searchLabel ?? String(option?.label)
+                        option && "searchLabel" in option && typeof option.searchLabel === "string"
+                            ? option.searchLabel
+                            : String(option?.label ?? "")
                     return searchText.toLowerCase().includes(input.toLowerCase())
                 }}
                 notFoundContent={getNotFoundContentText()}

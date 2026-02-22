@@ -355,8 +355,7 @@ function InsertInitialCodeBlockPlugin({
                                 try {
                                     const obj = yaml.load(objectValue)
                                     if (obj !== undefined) {
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- js-yaml types require any
-                                        value = yaml.dump(obj as any, {indent: 2})
+                                        value = yaml.dump(obj, {indent: 2})
                                     } else {
                                         value = objectValue
                                     }
@@ -364,8 +363,7 @@ function InsertInitialCodeBlockPlugin({
                                     // Try JSON as a fallback and then dump to YAML for consistent highlighting
                                     try {
                                         const obj = JSON5.parse(objectValue)
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- js-yaml types require any
-                                        value = yaml.dump(obj as any, {indent: 2})
+                                        value = yaml.dump(obj, {indent: 2})
                                     } catch {
                                         value = objectValue
                                     }
