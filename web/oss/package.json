@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.86.4",
+    "version": "0.86.6",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -55,6 +55,7 @@
         "@monaco-editor/react": "^4.7.0-rc.0",
         "@next/bundle-analyzer": "15.5.10",
         "@phosphor-icons/react": "^2.1.10",
+        "@reduxjs/toolkit": "^2.8.2",
         "@scalar/openapi-parser": "^0.9.0",
         "@scalar/openapi-types": "^0.1.5",
         "@tailwindcss/container-queries": "^0.1.1",
@@ -73,7 +74,7 @@
         "@types/react-syntax-highlighter": "^15.5.7",
         "@types/react-window": "^1.8.8",
         "@types/uuid": "^10.0.0",
-        "ajv": "^8.17.1",
+        "ajv": "^8.18.0",
         "antd": "^6.1.3",
         "autoprefixer": "10.4.20",
         "axios": "^1.12.2",

@@ -1,6 +1,6 @@
 {
     "name": "@agenta/ee",
-    "version": "0.86.4",
+    "version": "0.86.6",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -32,6 +32,7 @@
         "@lexical/code-shiki": "^0.38.2",
         "@monaco-editor/react": "^4.7.0-rc.0",
         "@phosphor-icons/react": "^2.1.10",
+        "@reduxjs/toolkit": "^2.8.2",
         "@tanstack/query-core": "^5.90.16",
         "@tanstack/react-query": "^5.90.16",
         "@tremor/react": "^3.18.7",

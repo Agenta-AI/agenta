@@ -8,6 +8,7 @@ from agenta.sdk.models.workflows import (
     #
     ApplicationRevisionResponse,
     #
+    SimpleApplication,
     SimpleApplicationFlags,
     SimpleApplicationData,
     SimpleApplicationCreate,
@@ -19,6 +20,21 @@ from agenta.sdk.models.workflows import (
 )
 
 from agenta.sdk.utils.references import get_slug_from_name_and_id
+
+
+def _response_detail(response) -> str:
+    try:
+        data = response.json()
+    except Exception:
+        return response.text
+
+    if isinstance(data, dict) and "detail" in data:
+        detail = data.get("detail")
+        if isinstance(detail, str):
+            return detail
+        return str(detail)
+
+    return str(data)
 
 
 async def _retrieve_application(
@@ -66,6 +82,33 @@ async def _retrieve_application(
     return application_revision
 
 
+async def _fetch_simple_application(
+    *,
+    application_id: UUID,
+) -> Optional[SimpleApplication]:
+    response = authed_api()(
+        method="GET",
+        endpoint=f"/preview/simple/applications/{application_id}",
+    )
+
+    if response.status_code == 404:
+        return None
+
+    try:
+        response.raise_for_status()
+    except Exception as e:
+        detail = _response_detail(response)
+        message = (
+            f"Failed to fetch application '{application_id}' before update: {detail}"
+        )
+        print("[ERROR]:", message)
+        raise ValueError(message) from e
+
+    simple_application_response = SimpleApplicationResponse(**response.json())
+
+    return simple_application_response.application
+
+
 async def aretrieve(
     application_revision_id: Optional[UUID] = None,
 ) -> Optional[ApplicationRevision]:
@@ -92,6 +135,15 @@ async def aupsert(
     name: Optional[str] = None,
     description: Optional[str] = None,
 ) -> Optional[UUID]:
+    """Upsert a simple application and return its revision ID.
+
+    Returns:
+        The application revision UUID, or None when the API responds without
+        a usable application/revision object.
+
+    Raises:
+        ValueError: If preparation fails or API create/update calls fail.
+    """
     # print("\n---------   UPSERT APPLICATION")
     try:
         if not is_workflow(handler):
@@ -209,12 +261,43 @@ async def aupsert(
             )
 
     except Exception as e:
-        print("[ERROR]: Failed to prepare application:", e)
-        return None
+        message = f"Failed to prepare application: {e}"
+        print("[ERROR]:", message)
+        raise ValueError(message) from e
 
     # print("Retrieve response:", retrieve_response)
 
     if retrieve_response and retrieve_response.id and retrieve_response.application_id:
+        existing_application_name = None
+        try:
+            with_name = await _fetch_simple_application(
+                application_id=retrieve_response.application_id
+            )
+        except ValueError as e:
+            print(
+                "[WARN]: Failed to fetch existing application for name preservation; "
+                f"continuing without it: {e}"
+            )
+            with_name = None
+        if with_name:
+            existing_application_name = with_name.name
+
+        # TEMPORARY: API simple application edit currently rejects renaming.
+        # Preserve the existing stored name when updating by slug/id so evaluate()
+        # can keep syncing configuration/data without triggering rename failures.
+        if (
+            existing_application_name
+            and name is not None
+            and name != existing_application_name
+        ):
+            print(
+                "[INFO]: Renaming applications is temporarily disabled. "
+                f"Using existing application name '{existing_application_name}'."
+            )
+            name = existing_application_name
+        elif existing_application_name and name is None:
+            name = existing_application_name
+
         application_id = retrieve_response.application_id
         # print(" --- Updating application...", application_id)
         application_edit_request = SimpleApplicationEdit(
@@ -246,8 +329,10 @@ async def aupsert(
         try:
             response.raise_for_status()
         except Exception as e:
-            print("[ERROR]: Failed to update application:", e)
-            return None
+            detail = _response_detail(response)
+            message = f"Failed to update application: {detail}"
+            print("[ERROR]:", message)
+            raise ValueError(message) from e
 
     else:
         # print(" --- Creating application...")
@@ -280,8 +365,10 @@ async def aupsert(
         try:
             response.raise_for_status()
         except Exception as e:
-            print("[ERROR]: Failed to create application:", e)
-            return None
+            detail = _response_detail(response)
+            message = f"Failed to create application: {detail}"
+            print("[ERROR]:", message)
+            raise ValueError(message) from e
 
     application_response = SimpleApplicationResponse(**response.json())
 

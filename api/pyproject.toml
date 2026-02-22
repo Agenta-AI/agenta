@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.86.4"
+version = "0.86.6"
 description = "Agenta API"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
@@ -18,12 +18,12 @@ build-backend = "poetry.core.masonry.api"
 python = "^3.11"
 
 # Agenta SDK
-agenta = ">=0.85.0"
+agenta = ">=0.86.5"
 
 # Core framework dependencies
-fastapi = ">=0.128"
+fastapi = ">=0.129"
 pydantic = { version = "^2", extras = ["email"] }
-uvicorn = "^0.40"
+uvicorn = "^0.41"
 gunicorn = "^25"
 httpx = "^0.28"
 structlog = "^25"
@@ -52,7 +52,7 @@ redis = "^7"
 cachetools = "^7"
 
 # Integrations & external services
-supertokens-python = "^0.30"
+supertokens-python = "^0.31"
 openai = "^2"
 sendgrid = "^6"
 stripe = "^14"

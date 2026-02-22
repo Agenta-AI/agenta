@@ -132,6 +132,8 @@ export interface DrillInContentProps {
     showFieldCollapse?: boolean
     /** Enables drill-in action button in field headers */
     showFieldDrillIn?: boolean
+    /** Keys to exclude when displaying items at the initial path level (e.g., ["parameters"] to hide parameters from ag.data view) */
+    excludeKeys?: string[]
 }
 
 /**
@@ -168,15 +170,16 @@ export function DrillInContent({
     hideSingleFieldHeader = false,
     showFieldCollapse = true,
     showFieldDrillIn = true,
+    excludeKeys,
 }: DrillInContentProps) {
     // Parse initialPath to array format, removing rootTitle prefix if present
-    const parsedInitialPath = (() => {
+    const parsedInitialPath = useMemo(() => {
         if (!initialPath) return []
         const pathArray = typeof initialPath === "string" ? initialPath.split(".") : initialPath
         // Remove the rootTitle prefix if present
         const startIndex = pathArray[0] === rootTitle ? 1 : 0
         return pathArray.slice(startIndex)
-    })()
+    }, [initialPath, rootTitle])
 
     const [currentPath, setCurrentPath] = useState<string[]>(parsedInitialPath)
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
@@ -288,6 +291,13 @@ export function DrillInContent({
         },
         [valueMode],
     )
+
+    // Check if current path is at the initial path level (where excludeKeys should apply)
+    const isAtInitialPathLevel = useMemo(() => {
+        if (!excludeKeys?.length) return false
+        if (currentPath.length !== parsedInitialPath.length) return false
+        return parsedInitialPath.every((segment, i) => currentPath[i] === segment)
+    }, [currentPath, parsedInitialPath, excludeKeys])
 
     // Get current level items
     const currentLevelItems = useMemo((): PathItem[] => {
@@ -420,6 +430,12 @@ export function DrillInContent({
         const fieldName = currentPath[currentPath.length - 1] || "value"
         return [{key: fieldName, name: fieldName, value: value, isColumn: false}]
     }, [currentPath, currentValue, getRootItems, valueMode])
+
+    // Apply excludeKeys filter when at the initial path level
+    const filteredLevelItems = useMemo(() => {
+        if (!isAtInitialPathLevel || !excludeKeys?.length) return currentLevelItems
+        return currentLevelItems.filter((item) => !excludeKeys.includes(item.key))
+    }, [currentLevelItems, isAtInitialPathLevel, excludeKeys])
 
     // Check if a value is expandable
     const isExpandable = useCallback(
@@ -652,12 +668,12 @@ export function DrillInContent({
                 )}
 
                 {/* Current level items */}
-                {currentLevelItems.length === 0 && (
+                {filteredLevelItems.length === 0 && (
                     <div className="text-gray-500 text-sm">No items to display</div>
                 )}
 
                 <div className="flex flex-col gap-2">
-                    {currentLevelItems.map((item) => {
+                    {filteredLevelItems.map((item) => {
                         const fieldKey = `${currentPath.join(".")}.${item.key}`
                         // When drilling into a primitive, currentPath already contains the full path
                         // and item.key is just the last segment (duplicate). Use currentPath directly.
