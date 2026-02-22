@@ -18,17 +18,6 @@ const EnhancedDrawer = ({
     const {open: isVisible, onClose, mask} = props
     const [shouldRender, setShouldRender] = useState(!!isVisible)
 
-    const drawerStyles = useMemo(() => {
-        if (!width) return styles
-        return {
-            ...styles,
-            wrapper: {
-                ...styles?.wrapper,
-                width,
-            },
-        }
-    }, [width, styles])
-
     const maskProps = useMemo(() => {
         if (mask === false) return false
         const maskObj = typeof mask === "object" ? mask : {}
@@ -72,8 +61,9 @@ const EnhancedDrawer = ({
         <Drawer
             {...props}
             open={isVisible}
+            width={width}
             afterOpenChange={handleAfterOpenChange}
-            styles={drawerStyles}
+            styles={styles}
             mask={maskProps}
         >
             {children}
