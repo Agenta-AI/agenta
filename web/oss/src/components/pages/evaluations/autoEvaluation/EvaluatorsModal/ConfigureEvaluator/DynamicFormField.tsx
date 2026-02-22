@@ -216,7 +216,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                         <JSONSchemaEditor
                             form={form!}
                             name={name}
-                            defaultValue={
+                            fallbackValue={
                                 typeof savedValue === "string"
                                     ? savedValue
                                     : JSON.stringify(savedValue ?? {}, null, 2)

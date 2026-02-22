@@ -370,6 +370,16 @@ const DebugSection = () => {
         ),
     ) as any
 
+    const revisionRequestPayload = useAtomValue(
+        useMemo(
+            () =>
+                (selectedVariant?.id
+                    ? (legacyAppRevisionMolecule.atoms.requestPayload(selectedVariant?.id) as any)
+                    : (atom(null) as any)) as any,
+            [selectedVariant?.id],
+        ),
+    ) as any
+
     const activeRevision = useAtomValue(
         useMemo(
             () =>
@@ -631,9 +641,19 @@ const DebugSection = () => {
                     }
                 })()
 
+                const reservedInputKeys = new Set([
+                    "ag_config",
+                    "inputs",
+                    "environment",
+                    "revision_id",
+                    "variant_id",
+                    "app_id",
+                    "chat",
+                ])
+
                 let effectiveKeys: string[] = Array.from(
                     new Set([...(fromParams || []), ...(stableVarNames || [])]),
-                ).filter((k) => k && k !== "chat")
+                ).filter((k) => k && !reservedInputKeys.has(k))
 
                 let hasInputsProp = false
                 let hasMessagesPropFromSchema = false
@@ -661,12 +681,17 @@ const DebugSection = () => {
                 const isChatByKeys = (effectiveKeys || []).includes("messages")
                 const isChat = isChatBySchema !== null ? isChatBySchema : isChatByKeys
 
-                params.inputs = (effectiveKeys || []).map((name) => ({name, input: false}))
+                params.inputs = (effectiveKeys || [])
+                    .filter((name) => name !== "messages")
+                    .map((name) => ({name, input: false}))
 
                 // Build raw ag_config from variant parameters
-                const variantParams =
-                    variantEntityData?.parameters || selectedVariant?.parameters
+                const variantParams = variantEntityData?.parameters || selectedVariant?.parameters
+                const payloadAgConfig = isPlainObject(revisionRequestPayload?.ag_config)
+                    ? (revisionRequestPayload.ag_config as Record<string, unknown>)
+                    : undefined
                 const variantAgConfig =
+                    payloadAgConfig ||
                     (variantParams as Record<string, unknown>)?.ag_config ||
                     variantParams ||
                     {}
@@ -737,13 +762,93 @@ const DebugSection = () => {
             } else {
                 const {parameters, inputs} = await getAllVariantParameters(appId, selectedVariant)
                 params.parameters = parameters
-                params.inputs = inputs
-                const hasMessagesInput = (inputs || []).some((p) => p.name === "messages")
+                const reservedInputKeys = new Set([
+                    "ag_config",
+                    "inputs",
+                    "environment",
+                    "revision_id",
+                    "variant_id",
+                    "app_id",
+                ])
+                let sanitizedInputs = (inputs || []).filter(
+                    (p) => p?.name && !reservedInputKeys.has(p.name),
+                )
+                if (sanitizedInputs.length === 0) {
+                    const schemaKeys = safeSpec
+                        ? extractInputKeysFromSchema(safeSpec as any, safeRoutePath)
+                        : []
+                    if (schemaKeys.length > 0) {
+                        sanitizedInputs = schemaKeys.map((name) => ({name, input: false}))
+                    } else if (selectedTestcase.testcase) {
+                        sanitizedInputs = Object.keys(selectedTestcase.testcase)
+                            .filter(
+                                (key) =>
+                                    key &&
+                                    !key.startsWith("__") &&
+                                    !reservedInputKeys.has(key) &&
+                                    key !== "messages",
+                            )
+                            .map((name) => ({name, input: false}))
+                    }
+                }
+                params.inputs = sanitizedInputs
+                const hasMessagesInput = Boolean(
+                    (inputs || []).some((p) => p.name === "messages") ||
+                    (safeSpec &&
+                        extractAllEndpointSchemas(safeSpec as any, safeRoutePath)?.primaryEndpoint
+                            ?.messagesSchema),
+                )
                 params.isChatVariant = hasMessagesInput
                 params.messages = hasMessagesInput
                     ? extractChatMessages(selectedTestcase.testcase)
                     : []
                 params.isCustom = selectedVariant?.isCustom
+
+                const openApiDefaults = Array.isArray(parameters)
+                    ? parameters.reduce<Record<string, unknown>>((acc, param) => {
+                          if (
+                              typeof param?.name === "string" &&
+                              param.name.length > 0 &&
+                              param.default !== undefined
+                          ) {
+                              acc[param.name] = param.default
+                          }
+                          return acc
+                      }, {})
+                    : isPlainObject(parameters)
+                      ? {...(parameters as Record<string, unknown>)}
+                      : {}
+
+                const payloadAgConfig = isPlainObject(revisionRequestPayload?.ag_config)
+                    ? (revisionRequestPayload.ag_config as Record<string, unknown>)
+                    : undefined
+                const variantParams = variantEntityData?.parameters || selectedVariant?.parameters
+                const variantAgConfig = isPlainObject((variantParams as any)?.ag_config)
+                    ? ((variantParams as any).ag_config as Record<string, unknown>)
+                    : isPlainObject(variantParams)
+                      ? (variantParams as Record<string, unknown>)
+                      : undefined
+
+                const transformedParameters = transformToRequestBody({
+                    variant: selectedVariant,
+                    isChat: hasMessagesInput,
+                    isCustom: Boolean(params.isCustom),
+                    rawAgConfig: payloadAgConfig || variantAgConfig,
+                })
+
+                const mergedParameters = {
+                    ...openApiDefaults,
+                    ...(isPlainObject(transformedParameters) ? transformedParameters : {}),
+                }
+                if (
+                    !isPlainObject((mergedParameters as Record<string, unknown>).ag_config) &&
+                    (payloadAgConfig || variantAgConfig)
+                ) {
+                    ;(mergedParameters as Record<string, unknown>).ag_config =
+                        payloadAgConfig || variantAgConfig
+                }
+                params.parameters = mergedParameters
+
                 if (hasMessagesInput && params.messages.length === 0) {
                     setIsRunningVariant(false)
                     message.error(
