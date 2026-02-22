@@ -31,6 +31,7 @@ from agenta.sdk.workflows.sandbox import execute_code_safely
 from agenta.sdk.workflows.templates import EVALUATOR_TEMPLATES
 from agenta.sdk.workflows.errors import (
     CustomCodeServerV0Error,
+    ErrorStatus,
     InvalidConfigurationParametersV0Error,
     InvalidConfigurationParameterV0Error,
     InvalidInputsV0Error,
@@ -852,14 +853,20 @@ async def auto_custom_code_run_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
     outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
 ) -> Any:
     """
     Custom code execution evaluator for running arbitrary code to evaluate outputs.
 
+    Supports two interface versions controlled by parameters["version"]:
+    - v1 (default/"1"): evaluate(app_params, inputs, output, correct_answer)
+    - v2 ("2"):         evaluate(inputs, outputs, trace)
+
     Args:
-        inputs: Testcase data with ground truth
+        inputs: Testcase data / app inputs
         outputs: Output from the workflow execution
         parameters: Configuration for the evaluator with code to execute
+        trace: Full trace data with spans, metrics (v2 only)
 
     Returns:
         Evaluation result with score from the custom code
@@ -872,21 +879,15 @@ async def auto_custom_code_run_v0(
 
     code = str(parameters["code"])
 
-    if "correct_answer_key" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
+    declared_version = str(parameters.get("version") or "").strip() or None
 
-    correct_answer_key = str(parameters["correct_answer_key"])
-
-    if inputs is None or not isinstance(inputs, dict):
+    if inputs is not None and not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
 
-    if correct_answer_key not in inputs:
-        raise MissingInputV0Error(path=correct_answer_key)
-
-    correct_answer = inputs[correct_answer_key]
-
-    if not isinstance(outputs, str) and not isinstance(outputs, dict):
+    if not isinstance(outputs, (str, dict)):
         raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)
+
+    _outputs_value: Union[dict, str] = outputs
 
     threshold = parameters.get("threshold") or 0.5
 
@@ -904,8 +905,6 @@ async def auto_custom_code_run_v0(
             got=threshold,
         )
 
-    _outputs = None
-
     runtime = parameters.get("runtime") or "python"
 
     if runtime not in ["python", "javascript", "typescript"]:
@@ -915,23 +914,64 @@ async def auto_custom_code_run_v0(
             got=runtime,
         )
 
-    # --------------------------------------------------------------------------
-    try:
-        _outputs = execute_code_safely(
-            app_params={},
-            inputs=inputs,
-            output=outputs,
-            correct_answer=correct_answer,
-            code=code,
-            runtime=runtime,
-            templates=EVALUATOR_TEMPLATES.get("v0", {}),
-        )
-    except Exception as e:
-        raise CustomCodeServerV0Error(
-            message=str(e),
-            stacktrace=traceback.format_exc(),
-        ) from e
-    # --------------------------------------------------------------------------
+    effective_version = declared_version if declared_version in {"1", "2"} else "1"
+
+    def _run_v2() -> Any:
+        try:
+            return execute_code_safely(
+                app_params={},
+                inputs=inputs or {},
+                output=_outputs_value,
+                correct_answer=None,
+                code=code,
+                runtime=runtime,
+                templates=EVALUATOR_TEMPLATES.get("v1", {}),
+                version="2",
+                trace=trace,
+            )
+        except ErrorStatus:
+            raise
+        except Exception as e:
+            raise CustomCodeServerV0Error(
+                message=str(e),
+                stacktrace=traceback.format_exc(),
+            ) from e
+
+    def _run_v1() -> Any:
+        if "correct_answer_key" not in parameters:
+            raise MissingConfigurationParameterV0Error(path="correct_answer_key")
+
+        correct_answer_key = str(parameters["correct_answer_key"])
+
+        if inputs is None or not isinstance(inputs, dict):
+            raise InvalidInputsV0Error(expected="dict", got=inputs)
+
+        if correct_answer_key not in inputs:
+            raise MissingInputV0Error(path=correct_answer_key)
+
+        correct_answer = inputs[correct_answer_key]
+
+        try:
+            return execute_code_safely(
+                app_params={},
+                inputs=inputs,
+                output=_outputs_value,
+                correct_answer=correct_answer,
+                code=code,
+                runtime=runtime,
+                templates=EVALUATOR_TEMPLATES.get("v0", {}),
+                version="1",
+                trace=None,
+            )
+        except ErrorStatus:
+            raise
+        except Exception as e:
+            raise CustomCodeServerV0Error(
+                message=str(e),
+                stacktrace=traceback.format_exc(),
+            ) from e
+
+    _outputs = _run_v2() if effective_version == "2" else _run_v1()
 
     if isinstance(_outputs, (int, float)):
         return {"score": _outputs, "success": _outputs >= threshold}
@@ -950,6 +990,7 @@ async def auto_ai_critique_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
     outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
 ) -> Any:
     """
     AI critique evaluator for using an LLM to evaluate outputs.
@@ -1098,7 +1139,7 @@ async def auto_ai_critique_v0(
             }
         )
 
-    if correct_answer:
+    if correct_answer is not None:
         context.update(
             **{
                 "ground_truth": correct_answer,
@@ -1107,7 +1148,7 @@ async def auto_ai_critique_v0(
             }
         )
 
-    if outputs:
+    if outputs is not None:
         context.update(
             **{
                 "prediction": outputs,
@@ -1115,11 +1156,18 @@ async def auto_ai_critique_v0(
             }
         )
 
-    if inputs:
+    if inputs is not None:
         context.update(**inputs)
         context.update(
             **{
                 "inputs": inputs,
+            }
+        )
+
+    if trace is not None:
+        context.update(
+            **{
+                "trace": trace,
             }
         )
 

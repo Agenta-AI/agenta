@@ -19,18 +19,24 @@ RUN PNPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[
 FROM base AS builder
 
 ENV NODE_OPTIONS="--max_old_space_size=4096"
+ENV TURBO_CACHE_DIR="/app/.turbo"
 
 # Copy package.json files first (changes less frequently than source)
 COPY oss/package.json ./oss/package.json
 COPY --parents packages/*/package.json ./
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm fetch --frozen-lockfile
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --offline
 
 # Copy source code last (changes more frequently)
 COPY packages/ ./packages/
 COPY oss/ ./oss/
 
-RUN --mount=type=cache,id=nextjs-oss,target=/app/oss/.next/cache \
+RUN --mount=type=cache,id=turbo-oss,target=/app/.turbo \
+    --mount=type=cache,id=nextjs-oss,target=/app/oss/.next/cache \
     pnpm turbo run build --filter=@agenta/oss
 
 

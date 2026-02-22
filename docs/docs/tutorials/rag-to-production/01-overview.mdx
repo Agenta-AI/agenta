@@ -1,0 +1,28 @@
+---
+title: "RAG to Production: Build a Production-Ready AI App with Agenta"
+description: "A 5-part tutorial series that takes a RAG chatbot from prototype to production. Learn tracing, prompt management, evaluation, and monitoring with Agenta."
+sidebar_label: "Overview"
+sidebar_position: 1
+---
+
+Building an MVP of an AI application is easy. Bringing it to production, collaborating with your team on quality, and increasing the speed of iteration is hard.
+
+This tutorial series walks you through the full lifecycle of building a production AI application. You will set up observability to understand what your application does. You will add prompt management so that everyone on the team (engineers and domain experts) can iterate on prompts. You will create test cases from real production data and use them to evaluate changes before they ship. And you will set up online evaluation to monitor quality over time.
+
+We use a RAG Q&A chatbot as our running example, but the patterns apply to any LLM application. Think of this series as a walkthrough of all the features in Agenta, applied to a real project.
+
+## The series
+
+1. [**Tracing and prompt management**](./02-tracing-and-prompt-management.mdx). Set up tracing, add prompt management, and link traces to prompt versions.
+2. **SME workflow** (coming soon). Enable domain experts to annotate traces, create test cases, and iterate on prompts in the playground.
+3. **Evaluate prompts** (coming soon). Set up LLM-as-judge evaluators with rubrics and annotation-driven guidelines. Evaluate prompt variants from the UI.
+4. **End-to-end evaluation with the SDK** (coming soon). Evaluate your entire system (retrieval + prompt + generation) programmatically.
+5. **Online evaluation and guardrails** (coming soon). Monitor production quality continuously and use evaluators as runtime guardrails.
+
+## What you will need
+
+- A working RAG application. We use the [RAG Q&A Chatbot example](https://github.com/Agenta-AI/agenta/tree/main/examples/python/RAG_QA_chatbot), but you can adapt the steps to your own app.
+- An [Agenta Cloud](https://cloud.agenta.ai) account (free tier works).
+- Python 3.11+.
+
+Start with [Part 1: Tracing and prompt management](./02-tracing-and-prompt-management.mdx).
