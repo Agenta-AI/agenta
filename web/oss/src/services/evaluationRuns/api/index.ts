@@ -4,6 +4,7 @@ import {
     legacyAppRevisionMolecule,
     legacyAppRevisionSchemaQueryAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
+import {extractSourceIdFromDraft, isLocalDraftId, isValidUUID} from "@agenta/entities/shared"
 import {getDefaultStore} from "jotai"
 
 import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
@@ -56,6 +57,26 @@ const extractColumnsFromTestset = (testset?: Testset): string[] => {
 }
 
 /**
+ * Resolve a server revision ID for invocation references.
+ * Local drafts use non-UUID IDs, so we fall back to their source revision.
+ */
+const resolveInvocationRevisionId = (
+    revision: EnhancedVariant & {sourceRevisionId?: string | null},
+): string | undefined => {
+    if (isValidUUID(revision.id)) return revision.id
+
+    const sourceRevisionId =
+        revision.sourceRevisionId ??
+        (isLocalDraftId(revision.id) ? extractSourceIdFromDraft(revision.id) : null)
+
+    if (sourceRevisionId && isValidUUID(sourceRevisionId)) {
+        return sourceRevisionId
+    }
+
+    return undefined
+}
+
+/**
  * Constructs the input step for a given testset, pulling variantId and revisionId
  * directly from the testset object. Any undefined reference keys are omitted.
  */
@@ -101,13 +122,18 @@ const buildInvocationStep = (revision: EnhancedVariant, inputKey: string) => {
 
     // Use the appId from the revision itself, not from global state which may have stale values
     const appId = revision.appId
-    references.application = {id: appId}
+    if (isValidUUID(appId)) {
+        references.application = {id: appId}
+    }
 
-    if (revision.variantId !== undefined) {
+    if (revision.variantId !== undefined && isValidUUID(revision.variantId)) {
         references.application_variant = {id: revision.variantId}
     }
-    if (revision.id !== undefined) {
-        references.application_revision = {id: revision.id}
+    const invocationRevisionId = resolveInvocationRevisionId(
+        revision as EnhancedVariant & {sourceRevisionId?: string | null},
+    )
+    if (invocationRevisionId) {
+        references.application_revision = {id: invocationRevisionId}
     }
     return {
         key: invocationKey,

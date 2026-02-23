@@ -32,7 +32,6 @@ const SelectVariantSection = ({
     evaluationType,
     variants: propsVariants,
     isVariantLoading: propsVariantLoading,
-    ...props
 }: SelectVariantSectionProps) => {
     const appId = useAtomValue(selectedAppIdAtom) || ""
     const fallbackVariants = useAtomValue(
@@ -98,7 +97,7 @@ const SelectVariantSection = ({
     const variantsNonNull = (filteredVariant || []) as EnhancedVariant[]
 
     return (
-        <div className={clsx(className)} {...props}>
+        <div className={clsx(className)}>
             <div className="flex items-start justify-between mb-2 gap-4">
                 <Input.Search
                     placeholder="Search"
