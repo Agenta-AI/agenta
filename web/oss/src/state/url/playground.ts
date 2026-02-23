@@ -1,7 +1,7 @@
 // Import workflow to ensure the snapshot adapter is registered
 import "@agenta/entities/workflow"
 
-import {latestServerRevisionIdAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {
     urlSnapshotController,
@@ -497,11 +497,14 @@ export const ensurePlaygroundDefaults = (store: Store): boolean => {
         return true // Mark as "applied" so we don't keep retrying
     }
 
-    const latestRevisionId = store.get(latestServerRevisionIdAtomFamily(appId))
-    if (!latestRevisionId) return false
+    const revisions = store.get(workflowRevisionsByWorkflowListDataAtomFamily(appId))
+    const latest = revisions[0]
+    if (latest) {
+        applyPlaygroundSelection(store, [latest.id])
+        return true
+    }
 
-    applyPlaygroundSelection(store, [latestRevisionId])
-    return true
+    return false
 }
 
 /**
@@ -738,7 +741,7 @@ playgroundSyncAtom.onMount = (set) => {
         const pending = store.get(pendingHydrationsAtom)
         // Collect unique source IDs that are ready, then apply via the ordered helper
         const readySourceIds = new Set<string>()
-        for (const [, hydration] of pending.entries()) {
+        for (const hydration of pending.values()) {
             const query = store.get(runnableBridge.query(hydration.sourceRevisionId))
             if (!query.isPending && query.data) {
                 readySourceIds.add(hydration.sourceRevisionId)
@@ -817,7 +820,7 @@ playgroundSyncAtom.onMount = (set) => {
             // Only needed when no URL selection exists and we must find a default.
             if (currentAppId) {
                 currentLatestRevUnsub = store.sub(
-                    latestServerRevisionIdAtomFamily(currentAppId),
+                    workflowRevisionsByWorkflowListDataAtomFamily(currentAppId),
                     () => tryApplyDefaults(),
                 )
             }
