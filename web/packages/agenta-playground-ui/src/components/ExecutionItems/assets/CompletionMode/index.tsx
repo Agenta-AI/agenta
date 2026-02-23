@@ -78,7 +78,7 @@ const CompletionMode = ({
                         {"mb-10": viewType !== "comparison"},
                     ])}
                 >
-                    <AddButton size="small" label="Test case" onClick={handleAddNewRow} />
+                    <AddButton size="small" label="Test case" onClick={() => handleAddNewRow()} />
                 </div>
             ) : null}
         </div>

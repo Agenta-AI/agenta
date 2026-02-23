@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {type PlaygroundTestResult, executionItemController} from "@agenta/playground"
+import {executionItemController, type PlaygroundTestResult} from "@agenta/playground"
 import {
     extractChatMessages,
     normalizeChatMessages,
@@ -30,7 +30,8 @@ const getOutputContent = (
     content: string | React.ReactNode | NormalizedChatMessage[]
 } => {
     if (!rep) return {type: "text", content: ""}
-    const error = rep.error || rep.response?.error
+    const response = rep.response as Record<string, unknown> | undefined
+    const error = rep.error || response?.error
 
     if (error) {
         const errorContent = typeof error === "string" ? error : JSON.stringify(error)
@@ -39,7 +40,7 @@ const getOutputContent = (
 
     try {
         const potentialChatValue =
-            rep.response?.choices || rep.response?.output || rep.response?.data || rep.response
+            response?.choices || response?.output || response?.data || response
 
         const chatValueString =
             typeof potentialChatValue === "string"
@@ -61,10 +62,10 @@ const getOutputContent = (
     }
 
     const simpleContent =
-        rep.response?.choices?.[0]?.message?.content ||
-        rep.response?.output ||
-        rep.response?.data ||
-        (typeof rep.response === "string" ? rep.response : "") ||
+        (response?.choices as Array<Record<string, any>> | undefined)?.[0]?.message?.content ||
+        response?.output ||
+        response?.data ||
+        (typeof response === "string" ? response : "") ||
         ""
 
     return {type: "text", content: String(simpleContent)}
@@ -75,7 +76,8 @@ const getLastUserMessage = (repetitions: PlaygroundTestResult[]) => {
 
     try {
         const firstRep = repetitions[0]
-        const nodes = firstRep.response?.tree?.nodes
+        const firstResponse = firstRep.response as Record<string, any> | undefined
+        const nodes = firstResponse?.tree?.nodes
         const node = Array.isArray(nodes) ? nodes[0] : nodes ? Object.values(nodes)[0] : null
 
         if (!node) return null
@@ -102,7 +104,8 @@ const getChatInputs = (repetitions: PlaygroundTestResult[]) => {
     if (!repetitions?.length) return []
     try {
         const firstRep = repetitions[0]
-        const nodes = firstRep.response?.tree?.nodes
+        const firstResponse = firstRep.response as Record<string, any> | undefined
+        const nodes = firstResponse?.tree?.nodes
         const node = Array.isArray(nodes) ? nodes[0] : nodes ? Object.values(nodes)[0] : null
 
         if (!node) return []
@@ -282,9 +285,20 @@ const FocusDrawerContent = () => {
                                                         : `Repeat ${index + 1}`}
                                                 </span>
                                                 {SharedGenerationResultUtils &&
-                                                    rep?.response?.tree?.trace_id && (
+                                                    (
+                                                        rep?.response as
+                                                            | Record<string, any>
+                                                            | undefined
+                                                    )?.tree?.trace_id && (
                                                         <SharedGenerationResultUtils
-                                                            traceId={rep.response.tree.trace_id}
+                                                            traceId={
+                                                                (
+                                                                    rep.response as Record<
+                                                                        string,
+                                                                        any
+                                                                    >
+                                                                ).tree.trace_id
+                                                            }
                                                             showStatus
                                                         />
                                                     )}
