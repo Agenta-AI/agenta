@@ -1175,7 +1175,7 @@ function renderFieldContentByMode({
             ? getTextModeValue(stringValue)
             : valueMode === "string"
               ? getTextModeValue(stringValue)
-              : String(item.value ?? "")
+              : getTextModeValue(item.originalStringValue ?? stringValue)
 
     return (
         <EditorProvider
