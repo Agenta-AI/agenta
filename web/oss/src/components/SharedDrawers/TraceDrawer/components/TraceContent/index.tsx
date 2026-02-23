@@ -37,7 +37,7 @@ const TraceContent = ({
     const [tab, setTab] = useState("overview")
 
     const spanId = activeTrace?.span_id
-    console.log("activeTrace", activeTrace, spanId)
+
     const items: TabsProps["items"] = useMemo(() => {
         if (isLoading && !activeTrace) {
             return [
