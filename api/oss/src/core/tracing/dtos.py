@@ -1,4 +1,6 @@
 from typing import List, Dict, Any, Union, Optional
+
+from agenta.sdk.models.tracing import Trace  # noqa: F401
 from datetime import datetime, timezone
 from uuid import uuid4
 from enum import Enum
@@ -429,12 +431,6 @@ class MetricsBucket(BaseModel):
     timestamp: datetime
     interval: int
     metrics: Optional[Dict[str, FullJson]] = None
-
-
-# WORKFLOWS --------------------------------------------------------------------
-
-
-Trace = OTelSpansTree
 
 
 # SIMPLE TRACE: INVOCATIONS & ANNOTATIONS --------------------------------------
