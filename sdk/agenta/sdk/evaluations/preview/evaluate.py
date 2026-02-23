@@ -20,7 +20,6 @@ from agenta.sdk.models.workflows import (
 )
 from agenta.sdk.models.testsets import TestsetRevision
 
-from agenta.sdk.utils.references import get_slug_from_name_and_id
 from agenta.sdk.evaluations.preview.utils import fetch_trace_data
 
 from agenta.sdk.managers.testsets import (
@@ -423,7 +422,10 @@ async def aevaluate(
         simple_evaluation_data.testset_steps = normalized_testset_steps
 
     suffix = _timestamp_suffix()
-    name = f"{name}{suffix}"
+    base_name = name.strip() if isinstance(name, str) else ""
+    if not base_name:
+        base_name = "SDK Eval"
+    name = f"{base_name}{suffix}"
 
     run = await acreate_run(
         name=name,
@@ -633,14 +635,11 @@ async def aevaluate(
 
                 trace_id = application_response.trace_id
 
-                if not application_revision.id or not application_revision.name:
-                    print("Missing application revision ID or name")
+                if not application_revision.slug:
+                    print("Missing application revision slug")
                     continue
 
-                application_slug = get_slug_from_name_and_id(
-                    name=application_revision.name,
-                    id=application_revision.id,
-                )
+                application_slug = application_revision.slug
 
                 trace = fetch_trace_data(trace_id, max_retries=30, delay=1.0)
 
@@ -779,7 +778,7 @@ async def aevaluate(
 
                     trace_id = evaluator_response.trace_id
 
-                    trace = fetch_trace_data(trace_id, max_retries=20, delay=1.0)
+                    trace = fetch_trace_data(trace_id, max_retries=30, delay=1.0)
 
                     result = await alog_result(
                         run_id=run.id,
