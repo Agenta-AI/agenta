@@ -41,7 +41,7 @@ import type {RunnableDraftPatch, RunnableType} from "@agenta/entities/runnable"
 /**
  * Current snapshot schema version.
  */
-export const SNAPSHOT_VERSION = 1 as const
+export const SNAPSHOT_VERSION = 2 as const
 
 // ============================================================================
 // SELECTION ITEM TYPES
@@ -120,6 +120,23 @@ export interface SnapshotDraftEntry {
 }
 
 // ============================================================================
+// LOADABLE CONNECTION
+// ============================================================================
+
+/**
+ * Loadable connection state captured in a URL snapshot.
+ * Present when the playground is connected to an API-backed testset.
+ */
+export interface SnapshotLoadableConnection {
+    /** Testset revision UUID (= loadableState.connectedSourceId) */
+    revisionId: string
+    /** Display name, e.g. "MyTestset v3" */
+    sourceName: string | null
+    /** Testset entity UUID (for connectedTestsetAtom) */
+    testsetId: string | null
+}
+
+// ============================================================================
 // SNAPSHOT SCHEMA
 // ============================================================================
 
@@ -130,6 +147,7 @@ export interface SnapshotDraftEntry {
  * configuration including:
  * - Which revisions are selected (with runnable type per item)
  * - Draft changes for any modified revisions (with runnable type per draft)
+ * - Optional testset connection (v=2+)
  *
  * Supports mixed runnable types in a single snapshot (e.g., AppRevision + EvaluatorRevision).
  */
@@ -140,6 +158,8 @@ export interface PlaygroundSnapshot {
     selection: SelectionItem[]
     /** Array of draft entries with patch data */
     drafts: SnapshotDraftEntry[]
+    /** Present when connected to an API-backed testset */
+    loadable?: SnapshotLoadableConnection
 }
 
 // ============================================================================
@@ -239,7 +259,56 @@ function isSnapshotDraftEntry(entry: unknown): entry is SnapshotDraftEntry {
 }
 
 /**
+ * Type guard for SnapshotLoadableConnection.
+ */
+function isSnapshotLoadableConnection(value: unknown): value is SnapshotLoadableConnection {
+    if (typeof value !== "object" || value === null) return false
+    const v = value as Record<string, unknown>
+    if (typeof v.revisionId !== "string") return false
+    if (v.sourceName !== null && typeof v.sourceName !== "string") return false
+    if (v.testsetId !== null && typeof v.testsetId !== "string") return false
+    return true
+}
+
+/**
+ * Validate the core selection and drafts fields (shared between v=1 and v=2).
+ */
+function validateSelectionAndDrafts(obj: Record<string, unknown>): string | null {
+    if (!Array.isArray(obj.selection)) {
+        return "Snapshot selection must be an array"
+    }
+
+    for (let i = 0; i < obj.selection.length; i++) {
+        if (!isSelectionItem(obj.selection[i])) {
+            return `Invalid selection item at index ${i}`
+        }
+    }
+
+    if (!Array.isArray(obj.drafts)) {
+        return "Snapshot drafts must be an array"
+    }
+
+    for (let i = 0; i < obj.drafts.length; i++) {
+        if (!isSnapshotDraftEntry(obj.drafts[i])) {
+            return `Invalid draft entry at index ${i}`
+        }
+    }
+
+    const draftKeys = new Set(obj.drafts.map((d: {draftKey: string}) => d.draftKey))
+    for (const item of obj.selection) {
+        if (isDraftSelectionItem(item) && !draftKeys.has(item.draftKey)) {
+            return `Draft key "${item.draftKey}" not found in drafts array`
+        }
+    }
+
+    return null
+}
+
+/**
  * Validate a parsed snapshot object.
+ *
+ * Accepts both v=1 (legacy) and v=2 (current) snapshots.
+ * v=1 snapshots are normalized to v=2 without a loadable field.
  *
  * @param data - The parsed data to validate
  * @returns ValidationResult with the validated snapshot or an error
@@ -252,6 +321,22 @@ export function validateSnapshot(data: unknown): ValidationResult<PlaygroundSnap
 
     const obj = data as Record<string, unknown>
 
+    // Handle v=1 snapshots (backwards compat) — normalize to v=2 without loadable
+    if (obj.v === 1) {
+        const fieldError = validateSelectionAndDrafts(obj)
+        if (fieldError) return {ok: false, error: fieldError}
+
+        return {
+            ok: true,
+            value: {
+                v: SNAPSHOT_VERSION,
+                selection: obj.selection as SelectionItem[],
+                drafts: obj.drafts as SnapshotDraftEntry[],
+                // No loadable field for v=1 snapshots
+            },
+        }
+    }
+
     // Check version
     if (obj.v !== SNAPSHOT_VERSION) {
         return {
@@ -260,34 +345,13 @@ export function validateSnapshot(data: unknown): ValidationResult<PlaygroundSnap
         }
     }
 
-    // Check selection array
-    if (!Array.isArray(obj.selection)) {
-        return {ok: false, error: "Snapshot selection must be an array"}
-    }
+    // Validate selection and drafts
+    const fieldError = validateSelectionAndDrafts(obj)
+    if (fieldError) return {ok: false, error: fieldError}
 
-    for (let i = 0; i < obj.selection.length; i++) {
-        if (!isSelectionItem(obj.selection[i])) {
-            return {ok: false, error: `Invalid selection item at index ${i}`}
-        }
-    }
-
-    // Check drafts array
-    if (!Array.isArray(obj.drafts)) {
-        return {ok: false, error: "Snapshot drafts must be an array"}
-    }
-
-    for (let i = 0; i < obj.drafts.length; i++) {
-        if (!isSnapshotDraftEntry(obj.drafts[i])) {
-            return {ok: false, error: `Invalid draft entry at index ${i}`}
-        }
-    }
-
-    // Validate draft references
-    const draftKeys = new Set(obj.drafts.map((d: {draftKey: string}) => d.draftKey))
-    for (const item of obj.selection) {
-        if (isDraftSelectionItem(item) && !draftKeys.has(item.draftKey)) {
-            return {ok: false, error: `Draft key "${item.draftKey}" not found in drafts array`}
-        }
+    // Check optional loadable field (v=2+)
+    if (obj.loadable !== undefined && !isSnapshotLoadableConnection(obj.loadable)) {
+        return {ok: false, error: "Invalid loadable connection in snapshot"}
     }
 
     return {ok: true, value: obj as unknown as PlaygroundSnapshot}

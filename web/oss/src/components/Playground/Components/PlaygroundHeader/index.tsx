@@ -39,6 +39,8 @@ const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ),
 })
 
+const TestsetDropdown = dynamic(() => import("../TestsetDropdown"), {ssr: false})
+
 type PlaygroundHeaderProps = BaseContainerProps
 
 // Feature flag: when true, use legacyEvaluator (flat SimpleEvaluator facade)
@@ -335,6 +337,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                         </Popover>
                     </Space.Compact>
                     <RunEvaluationButton />
+                    <TestsetDropdown />
                     <SelectVariant
                         showAsCompare
                         multiple

@@ -25,19 +25,28 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import type {EntitySchema, EntitySchemaProperty} from "../../shared"
 import {isLocalDraftId} from "../../shared"
-import {fetchRevisionSchema, buildRevisionSchemaState, type OpenAPISpec} from "../api"
+import {buildRevisionSchemaState, fetchRevisionSchema, type OpenAPISpec} from "../api"
 import type {RevisionSchemaState} from "../core"
-import {isPromptProperty} from "../utils/specDerivation"
+import {
+    deriveEnhancedCustomProperties,
+    deriveEnhancedPrompts,
+    isPromptProperty,
+    type EnhancedCustomProperty,
+    type EnhancedPrompt,
+} from "../utils/specDerivation"
 
 import {
-    serviceSchemaForRevisionAtomFamily,
     composedServiceSchemaAtomFamily,
+    serviceSchemaForRevisionAtomFamily,
 } from "./serviceSchemaAtoms"
 import {
     legacyAppRevisionEntityWithBridgeAtomFamily,
     legacyAppRevisionQueryAtomFamily,
     localDraftSourceRefsByIdAtom,
 } from "./store"
+
+// Re-export types and functions from specDerivation for backward compat
+export type {EnhancedCustomProperty, EnhancedPrompt}
 
 // ============================================================================
 // SCHEMA QUERY
@@ -161,6 +170,7 @@ const directSchemaQueryAtomFamily = atomFamily((revisionId: string) =>
  * Downstream consumers are unaffected by this routing — they see the same
  * `{ data: RevisionSchemaState, isPending, isError, error }` interface.
  */
+/** Normalized result shape exposed by the schema query router atom. */
 export interface SchemaQueryResult {
     data: RevisionSchemaState
     isPending: boolean
@@ -168,20 +178,46 @@ export interface SchemaQueryResult {
     error: Error | null
 }
 
-export const legacyAppRevisionSchemaQueryAtomFamily: (
-    revisionId: string,
-) => Atom<SchemaQueryResult> = atomFamily((revisionId: string) =>
-    atom<SchemaQueryResult>((get) => {
-        // Local drafts should inherit schema from their source revision.
-        // If source schema is not ready yet, fall back to direct URI schema fetch for the draft.
-        if (isLocalDraftId(revisionId)) {
-            const localEntity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-            const localQueryState = get(legacyAppRevisionQueryAtomFamily(revisionId))
-            const targetRevisionId = resolveLocalDraftTargetRevisionId(get, revisionId)
+export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily(
+    (revisionId: string): Atom<SchemaQueryResult> =>
+        atom<SchemaQueryResult>((get) => {
+            // Local drafts should inherit schema from their source revision.
+            // If source schema is not ready yet, fall back to direct URI schema fetch for the draft.
+            if (isLocalDraftId(revisionId)) {
+                const localEntity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
+                const localQueryState = get(legacyAppRevisionQueryAtomFamily(revisionId))
+                const targetRevisionId = resolveLocalDraftTargetRevisionId(get, revisionId)
 
-            if (targetRevisionId) {
-                const targetQuery = get(legacyAppRevisionSchemaQueryAtomFamily(targetRevisionId))
-                if (targetQuery.isPending) {
+                if (targetRevisionId) {
+                    const targetQuery = get(
+                        legacyAppRevisionSchemaQueryAtomFamily(targetRevisionId),
+                    )
+                    if (targetQuery.isPending) {
+                        return {
+                            data: emptySchemaState,
+                            isPending: true,
+                            isError: false,
+                            error: null,
+                        }
+                    }
+
+                    const targetData = targetQuery.data ?? emptySchemaState
+                    return {
+                        data: {
+                            ...targetData,
+                            runtimePrefix: localEntity?.runtimePrefix ?? targetData.runtimePrefix,
+                            routePath: localEntity?.routePath ?? targetData.routePath,
+                        },
+                        isPending: false,
+                        isError: targetQuery.isError,
+                        error: targetQuery.error ?? null,
+                    }
+                }
+
+                const hasUri = !!localEntity?.uri
+                const isEntityStillLoading = !localEntity && localQueryState.isPending
+
+                if (isEntityStillLoading) {
                     return {
                         data: emptySchemaState,
                         isPending: true,
@@ -190,22 +226,88 @@ export const legacyAppRevisionSchemaQueryAtomFamily: (
                     }
                 }
 
-                const targetData = targetQuery.data ?? emptySchemaState
+                // Local entity data is missing and no query is pending.
+                // Treat as resolved-empty to avoid infinite loading for stale local IDs.
+                if (!localEntity) {
+                    return {
+                        data: emptySchemaState,
+                        isPending: false,
+                        isError: false,
+                        error: null,
+                    }
+                }
+
+                if (!hasUri) {
+                    return {
+                        data: emptySchemaState,
+                        isPending: false,
+                        isError: false,
+                        error: null,
+                    }
+                }
+
+                const directQuery = get(directSchemaQueryAtomFamily(revisionId))
+                if (directQuery.isPending) {
+                    return {
+                        data: emptySchemaState,
+                        isPending: true,
+                        isError: false,
+                        error: null,
+                    }
+                }
+
+                if (directQuery.isError) {
+                    return {
+                        data: emptySchemaState,
+                        isPending: false,
+                        isError: true,
+                        error: directQuery.error ?? null,
+                    }
+                }
+
                 return {
-                    data: {
-                        ...targetData,
-                        runtimePrefix: localEntity?.runtimePrefix ?? targetData.runtimePrefix,
-                        routePath: localEntity?.routePath ?? targetData.routePath,
-                    },
+                    data: directQuery.data ?? emptySchemaState,
                     isPending: false,
-                    isError: targetQuery.isError,
-                    error: targetQuery.error ?? null,
+                    isError: false,
+                    error: null,
                 }
             }
 
-            const hasUri = !!localEntity?.uri
-            const isEntityStillLoading = !localEntity && localQueryState.isPending
+            // Layer 1: Try service schema (fast path for completion/chat apps)
+            const serviceResult = get(serviceSchemaForRevisionAtomFamily(revisionId))
 
+            if (serviceResult.isAvailable) {
+                // Service schema route is active for this revision
+                if (serviceResult.isPending) {
+                    return {
+                        data: emptySchemaState,
+                        isPending: true,
+                        isError: false,
+                        error: null,
+                    }
+                }
+
+                // Compose with revision-specific runtime context
+                const composed = get(composedServiceSchemaAtomFamily(revisionId))
+                if (composed) {
+                    return {
+                        data: composed,
+                        isPending: false,
+                        isError: false,
+                        error: null,
+                    }
+                }
+
+                // Service schema fetch succeeded but composition failed — fall through
+            }
+
+            // Layer 2: Per-revision schema (fallback for custom apps or failed service fetch)
+            const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
+            const entityQueryState = get(legacyAppRevisionQueryAtomFamily(revisionId))
+            const hasUri = !!entityData?.uri
+            const isEntityStillLoading = !entityData && entityQueryState.isPending
+
+            // Entity still loading — treat as pending (data will arrive)
             if (isEntityStillLoading) {
                 return {
                     data: emptySchemaState,
@@ -215,17 +317,22 @@ export const legacyAppRevisionSchemaQueryAtomFamily: (
                 }
             }
 
-            // Local entity data is missing and no query is pending.
-            // Treat as resolved-empty to avoid infinite loading for stale local IDs.
-            if (!localEntity) {
+            // Entity query has resolved but no entity exists (missing/stale revision).
+            // Return resolved-empty rather than hanging in loading forever.
+            if (!entityData) {
                 return {
                     data: emptySchemaState,
                     isPending: false,
-                    isError: false,
-                    error: null,
+                    isError: Boolean(entityQueryState.isError),
+                    error: entityQueryState.error ?? null,
                 }
             }
 
+            // Entity loaded but no URI — schema unavailable (not pending).
+            // Return empty schema rather than hanging forever.
+            // This check MUST come before reading the direct query, because
+            // directSchemaQueryAtomFamily is disabled (enabled=false) when URI
+            // is missing, making query.isPending permanently true.
             if (!hasUri) {
                 return {
                     data: emptySchemaState,
@@ -235,8 +342,10 @@ export const legacyAppRevisionSchemaQueryAtomFamily: (
                 }
             }
 
-            const directQuery = get(directSchemaQueryAtomFamily(revisionId))
-            if (directQuery.isPending) {
+            const query = get(directSchemaQueryAtomFamily(revisionId))
+
+            // Pending if query is actively fetching
+            if (query.isPending) {
                 return {
                     data: emptySchemaState,
                     isPending: true,
@@ -245,122 +354,22 @@ export const legacyAppRevisionSchemaQueryAtomFamily: (
                 }
             }
 
-            if (directQuery.isError) {
+            if (query.isError) {
                 return {
                     data: emptySchemaState,
                     isPending: false,
                     isError: true,
-                    error: directQuery.error ?? null,
+                    error: query.error ?? null,
                 }
             }
 
             return {
-                data: directQuery.data ?? emptySchemaState,
+                data: query.data ?? emptySchemaState,
                 isPending: false,
                 isError: false,
                 error: null,
             }
-        }
-
-        // Layer 1: Try service schema (fast path for completion/chat apps)
-        const serviceResult = get(serviceSchemaForRevisionAtomFamily(revisionId))
-
-        if (serviceResult.isAvailable) {
-            // Service schema route is active for this revision
-            if (serviceResult.isPending) {
-                return {
-                    data: emptySchemaState,
-                    isPending: true,
-                    isError: false,
-                    error: null,
-                }
-            }
-
-            // Compose with revision-specific runtime context
-            const composed = get(composedServiceSchemaAtomFamily(revisionId))
-            if (composed) {
-                return {
-                    data: composed,
-                    isPending: false,
-                    isError: false,
-                    error: null,
-                }
-            }
-
-            // Service schema fetch succeeded but composition failed — fall through
-        }
-
-        // Layer 2: Per-revision schema (fallback for custom apps or failed service fetch)
-        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
-        const entityQueryState = get(legacyAppRevisionQueryAtomFamily(revisionId))
-        const hasUri = !!entityData?.uri
-        const isEntityStillLoading = !entityData && entityQueryState.isPending
-
-        // Entity still loading — treat as pending (data will arrive)
-        if (isEntityStillLoading) {
-            return {
-                data: emptySchemaState,
-                isPending: true,
-                isError: false,
-                error: null,
-            }
-        }
-
-        // Entity query has resolved but no entity exists (missing/stale revision).
-        // Return resolved-empty rather than hanging in loading forever.
-        if (!entityData) {
-            return {
-                data: emptySchemaState,
-                isPending: false,
-                isError: Boolean(entityQueryState.isError),
-                error: entityQueryState.error ?? null,
-            }
-        }
-
-        // Entity loaded but no URI — schema unavailable (not pending).
-        // Return empty schema rather than hanging forever.
-        // This check MUST come before reading the direct query, because
-        // directSchemaQueryAtomFamily is disabled (enabled=false) when URI
-        // is missing, making query.isPending permanently true.
-        if (!hasUri) {
-            return {
-                data: emptySchemaState,
-                isPending: false,
-                isError: false,
-                error: null,
-            }
-        }
-
-        const query = get(directSchemaQueryAtomFamily(revisionId))
-
-        // Pending if query is actively fetching
-        if (query.isPending) {
-            return {
-                data: emptySchemaState,
-                isPending: true,
-                isError: false,
-                error: null,
-            }
-        }
-
-        if (query.isError) {
-            return {
-                data: emptySchemaState,
-                isPending: false,
-                isError: true,
-                error: query.error ?? null,
-            }
-        }
-
-        const resolvedData = query.data ?? emptySchemaState
-
-        return {
-            data: resolvedData,
-            isPending: false,
-            isError: false,
-            error: null,
-        }
-    }),
+        }),
 )
 
 // ============================================================================
