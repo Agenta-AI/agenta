@@ -40,8 +40,17 @@ railway_call() {
             continue
         fi
 
-        # Not a rate-limit error. Print output and return the original exit code.
-        printf "%s\n" "$output"
+        # Not a rate-limit error.
+        # - On success: print to stdout so callers can parse JSON.
+        # - On failure: print to stderr so logs are visible even when callers
+        #   redirect stdout to /dev/null.
+        if [ "$exit_code" -eq 0 ]; then
+            printf "%s\n" "$output"
+            return 0
+        fi
+
+        printf "railway %s failed with exit code %d\n" "$*" "$exit_code" >&2
+        printf "%s\n" "$output" >&2
         return "$exit_code"
     done
 }
