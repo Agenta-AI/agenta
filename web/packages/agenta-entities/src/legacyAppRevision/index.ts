@@ -287,8 +287,6 @@ export type {
 export {
     extractRawValue,
     stripVolatileKeys,
-    enhancedPromptsToParameters,
-    enhancedCustomPropertiesToParameters,
     areParametersDifferent,
     resolveRootSourceId,
     // Parameter extraction
