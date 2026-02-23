@@ -1,0 +1,137 @@
+name: "08 - railway preview: cleanup"
+
+on:
+  pull_request:
+    types: [closed, converted_to_draft]
+  schedule:
+    # Run daily at 06:00 UTC to clean up stale previews
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to destroy (leave empty for stale cleanup only)"
+        required: false
+        type: string
+      max_age_hours:
+        description: "Max age in hours for stale cleanup (default: 24)"
+        required: false
+        type: string
+        default: "24"
+      dry_run:
+        description: "Dry run mode (true/false)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+jobs:
+  destroy-pr-preview:
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.pr_number != '')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: |
+          npm install -g @railway/cli@latest
+          railway --version
+
+      - name: Install jq
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+      - name: Destroy preview environment
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: |
+          chmod +x hosting/railway/oss/scripts/preview-destroy.sh
+          hosting/railway/oss/scripts/preview-destroy.sh
+
+      - name: Update preview comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const marker = '<!-- railway-preview-bot -->';
+            const action = context.payload.action;
+            const reason = action === 'converted_to_draft'
+              ? 'Destroyed (PR converted to draft)'
+              : 'Destroyed (PR closed)';
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const existing = comments.find(c => c.body.includes(marker));
+
+            if (existing) {
+              const body = [
+                marker,
+                '### Railway Preview Environment',
+                '',
+                '| | |',
+                '|---|---|',
+                `| **Status** | ${reason} |`,
+                '',
+                `_Updated at ${new Date().toISOString()}_`,
+              ].join('\n');
+
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            }
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Railway Preview Cleanup" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **PR:** #${{ github.event.pull_request.number || inputs.pr_number }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Action:** Destroyed preview environment" >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup-stale:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.pr_number == '')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: |
+          npm install -g @railway/cli@latest
+          railway --version
+
+      - name: Install jq
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+      - name: Clean up stale previews
+        env:
+          RAILWAY_PREVIEW_MAX_AGE_HOURS: ${{ inputs.max_age_hours || '24' }}
+          RAILWAY_PREVIEW_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          chmod +x hosting/railway/oss/scripts/preview-cleanup-stale.sh
+          hosting/railway/oss/scripts/preview-cleanup-stale.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Railway Stale Preview Cleanup" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Max age:** ${{ inputs.max_age_hours || '24' }}h" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Dry run:** ${{ inputs.dry_run || 'false' }}" >> "$GITHUB_STEP_SUMMARY"
