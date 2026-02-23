@@ -19,12 +19,12 @@ import {
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
+import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
+
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import ExecutionResultView from "../../../ExecutionResultView"
 import CollapseToggleButton from "../../../shared/CollapseToggleButton"
-
-import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
-import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
 
 interface Props {
     rowId: string
