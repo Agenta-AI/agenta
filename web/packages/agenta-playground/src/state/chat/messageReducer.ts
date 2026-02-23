@@ -16,26 +16,27 @@ import {atom} from "jotai"
 
 import {derivedLoadableIdAtom} from "../execution/selectors"
 import {buildUserMessage} from "../helpers/messageFactory"
+import {syncChatMessagesToEntityAtom} from "../helpers/syncChatMessagesToEntity"
 
 import {
+    executionByMessageIdAtomFamily,
     messageIdsAtomFamily,
     messagesByIdAtomFamily,
-    executionByMessageIdAtomFamily,
 } from "./messageAtoms"
 import type {
-    ChatMessage,
-    MessageExecution,
     AddMessagePayload,
-    UpdateMessagePayload,
-    RemoveMessagesPayload,
-    ClearSessionResponsesPayload,
-    StartExecutionPayload,
-    CompleteExecutionPayload,
-    FailExecutionPayload,
     AddUserMessagePayload,
-    TruncateChatPayload,
-    PatchMessagePayload,
+    ChatMessage,
+    ClearSessionResponsesPayload,
+    CompleteExecutionPayload,
     DeleteMessagePayload,
+    FailExecutionPayload,
+    MessageExecution,
+    PatchMessagePayload,
+    RemoveMessagesPayload,
+    StartExecutionPayload,
+    TruncateChatPayload,
+    UpdateMessagePayload,
 } from "./messageTypes"
 import {SHARED_SESSION_ID} from "./messageTypes"
 
@@ -83,6 +84,9 @@ export const addMessageAtom = atom(
         set(messageIdsAtomFamily(loadableId), nextIds)
         set(messagesByIdAtomFamily(loadableId), {...byId, [msgId]: msg})
 
+        // Sync to entity drafts (same pattern as completion mode cell edits)
+        set(syncChatMessagesToEntityAtom, loadableId)
+
         return msgId
     },
 )
@@ -121,6 +125,9 @@ export const addMessagesAtom = atom(
 
         set(messageIdsAtomFamily(loadableId), nextIds)
         set(messagesByIdAtomFamily(loadableId), byId)
+
+        // Sync to entity drafts
+        set(syncChatMessagesToEntityAtom, loadableId)
     },
 )
 
@@ -139,6 +146,9 @@ export const updateMessageAtom = atom(
             ...byId,
             [messageId]: {...existing, ...updates, id: existing.id},
         })
+
+        // Sync to entity drafts
+        set(syncChatMessagesToEntityAtom, loadableId)
     },
 )
 
@@ -177,6 +187,9 @@ export const removeMessagesAtom = atom(
         if (execChanged) {
             set(executionByMessageIdAtomFamily(loadableId), execMap)
         }
+
+        // Sync to entity drafts
+        set(syncChatMessagesToEntityAtom, loadableId)
     },
 )
 
@@ -229,6 +242,7 @@ export const truncateAfterMessageAtom = atom(
         if (toRemove.length === 0) return
 
         set(removeMessagesAtom, {loadableId, messageIds: toRemove})
+        // Note: sync happens inside removeMessagesAtom
     },
 )
 
@@ -458,6 +472,7 @@ export const truncateChatAtom = atom(
         if (removedIds.length === 0) return
 
         set(removeMessagesAtom, {loadableId, messageIds: removedIds})
+        // Note: sync happens inside removeMessagesAtom
     },
 )
 
