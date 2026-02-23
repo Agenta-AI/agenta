@@ -10,21 +10,21 @@ import {
     MagnifyingGlassIcon,
     XIcon,
 } from "@phosphor-icons/react"
-import {Button, Collapse, Dropdown, Input, Space, theme} from "antd"
+import {Button, Collapse, Dropdown, Input, Space} from "antd"
+import clsx from "clsx"
 import yaml from "js-yaml"
 import dynamic from "next/dynamic"
-import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import {TraceSpanDrillInView} from "@/oss/components/DrillInView/TraceSpanDrillInView"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
-import {JSSTheme} from "@/oss/lib/Types"
 const ImagePreview = dynamic(() => import("@/oss/components/Common/ImagePreview"), {ssr: false})
 
 type AccordionTreePanelProps = {
     value: Record<string, any> | string | any[]
+    spanId?: string
     label: string
     enableFormatSwitcher?: boolean
     bgColor?: string
@@ -95,66 +95,6 @@ const renderStringifiedJson = (value: unknown): {value: unknown; didRender: bool
     return {value, didRender: false}
 }
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    collapseContainer: ({
-        bgColor,
-        useDrillInView,
-    }: {
-        bgColor?: string
-        useDrillInView?: boolean
-    }) => ({
-        backgroundColor: "unset",
-        display: "flex",
-        flexDirection: "column",
-        position: "relative",
-        "& .ant-collapse-item": {
-            display: "flex !important",
-            flexDirection: "column",
-            height: "100%",
-            background: useDrillInView ? theme.colorBgContainer : theme.colorFillAlter,
-            borderRadius: `${theme.borderRadiusLG}px !important`,
-            border: `1px solid ${theme.colorBorder}`,
-            overflowY: "auto",
-        },
-        "& .ant-collapse-item:last-child": {
-            borderBottom: `1px solid ${theme.colorBorder}`,
-        },
-        "& .ant-collapse-header": {
-            alignItems: "center !important",
-            height: 42,
-            backgroundColor: useDrillInView ? `${theme.colorBgContainer} !important` : undefined,
-        },
-        "& .ant-collapse-panel": {
-            borderTop: `1px solid ${theme.colorBorder} !important`,
-            padding: `0px`,
-            lineHeight: theme.lineHeight,
-            backgroundColor: `${bgColor || theme.colorBgContainer} !important`,
-            borderBottomLeftRadius: theme.borderRadius,
-            borderBottomRightRadius: theme.borderRadius,
-            fontSize: theme.fontSize,
-            flexGrow: 1,
-            "& .ant-collapse-body": {
-                height: "100%",
-                padding: "0px !important",
-            },
-        },
-    }),
-    searchBar: {
-        position: "absolute",
-        top: 48,
-        right: 24,
-        zIndex: 100,
-        background: "#fff",
-        borderRadius: 6,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-        display: "flex",
-        alignItems: "center",
-        padding: 4,
-        gap: 4,
-        border: `1px solid ${theme.colorBorder}`,
-    },
-}))
-
 const AccordionTreePanel = ({
     value: incomingValue,
     spanId,
@@ -167,8 +107,6 @@ const AccordionTreePanel = ({
     viewModePreset = "default",
     ...props
 }: AccordionTreePanelProps) => {
-    const {token} = theme.useToken()
-    const classes = useStyles({bgColor, useDrillInView, theme: token})
     const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(
         viewModePreset === "message" ? "text" : "json",
     )
@@ -287,10 +225,23 @@ const AccordionTreePanel = ({
         [availableViewModes],
     )
 
+    const collapseClassName = clsx(
+        "relative flex flex-col bg-transparent",
+        "[&_.ant-collapse-item]:!flex [&_.ant-collapse-item]:!flex-col [&_.ant-collapse-item]:h-full [&_.ant-collapse-item]:overflow-y-auto",
+        "[&_.ant-collapse-item]:rounded-lg [&_.ant-collapse-item]:border [&_.ant-collapse-item]:border-solid [&_.ant-collapse-item]:border-[rgba(5,23,41,0.06)]",
+        useDrillInView ? "[&_.ant-collapse-item]:bg-white" : "[&_.ant-collapse-item]:bg-[#fafafa]",
+        "[&_.ant-collapse-item:last-child]:border-b [&_.ant-collapse-item:last-child]:border-solid [&_.ant-collapse-item:last-child]:border-[rgba(5,23,41,0.06)]",
+        "[&_.ant-collapse-header]:!items-center [&_.ant-collapse-header]:!h-[42px]",
+        useDrillInView ? "[&_.ant-collapse-header]:!bg-white" : "",
+        "[&_.ant-collapse-panel]:!border-t [&_.ant-collapse-panel]:!border-solid [&_.ant-collapse-panel]:!border-[rgba(5,23,41,0.06)]",
+        "[&_.ant-collapse-panel]:!p-0 [&_.ant-collapse-panel]:!rounded-b-md [&_.ant-collapse-panel]:text-sm [&_.ant-collapse-panel]:flex-grow [&_.ant-collapse-panel]:!bg-[var(--accordion-panel-bg)]",
+        "[&_.ant-collapse-body]:!h-full [&_.ant-collapse-body]:!p-0",
+    )
+
     const collapse = (
         <div className="relative">
             {isSearchOpen && (
-                <div className={classes.searchBar}>
+                <div className="absolute top-12 right-6 z-[100] flex items-center gap-1 rounded-md border border-solid border-gray-200 bg-white p-1 shadow-[0_2px_8px_rgba(0,0,0,0.15)]">
                     <Input
                         size="small"
                         placeholder="Search..."
@@ -399,7 +350,12 @@ const AccordionTreePanel = ({
                         ),
                     },
                 ]}
-                className={classes.collapseContainer}
+                className={collapseClassName}
+                style={
+                    {
+                        "--accordion-panel-bg": bgColor || "white",
+                    } as any
+                }
                 bordered={false}
             />
         </div>
