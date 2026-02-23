@@ -607,7 +607,6 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
  */
 const selectedDraftHashAtom = atom((get) => {
     const selectedVariants = get(playgroundController.selectors.entityIds())
-    const nodes = get(playgroundController.selectors.nodes())
 
     const parts = selectedVariants.map((revisionId) => {
         const isDirty = get(runnableBridge.isDirty(revisionId))
