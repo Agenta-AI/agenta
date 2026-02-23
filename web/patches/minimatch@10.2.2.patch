@@ -1,0 +1,33 @@
+diff --git a/dist/commonjs/index.js b/dist/commonjs/index.js
+index 5a0ba2a87fb0365a959223919e82e6ac32dc49f8..15668ec1878292994b6baf85a00bbb923d5f0c51 100644
+--- a/dist/commonjs/index.js
++++ b/dist/commonjs/index.js
+@@ -1032,4 +1032,18 @@ exports.minimatch.AST = ast_js_1.AST;
+ exports.minimatch.Minimatch = Minimatch;
+ exports.minimatch.escape = escape_js_1.escape;
+ exports.minimatch.unescape = unescape_js_1.unescape;
++module.exports = exports.minimatch;
++module.exports.minimatch = exports.minimatch;
++module.exports.sep = exports.sep;
++module.exports.GLOBSTAR = exports.GLOBSTAR;
++module.exports.filter = exports.filter;
++module.exports.defaults = exports.defaults;
++module.exports.braceExpand = exports.braceExpand;
++module.exports.makeRe = exports.makeRe;
++module.exports.match = exports.match;
++module.exports.Minimatch = exports.Minimatch;
++module.exports.AST = exports.AST;
++module.exports.escape = exports.escape;
++module.exports.unescape = exports.unescape;
++module.exports.default = exports.minimatch;
+ //# sourceMappingURL=index.js.map
+diff --git a/dist/esm/index.js b/dist/esm/index.js
+index 3175327db5efbf7e59e6294a767bec9835f1e4cf..6c2bccd4ac3ffa14f13e3b6f6f50d0a9d8bab8cd 100644
+--- a/dist/esm/index.js
++++ b/dist/esm/index.js
+@@ -1019,4 +1019,5 @@ minimatch.AST = AST;
+ minimatch.Minimatch = Minimatch;
+ minimatch.escape = escape;
+ minimatch.unescape = unescape;
++export default minimatch;
+ //# sourceMappingURL=index.js.map
