@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     ArrowDownIcon,
@@ -16,15 +16,7 @@ import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
-import {DrillInContent} from "@/oss/components/DrillInView"
 import {TraceSpanDrillInView} from "@/oss/components/DrillInView/TraceSpanDrillInView"
-import EditorWrapper, {
-    EditorProvider,
-    useLexicalComposerContext,
-} from "@/oss/components/Editor/Editor"
-import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import {SearchPlugin} from "@/oss/components/Editor/plugins/search/SearchPlugin"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
@@ -50,66 +42,6 @@ const PANEL_VIEW_MODE_LABELS: Record<PanelViewMode, string> = {
     "rendered-json": "Rendered JSON",
     text: "Text",
     markdown: "Markdown",
-}
-
-interface DrillInPathItem {
-    key: string
-    name: string
-    value: unknown
-    isColumn?: boolean
-}
-
-const DRILL_IN_SECTION_ROOT_KEY = "__section_root__"
-
-const tryParseJsonString = (value: string): unknown | null => {
-    const trimmed = value.trim()
-    if (!trimmed) return null
-    try {
-        return JSON.parse(trimmed)
-    } catch {
-        return null
-    }
-}
-
-const getValueAtPath = (value: unknown, path: string[]): unknown => {
-    if (path.length === 0) return value
-
-    let current: unknown = value
-    for (const segment of path) {
-        if (typeof current === "string") {
-            const parsed = tryParseJsonString(current)
-            if (parsed === null) return undefined
-            current = parsed
-        }
-
-        if (Array.isArray(current)) {
-            const index = Number(segment)
-            if (Number.isNaN(index)) return undefined
-            current = current[index]
-            continue
-        }
-
-        if (current && typeof current === "object") {
-            current = (current as Record<string, unknown>)[segment]
-            continue
-        }
-
-        return undefined
-    }
-
-    return current
-}
-
-const getRootItemsForValue = (value: unknown, label: string): DrillInPathItem[] => {
-    if (value === undefined) return []
-    return [
-        {
-            key: DRILL_IN_SECTION_ROOT_KEY,
-            name: label,
-            value,
-            isColumn: false,
-        },
-    ]
 }
 
 const parseStructuredJson = (value: string): unknown | null => {
@@ -237,116 +169,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const LanguageAwareViewer = ({
-    initialValue,
-    language,
-    searchProps,
-}: {
-    initialValue: string
-    language: "json" | "yaml" | "rendered-json"
-    searchProps?: {
-        searchTerm: string
-        currentResultIndex: number
-        onResultCountChange: (count: number) => void
-    }
-}) => {
-    const [editor] = useLexicalComposerContext()
-    const changeLanguage = useCallback(
-        (lang: "json" | "yaml") => {
-            editor.dispatchCommand(ON_CHANGE_LANGUAGE, {language: lang})
-        },
-        [editor],
-    )
-
-    useEffect(() => {
-        if (language === "json" || language === "rendered-json") {
-            changeLanguage("json")
-        } else if (language === "yaml") {
-            changeLanguage("yaml")
-        }
-        editor.setEditable(false)
-    }, [language, changeLanguage, editor])
-
-    const additionalPlugins = useMemo(() => {
-        if (!searchProps) return []
-        return [
-            <SearchPlugin
-                key="search"
-                searchTerm={searchProps.searchTerm}
-                currentResultIndex={searchProps.currentResultIndex}
-                onResultCountChange={searchProps.onResultCountChange}
-            />,
-        ]
-    }, [searchProps])
-
-    return (
-        <EditorWrapper
-            initialValue={initialValue}
-            language={language === "rendered-json" ? "json" : (language as "json" | "yaml")}
-            codeOnly={true}
-            showToolbar={false}
-            enableTokens={false}
-            disabled
-            noProvider
-            readOnly
-            additionalCodePlugins={additionalPlugins}
-        />
-    )
-}
-
-const MarkdownModeSync = ({isMarkdownView}: {isMarkdownView: boolean}) => {
-    const [editor] = useLexicalComposerContext()
-    const previousModeRef = useRef<boolean | null>(null)
-
-    useEffect(() => {
-        if (previousModeRef.current === null) {
-            if (isMarkdownView) {
-                editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
-            }
-            previousModeRef.current = isMarkdownView
-            return
-        }
-
-        if (previousModeRef.current !== isMarkdownView) {
-            editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
-            previousModeRef.current = isMarkdownView
-        }
-    }, [editor, isMarkdownView])
-
-    return null
-}
-
-const TextModeViewer = ({
-    editorId,
-    value,
-    mode,
-}: {
-    editorId: string
-    value: string
-    mode: "text" | "markdown"
-}) => {
-    return (
-        <EditorProvider
-            id={editorId}
-            initialValue={value}
-            showToolbar={false}
-            enableTokens
-            readOnly
-        >
-            <MarkdownModeSync isMarkdownView={mode === "markdown"} />
-            <EditorWrapper
-                initialValue={value}
-                disabled
-                codeOnly={false}
-                showToolbar={false}
-                boundHeight={false}
-                noProvider
-                readOnly
-            />
-        </EditorProvider>
-    )
-}
-
 const AccordionTreePanel = ({
     value: incomingValue,
     spanId,
@@ -365,7 +187,6 @@ const AccordionTreePanel = ({
         viewModePreset === "message" ? "text" : "json",
     )
     const editorRef = useRef<HTMLDivElement>(null)
-    const textViewerId = useId().replace(/:/g, "")
 
     // Search State
     const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -435,27 +256,6 @@ const AccordionTreePanel = ({
         }
     }, [availableViewModes, panelViewMode])
 
-    const activeDrillInValue = useMemo(() => {
-        return panelViewMode === "rendered-json" ? renderedJsonResult.value : sanitizedValue
-    }, [panelViewMode, renderedJsonResult.value, sanitizedValue])
-
-    const shouldUseDrillInBody = true
-    // useDrillInView &&
-    // (!enableSearch || !isSearchOpen) &&
-    // (panelViewMode === "json" || panelViewMode === "rendered-json")
-
-    const drillInRootItems = useMemo(
-        () => getRootItemsForValue(activeDrillInValue, label),
-        [activeDrillInValue, label],
-    )
-    const drillInGetValue = useCallback(
-        (path: string[]) => {
-            const normalizedPath = path[0] === DRILL_IN_SECTION_ROOT_KEY ? path.slice(1) : path
-            return getValueAtPath(activeDrillInValue, normalizedPath)
-        },
-        [activeDrillInValue],
-    )
-
     useEffect(() => {
         closeSearch()
     }, [sanitizedValue])
@@ -466,8 +266,6 @@ const AccordionTreePanel = ({
         link.download = ""
         link.click()
     }, [])
-
-    const jsonOutput = useMemo(() => getStringOrJson(sanitizedValue), [sanitizedValue])
 
     const renderedJsonOutput = useMemo(() => {
         if (panelViewMode !== "rendered-json") return ""
@@ -492,21 +290,6 @@ const AccordionTreePanel = ({
         if (typeof sanitizedValue === "string") return sanitizedValue
         return getStringOrJson(sanitizedValue)
     }, [sanitizedValue])
-
-    const isTextViewMode = panelViewMode === "text" || panelViewMode === "markdown"
-    const codeViewerLanguage: "json" | "yaml" | "rendered-json" =
-        panelViewMode === "yaml"
-            ? "yaml"
-            : panelViewMode === "rendered-json"
-              ? "rendered-json"
-              : "json"
-
-    const codeViewerValue =
-        panelViewMode === "yaml"
-            ? yamlOutput
-            : panelViewMode === "rendered-json"
-              ? renderedJsonOutput
-              : jsonOutput
 
     const viewModeMenuItems = useMemo(
         () =>
