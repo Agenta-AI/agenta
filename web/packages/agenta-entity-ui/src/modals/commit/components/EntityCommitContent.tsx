@@ -13,9 +13,6 @@ import {cn, textColors} from "@agenta/ui/styles"
 import {Input, Alert, Typography, Skeleton, Radio} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-// Lazy load DiffView to avoid bundling Lexical editor in _app chunk
-const DiffView = lazy(() => import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})))
-
 import {
     commitModalEntityNameAtom,
     commitModalMessageAtom,
@@ -24,6 +21,9 @@ import {
     commitModalContextAtom,
     setCommitMessageAtom,
 } from "../state"
+
+// Lazy load DiffView to avoid bundling Lexical editor in _app chunk
+const DiffView = lazy(() => import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})))
 
 const {TextArea} = Input
 const {Text} = Typography
