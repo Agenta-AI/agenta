@@ -19,17 +19,17 @@ Flag defaults (asymmetric by type):
             → default retrieve returns stored expressions only ([A.0] behaviour)
 
 Expected status (red/green) at time of writing:
-  [A.0] testset  RED  — include_testcase_ids flag missing; cannot opt out of IDs
+  [A.0] testset  GREEN
   [A.0] query    GREEN
-  [A.1] testset  RED  — include_testcase_ids flag missing; windowing not supported
-  [A.1] query    RED  — include_trace_ids flag not yet in request model
-  [A.2] testset  RED  — testcase_ids cleared when returning testcases
-  [A.2] query    RED  — include_traces flag not yet in request model
+  [A.1] testset  GREEN
+  [A.1] query    GREEN
+  [A.2] testset  GREEN
+  [A.2] query    GREEN
   [B.0] query    GREEN
   [B.1] testset  GREEN
   [B.1] traces   GREEN (requires async trace ingestion to complete)
-  [B.2] testset  RED  — ref objects not accepted, only flat testset_revision_id
-  [B.2] traces   RED  — query revision refs not supported in traces query
+  [B.2] testset  GREEN
+  [B.2] traces   GREEN
 """
 
 import time
@@ -79,13 +79,13 @@ def mock_data(authed_api):
     testset_id = testset["id"]
     testset_revision_id = testset["revision_id"]
 
-    # Resolve testcase IDs using the existing testset_revision_id path
+    # Resolve testcase IDs using the testset_revision_ref path
     # (independent of the strategies under test)
     response = authed_api(
         "POST",
         "/preview/testcases/query",
         json={
-            "testset_revision_id": testset_revision_id,
+            "testset_revision_ref": {"id": testset_revision_id},
             "windowing": {"limit": 100},
         },
     )
@@ -114,11 +114,11 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/traces/",
+        "/preview/traces/ingest",
         json={"spans": spans},
     )
-    # Ingestion is asynchronous; 200 or 202 are both acceptable
-    assert response.status_code in (200, 202), response.text
+    # Ingestion is asynchronous; 202 Accepted
+    assert response.status_code == 202, response.text
 
     # Allow a moment for async ingestion to settle
     time.sleep(1)
@@ -513,10 +513,9 @@ class TestLoadableStrategies:
         endpoint resolves the revision, executes its stored filter (merged with
         request windowing), and returns traces.
 
-        Status: RED — POST /preview/traces/query does not accept query revision
-        refs; it only handles direct filtering expressions.
-        Fix: add query_revision_ref / query_variant_ref / query_ref to the
-        traces query request; service logic to resolve and execute the filter.
+        Status: GREEN — POST /preview/traces/query accepts query_revision_ref,
+        query_variant_ref, and query_ref; resolves the stored filter and
+        windowing from the revision, then executes against the tracing service.
         """
 
         # ACT -----------------------------------------------------------------
@@ -535,4 +534,382 @@ class TestLoadableStrategies:
         body = response.json()
         traces = body.get("traces") or body.get("spans") or []
         assert len(traces) == 3
+        # ---------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Grumpy-path tests — undesired behavior (errors, not-found, empty results)
+# ---------------------------------------------------------------------------
+
+
+class TestLoadableStrategiesGrumpyPaths:
+    def test_grumpy_a0_testset_unknown_revision(self, authed_api, mock_data):
+        """
+        [A.0] Testset — unknown revision ref → 200 with null testset_revision.
+        No 500/404; the envelope is returned with count=0.
+        """
+
+        # ACT -----------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/preview/testsets/revisions/retrieve",
+            json={
+                "testset_revision_ref": {"id": str(uuid4())},
+                "include_testcase_ids": False,
+                "include_testcases": False,
+            },
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        body = response.json()
+        assert body.get("count") == 0
+        assert body.get("testset_revision") is None
+        # ---------------------------------------------------------------------
+
+    def test_grumpy_a0_query_unknown_revision(self, authed_api, mock_data):
+        """
+        [A.0] Query — unknown revision ref → 200 with null query_revision.
+        """
+
+        # ACT -----------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/preview/queries/revisions/retrieve",
+            json={"query_revision_ref": {"id": str(uuid4())}},
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        body = response.json()
+        assert body.get("count") == 0
+        assert body.get("query_revision") is None
+        # ---------------------------------------------------------------------
+
+    def test_grumpy_b2_testset_unknown_revision_ref(self, authed_api, mock_data):
+        """
+        [B.2] Testset — unknown testset_revision_ref in testcases query
+        → 200 empty response (count=0, testcases=[]), not a 500.
+        """
+
+        # ACT -----------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/preview/testcases/query",
+            json={
+                "testset_revision_ref": {"id": str(uuid4())},
+                "windowing": {"limit": 50},
+            },
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        body = response.json()
+        assert body.get("count") == 0
+        assert body.get("testcases") == []
+        # ---------------------------------------------------------------------
+
+    def test_grumpy_b2_query_unknown_revision_ref(self, authed_api, mock_data):
+        """
+        [B.2] Query — unknown query_revision_ref in traces query
+        → 200 empty traces (count=0), not all traces in the account.
+        The endpoint resolves the ref; when not found it returns empty, not all traces.
+        """
+
+        # ACT -----------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/preview/traces/query",
+            json={
+                "query_revision_ref": {"id": str(uuid4())},
+                "windowing": {"limit": 50},
+            },
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        body = response.json()
+        traces = body.get("traces") or body.get("spans") or []
+        # An unknown revision should produce no results, not all traces
+        assert len(traces) == 0
+        # ---------------------------------------------------------------------
+
+    def test_grumpy_a1_query_filter_matches_nothing(self, authed_api, mock_data):
+        """
+        [A.1] Query — stored filter uses a tag that matches no traces.
+        include_trace_ids=True should return empty trace_ids list, not an error
+        and not all traces in the account.
+        """
+
+        ghost_tag = f"ghost_{uuid4().hex}"
+        query_slug = uuid4().hex
+        response = authed_api(
+            "POST",
+            "/preview/simple/queries/",
+            json={
+                "query": {
+                    "slug": query_slug,
+                    "name": "Grumpy — No Match Query",
+                    "data": {
+                        "filtering": {
+                            "operator": "and",
+                            "conditions": [
+                                {
+                                    "field": "attributes",
+                                    "key": ghost_tag,
+                                    "value": "never_matches",
+                                    "operator": "is",
+                                }
+                            ],
+                        },
+                        "windowing": {"limit": 50},
+                    },
+                }
+            },
+        )
+        assert response.status_code == 200
+        query_revision_id = response.json()["query"]["revision_id"]
+
+        # ACT -----------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/preview/queries/revisions/retrieve",
+            json={
+                "query_revision_ref": {"id": query_revision_id},
+                "include_trace_ids": True,
+            },
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        data = response.json()["query_revision"]["data"]
+        trace_ids = data.get("trace_ids") or []
+        traces = data.get("traces") or []
+        # Ghost filter matches nothing — no IDs or items
+        assert len(trace_ids) == 0
+        assert len(traces) == 0
+        # ---------------------------------------------------------------------
+
+    def test_grumpy_a2_testset_empty_testset(self, authed_api, mock_data):
+        """
+        [A.2] Testset — testset with zero testcases returns empty lists (not None),
+        no error.
+        """
+
+        # ARRANGE — create a testset with no testcases -------------------------
+        testset_slug = uuid4().hex
+        response = authed_api(
+            "POST",
+            "/preview/simple/testsets/",
+            json={
+                "testset": {
+                    "slug": testset_slug,
+                    "name": "Grumpy — Empty Testset",
+                    "data": {"testcases": []},
+                }
+            },
+        )
+        assert response.status_code == 200
+        empty_revision_id = response.json()["testset"]["revision_id"]
+        # ---------------------------------------------------------------------
+
+        # ACT — retrieve with default flags (include_testcase_ids and include_testcases both True)
+        response = authed_api(
+            "POST",
+            "/preview/testsets/revisions/retrieve",
+            json={"testset_revision_ref": {"id": empty_revision_id}},
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        revision = response.json()["testset_revision"]
+        assert revision is not None
+        data = revision.get("data") or {}
+        # Empty testset: IDs list should be empty/None, testcases empty/None
+        testcase_ids = data.get("testcase_ids") or []
+        testcases = data.get("testcases") or []
+        assert len(testcase_ids) == 0
+        assert len(testcases) == 0
+        # ---------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Edge-case tests — unlikely but valid boundary behavior
+# ---------------------------------------------------------------------------
+
+
+class TestLoadableStrategiesEdgeCases:
+    def test_edge_a1_testset_windowing_limit_1(self, authed_api, mock_data):
+        """
+        [A.1] Testset — windowing limit=1 slices to exactly 1 testcase_id.
+        Verifies that limit is applied to the stored ID list before returning.
+        """
+
+        # ACT -----------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/preview/testsets/revisions/retrieve",
+            json={
+                "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
+                "include_testcase_ids": True,
+                "include_testcases": False,
+                "windowing": {"limit": 1},
+            },
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        data = response.json()["testset_revision"]["data"]
+        assert data.get("testcase_ids") is not None
+        assert len(data["testcase_ids"]) == 1
+        assert data.get("testcases") is None
+        # The returned ID must be one of the known IDs
+        assert data["testcase_ids"][0] in [str(i) for i in mock_data["testcase_ids"]]
+        # ---------------------------------------------------------------------
+
+    def test_edge_a2_testset_windowing_limit_1(self, authed_api, mock_data):
+        """
+        [A.2] Testset — windowing limit=1 slices to 1 testcase and 1 testcase_id.
+        Verifies that both arrays are in sync after a paginated fetch.
+        """
+
+        # ACT -----------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/preview/testsets/revisions/retrieve",
+            json={
+                "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
+                "windowing": {"limit": 1},
+            },
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        data = response.json()["testset_revision"]["data"]
+        assert len(data["testcase_ids"]) == 1
+        assert len(data["testcases"]) == 1
+        # ID and item must be consistent
+        assert str(data["testcases"][0]["id"]) == str(data["testcase_ids"][0])
+        # ---------------------------------------------------------------------
+
+    def test_edge_a2_testset_windowing_beyond_count(self, authed_api, mock_data):
+        """
+        [A.2] Testset — windowing limit much larger than item count returns all
+        items without error (no off-by-one or out-of-bounds).
+        """
+
+        # ACT -----------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/preview/testsets/revisions/retrieve",
+            json={
+                "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
+                "windowing": {"limit": 10000},
+            },
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        data = response.json()["testset_revision"]["data"]
+        assert len(data["testcase_ids"]) == 3
+        assert len(data["testcases"]) == 3
+        # ---------------------------------------------------------------------
+
+    def test_edge_a1_query_windowing_limit_1(self, authed_api, mock_data):
+        """
+        [A.1] Query — windowing limit=1 returns exactly 1 trace_id.
+        Verifies the tracing service respects the limit override.
+        """
+
+        # ACT -----------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/preview/queries/revisions/retrieve",
+            json={
+                "query_revision_ref": {"id": mock_data["query_revision_id"]},
+                "include_trace_ids": True,
+                "windowing": {"limit": 1},
+            },
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        data = response.json()["query_revision"]["data"]
+        assert data.get("trace_ids") is not None
+        assert len(data["trace_ids"]) == 1
+        assert data.get("traces") is None
+        # The returned ID must be one of the known trace_ids.
+        # Normalize to bare hex (no dashes) since ingestion and retrieval may
+        # format the same trace_id differently.
+        returned_hex = data["trace_ids"][0].replace("-", "")
+        assert returned_hex in mock_data["trace_ids"]
+        # ---------------------------------------------------------------------
+
+    def test_edge_a2_query_request_windowing_overrides_stored(
+        self, authed_api, mock_data
+    ):
+        """
+        [A.2] Query — request windowing.limit=1 overrides the stored limit (50).
+        Verifies that pagination is driven by the caller, not the stored bound.
+        """
+
+        # ACT -----------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/preview/queries/revisions/retrieve",
+            json={
+                "query_revision_ref": {"id": mock_data["query_revision_id"]},
+                "include_traces": True,
+                "windowing": {"limit": 1},
+            },
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        data = response.json()["query_revision"]["data"]
+        # Stored limit is 50 but request overrides to 1
+        assert data.get("traces") is not None
+        assert len(data["traces"]) == 1
+        assert data.get("trace_ids") is not None
+        assert len(data["trace_ids"]) == 1
+        # ---------------------------------------------------------------------
+
+    def test_edge_b2_testset_testset_ref_resolves_latest(self, authed_api, mock_data):
+        """
+        [B.2] Testset — passing testset_ref (artifact-level, not revision-level)
+        to the testcases query endpoint resolves to the latest revision of the
+        default variant and returns all 3 testcases.
+        """
+
+        # ACT -----------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/preview/testcases/query",
+            json={
+                "testset_ref": {"id": mock_data["testset_id"]},
+                "windowing": {"limit": 50},
+            },
+        )
+        # ---------------------------------------------------------------------
+
+        # ASSERT --------------------------------------------------------------
+        assert response.status_code == 200
+        body = response.json()
+        assert body.get("testcases") is not None
+        assert len(body["testcases"]) == 3
+        # All returned testcases must belong to the known set
+        returned_ids = {str(tc["id"]) for tc in body["testcases"]}
+        known_ids = {str(i) for i in mock_data["testcase_ids"]}
+        assert returned_ids == known_ids
         # ---------------------------------------------------------------------

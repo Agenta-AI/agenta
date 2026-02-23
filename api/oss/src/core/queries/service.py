@@ -1,10 +1,16 @@
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from uuid import UUID, uuid4
+from collections import defaultdict
 
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.tracing.dtos import TracingQuery, OTelSpan, OTelSpansTree
+
+if TYPE_CHECKING:
+    from oss.src.core.tracing.service import TracingService
+
 from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
@@ -55,8 +61,78 @@ class QueriesService:
         self,
         *,
         queries_dao: GitDAOInterface,
+        tracing_service: Optional["TracingService"] = None,
     ):
         self.queries_dao = queries_dao
+        self.tracing_service = tracing_service
+
+    async def _populate_traces(
+        self,
+        project_id: UUID,
+        #
+        query_revision: "QueryRevision",
+        #
+        include_trace_ids: Optional[bool] = None,
+        include_traces: Optional[bool] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> None:
+        """Conditionally execute the stored filter and populate trace IDs / traces.
+
+        Flag defaults (both False when None — queries default is stored content only):
+          include_trace_ids=True  — execute filter and return trace_ids
+          include_traces=True     — execute filter and return both trace_ids and traces
+
+        [A.1] include_trace_ids=True,  include_traces=False
+              → execute filter; return trace_ids only
+        [A.2] include_trace_ids=True,  include_traces=True  (or include_traces alone)
+              → execute filter; return both trace_ids and traces
+        """
+        if not query_revision.data or not self.tracing_service:
+            return
+
+        _include_ids = include_trace_ids is True
+        _include_items = include_traces is True
+
+        if not _include_ids and not _include_items:
+            return
+
+        # Merge windowing: stored bounds take precedence; request limit overrides
+        stored = query_revision.data.windowing
+        if stored:
+            merged = stored.model_copy()
+            if windowing and windowing.limit is not None:
+                merged = merged.model_copy(update={"limit": windowing.limit})
+        else:
+            merged = windowing
+
+        tracing_query = TracingQuery(
+            filtering=query_revision.data.filtering,
+            windowing=merged,
+        )
+
+        flat_spans = await self.tracing_service.query(
+            project_id=project_id,
+            query=tracing_query,
+        )
+
+        # Group spans by trace_id to extract unique IDs
+        spans_by_trace: dict = defaultdict(list)
+        for span in flat_spans:
+            spans_by_trace[span.trace_id].append(span)
+
+        query_revision.data.trace_ids = list(spans_by_trace.keys())
+
+        if _include_items:
+            query_revision.data.traces = [
+                {
+                    tid: OTelSpansTree(
+                        spans={s.span_id: OTelSpan(**s.model_dump()) for s in spans}
+                    )
+                }
+                for tid, spans in spans_by_trace.items()
+            ]
+        else:
+            query_revision.data.traces = None
 
     ## -- artifacts ------------------------------------------------------------
 
@@ -468,6 +544,11 @@ class QueriesService:
         query_ref: Optional[Reference] = None,
         query_variant_ref: Optional[Reference] = None,
         query_revision_ref: Optional[Reference] = None,
+        #
+        include_trace_ids: Optional[bool] = None,
+        include_traces: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> Optional[QueryRevision]:
         if not query_ref and not query_variant_ref and not query_revision_ref:
             return None
@@ -513,6 +594,17 @@ class QueriesService:
 
         _query_revision = QueryRevision(
             **revision.model_dump(mode="json"),
+        )
+
+        await self._populate_traces(
+            project_id,
+            #
+            _query_revision,
+            #
+            include_trace_ids=include_trace_ids,
+            include_traces=include_traces,
+            #
+            windowing=windowing,
         )
 
         return _query_revision
@@ -844,6 +936,9 @@ class SimpleQueriesService:
             meta=query.meta,
             #
             data=query_revision.data,
+            #
+            variant_id=query_variant.id,
+            revision_id=query_revision.id,
         )
 
         return simple_query

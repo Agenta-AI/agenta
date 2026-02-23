@@ -15,7 +15,6 @@ from oss.src.core.testcases.service import (
 from oss.src.core.testsets.service import (
     TestsetsService,
 )
-from oss.src.core.shared.dtos import Reference
 
 from oss.src.apis.fastapi.testcases.models import (
     TestcasesQueryRequest,
@@ -172,13 +171,20 @@ class TestcasesRouter:
         testset_id = testcases_query_request.testset_id
         testcase_ids = testcases_query_request.testcase_ids
 
-        # If testset_revision_id is provided, fetch testcase_ids from the revision
-        if testcases_query_request.testset_revision_id:
+        # If any ref is provided, resolve the revision to get its testcase_ids
+        if (
+            testcases_query_request.testset_revision_ref
+            or testcases_query_request.testset_variant_ref
+            or testcases_query_request.testset_ref
+        ):
             testset_revision = await self.testsets_service.fetch_testset_revision(
                 project_id=UUID(request.state.project_id),
-                testset_revision_ref=Reference(
-                    id=testcases_query_request.testset_revision_id
-                ),
+                #
+                testset_ref=testcases_query_request.testset_ref,
+                testset_variant_ref=testcases_query_request.testset_variant_ref,
+                testset_revision_ref=testcases_query_request.testset_revision_ref,
+                #
+                include_testcase_ids=True,
                 include_testcases=False,
             )
             if (
@@ -189,7 +195,6 @@ class TestcasesRouter:
                 testset_id = testset_revision.testset_id
                 testcase_ids = testset_revision.data.testcase_ids
             else:
-                # Revision not found or has no testcases
                 return TestcasesResponse()
 
         testcases = await self.testcases_service.query_testcases(

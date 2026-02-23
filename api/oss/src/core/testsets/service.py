@@ -72,38 +72,62 @@ class TestsetsService:
         #
         testset_revision: TestsetRevision,
         #
+        include_testcase_ids: Optional[bool] = None,
         include_testcases: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> None:
         """Conditionally populate testcases in revision data.
 
-        Args:
-            testset_revision: The testset revision to populate
-            project_id: Project ID for fetching testcases
-            include_testcases: If None or True, fetch and include testcases.
-                              If False, leave testcases as None (only testcase_ids).
+        Flag defaults (both True when None):
+          include_testcase_ids=True  — return testcase_ids
+          include_testcases=True     — fetch and return full testcases
+
+        [A.0] include_testcase_ids=False, include_testcases=False
+              → clear both; return revision metadata only
+        [A.1] include_testcase_ids=True,  include_testcases=False
+              → return testcase_ids only (paginated by windowing)
+        [A.2] include_testcase_ids=True,  include_testcases=True (default)
+              → return both testcase_ids and full testcases
         """
         if not testset_revision.data:
             return
 
-        # Default to True if None (backward compatible)
-        if include_testcases is None or include_testcases:
-            # Include full testcases, exclude testcase_ids
-            if testset_revision.data.testcase_ids:
-                testset_revision.data.testcases = (
-                    await self.testcases_service.fetch_testcases(
-                        project_id=project_id,
-                        testcase_ids=testset_revision.data.testcase_ids,
-                    )
-                )
-                # Clear testcase_ids when including full testcases
-                testset_revision.data.testcase_ids = None
+        # Resolve defaults: both are True unless explicitly set to False
+        _include_ids = include_testcase_ids is not False
+        _include_items = include_testcases is not False
 
-                # Clear alias fields from testcases for clean API responses
-                if testset_revision.data.testcases:
-                    for testcase in testset_revision.data.testcases:
-                        testcase.set_id = None
+        # [A.0] — opt out of everything
+        if not _include_ids and not _include_items:
+            testset_revision.data.testcase_ids = None
+            testset_revision.data.testcases = None
+            return
+
+        # Apply windowing to the stored ID list when requested
+        ids = testset_revision.data.testcase_ids or []
+        if windowing and windowing.limit is not None:
+            ids = ids[: windowing.limit]
+
+        # [A.1] — IDs only
+        if _include_ids and not _include_items:
+            testset_revision.data.testcase_ids = ids
+            testset_revision.data.testcases = None
+            return
+
+        # [A.2] — both IDs and full items
+        testset_revision.data.testcase_ids = ids
+        if ids:
+            testset_revision.data.testcases = (
+                await self.testcases_service.fetch_testcases(
+                    project_id=project_id,
+                    testcase_ids=ids,
+                )
+            )
+            # Clear alias fields from testcases for clean API responses
+            if testset_revision.data.testcases:
+                for testcase in testset_revision.data.testcases:
+                    testcase.set_id = None
         else:
-            # Include only testcase_ids, exclude full testcases
             testset_revision.data.testcases = None
 
     ## -- testset --------------------------------------------------------------
@@ -545,7 +569,10 @@ class TestsetsService:
         testset_variant_ref: Optional[Reference] = None,
         testset_revision_ref: Optional[Reference] = None,
         #
+        include_testcase_ids: Optional[bool] = None,
         include_testcases: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> Optional[TestsetRevision]:
         if not testset_ref and not testset_variant_ref and not testset_revision_ref:
             return None
@@ -597,8 +624,13 @@ class TestsetsService:
 
         await self._populate_testcases(
             project_id,
+            #
             testset_revision,
-            include_testcases,
+            #
+            include_testcase_ids=include_testcase_ids,
+            include_testcases=include_testcases,
+            #
+            windowing=windowing,
         )
 
         return testset_revision

@@ -930,6 +930,11 @@ class QueriesRouter:
             query_ref=query_revision_retrieve_request.query_ref,
             query_variant_ref=query_revision_retrieve_request.query_variant_ref,
             query_revision_ref=query_revision_retrieve_request.query_revision_ref,
+            #
+            include_trace_ids=query_revision_retrieve_request.include_trace_ids,
+            include_traces=query_revision_retrieve_request.include_traces,
+            #
+            windowing=query_revision_retrieve_request.windowing,
         )
 
         query_revision_response = QueryRevisionResponse(

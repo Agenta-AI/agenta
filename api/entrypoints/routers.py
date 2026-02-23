@@ -280,6 +280,7 @@ simple_testsets_service = SimpleTestsetsService(
 
 queries_service = QueriesService(
     queries_dao=queries_dao,
+    tracing_service=tracing_service,
 )
 
 simple_queries_service = SimpleQueriesService(
@@ -353,6 +354,7 @@ tracing = TracingRouter(
 
 traces = TracesRouter(
     tracing_router=tracing,
+    queries_service=queries_service,
 )
 
 testcases = TestcasesRouter(

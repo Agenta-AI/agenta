@@ -1371,7 +1371,11 @@ class TestsetsRouter:
                 testset_ref=testset_revision_retrieve_request.testset_ref,
                 testset_variant_ref=testset_revision_retrieve_request.testset_variant_ref,
                 testset_revision_ref=testset_revision_retrieve_request.testset_revision_ref,
+                #
+                include_testcase_ids=testset_revision_retrieve_request.include_testcase_ids,
                 include_testcases=testset_revision_retrieve_request.include_testcases,
+                #
+                windowing=testset_revision_retrieve_request.windowing,
             )
 
             await set_cache(
