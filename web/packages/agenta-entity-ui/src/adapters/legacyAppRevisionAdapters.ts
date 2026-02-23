@@ -30,10 +30,11 @@ import {
     type LegacyAppRevisionData,
     type CommitRevisionParams,
     stripVolatileKeys,
+} from "@agenta/entities/legacyAppRevision"
+import {
     enhancedPromptsToParameters,
     enhancedCustomPropertiesToParameters,
 } from "@agenta/entities/legacyAppRevision"
-import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
