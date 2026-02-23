@@ -117,6 +117,7 @@ export type {
     PropertyType,
     DataType,
     ValueMode,
+    FieldViewModeOption,
     // Path & schema
     PathItem,
     SchemaInfo,
