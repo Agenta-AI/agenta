@@ -29,6 +29,8 @@ const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ),
 })
 
+const TestsetDropdown = dynamic(() => import("../TestsetDropdown"), {ssr: false})
+
 type PlaygroundHeaderProps = BaseContainerProps
 
 const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divProps}) => {
@@ -119,6 +121,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
 
                 <div className="flex items-center gap-2">
                     <RunEvaluationButton />
+                    <TestsetDropdown />
                     <SelectVariant
                         showAsCompare
                         multiple

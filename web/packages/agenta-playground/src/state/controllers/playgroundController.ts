@@ -25,9 +25,11 @@
 
 import {fetchOssRevisionById} from "@agenta/entities/legacyAppRevision"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
+import {fetchTestcasesPage} from "@agenta/entities/testcase"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
+import type {SnapshotLoadableConnection} from "../../snapshot"
 import {outputConnectionsAtom} from "../atoms/connections"
 import {
     playgroundNodesAtom,
@@ -551,6 +553,56 @@ const addOutputMappingColumnAtom = atom(
 )
 
 // ============================================================================
+// TESTSET CONNECTION RESTORE (URL snapshot hydration)
+// ============================================================================
+
+/**
+ * Restore a testset connection from a URL snapshot.
+ *
+ * Called after the primary playground node has been set up (nodes are populated),
+ * so derivedLoadableIdAtom returns a valid loadable ID.
+ *
+ * This compound action:
+ * 1. Fetches all testcases for the revision (paginated)
+ * 2. Reconnects via the loadable layer (populates query cache, sets testcaseIdsAtom)
+ * 3. Updates connectedTestsetAtom for the dropdown display
+ */
+const restoreLoadableConnectionAtom = atom(
+    null,
+    async (get, set, loadable: SnapshotLoadableConnection) => {
+        const loadableId = get(derivedLoadableIdAtom)
+        if (!loadableId) return
+
+        const projectId = get(projectIdAtom)
+        if (!projectId) return
+
+        // Fetch all testcases for the revision (paginated)
+        const allTestcases: ({id: string} & Record<string, unknown>)[] = []
+        let cursor: string | null = null
+        do {
+            const page = await fetchTestcasesPage({
+                projectId,
+                revisionId: loadable.revisionId,
+                cursor,
+                limit: 50,
+            })
+            allTestcases.push(...(page.testcases as ({id: string} & Record<string, unknown>)[]))
+            cursor = page.nextCursor
+            if (!page.hasMore) break
+        } while (cursor)
+
+        // Delegate to the same compound action used for interactive testset connections
+        set(connectToTestsetAtom, {
+            loadableId,
+            revisionId: loadable.revisionId,
+            testcases: allTestcases,
+            testsetName: loadable.sourceName ?? undefined,
+            testsetId: loadable.testsetId ?? undefined,
+        })
+    },
+)
+
+// ============================================================================
 // QUERY INVALIDATION
 // ============================================================================
 
@@ -907,6 +959,9 @@ export const playgroundController = {
 
         /** Duplicate session responses from one entity to another */
         duplicateSessionResponses: duplicateSessionResponsesWithContextAtom,
+
+        /** Restore a testset connection from a URL snapshot (call after primary node is set) */
+        restoreLoadableConnection: restoreLoadableConnectionAtom,
     },
 
     /**

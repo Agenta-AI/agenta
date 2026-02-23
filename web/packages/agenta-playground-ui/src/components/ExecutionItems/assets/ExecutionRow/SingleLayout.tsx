@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {runnableBridge} from "@agenta/entities/runnable"
-import {executionItemController} from "@agenta/playground"
+import {executionItemController, playgroundController} from "@agenta/playground"
 import {HeightCollapse} from "@agenta/ui/components"
 import {
     CollapsibleGroupHeader,
@@ -25,6 +25,7 @@ import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import ExecutionResultView from "../../../ExecutionResultView"
 import CollapseToggleButton from "../../../shared/CollapseToggleButton"
+import { usePlaygroundUIOptional } from "../../../../context/PlaygroundUIContext"
 
 interface Props {
     rowId: string
@@ -146,6 +147,12 @@ const SingleView = ({
     ) as string[]
     const runnableQuery = useAtomValue(useMemo(() => runnableBridge.query(entityId), [entityId]))
 
+     const providers = usePlaygroundUIOptional()
+        const SyncStateTagSlot = providers?.renderSyncStateTag
+    const loadableId = useAtomValue(
+        useMemo(() => playgroundController.selectors.loadableId(), []),
+    ) as string | null
+
     const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
     const {currentResult, repetitionProps} = useRepetitionResult({
         rowId,
@@ -264,6 +271,9 @@ const SingleView = ({
                         }}
                         className="text-gray-500"
                     />
+                    {SyncStateTagSlot && loadableId && (
+                        <SyncStateTagSlot rowId={rowId} loadableId={loadableId} />
+                    )}
                     <div className="flex-1" />
                     <RowHeaderActions
                         rowId={rowId}
@@ -382,7 +392,7 @@ const SingleView = ({
                             <ExecutionResultView
                                 isRunning={isBusy}
                                 currentResult={currentResult}
-                                traceId={traceId}
+                                traceId={traceId ?? null}
                                 repetitionProps={repetitionProps}
                             />
                         </div>

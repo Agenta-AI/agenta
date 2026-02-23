@@ -297,6 +297,13 @@ export interface ListPopoverVariantProps<
      * Callback when a parent entity is hovered (for preloading)
      */
     onParentHover?: (parentId: string) => void
+
+    /**
+     * Optional section label rendered between the search bar and the parent list.
+     * When provided, a horizontal divider and this label are shown (e.g., "Test sets").
+     * When omitted, no divider or label is rendered (backwards-compatible).
+     */
+    sectionLabel?: string
 }
 
 // ============================================================================

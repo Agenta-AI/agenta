@@ -21,6 +21,7 @@
 
 import {appRevisionSnapshotAdapter} from "@agenta/entities/appRevision"
 import {legacyAppRevisionSnapshotAdapter} from "@agenta/entities/legacyAppRevision"
+import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {
     snapshotAdapterRegistry,
     type RunnableDraftPatch,
@@ -35,9 +36,12 @@ import {
     type PlaygroundSnapshot,
     type SelectionItem,
     type SnapshotDraftEntry,
+    type SnapshotLoadableConnection,
     type EncodeResult,
     SNAPSHOT_VERSION,
 } from "../../snapshot"
+import {connectedTestsetAtom} from "../atoms/playground"
+import {derivedLoadableIdAtom} from "../execution/selectors"
 
 // Ensure adapters are registered before any snapshot operations.
 // Cannot rely on side-effect imports — tree-shaken by sideEffects: false.
@@ -92,6 +96,8 @@ export interface HydrateSnapshotResult {
     error?: string
     /** Warnings for partial failures */
     warnings?: string[]
+    /** Testset connection to restore, if the snapshot was connected to an API-backed testset */
+    loadable?: SnapshotLoadableConnection
 }
 
 // ============================================================================
@@ -124,7 +130,7 @@ function generateDraftKey(): string {
  */
 const createSnapshotAtom = atom(
     null,
-    (_get, _set, selection: SnapshotSelectionInput[]): CreateSnapshotResult => {
+    (get, _set, selection: SnapshotSelectionInput[]): CreateSnapshotResult => {
         try {
             const snapshotSelection: SelectionItem[] = []
             const drafts: SnapshotDraftEntry[] = []
@@ -204,11 +210,27 @@ const createSnapshotAtom = atom(
                 }
             }
 
+            // Capture loadable connection if connected to an API-backed testset
+            let loadable: SnapshotLoadableConnection | undefined
+            const loadableId = get(derivedLoadableIdAtom)
+            if (loadableId) {
+                const ls = get(loadableStateAtomFamily(loadableId))
+                if (ls.connectedSourceId) {
+                    const ct = get(connectedTestsetAtom)
+                    loadable = {
+                        revisionId: ls.connectedSourceId,
+                        sourceName: ls.connectedSourceName,
+                        testsetId: ct?.id ?? null,
+                    }
+                }
+            }
+
             // Build snapshot
             const snapshot: PlaygroundSnapshot = {
                 v: SNAPSHOT_VERSION,
                 selection: snapshotSelection,
                 drafts,
+                ...(loadable ? {loadable} : {}),
             }
 
             // Encode
@@ -497,6 +519,8 @@ const hydrateSnapshotAtom = atom(
                 selection: newSelection,
                 draftKeyToSourceRevisionId,
                 warnings: warnings.length > 0 ? warnings : undefined,
+                // Pass through loadable connection for the OSS layer to restore after nodes are set up
+                loadable: snapshot.loadable,
             }
         } catch (err) {
             console.error("[Snapshot Controller] Hydration error:", err)

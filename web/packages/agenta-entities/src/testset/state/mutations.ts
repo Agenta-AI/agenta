@@ -350,6 +350,12 @@ export const saveTestsetAtom = atom(
 export interface SaveNewTestsetParams {
     projectId: string
     testsetName: string
+    /**
+     * Optional explicit testcase data. When provided, this data is used directly
+     * instead of reading from newEntityIdsAtom. Used by the loadable controller
+     * when "Save as New" should include all visible testcases (server + local).
+     */
+    explicitTestcaseData?: Record<string, unknown>[]
 }
 
 /**
@@ -370,34 +376,41 @@ export interface SaveNewTestsetResult {
 export const saveNewTestsetAtom = atom(
     null,
     async (get, set, params: SaveNewTestsetParams): Promise<SaveNewTestsetResult> => {
-        const {projectId, testsetName} = params
+        const {projectId, testsetName, explicitTestcaseData} = params
 
         if (!projectId || !testsetName.trim()) {
             return {success: false, error: new Error("Missing projectId or testsetName")}
         }
 
         try {
-            // Get local testcase data
-            const columns = get(currentColumnsAtom)
-            const newIds = get(newEntityIdsAtom)
-            const currentColumnKeys = new Set(columns.map((c) => c.key))
+            let testcaseData: Record<string, unknown>[]
 
-            // Collect testcase data from new entities
-            // Note: Testcase uses nested format - data fields are in draft.data
-            const testcaseData = newIds
-                .map((id) => {
-                    const draft = get(testcaseDraftAtomFamily(id))
-                    if (!draft?.data) return null
-                    // Filter to only include current columns
-                    const filteredData: Record<string, unknown> = {}
-                    for (const key of Object.keys(draft.data)) {
-                        if (currentColumnKeys.has(key)) {
-                            filteredData[key] = draft.data[key]
+            if (explicitTestcaseData) {
+                // Use provided data directly (e.g. from loadable controller "Save as New" flow)
+                testcaseData = explicitTestcaseData
+            } else {
+                // Default: collect from local new entities only
+                const columns = get(currentColumnsAtom)
+                const newIds = get(newEntityIdsAtom)
+                const currentColumnKeys = new Set(columns.map((c) => c.key))
+
+                // Collect testcase data from new entities
+                // Note: Testcase uses nested format - data fields are in draft.data
+                testcaseData = newIds
+                    .map((id) => {
+                        const draft = get(testcaseDraftAtomFamily(id))
+                        if (!draft?.data) return null
+                        // Filter to only include current columns
+                        const filteredData: Record<string, unknown> = {}
+                        for (const key of Object.keys(draft.data)) {
+                            if (currentColumnKeys.has(key)) {
+                                filteredData[key] = draft.data[key]
+                            }
                         }
-                    }
-                    return filteredData
-                })
-                .filter(Boolean) as Record<string, unknown>[]
+                        return filteredData
+                    })
+                    .filter(Boolean) as Record<string, unknown>[]
+            }
 
             // Create new testset via API
             const response = await createTestset({

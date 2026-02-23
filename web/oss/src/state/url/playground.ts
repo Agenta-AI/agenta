@@ -367,7 +367,18 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
             )
 
             if (hydrateResult.ok && hydrateResult.selection) {
-                applyPlaygroundSelection(store, hydrateResult.selection)
+                applyPlaygroundSelection(
+                    store,
+                    hydrateResult.selection,
+                    hydrateResult.entities as HydratedEntityDescriptor[] | undefined,
+                )
+                // Restore testset connection after nodes are set up (nodes are now populated)
+                if (hydrateResult.loadable) {
+                    void store.set(
+                        playgroundController.actions.restoreLoadableConnection,
+                        hydrateResult.loadable,
+                    )
+                }
                 return
             }
         }
@@ -522,7 +533,7 @@ playgroundSyncAtom.onMount = (set) => {
         }
         // Collect unique source IDs that are ready, then apply via the ordered helper
         const readySourceIds = new Set<string>()
-        for (const [key, hydration] of pending.entries()) {
+        for (const [, hydration] of pending.entries()) {
             const query = store.get(runnableBridge.query(hydration.sourceRevisionId))
             if (process.env.NODE_ENV !== "production") {
                 console.debug("[hydration-sync] query state for", key, {
@@ -706,6 +717,25 @@ playgroundSyncAtom.onMount = (set) => {
         }
     })
     unsubs.push(unsubValidation)
+
+    // -----------------------------------------------------------------------
+    // SUB 5: Update URL when testset connection changes
+    // -----------------------------------------------------------------------
+    // When the user connects/disconnects from an API-backed testset, the
+    // loadable state changes. We re-encode the URL so the testset connection
+    // is captured in (or removed from) the #pgSnapshot hash.
+    const unsubConnectedTestset = store.sub(
+        playgroundController.selectors.connectedTestset(),
+        () => {
+            const currentSelected = sanitizeRevisionList(
+                store.get(playgroundController.selectors.entityIds()),
+            )
+            if (currentSelected.length > 0) {
+                writePlaygroundSelectionToQuery(currentSelected)
+            }
+        },
+    )
+    unsubs.push(unsubConnectedTestset)
 
     // -----------------------------------------------------------------------
     // CLEANUP

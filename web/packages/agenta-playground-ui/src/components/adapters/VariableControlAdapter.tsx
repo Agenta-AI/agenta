@@ -156,6 +156,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                     disableContainerTransition
                     handleChange={handleChange}
                     initialValue={value}
+                    value={value}
                     editorClassName={className}
                     placeholder={effectivePlaceholder}
                     disabled={disabled || disableForCustom}
