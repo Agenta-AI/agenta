@@ -81,6 +81,13 @@ export {
     normalizeTimestampsBasic,
 } from "./transforms"
 
+// Date formatting utilities
+export {
+    type EntityDateInput,
+    type EntityDateTimeFormatOptions,
+    formatEntityDateTime,
+} from "./dateTime"
+
 // Helper utilities
 export {
     // ID utilities

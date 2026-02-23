@@ -171,6 +171,10 @@ export {
     composeTransforms,
     parseISODate,
     normalizeTimestampsBasic,
+    // Date formatting utilities
+    type EntityDateInput,
+    type EntityDateTimeFormatOptions,
+    formatEntityDateTime,
     // ID & batch utilities
     isLocalId,
     isServerId,
