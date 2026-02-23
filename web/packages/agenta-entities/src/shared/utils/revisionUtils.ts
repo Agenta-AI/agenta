@@ -211,6 +211,10 @@ export interface VariantListItem {
     baseId?: string
     baseName?: string
     uri?: string
+    createdAt?: string
+    updatedAt?: string
+    createdAtTimestamp?: number
+    updatedAtTimestamp?: number
 }
 
 /**
@@ -225,6 +229,7 @@ export interface RevisionListItem {
     uri?: string
     commitMessage?: string
     createdAt?: string
+    updatedAt?: string
     createdAtTimestamp: number
     updatedAtTimestamp: number
     author?: string
@@ -258,6 +263,7 @@ export interface ApiRevisionListItem {
     revision: number
     commit_message?: string
     created_at?: string
+    updated_at?: string
     modified_by?: string
     config?: {
         config_name?: string
@@ -304,6 +310,8 @@ export function transformVariantToListItem(
     variant: ApiVariant,
     fallbackAppId?: string,
 ): VariantListItem {
+    const createdAtTimestamp = safeTimestamp(variant.created_at)
+    const updatedAtTimestamp = safeTimestamp(variant.updated_at, createdAtTimestamp)
     return {
         id: variant.variant_id,
         name: variant.variant_name || variant.variant_id,
@@ -311,6 +319,10 @@ export function transformVariantToListItem(
         baseId: variant.base_id,
         baseName: variant.base_name,
         uri: variant.uri,
+        createdAt: variant.created_at,
+        updatedAt: variant.updated_at,
+        createdAtTimestamp,
+        updatedAtTimestamp,
     }
 }
 
@@ -333,6 +345,7 @@ export function transformRevisionToListItem(
     context?: {appId?: string; uri?: string; variantName?: string},
 ): RevisionListItem {
     const createdAtTimestamp = safeTimestamp(revision.created_at)
+    const updatedAtTimestamp = safeTimestamp(revision.updated_at, createdAtTimestamp)
     return {
         id: revision.id,
         revision: revision.revision,
@@ -342,8 +355,9 @@ export function transformRevisionToListItem(
         uri: context?.uri,
         commitMessage: revision.commit_message,
         createdAt: revision.created_at,
+        updatedAt: revision.updated_at,
         createdAtTimestamp,
-        updatedAtTimestamp: createdAtTimestamp,
+        updatedAtTimestamp,
         author: revision.modified_by,
         parameters: revision.config?.parameters,
     }
