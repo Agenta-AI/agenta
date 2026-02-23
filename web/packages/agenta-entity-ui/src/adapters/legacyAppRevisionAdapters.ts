@@ -35,6 +35,7 @@ import {
     enhancedPromptsToParameters,
     enhancedCustomPropertiesToParameters,
 } from "@agenta/entities/legacyAppRevision/utils/parameterConversion"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
@@ -54,6 +55,70 @@ import {
 type LegacyAppRevisionDataWithDraft = LegacyAppRevisionData & {
     enhancedPrompts?: unknown[]
     enhancedCustomProperties?: Record<string, unknown>
+}
+
+function extractParametersCandidate(source: unknown): Record<string, unknown> | null {
+    if (!source || typeof source !== "object" || Array.isArray(source)) {
+        return null
+    }
+
+    const obj = source as Record<string, unknown>
+
+    const topLevelParameters = obj.parameters
+    if (
+        topLevelParameters &&
+        typeof topLevelParameters === "object" &&
+        !Array.isArray(topLevelParameters)
+    ) {
+        return topLevelParameters as Record<string, unknown>
+    }
+
+    const topLevelConfiguration = obj.configuration
+    if (
+        topLevelConfiguration &&
+        typeof topLevelConfiguration === "object" &&
+        !Array.isArray(topLevelConfiguration)
+    ) {
+        return topLevelConfiguration as Record<string, unknown>
+    }
+
+    const nestedData = obj.data
+    if (!nestedData || typeof nestedData !== "object" || Array.isArray(nestedData)) {
+        return null
+    }
+
+    const nested = nestedData as Record<string, unknown>
+
+    const nestedParameters = nested.parameters
+    if (
+        nestedParameters &&
+        typeof nestedParameters === "object" &&
+        !Array.isArray(nestedParameters)
+    ) {
+        return nestedParameters as Record<string, unknown>
+    }
+
+    const nestedConfiguration = nested.configuration
+    if (
+        nestedConfiguration &&
+        typeof nestedConfiguration === "object" &&
+        !Array.isArray(nestedConfiguration)
+    ) {
+        return nestedConfiguration as Record<string, unknown>
+    }
+
+    return null
+}
+
+function pickFirstParameters(
+    ...candidates: (Record<string, unknown> | null | undefined)[]
+): Record<string, unknown> | null {
+    for (const candidate of candidates) {
+        if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+            return candidate
+        }
+    }
+    return null
 }
 
 // ============================================================================
@@ -179,18 +244,38 @@ function stripLegacyPromptFields(value: unknown): unknown {
 function buildComparableParameters(
     data: LegacyAppRevisionDataWithDraft | null,
     baseParameters?: Record<string, unknown>,
+    explicitParameters?: Record<string, unknown> | null,
 ): Record<string, unknown> {
     if (!data) return {}
 
     const hasEnhancedPrompts = data.enhancedPrompts && Array.isArray(data.enhancedPrompts)
     const hasEnhancedCustomProps =
         data.enhancedCustomProperties && typeof data.enhancedCustomProperties === "object"
+    const dataParameters = extractParametersCandidate(data)
+    const hasExplicitParameters =
+        explicitParameters !== null &&
+        explicitParameters !== undefined &&
+        typeof explicitParameters === "object" &&
+        !Array.isArray(explicitParameters)
+    const hasDraftParameters = !!dataParameters
 
     let params: Record<string, unknown>
-    if (hasEnhancedPrompts || hasEnhancedCustomProps) {
-        params = {...(baseParameters ?? data.parameters ?? {})}
+    if (hasExplicitParameters) {
+        params = {...(explicitParameters as Record<string, unknown>)}
+    } else if (hasEnhancedPrompts || hasEnhancedCustomProps) {
+        // Preserve direct parameter edits when present, then let enhanced fields
+        // overlay their canonical values.
+        if (hasDraftParameters) {
+            params = {...(dataParameters as Record<string, unknown>)}
+        } else {
+            params = {...(baseParameters ?? {})}
+        }
+    } else if (hasDraftParameters) {
+        params = {...(dataParameters as Record<string, unknown>)}
+    } else if (baseParameters) {
+        params = {...baseParameters}
     } else {
-        params = {...(data.parameters ?? {})}
+        params = {}
     }
 
     if (hasEnhancedPrompts) {
@@ -207,10 +292,11 @@ function buildComparableParameters(
 function extractDiffableData(
     data: LegacyAppRevisionDataWithDraft | null,
     baseParameters?: Record<string, unknown>,
+    explicitParameters?: Record<string, unknown> | null,
 ): Record<string, unknown> {
     if (!data) return {}
 
-    const rawParameters = buildComparableParameters(data, baseParameters)
+    const rawParameters = buildComparableParameters(data, baseParameters, explicitParameters)
     const unwrappedParameters =
         rawParameters.ag_config &&
         typeof rawParameters.ag_config === "object" &&
@@ -358,13 +444,26 @@ function getNonPromptOnlyValue(value: unknown): unknown {
 function countChanges(
     serverData: LegacyAppRevisionDataWithDraft | null,
     draftData: LegacyAppRevisionDataWithDraft | null,
+    draftParameters?: Record<string, unknown> | null,
+    serverParameters?: Record<string, unknown> | null,
 ): {promptChanges: number; propertyChanges: number; description?: string} {
     if (!draftData) {
         return {promptChanges: 0, propertyChanges: 0}
     }
 
-    const original = extractDiffableData(serverData)
-    const modified = extractDiffableData(draftData, serverData?.parameters)
+    const resolvedServerParameters =
+        pickFirstParameters(
+            serverParameters,
+            extractParametersCandidate(serverData),
+            serverData?.parameters,
+        ) ?? {}
+
+    const original = extractDiffableData(
+        serverData,
+        resolvedServerParameters,
+        resolvedServerParameters,
+    )
+    const modified = extractDiffableData(draftData, resolvedServerParameters, draftParameters)
 
     const hasAnyChanges = !deepEqual(original, modified)
     if (!hasAnyChanges) {
@@ -395,6 +494,8 @@ function buildLegacyCommitContext(
     draftData: LegacyAppRevisionDataWithDraft,
     serverData: LegacyAppRevisionDataWithDraft | null,
     isLocalDraft: boolean,
+    draftParameters?: Record<string, unknown> | null,
+    serverParameters?: Record<string, unknown> | null,
 ): CommitContext {
     let currentVersion: number
     let targetVersion: number
@@ -410,7 +511,12 @@ function buildLegacyCommitContext(
         targetVersion = currentVersion + 1
     }
 
-    const {promptChanges, propertyChanges} = countChanges(serverData, draftData)
+    const {promptChanges, propertyChanges} = countChanges(
+        serverData,
+        draftData,
+        draftParameters,
+        serverParameters,
+    )
     const hasChanges = promptChanges > 0 || propertyChanges > 0 || isLocalDraft
 
     const descriptions: string[] = []
@@ -420,12 +526,25 @@ function buildLegacyCommitContext(
         descriptions.push("New draft variant")
     }
 
-    const originalStructure = extractDiffableData(serverData)
-    const modifiedStructure = extractDiffableData(draftData, serverData?.parameters)
+    const resolvedServerParameters =
+        pickFirstParameters(
+            serverParameters,
+            extractParametersCandidate(serverData),
+            serverData?.parameters,
+        ) ?? {}
+    const originalStructure = extractDiffableData(
+        serverData,
+        resolvedServerParameters,
+        resolvedServerParameters,
+    )
+    const modifiedStructure = extractDiffableData(
+        draftData,
+        resolvedServerParameters,
+        draftParameters,
+    )
 
     const original = stableStringify(originalStructure)
     const modified = stableStringify(modifiedStructure)
-    const hasDiff = original !== modified
 
     return {
         versionInfo: {
@@ -439,7 +558,9 @@ function buildLegacyCommitContext(
                   description: descriptions.join(", "),
               }
             : undefined,
-        diffData: hasDiff ? {original, modified, language: "json"} : undefined,
+        // Always include diff payload so the modal can render a preview pane
+        // (matching legacy modal behavior), even when there are zero changes.
+        diffData: {original, modified, language: "json"},
     }
 }
 
@@ -479,7 +600,9 @@ function buildGenericCommitContext(
                       description: descriptions.join(", "),
                   }
                 : undefined,
-        diffData: hasDiff ? {original, modified, language: "json"} : undefined,
+        // Keep generic variant commits consistent with legacy commits: always
+        // provide the preview payload and let the UI render zero-change state.
+        diffData: {original, modified, language: "json"},
     }
 }
 
@@ -496,24 +619,44 @@ function buildGenericCommitContext(
 const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string, unknown>) =>
     atom((get): CommitContext | null => {
         const isLocalDraft = isLocalDraftId(revisionId)
+        const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId))
+        const legacyData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
+        const legacyDraft = get(legacyAppRevisionMolecule.atoms.draft(revisionId))
+        const draftParameters = get(legacyAppRevisionMolecule.atoms.draftParameters(revisionId))
+        const runnableData = get(runnableBridge.data(revisionId))
+        const runnableCurrentConfig = get(runnableBridge.configuration(revisionId))
+        const runnableServerConfig = get(runnableBridge.serverConfiguration(revisionId))
+
+        // Variants should diff local draft state against server state.
+        const localParameters = pickFirstParameters(
+            draftParameters,
+            extractParametersCandidate(legacyDraft),
+            extractParametersCandidate(legacyData),
+            runnableCurrentConfig,
+        )
+        const serverParameters = pickFirstParameters(
+            extractParametersCandidate(serverData),
+            runnableServerConfig,
+        )
 
         // Try legacy app revision molecule first (has entity-specific diff logic)
-        const legacyData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
-        if (legacyData) {
-            const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId))
-            return buildLegacyCommitContext(legacyData, serverData, isLocalDraft)
+        const legacySnapshot = legacyData ?? legacyDraft ?? serverData
+        if (legacySnapshot) {
+            return buildLegacyCommitContext(
+                legacySnapshot,
+                serverData,
+                isLocalDraft,
+                localParameters,
+                serverParameters,
+            )
         }
 
         // Fallback: use runnableBridge for generic entities (workflow, evaluator, etc.)
-        const runnableData = get(runnableBridge.data(revisionId))
         if (!runnableData) return null
 
-        const currentConfig = get(runnableBridge.configuration(revisionId))
-        const serverConfig = get(runnableBridge.serverConfiguration(revisionId))
-
         return buildGenericCommitContext(
-            currentConfig,
-            serverConfig,
+            localParameters ?? runnableCurrentConfig,
+            serverParameters ?? runnableServerConfig,
             runnableData.version,
             isLocalDraft,
         )
