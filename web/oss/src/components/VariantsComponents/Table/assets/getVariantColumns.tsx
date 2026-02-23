@@ -1,8 +1,11 @@
 import {memo, useCallback} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {formatEntityDateTime} from "@agenta/entities/shared"
+import {useUserDisplayName} from "@agenta/entities/shared/user"
 import {GearSix} from "@phosphor-icons/react"
 import {ColumnsType} from "antd/es/table"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
@@ -13,44 +16,120 @@ import {
 import {openDeployVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeployVariantModal/store/deployVariantModalStore"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import VariantNameCell from "@/oss/components/VariantNameCell"
-import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 const VariantDropdown = dynamic(() => import("../../Dropdown/VariantDropdown"), {ssr: false})
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const toUnixMs = (value: unknown): number | undefined => {
+    if (typeof value !== "string" || !value) return undefined
+    const ts = new Date(value).getTime()
+    return Number.isFinite(ts) ? ts : undefined
+}
+
+const pickModelFromParams = (value: unknown, depth = 0, visited = new Set<unknown>()): string => {
+    if (!value || depth > 6) return ""
+    if (visited.has(value)) return ""
+    if (typeof value === "object") visited.add(value)
+
+    if (typeof value === "string") {
+        return value.trim()
+    }
+
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const result = pickModelFromParams(item, depth + 1, visited)
+            if (result) return result
+        }
+        return ""
+    }
+
+    if (typeof value === "object") {
+        const obj = value as Record<string, unknown>
+        const directModel = [obj.model, obj.model_name, obj.modelName, obj.engine].find(
+            (candidate) => typeof candidate === "string" && candidate.trim().length > 0,
+        ) as string | undefined
+        if (directModel) return directModel.trim()
+
+        const llmConfig = obj.llm_config ?? obj.llmConfig
+        if (llmConfig) {
+            const result = pickModelFromParams(llmConfig, depth + 1, visited)
+            if (result) return result
+        }
+
+        for (const nested of Object.values(obj)) {
+            const result = pickModelFromParams(nested, depth + 1, visited)
+            if (result) return result
+        }
+    }
+
+    return ""
+}
+
 const CreatedByCell = memo(({record}: {record: EnhancedVariant}) => {
+    const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(record.id)) as any
+    const authorIdCandidate =
+        [
+            (record as any)?.modifiedById,
+            (record as any)?.createdById,
+            revisionData?.modifiedById,
+            revisionData?.createdById,
+            (record as any)?.author,
+            revisionData?.author,
+            (record as any)?.modifiedBy,
+            revisionData?.modifiedBy,
+        ].find((value) => typeof value === "string" && UUID_REGEX.test(value.trim())) ?? undefined
+    const resolvedAuthorName = useUserDisplayName(authorIdCandidate)
     const fallbackName =
         [
+            resolvedAuthorName,
             (record as any)?.modifiedByDisplayName,
             (record as any)?.modifiedBy,
+            (record as any)?.author,
             (record as any)?.modifiedById,
             (record as any)?.createdByDisplayName,
             (record as any)?.createdBy,
             (record as any)?.createdById,
+            revisionData?.modifiedByDisplayName,
+            revisionData?.modifiedBy,
+            revisionData?.author,
+            revisionData?.createdByDisplayName,
+            revisionData?.createdBy,
+            revisionData?.createdById,
         ].find((value) => typeof value === "string" && value.trim().length > 0) ?? undefined
 
-    return (
-        <UserAvatarTag
-            variantId={record.id}
-            nameOverride={fallbackName}
-            modifiedBy={fallbackName}
-        />
-    )
+    return <UserAvatarTag nameOverride={fallbackName} modifiedBy={fallbackName} />
 })
 
 const CreatedOnCell = memo(({record}: {record: EnhancedVariant}) => {
-    const ts = (record as any).updatedAtTimestamp ?? (record as any).createdAtTimestamp
-    const formatted = ts ? formatDate24(ts) : ""
+    const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(record.id)) as any
+    const ts =
+        (record as any).createdAtTimestamp ??
+        toUnixMs(revisionData?.createdAt) ??
+        (record as any).updatedAtTimestamp
+    const formatted = ts ? formatEntityDateTime(ts) : ""
+    return <div>{formatted}</div>
+})
+
+const UpdatedOnCell = memo(({record}: {record: EnhancedVariant}) => {
+    const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(record.id)) as any
+    const ts =
+        (record as any).updatedAtTimestamp ??
+        toUnixMs(revisionData?.updatedAt) ??
+        toUnixMs(revisionData?.createdAt) ??
+        (record as any).createdAtTimestamp
+    const formatted = ts ? formatEntityDateTime(ts) : ""
     return <div>{formatted}</div>
 })
 
 const ModelCell = memo(({record}: {record: EnhancedVariant}) => {
-    const inlineConfig = (record.parameters as any)?.prompt?.llm_config || record.parameters || {}
-    const name =
-        inlineConfig && typeof inlineConfig === "object" ? (inlineConfig as any)?.model : undefined
+    const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(record.id)) as any
+    const params = revisionData?.parameters ?? (record.parameters as any)
+    const name = pickModelFromParams(params)
 
-    return <div>{(typeof name === "string" && name.trim()) || "-"}</div>
+    return <div>{name || "-"}</div>
 })
 
 const CommitNotesCell = memo(({record}: {record: EnhancedVariant}) => {
@@ -152,6 +231,7 @@ export const getColumns = ({
     showEnvBadges,
     showActionsDropdown,
     showStableName = false,
+    showUpdatedOn = false,
     selectedRowKeys,
 }: {
     showEnvBadges: boolean
@@ -159,6 +239,7 @@ export const getColumns = ({
     handleOpenInPlayground?: (record: EnhancedVariant) => void
     showActionsDropdown: boolean
     showStableName?: boolean
+    showUpdatedOn?: boolean
     selectedRowKeys?: (string | number)[]
 }): ColumnsType<EnhancedVariant> => {
     const columns: ColumnsType<EnhancedVariant> = [
@@ -203,6 +284,18 @@ export const getColumns = ({
             render: (_, record) => <CreatedOnCell record={record} />,
         },
     ]
+
+    if (showUpdatedOn) {
+        columns.push({
+            title: "Updated on",
+            dataIndex: "updatedAt",
+            key: "updatedAt",
+            onHeaderCell: () => ({
+                style: {minWidth: 120},
+            }),
+            render: (_, record) => <UpdatedOnCell record={record} />,
+        })
+    }
 
     if (isDemo()) {
         columns.push({
