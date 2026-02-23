@@ -63,7 +63,9 @@ import {BaseResponse, ChatMessage, JSSTheme, Parameter, Variant} from "@/oss/lib
 import {callVariant} from "@/oss/services/api"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
 import {
+    invokeApplication,
     invokeEvaluator,
+    mapWorkflowResponseToOutputs,
     mapWorkflowResponseToEvaluatorOutput,
 } from "@/oss/services/workflows/invoke"
 import {useAppsData} from "@/oss/state/app/hooks"
@@ -865,6 +867,54 @@ const DebugSection = () => {
                     ([k]) => allowed.has(k) && k !== "messages",
                 ),
             )
+
+            const workflowParameters = isPlainObject((params.parameters as any)?.ag_config)
+                ? ((params.parameters as any).ag_config as Record<string, any>)
+                : isPlainObject(params.parameters)
+                  ? (params.parameters as Record<string, any>)
+                  : {}
+
+            const workflowInputs: Record<string, any> = {...filtered}
+            if (
+                params.isChatVariant &&
+                Array.isArray(params.messages) &&
+                params.messages.length > 0
+            ) {
+                workflowInputs.messages = params.messages
+            }
+
+            // Prefer unified workflow invocation for completion/chat app flows.
+            // Keep legacy /test fallback for custom apps and unknown interfaces.
+            const workflowUriCandidate = (() => {
+                const rawUri =
+                    typeof selectedVariant?.uri === "string" ? selectedVariant.uri.trim() : ""
+                if (rawUri && !rawUri.includes("://")) {
+                    return rawUri
+                }
+                if (params.isChatVariant) return "agenta:builtin:chat:v0"
+                if (!params.isCustom) return "agenta:builtin:completion:v0"
+                return ""
+            })()
+
+            if (!params.isCustom && workflowUriCandidate) {
+                const workflowResponse = await invokeApplication({
+                    uri: workflowUriCandidate,
+                    inputs: workflowInputs,
+                    parameters: workflowParameters,
+                    options: {signal: controller.signal},
+                })
+
+                const runResponse = mapWorkflowResponseToOutputs(workflowResponse)
+                const outputs = runResponse.outputs ?? {}
+                setBaseResponseData({
+                    version: workflowResponse.version,
+                    data: outputs,
+                })
+                setVariantResult(getStringOrJson(outputs))
+                setTraceTree({trace: null})
+                setVariantStatus({success: true, error: false})
+                return
+            }
 
             const result = await callVariant(
                 filtered,
