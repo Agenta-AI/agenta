@@ -301,7 +301,6 @@ const AccordionTreePanel = ({
         [availableViewModes],
     )
 
-    console.log("spanId shit", spanId)
     const collapse = (
         <div className="relative">
             {isSearchOpen && (
