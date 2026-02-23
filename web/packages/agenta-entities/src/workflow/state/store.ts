@@ -63,6 +63,39 @@ interface WorkflowLatestRevisionRequest {
     queryClient?: QueryClient
 }
 
+const toUnixMs = (value: string | null | undefined): number => {
+    if (!value) return 0
+    const timestamp = new Date(value).getTime()
+    return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+const workflowRecencyScore = (workflow: Workflow | null | undefined): number => {
+    if (!workflow) return 0
+    return (
+        toUnixMs(workflow.created_at) ||
+        toUnixMs(workflow.updated_at) ||
+        Number(workflow.version ?? 0)
+    )
+}
+
+const pickMostRecentWorkflowRevision = (
+    revisions: (Workflow | null | undefined)[],
+): Workflow | null => {
+    let latest: Workflow | null = null
+    let latestScore = -1
+
+    for (const revision of revisions) {
+        if (!revision) continue
+        const score = workflowRecencyScore(revision)
+        if (!latest || score > latestScore) {
+            latest = revision
+            latestScore = score
+        }
+    }
+
+    return latest
+}
+
 function primeWorkflowRevisionDetailCache(
     queryClient: QueryClient,
     projectId: string,
@@ -150,13 +183,8 @@ function findLatestWorkflowRevisionInCache(
     const revisions = revisionsByWorkflow?.workflow_revisions ?? []
     if (revisions.length === 0) return undefined
 
-    let latest: Workflow | null = null
-    for (const revision of revisions) {
-        if (!latest || (revision.version ?? 0) > (latest.version ?? 0)) {
-            latest = revision
-        }
-    }
-    return latest ?? undefined
+    const latestByRecency = pickMostRecentWorkflowRevision(revisions)
+    return latestByRecency ?? undefined
 }
 
 const workflowRevisionBatchFetcher = createBatchFetcher<WorkflowRevisionRequest, Workflow | null>({
@@ -418,16 +446,12 @@ export const workflowRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowId
                     primeWorkflowRevisionDetailCache(queryClient, projectId, revision)
                 }
 
-                let latest: Workflow | null = null
-                for (const revision of response.workflow_revisions ?? []) {
-                    if (!latest || (revision.version ?? 0) > (latest.version ?? 0)) {
-                        latest = revision
-                    }
-                }
-                if (latest) {
+                const revisions = response.workflow_revisions ?? []
+                const latestByRecency = pickMostRecentWorkflowRevision(revisions)
+                if (latestByRecency) {
                     queryClient.setQueryData(
                         ["workflows", "latestRevision", workflowId, projectId],
-                        latest,
+                        latestByRecency,
                     )
                 }
 
@@ -441,13 +465,13 @@ export const workflowRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowId
 
 /**
  * Derived atom family for revision list data by workflow ID (convenience).
- * Sorted by version descending (newest first).
+ * Sorted by revision recency (`created_at` fallback `updated_at`, then version).
  */
 export const workflowRevisionsByWorkflowListDataAtomFamily = atomFamily((workflowId: string) =>
     atom<Workflow[]>((get) => {
         const query = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
         const revisions = query.data?.workflow_revisions ?? []
-        return [...revisions].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+        return [...revisions].sort((a, b) => workflowRecencyScore(b) - workflowRecencyScore(a))
     }),
 )
 
@@ -480,7 +504,7 @@ export const workflowRevisionsQueryAtomFamily = atomFamily((variantId: string) =
                         ])
                         if (
                             !cachedLatest ||
-                            (revision.version ?? 0) > (cachedLatest.version ?? 0)
+                            workflowRecencyScore(revision) > workflowRecencyScore(cachedLatest)
                         ) {
                             queryClient.setQueryData(
                                 ["workflows", "latestRevision", revision.workflow_id, projectId],

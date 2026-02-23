@@ -36,6 +36,39 @@ import {
 } from "../core"
 import type {WorkflowDetailParams, WorkflowListParams} from "../core"
 
+const toUnixMs = (value: string | null | undefined): number => {
+    if (!value) return 0
+    const timestamp = new Date(value).getTime()
+    return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+const getWorkflowRecencyScore = (workflow: Workflow | null | undefined): number => {
+    if (!workflow) return 0
+    return (
+        toUnixMs(workflow.created_at) ||
+        toUnixMs(workflow.updated_at) ||
+        Number(workflow.version ?? 0)
+    )
+}
+
+const selectMostRecentWorkflowRevision = (
+    workflows: (Workflow | null | undefined)[],
+): Workflow | undefined => {
+    let latest: Workflow | undefined
+    let latestScore = -1
+
+    for (const workflow of workflows) {
+        if (!workflow) continue
+        const score = getWorkflowRecencyScore(workflow)
+        if (!latest || score > latestScore) {
+            latest = workflow
+            latestScore = score
+        }
+    }
+
+    return latest
+}
+
 // ============================================================================
 // QUERY / LIST (Workflows)
 // ============================================================================
@@ -161,6 +194,7 @@ export async function queryWorkflowRevisionsByWorkflow(
     if (!validated) {
         return {count: 0, workflow_revisions: []}
     }
+
     return validated
 }
 
@@ -729,6 +763,7 @@ export async function fetchWorkflowsBatch(
     workflowIds: string[],
 ): Promise<Map<string, Workflow>> {
     const results = new Map<string, Workflow>()
+    const groupedByWorkflowId = new Map<string, Workflow[]>()
 
     if (!projectId || workflowIds.length === 0) return results
 
@@ -753,10 +788,19 @@ export async function fetchWorkflowsBatch(
             if (workflow) {
                 // Key by workflow_id so callers can look up by the workflow ID they passed in
                 const key = workflow.workflow_id ?? workflow.id
-                results.set(key, workflow)
+                const current = groupedByWorkflowId.get(key) ?? []
+                groupedByWorkflowId.set(key, [...current, workflow])
             }
         } catch (e) {
             console.error("[fetchWorkflowsBatch] Failed to parse workflow:", e, raw)
+        }
+    }
+
+    for (const workflowId of workflowIds) {
+        const candidates = groupedByWorkflowId.get(workflowId) ?? []
+        const mostRecent = selectMostRecentWorkflowRevision(candidates)
+        if (mostRecent) {
+            results.set(workflowId, mostRecent)
         }
     }
 
