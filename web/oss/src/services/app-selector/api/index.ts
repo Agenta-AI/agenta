@@ -1,3 +1,4 @@
+import {fetchRevisionSchema} from "@agenta/entities/legacyAppRevision"
 import Router from "next/router"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -185,6 +186,83 @@ export const updateAppFolder = async (
     return response.data
 }
 
+/**
+ * Extract default parameters from a dereferenced OpenAPI spec's ag_config schema.
+ * Tries endpoints in priority order and returns the first set of defaults found.
+ */
+function extractDefaultParameters(
+    spec: Record<string, unknown>,
+    routePath?: string,
+): Record<string, unknown> {
+    const paths = spec?.paths as Record<string, unknown> | undefined
+    if (!paths) return {}
+
+    const endpointNames = ["/test", "/run", "/generate", "/generate_deployed", "/"]
+
+    for (const endpoint of endpointNames) {
+        const endpointName = endpoint.startsWith("/") ? endpoint.slice(1) : endpoint
+        const withRoute = routePath ? `/${routePath.replace(/^\/|\/$/g, "")}/${endpointName}` : null
+        const withoutRoute = `/${endpointName}`
+
+        // Try with routePath first, then without (spec may omit the prefix)
+        const fullPath =
+            (withRoute && paths[withRoute] ? withRoute : null) ||
+            (paths[withoutRoute] ? withoutRoute : null)
+
+        if (!fullPath) continue
+
+        const pathObj = paths[fullPath] as Record<string, unknown>
+        const postOp = pathObj?.post as Record<string, unknown> | undefined
+        const requestBody = postOp?.requestBody as Record<string, unknown> | undefined
+        const content = requestBody?.content as Record<string, unknown> | undefined
+        const jsonContent = content?.["application/json"] as Record<string, unknown> | undefined
+        const schema = jsonContent?.schema as Record<string, unknown> | undefined
+        const properties = schema?.properties as Record<string, unknown> | undefined
+        const agConfig = properties?.ag_config as Record<string, unknown> | undefined
+
+        if (!agConfig) continue
+
+        // Prefer top-level default (Pydantic BaseModel emits this)
+        if (agConfig.default && typeof agConfig.default === "object") {
+            return agConfig.default as Record<string, unknown>
+        }
+
+        // Fallback: collect individual property defaults
+        const agProps = agConfig.properties as Record<string, Record<string, unknown>> | undefined
+        if (!agProps) {
+            // Check for allOf wrapping (Pydantic v2 pattern)
+            const allOf = agConfig.allOf as Record<string, unknown>[] | undefined
+            if (allOf) {
+                for (const branch of allOf) {
+                    const branchProps = branch?.properties as
+                        | Record<string, Record<string, unknown>>
+                        | undefined
+                    if (branchProps) {
+                        const defaults: Record<string, unknown> = {}
+                        for (const [key, prop] of Object.entries(branchProps)) {
+                            if (prop?.default !== undefined) {
+                                defaults[key] = prop.default
+                            }
+                        }
+                        if (Object.keys(defaults).length > 0) return defaults
+                    }
+                }
+            }
+            continue
+        }
+
+        const defaults: Record<string, unknown> = {}
+        for (const [key, prop] of Object.entries(agProps)) {
+            if (prop?.default !== undefined) {
+                defaults[key] = prop.default
+            }
+        }
+        if (Object.keys(defaults).length > 0) return defaults
+    }
+
+    return {}
+}
+
 export const createAndStartTemplate = async ({
     appName,
     providerKey: _providerKey,
@@ -231,31 +309,54 @@ export const createAndStartTemplate = async ({
             })
         })()
 
+        // Auto-commit v1 with schema-derived default parameters
+        const {projectId} = getProjectValues()
+        let revisionId: string | undefined
+
+        const uri = variant?.uri as string | undefined
+        const variantId = variant?.variant_id as string | undefined
+
+        if (uri && variantId && projectId) {
+            try {
+                const schemaResult = await fetchRevisionSchema(uri, projectId)
+
+                const defaultParams = schemaResult?.schema
+                    ? extractDefaultParameters(
+                          schemaResult.schema as Record<string, unknown>,
+                          schemaResult.routePath,
+                      )
+                    : {}
+
+                const commitResponse = await axios.put(
+                    `${getAgentaApiUrl()}/variants/${variantId}/parameters`,
+                    {
+                        parameters: defaultParams,
+                        commit_message: "Initial commit with default parameters",
+                    },
+                    {params: {project_id: projectId}},
+                )
+
+                revisionId = commitResponse.data?.id
+            } catch (schemaError) {
+                console.warn("[createAndStartTemplate] Failed to auto-commit v1:", schemaError)
+            }
+        }
+
         onStatusChange?.("success", undefined, app.app_id)
 
-        const baseAppURL = (await waitForValidURL())?.baseAppURL
-        const revisionId =
-            variant?.id ??
-            variant?.revision_id ??
-            variant?.revisionId ??
-            variant?.latest_revision_id ??
-            undefined
+        const baseAppURL = (await waitForValidURL({requireApp: true}))?.baseAppURL
 
-        if (app?.app_id && revisionId) {
+        if (app?.app_id) {
+            const query: Record<string, string> = {}
+            if (revisionId) {
+                const revisionsParam = buildRevisionsQueryParam([revisionId])
+                if (revisionsParam) query.revisions = revisionsParam
+            }
+
             await Router.push({
                 pathname: `${baseAppURL}/${app.app_id}/playground`,
-                query: {
-                    revisions: buildRevisionsQueryParam([revisionId]),
-                },
+                query,
             })
-        } else if (app?.app_id) {
-            if (typeof window !== "undefined") {
-                try {
-                    await Router.push(`${baseAppURL}/${app.app_id}/playground`)
-                } catch (navigationError) {
-                    console.error("❌ [createAndStartTemplate] Navigation failed:", navigationError)
-                }
-            }
         }
     } catch (error: any) {
         if (error?.status === 400 || error?.response?.status === 400) {

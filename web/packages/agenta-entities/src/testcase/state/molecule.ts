@@ -283,9 +283,9 @@ const displayRowIdsAtom = atom((get) => {
     // Filter out deleted server entities
     const activeServerIds = serverIds.filter((id) => !deletedIds.has(id))
 
-    const result = [...newIds, ...activeServerIds]
+    // Server entities first, then new (local) entities at the end
+    const result = [...activeServerIds, ...newIds]
 
-    // New entities first (at top), then server entities
     return result
 })
 

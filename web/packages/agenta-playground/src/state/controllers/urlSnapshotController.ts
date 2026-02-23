@@ -26,7 +26,7 @@
 import {snapshotAdapterRegistry} from "@agenta/entities/runnable"
 import {atom} from "jotai"
 
-import {parseSnapshot} from "../../snapshot"
+import {parseSnapshot, type SnapshotLoadableConnection} from "../../snapshot"
 import type {RunnableType} from "../types"
 
 import {
@@ -186,16 +186,17 @@ const buildEncodedSnapshotAtom = atom(
                 }
             }
 
-            // Check if snapshot has drafts or ephemeral entities
+            // Check if snapshot has drafts, ephemeral entities, or a testset connection
             const hasDrafts = (result.snapshot?.drafts?.length ?? 0) > 0
             const hasEphemeralEntities = result.snapshot?.selection?.some(
                 (item) => item.kind === "ephemeral",
             )
+            const hasLoadable = Boolean(result.snapshot?.loadable)
 
             return {
                 ok: true,
                 encoded: result.encoded,
-                hasDrafts: hasDrafts || !!hasEphemeralEntities,
+                hasDrafts: hasDrafts || !!hasEphemeralEntities || hasLoadable,
                 entityIds,
                 selectionIds: entityIds,
                 warning: result.warning,
@@ -322,6 +323,8 @@ export interface HydrateFromUrlResult {
     hasPendingHydrations: boolean
     /** Error message if failed */
     error?: string
+    /** Testset connection to restore after playground nodes are set up */
+    loadable?: SnapshotLoadableConnection
 }
 
 /**
@@ -367,6 +370,7 @@ const hydrateFromUrlAtom = atom(null, (get, set, encodedSnapshot: string): Hydra
             selection: hydrateResult.selection,
             entities: hydrateResult.entities,
             hasPendingHydrations: get(pendingHydrationsAtom).size > 0,
+            loadable: hydrateResult.loadable,
         }
     } catch (err) {
         return {

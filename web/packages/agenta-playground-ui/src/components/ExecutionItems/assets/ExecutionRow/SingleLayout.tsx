@@ -463,6 +463,12 @@ const SingleView = ({
         [runRowStepAction, rowId, entityId],
     )
 
+    const providers = usePlaygroundUIOptional()
+    const SyncStateTagSlot = providers?.renderSyncStateTag
+    const loadableId = useAtomValue(
+        useMemo(() => playgroundController.selectors.loadableId(), []),
+    ) as string | null
+
     const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
     const {currentResult, repetitionProps} = useRepetitionResult({
         rowId,
@@ -596,6 +602,9 @@ const SingleView = ({
                             </Tag>
                         )}
                     />
+                    {SyncStateTagSlot && loadableId && (
+                        <SyncStateTagSlot rowId={rowId} loadableId={loadableId} />
+                    )}
                     <div className="flex-1" />
                     <RowHeaderActions
                         rowId={rowId}

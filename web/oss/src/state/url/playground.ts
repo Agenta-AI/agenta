@@ -1,10 +1,8 @@
 // Import workflow to ensure the snapshot adapter is registered
 import "@agenta/entities/workflow"
 
+import {latestServerRevisionIdAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
-// App-scoped revision list query — stays entity-specific because it queries
-// the parent (app/workflow) for its child revisions, which is not per-entity.
-import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {
     urlSnapshotController,
     setRunnableTypeResolver,
@@ -116,6 +114,10 @@ const extractSnapshotFromHash = (url: URL): string | null => {
  * Track the last snapshot hash we wrote to prevent re-hydration loops.
  */
 let lastWrittenSnapshotHash: string | null = null
+
+// Flag to skip URL revision processing after ephemeral entity hydration
+// until the URL is updated with the new entity IDs
+let skipUrlRevisionsUntilUpdate = false
 
 const sanitizeRevisionList = (values: (string | null | undefined)[]) => {
     const seen = new Set<string>()
@@ -486,25 +488,20 @@ export const ensurePlaygroundDefaults = (store: Store): boolean => {
     const selected = sanitizeRevisionList(store.get(playgroundController.selectors.entityIds()))
 
     // If there are valid selected revisions, don't override
-    if (selected.length > 0) {
-        return true
-    }
+    if (selected.length > 0) return true
 
     const rawAppId = store.get(selectedAppIdAtom)
     const appId = typeof rawAppId === "string" ? rawAppId : null
 
     if (!appId) {
-        return false
+        return true // Mark as "applied" so we don't keep retrying
     }
 
-    const revisions = store.get(workflowRevisionsByWorkflowListDataAtomFamily(appId))
-    const latest = revisions[0]
-    if (latest) {
-        applyPlaygroundSelection(store, [latest.id])
-        return true
-    }
+    const latestRevisionId = store.get(latestServerRevisionIdAtomFamily(appId))
+    if (!latestRevisionId) return false
 
-    return false
+    applyPlaygroundSelection(store, [latestRevisionId])
+    return true
 }
 
 /**
@@ -516,7 +513,6 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
 
     const fullUrl = nextUrl ? new URL(nextUrl, window.location.origin).href : window.location.href
     const normalizedUrl = `${new URL(fullUrl).pathname}${new URL(fullUrl).search}${new URL(fullUrl).hash}`
-
     if (normalizedUrl === lastWrittenUrl) return
 
     try {
@@ -548,8 +544,36 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
                     hydrateResult.entities as HydratedEntityDescriptor[] | undefined,
                 )
 
+                // For ephemeral entities, the restored entity ID differs from the URL's query param.
+                // Update the URL to reflect the new entity IDs so subsequent syncs don't re-apply stale IDs.
+                const hasEphemeralEntities = hydrateResult.entities?.some(
+                    (e) => e.runnableType === "baseRunnable",
+                )
+                if (hasEphemeralEntities) {
+                    // Set flag to skip URL revision processing until URL is updated
+                    skipUrlRevisionsUntilUpdate = true
+                    // Update URL with new selection (deferred to avoid sync loop)
+                    requestAnimationFrame(() => {
+                        writePlaygroundSelectionToQuery(hydrateResult.selection)
+                        skipUrlRevisionsUntilUpdate = false
+                    })
+                }
+
+                // Restore testset connection after nodes are set up (nodes are now populated)
+                if (hydrateResult.loadable) {
+                    void store.set(
+                        playgroundController.actions.restoreLoadableConnection,
+                        hydrateResult.loadable,
+                    )
+                }
                 return
             }
+        }
+
+        // Skip URL revision processing if we just hydrated ephemeral entities
+        // and haven't updated the URL yet
+        if (skipUrlRevisionsUntilUpdate && isPlaygroundRoute) {
+            return
         }
 
         // Skip URL revision processing if there are pending hydrations
@@ -786,16 +810,15 @@ playgroundSyncAtom.onMount = (set) => {
                 store.set(playgroundInitializedAtom, true)
             }
         } else {
-            currentRevReadyUnsub = store.sub(
-                playgroundController.selectors.revisionsReady(),
-                tryApplyDefaults,
+            currentRevReadyUnsub = store.sub(playgroundController.selectors.revisionsReady(), () =>
+                tryApplyDefaults(),
             )
             // Subscribe to entity data so we retry when it finishes loading.
             // Only needed when no URL selection exists and we must find a default.
             if (currentAppId) {
                 currentLatestRevUnsub = store.sub(
-                    workflowRevisionsByWorkflowListDataAtomFamily(currentAppId),
-                    tryApplyDefaults,
+                    latestServerRevisionIdAtomFamily(currentAppId),
+                    () => tryApplyDefaults(),
                 )
             }
             // Immediate check in case already ready
@@ -803,7 +826,9 @@ playgroundSyncAtom.onMount = (set) => {
         }
     }
     bindRevisionsReady()
-    const unsubAppChange = store.sub(routerAppIdAtom, bindRevisionsReady)
+    const unsubAppChange = store.sub(routerAppIdAtom, () => {
+        bindRevisionsReady()
+    })
     unsubs.push(unsubAppChange)
     unsubs.push(() => currentRevReadyUnsub?.())
     unsubs.push(() => currentLatestRevUnsub?.())
@@ -844,6 +869,25 @@ playgroundSyncAtom.onMount = (set) => {
         }
     })
     unsubs.push(unsubValidation)
+
+    // -----------------------------------------------------------------------
+    // SUB 5: Update URL when testset connection changes
+    // -----------------------------------------------------------------------
+    // When the user connects/disconnects from an API-backed testset, the
+    // loadable state changes. We re-encode the URL so the testset connection
+    // is captured in (or removed from) the #pgSnapshot hash.
+    const unsubConnectedTestset = store.sub(
+        playgroundController.selectors.connectedTestset(),
+        () => {
+            const currentSelected = sanitizeRevisionList(
+                store.get(playgroundController.selectors.entityIds()),
+            )
+            if (currentSelected.length > 0) {
+                writePlaygroundSelectionToQuery(currentSelected)
+            }
+        },
+    )
+    unsubs.push(unsubConnectedTestset)
 
     // -----------------------------------------------------------------------
     // CLEANUP

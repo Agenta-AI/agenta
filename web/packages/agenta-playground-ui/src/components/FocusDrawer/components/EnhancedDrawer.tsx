@@ -1,4 +1,4 @@
-import {useState, useEffect, useMemo} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {Drawer, type DrawerProps} from "antd"
 
@@ -17,6 +17,18 @@ const EnhancedDrawer = ({
 }: EnhancedDrawerProps) => {
     const {open: isVisible, onClose, mask} = props
     const [shouldRender, setShouldRender] = useState(!!isVisible)
+
+    const drawerStyles = useMemo(() => {
+        if (!width) return styles
+        const s = styles as Record<string, unknown> | undefined
+        return {
+            ...s,
+            wrapper: {
+                ...(s?.wrapper as React.CSSProperties | undefined),
+                width,
+            },
+        }
+    }, [width, styles])
 
     const maskProps = useMemo(() => {
         if (mask === false) return false
@@ -63,7 +75,7 @@ const EnhancedDrawer = ({
             open={isVisible}
             width={width}
             afterOpenChange={handleAfterOpenChange}
-            styles={styles}
+            styles={drawerStyles}
             mask={maskProps}
         >
             {children}
