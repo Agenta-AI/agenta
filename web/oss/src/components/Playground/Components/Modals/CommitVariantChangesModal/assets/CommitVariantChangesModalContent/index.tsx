@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {buildFocusedJsonDiffPreview} from "@agenta/shared/utils"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Checkbox, Input, Radio, RadioChangeEvent, Select, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -22,6 +23,7 @@ import {revisionLabelInfoAtomFamily} from "@/oss/state/newPlayground/legacyEntit
 import {CommitVariantChangesModalContentProps} from "../types"
 
 const {Text} = Typography
+const COMMIT_DIFF_PREVIEW_TRIGGER_CHARS = 200_000
 
 const CommitVariantChangesModalContent = ({
     variantId,
@@ -67,12 +69,18 @@ const CommitVariantChangesModalContent = ({
     // Snapshot diff content using refs (no re-renders, computed on first mount)
     const initialOriginalRef = useRef<string | null>(null)
     const initialModifiedRef = useRef<string | null>(null)
+    const focusedPreviewRef = useRef<{
+        original: string
+        modified: string
+        preview: ReturnType<typeof buildFocusedJsonDiffPreview>
+    } | null>(null)
 
     // Reset refs when the target variant changes
     useEffect(() => {
         settledTargetRevisionRef.current = null
         initialOriginalRef.current = null
         initialModifiedRef.current = null
+        focusedPreviewRef.current = null
     }, [variantId])
 
     // Guard against undefined variant during commit invalidation (after all hooks)
@@ -176,6 +184,22 @@ const CommitVariantChangesModalContent = ({
         initialOriginalRef.current ?? JSON.stringify(sanitizedOriginalParams ?? {})
     const modifiedForDiff =
         initialModifiedRef.current ?? JSON.stringify(sanitizedModifiedParams ?? {})
+    if (
+        !focusedPreviewRef.current ||
+        focusedPreviewRef.current.original !== originalForDiff ||
+        focusedPreviewRef.current.modified !== modifiedForDiff
+    ) {
+        focusedPreviewRef.current = {
+            original: originalForDiff,
+            modified: modifiedForDiff,
+            preview: buildFocusedJsonDiffPreview({
+                original: originalForDiff,
+                modified: modifiedForDiff,
+                triggerChars: COMMIT_DIFF_PREVIEW_TRIGGER_CHARS,
+            }),
+        }
+    }
+    const focusedPreview = focusedPreviewRef.current.preview
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-6 md:flex-row">
@@ -318,8 +342,8 @@ const CommitVariantChangesModalContent = ({
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
                     <DiffView
-                        original={originalForDiff}
-                        modified={modifiedForDiff}
+                        original={focusedPreview.original}
+                        modified={focusedPreview.modified}
                         language="json"
                         className="h-full min-h-0 rounded-lg border border-[#E2E8F0]"
                         computeOnMountOnly

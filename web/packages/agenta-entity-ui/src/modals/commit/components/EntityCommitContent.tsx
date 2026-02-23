@@ -5,9 +5,10 @@
  * Supports version info, changes summary, and diff view via adapter.
  */
 
-import {lazy, Suspense} from "react"
+import {lazy, Suspense, useMemo} from "react"
 
 import {formatCount} from "@agenta/shared/utils"
+import {buildFocusedJsonDiffPreview} from "@agenta/shared/utils"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {cn, textColors} from "@agenta/ui/styles"
 import {Input, Alert, Typography, Skeleton} from "antd"
@@ -30,6 +31,8 @@ const {Text} = Typography
 
 /** Max length for commit messages */
 const COMMIT_MESSAGE_MAX_LENGTH = 500
+/** Combined payload size that triggers focused diff preview mode */
+const COMMIT_DIFF_PREVIEW_TRIGGER_CHARS = 200_000
 
 /**
  * EntityCommitContent
@@ -83,6 +86,17 @@ export function EntityCommitContent() {
 
     // Check if diff data is available
     const hasDiffData = context?.diffData?.original && context?.diffData?.modified
+    const focusedPreview = useMemo(
+        () =>
+            hasDiffData
+                ? buildFocusedJsonDiffPreview({
+                      original: context.diffData?.original ?? "",
+                      modified: context.diffData?.modified ?? "",
+                      triggerChars: COMMIT_DIFF_PREVIEW_TRIGGER_CHARS,
+                  })
+                : null,
+        [hasDiffData, context?.diffData?.original, context?.diffData?.modified],
+    )
 
     // Calculate total changes for diff header (testcases + columns)
     const totalChanges =
@@ -203,9 +217,13 @@ export function EntityCommitContent() {
                             }
                         >
                             <DiffView
-                                key={`${context.diffData?.original.length}-${context.diffData?.modified.length}`}
-                                original={context.diffData?.original ?? ""}
-                                modified={context.diffData?.modified ?? ""}
+                                key={`${focusedPreview?.original.length ?? 0}-${focusedPreview?.modified.length ?? 0}`}
+                                original={
+                                    focusedPreview?.original ?? context.diffData?.original ?? ""
+                                }
+                                modified={
+                                    focusedPreview?.modified ?? context.diffData?.modified ?? ""
+                                }
                                 language={context.diffData?.language === "yaml" ? "yaml" : "json"}
                                 className="h-full"
                                 showErrors

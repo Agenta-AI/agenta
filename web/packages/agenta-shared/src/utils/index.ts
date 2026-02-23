@@ -136,3 +136,10 @@ export type {
     MappingLike,
     MappingValidationResult,
 } from "./mappingUtils"
+
+// Focused diff preview utilities
+export {
+    buildFocusedJsonDiffPreview,
+    type FocusedJsonDiffPreviewOptions,
+    type FocusedJsonDiffPreviewResult,
+} from "./focusedJsonDiffPreview"

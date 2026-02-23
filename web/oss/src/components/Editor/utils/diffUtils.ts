@@ -1,9 +1,23 @@
 import yaml from "js-yaml"
 
 /**
+ * Guardrail: avoid O(n*m) LCS matrix for very large diffs.
+ * Beyond this threshold we use a linear lookahead diff.
+ */
+const LCS_MAX_MATRIX_CELLS = 1_000_000
+const FAST_DIFF_LOOKAHEAD = 12
+
+/**
  * Compute line-by-line diff using LCS-based algorithm
  */
 function computeLineDiff(oldLines: string[], newLines: string[], contextLines: number): DiffLine[] {
+    const matrixCells = oldLines.length * newLines.length
+
+    // Large payloads can freeze the UI with quadratic LCS. Use linear fallback.
+    if (matrixCells > LCS_MAX_MATRIX_CELLS) {
+        return computeLineDiffWithLookahead(oldLines, newLines)
+    }
+
     const result: {
         type: "context" | "added" | "removed"
         content: string
@@ -49,6 +63,90 @@ function computeLineDiff(oldLines: string[], newLines: string[], contextLines: n
             oldIndex++
         } else if (newIndex < newLines.length) {
             // Added line - show only new line number
+            result.push({
+                type: "added",
+                content: newLines[newIndex],
+                newLineNumber: newIndex + 1,
+            })
+            newIndex++
+        }
+    }
+
+    return result
+}
+
+/**
+ * Linear diff fallback with bounded lookahead.
+ * Preserves responsiveness for large files where full LCS is too expensive.
+ */
+function computeLineDiffWithLookahead(oldLines: string[], newLines: string[]): DiffLine[] {
+    const result: DiffLine[] = []
+    let oldIndex = 0
+    let newIndex = 0
+
+    while (oldIndex < oldLines.length || newIndex < newLines.length) {
+        if (
+            oldIndex < oldLines.length &&
+            newIndex < newLines.length &&
+            oldLines[oldIndex] === newLines[newIndex]
+        ) {
+            result.push({
+                type: "context",
+                content: oldLines[oldIndex],
+                oldLineNumber: oldIndex + 1,
+                newLineNumber: newIndex + 1,
+            })
+            oldIndex++
+            newIndex++
+            continue
+        }
+
+        let reSynced = false
+
+        if (oldIndex < oldLines.length && newIndex < newLines.length) {
+            for (let offset = 1; offset <= FAST_DIFF_LOOKAHEAD; offset++) {
+                const nextOld = oldIndex + offset
+                if (nextOld < oldLines.length && oldLines[nextOld] === newLines[newIndex]) {
+                    for (let i = oldIndex; i < nextOld; i++) {
+                        result.push({
+                            type: "removed",
+                            content: oldLines[i],
+                            oldLineNumber: i + 1,
+                        })
+                    }
+                    oldIndex = nextOld
+                    reSynced = true
+                    break
+                }
+
+                const nextNew = newIndex + offset
+                if (nextNew < newLines.length && oldLines[oldIndex] === newLines[nextNew]) {
+                    for (let j = newIndex; j < nextNew; j++) {
+                        result.push({
+                            type: "added",
+                            content: newLines[j],
+                            newLineNumber: j + 1,
+                        })
+                    }
+                    newIndex = nextNew
+                    reSynced = true
+                    break
+                }
+            }
+        }
+
+        if (reSynced) continue
+
+        if (oldIndex < oldLines.length) {
+            result.push({
+                type: "removed",
+                content: oldLines[oldIndex],
+                oldLineNumber: oldIndex + 1,
+            })
+            oldIndex++
+        }
+
+        if (newIndex < newLines.length) {
             result.push({
                 type: "added",
                 content: newLines[newIndex],
