@@ -22,6 +22,8 @@
         "./appRevision/snapshotAdapter": "./src/appRevision/snapshotAdapter.ts",
         "./legacyAppRevision": "./src/legacyAppRevision/index.ts",
         "./legacyAppRevision/metadata": "./src/legacyAppRevision/state/metadataAtoms.ts",
+        "./legacyAppRevision/utils": "./src/legacyAppRevision/utils/index.ts",
+        "./legacyAppRevision/utils/parameterConversion": "./src/legacyAppRevision/utils/parameterConversion.ts",
         "./legacyAppRevision/snapshotAdapter": "./src/legacyAppRevision/snapshotAdapter.ts",
         "./evaluatorRevision": "./src/evaluatorRevision/index.ts",
         "./loadable": "./src/loadable/index.ts",

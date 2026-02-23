@@ -105,7 +105,6 @@ export {
 export {
     // Data transformers
     transformApiRevision,
-    transformEnhancedVariant,
     // Fetch functions
     fetchOssRevision,
     fetchOssRevisionById,
@@ -222,28 +221,16 @@ export {
     // Server data management
     setServerDataAtom,
     clearServerDataAtom,
-    // Enhanced prompts/custom properties
-    setEnhancedPromptsAtom,
-    mutateEnhancedPromptsAtom,
-    setEnhancedCustomPropertiesAtom,
-    mutateEnhancedCustomPropertiesAtom,
-    updatePropertyAtom,
     // Read utilities
     findPropertyInObject,
     findPropertyInArray,
-    findPropertyByIdAtomFamily,
     // Template format
-    revisionTemplateFormatAtomFamily,
     sanitizeTemplateFormat,
     getTemplateFormatNode,
     getTemplateFormatValue,
     getTemplateFormatPropertyId,
     DEFAULT_TEMPLATE_FORMAT,
     type PromptTemplateFormat,
-    // Per-prompt variables
-    revisionPromptVariablesAtomFamily,
-    // Override functions
-    setAppsListAtom,
     setVariantsListAtomFamily,
     setRevisionsListAtomFamily,
 } from "./state"
@@ -258,16 +245,6 @@ export {
     revisionSchemaAtPathAtomFamily,
     revisionEndpointsAtomFamily,
     getSchemaPropertyAtPath,
-    // Enhanced custom properties (with values)
-    revisionEnhancedCustomPropertiesAtomFamily,
-    revisionCustomPropertyKeysAtomFamily,
-    type EnhancedCustomProperty,
-    // Enhanced prompts (with values)
-    revisionEnhancedPromptsAtomFamily,
-    revisionPromptKeysAtomFamily,
-    type EnhancedPrompt,
-    // Service schema metadata warmer
-    serviceSchemaMetadataWarmerAtom,
 } from "./state"
 
 // ============================================================================
