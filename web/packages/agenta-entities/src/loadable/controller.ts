@@ -48,7 +48,11 @@ import {
     resetTestcaseIdsAtom,
     clearNewEntityIdsAtom,
     currentRevisionIdAtom,
+    deletedEntityIdsAtom,
+    markDeletedAtom,
+    newEntityIdsAtom,
     setCurrentRevisionIdAtom,
+    clearDeletedIdsAtom,
 } from "../testcase/state/store"
 import {pendingColumnOpsAtomFamily} from "../testset/state"
 import {saveNewTestsetAtom, saveTestsetAtom} from "../testset/state/mutations"
@@ -80,7 +84,7 @@ import type {
     RowExecutionResult,
     OutputMapping,
 } from "./types"
-import {extractPaths, createOutputMappingId} from "./utils"
+import {createOutputMappingId, extractPaths} from "./utils"
 
 // ============================================================================
 // CONSTANTS
@@ -356,6 +360,21 @@ const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
         // Not connected - no "local changes" concept
         if (!state.connectedSourceId) {
             return false
+        }
+
+        // Check if there are any new or deleted entities
+        const newEntityIds = get(newEntityIdsAtom)
+        const deletedEntityIds = get(deletedEntityIdsAtom)
+        if (newEntityIds.length > 0 || deletedEntityIds.size > 0) {
+            return true
+        }
+
+        // Check hidden testcases (which are effectively "removed" from the testset)
+        const hiddenIds = state.hiddenTestcaseIds
+        for (const id of hiddenIds) {
+            if (!id.startsWith("new-") && !id.startsWith("local-")) {
+                return true
+            }
         }
 
         // Check if there are any new column keys (new variables added)
@@ -865,6 +884,8 @@ const connectToSourceAtom = atom(
         // Clear local entities before connecting to a new source
         // This ensures Replace mode fully replaces existing data
         set(clearNewEntityIdsAtom)
+        set(clearDeletedIdsAtom)
+        set(resetTestcaseIdsAtom)
 
         // If testcases provided, populate query cache and set IDs
         // Note: Testcases are stored in nested Testcase format
@@ -875,7 +896,6 @@ const connectToSourceAtom = atom(
                 ids.push(tc.id)
             }
             // Reset and set testcase IDs so displayRowIds picks them up
-            set(resetTestcaseIdsAtom)
             set(setTestcaseIdsAtom, ids)
         }
 
@@ -1014,6 +1034,16 @@ const commitChangesAtom = atom(
             throw new Error("No project ID available")
         }
 
+        // Soft-delete hidden testcase IDs so they appear in TestsetRevisionDelta.deleted.
+        // hiddenTestcaseIds is a UI-only filter — we must convert to proper soft-deletes
+        // before calling saveTestsetAtom, which reads deletedEntityIdsAtom.
+        // Only server entities need to be deleted (local "new-"/"local-" IDs are not on server).
+        for (const id of state.hiddenTestcaseIds) {
+            if (!id.startsWith("new-") && !id.startsWith("local-")) {
+                set(markDeletedAtom, id)
+            }
+        }
+
         // Apply any pending output mappings before committing.
         // This ensures derived output values (from execution results) are included
         // in the testcase drafts and will be saved. This handles the case where
@@ -1042,6 +1072,16 @@ const commitChangesAtom = atom(
         if (!result.success) {
             throw result.error ?? new Error("Commit failed")
         }
+
+        // Reconnect to the new revision so the UI stays in sync
+        // with the newly created testcase and row IDs without a fetch loop
+        await set(
+            connectToSourceAtom,
+            loadableId,
+            result.newRevisionId!,
+            state.connectedSourceName ?? undefined,
+            undefined,
+        )
 
         return {
             revisionId: result.newRevisionId!,
@@ -1114,17 +1154,28 @@ const saveAsNewTestsetAtom = atom(
             return {success: false, error: new Error("Testset name is required")}
         }
 
-        // Check if there are testcase entities to save
-        const newIds = get(testcaseMolecule.atoms.newIds)
-        if (newIds.length === 0) {
+        // Apply any pending output mappings before saving so derived values are included.
+        const mappings = state.outputMappings ?? []
+        if (mappings.length > 0) {
+            set(applyOutputMappingsToAllAtom, loadableId)
+        }
+
+        // Collect ALL visible testcase data (server + local, excluding hidden rows).
+        // connectedRowsAtomFamily already filters out hiddenTestcaseIds and merges drafts.
+        const visibleRows = get(connectedRowsAtomFamily(loadableId))
+        if (visibleRows.length === 0) {
             return {success: false, error: new Error("No testcases to save")}
         }
 
+        // Extract plain data objects from each row (strip the `id` field)
+        const allTestcaseData = visibleRows.map((row) => row.data)
+
         try {
-            // Use the testset entity save mutation - reads from testcaseMolecule
+            // Use the testset entity save mutation with explicit data so all rows are included.
             const result = await set(saveNewTestsetAtom, {
                 projectId,
                 testsetName: name.trim(),
+                explicitTestcaseData: allTestcaseData,
             })
 
             if (!result.success) {

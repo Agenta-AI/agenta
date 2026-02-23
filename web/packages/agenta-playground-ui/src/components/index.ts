@@ -55,3 +55,17 @@ export {
     GenerationComparisonInputHeader,
     GenerationComparisonOutputHeader,
 } from "./ExecutionItemComparisonView"
+
+// Testset selection modal (entity-based, for load/edit modes)
+// For saving new testsets, use EntityCommitModal from @agenta/entity-ui with renderModeContent
+export {
+    TestsetSelectionModal,
+    type TestsetSelectionModalProps,
+    type TestsetSelectionMode,
+    type TestsetSelectionPayload,
+    type TestcaseTableProps,
+    type SelectionSummaryProps,
+    useTestsetSelection,
+    TestcaseTable,
+    SelectionSummary,
+} from "./TestsetSelectionModal"

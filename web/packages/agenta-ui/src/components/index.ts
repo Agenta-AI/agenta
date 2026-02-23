@@ -75,3 +75,4 @@ export {
 
 export {DraftTag, type DraftTagProps} from "./DraftTag"
 export {HeightCollapse, type HeightCollapseProps} from "./HeightCollapse"
+export {SyncStateTag, type SyncStateTagProps, type SyncState} from "./SyncStateTag"

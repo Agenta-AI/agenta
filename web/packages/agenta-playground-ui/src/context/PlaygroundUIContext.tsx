@@ -168,6 +168,12 @@ export interface PlaygroundUIProviders {
      * This allows the modal to switch to "save" mode instead of "load" mode.
      */
     initializeSaveMode?: (config: SaveModeConfig) => void
+
+    /**
+     * Optional slot for rendering a sync state tag in each row header.
+     * Called with rowId and loadableId — implementor derives syncState inline.
+     */
+    renderSyncStateTag?: ComponentType<{rowId: string; loadableId: string}>
 }
 
 export interface PlaygroundUIContextValue {
