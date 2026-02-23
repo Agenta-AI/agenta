@@ -829,6 +829,6 @@ class EvaluationScenarioDB(Base):
 from oss.src.dbs.postgres.webhooks.dbes import (  # noqa: E402, F401
     WebhookSubscriptionDBE as WebhookSubscriptionDB,
 )
-from oss.src.dbs.postgres.tracing.webhook_dbes import (  # noqa: E402, F401
+from oss.src.dbs.postgres.webhooks.delivery_dbes import (  # noqa: E402, F401
     WebhookDeliveryDBE as WebhookDeliveryDB,
 )

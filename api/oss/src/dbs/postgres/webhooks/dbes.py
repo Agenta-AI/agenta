@@ -1,7 +1,6 @@
-"""Database entities for webhooks (core database)."""
+"""Database entities for webhook subscriptions (core database)."""
 
-from sqlalchemy import ForeignKey, Column
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import ForeignKeyConstraint, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship
 
 from oss.src.dbs.postgres.shared.base import Base
@@ -13,15 +12,22 @@ class WebhookSubscriptionDBE(Base, WebhookSubscriptionDBA):
 
     __tablename__ = "webhook_subscriptions"
 
-    project_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    created_by_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True,
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["created_by_id"],
+            ["users.id"],
+        ),
+        ForeignKeyConstraint(
+            ["secret_id"],
+            ["secrets.id"],
+            ondelete="SET NULL",
+        ),
+        PrimaryKeyConstraint("id"),
     )
 
     project = relationship(

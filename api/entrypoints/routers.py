@@ -54,6 +54,7 @@ from oss.src.dbs.postgres.environments.dbes import (
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
+from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
@@ -63,6 +64,7 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
+from oss.src.core.events.service import EventsService
 from oss.src.core.invocations.service import InvocationsService
 from oss.src.core.annotations.service import AnnotationsService
 from oss.src.core.testcases.service import TestcasesService
@@ -87,6 +89,7 @@ from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.events.router import EventsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.testcases.router import TestcasesRouter
@@ -216,6 +219,7 @@ secrets_dao = SecretsDAO()
 webhooks_dao = WebhooksDAO()
 
 tracing_dao = TracingDAO()
+events_dao = EventsDAO()
 
 testcases_dao = BlobsDAO(
     BlobDBE=TestcaseBlobDBE,
@@ -266,6 +270,10 @@ webhooks_service = WebhooksService(
 
 tracing_service = TracingService(
     tracing_dao=tracing_dao,
+)
+
+events_service = EventsService(
+    events_dao=events_dao,
 )
 
 # Redis client and TracingWorker for publishing spans to Redis Streams
@@ -368,6 +376,10 @@ otlp = OTLPRouter(
 tracing = TracingRouter(
     tracing_service=tracing_service,
     tracing_worker=tracing_worker,
+)
+
+events = EventsRouter(
+    events_service=events_service,
 )
 
 testcases = TestcasesRouter(
@@ -498,6 +510,12 @@ app.include_router(
     router=tracing.router,
     prefix="/tracing",
     tags=["Observability"],
+)
+
+app.include_router(
+    router=events.router,
+    prefix="/events",
+    tags=["Events"],
 )
 
 app.include_router(

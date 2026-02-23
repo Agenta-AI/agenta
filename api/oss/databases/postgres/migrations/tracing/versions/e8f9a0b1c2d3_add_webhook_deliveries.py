@@ -1,8 +1,8 @@
-"""add_webhook_deliveries
+"""add webhook deliveries table
 
-Revision ID: cdb813cbb0e3
-Revises: a2b3c4d5e6f7
-Create Date: 2026-02-16 11:53:30.524685
+Revision ID: e8f9a0b1c2d3
+Revises: d1e2f3a4b5c6
+Create Date: 2026-02-23 20:11:00.000000
 
 """
 
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "cdb813cbb0e3"
-down_revision: Union[str, None] = "a2b3c4d5e6f7"
+revision: str = "e8f9a0b1c2d3"
+down_revision: Union[str, None] = "d1e2f3a4b5c6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -33,13 +33,19 @@ def upgrade() -> None:
             server_default=sa.text("CURRENT_TIMESTAMP"),
             nullable=False,
         ),
-        sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(timezone=True),
+            server_onupdate=sa.text("CURRENT_TIMESTAMP"),
+            nullable=True,
+        ),
         sa.Column("deleted_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("created_by_id", sa.UUID(), nullable=False),
         sa.Column("updated_by_id", sa.UUID(), nullable=True),
         sa.Column("deleted_by_id", sa.UUID(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
+
     op.create_index(
         "ix_webhook_deliveries_subscription_id_created_at",
         "webhook_deliveries",

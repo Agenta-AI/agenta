@@ -158,6 +158,82 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
+    worker-webhooks:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "-m",
+                "entrypoints.worker_webhooks",
+            ]
+        # === STORAGE ============================================== #
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-gh-ssl-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    worker-events:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "-m",
+                "entrypoints.worker_events",
+            ]
+        # === STORAGE ============================================== #
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-gh-ssl-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+
     cron:
         # === IMAGE ================================================ #
         build:

@@ -123,19 +123,19 @@ async def trigger_webhook(
         # 2. Create deliveries and enqueue tasks
         for sub in subscriptions:
             try:
-                # Generate tracking ID for this delivery group
-                delivery_id = uuid.uuid7()
-
-                # Create initial pending record
                 delivery = await dao.create_delivery(
-                    delivery_id=delivery_id,
                     subscription_id=sub.id,
-                    event_type=event_type,
-                    payload=payload,
-                    url=sub.url,
+                    event_id=uuid.uuid7(),
+                    status="pending",
+                    created_by_id=sub.created_by_id,
+                    data={
+                        "event_type": event_type,
+                        "payload": payload,
+                        "url": sub.url,
+                    },
                 )
 
-                await worker.deliver_webhook.kiq(delivery_id=delivery_id)
+                await worker.deliver_webhook.kiq(delivery_id=delivery.id)
                 log.info(
                     f"Enqueued webhook delivery {delivery.id} for subscription {sub.id}"
                 )

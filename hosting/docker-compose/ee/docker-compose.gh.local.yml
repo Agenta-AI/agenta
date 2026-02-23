@@ -147,6 +147,76 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
+    worker-webhooks:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "-m",
+                "entrypoints.worker_webhooks",
+            ]
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    worker-events:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "-m",
+                "entrypoints.worker_events",
+            ]
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+
     cron:
         # === IMAGE ================================================ #
         build:

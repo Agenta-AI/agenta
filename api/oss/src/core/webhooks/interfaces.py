@@ -23,8 +23,8 @@ class WebhooksDAOInterface:
         self,
         project_id: UUID,
         payload: CreateWebhookSubscriptionDTO,
-        user_id: Optional[UUID] = None,
-        secret: str = "",
+        user_id: UUID,
+        secret_id: Optional[UUID] = None,
     ) -> WebhookSubscriptionResponseDTO:
         raise NotImplementedError
 
@@ -69,50 +69,34 @@ class WebhooksDAOInterface:
     # Delivery operations
     async def create_delivery(
         self,
-        delivery_id: UUID,
         subscription_id: UUID,
-        event_type: str,
-        payload: dict,
-        url: str,
+        event_id: UUID,
+        status: str,
+        created_by_id: Optional[UUID],
+        data: Optional[dict] = None,
     ) -> WebhookDeliveryResponseDTO:
         raise NotImplementedError
 
-    async def create_retry(
+    async def update_delivery_status(
         self,
         delivery_id: UUID,
-        subscription_id: UUID,
-        event_type: str,
-        payload: dict,
-        url: str,
-        attempt_number: int,
         status: str,
-        status_code: Optional[int] = None,
-        response_body: Optional[str] = None,
-        error_message: Optional[str] = None,
-        duration_ms: Optional[int] = None,
+        data: Optional[dict] = None,
+        updated_by_id: Optional[UUID] = None,
     ) -> WebhookDeliveryResponseDTO:
         raise NotImplementedError
 
-    async def get_latest_delivery(
+    async def get_delivery(
         self, delivery_id: UUID
     ) -> Optional[WebhookDeliveryResponseDTO]:
-        raise NotImplementedError
-
-    async def get_delivery_history(
-        self, delivery_id: UUID
-    ) -> List[WebhookDeliveryResponseDTO]:
         raise NotImplementedError
 
     async def record_test_delivery(
         self,
         subscription_id: UUID,
-        event_type: str,
-        payload: dict,
-        url: str,
+        event_id: UUID,
         status: str,
-        status_code: Optional[int] = None,
-        response_body: Optional[str] = None,
-        error_message: Optional[str] = None,
-        duration_ms: Optional[int] = None,
+        created_by_id: Optional[UUID],
+        data: Optional[dict] = None,
     ) -> WebhookDeliveryResponseDTO:
         raise NotImplementedError

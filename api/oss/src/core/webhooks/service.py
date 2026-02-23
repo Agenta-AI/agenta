@@ -4,15 +4,25 @@ import secrets
 import string
 from typing import List, Optional, TYPE_CHECKING
 from uuid import UUID
+import uuid_utils.compat as uuid
 
-from oss.src.utils.logging import get_module_logger
-from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
+from oss.src.core.secrets.dtos import (
+    CreateSecretDTO,
+    SecretDTO,
+    StandardProviderDTO,
+    StandardProviderSettingsDTO,
+)
+from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
+from oss.src.core.secrets.services import VaultService
 from oss.src.core.webhooks.dtos import (
     CreateWebhookSubscriptionDTO,
     UpdateWebhookSubscriptionDTO,
-    WebhookSubscriptionResponseDTO,
     WebhookSubscriptionQueryDTO,
+    WebhookSubscriptionResponseDTO,
 )
+from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
+from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.utils.logging import get_module_logger
 
 if TYPE_CHECKING:
     from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
@@ -38,11 +48,32 @@ class WebhooksService:
         self,
         project_id: UUID,
         payload: CreateWebhookSubscriptionDTO,
-        user_id: Optional[UUID] = None,
+        user_id: UUID,
     ) -> WebhookSubscriptionResponseDTO:
         secret = self._generate_secret()
+        vault_service = VaultService(SecretsDAO())
+        secret_dto = await vault_service.create_secret(
+            project_id=project_id,
+            create_secret_dto=CreateSecretDTO(
+                header={
+                    "name": f"webhook-{payload.name}",
+                    "description": "Webhook signing secret",
+                },
+                secret=SecretDTO(
+                    kind=SecretKind.PROVIDER_KEY,
+                    data=StandardProviderDTO(
+                        kind=StandardProviderKind.OPENAI,
+                        provider=StandardProviderSettingsDTO(key=secret),
+                    ),
+                ),
+            ),
+        )
+
         return await self.dao.create_subscription(
-            project_id=project_id, payload=payload, user_id=user_id, secret=secret
+            project_id=project_id,
+            payload=payload,
+            user_id=user_id,
+            secret_id=secret_dto.id,
         )
 
     async def query_subscriptions(
@@ -111,8 +142,14 @@ class WebhooksService:
             try:
                 delivery = await self.dao.create_delivery(
                     subscription_id=sub.id,
-                    event_type=event_type,
-                    payload=payload,
+                    event_id=uuid.uuid7(),
+                    status="pending",
+                    created_by_id=sub.created_by_id,
+                    data={
+                        "event_type": event_type,
+                        "payload": payload,
+                        "url": sub.url,
+                    },
                 )
 
                 await self.webhooks_worker.deliver_webhook.kiq(delivery_id=delivery.id)
@@ -158,7 +195,7 @@ class WebhooksService:
         from datetime import datetime, timezone
         import uuid_utils.compat as uuid
 
-        # Generate temporary test secret (same length as real subscriptions)
+        # This is returned to caller for local signature verification.
         test_secret = self._generate_secret()
 
         # Construct test payload with real project_id
@@ -232,16 +269,17 @@ class WebhooksService:
             try:
                 await self.dao.record_test_delivery(
                     subscription_id=subscription_id,
-                    event_type=event_type,
-                    payload=payload,
-                    url=url,
+                    event_id=uuid.uuid7(),
                     status="success" if response_data["success"] else "failed",
-                    status_code=response_data["status_code"],
-                    response_body=response_data["response_body"],
-                    error_message=response_data["response_body"]
-                    if not response_data["success"]
-                    else None,
-                    duration_ms=response_data["duration_ms"],
+                    created_by_id=user_id,
+                    data={
+                        "event_type": event_type,
+                        "payload": payload,
+                        "url": url,
+                        "status_code": response_data["status_code"],
+                        "response_body": response_data["response_body"],
+                        "duration_ms": response_data["duration_ms"],
+                    },
                 )
             except Exception as e:
                 log.error(f"Failed to record test delivery: {e}")

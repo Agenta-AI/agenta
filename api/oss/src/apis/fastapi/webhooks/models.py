@@ -1,7 +1,7 @@
 """API request and response models for webhooks endpoints."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, HttpUrl
@@ -14,8 +14,10 @@ class CreateWebhookSubscriptionRequest(BaseModel):
     name: str = Field(..., max_length=255)
     url: HttpUrl
     events: List[str]
+    headers: Optional[Dict[str, str]] = None
     is_active: bool = True
     meta: Optional[dict] = None
+    tags: Optional[dict] = None
 
 
 class UpdateWebhookSubscriptionRequest(BaseModel):
@@ -24,8 +26,10 @@ class UpdateWebhookSubscriptionRequest(BaseModel):
     name: Optional[str] = Field(None, max_length=255)
     url: Optional[HttpUrl] = None
     events: Optional[List[str]] = None
+    headers: Optional[Dict[str, str]] = None
     is_active: Optional[bool] = None
     meta: Optional[dict] = None
+    tags: Optional[dict] = None
 
 
 # Response Models (API layer)
@@ -37,13 +41,18 @@ class WebhookSubscriptionResponse(BaseModel):
     name: str
     url: str
     events: List[str]
-    secret: str
+    headers: Optional[Dict[str, str]] = None
+    secret_id: Optional[UUID]
     is_active: bool
+    flags: Optional[dict] = None
     meta: Optional[dict]
+    tags: Optional[dict] = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime]
     archived_at: Optional[datetime] = None
     created_by_id: Optional[UUID]
+    updated_by_id: Optional[UUID] = None
+    deleted_by_id: Optional[UUID] = None
 
 
 class WebhookDeliveryResponse(BaseModel):
@@ -51,19 +60,15 @@ class WebhookDeliveryResponse(BaseModel):
 
     id: UUID
     subscription_id: UUID
-    event_type: str
-    payload: dict
+    event_id: UUID
     status: str
-    attempts: int
-    max_attempts: int
-    next_retry_at: Optional[datetime]
-    response_status_code: Optional[int]
-    response_body: Optional[str]
-    error_message: Optional[str]
-    duration_ms: Optional[int]
+    data: Optional[Dict[str, Any]] = None
     created_at: datetime
-    delivered_at: Optional[datetime]
-    failed_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
+    archived_at: Optional[datetime] = None
+    created_by_id: Optional[UUID]
+    updated_by_id: Optional[UUID] = None
+    deleted_by_id: Optional[UUID] = None
 
 
 # Test Models

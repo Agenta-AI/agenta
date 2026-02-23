@@ -13,6 +13,8 @@ from oss.src.dbs.postgres.shared.base import Base
 # Side-effect import: register SQLAlchemy model with Base.metadata
 # so Alembic autogenerate can discover it.
 import oss.src.dbs.postgres.tracing.dbes  # noqa: F401
+import oss.src.dbs.postgres.tracing.webhook_dbes  # noqa: F401
+import oss.src.dbs.postgres.events.dbes  # noqa: F401
 
 
 # this is the Alembic Config object, which provides

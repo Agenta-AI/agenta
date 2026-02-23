@@ -1,8 +1,8 @@
-"""add webhook tables with project scope
+"""add webhook subscriptions table
 
-Revision ID: fb4159648e40
+Revision ID: d7e8f9a0b1c2
 Revises: c2d3e4f5a6b7
-Create Date: 2026-02-16 07:19:44.297711
+Create Date: 2026-02-23 20:10:00.000000
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "fb4159648e40"
+revision: str = "d7e8f9a0b1c2"
 down_revision: Union[str, None] = "c2d3e4f5a6b7"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -36,7 +36,12 @@ def upgrade() -> None:
             server_default=sa.text("CURRENT_TIMESTAMP"),
             nullable=False,
         ),
-        sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(timezone=True),
+            server_onupdate=sa.text("CURRENT_TIMESTAMP"),
+            nullable=True,
+        ),
         sa.Column("deleted_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("created_by_id", sa.UUID(), nullable=False),
         sa.Column("updated_by_id", sa.UUID(), nullable=True),
@@ -48,6 +53,27 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
+    op.create_index(
+        "ix_webhook_subscriptions_project_id_created_at",
+        "webhook_subscriptions",
+        ["project_id", "created_at"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_webhook_subscriptions_project_id_deleted_at",
+        "webhook_subscriptions",
+        ["project_id", "deleted_at"],
+        unique=False,
+    )
+
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_webhook_subscriptions_project_id_deleted_at",
+        table_name="webhook_subscriptions",
+    )
+    op.drop_index(
+        "ix_webhook_subscriptions_project_id_created_at",
+        table_name="webhook_subscriptions",
+    )
     op.drop_table("webhook_subscriptions")
