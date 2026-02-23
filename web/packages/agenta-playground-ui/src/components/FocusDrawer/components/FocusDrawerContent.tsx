@@ -62,7 +62,7 @@ const getOutputContent = (
     }
 
     const simpleContent =
-        (response?.choices as Array<Record<string, any>> | undefined)?.[0]?.message?.content ||
+        (response?.choices as Record<string, any>[] | undefined)?.[0]?.message?.content ||
         response?.output ||
         response?.data ||
         (typeof response === "string" ? response : "") ||

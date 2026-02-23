@@ -22,10 +22,10 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
 import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
 
+import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import ExecutionResultView from "../../../ExecutionResultView"
 import CollapseToggleButton from "../../../shared/CollapseToggleButton"
-import { usePlaygroundUIOptional } from "../../../../context/PlaygroundUIContext"
 
 interface Props {
     rowId: string
@@ -147,8 +147,8 @@ const SingleView = ({
     ) as string[]
     const runnableQuery = useAtomValue(useMemo(() => runnableBridge.query(entityId), [entityId]))
 
-     const providers = usePlaygroundUIOptional()
-        const SyncStateTagSlot = providers?.renderSyncStateTag
+    const providers = usePlaygroundUIOptional()
+    const SyncStateTagSlot = providers?.renderSyncStateTag
     const loadableId = useAtomValue(
         useMemo(() => playgroundController.selectors.loadableId(), []),
     ) as string | null
