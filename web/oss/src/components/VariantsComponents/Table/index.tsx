@@ -25,6 +25,7 @@ type VariantsTableProps = {
     showRevisionsAsChildren?: boolean
     selectionScope?: string
     showStableName?: boolean
+    showUpdatedOn?: boolean
 } & ComponentProps<typeof Table>
 
 const VariantsTable = ({
@@ -40,6 +41,7 @@ const VariantsTable = ({
     showRevisionsAsChildren = false,
     selectionScope,
     showStableName = false,
+    showUpdatedOn = false,
     ...props
 }: VariantsTableProps) => {
     const {appURL} = useURL()
@@ -61,6 +63,7 @@ const VariantsTable = ({
                 handleOpenInPlayground,
                 showActionsDropdown,
                 showStableName,
+                showUpdatedOn,
                 appURL,
                 selectedRowKeys: selectionScope ? scopedSelectedKeys : undefined,
             }),
@@ -70,6 +73,7 @@ const VariantsTable = ({
             showEnvBadges,
             showActionsDropdown,
             showStableName,
+            showUpdatedOn,
             appURL,
             selectionScope,
             scopedSelectedKeys,
