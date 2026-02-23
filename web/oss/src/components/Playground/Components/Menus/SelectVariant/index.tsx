@@ -409,7 +409,7 @@ const SelectVariant = ({
                     trigger="click"
                     placement="bottomRight"
                     arrow={false}
-                    destroyTooltipOnHide
+                    destroyOnHidden
                     styles={{body: {padding: 0}}}
                 >
                     <Button icon={<DownOutlined style={{fontSize: 10}} />} />
@@ -445,7 +445,7 @@ const SelectVariant = ({
                 trigger="click"
                 placement="bottomLeft"
                 arrow={false}
-                destroyTooltipOnHide
+                destroyOnHidden
                 styles={{body: {padding: 0}}}
             >
                 <Button
