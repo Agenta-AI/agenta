@@ -1,4 +1,4 @@
-import {useState, useEffect, useMemo} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {Drawer, type DrawerProps} from "antd"
 
@@ -20,10 +20,11 @@ const EnhancedDrawer = ({
 
     const drawerStyles = useMemo(() => {
         if (!width) return styles
+        const s = styles as Record<string, unknown> | undefined
         return {
-            ...styles,
+            ...s,
             wrapper: {
-                ...styles?.wrapper,
+                ...(s?.wrapper as React.CSSProperties | undefined),
                 width,
             },
         }

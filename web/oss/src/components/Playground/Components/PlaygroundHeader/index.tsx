@@ -39,6 +39,8 @@ const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ),
 })
 
+const TestsetDropdown = dynamic(() => import("../TestsetDropdown"), {ssr: false})
+
 type PlaygroundHeaderProps = BaseContainerProps
 
 /** Entity types that represent evaluator downstream nodes */
@@ -323,6 +325,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                         </Popover>
                     </Space.Compact>
                     <RunEvaluationButton />
+                    <TestsetDropdown />
                     <SelectVariant
                         showAsCompare
                         multiple
