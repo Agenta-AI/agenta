@@ -945,10 +945,18 @@ class BillingRouter:
     ):
         log.warn("[report] [unlock] Trigger")
 
-        released = await release_lock(
-            namespace="meters:report",
-            key={},
-        )
+        try:
+            released = await release_lock(
+                namespace="meters:report",
+                key={},
+                strict=True,
+            )
+        except Exception:
+            log.error("[report] [unlock] Failed to release lock", exc_info=True)
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"status": "error", "message": "Lock backend error"},
+            )
 
         if released:
             log.warn("[report] [unlock] Lock force-released")

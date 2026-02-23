@@ -725,6 +725,7 @@ async def release_lock(
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
     owner: Optional[str] = None,
+    strict: bool = False,
 ) -> bool:
     """Release a distributed lock acquired with acquire_lock().
 
@@ -734,9 +735,10 @@ async def release_lock(
         project_id: Optional project ID (same as used in acquire_lock)
         user_id: Optional user ID (same as used in acquire_lock)
         owner: Optional owner token returned by acquire_lock
+        strict: If True, re-raise Redis errors instead of returning False.
 
     Returns:
-        True if lock was released, False if already expired or on error
+        True if lock was released, False if already expired.
 
     Example:
         lock_acquired = await acquire_lock(namespace="account-creation", key=email)
@@ -784,4 +786,6 @@ async def release_lock(
             f"[lock] RELEASE ERROR: namespace={namespace} key={key} error={e}",
             exc_info=True,
         )
+        if strict:
+            raise
         return False

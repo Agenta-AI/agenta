@@ -922,3 +922,29 @@ def get_all_evaluators():
         List[dict]: A list of evaluator dictionaries.
     """
     return evaluators
+
+
+def get_builtin_evaluators():
+    """
+    Returns a list of LegacyEvaluator models.
+
+    This is used by migrations and services that need typed evaluator objects.
+
+    Returns:
+        List[LegacyEvaluator]: A list of LegacyEvaluator model instances.
+    """
+    from oss.src.models.api.evaluation_model import LegacyEvaluator
+
+    return [LegacyEvaluator(**evaluator_dict) for evaluator_dict in evaluators]
+
+
+# Pre-built list for backwards compatibility
+# Lazy initialization to avoid circular imports
+_BUILTIN_EVALUATORS = None
+
+
+def _get_cached_builtin_evaluators():
+    global _BUILTIN_EVALUATORS
+    if _BUILTIN_EVALUATORS is None:
+        _BUILTIN_EVALUATORS = get_builtin_evaluators()
+    return _BUILTIN_EVALUATORS
