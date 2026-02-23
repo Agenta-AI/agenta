@@ -6,10 +6,12 @@ from fastapi import APIRouter, Request, status, Depends, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
 )
+from oss.src.core.queries.dtos import QueryRevision
 from oss.src.core.queries.service import (
     QueriesService,
     SimpleQueriesService,
@@ -55,6 +57,18 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+
+
+def _to_plain_dict(value):
+    if value is None:
+        return {}
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if hasattr(value, "dict"):
+        return value.dict()
+    if isinstance(value, dict):
+        return dict(value)
+    return value
 
 
 class QueriesRouter:
@@ -924,18 +938,69 @@ class QueriesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        query_revision = await self.queries_service.fetch_query_revision(
-            project_id=UUID(request.state.project_id),
-            #
-            query_ref=query_revision_retrieve_request.query_ref,
-            query_variant_ref=query_revision_retrieve_request.query_variant_ref,
-            query_revision_ref=query_revision_retrieve_request.query_revision_ref,
-            #
-            include_trace_ids=query_revision_retrieve_request.include_trace_ids,
-            include_traces=query_revision_retrieve_request.include_traces,
-            #
-            windowing=query_revision_retrieve_request.windowing,
+            if (
+                query_revision_retrieve_request.include_trace_ids
+                or query_revision_retrieve_request.include_traces
+            ):
+                if not await check_action_access(  # type: ignore
+                    user_uid=request.state.user_id,
+                    project_id=request.state.project_id,
+                    permission=Permission.VIEW_SPANS,  # type: ignore
+                ):
+                    raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        cache_key = {
+            "artifact_ref": _to_plain_dict(query_revision_retrieve_request.query_ref),
+            "variant_ref": _to_plain_dict(
+                query_revision_retrieve_request.query_variant_ref
+            ),
+            "revision_ref": _to_plain_dict(
+                query_revision_retrieve_request.query_revision_ref
+            ),
+            "include_trace_ids": query_revision_retrieve_request.include_trace_ids,
+            "include_traces": query_revision_retrieve_request.include_traces,
+            "windowing": _to_plain_dict(query_revision_retrieve_request.windowing),
+        }
+
+        should_cache = not (
+            query_revision_retrieve_request.include_trace_ids is True
+            or query_revision_retrieve_request.include_traces is True
         )
+
+        query_revision = (
+            await get_cache(
+                namespace="queries:retrieve",
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                key=cache_key,
+                model=QueryRevision,
+            )
+            if should_cache
+            else None
+        )
+
+        if not query_revision:
+            query_revision = await self.queries_service.fetch_query_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                query_ref=query_revision_retrieve_request.query_ref,
+                query_variant_ref=query_revision_retrieve_request.query_variant_ref,
+                query_revision_ref=query_revision_retrieve_request.query_revision_ref,
+                #
+                include_trace_ids=query_revision_retrieve_request.include_trace_ids,
+                include_traces=query_revision_retrieve_request.include_traces,
+                #
+                windowing=query_revision_retrieve_request.windowing,
+            )
+
+            if should_cache:
+                await set_cache(
+                    namespace="queries:retrieve",
+                    project_id=request.state.project_id,
+                    user_id=request.state.user_id,
+                    key=cache_key,
+                    value=query_revision,
+                )
 
         query_revision_response = QueryRevisionResponse(
             count=1 if query_revision else 0,

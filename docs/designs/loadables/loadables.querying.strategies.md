@@ -29,6 +29,31 @@ The two strategies are symmetric across three levels:
 
 ------------------------------------------------------------------------
 
+## Defaults And Notes
+
+### Include flag defaults
+
+| Flag | Testset default | Query default |
+|---|---|---|
+| `include_testcase_ids` / `include_trace_ids` | `True` — IDs returned unless explicitly suppressed | `False` — IDs returned only when requested |
+| `include_testcases` / `include_traces` | `True` — full items returned unless explicitly suppressed | `False` — full items returned only when requested |
+
+Consequences:
+- `POST /preview/testsets/revisions/retrieve` with no include flags behaves like [A.2].
+- `POST /preview/queries/revisions/retrieve` with no include flags behaves like [A.0].
+
+### Caching behavior
+
+- Query revision retrieve caches only when `include_trace_ids=false` and `include_traces=false`.
+- Testset revision retrieve caches only when `include_testcases=false`.
+
+### Permission coupling for trace expansion
+
+- Query revision retrieve that includes traces (`include_trace_ids` or `include_traces`) requires both query-view and trace-view permissions.
+- Traces query by query ref (`query_ref` / `query_variant_ref` / `query_revision_ref`) requires both trace-view and query-view permissions.
+
+------------------------------------------------------------------------
+
 ## Strategy A
 
 All sub-options in Strategy A go through a revision endpoint. Each level returns progressively more content.
@@ -59,24 +84,24 @@ POST /api/preview/queries/revisions/retrieve { refs }
 
 ### A.1 — Include IDs (paginated)
 
-The revision endpoint enumerates item IDs. In both cases the caller supplies pagination parameters (`limit`, `cursor`), but the role of windowing differs between the two types.
+The revision endpoint enumerates item IDs. In both cases the caller supplies pagination parameters (`limit`, `next`), but the role of windowing differs between the two types.
 
 | | Testset Revision | Query Revision |
 |---|---|---|
 | **Source of IDs** | Directly stored in the revision | Computed by executing `filtering` + stored `windowing` against the trace store |
-| **Endpoint windowing** | Pagination only (`limit`, `cursor`) — this is all that applies | Pagination only (`limit`, `cursor`) — merged into and bounded by the stored `windowing` |
+| **Endpoint windowing** | Pagination only (`limit`, `next`) — this is all that applies | Pagination only (`limit`, `next`) — merged into and bounded by the stored `windowing` |
 | **Stored windowing** | N/A — ordering is defined by the stored ID list itself | Defines the universe: time bounds, ordering, and any other constraints; the endpoint pagination operates within these bounds |
 | **Determinism** | Fully deterministic | Live — depends on trace store state at query time |
 
 ```
 POST /api/preview/testsets/revisions/retrieve
-{ refs, "include_testcase_ids": true, "windowing": { "limit": 500, "cursor": "<cursor>" } }
+{ refs, "include_testcase_ids": true, "windowing": { "limit": 500, "next": "<uuid>" } }
 → { testset_revision: { id, ..., data: { testcase_ids } } }
 ```
 
 ```
 POST /api/preview/queries/revisions/retrieve
-{ refs, "include_trace_ids": true, "windowing": { "limit": 500, "cursor": "<cursor>" } }
+{ refs, "include_trace_ids": true, "windowing": { "limit": 500, "next": "<uuid>" } }
 → { query_revision: { id, ..., data: { filtering, windowing, trace_ids } } }
 ```
 
@@ -95,13 +120,13 @@ The revision endpoint acts as a proxy to the underlying record store, returning 
 
 ```
 POST /api/preview/testsets/revisions/retrieve
-{ refs, "include_testcases": true, "windowing": { "limit": 50, "cursor": "<cursor>" } }
+{ refs, "include_testcases": true, "windowing": { "limit": 50, "next": "<uuid>" } }
 → { testset_revision: { id, ..., data: { testcase_ids, testcases } } }
 ```
 
 ```
 POST /api/preview/queries/revisions/retrieve
-{ refs, "include_traces": true, "windowing": { "limit": 50, "cursor": "<cursor>" } }
+{ refs, "include_traces": true, "windowing": { "limit": 50, "next": "<uuid>" } }
 → { query_revision: { id, ..., data: { filtering, windowing, trace_ids, traces } } }
 ```
 
@@ -175,8 +200,8 @@ GET /api/preview/traces?trace_ids=<id1>,<id2>,...
 ### B.2 — Fetch by revision reference (record dereferences internally)
 
 Windowing rules match [A.1] / [A.2]:
-- **Testcases**: endpoint windowing is pagination only (`limit`, `cursor`).
-- **Traces**: endpoint windowing is pagination only (`limit`, `cursor`),
+- **Testcases**: endpoint windowing is pagination only (`limit`, `next`).
+- **Traces**: endpoint windowing is pagination only (`limit`, `next`),
   merged into and bounded by the stored `windowing` of the resolved
   query revision. Stored bounds (time range, ordering, etc.) take
   precedence.
@@ -184,21 +209,21 @@ Windowing rules match [A.1] / [A.2]:
 ```
 # Testcases
 POST /api/preview/testcases/query
-{ refs, "windowing": { "limit": 50, "cursor": "<cursor>" } }
+{ refs, "windowing": { "limit": 50, "next": "<uuid>" } }
 → { testcases: [...] }
 ```
 
 ```
 # Traces
 POST /api/preview/traces/query
-{ refs, "windowing": { "limit": 50, "cursor": "<cursor>" } }
+{ refs, "windowing": { "limit": 50, "next": "<uuid>" } }
 → { traces: [...] }
 ```
 
 | | Testset Revision | Query Revision |
 |---|---|---|
 | **Internal resolution** | Record endpoint resolves stored IDs | Record endpoint executes stored filter |
-| **Endpoint windowing** | Pagination only (`limit`, `cursor`) | Pagination only — merged into and bounded by stored `windowing` |
+| **Endpoint windowing** | Pagination only (`limit`, `next`) | Pagination only — merged into and bounded by stored `windowing` |
 | **Total steps** | 1 (no prior retrieve needed) | 1 |
 
 **Use case:** The client only holds a revision (or variant, or artifact)

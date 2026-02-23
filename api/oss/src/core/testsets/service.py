@@ -103,10 +103,12 @@ class TestsetsService:
             testset_revision.data.testcases = None
             return
 
-        # Apply windowing to the stored ID list when requested
+        # Apply ID-based pagination for deterministic testcase ordering
         ids = testset_revision.data.testcase_ids or []
-        if windowing and windowing.limit is not None:
-            ids = ids[: windowing.limit]
+        ids = self._apply_ids_windowing(
+            ids=ids,
+            windowing=windowing,
+        )
 
         # [A.1] — IDs only
         if _include_ids and not _include_items:
@@ -129,6 +131,31 @@ class TestsetsService:
                     testcase.set_id = None
         else:
             testset_revision.data.testcases = None
+
+    @staticmethod
+    def _apply_ids_windowing(
+        *,
+        ids: List[UUID],
+        windowing: Optional[Windowing] = None,
+    ) -> List[UUID]:
+        if not windowing:
+            return ids
+
+        ordered = list(ids)
+        if windowing.order == "descending":
+            ordered.reverse()
+
+        if windowing.next is not None:
+            try:
+                index = ordered.index(windowing.next)
+                ordered = ordered[index + 1 :]
+            except ValueError:
+                return []
+
+        if windowing.limit is not None:
+            ordered = ordered[: windowing.limit]
+
+        return ordered
 
     ## -- testset --------------------------------------------------------------
 
@@ -553,9 +580,9 @@ class TestsetsService:
         )
 
         await self._populate_testcases(
-            project_id,
-            testset_revision,
-            include_testcases,
+            project_id=project_id,
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
         )
 
         return testset_revision
@@ -668,9 +695,9 @@ class TestsetsService:
         )
 
         await self._populate_testcases(
-            project_id,
-            testset_revision,
-            include_testcases,
+            project_id=project_id,
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
         )
 
         return testset_revision
@@ -780,9 +807,9 @@ class TestsetsService:
             )
 
             await self._populate_testcases(
-                project_id,
-                testset_revision,
-                include_testcases,
+                project_id=project_id,
+                testset_revision=testset_revision,
+                include_testcases=include_testcases,
             )
 
             testset_revisions.append(testset_revision)
@@ -848,9 +875,9 @@ class TestsetsService:
         )
 
         await self._populate_testcases(
-            project_id,
-            testset_revision,
-            include_testcases,
+            project_id=project_id,
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
         )
 
         return testset_revision
@@ -886,9 +913,9 @@ class TestsetsService:
             )
 
             await self._populate_testcases(
-                project_id,
-                testset_revision,
-                include_testcases,
+                project_id=project_id,
+                testset_revision=testset_revision,
+                include_testcases=include_testcases,
             )
 
             testset_revisions.append(testset_revision)

@@ -2,7 +2,7 @@ from typing import Optional, List, Tuple, Dict, Union
 from uuid import UUID
 from datetime import datetime
 
-from fastapi import APIRouter, Query, Request, Depends, status, HTTPException
+from fastapi import APIRouter, Query, Request, Depends, status, HTTPException, Body
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -25,6 +25,9 @@ from oss.src.apis.fastapi.tracing.models import (
     OTelLinksResponse,
     OTelTracingRequest,
     OTelTracingResponse,
+    TraceResponse,
+    TracesResponse,
+    TracesQueryRequest,
     OldAnalyticsResponse,
     AnalyticsResponse,
     SessionsQueryRequest,
@@ -57,7 +60,7 @@ from oss.src.core.tracing.dtos import (
     MetricType,
     MetricSpec,
 )
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import Windowing
 
 log = get_module_logger(__name__)
 
@@ -966,17 +969,17 @@ class TracesRouter:
             methods=["GET"],
             operation_id="fetch_traces",
             status_code=status.HTTP_200_OK,
-            response_model=OTelTracingResponse,
+            response_model=TracesResponse,
             response_model_exclude_none=True,
         )
 
         self.router.add_api_route(
             "/{trace_id}",
-            self.tracing_router.fetch_trace,
+            self.fetch_trace,
             methods=["GET"],
             operation_id="fetch_trace",
             status_code=status.HTTP_200_OK,
-            response_model=OTelTracingResponse,
+            response_model=TraceResponse,
             response_model_exclude_none=True,
         )
 
@@ -986,7 +989,7 @@ class TracesRouter:
             methods=["POST"],
             operation_id="query_traces",
             status_code=status.HTTP_200_OK,
-            response_model=OTelTracingResponse,
+            response_model=TracesResponse,
             response_model_exclude_none=True,
         )
 
@@ -1013,12 +1016,14 @@ class TracesRouter:
     # TRACES -------------------------------------------------------------------
 
     @intercept_exceptions()
-    @suppress_exceptions(default=OTelTracingResponse(), exclude=[HTTPException])
+    @suppress_exceptions(default=TracesResponse(), exclude=[HTTPException])
     async def query_traces(  # QUERY
         self,
         request: Request,
-        query: Optional[TracingQuery] = Depends(parse_query_from_params_request),
-    ) -> OTelTracingResponse:
+        traces_query_request: TracesQueryRequest = Body(
+            default_factory=TracesQueryRequest
+        ),
+    ) -> TracesResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1029,28 +1034,22 @@ class TracesRouter:
 
         project_id = UUID(request.state.project_id)
 
-        body_json = None
-        try:
-            body_json = await request.json()
-        except Exception:
-            pass
-
         # Resolve query revision ref if provided
-        query_ref = None
-        query_variant_ref = None
-        query_revision_ref = None
-
-        if body_json:
-            if body_json.get("query_revision_ref"):
-                query_revision_ref = Reference(**body_json["query_revision_ref"])
-            if body_json.get("query_variant_ref"):
-                query_variant_ref = Reference(**body_json["query_variant_ref"])
-            if body_json.get("query_ref"):
-                query_ref = Reference(**body_json["query_ref"])
+        query_ref = traces_query_request.query_ref
+        query_variant_ref = traces_query_request.query_variant_ref
+        query_revision_ref = traces_query_request.query_revision_ref
 
         if (
             query_ref or query_variant_ref or query_revision_ref
         ) and self.queries_service:
+            if is_ee():
+                if not await check_action_access(  # type: ignore
+                    user_uid=request.state.user_id,
+                    project_id=request.state.project_id,
+                    permission=Permission.VIEW_QUERIES,  # type: ignore
+                ):
+                    raise FORBIDDEN_EXCEPTION  # type: ignore
+
             query_revision = await self.queries_service.fetch_query_revision(
                 project_id=project_id,
                 #
@@ -1060,25 +1059,27 @@ class TracesRouter:
             )
 
             if not query_revision or not query_revision.data:
-                return OTelTracingResponse()
+                return TracesResponse()
 
             stored_windowing = query_revision.data.windowing
 
-            # Let request windowing.limit override stored limit for pagination
-            request_windowing = None
-            if body_json and isinstance(body_json.get("windowing"), dict):
-                request_windowing = Windowing(**body_json["windowing"])
+            # Let request pagination (next, limit) override stored pagination.
+            request_windowing = traces_query_request.windowing
 
             if stored_windowing:
                 merged_windowing = stored_windowing.model_copy()
+                updates: Dict[str, Union[str, int, UUID]] = {}
                 if request_windowing and request_windowing.limit is not None:
-                    merged_windowing = merged_windowing.model_copy(
-                        update={"limit": request_windowing.limit}
-                    )
+                    updates["limit"] = request_windowing.limit
+                if request_windowing and request_windowing.next is not None:
+                    updates["next"] = request_windowing.next
+                if updates:
+                    merged_windowing = merged_windowing.model_copy(update=updates)
             else:
                 merged_windowing = request_windowing
 
             tracing_query = TracingQuery(
+                formatting={"focus": Focus.TRACE, "format": Format.AGENTA},
                 filtering=query_revision.data.filtering,
                 windowing=merged_windowing,
             )
@@ -1097,18 +1098,45 @@ class TracesRouter:
                 format=Format.AGENTA,
             )
 
-            if isinstance(spans_or_traces, list):
-                return OTelTracingResponse(
-                    count=len(spans_or_traces), spans=spans_or_traces
-                )
-            elif isinstance(spans_or_traces, dict):
-                return OTelTracingResponse(
+            if isinstance(spans_or_traces, dict):
+                return TracesResponse(
                     count=len(spans_or_traces), traces=spans_or_traces
                 )
-            return OTelTracingResponse()
+            return TracesResponse()
 
-        # No refs — delegate to standard query_spans (handles filtering/windowing from body)
-        return await self.tracing_router.query_spans(request=request, query=query)
+        # No refs — execute trace query directly, always returning Agenta trace trees.
+        merged_query = TracingQuery(
+            filtering=traces_query_request.filtering,
+            windowing=traces_query_request.windowing,
+        )
+
+        merged_query = TracingQuery(
+            formatting={"focus": Focus.TRACE, "format": Format.AGENTA},
+            filtering=merged_query.filtering,
+            windowing=merged_query.windowing,
+        )
+
+        try:
+            span_dtos = await self.tracing_router.service.query(
+                project_id=project_id,
+                query=merged_query,
+            )
+        except FilteringException as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        spans_or_traces = parse_spans_into_response(
+            span_dtos,
+            focus=Focus.TRACE,
+            format=Format.AGENTA,
+        )
+
+        if isinstance(spans_or_traces, dict):
+            return TracesResponse(
+                count=len(spans_or_traces),
+                traces=spans_or_traces,
+            )
+
+        return TracesResponse()
 
     @intercept_exceptions()
     async def ingest_traces(  # MUTATION
@@ -1139,14 +1167,14 @@ class TracesRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=OTelTracingResponse(), exclude=[HTTPException])
+    @suppress_exceptions(default=TracesResponse(), exclude=[HTTPException])
     async def fetch_traces(
         self,
         request: Request,
         *,
         trace_id: Optional[List[str]] = Query(default=None),
         trace_ids: Optional[str] = Query(default=None),
-    ) -> OTelTracingResponse:
+    ) -> TracesResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1177,7 +1205,7 @@ class TracesRouter:
         )
 
         if spans is None:
-            return OTelTracingResponse()
+            return TracesResponse()
 
         traces = parse_spans_into_response(
             spans,
@@ -1186,9 +1214,57 @@ class TracesRouter:
         )
 
         if not traces or isinstance(traces, list):
-            return OTelTracingResponse()
+            return TracesResponse()
 
-        return OTelTracingResponse(
+        return TracesResponse(
             count=len(traces.keys()),
             traces=traces,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=TraceResponse(), exclude=[HTTPException])
+    async def fetch_trace(
+        self,
+        request: Request,
+        *,
+        trace_id: str,
+    ) -> TraceResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        try:
+            trace_uuid = UUID(parse_trace_id_to_uuid(trace_id))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
+
+        spans = await self.tracing_router.service.fetch(
+            project_id=UUID(request.state.project_id),
+            #
+            trace_ids=[trace_uuid],
+        )
+
+        if spans is None:
+            return TraceResponse()
+
+        traces = parse_spans_into_response(
+            spans,
+            focus=Focus.TRACE,
+            format=Format.AGENTA,
+        )
+
+        if not traces or isinstance(traces, list):
+            return TraceResponse()
+
+        trace = traces.get(str(trace_uuid))
+        if not trace:
+            return TraceResponse()
+
+        return TraceResponse(
+            count=1,
+            trace=trace,
         )

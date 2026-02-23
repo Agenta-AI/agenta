@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from oss.src.core.shared.dtos import (
     Windowing,
+    Reference,
 )
 
 from oss.src.core.tracing.dtos import (
@@ -12,9 +13,11 @@ from oss.src.core.tracing.dtos import (
     OTelFlatSpan,  # noqa: F401 - needed for annotations
     OTelFlatSpans,
     OTelTraceTree,
+    OTelSpansTree,
     Bucket,
     MetricsBucket,
     TracingQuery,
+    Filtering,
     MetricSpec,
 )
 
@@ -33,6 +36,25 @@ class OTelTracingResponse(BaseModel):
     count: int = 0
     spans: Optional[OTelFlatSpans] = None
     traces: Optional[OTelTraceTree] = None
+
+
+class TraceResponse(BaseModel):
+    count: int = 0
+    trace: Optional[OTelSpansTree] = None
+
+
+class TracesResponse(BaseModel):
+    count: int = 0
+    traces: Optional[OTelTraceTree] = None
+
+
+class TracesQueryRequest(BaseModel):
+    filtering: Optional[Filtering] = None
+    windowing: Optional[Windowing] = None
+    #
+    query_ref: Optional[Reference] = None
+    query_variant_ref: Optional[Reference] = None
+    query_revision_ref: Optional[Reference] = None
 
 
 class OldAnalyticsResponse(BaseModel):

@@ -24,8 +24,7 @@ from fastapi import (
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import set_cache
-# from oss.src.utils.caching import get_cache  # TEMPORARY
+from oss.src.utils.caching import set_cache, get_cache
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
@@ -37,7 +36,7 @@ from oss.src.core.testcases.dtos import (
 )
 from oss.src.core.testsets.dtos import (
     TestsetFlags,
-    # TestsetRevision, # TEMPORARY
+    TestsetRevision,
     TestsetRevisionCommit,
     TestsetRevisionData,
     SimpleTestset,
@@ -1349,20 +1348,33 @@ class TestsetsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         cache_key = {
-            "artifact_ref": testset_revision_retrieve_request.testset_ref,
-            "variant_ref": testset_revision_retrieve_request.testset_variant_ref,
-            "revision_ref": testset_revision_retrieve_request.testset_revision_ref,
+            "artifact_ref": _to_plain_dict(
+                testset_revision_retrieve_request.testset_ref
+            ),
+            "variant_ref": _to_plain_dict(
+                testset_revision_retrieve_request.testset_variant_ref
+            ),
+            "revision_ref": _to_plain_dict(
+                testset_revision_retrieve_request.testset_revision_ref
+            ),
+            "include_testcase_ids": testset_revision_retrieve_request.include_testcase_ids,
+            "include_testcases": testset_revision_retrieve_request.include_testcases,
+            "windowing": _to_plain_dict(testset_revision_retrieve_request.windowing),
         }
 
-        testset_revision = None
-        # TEMPORARY: cache for retrieval disabled
-        # testset_revision = await get_cache(
-        #     namespace="testsets:retrieve",
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     key=cache_key,
-        #     model=TestsetRevision,
-        # )
+        should_cache = testset_revision_retrieve_request.include_testcases is False
+
+        testset_revision = (
+            await get_cache(
+                namespace="testsets:retrieve",
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                key=cache_key,
+                model=TestsetRevision,
+            )
+            if should_cache
+            else None
+        )
 
         if not testset_revision:
             testset_revision = await self.testsets_service.fetch_testset_revision(
@@ -1378,13 +1390,14 @@ class TestsetsRouter:
                 windowing=testset_revision_retrieve_request.windowing,
             )
 
-            await set_cache(
-                namespace="testsets:retrieve",
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                key=cache_key,
-                value=testset_revision,
-            )
+            if should_cache:
+                await set_cache(
+                    namespace="testsets:retrieve",
+                    project_id=request.state.project_id,
+                    user_id=request.state.user_id,
+                    key=cache_key,
+                    value=testset_revision,
+                )
 
         testset_revision_response = TestsetRevisionResponse(
             count=1 if testset_revision else 0,

@@ -91,7 +91,7 @@ All Loadables support the following fundamental operations.
 Given a Loadable revision, clients can request:
 
 -   The next N items
--   A specific window (time-based, cursor-based, offset-based)
+-   A specific window (time-based, token-based, offset-based)
 
 This supports pagination.
 
@@ -133,7 +133,7 @@ Loadable → windowed full items
 
 Example:
 
-    GET /queries/{revision}/traces?cursor=abc&limit=50
+    GET /queries/{revision}/traces?next=<token>&limit=50
 
 Advantages: - Simpler client logic. - Fewer round-trips.
 
@@ -145,7 +145,7 @@ Trade-offs: - Larger payload sizes. - Less flexible batching control.
 
 Step 1:
 
-    GET /queries/{revision}/trace-ids?cursor=abc&limit=50
+    GET /queries/{revision}/trace-ids?next=<token>&limit=50
 
 Step 2:
 

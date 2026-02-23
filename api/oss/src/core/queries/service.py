@@ -100,8 +100,13 @@ class QueriesService:
         stored = query_revision.data.windowing
         if stored:
             merged = stored.model_copy()
+            updates = {}
             if windowing and windowing.limit is not None:
-                merged = merged.model_copy(update={"limit": windowing.limit})
+                updates["limit"] = windowing.limit
+            if windowing and windowing.next is not None:
+                updates["next"] = windowing.next
+            if updates:
+                merged = merged.model_copy(update=updates)
         else:
             merged = windowing
 
