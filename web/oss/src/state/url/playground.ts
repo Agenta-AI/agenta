@@ -5,7 +5,6 @@ import "@agenta/entities/legacyAppRevision"
 import {
     legacyAppRevisionMolecule,
     latestServerRevisionIdAtomFamily,
-    appRevisionsWithDraftsAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {
@@ -218,22 +217,11 @@ const applyPlaygroundSelection = (store: Store, next: string[]) => {
         store.get(playgroundController.selectors.entityIds()),
     )
 
-    console.log("[applySelection] sanitized:", sanitized, "currentSelected:", currentSelected)
-    if (arraysEqual(currentSelected, sanitized)) {
-        console.log("[applySelection] no change, skipping")
-        return
-    }
+    if (arraysEqual(currentSelected, sanitized)) return
 
     const currentNodes = store.get(playgroundController.selectors.nodes())
-    console.log(
-        "[applySelection] currentNodes:",
-        currentNodes.length,
-        "sanitized:",
-        sanitized.length,
-    )
 
     if (currentNodes.length === 0 && sanitized.length > 0) {
-        console.log("[applySelection] no nodes yet, using addPrimaryNode for:", sanitized[0])
         // No nodes yet — use addPrimaryNode for the first entity so the
         // loadable is linked to the runnable and an initial testcase row
         // is created with proper input variables.
@@ -243,24 +231,12 @@ const applyPlaygroundSelection = (store: Store, next: string[]) => {
             label: sanitized[0],
         })
 
-        // Verify loadable was linked
-        const nodesAfter = store.get(playgroundController.selectors.nodes())
-        const loadableId = store.get(playgroundController.selectors.loadableId())
-        console.log(
-            "[applySelection] after addPrimaryNode: nodes:",
-            nodesAfter.length,
-            "loadableId:",
-            loadableId,
-        )
-
         // If there are additional entities (comparison mode from URL),
         // add them via setEntityIds which preserves the first node.
         if (sanitized.length > 1) {
-            console.log("[applySelection] adding comparison entities:", sanitized.slice(1))
             store.set(playgroundController.actions.setEntityIds, sanitized)
         }
     } else {
-        console.log("[applySelection] nodes exist, using setEntityIds")
         store.set(playgroundController.actions.setEntityIds, sanitized)
     }
 }
@@ -275,7 +251,6 @@ export const ensurePlaygroundDefaults = (store: Store): boolean => {
         !appState.pathname?.includes("/playground") ||
         appState.pathname?.includes("/playground-test")
     ) {
-        console.log("[ensureDefaults] not on playground page, pathname:", appState.pathname)
         return false
     }
 
@@ -283,37 +258,15 @@ export const ensurePlaygroundDefaults = (store: Store): boolean => {
     const selected = sanitizeRevisionList(store.get(playgroundController.selectors.entityIds()))
 
     // If there are valid selected revisions, don't override
-    if (selected.length > 0) {
-        console.log("[ensureDefaults] already has selection:", selected)
-        return true
-    }
+    if (selected.length > 0) return true
 
     // Derives from the same entity store that powers the playground's revision
     // list, so it's always available when the playground's data has loaded.
     const rawAppId = store.get(selectedAppIdAtom)
     const appId = typeof rawAppId === "string" ? rawAppId : null
     const latestRevisionId = appId ? store.get(latestServerRevisionIdAtomFamily(appId)) : null
-
-    // Debug: show all available revisions and which one is picked
-    if (appId) {
-        const allRevisions = store.get(appRevisionsWithDraftsAtomFamily(appId))
-        console.log("[ensureDefaults] appId:", appId, {
-            totalRevisions: allRevisions.length,
-            revisions: allRevisions.map((r) => ({
-                id: r.id,
-                revision: r.revision,
-                variantName: r.variantName,
-                isLocalDraft: r.isLocalDraft,
-                updatedAt: r.updatedAtTimestamp,
-            })),
-            pickedLatestRevisionId: latestRevisionId,
-        })
-    } else {
-        console.log("[ensureDefaults] appId:", appId, "latestRevisionId:", latestRevisionId)
-    }
     if (!latestRevisionId) return false
 
-    console.log("[ensureDefaults] applying default selection:", [latestRevisionId])
     applyPlaygroundSelection(store, [latestRevisionId])
     return true
 }
@@ -327,13 +280,6 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
 
     const fullUrl = nextUrl ? new URL(nextUrl, window.location.origin).href : window.location.href
     const normalizedUrl = `${new URL(fullUrl).pathname}${new URL(fullUrl).search}${new URL(fullUrl).hash}`
-
-    console.log(
-        "[syncFromUrl] called, normalizedUrl:",
-        normalizedUrl,
-        "lastWrittenUrl:",
-        lastWrittenUrl,
-    )
     if (normalizedUrl === lastWrittenUrl) return
 
     try {
@@ -346,14 +292,6 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
 
         const revisionsParam = url.searchParams.get(REVISIONS_QUERY_PARAM)
         const urlRevisions = revisionsParam ? sanitizeRevisionList(revisionsParam.split(",")) : []
-        console.log(
-            "[syncFromUrl] isPlaygroundRoute:",
-            isPlaygroundRoute,
-            "currentAppId:",
-            currentAppId,
-            "urlRevisions:",
-            urlRevisions,
-        )
 
         const snapshotEncoded = extractSnapshotFromHash(url)
 
@@ -522,27 +460,10 @@ playgroundSyncAtom.onMount = (set) => {
     // Also do an immediate check for any pending hydrations whose source data is already loaded
     {
         const pending = store.get(pendingHydrationsAtom)
-        if (process.env.NODE_ENV !== "production" && pending.size > 0) {
-            const entries = Array.from(pending.entries()).map(([key, h]) => ({
-                key,
-                sourceRevisionId: h.sourceRevisionId,
-                createLocalDraft: h.createLocalDraft,
-                hasPatch: !!h.patch,
-            }))
-            console.debug("[hydration-sync] pending hydrations at mount", entries)
-        }
         // Collect unique source IDs that are ready, then apply via the ordered helper
         const readySourceIds = new Set<string>()
         for (const [, hydration] of pending.entries()) {
             const query = store.get(runnableBridge.query(hydration.sourceRevisionId))
-            if (process.env.NODE_ENV !== "production") {
-                console.debug("[hydration-sync] query state for", key, {
-                    sourceRevisionId: hydration.sourceRevisionId,
-                    isPending: query.isPending,
-                    hasData: !!query.data,
-                    isError: query.isError,
-                })
-            }
             if (!query.isPending && query.data) {
                 readySourceIds.add(hydration.sourceRevisionId)
             }
@@ -561,14 +482,6 @@ playgroundSyncAtom.onMount = (set) => {
     const tryApplyDefaults = () => {
         const isReady = store.get(playgroundController.selectors.revisionsReady())
         const selected = store.get(playgroundController.selectors.entityIds())
-        console.log(
-            "[tryApplyDefaults] hasAppliedDefaults:",
-            hasAppliedDefaults,
-            "isReady:",
-            isReady,
-            "selected:",
-            selected,
-        )
         if (hasAppliedDefaults) return
         if (!isReady) return
 
@@ -580,17 +493,12 @@ playgroundSyncAtom.onMount = (set) => {
         if (selected.length > 0) {
             hasAppliedDefaults = true
             store.set(playgroundInitializedAtom, true)
-            console.log("[tryApplyDefaults] already has selection, marking applied")
             return
         }
-        console.log("[tryApplyDefaults] no selection, calling ensurePlaygroundDefaults")
         const applied = ensurePlaygroundDefaults(store)
         if (applied) {
             hasAppliedDefaults = true
             store.set(playgroundInitializedAtom, true)
-            console.log("[tryApplyDefaults] defaults applied successfully")
-        } else {
-            console.log("[tryApplyDefaults] defaults not yet available, will retry")
         }
     }
     // Re-bind when the app changes so defaults apply to the new app
@@ -599,7 +507,6 @@ playgroundSyncAtom.onMount = (set) => {
     const bindRevisionsReady = () => {
         const rawAppId = store.get(selectedAppIdAtom)
         const currentAppId = typeof rawAppId === "string" ? rawAppId : null
-        console.log("[bindRevisionsReady] resetting, appId:", currentAppId)
         hasAppliedDefaults = false
         store.set(playgroundInitializedAtom, false)
         currentRevReadyUnsub?.()
@@ -610,7 +517,6 @@ playgroundSyncAtom.onMount = (set) => {
             store.get(playgroundController.selectors.entityIds()),
         )
         if (existingSelection.length > 0) {
-            console.log("[bindRevisionsReady] URL already provided selection:", existingSelection)
             hasAppliedDefaults = true
             // Subscribe to revisionsReady (per-entity query state)
             // so we can mark initialized once the selected entities load.
@@ -628,12 +534,8 @@ playgroundSyncAtom.onMount = (set) => {
                 store.set(playgroundInitializedAtom, true)
             }
         } else {
-            currentRevReadyUnsub = store.sub(
-                playgroundController.selectors.revisionsReady(),
-                () => {
-                    console.log("[SUB2] revisionsReady changed")
-                    tryApplyDefaults()
-                },
+            currentRevReadyUnsub = store.sub(playgroundController.selectors.revisionsReady(), () =>
+                tryApplyDefaults(),
             )
             // Subscribe to latestServerRevisionIdAtomFamily so we retry
             // when entity data finishes loading (now uses lightweight 1-call query).
@@ -641,13 +543,7 @@ playgroundSyncAtom.onMount = (set) => {
             if (currentAppId) {
                 currentLatestRevUnsub = store.sub(
                     latestServerRevisionIdAtomFamily(currentAppId),
-                    () => {
-                        console.log(
-                            "[SUB2] latestServerRevisionId changed:",
-                            store.get(latestServerRevisionIdAtomFamily(currentAppId)),
-                        )
-                        tryApplyDefaults()
-                    },
+                    () => tryApplyDefaults(),
                 )
             }
             // Immediate check in case already ready
@@ -664,10 +560,7 @@ playgroundSyncAtom.onMount = (set) => {
         }
     }
     bindRevisionsReady()
-    const unsubAppChange = store.sub(selectedAppIdAtom, () => {
-        console.log("[SUB2] selectedAppIdAtom changed:", store.get(selectedAppIdAtom))
-        bindRevisionsReady()
-    })
+    const unsubAppChange = store.sub(selectedAppIdAtom, () => bindRevisionsReady())
     unsubs.push(unsubAppChange)
     unsubs.push(() => currentRevReadyUnsub?.())
     unsubs.push(() => currentLatestRevUnsub?.())
@@ -699,15 +592,6 @@ playgroundSyncAtom.onMount = (set) => {
         // Don't filter until all revision queries have completed.
         const isReady = store.get(playgroundController.selectors.revisionsReady())
         if (!isReady) return
-
-        if (process.env.NODE_ENV !== "production" && !arraysEqual(displayed, selected)) {
-            const removed = selected.filter((id) => !displayed.includes(id))
-            console.log("[SUB4] Cleaning stale IDs", {
-                selected,
-                displayed,
-                removed,
-            })
-        }
 
         if (displayed.length === 0) {
             ensurePlaygroundDefaults(store)
