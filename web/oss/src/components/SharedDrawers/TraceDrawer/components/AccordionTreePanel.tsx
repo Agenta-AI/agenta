@@ -139,15 +139,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             },
         },
     }),
-    editor: ({bgColor}: {bgColor?: string}) => ({
-        "& .agenta-editor-wrapper": {
-            backgroundColor: bgColor,
-        },
-        "& .editor-code": {
-            backgroundColor: "transparent",
-            margin: 0,
-        },
-    }),
     searchBar: {
         position: "absolute",
         top: 48,
@@ -161,11 +152,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         padding: 4,
         gap: 4,
         border: `1px solid ${theme.colorBorder}`,
-    },
-    drillInContainer: {
-        "& .drill-in-field-header": {
-            backgroundColor: `${theme.colorBgContainer} !important`,
-        },
     },
 }))
 
@@ -366,54 +352,6 @@ const AccordionTreePanel = ({
                                     spanId={spanId}
                                     initialPath={"data.ag.data.inputs.parameters"}
                                 />
-                                {/* {shouldUseDrillInBody ? (
-                                    <div className={`p-2 ${classes.drillInContainer}`}>
-                                        <DrillInContent
-                                            getValue={drillInGetValue}
-                                            setValue={() => {}}
-                                            getRootItems={() => drillInRootItems}
-                                            rootTitle={label}
-                                            editable={false}
-                                            enableFieldViewModes
-                                            hideBreadcrumb
-                                            hideSingleFieldHeader
-                                            showFieldCollapse={false}
-                                            showFieldDrillIn={false}
-                                        />
-                                    </div>
-                                ) : isTextViewMode ? (
-                                    <div className="p-2">
-                                        <TextModeViewer
-                                            editorId={`${textViewerId}-${label}`}
-                                            value={textOutput}
-                                            mode={panelViewMode}
-                                        />
-                                    </div>
-                                ) : (
-                                    <EditorProvider
-                                        codeOnly={true}
-                                        enableTokens={false}
-                                        showToolbar={false}
-                                        className={classes.editor}
-                                        readOnly
-                                        disabled
-                                        noProvider
-                                    >
-                                        <LanguageAwareViewer
-                                            initialValue={codeViewerValue}
-                                            language={codeViewerLanguage}
-                                            searchProps={
-                                                isSearchOpen
-                                                    ? {
-                                                          searchTerm,
-                                                          currentResultIndex,
-                                                          onResultCountChange: setResultCount,
-                                                      }
-                                                    : undefined
-                                            }
-                                        />
-                                    </EditorProvider>
-                                )} */}
                             </div>
                         ),
                         extra: (
