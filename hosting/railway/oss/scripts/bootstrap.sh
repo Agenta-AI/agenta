@@ -65,19 +65,22 @@ ensure_project_linked() {
 }
 
 create_env_if_missing() {
-    railway_call environment new "$ENV_NAME" --json >/dev/null 2>&1 || true
+    railway_call environment "$ENV_NAME" --json >/dev/null 2>&1 || \
+        railway_call environment new "$ENV_NAME" --json >/dev/null
     railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
 }
 
 add_service() {
     local name="$1"
-    railway_call add --service "$name" --json >/dev/null 2>&1 || true
+    railway_call service "$name" >/dev/null 2>&1 && return 0
+    railway_call add --service "$name" --json >/dev/null
 }
 
 add_service_image() {
     local name="$1"
     local image="$2"
-    railway_call add --service "$name" --image "$image" --json >/dev/null 2>&1 || true
+    railway_call service "$name" >/dev/null 2>&1 && return 0
+    railway_call add --service "$name" --image "$image" --json >/dev/null
 }
 
 ensure_volume() {
