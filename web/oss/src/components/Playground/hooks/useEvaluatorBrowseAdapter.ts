@@ -392,6 +392,7 @@ export function useEvaluatorOnlyAdapter(
 
         const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
             flags: {is_evaluator: true, is_human: false},
+            excludeRevisionZero: true,
             grandparentOverrides: {
                 getLabelNode,
             },

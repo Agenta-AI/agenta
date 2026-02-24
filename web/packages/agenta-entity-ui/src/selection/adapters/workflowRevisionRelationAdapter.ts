@@ -568,6 +568,9 @@ export function createWorkflowRevisionAdapter(
             getLabel: workflowRevisionLevel.getLabel,
             getLabelNode: revisionOverrides.getLabelNode ?? workflowRevisionLevel.getLabelNode,
             getPlaceholderNode: workflowRevisionLevel.getPlaceholderNode,
+            filterItems: excludeRevisionZero
+                ? (r: unknown) => (r as {version?: number}).version !== 0
+                : undefined,
         },
         selectionType: "workflowRevision",
         toSelection:
