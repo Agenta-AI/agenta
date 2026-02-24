@@ -108,7 +108,7 @@ export function RevisionLabel({
     author,
     renderAuthor,
     compact = false,
-    showDateInline = true,
+    showDateInline = false,
     maxMessageWidth = 220,
     reserveSubtitleSpace = false,
     className,
