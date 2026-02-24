@@ -129,13 +129,19 @@ export {
     autoMapInputs,
     executeRunnable,
     buildEvaluatorExecutionInputs,
+    validateEvaluatorInputs,
     // Template variable extraction
     extractTemplateVariables,
     extractTemplateVariablesFromJson,
     extractVariablesFromPrompts,
     extractVariablesFromConfig,
 } from "./utils"
-export type {PathSource, ExecuteRunnableOptions, EvaluatorInputContext} from "./utils"
+export type {
+    PathSource,
+    ExecuteRunnableOptions,
+    EvaluatorInputContext,
+    EvaluatorInputValidation,
+} from "./utils"
 
 // ============================================================================
 // DEPLOYMENT

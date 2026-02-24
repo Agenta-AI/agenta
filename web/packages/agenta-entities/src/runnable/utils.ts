@@ -723,6 +723,102 @@ function buildLegacy(ctx: {
 }
 
 /**
+ * Result from validating evaluator inputs.
+ */
+export interface EvaluatorInputValidation {
+    /** Whether all required inputs are available */
+    valid: boolean
+    /** List of missing required input keys */
+    missingInputs: string[]
+    /** Human-readable message explaining why the evaluator cannot run */
+    message?: string
+}
+
+/**
+ * Validate that all required evaluator inputs are available.
+ *
+ * Checks the evaluator's input schema for required fields and verifies that
+ * the corresponding values can be resolved from testcase data or settings.
+ *
+ * This is used to skip evaluator execution when required inputs (like
+ * `correct_answer` mapped via `correct_answer_key`) are missing from the testcase.
+ *
+ * @returns Validation result with `valid: true` if all required inputs are available,
+ *          or `valid: false` with a list of missing inputs and an explanation message.
+ */
+export function validateEvaluatorInputs(ctx: EvaluatorInputContext): EvaluatorInputValidation {
+    const {testcaseData, settings, inputSchema} = ctx
+
+    const schemaProperties =
+        inputSchema?.properties && typeof inputSchema.properties === "object"
+            ? (inputSchema.properties as Record<string, unknown>)
+            : null
+
+    // Get required fields from schema (defaults to empty array if not specified)
+    const requiredFields: string[] = Array.isArray(inputSchema?.required)
+        ? (inputSchema.required as string[])
+        : []
+
+    if (!schemaProperties || requiredFields.length === 0) {
+        // No schema or no required fields — validation passes
+        return {valid: true, missingInputs: []}
+    }
+
+    const missingInputs: string[] = []
+
+    for (const key of requiredFields) {
+        // Skip upstream output keys — they come from the previous node, not testcase
+        if (UPSTREAM_OUTPUT_KEYS.has(key)) {
+            continue
+        }
+
+        // Skip testcase object keys — they're always available as the testcase itself
+        if (TESTCASE_OBJECT_KEYS.has(key)) {
+            continue
+        }
+
+        // Check for a corresponding _key setting that maps to a testcase column
+        const keySettingName = `${key}_key`
+        const keySettingValue = settings[keySettingName]
+
+        if (typeof keySettingValue === "string" && keySettingValue) {
+            // Setting exists — check if the mapped column exists in testcase data
+            const columnName = keySettingValue.startsWith("testcase.")
+                ? keySettingValue.split(".")[1]
+                : keySettingValue
+            const value = testcaseData[columnName]
+            if (value === undefined || value === null || value === "") {
+                missingInputs.push(key)
+            }
+            continue
+        }
+
+        // Check direct testcase column match
+        if (key in testcaseData) {
+            const value = testcaseData[key]
+            if (value === undefined || value === null || value === "") {
+                missingInputs.push(key)
+            }
+            continue
+        }
+
+        // Required field not found in settings or testcase data
+        missingInputs.push(key)
+    }
+
+    if (missingInputs.length > 0) {
+        const fieldList = missingInputs.map((f) => `"${f}"`).join(", ")
+        return {
+            valid: false,
+            missingInputs,
+            message: `Missing required input${missingInputs.length > 1 ? "s" : ""}: ${fieldList}. Check that the testcase contains the required data.`,
+        }
+    }
+
+    return {valid: true, missingInputs: []}
+}
+
+/**
  * Normalize a value to a compact string representation.
  * Mirrors DebugSection's `normalizeCompact` helper.
  */
