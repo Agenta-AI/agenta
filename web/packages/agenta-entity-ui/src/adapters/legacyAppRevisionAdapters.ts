@@ -628,11 +628,14 @@ const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string,
         const runnableServerConfig = get(runnableBridge.serverConfiguration(revisionId))
 
         // Variants should diff local draft state against server state.
+        // Priority: explicit legacy draft params → legacy draft object → bridge config
+        // (which reads from the correct molecule via type hints, including workflow drafts)
+        // → legacy merged data (fallback for entities without a separate molecule).
         const localParameters = pickFirstParameters(
             draftParameters,
             extractParametersCandidate(legacyDraft),
-            extractParametersCandidate(legacyData),
             runnableCurrentConfig,
+            extractParametersCandidate(legacyData),
         )
         const serverParameters = pickFirstParameters(
             extractParametersCandidate(serverData),
