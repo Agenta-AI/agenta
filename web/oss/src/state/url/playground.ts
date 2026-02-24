@@ -84,8 +84,12 @@ const REVISIONS_QUERY_PARAM = "revisions"
 /** RAF handle for coalescing URL updates */
 let urlUpdateRafId: number | null = null
 
-/** Track the last URL we wrote to prevent re-processing our own changes */
-let lastWrittenUrl: string | null = null
+/**
+ * Track the last URL we wrote to prevent re-processing our own changes.
+ * Stored in a Jotai atom so the value survives HMR (module re-execution
+ * resets plain `let` variables, but atom state lives in the default store).
+ */
+const _lastWrittenUrlAtom = atom<string | null>(null)
 
 /**
  * Extract snapshot parameter from URL hash.
@@ -112,12 +116,20 @@ const extractSnapshotFromHash = (url: URL): string | null => {
 
 /**
  * Track the last snapshot hash we wrote to prevent re-hydration loops.
+ * Stored in a Jotai atom so the value survives HMR.
  */
-let lastWrittenSnapshotHash: string | null = null
+const _lastWrittenSnapshotHashAtom = atom<string | null>(null)
 
 // Flag to skip URL revision processing after ephemeral entity hydration
 // until the URL is updated with the new entity IDs
 let skipUrlRevisionsUntilUpdate = false
+
+// Convenience helpers for the HMR-safe atoms
+const _store = () => getDefaultStore()
+const getLastWrittenUrl = () => _store().get(_lastWrittenUrlAtom)
+const setLastWrittenUrl = (v: string | null) => _store().set(_lastWrittenUrlAtom, v)
+const getLastWrittenSnapshotHash = () => _store().get(_lastWrittenSnapshotHashAtom)
+const setLastWrittenSnapshotHash = (v: string | null) => _store().set(_lastWrittenSnapshotHashAtom, v)
 
 const sanitizeRevisionList = (values: (string | null | undefined)[]) => {
     const seen = new Set<string>()
@@ -318,17 +330,17 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
             // Set hash param
             if (urlComponents.hashParam) {
                 url.hash = `${SNAPSHOT_HASH_PARAM}=${urlComponents.hashParam}`
-                lastWrittenSnapshotHash = urlComponents.hashParam
+                setLastWrittenSnapshotHash(urlComponents.hashParam)
             } else {
                 url.hash = ""
-                lastWrittenSnapshotHash = null
+                setLastWrittenSnapshotHash(null)
             }
 
             const newUrl = `${url.pathname}${url.search}${url.hash}`
 
             // Only update if URL actually changed and we didn't just write this URL
-            if (newUrl !== lastWrittenUrl) {
-                lastWrittenUrl = newUrl
+            if (newUrl !== getLastWrittenUrl()) {
+                setLastWrittenUrl(newUrl)
                 window.history.replaceState(window.history.state, "", newUrl)
             }
         } catch (error) {
@@ -358,12 +370,18 @@ export const updatePlaygroundUrlWithDrafts = () => {
     }
 }
 
+/**
+ * Apply a playground selection from URL hydration or defaults.
+ * Returns `true` if the selection was actually changed, `false` if it was a no-op
+ * (e.g. the selection already matched). Callers should skip side-effects like
+ * loadable/localTestset restore when this returns `false`.
+ */
 const applyPlaygroundSelection = (
     store: Store,
     next: string[],
     hydratedEntities?: HydratedEntityDescriptor[],
     options?: {skipInitialRow?: boolean},
-) => {
+): boolean => {
     const sanitized = sanitizeRevisionList(next)
     const normalizedHydratedEntities = (hydratedEntities ?? []).filter((entity) => {
         const id = String(entity?.id ?? "").trim()
@@ -396,7 +414,7 @@ const applyPlaygroundSelection = (
     )
 
     if (arraysEqual(currentSelected, rootEntityIds) && !hasHydratedDownstream) {
-        return
+        return false
     }
 
     const currentNodes = store.get(playgroundController.selectors.nodes())
@@ -436,17 +454,17 @@ const applyPlaygroundSelection = (
         store.set(playgroundController.actions.setEntityIds, rootEntityIds)
     }
 
-    if (!hasHydratedDownstream) return
+    if (!hasHydratedDownstream) return true
 
     const downstreamHydratedEntities = normalizedHydratedEntities
         .filter((entity) => (entity.depth ?? 0) > 0)
         .sort((a, b) => (a.depth ?? 1) - (b.depth ?? 1))
 
-    if (downstreamHydratedEntities.length === 0) return
+    if (downstreamHydratedEntities.length === 0) return true
 
     const nodesAfterRoots = store.get(playgroundController.selectors.nodes())
     const rootNode = nodesAfterRoots.find((node) => node.depth === 0)
-    if (!rootNode) return
+    if (!rootNode) return true
 
     const sourceNodeByDepth = new Map<number, string>([[0, rootNode.id]])
     for (const node of nodesAfterRoots) {
@@ -476,6 +494,8 @@ const applyPlaygroundSelection = (
             sourceNodeByDepth.set(depth, result.nodeId)
         }
     }
+
+    return true
 }
 
 let lastPlaygroundAppId: string | null = null
@@ -523,7 +543,7 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
 
     const fullUrl = nextUrl ? new URL(nextUrl, window.location.origin).href : window.location.href
     const normalizedUrl = `${new URL(fullUrl).pathname}${new URL(fullUrl).search}${new URL(fullUrl).hash}`
-    if (normalizedUrl === lastWrittenUrl) return
+    if (normalizedUrl === getLastWrittenUrl()) return
 
     try {
         const store = getDefaultStore()
@@ -539,8 +559,8 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
         const snapshotEncoded = extractSnapshotFromHash(url)
 
         // Use package controller for hydration
-        if (snapshotEncoded && snapshotEncoded !== lastWrittenSnapshotHash && isPlaygroundRoute) {
-            lastWrittenSnapshotHash = snapshotEncoded
+        if (snapshotEncoded && snapshotEncoded !== getLastWrittenSnapshotHash() && isPlaygroundRoute) {
+            setLastWrittenSnapshotHash(snapshotEncoded)
 
             const hydrateResult = store.set(
                 urlSnapshotController.actions.hydrateFromUrl,
@@ -553,12 +573,19 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
                     hydrateResult.loadable || hydrateResult.localTestset,
                 )
 
-                applyPlaygroundSelection(
+                const selectionChanged = applyPlaygroundSelection(
                     store,
                     hydrateResult.selection,
                     hydrateResult.entities as HydratedEntityDescriptor[] | undefined,
                     hasLoadableRestore ? {skipInitialRow: true} : undefined,
                 )
+
+                // If selection didn't actually change (e.g. HMR re-processed the same
+                // snapshot), skip the loadable/localTestset restore to avoid duplicating
+                // testcase rows.
+                if (!selectionChanged) {
+                    return
+                }
 
                 // For ephemeral entities, the restored entity ID differs from the URL's query param.
                 // Update the URL to reflect the new entity IDs so subsequent syncs don't re-apply stale IDs.

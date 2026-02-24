@@ -754,6 +754,11 @@ const restoreLocalTestsetAtom = atom(null, (get, set, localTestset: SnapshotLoca
     const loadableId = get(derivedLoadableIdAtom)
     if (!loadableId) return
 
+    // Clear existing rows first to make this operation idempotent.
+    // Without this, re-hydration (e.g. after HMR) would append duplicate
+    // rows because local testcase rows have no stable IDs for dedup.
+    set(loadableController.actions.clearRows, loadableId)
+
     // Import rows via loadable controller (stays in local mode)
     set(loadableController.actions.importRows, loadableId, localTestset.rows)
 
