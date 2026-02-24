@@ -35,14 +35,15 @@ export const NodeNameTag = ({name}: {name: string}) => (
 
 const BORDER_WIDTH = 1.5
 const BORDER_RADIUS = 8
+const RUNNING_BORDER_EFFECT_ENABLED = false
 
 /**
  * A bordered card container for node execution results.
  *
  * The node name appears as a legend-style label on the top border.
- * Border color and animation change based on execution status:
+ * Border color and animation can change based on execution status:
  * - idle/cancelled/success: neutral border
- * - running/pending: Apple Intelligence-style animated prismatic gradient border
+ * - running/pending: optional animated prismatic gradient border (currently disabled)
  * - error: red border
  */
 export const NodeResultCard = ({
@@ -60,6 +61,7 @@ export const NodeResultCard = ({
     headerActions?: React.ReactNode
 }) => {
     const isRunning = status === "running" || status === "pending"
+    const shouldShowRunningBorderEffect = isRunning && RUNNING_BORDER_EFFECT_ENABLED
     const isError = status === "error"
     const isSkipped = status === "skipped"
 
@@ -68,7 +70,7 @@ export const NodeResultCard = ({
     // and the card body starts at pt-[11px] beneath it.
     const LEGEND_HEIGHT = 11
 
-    if (isRunning) {
+    if (shouldShowRunningBorderEffect) {
         return (
             <div
                 className={clsx("node-result-card relative group/item", className)}
