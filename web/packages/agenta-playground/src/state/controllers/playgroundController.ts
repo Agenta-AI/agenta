@@ -347,6 +347,7 @@ const connectDownstreamNodeAtom = atom(
                 targetNodeId: result.nodeId,
                 sourceOutputKey: "output",
                 inputMappings: [],
+                parallel: true,
             },
         ])
 
