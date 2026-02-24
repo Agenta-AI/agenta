@@ -12,27 +12,23 @@ The current `EvaluationQueue` implementation is tightly coupled to evaluation ru
 |----------|-------------|
 | [context.md](./context.md) | Background, motivation, current state analysis |
 | [prd.md](./prd.md) | Product requirements, user stories, acceptance criteria |
-| [rfc.md](./rfc.md) | Technical proposal with three solution options and tradeoffs |
+| [rfc.md](./rfc.md) | Original technical proposal with three solution options (A, B, C) |
+| [rfc-v2.md](./rfc-v2.md) | **Current RFC**: Simplified interface over existing evaluation entities (based on Feb 24 discussion) |
 | [research.md](./research.md) | Analysis of current EvaluationQueue implementation, code references |
 | [research-human-eval-implementation.md](./research-human-eval-implementation.md) | How human evaluation works today: frontend components, state, API calls, annotation storage |
 | [competitive-analysis.md](./competitive-analysis.md) | Analysis of competitor's metadata-based approach |
 
-## Solution Summary
+## Current Direction
 
-| Solution | Approach | Effort | Recommendation |
-|----------|----------|--------|----------------|
-| **A** | Extend evaluation runs as container | 2-3 weeks | If eval-centric |
-| **B** | New annotation domain with task entity | 4-5 weeks | If annotation is core |
-| **C** | Metadata-based queues (no new tables) | 1-2 weeks | **Recommended for v1** |
+Use existing `EvaluationRun` + `EvaluationQueue` entities as the backbone. Build a **convenience API layer** that hides evaluation run machinery from annotation consumers. No new domain entities.
 
-**Recommendation**: Start with Solution C for fastest time-to-value, upgrade to B if/when sophisticated features are needed.
+See [rfc-v2.md](./rfc-v2.md) for the full proposal.
 
 ## Status
 
-- **Phase**: Design
-- **Author**: Planning Agent
+- **Phase**: Design (RFC v2 ready for review)
 - **Created**: 2026-02-12
-- **Last Updated**: 2026-02-12
+- **Last Updated**: 2026-02-24
 
 ## Quick Links
 
