@@ -1245,12 +1245,20 @@ const autoInitOutputMappingsEffectAtomFamily = atomFamily((loadableId: string) =
  */
 const linkToRunnableAtom = atom(
     null,
-    (get, set, loadableId: string, runnableType: RunnableType, runnableId: string) => {
+    (
+        get,
+        set,
+        loadableId: string,
+        runnableType: RunnableType,
+        runnableId: string,
+        options?: {skipInitialRow?: boolean},
+    ) => {
         const state = get(loadableStateAtomFamily(loadableId))
 
         // Check if we need to create an initial row
         const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
-        const shouldAddRow = displayRowIds.length === 0 && !state.connectedSourceId
+        const shouldAddRow =
+            displayRowIds.length === 0 && !state.connectedSourceId && !options?.skipInitialRow
 
         // Update linked runnable immediately
         set(loadableStateAtomFamily(loadableId), {
