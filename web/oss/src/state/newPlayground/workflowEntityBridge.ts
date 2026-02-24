@@ -16,9 +16,11 @@
  * ```
  */
 
+import {invalidateEntityQueries} from "@agenta/entities/legacyAppRevision"
 import {
     registerWorkflowCommitCallbacks,
     registerWorkflowArchiveCallbacks,
+    workflowRevisionsByWorkflowListDataAtomFamily,
     type WorkflowCommitResult,
     type WorkflowArchiveResult,
 } from "@agenta/entities/workflow"
@@ -35,7 +37,10 @@ import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
 registerWorkflowCommitCallbacks({
     onQueryInvalidate: async () => {
-        await getDefaultStore().set(playgroundController.actions.invalidateQueries)
+        await Promise.all([
+            getDefaultStore().set(playgroundController.actions.invalidateQueries),
+            invalidateEntityQueries(),
+        ])
     },
     onNewRevision: async (result: WorkflowCommitResult) => {
         const store = getDefaultStore()
@@ -59,11 +64,14 @@ registerWorkflowCommitCallbacks({
 
 registerWorkflowArchiveCallbacks({
     onQueryInvalidate: async () => {
-        await getDefaultStore().set(playgroundController.actions.invalidateQueries)
+        await Promise.all([
+            getDefaultStore().set(playgroundController.actions.invalidateQueries),
+            invalidateEntityQueries(),
+        ])
     },
     onRevisionDeleted: async (result: WorkflowArchiveResult) => {
         const store = getDefaultStore()
-        const {revisionId} = result
+        const {revisionId, workflowId} = result
 
         // Remove the archived revision from the selection
         const currentIds = store.get(playgroundController.selectors.entityIds())
@@ -73,9 +81,22 @@ registerWorkflowArchiveCallbacks({
             store.set(playgroundController.actions.setEntityIds, updatedIds)
             void writePlaygroundSelectionToQuery(updatedIds)
         } else {
-            // All entities deleted — navigate back to apps list
-            store.set(playgroundController.actions.setEntityIds, [])
-            store.set(routerAppNavigationAtom, null)
+            // The deleted revision was the only one selected.
+            // Check if the workflow has other revisions we can switch to.
+            const remainingRevisions = store.get(
+                workflowRevisionsByWorkflowListDataAtomFamily(workflowId),
+            )
+            const nextRevision = remainingRevisions.find((r) => r.id !== revisionId)
+
+            if (nextRevision) {
+                // Switch to the most recent remaining revision
+                store.set(playgroundController.actions.setEntityIds, [nextRevision.id])
+                void writePlaygroundSelectionToQuery([nextRevision.id])
+            } else {
+                // No remaining revisions — navigate back to apps list
+                store.set(playgroundController.actions.setEntityIds, [])
+                store.set(routerAppNavigationAtom, null)
+            }
         }
     },
 })
