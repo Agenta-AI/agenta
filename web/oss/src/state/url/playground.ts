@@ -3,6 +3,7 @@ import "@agenta/entities/workflow"
 
 import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {runnableBridge} from "@agenta/entities/runnable"
+import {getRunnableTypeHint, registerRunnableTypeHint} from "@agenta/entities/shared"
 import {
     urlSnapshotController,
     setRunnableTypeResolver,
@@ -41,7 +42,11 @@ export const playgroundEntityModeAtom = atom<"workflow">("workflow")
  * Reads from playgroundEntityModeAtom to determine the entity type.
  */
 setRunnableTypeResolver({
-    getType: () => {
+    getType: (entityId: string) => {
+        // Check type hints first — ephemeral entities (e.g. baseRunnable) register hints
+        // during URL hydration before setEntityIds is called.
+        const hint = getRunnableTypeHint(entityId)
+        if (hint) return hint as RunnableType
         const store = getDefaultStore()
         return store.get(playgroundEntityModeAtom)
     },
@@ -161,9 +166,9 @@ interface HydratedEntityDescriptor {
     label?: string
 }
 
-type RunnableType = "evaluator" | "legacyEvaluator" | "evaluatorRevision" | "workflow"
+type RunnableType = "evaluator" | "legacyEvaluator" | "evaluatorRevision" | "legacyAppRevision" | "workflow" | "baseRunnable"
 
-type PlaygroundEntityType = "evaluator" | "legacyEvaluator" | "evaluatorRevision" | "workflow"
+type PlaygroundEntityType = "evaluator" | "legacyEvaluator" | "evaluatorRevision" | "legacyAppRevision" | "workflow" | "baseRunnable"
 
 interface SnapshotSelectionInput {
     id: string
@@ -191,6 +196,8 @@ const entityTypeToRunnableType = (entityType: string | undefined): RunnableType 
             return "evaluatorRevision"
         case "workflow":
             return "workflow"
+        case "baseRunnable":
+            return "baseRunnable"
         default:
             return null
     }
@@ -206,6 +213,8 @@ const runnableTypeToEntityType = (runnableType: RunnableType): PlaygroundEntityT
             return "evaluatorRevision"
         case "workflow":
             return "workflow"
+        case "baseRunnable":
+            return "baseRunnable"
         default:
             return null
     }
@@ -231,6 +240,7 @@ const buildSnapshotSelectionInputs = (
         snapshotInputs.push({
             id: rootEntityId,
             runnableType,
+            ...(node?.entityType ? {entityType: node.entityType as PlaygroundEntityType} : {}),
             ...(hasDownstreamNodes ? {depth: 0} : {}),
             ...(node?.label ? {label: node.label} : {}),
         })
@@ -245,7 +255,7 @@ const buildSnapshotSelectionInputs = (
         snapshotInputs.push({
             id: node.entityId,
             runnableType,
-            entityType: node.entityType,
+            entityType: node.entityType as PlaygroundEntityType,
             depth: node.depth,
             ...(node.label ? {label: node.label} : {}),
         })
@@ -451,6 +461,17 @@ const applyPlaygroundSelection = (
             store.set(playgroundController.actions.setEntityIds, rootEntityIds)
         }
     } else {
+        // Pre-register type hints from hydrated entities so the resolver
+        // returns the correct entity type (e.g. "baseRunnable") when
+        // setEntityIds creates new nodes for regenerated ephemeral IDs.
+        for (const entity of rootHydratedEntities) {
+            const entityType =
+                (entity.entityType as PlaygroundEntityType | undefined) ??
+                runnableTypeToEntityType(entity.runnableType)
+            if (entityType) {
+                registerRunnableTypeHint(entity.id, entityType)
+            }
+        }
         store.set(playgroundController.actions.setEntityIds, rootEntityIds)
     }
 
