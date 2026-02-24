@@ -89,20 +89,28 @@ The consumer layer is a **convenience API** and a **set of UI views** that orche
 
 **What happens behind the scenes:**
 
-1. User selects traces in observability view, clicks "Send to review"
-2. User picks evaluators (what to annotate) and optionally assigns people
-3. **Convenience API** auto-creates:
-   - An EvaluationRun with `flags.is_annotation_only = true`
-   - The run has no inputs (no testset, no query) — just annotation steps with `origin: "human"` for each evaluator
+1. User selects traces in observability view, clicks "Send to annotation queue"
+2. User chooses an **existing annotation queue** or **creates a new one**:
+   - If creating new: configures annotation labels (e.g., "correctness", "quality 1-5"), assigns annotators, sets repeats per item
+   - Behind the scenes, an evaluator is auto-created from the label definitions (see [Key Design Decision #2](#2-evaluators-are-the-annotation-schema))
+3. **Convenience API** auto-creates the backing infrastructure:
+   - An EvaluationRun with `flags.has_human = true`
    - One EvaluationScenario per selected trace, with the trace's `trace_id` stored as the invocation reference in the scenario (no separate invocation step needed)
    - An EvaluationQueue linked to the run, with user assignments if specified
-4. Annotator opens inbox → sees assigned traces → annotates → submits
+4. Annotator opens their annotation queues page → sees assigned queues → opens one → works through traces → annotates → submits
 5. On submit:
    - `POST /preview/annotations/` creates the annotation OTel span (same as today)
    - `PATCH /preview/evaluations/results/` links the annotation `trace_id` to the step result (same as today)
    - The annotation is also visible on the trace span in observability (existing write-through via OTel links)
 
-**Key design choice: evaluations without inputs.** The run has no input steps. The trace being annotated is referenced as the invocation in the scenario. This requires backend support for runs where only invocation references exist (no testset inputs).
+6. **Deletion:** When the user deletes an annotation queue, the convenience API cleans up the backing infrastructure — deletes the EvaluationQueue, associated EvaluationScenarios/Results, and the EvaluationRun (but NOT the annotations themselves, which are immutable OTel spans).
+
+**Frontend: tracking progress and status.** The FE discovers status per item and overall progress through:
+- **Per-item status:** Each `EvaluationResult` for a human annotation step has a `status` field (PENDING, COMPLETED, FAILURE). When the annotator submits, the result is updated to COMPLETED and gets a `trace_id` linking to the annotation OTel span. The FE queries results for the queue's scenarios to determine which items are done vs open.
+- **Overall progress:** Count of COMPLETED results vs total scenarios × annotation steps. The convenience API can expose this as `GET /preview/annotation-queues/{queue_id}` returning `{completed: N, total: M}`.
+- **Editing after completion:** Yes — the annotator can re-submit an annotation for a completed item. This creates a new annotation OTel span (annotations are append-only traces) and updates the `EvaluationResult.trace_id` to point to the latest annotation. The previous annotation span is preserved in the tracing store.
+
+**Key design choice: evaluations without inputs.** The run has no input steps. The trace being annotated is referenced as the invocation in the scenario. This requires backend support for runs where only invocation references exist (no testset inputs). See [Appendix A](#appendix-a-evaluations-without-inputs--technical-analysis) for a detailed technical analysis of what needs to change.
 
 ### Use Case 2: Annotate Test Set Rows
 
@@ -110,10 +118,11 @@ The consumer layer is a **convenience API** and a **set of UI views** that orche
 
 **What happens behind the scenes:**
 
-1. User opens a test set, clicks "Annotate" (or "Send to review")
-2. User picks evaluators (what to annotate) — or defines them inline:
-   - "What do you want to add?" → "Expected answer (text), Difficulty (1-5)"
-   - Behind the scenes: a human evaluator is auto-created with a JSON schema matching these fields
+1. User opens a test set, clicks "Annotate" (or "Send to annotation queue")
+2. User specifies **what labels they want** — not evaluators. The UI presents a simple form:
+   - "What do you want annotators to provide?" → e.g., "Expected answer (text), Difficulty (1-5), Is correct? (yes/no)"
+   - We offer defaults: `correct_answer`, `quality_rating`, `judge_guidelines`
+   - Behind the scenes: the FE/BE auto-creates a human evaluator with a JSON schema matching these label definitions (see [Key Design Decision #2](#2-evaluators-are-the-annotation-schema))
 3. **Convenience API** auto-creates:
    - An EvaluationRun linked to the test set revision, with annotation steps for each evaluator
    - One EvaluationScenario per test case row
@@ -133,12 +142,19 @@ The consumer layer is a **convenience API** and a **set of UI views** that orche
 **What happens behind the scenes:**
 
 1. User creates evaluation run with both auto and human evaluators (existing flow)
-2. Auto evaluators execute immediately (existing flow)
-3. Human evaluator steps → an EvaluationQueue is auto-created for the run
-4. Annotators work through scenarios in the eval run detail table
-5. Human annotations appear alongside auto scores in the same results view
+2. **The evaluation orchestrator** executes auto evaluators immediately (existing flow)
+3. For human evaluator steps, the orchestrator **skips invocation** (checks `step.origin == "human"`), seeds results as PENDING, and auto-creates an EvaluationQueue for the human steps
+4. Annotators open the Annotation Queues page → see the queue for this eval run → work through scenarios → submit annotations
+5. Human annotations appear alongside auto scores in the same eval run results view
 
-**This is the case that works best today.** The main gap is that the frontend doesn't use the queue for assignment — any annotator can annotate anything. Wiring the queue to the frontend closes this gap.
+**Current state (broken):** Today, the orchestrator does NOT check `is_human` — it tries to invoke human evaluators, which fail with `InvalidInterfaceURIV0Error`. Human steps are recorded as FAILURE. No queue is created. This is a **required fix** regardless of annotation queues.
+
+**Who creates the queue:** The evaluation orchestrator itself. After processing all steps, it detects `has_human` steps and creates the EvaluationQueue as part of the run lifecycle. The convenience API is NOT involved in this case — the orchestrator handles it natively. This is the cleanest approach because:
+- The orchestrator already knows which steps are human and which scenarios exist
+- No need for the convenience API to "wait" for the orchestrator to finish before creating a queue
+- Follows the pattern of the online eval flow, which also creates infrastructure as part of its execution
+
+**Discoverability:** The eval run detail view should show a prominent banner when human annotation is pending: "This evaluation has X human annotation tasks. [Go to annotation queue]". The Annotation Queues page also shows this queue with the eval run name as context.
 
 **Future extension:** Run evaluation, see auto results, then send specific scenarios for re-annotation (e.g., the ones where auto and human disagreed). This is extending the queue to cover a subset of scenarios.
 
@@ -169,20 +185,22 @@ POST /preview/annotation-queues/
   "name": "Q1 Trace Review",
   "description": "Review flagged production traces",
 
-  // What to annotate with
-  "evaluators": [
-    {"slug": "quality-rating"},        // existing evaluator
-    {"slug": "safety-flag"}            // existing evaluator
+  // What to annotate — defined as labels, not evaluators
+  "labels": [
+    {"name": "correctness", "type": "boolean"},
+    {"name": "quality", "type": "rating", "min": 1, "max": 5},
+    {"name": "notes", "type": "text"}
   ],
+  // OR reference existing evaluators
+  "evaluator_slugs": ["quality-rating", "safety-flag"],
 
-  // Items to annotate (one of these)
+  // Source type: "traces" or "testset"
   "source": {
-    "type": "traces",                  // or "testset" or "eval_run"
-    "trace_ids": ["abc123", "def456"]  // for traces
+    "type": "traces",
+    "trace_ids": ["abc123", "def456"]  // optional: initial items
     // OR
-    "testset_revision_id": "uuid"      // for test sets
-    // OR
-    "run_id": "uuid"                   // for eval runs
+    "type": "testset",
+    "testset_revision_id": "uuid"
   },
 
   // Optional: who should annotate
@@ -193,34 +211,50 @@ POST /preview/annotation-queues/
 }
 ```
 
-**Behind the scenes:**
-1. Creates EvaluationRun with `flags: {has_human: true, is_annotation_only: true}` and annotation steps per evaluator
-2. Creates EvaluationScenarios from the source items
-3. Creates EvaluationQueue with user assignment if `assignees` provided
+**Note:** `eval_run` is NOT a source type here. For eval runs with human evaluators, the evaluation orchestrator creates the queue directly (see Use Case 3). The convenience API only handles the two cases where the user explicitly creates a queue: from traces or from a test set.
 
-**Returns:** Queue ID (which is also the queue's identifier for all subsequent operations)
+**Behind the scenes:**
+1. If `labels` provided: auto-creates a human evaluator with a JSON schema matching the label definitions
+2. Creates EvaluationRun with `flags: {has_human: true}` and annotation steps per evaluator
+3. Creates EvaluationScenarios from the source items (one per trace_id or per test case)
+4. Creates EvaluationQueue with user assignment if `assignees` provided
+
+**Returns:** Queue ID + summary (item count, label names, assignees)
 
 ### Add Items to Queue
 
 ```
 POST /preview/annotation-queues/{queue_id}/items
 {
+  // For trace-sourced queues:
   "trace_ids": ["new-trace-1", "new-trace-2"]
+
+  // For testset-sourced queues:
+  // "testcase_ids": ["tc-1", "tc-2"]  // adds specific test cases
+  // OR omit to add all test cases from a new revision
 }
 ```
 
-Adds new scenarios to the underlying evaluation run. The queue automatically includes them (if the queue is defined as "all scenarios in the run").
+Adds new scenarios to the underlying evaluation run. Validates that the item type matches the queue's source type (can't add traces to a testset-sourced queue).
 
-### Get Inbox (Assigned Items)
+### List Queues (for current user)
 
 ```
-GET /preview/annotation-queues/inbox?user_id={user_id}
+GET /preview/annotation-queues/?user_id={user_id}
 ```
 
-Queries all queues, runs `filter_scenario_ids()` for the user, and returns a flat list of items across all queues. Each item includes:
-- Queue info (name, evaluators)
-- Scenario data (the trace/testcase being annotated)
-- Status (pending, completed by this user)
+Returns all queues where the user is an assignee. Each queue includes:
+- Queue info (name, labels, source type)
+- Progress (completed / total items)
+- Status (active / completed)
+
+### Get Queue Detail + Items
+
+```
+GET /preview/annotation-queues/{queue_id}?user_id={user_id}
+```
+
+Returns queue metadata + the user's assigned items with their annotation status. Internally calls `filter_scenario_ids()` to scope to the user's partition.
 
 ### Submit Annotation
 
@@ -228,76 +262,107 @@ Uses existing endpoints — no change needed:
 - `POST /preview/annotations/` to create the annotation
 - `PATCH /preview/evaluations/results/` to link it to the step result
 
-### Write Back to Test Set
+### Write Back / Save as Test Set
 
 ```
-POST /preview/annotation-queues/{queue_id}/write-back
+POST /preview/annotation-queues/{queue_id}/export
 {
-  "target": "testset",
-  "columns": {
-    "quality-rating.approved": "approved",
-    "safety-flag.is_safe": "is_safe"
+  // For testset-sourced queues: create new revision with annotation columns
+  "target": "testset_revision",
+  "column_mapping": {
+    "correctness": "is_correct",
+    "quality": "quality_score"
   }
+
+  // For trace-sourced queues: create new test set from annotated traces
+  // "target": "new_testset",
+  // "name": "Curated Q1 traces",
+  // "include_annotations_as_columns": true
 }
 ```
 
-Creates a new test set revision with annotation values as new columns.
+The endpoint name is `export` rather than `write-back` to better reflect that it works for both directions: writing annotations back to an existing test set (new revision) or creating an entirely new test set from annotated traces.
+
+**Who triggers this:** The queue creator/admin, not individual annotators. It's a one-time action available on the queue detail page.
 
 ---
 
 ## UI Design Direction
 
-### Annotation Mode (View Swap)
+### Annotation Queue Page (primary)
 
-Instead of a separate "annotation queue" page, the annotation experience lives **inside existing views**. The user switches to "annotation mode" on the current view:
+A dedicated **Annotation Queues** page in the sidebar navigation. This is the main entry point for annotation work.
 
-**In observability (traces):**
-- User filters traces as usual
-- Clicks "Review mode" → the traces table transforms into an annotation interface
-- Each row gets annotation widgets inline or a side panel
-- User can also select traces and "Send to review" to create a queue for others
+**Queue list view:** Shows all queues the user has access to (see wireframe in Annotation Queues Page section above).
 
-**In test set view:**
-- User opens a test set
-- Clicks "Annotate" → the table transforms into an annotation interface
-- Each row gets inline annotation fields
-- On completion, user can "Save to test set" (write-back as new revision)
+**Queue detail / annotation view:** When the user clicks "Open" on a queue, they enter the **annotation view**. This view is **the same regardless of source type** (traces, testset, or eval run). It is an extension of the existing annotation drawer/eval table, adapted to show:
 
-**In eval run details:**
-- Same as today but with actual assignment from the queue
-- Annotator only sees their assigned scenarios
+- A table of items to annotate (traces or test cases)
+- For each item: the data to review (inputs, outputs, trace details) and annotation form fields
+- Progress indicator (X/Y completed for this user)
+- Navigation (prev/next item, skip)
+- The annotation form is driven by the evaluator's JSON schema (same as the existing annotation drawer)
 
-This approach avoids creating a separate "annotation queue" page. The queue is a background concept — the user works inside the views they already know.
+The key principle: **one annotation view, multiple data types**. The view renders trace data and testcase data uniformly — both have inputs and outputs that can be displayed in a standard layout. The annotation form on the side is always the same.
 
-### Inbox View
+### Frontend interaction per use case
 
-A single page where annotators see all their pending work across all queues:
+**Observability (traces):**
+- User selects traces → clicks "Send to annotation queue" → modal to configure or select existing queue
+- FE calls `POST /preview/annotation-queues/` with `source.type = "traces"` and selected trace_ids
+- Annotator sees this queue on the Annotation Queues page, clicks Open → annotation view shows trace data
+
+**Test set view:**
+- User opens test set → clicks "Send to annotation queue" → modal to configure labels and assignees
+- FE calls `POST /preview/annotation-queues/` with `source.type = "testset"` and testset_revision_id
+- Annotator sees this queue on the Annotation Queues page, clicks Open → annotation view shows testcase data
+- On completion: queue admin clicks "Export to test set" → creates new revision with annotation columns
+
+**Eval run details:**
+- User creates eval run with human evaluators (existing flow)
+- Orchestrator auto-creates EvaluationQueue for human steps
+- Eval run detail view shows banner: "This evaluation has human annotation tasks. [Go to annotation queue]"
+- Annotator sees this queue on the Annotation Queues page, clicks Open → annotation view shows scenario data (same as eval run table rows)
+- Human results appear alongside auto results in the eval run detail table
+
+### Annotation Mode (orthogonal — future / separate concern)
+
+> **Note:** An "annotation mode" view swap (e.g., toggling traces table into an annotation interface for the current user) is orthogonal to annotation queues. It is local/stateless and does not require queue infrastructure. This could be built independently as a lightweight feature — essentially the existing annotation drawer expanded to inline mode. It is out of scope for this RFC but could be built in parallel.
+
+### Annotation Queues Page
+
+A dedicated page listing all annotation queues the current user is assigned to. This is a first-class page in the sidebar navigation (under Evaluations or as a top-level item).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  MY ANNOTATION INBOX                                                │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  Q1 Trace Review          12 pending  │  3 completed        │   │
-│  │  quality-rating, safety-flag                                │   │
-│  │  [Open]                                                     │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  Test Set Labeling         45 pending  │  23 completed      │   │
-│  │  expected-answer, difficulty                                │   │
-│  │  [Open]                                                     │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  Sprint 12 Human Eval      8 pending  │  42 completed      │   │
-│  │  quality-rating                                             │   │
-│  │  [Open]                                                     │   │
-│  └─────────────────────────────────────────────────────────────┘   │
+│  ANNOTATION QUEUES                                                   │
+│                                                                      │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │  Q1 Trace Review          12/15 done  │  Assigned to: me    │    │
+│  │  Labels: correctness, safety                                │    │
+│  │  Source: traces                                             │    │
+│  │  [Open]                                                     │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                                                                      │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │  Test Set Labeling         23/45 done │  Assigned to: me    │    │
+│  │  Labels: expected_answer, difficulty                        │    │
+│  │  Source: testset                                            │    │
+│  │  [Open]                                                     │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                                                                      │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │  Sprint 12 Human Eval      42/50 done │  Assigned to: me   │    │
+│  │  Labels: quality-rating                                     │    │
+│  │  Source: eval run                                           │    │
+│  │  [Open]                                                     │    │
+│  └─────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-Clicking "Open" navigates to the appropriate view (observability for trace queues, test set view for test set queues, eval run details for eval queues) in annotation mode, filtered to the user's assigned items.
+**v1**: Shows queues assigned to the current user. Each queue shows name, progress (X/Y done), labels being collected, and source type. "Open" navigates to the annotation view for that queue.
+
+**v2 (future)**: A global inbox that aggregates pending items across all queues into a flat task list, with cross-queue prioritization and filtering.
 
 ---
 
@@ -410,3 +475,50 @@ The metadata-on-traces approach (tagging spans with review status) was considere
 - View swap (annotation mode)
 - Ongoing item ingestion
 - UX refinements based on usage
+
+---
+
+## Appendix A: Evaluations Without Inputs — Technical Analysis
+
+This section documents what needs to change in the backend to support evaluation runs where scenarios only have a `trace_id` reference but no input steps (no testset, no query).
+
+### Current state
+
+The data model is already flexible enough:
+- `EvaluationScenario` has no `inputs` field — it's a grouping entity. Actual data lives on `EvaluationResult` rows.
+- `EvaluationResult.testcase_id` is already `Optional[UUID]` (nullable in DB).
+- `EvaluationResult.trace_id` is already `Optional[str]` (nullable in DB).
+- `EvaluationRunData.steps` accepts only invocation + annotation steps (no requirement for input steps at the DTO level).
+
+### What blocks it today
+
+1. **Start gate in `SimpleEvaluationsService.start()`** (`api/oss/src/core/evaluations/service.py`, ~line 1885): The batch dispatch branch requires `_evaluation.data.query_steps or _evaluation.data.testset_steps`. Without either, the run is never dispatched to a worker.
+
+2. **Batch worker assumes testsets** (`api/oss/src/core/evaluations/tasks/legacy.py`, ~line 720): `evaluate_batch_testset` extracts `testset_revision_id` from input steps and would crash (TypeError) if none exist. Scenario count = testcase count.
+
+3. **No trace-only worker**: Neither the batch nor live worker handles the case of "here are N trace_ids, create one scenario per trace and run annotation steps."
+
+### What needs to change
+
+| # | Component | Severity | Description |
+|---|-----------|----------|-------------|
+| 1 | `start()` gate | **BLOCKING** | Add branch for trace-only runs (no query/testset steps, but has annotation steps + pre-provided trace_ids) |
+| 2 | New `SimpleEvaluationData` field | **BLOCKING** | Add `trace_ids: Optional[List[str]]` to carry the list of traces to annotate |
+| 3 | New worker task | **BLOCKING** | Implement `evaluate_trace_batch` — creates scenarios from trace_ids, fetches traces, runs human annotation steps |
+| 4 | Run data builder | MEDIUM | Handle annotation step `inputs` when no input steps exist (reference only `__all_invocations__`) |
+| 5 | Worker registration | MEDIUM | Register new task in Taskiq worker |
+| 6 | Run flags | LOW | Optionally add `has_traces` flag to `EvaluationRunFlags` |
+| 7 | DB schema | NONE | No migrations needed — all fields already nullable |
+
+### Recommended approach
+
+Model the new worker after the **live evaluation flow** (`evaluate_live_query` in `live.py`) which already:
+- Creates scenarios from traces (not testcases)
+- Sets `testcase=None`, `inputs=None` for evaluator invocations
+- Falls back to trace root span attributes for inputs/outputs
+
+The key difference: instead of running a tracing query to discover traces, the new worker accepts a pre-provided list of `trace_ids`. This is essentially a simplified version of the live worker without the query/scheduling machinery.
+
+### Estimate
+
+~2-3 days of backend work for a senior developer familiar with the evaluation subsystem. The new worker is a hybrid of existing patterns, not a greenfield implementation.
