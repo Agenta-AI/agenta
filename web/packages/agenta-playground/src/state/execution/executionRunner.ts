@@ -2,6 +2,7 @@ import {
     resolveChainInputs,
     computeTopologicalOrder,
     buildEvaluatorExecutionInputs,
+    validateEvaluatorInputs,
     runnableBridge,
     type RunnableData,
     type ExecutionResult,
@@ -264,6 +265,43 @@ export async function executeStepForSessionWithExecutionItems(
                         ?.schemas as {inputSchema?: Record<string, unknown>} | undefined
                     const inputSchema = bridgeSchemas?.inputSchema ?? null
 
+                    const evaluatorInputContext = {
+                        testcaseData: data,
+                        upstreamOutput,
+                        settings: stageRunnableData?.configuration ?? {},
+                        inputSchema,
+                    }
+
+                    // Validate required inputs before building — skip if missing
+                    const validation = validateEvaluatorInputs(evaluatorInputContext)
+                    if (!validation.valid) {
+                        console.debug(
+                            `[executionRunner] Node "${nodeLabel}" (${nodeId}): skipping due to missing required inputs`,
+                            {missingInputs: validation.missingInputs, message: validation.message},
+                        )
+
+                        // Record skipped result and continue to next node
+                        const skippedAt = new Date().toISOString()
+                        chainResults[nodeId] = {
+                            executionId: `skipped-${nodeId}-${Date.now()}`,
+                            nodeId,
+                            nodeLabel,
+                            nodeType: node.entity.type,
+                            stageIndex,
+                            status: "skipped",
+                            startedAt: skippedAt,
+                            completedAt: skippedAt,
+                            error: {
+                                message:
+                                    validation.message ||
+                                    `Missing required inputs: ${validation.missingInputs.join(", ")}`,
+                                code: "MISSING_REQUIRED_INPUTS",
+                            },
+                            traceId: null,
+                        }
+                        continue
+                    }
+
                     console.debug(
                         `[executionRunner] Node "${nodeLabel}" (${nodeId}): no explicit mappings, using buildEvaluatorExecutionInputs`,
                         {
@@ -278,12 +316,7 @@ export async function executeStepForSessionWithExecutionItems(
                         },
                     )
 
-                    nodeInputs = buildEvaluatorExecutionInputs({
-                        testcaseData: data,
-                        upstreamOutput,
-                        settings: stageRunnableData?.configuration ?? {},
-                        inputSchema,
-                    })
+                    nodeInputs = buildEvaluatorExecutionInputs(evaluatorInputContext)
                 }
 
                 console.debug(
