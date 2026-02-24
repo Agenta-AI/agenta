@@ -131,7 +131,7 @@ export {
 export {
     buildResultKey,
     cancelRunAtom,
-    clearResponseByRowRevisionWithContextAtom,
+    clearResponseByRowEntityWithContextAtom,
     completeRunAtom,
     failRunAtom,
     resetExecutionAtom,
@@ -140,7 +140,6 @@ export {
     setRepetitionCountAtom,
     setRepetitionIndexAtom,
     startRunAtom,
-    clearResponseByRowEntityWithContextAtom,
 } from "./execution"
 
 // Row-entity convenience selectors
@@ -207,12 +206,11 @@ export {
 export {
     executionHeadersAtom,
     executionWorkerBridgeAtom,
-    handleWebWorkerResultAtom,
+    handleExecutionResultFromWorkerAtom,
     ignoredWebWorkerRunIdsAtom,
     pendingWebWorkerRequestsAtom,
     triggerExecutionAtom,
     triggerExecutionsAtom,
-    handleExecutionResultFromWorkerAtom,
 } from "./execution"
 
 // Chat types

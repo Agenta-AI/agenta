@@ -49,8 +49,6 @@ import {
     mappingModalOpenAtom,
     playgroundDispatchAtom,
     playgroundNodesAtom,
-    primaryEntityIdAtom,
-    primaryNodeAtom,
     selectedNodeIdAtom,
     testsetModalOpenAtom,
 } from "../atoms/playground"
@@ -817,6 +815,7 @@ const invalidateQueriesAtom = atom(null, async () => {
         ["appVariantRevisions"],
         ["oss-variants-for-selection"],
         ["oss-revisions-for-selection"],
+        ["workflows"],
     ]
 
     // Invalidate to mark as stale
@@ -977,18 +976,20 @@ const controllerDeleteRevisionAtom = atom(
         // Check if this entity is a workflow type
         const nodes = get(playgroundNodesAtom)
         const node = nodes.find((n) => n.entityId === revisionId)
-        const bridge = getRunnableBridge()
 
         if (node?.entityType === "workflow") {
-            // Read entity data via bridge to extract parent workflow ID
-            const store = getDefaultStore()
-            const runnableData = store.get(bridge.data(revisionId)) as
+            // Read raw workflow entity data (NOT bridge.data which transforms to RunnableData
+            // and strips workflow_id). The archive API expects the artifact-level workflow ID.
+            const entityData = workflowMolecule.get.data(revisionId) as
                 | ({workflow_id?: unknown; id?: unknown} & Record<string, unknown>)
                 | null
-            const workflowId =
-                asNonEmptyString(runnableData?.workflow_id) ??
-                asNonEmptyString(runnableData?.id) ??
-                revisionId
+            const workflowId = asNonEmptyString(entityData?.workflow_id)
+            if (!workflowId) {
+                return {
+                    success: false,
+                    error: `Cannot delete workflow: missing workflow_id for revision ${revisionId}`,
+                }
+            }
             const result = await set(archiveWorkflowRevisionAtom, {
                 revisionId,
                 workflowId,

@@ -68,6 +68,19 @@ export const hasMultipleNodesAtom = atom((get) => {
 })
 
 /**
+ * The primary (first) node in the playground, or null if empty.
+ */
+export const primaryNodeAtom = atom((get) => {
+    const nodes = get(playgroundNodesAtom)
+    return nodes.length > 0 ? nodes[0] : null
+})
+
+/**
+ * The entity ID of the primary node, or null if no nodes.
+ */
+export const primaryEntityIdAtom = atom((get) => get(playgroundNodesAtom)[0]?.entityId ?? null)
+
+/**
  * Entity IDs from primary-level nodes only (depth 0).
  * Downstream chain nodes (e.g. evaluators at depth > 0) are excluded
  * so they don't trigger comparison mode.
