@@ -34,6 +34,7 @@ import {
     discardWorkflowDraftAtom,
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
+    invalidateWorkflowRevisionsByWorkflowCache,
 } from "./store"
 
 // ============================================================================
@@ -171,8 +172,12 @@ export const commitWorkflowRevisionAtom = atom(
 
             // 2. Call API — updateWorkflow handles both metadata + data commit
             const workflowId = entity.workflow_id ?? entity.id
+            const variantId = entity.workflow_variant_id ?? entity.variant_id
             const newWorkflow = await updateWorkflow(projectId, {
                 id: workflowId,
+                variantId: variantId ?? undefined,
+                name: entity.name ?? undefined,
+                message: _commitMessage ?? undefined,
                 data: entity.data
                     ? {
                           uri: entity.data.uri,
@@ -187,7 +192,8 @@ export const commitWorkflowRevisionAtom = atom(
 
             // 3. Invalidate caches
             invalidateWorkflowsListCache()
-            invalidateWorkflowCache(workflowId)
+            invalidateWorkflowCache(revisionId)
+            invalidateWorkflowRevisionsByWorkflowCache(workflowId)
 
             if (_commitCallbacks.onQueryInvalidate) {
                 await _commitCallbacks.onQueryInvalidate()

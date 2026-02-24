@@ -1230,3 +1230,19 @@ export function invalidateWorkflowCache(workflowId: string, options?: StoreOptio
         current.refetch()
     }
 }
+
+/**
+ * Invalidate the revisions-by-workflow cache for a given workflow ID.
+ * This forces the variant/revision selector dropdown to refetch the revision list.
+ */
+export function invalidateWorkflowRevisionsByWorkflowCache(
+    workflowId: string,
+    options?: StoreOptions,
+) {
+    const store = getStore(options)
+    const queryAtom = workflowRevisionsByWorkflowQueryAtomFamily(workflowId)
+    const current = store.get(queryAtom)
+    if (current?.refetch) {
+        current.refetch()
+    }
+}

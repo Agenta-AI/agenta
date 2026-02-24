@@ -569,6 +569,7 @@ export async function createWorkflow(
             {
                 workflow_revision: {
                     workflow_id: workflowId,
+                    slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
                     flags: payload.flags,
                     data: payload.data,
                 },
@@ -601,11 +602,15 @@ export async function createWorkflow(
  */
 export interface UpdateWorkflowPayload {
     id: string
+    /** Variant ID for revision commit (workflow_variant_id → variant_id on backend) */
+    variantId?: string | null
     name?: string | null
     description?: string | null
     flags?: WorkflowFlags
     tags?: string[] | null
     meta?: Record<string, unknown> | null
+    /** Commit message for the new revision */
+    message?: string | null
     data?: {
         uri?: string | null
         url?: string | null
@@ -660,8 +665,12 @@ export async function updateWorkflow(
             {
                 workflow_revision: {
                     workflow_id: payload.id,
+                    workflow_variant_id: payload.variantId ?? undefined,
+                    slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                    name: payload.name ?? undefined,
                     flags: payload.flags,
                     data: payload.data,
+                    message: payload.message ?? undefined,
                 },
             },
             {params: {project_id: projectId}},
