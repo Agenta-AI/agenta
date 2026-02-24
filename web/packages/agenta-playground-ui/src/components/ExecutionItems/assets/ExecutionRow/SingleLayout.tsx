@@ -29,9 +29,6 @@ import clsx from "clsx"
 import {atom} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
-import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
-
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import {getShortTestcaseId} from "../../../../utils/testcaseLabel"
@@ -48,6 +45,9 @@ import {
     ensureNodeCardKeyframes,
     type NodeStatus,
 } from "../../../shared/NodeResultCard"
+
+import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
+import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
 
 interface Props {
     rowId: string
@@ -270,6 +270,21 @@ const DownstreamNodeCard = ({
         return (
             <NodeResultCard name={nodeName} status={status}>
                 <span className="text-[var(--ant-color-error)] text-xs leading-5">{errorMsg}</span>
+            </NodeResultCard>
+        )
+    }
+
+    // Skipped — show explanation message (e.g., missing required inputs)
+    if (status === "skipped") {
+        const skipMsg =
+            typeof fullResult.error === "object" && fullResult.error?.message
+                ? fullResult.error.message
+                : "Skipped"
+        return (
+            <NodeResultCard name={nodeName} status={status}>
+                <span className="text-[var(--ant-color-text-tertiary)] text-xs leading-5 italic">
+                    {skipMsg}
+                </span>
             </NodeResultCard>
         )
     }

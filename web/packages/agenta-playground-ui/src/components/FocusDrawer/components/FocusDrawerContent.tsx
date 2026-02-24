@@ -161,6 +161,22 @@ function DownstreamNodeCard({
         )
     }
 
+    // Skipped — show explanation message (e.g., missing required inputs)
+    if (status === "skipped") {
+        const skipMsg =
+            typeof fullResult.error === "object" &&
+            (fullResult.error as {message?: string})?.message
+                ? (fullResult.error as {message: string}).message
+                : "Skipped"
+        return (
+            <NodeResultCard name={nodeName} status={status}>
+                <span className="text-[var(--ant-color-text-tertiary)] text-xs leading-5 italic">
+                    {skipMsg}
+                </span>
+            </NodeResultCard>
+        )
+    }
+
     const entries = extractDisplayEntries(fullResult.output)
 
     if (!entries || entries.length === 0) {
