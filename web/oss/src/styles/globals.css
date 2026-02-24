@@ -67,8 +67,8 @@ body {
 }
 
 .editor-input > p {
-    margin-top: 4px !important;
-    margin-bottom: 4px !important;
+    margin-top: 5px !important;
+    margin-bottom: 8px !important;
 }
 
 .hover-button-wrapper {
@@ -180,22 +180,26 @@ body {
 
 .editor-inner:not(.code-editor) {
     .editor-code {
-        background-color: rgb(240, 242, 245);
-        font-family: Menlo, Consolas, Monaco, monospace;
+        background-color: rgba(223, 224, 227, 0.28);
+        font-family: "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, Monaco, monospace;
         display: block;
         padding: 8px;
         line-height: 1.53;
-        font-size: 13px;
+        font-size: 13.5px;
         margin: 0;
-        margin-top: 8px;
-        margin-bottom: 8px;
+        margin-top: 12px;
+        margin-bottom: 12px;
         overflow-x: auto;
         position: relative;
         tab-size: 2;
+        border-radius: 6px;
+        border: 1px solid rgba(108, 112, 118, 0.05);
     }
 
     > .editor-input.markdown-view > .editor-code {
         background-color: transparent;
+        border: none;
+        font-size: 14px;
     }
     > .editor-input:not(.markdown-view) > .editor-code {
         &:after {

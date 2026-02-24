@@ -123,20 +123,47 @@ const MarkdownPlugin = ({id}: {id: string}) => {
         return editor.registerCommand(
             KEY_ENTER_COMMAND,
             (event) => {
-                editor.update(() => {
-                    const selection = $getSelection()
-                    if (!$isRangeSelection(selection)) return false
+                let handled = false
+                editor.update(
+                    () => {
+                        const selection = $getSelection()
+                        if (!$isRangeSelection(selection)) return
 
-                    const anchorNode = selection.anchor.getNode()
-                    const topNode = anchorNode.getTopLevelElementOrThrow()
+                        const anchorNode = selection.anchor.getNode()
+                        const topNode = anchorNode.getTopLevelElementOrThrow()
 
-                    if ($isCodeNode(topNode) && topNode.getLanguage() === "markdown") {
-                        event?.preventDefault()
-                        selection.insertRawText("\n")
-                        return true
-                    }
-                })
-                return true
+                        if ($isCodeNode(topNode) && topNode.getLanguage() === "markdown") {
+                            event?.preventDefault()
+
+                            // Save scroll position before inserting text to prevent
+                            // the browser from auto-scrolling to the bottom
+                            const rootElement = editor.getRootElement()
+                            const scrollContainer = rootElement?.closest(
+                                ".agenta-editor-wrapper",
+                            ) as HTMLElement | null
+                            const savedScrollTop = scrollContainer?.scrollTop ?? 0
+                            const savedElementScrollTop = rootElement?.scrollTop ?? 0
+
+                            selection.insertRawText("\n")
+
+                            // Restore scroll position after DOM update
+                            if (scrollContainer) {
+                                requestAnimationFrame(() => {
+                                    scrollContainer.scrollTop = savedScrollTop
+                                })
+                            }
+                            if (rootElement) {
+                                requestAnimationFrame(() => {
+                                    rootElement.scrollTop = savedElementScrollTop
+                                })
+                            }
+
+                            handled = true
+                        }
+                    },
+                    {discrete: true},
+                )
+                return handled
             },
             COMMAND_PRIORITY_HIGH,
         )

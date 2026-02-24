@@ -1,7 +1,7 @@
 .code-editor {
     /* === Editor container === */
     .editor-code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-family: "SF Mono", "JetBrains Mono", "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         position: relative;
         white-space: pre;
         tab-size: 2;
@@ -10,7 +10,6 @@
         /* Initialize CSS counter for line numbers */
         counter-reset: line-number;
 
-        font-family: Menlo, Consolas, Monaco, monospace;
         display: block;
         line-height: 1.53;
         font-size: 13px;
