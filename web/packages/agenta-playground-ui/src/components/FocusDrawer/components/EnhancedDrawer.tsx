@@ -73,7 +73,6 @@ const EnhancedDrawer = ({
         <Drawer
             {...props}
             open={isVisible}
-            width={width}
             afterOpenChange={handleAfterOpenChange}
             styles={drawerStyles}
             mask={maskProps}
