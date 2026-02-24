@@ -362,6 +362,7 @@ const applyPlaygroundSelection = (
     store: Store,
     next: string[],
     hydratedEntities?: HydratedEntityDescriptor[],
+    options?: {skipInitialRow?: boolean},
 ) => {
     const sanitized = sanitizeRevisionList(next)
     const normalizedHydratedEntities = (hydratedEntities ?? []).filter((entity) => {
@@ -414,11 +415,17 @@ const applyPlaygroundSelection = (
         // No nodes yet — use addPrimaryNode for the first entity so the
         // loadable is linked to the runnable and an initial testcase row
         // is created with proper input variables.
-        store.set(playgroundController.actions.addPrimaryNode, {
-            type: primaryEntityType,
-            id: rootEntityIds[0],
-            label: primaryHydratedEntity?.label ?? rootEntityIds[0],
-        })
+        // When skipInitialRow is set, the default empty row is deferred
+        // because a loadable/localTestset restore will populate rows afterwards.
+        store.set(
+            playgroundController.actions.addPrimaryNode,
+            {
+                type: primaryEntityType,
+                id: rootEntityIds[0],
+                label: primaryHydratedEntity?.label ?? rootEntityIds[0],
+            },
+            options?.skipInitialRow ? {skipInitialRow: true} : undefined,
+        )
 
         // If there are additional entities (comparison mode from URL),
         // add them via setEntityIds which preserves the first node.
@@ -541,10 +548,16 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
             )
 
             if (hydrateResult.ok && hydrateResult.selection) {
+                // Determine if a loadable restore will follow — skip initial row to avoid flash
+                const hasLoadableRestore = Boolean(
+                    hydrateResult.loadable || hydrateResult.localTestset,
+                )
+
                 applyPlaygroundSelection(
                     store,
                     hydrateResult.selection,
                     hydrateResult.entities as HydratedEntityDescriptor[] | undefined,
+                    hasLoadableRestore ? {skipInitialRow: true} : undefined,
                 )
 
                 // For ephemeral entities, the restored entity ID differs from the URL's query param.
@@ -564,9 +577,32 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
 
                 // Restore testset connection after nodes are set up (nodes are now populated)
                 if (hydrateResult.loadable) {
-                    void store.set(
-                        playgroundController.actions.restoreLoadableConnection,
-                        hydrateResult.loadable,
+                    void store
+                        .set(
+                            playgroundController.actions.restoreLoadableConnection,
+                            hydrateResult.loadable,
+                        )
+                        .catch((err) => {
+                            console.warn(
+                                "[Playground URL] Failed to restore testset connection, falling back to empty row:",
+                                err,
+                            )
+                            // Fall back to creating an empty row so the user isn't stuck
+                            const loadableId = store.get(
+                                playgroundController.selectors.loadableId(),
+                            )
+                            if (loadableId) {
+                                store.set(
+                                    playgroundController.actions.addRowWithInit,
+                                    {loadableId},
+                                )
+                            }
+                        })
+                } else if (hydrateResult.localTestset) {
+                    // Restore local testcase data (synchronous)
+                    store.set(
+                        playgroundController.actions.restoreLocalTestset,
+                        hydrateResult.localTestset,
                     )
                 }
                 return
@@ -891,6 +927,71 @@ playgroundSyncAtom.onMount = (set) => {
         },
     )
     unsubs.push(unsubConnectedTestset)
+
+    // -----------------------------------------------------------------------
+    // SUB 6: Update URL when testcase visibility changes
+    // -----------------------------------------------------------------------
+    // When the user removes/hides testcase rows, hiddenTestcaseIds changes
+    // in the loadable state. Re-encode the URL so the hidden IDs are captured
+    // in the #pgSnapshot hash and persist across page reloads.
+    const unsubHiddenTestcases = store.sub(
+        playgroundController.selectors.hiddenTestcaseCount(),
+        () => {
+            const currentSelected = sanitizeRevisionList(
+                store.get(playgroundController.selectors.entityIds()),
+            )
+            if (currentSelected.length > 0) {
+                writePlaygroundSelectionToQuery(currentSelected)
+            }
+        },
+    )
+    unsubs.push(unsubHiddenTestcases)
+
+    // -----------------------------------------------------------------------
+    // SUB 7: Update URL when new testcase rows are added/removed
+    // -----------------------------------------------------------------------
+    // When the user adds a new testcase row (locally-created, not yet committed),
+    // the snapshot must be re-encoded so the new row data is captured in draftRows
+    // and persists across page reloads.
+    const unsubNewTestcases = store.sub(
+        playgroundController.selectors.newTestcaseCount(),
+        () => {
+            const count = store.get(playgroundController.selectors.newTestcaseCount())
+            const currentSelected = sanitizeRevisionList(
+                store.get(playgroundController.selectors.entityIds()),
+            )
+            if (currentSelected.length > 0) {
+                writePlaygroundSelectionToQuery(currentSelected)
+            }
+        },
+    )
+    unsubs.push(unsubNewTestcases)
+
+    // -----------------------------------------------------------------------
+    // SUB 8: Update URL when new testcase row DATA changes
+    // -----------------------------------------------------------------------
+    // When the user edits the content of a locally-created testcase row,
+    // the snapshot must be re-encoded so the updated data is captured in
+    // draftRows and persists across page reloads.
+    let prevNewTestcaseDataHash = store.get(
+        playgroundController.selectors.newTestcaseDataHash(),
+    )
+    const unsubNewTestcaseData = store.sub(
+        playgroundController.selectors.newTestcaseDataHash(),
+        () => {
+            const hash = store.get(playgroundController.selectors.newTestcaseDataHash())
+            if (hash !== prevNewTestcaseDataHash) {
+                prevNewTestcaseDataHash = hash
+                const currentSelected = sanitizeRevisionList(
+                    store.get(playgroundController.selectors.entityIds()),
+                )
+                if (currentSelected.length > 0) {
+                    writePlaygroundSelectionToQuery(currentSelected)
+                }
+            }
+        },
+    )
+    unsubs.push(unsubNewTestcaseData)
 
     // -----------------------------------------------------------------------
     // CLEANUP

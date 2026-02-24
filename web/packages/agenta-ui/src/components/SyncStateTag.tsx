@@ -13,8 +13,8 @@
  * The "modified" state supports an optional dismiss (×) icon for discarding changes.
  */
 
-import {Tag, Tooltip} from "antd"
 import {X} from "@phosphor-icons/react"
+import {Tag, Tooltip} from "antd"
 import clsx from "clsx"
 
 // ============================================================================
