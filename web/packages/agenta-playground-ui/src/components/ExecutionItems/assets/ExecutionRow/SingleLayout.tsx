@@ -34,6 +34,7 @@ import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
 
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
+import {getShortTestcaseId} from "../../../../utils/testcaseLabel"
 import ExecutionResultView from "../../../ExecutionResultView"
 import CollapseToggleButton from "../../../shared/CollapseToggleButton"
 import {EvaluatorFieldGrid} from "../../../shared/EvaluatorFieldGrid"
@@ -484,10 +485,7 @@ const SingleView = ({
     const executionRowIds = useAtomValue(
         executionItemController.selectors.executionRowIds,
     ) as string[]
-    const testCaseNumber = useMemo(() => {
-        const index = executionRowIds.indexOf(rowId)
-        return index >= 0 ? index + 1 : null
-    }, [executionRowIds, rowId])
+    const testCaseLabel = useMemo(() => `testcase ${getShortTestcaseId(rowId)}`, [rowId])
 
     // Delete and duplicate handlers
     const deleteRow = useSetAtom(executionItemController.actions.deleteRow)
@@ -584,7 +582,7 @@ const SingleView = ({
             {!inputOnly && (
                 <div className="w-full flex items-center gap-2 mb-0 group/header">
                     <CollapsibleGroupHeader
-                        label={testCaseNumber ? `Test case ${testCaseNumber}` : "Test case"}
+                        label={testCaseLabel}
                         isCollapsed={isCollapsed}
                         onClick={() => {
                             setHasInteractedWithCollapse(true)
@@ -594,8 +592,11 @@ const SingleView = ({
                         renderLabel={(label) => (
                             <Tag
                                 variant="filled"
-                                className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[#0517290F] text-[#344054] border border-solid border-transparent cursor-default select-none"
-                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[#0517290F] text-[#344054] border border-solid border-transparent cursor-pointer select-none hover:bg-[#0517291A] transition-colors"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    openFocusDrawer({rowId, entityId})
+                                }}
                             >
                                 <RowsIcon size={12} />
                                 {label}

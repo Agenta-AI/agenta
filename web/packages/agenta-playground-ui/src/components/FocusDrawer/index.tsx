@@ -6,6 +6,7 @@ import {Button, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {closePlaygroundFocusDrawerAtom, playgroundFocusDrawerAtom} from "../../state"
+import {getShortTestcaseId} from "../../utils/testcaseLabel"
 
 import FocusDrawerContent from "./components/FocusDrawerContent"
 import GenericDrawer from "./components/GenericDrawer"
@@ -20,6 +21,11 @@ const PlaygroundFocusDrawer = () => {
     const currentRowIndex = useMemo(() => {
         return rowIds.indexOf(rowId || "")
     }, [rowIds, rowId])
+
+    const testCaseLabel = useMemo(
+        () => (rowId ? `testcase ${getShortTestcaseId(rowId)}` : ""),
+        [rowId],
+    )
 
     const handleNext = () => {
         if (currentRowIndex < rowIds.length - 1) {
@@ -64,7 +70,7 @@ const PlaygroundFocusDrawer = () => {
                             size="small"
                         />
                     </div>
-                    <Text className="font-medium">Test case {currentRowIndex + 1}</Text>
+                    <Text className="font-medium text-xs">{testCaseLabel}</Text>
                 </div>
             }
             mainContent={<FocusDrawerContent />}
