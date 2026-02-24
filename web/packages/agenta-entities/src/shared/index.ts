@@ -258,6 +258,7 @@ export {
     createRunnableBridge,
     // Type hint registry (prevent spurious cross-molecule probing)
     registerRunnableTypeHint,
+    getRunnableTypeHint,
     clearRunnableTypeHint,
     clearAllRunnableTypeHints,
     // Internal state (advanced)

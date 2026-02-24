@@ -524,6 +524,11 @@ export function registerRunnableTypeHint(id: string, type: string): void {
     _runnableTypeHints.set(id, type)
 }
 
+/** Get the type hint for a runnable ID (if registered) */
+export function getRunnableTypeHint(id: string): string | undefined {
+    return _runnableTypeHints.get(id)
+}
+
 /** Clear a type hint for a runnable ID */
 export function clearRunnableTypeHint(id: string): void {
     _runnableTypeHints.delete(id)
