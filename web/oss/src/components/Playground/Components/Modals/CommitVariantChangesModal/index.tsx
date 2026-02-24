@@ -141,10 +141,13 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         ],
     )
 
-    const commitModes = [
-        {id: "version", label: "As a new version"},
-        {id: "variant", label: "As a new variant"},
-    ]
+    const commitModes = useMemo(
+        () => [
+            {id: "version", label: "As a new version"},
+            {id: "variant", label: "As a new variant"},
+        ],
+        [],
+    )
 
     return (
         <EntityCommitModal
