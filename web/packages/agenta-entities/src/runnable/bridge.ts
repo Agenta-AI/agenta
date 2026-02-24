@@ -24,6 +24,8 @@ import {getAgentaApiUrl} from "@agenta/shared/api"
 import {Atom, atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
+import {baseRunnableMolecule} from "../baseRunnable"
+import type {BaseRunnableData} from "../baseRunnable"
 import {evaluatorMolecule} from "../evaluator"
 import {
     invocationUrlAtomFamily as evaluatorInvocationUrlAtomFamily,
@@ -876,6 +878,43 @@ function workflowServerDataSelector(workflowId: string) {
 }
 
 // ============================================================================
+// BASE RUNNABLE HELPERS
+// ============================================================================
+
+function baseRunnableToRunnable(entity: unknown): RunnableData {
+    const data = entity as BaseRunnableData | null
+    if (!data) return {id: ""}
+    return {
+        id: data.id,
+        name: data.label,
+        configuration: data.parameters,
+    }
+}
+
+function getBaseRunnableInputPorts(entity: unknown): RunnablePort[] {
+    const data = entity as BaseRunnableData | null
+    if (!data) return []
+    if (data.inputs) {
+        return Object.keys(data.inputs).map((key) => ({
+            key,
+            name: key,
+            type: "string",
+        }))
+    }
+    return []
+}
+
+function getBaseRunnableOutputPorts(entity: unknown): RunnablePort[] {
+    const data = entity as BaseRunnableData | null
+    if (!data?.outputs || typeof data.outputs !== "object") return []
+    return Object.keys(data.outputs as Record<string, unknown>).map((key) => ({
+        key,
+        name: key,
+        type: "string",
+    }))
+}
+
+// ============================================================================
 // CONFIGURED BRIDGE
 // ============================================================================
 
@@ -887,6 +926,7 @@ function workflowServerDataSelector(workflowId: string) {
  * - **evaluator**: New evaluator entity via evaluatorMolecule
  * - **legacyEvaluator**: Legacy evaluator via legacyEvaluatorMolecule
  * - **evaluatorRevision**: Evaluator revision via evaluatorRevisionMolecule (stub in OSS)
+ * - **baseRunnable**: Local-only runnable from span/trace data via baseRunnableMolecule
  */
 export const runnableBridge = createRunnableBridge({
     runnables: {
@@ -1047,6 +1087,19 @@ export const runnableBridge = createRunnableBridge({
             },
             createLocalDraft: createLocalDraftFromWorkflowRevision,
         },
+        baseRunnable: {
+            molecule: baseRunnableMolecule,
+            toRunnable: baseRunnableToRunnable,
+            getInputPorts: getBaseRunnableInputPorts,
+            getOutputPorts: getBaseRunnableOutputPorts,
+            inputPortsSelector: (id: string) => baseRunnableMolecule.selectors.inputPorts(id),
+            outputPortsSelector: (id: string) => baseRunnableMolecule.selectors.outputPorts(id),
+            executionModeSelector: (id: string) =>
+                atom<"chat" | "completion">((get) =>
+                    get(baseRunnableMolecule.selectors.isChatVariant(id)) ? "chat" : "completion",
+                ),
+            requestPayloadSelector: (id: string) => baseRunnableMolecule.atoms.requestPayload(id),
+        },
     },
     crud: {
         createVariant: atom(null, async () => {
@@ -1166,6 +1219,16 @@ export const loadableColumnsFromRunnableAtomFamily = atomFamily((loadableId: str
                         }))
                     }
                 }
+            }
+        } else if (linkedRunnableType === "baseRunnable") {
+            // Read from baseRunnable molecule's inputPorts (derived from template vars or trace inputs)
+            const inputPorts = get(baseRunnableMolecule.selectors.inputPorts(linkedRunnableId))
+            if (inputPorts.length > 0) {
+                return inputPorts.map((port) => ({
+                    key: port.key,
+                    name: port.name,
+                    type: "string" as const,
+                }))
             }
         }
 
