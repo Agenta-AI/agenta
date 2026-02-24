@@ -28,6 +28,7 @@ import {
     type RunnableDraftPatch,
     type RunnableType,
 } from "@agenta/entities/runnable"
+import {testcaseMolecule} from "@agenta/entities/testcase"
 import {workflowSnapshotAdapter} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -39,6 +40,7 @@ import {
     type SelectionItem,
     type SnapshotDraftEntry,
     type SnapshotLoadableConnection,
+    type SnapshotLocalTestset,
     type EncodeResult,
     SNAPSHOT_VERSION,
 } from "../../snapshot"
@@ -110,6 +112,8 @@ export interface HydrateSnapshotResult {
     warnings?: string[]
     /** Testset connection to restore, if the snapshot was connected to an API-backed testset */
     loadable?: SnapshotLoadableConnection
+    /** Local testcase data to restore, if the snapshot had local (non-connected) testcases */
+    localTestset?: SnapshotLocalTestset
 }
 
 export interface HydratedSnapshotEntity {
@@ -279,10 +283,53 @@ const createSnapshotAtom = atom(
                 const ls = get(loadableStateAtomFamily(loadableId))
                 if (ls.connectedSourceId) {
                     const ct = get(connectedTestsetAtom)
+                    const hiddenIds = Array.from(ls.hiddenTestcaseIds)
                     loadable = {
                         revisionId: ls.connectedSourceId,
                         sourceName: ls.connectedSourceName,
                         testsetId: ct?.id ?? null,
+                        ...(hiddenIds.length > 0 ? {hiddenTestcaseIds: hiddenIds} : {}),
+                    }
+
+                    // Capture locally-added (new) testcase rows so they persist across reloads
+                    // NOTE: We use getDefaultStore().get(testcaseMolecule.data(id)) instead of
+                    // testcaseMolecule.get.data(id) because the imperative getter reads from
+                    // createMolecule's internal dataAtomFamily which doesn't resolve for new
+                    // entities. The top-level .data() alias points to testcaseEntityAtomFamily
+                    // which correctly checks the draft first.
+                    const store = getDefaultStore()
+                    const newIds = testcaseMolecule.get.newIds()
+                    if (newIds.length > 0) {
+                        const draftRows: {data: Record<string, unknown>}[] = []
+                        for (const newId of newIds) {
+                            const entity = store.get(testcaseMolecule.data(newId))
+                            if (entity?.data && typeof entity.data === "object") {
+                                draftRows.push({data: entity.data as Record<string, unknown>})
+                            }
+                        }
+                        if (draftRows.length > 0) {
+                            loadable.draftRows = draftRows
+                        }
+                    }
+                }
+            }
+
+            // Capture local testcase rows when NOT connected to an API-backed testset
+            let localTestset: SnapshotLocalTestset | undefined
+            if (!loadable && loadableId) {
+                const localStore = getDefaultStore()
+                const displayRowIds = testcaseMolecule.get.displayRowIds()
+                if (displayRowIds.length > 0) {
+                    const rows: {data: Record<string, unknown>}[] = []
+                    for (const rowId of displayRowIds) {
+                        const entity = localStore.get(testcaseMolecule.data(rowId))
+                        if (entity?.data && typeof entity.data === "object") {
+                            rows.push({data: entity.data as Record<string, unknown>})
+                        }
+                    }
+                    if (rows.length > 0) {
+                        const ct = get(connectedTestsetAtom)
+                        localTestset = {rows, name: ct?.name ?? null}
                     }
                 }
             }
@@ -293,10 +340,24 @@ const createSnapshotAtom = atom(
                 selection: snapshotSelection,
                 drafts,
                 ...(loadable ? {loadable} : {}),
+                ...(localTestset ? {localTestset} : {}),
             }
 
-            // Encode
-            const encodeResult: EncodeResult = encodeSnapshot(snapshot)
+            // Encode (with size fallback: retry without localTestset if too large)
+            let encodeResult: EncodeResult = encodeSnapshot(snapshot)
+
+            if (!encodeResult.ok && localTestset) {
+                // Retry without local testset data
+                warnings.push(
+                    "Local testcase data was too large to include in the snapshot URL. " +
+                        "Testcase rows will not be preserved when sharing this URL.",
+                )
+                const fallbackSnapshot: PlaygroundSnapshot = {
+                    ...snapshot,
+                }
+                delete fallbackSnapshot.localTestset
+                encodeResult = encodeSnapshot(fallbackSnapshot)
+            }
 
             if (!encodeResult.ok) {
                 return {
@@ -638,6 +699,8 @@ const hydrateSnapshotAtom = atom(
                 warnings: warnings.length > 0 ? warnings : undefined,
                 // Pass through loadable connection for the OSS layer to restore after nodes are set up
                 loadable: snapshot.loadable,
+                // Pass through local testset data for restoration
+                localTestset: snapshot.localTestset,
             }
         } catch (err) {
             console.error("[Snapshot Controller] Hydration error:", err)
