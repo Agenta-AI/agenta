@@ -3,31 +3,58 @@ set -euo pipefail
 
 # Default values
 LICENSE="oss"
-STAGE="gh"
-WITH_WEB=true  # Default to web enabled
+LICENSE_SOURCE="default"
+IMAGE_MODE="gh"  # gh|dev
+IMAGE_MODE_SOURCE="default"
+SOURCE_LOCAL=false
+SSL_ENABLED=false
+STAGE="gh"  # Derived from image/network/source flags after parsing
+WEB_MODE="docker"  # docker|local|none
+WEB_MODE_SOURCE="default"
 WITH_NGINX=false  # Default to traefik
 AGENTA_WEB_URL=  # Use env var if available, otherwise default
 ENV_FILE=""  # Default to no env file
 BUILD=false  # Default to no forced build
 NO_CACHE=false  # Default to using cache
-PULL=false  # Default to no pull
+PULL_ENABLED=true  # Pull non-built images when not building, unless disabled
 NUKE=false  # Default to not nuking volumes
 
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
-    echo "Options:"
-    echo "  --license <oss|ee>      Specify the license type (default: oss)"
-    echo "  --dev                   Set the stage to 'dev' (default: gh)"
-    echo "  --local                 Set the stage to 'gh.local' (build .gh Dockerfiles locally)"
-    echo "  --no-web                Run web with no container (default: web in container)"
-    echo "  --nginx                 Run with nginx as the proxy service (default: traefik)"
-    echo "  --web-domain <URL>      Set the web domain (default: from env var or http://localhost:3000)"
-    echo "  --env-file <path>       Specify an environment file to load variables (default: built-in)"
-    echo "  --build                 Force a fresh build of containers (default: false)"
-    echo "  --no-cache              Build without using cache [implies --build] (default: false)"
-    echo "  --pull                  Pull latest images from registry (default: implicit for gh stages)"
-    echo "  --nuke                  Remove related volumes before starting containers"
+    echo "License:"
+    echo "  --oss                   Alias for --license oss"
+    echo "  --ee                    Alias for --license ee"
+    echo "  --license <oss|ee>      Set license (default: oss)"
+    echo ""
+    echo "Image:"
+    echo "  --image <gh|dev>        Set image mode (default: gh)"
+    echo "  --gh                    Alias for --image gh"
+    echo "  --dev                   Alias for --image dev"
+    echo ""
+    echo "Source:"
+    echo "  --no-pull               Disable pulling non-built images before up"
+    echo "  --local                 Use local gh source (requires --image gh)"
+    echo "  --build                 Build images before up"
+    echo "  --no-cache              Build with --no-cache (requires --build)"
+    echo ""
+    echo "Web:"
+    echo "  --no-web                Alias for --web-mode none"
+    echo "  --web-local             Alias for --web-mode local"
+    echo "  --web-mode <mode>       Web mode: docker|local|none (default: docker)"
+    echo "  --web-url <URL>         Override AGENTA_WEB_URL"
+    echo ""
+    echo "Environment:"
+    echo "  --env-file <path>       Use explicit env file (otherwise stage default)"
+    echo ""
+    echo "Database:"
+    echo "  --nuke                  Remove related volumes on shutdown"
+    echo ""
+    echo "Network:"
+    echo "  --ssl                   Use SSL proxy stage (requires --image gh)"
+    echo "  --nginx                 Use nginx proxy (default: traefik)"
+    echo ""
+    echo "Miscellaneous:"
     echo "  --help                  Show this help message and exit"
     exit 0
 }
@@ -38,43 +65,139 @@ error_exit() {
     exit 1
 }
 
+set_image_mode() {
+    local new_mode="$1"
+    local source_flag="$2"
+
+    if [[ "$IMAGE_MODE_SOURCE" != "default" && "$IMAGE_MODE" != "$new_mode" ]]; then
+        error_exit "Conflicting image flags: '$IMAGE_MODE_SOURCE' sets '$IMAGE_MODE' but '$source_flag' sets '$new_mode'."
+    fi
+
+    IMAGE_MODE="$new_mode"
+    IMAGE_MODE_SOURCE="$source_flag"
+}
+
+set_web_mode() {
+    local new_mode="$1"
+    local source_flag="$2"
+
+    if [[ "$WEB_MODE_SOURCE" != "default" && "$WEB_MODE" != "$new_mode" ]]; then
+        error_exit "Conflicting web mode flags: '$WEB_MODE_SOURCE' sets '$WEB_MODE' but '$source_flag' sets '$new_mode'."
+    fi
+
+    WEB_MODE="$new_mode"
+    WEB_MODE_SOURCE="$source_flag"
+}
+
+set_license() {
+    local new_license="$1"
+    local source_flag="$2"
+
+    if [[ "$LICENSE_SOURCE" != "default" && "$LICENSE" != "$new_license" ]]; then
+        error_exit "Conflicting license flags: '$LICENSE_SOURCE' sets '$LICENSE' but '$source_flag' sets '$new_license'."
+    fi
+
+    LICENSE="$new_license"
+    LICENSE_SOURCE="$source_flag"
+}
+
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --license)
-            if [[ -z "$2" || ( "$2" != "ee" && "$2" != "oss" ) ]]; then
+            if [[ -z "${2:-}" ]]; then
+                error_exit "Missing value for --license."
+            fi
+            if [[ "$2" != "ee" && "$2" != "oss" ]]; then
                 error_exit "Invalid value for --license. Allowed: 'ee' or 'oss'."
             fi
-            LICENSE="$2"
+            set_license "$2" "--license"
             shift
             ;;
+        --oss)
+            set_license "oss" "--oss"
+            ;;
+        --ee)
+            set_license "ee" "--ee"
+            ;;
         --dev)
-            STAGE="dev"
+            set_image_mode "dev" "--dev"
             ;;
         --gh)
-            STAGE="gh"
+            set_image_mode "gh" "--gh"
             ;;
         --local)
-            STAGE="gh.local"
+            SOURCE_LOCAL=true
+            ;;
+        --image)
+            if [[ -z "${2:-}" ]]; then
+                error_exit "Missing value for --image."
+            fi
+            case "$2" in
+                dev)
+                    set_image_mode "dev" "--image"
+                    ;;
+                gh)
+                    set_image_mode "gh" "--image"
+                    ;;
+                *)
+                    error_exit "Invalid value for --image. Allowed: 'dev' or 'gh'."
+                    ;;
+            esac
+            shift
+            ;;
+        --dockerfile)
+            if [[ -z "${2:-}" ]]; then
+                error_exit "Missing value for --dockerfile."
+            fi
+            case "$2" in
+                dev)
+                    set_image_mode "dev" "--dockerfile"
+                    ;;
+                gh)
+                    set_image_mode "gh" "--dockerfile"
+                    ;;
+                *)
+                    error_exit "Invalid value for --dockerfile. Allowed: 'dev' or 'gh'."
+                    ;;
+            esac
+            shift
             ;;
         --ssl)
-            STAGE="gh.ssl"
+            SSL_ENABLED=true
             ;;
         --no-web)
-            WITH_WEB=false
+            set_web_mode "none" "--no-web"
+            ;;
+        --web-local)
+            set_web_mode "local" "--web-local"
+            ;;
+        --web-mode)
+            if [[ -z "${2:-}" ]]; then
+                error_exit "Missing value for --web-mode."
+            fi
+            case "$2" in
+                none|docker|local)
+                    set_web_mode "$2" "--web-mode"
+                    ;;
+                *)
+                    error_exit "Invalid value for --web-mode. Allowed: 'none', 'docker', or 'local'."
+                    ;;
+            esac
+            shift
             ;;
         --nginx)
             WITH_NGINX=true
             ;;
-        --web-domain)
-            if [[ -z "$2" ]]; then
-                error_exit "Missing value for --web-domain."
+        --web-url)
+            if [[ -z "${2:-}" ]]; then
+                error_exit "Missing value for --web-url."
             fi
             AGENTA_WEB_URL="$2"
             shift
             ;;
         --env-file)
-            if [[ -z "$2" ]]; then
+            if [[ -z "${2:-}" ]]; then
                 error_exit "Missing value for --env-file."
             fi
             ENV_FILE="$2"
@@ -85,10 +208,9 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         --no-cache)
             NO_CACHE=true
-            BUILD=true  # --no-cache implies --build
             ;;
-        --pull)
-            PULL=true
+        --no-pull)
+            PULL_ENABLED=false
             ;;
         --nuke)
             NUKE=true
@@ -103,13 +225,42 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-# Set AGENTA_WEB_URL based on WITH_WEB if not already set
+if $NO_CACHE && ! $BUILD; then
+    error_exit "--no-cache requires --build."
+fi
+
+if [[ "$IMAGE_MODE" != "gh" && "$SOURCE_LOCAL" == "true" ]]; then
+    error_exit "--local requires --image gh."
+fi
+
+if [[ "$IMAGE_MODE" != "gh" && "$SSL_ENABLED" == "true" ]]; then
+    error_exit "--ssl requires --image gh."
+fi
+
+if [[ "$SOURCE_LOCAL" == "true" && "$SSL_ENABLED" == "true" ]]; then
+    error_exit "--local and --ssl cannot be combined."
+fi
+
+if [[ "$IMAGE_MODE" == "dev" ]]; then
+    STAGE="dev"
+elif [[ "$SOURCE_LOCAL" == "true" ]]; then
+    STAGE="gh.local"
+elif [[ "$SSL_ENABLED" == "true" ]]; then
+    STAGE="gh.ssl"
+else
+    STAGE="gh"
+fi
+
+# Set AGENTA_WEB_URL based on web mode if not already set
 if [[ -z "$AGENTA_WEB_URL" ]]; then
-    if [[ "$WITH_WEB" == "false" ]]; then
-        AGENTA_WEB_URL="http://localhost:3000"
-    else
-        AGENTA_WEB_URL="http://localhost"
-    fi
+    case "$WEB_MODE" in
+        local)
+            AGENTA_WEB_URL="http://localhost:3000"
+            ;;
+        none|docker)
+            AGENTA_WEB_URL="http://localhost"
+            ;;
+    esac
 fi
 
 # Ensure required files exist
@@ -144,7 +295,7 @@ export ENV_FILE="$ENV_FILE"
 # Always append --env-file flag to COMPOSE_CMD
 COMPOSE_CMD+=" --env-file $ENV_FILE_PATH"
 
-if $WITH_WEB; then
+if [[ "$WEB_MODE" == "docker" ]]; then
     COMPOSE_CMD+=" --profile with-web"
 fi
 
@@ -172,12 +323,11 @@ if $NO_CACHE; then
 elif $BUILD; then
     echo "Building containers..."
     $COMPOSE_CMD build --parallel || error_exit "Build failed"
-elif $PULL || [[ "$STAGE" == "gh" || "$STAGE" == "gh.ssl" ]]; then
-    # Pull images if --pull flag is explicitly set OR implicitly for gh/gh.ssl stages
+elif $PULL_ENABLED; then
+    # Pull non-built images for all stages unless disabled
     echo "Pulling latest images..."
-    $COMPOSE_CMD pull || error_exit "Pull failed"
+    $COMPOSE_CMD pull --ignore-buildable || error_exit "Pull failed"
 fi
-# For dev stage without flags, use existing local images
 
 # Shutdown with optional nuke
 echo "Stopping existing Docker containers..."
@@ -196,8 +346,8 @@ AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d || error_exit "Failed to sta
 
 echo "✅ Setup complete!"
 
-# Start the web development environment unless --no-web is provided
-if ! $WITH_WEB ; then
+# Start local web development only when requested
+if [[ "$WEB_MODE" == "local" ]]; then
     echo "Setting up web environment..."
 
     if [[ ! -d "web" ]]; then
