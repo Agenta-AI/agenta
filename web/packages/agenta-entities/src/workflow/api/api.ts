@@ -25,8 +25,10 @@ import {
     workflowsResponseSchema,
     workflowRevisionResponseSchema,
     workflowRevisionsResponseSchema,
+    workflowVariantResponseSchema,
     workflowVariantsResponseSchema,
     type Workflow,
+    type WorkflowVariant,
     type WorkflowResponse,
     type WorkflowsResponse,
     type WorkflowVariantsResponse,
@@ -592,6 +594,55 @@ export async function createWorkflow(
 }
 
 // ============================================================================
+// CREATE VARIANT
+// ============================================================================
+
+/**
+ * Request body for creating a workflow variant.
+ */
+export interface CreateWorkflowVariantPayload {
+    /** Parent workflow ID */
+    workflowId: string
+    /** Slug for the new variant */
+    slug: string
+    /** Display name */
+    name: string
+}
+
+/**
+ * Create a new workflow variant under an existing workflow.
+ *
+ * Endpoint: `POST /preview/workflows/variants/`
+ *
+ * @param projectId - Project ID
+ * @param payload - Variant creation data
+ * @returns The created workflow variant
+ */
+export async function createWorkflowVariantApi(
+    projectId: string,
+    payload: CreateWorkflowVariantPayload,
+): Promise<WorkflowVariant | null> {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/workflows/variants/`,
+        {
+            workflow_variant: {
+                workflow_id: payload.workflowId,
+                slug: payload.slug,
+                name: payload.name,
+            },
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        workflowVariantResponseSchema,
+        response.data,
+        "[createWorkflowVariantApi]",
+    )
+    return validated?.workflow_variant ?? null
+}
+
+// ============================================================================
 // UPDATE
 // ============================================================================
 
@@ -691,6 +742,62 @@ export async function updateWorkflow(
 }
 
 // ============================================================================
+// COMMIT REVISION
+// ============================================================================
+
+/**
+ * Commit a new workflow revision.
+ *
+ * Endpoint: `POST /preview/workflows/revisions/commit`
+ *
+ * This function ONLY creates a new revision — it does NOT update
+ * artifact-level metadata (name, flags, tags). Use `updateWorkflow`
+ * (which calls `PUT /preview/workflows/{id}`) for metadata edits.
+ */
+export interface CommitWorkflowRevisionPayload {
+    workflowId: string
+    variantId?: string
+    slug?: string
+    name?: string
+    flags?: WorkflowFlags
+    data: NonNullable<UpdateWorkflowPayload["data"]>
+    message?: string
+}
+
+export async function commitWorkflowRevisionApi(
+    projectId: string,
+    payload: CommitWorkflowRevisionPayload,
+): Promise<Workflow> {
+    const commitResponse = await axios.post(
+        `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
+        {
+            workflow_revision: {
+                workflow_id: payload.workflowId,
+                workflow_variant_id: payload.variantId ?? undefined,
+                slug: payload.slug ?? crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                name: payload.name ?? undefined,
+                flags: payload.flags,
+                data: payload.data,
+                message: payload.message ?? undefined,
+            },
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        workflowRevisionResponseSchema,
+        commitResponse.data,
+        "[commitWorkflowRevisionApi]",
+    )
+    if (validated?.workflow_revision) {
+        return validated.workflow_revision
+    }
+
+    // Fallback: fetch the latest revision
+    return fetchWorkflow({id: payload.workflowId, projectId})
+}
+
+// ============================================================================
 // ARCHIVE (Soft Delete)
 // ============================================================================
 
@@ -719,6 +826,32 @@ export async function archiveWorkflow(
         "[archiveWorkflow]",
     )
     return validated ?? {count: 0, workflow: null}
+}
+
+/**
+ * Archive (soft delete) a single workflow revision.
+ *
+ * Endpoint: `POST /preview/workflows/revisions/{revision_id}/archive`
+ *
+ * Unlike `archiveWorkflow` which archives the entire artifact (all variants
+ * and revisions), this function archives only a single revision.
+ */
+export async function archiveWorkflowRevision(
+    projectId: string,
+    revisionId: string,
+): Promise<WorkflowRevisionResponse> {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/workflows/revisions/${revisionId}/archive`,
+        {},
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        workflowRevisionResponseSchema,
+        response.data,
+        "[archiveWorkflowRevision]",
+    )
+    return validated ?? {count: 0, workflow_revision: null}
 }
 
 // ============================================================================

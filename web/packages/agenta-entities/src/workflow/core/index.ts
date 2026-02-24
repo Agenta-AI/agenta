@@ -23,6 +23,8 @@ export {
     // Variant schema (for 3-level hierarchy)
     workflowVariantSchema,
     type WorkflowVariant,
+    workflowVariantResponseSchema,
+    type WorkflowVariantResponse,
     workflowVariantsResponseSchema,
     type WorkflowVariantsResponse,
     // Response schemas

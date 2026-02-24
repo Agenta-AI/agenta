@@ -226,6 +226,17 @@ export const workflowVariantSchema = z
 export type WorkflowVariant = z.infer<typeof workflowVariantSchema>
 
 /**
+ * Single workflow variant response wrapper.
+ * Matches backend `WorkflowVariantResponse`.
+ */
+export const workflowVariantResponseSchema = z.object({
+    count: z.number().optional().default(0),
+    workflow_variant: workflowVariantSchema.nullable().optional(),
+})
+
+export type WorkflowVariantResponse = z.infer<typeof workflowVariantResponseSchema>
+
+/**
  * Multiple workflow variants response wrapper.
  * Matches backend `WorkflowVariantsResponse`.
  */
