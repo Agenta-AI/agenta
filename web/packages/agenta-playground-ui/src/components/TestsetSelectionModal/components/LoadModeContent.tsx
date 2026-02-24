@@ -9,22 +9,17 @@ import {useCallback, useMemo, useState} from "react"
 
 import {testcase} from "@agenta/entities"
 import {testcasePaginatedStore} from "@agenta/entities/testcase"
-import {
-    EntityPicker,
-    TestcaseTable,
-    testsetAdapter,
-    type TestsetSelectionResult,
-} from "@agenta/entity-ui"
-import {layoutSizes, spacingClasses} from "@agenta/ui/styles"
-import {InboxOutlined} from "@ant-design/icons"
-import {Table} from "@phosphor-icons/react"
-import {Button, Divider, Input, Typography, Upload} from "antd"
+import {TestcaseTable} from "@agenta/entity-ui"
+import {spacingClasses} from "@agenta/ui/styles"
+import {Divider} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useTestsetSelection} from "../hooks/useTestsetSelection"
 import type {TestsetSelectionPayload} from "../types"
 
 import {SelectionSummary} from "./SelectionSummary"
+import {TestsetSelectionPreview} from "./TestsetSelectionPreview"
+import {TestsetSelectionSidebar} from "./TestsetSelectionSidebar"
 
 export interface LoadModeContentProps {
     loadableId: string
@@ -112,101 +107,24 @@ export function LoadModeContent({connectedRevisionId, onConfirm, onCancel}: Load
         <div className="flex flex-col" style={{height: "100%"}}>
             {/* Content area - fills available space */}
             <div className="flex flex-1 overflow-hidden" style={{minHeight: 0}}>
-                {/* Left panel - Testset picker + create card (fixed width) */}
-                <div
-                    className={`flex flex-col overflow-auto ${spacingClasses.panel}`}
-                    style={{
-                        width: layoutSizes.sidebarWide,
-                        flexShrink: 0,
-                    }}
-                >
-                    <EntityPicker<TestsetSelectionResult>
-                        variant="list-popover"
-                        adapter={testsetAdapter}
-                        onSelect={(selection) =>
-                            setSelection(
-                                selection.metadata.revisionId,
-                                selection.metadata.testsetId,
-                            )
-                        }
-                        selectedParentId={selectedTestsetId}
-                        selectedChildId={selectedRevisionId}
-                        showSearch
-                        sectionLabel="Test sets"
-                        emptyMessage="No testsets found"
-                        popoverPlacement="rightTop"
-                        autoSelectLatest
-                        selectLatestOnParentClick
-                        maxHeight={220}
-                        disabledChildIds={
-                            connectedRevisionId ? new Set([connectedRevisionId]) : undefined
-                        }
-                        disabledChildTooltip="Already connected"
-                    />
-
-                    {/* "Create a new testset" card — decorative for now.
-                     * TODO: In-place testset editor (future work):
-                     * - "Drop CSV/JSON" dragger should trigger file upload + create new testset
-                     *   then auto-select it (similar to CreateTestsetCard.handleFileChange flow).
-                     * - "Build in UI" button should enter an in-place edit mode:
-                     *   set a local "isCreatingNew" flag, switch the right panel to an editable
-                     *   TestcasesTableShell (mode="edit"), name input at top, and on confirm
-                     *   call saveNewTestset + onConfirm (mirroring the old CreateTestsetCard flow).
-                     */}
-                    <div className="mt-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 px-4 py-4 flex flex-col gap-3">
-                        <Typography.Text className="font-medium text-sm">
-                            Create a new testset
-                        </Typography.Text>
-                        <Upload.Dragger
-                            accept=".csv,.json"
-                            beforeUpload={() => false}
-                            showUploadList={false}
-                            disabled
-                            className="!bg-white !border-gray-200 !rounded-xl"
-                        >
-                            <div className="flex flex-col items-center justify-center gap-2 py-2">
-                                <InboxOutlined className="text-gray-400 text-xl" />
-                                <Typography.Text className="text-sm">
-                                    Drop CSV/JSON here or click to browse
-                                </Typography.Text>
-                            </div>
-                        </Upload.Dragger>
-
-                        <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-gray-400">
-                            <span className="h-px flex-1 bg-gray-200" />
-                            <span>or</span>
-                            <span className="h-px flex-1 bg-gray-200" />
-                        </div>
-
-                        <Button
-                            type="primary"
-                            block
-                            disabled
-                            icon={<Table size={16} weight="regular" />}
-                        >
-                            Build in UI
-                        </Button>
-                    </div>
-                </div>
+                {/* Left panel - Testset picker + create card */}
+                <TestsetSelectionSidebar
+                    selectedRevisionId={selectedRevisionId}
+                    selectedTestsetId={selectedTestsetId}
+                    onSelect={(revisionId, testsetId) => setSelection(revisionId, testsetId)}
+                    disabledChildIds={
+                        connectedRevisionId ? new Set([connectedRevisionId]) : undefined
+                    }
+                    showCreateCard={true}
+                />
 
                 <Divider type="vertical" className="m-0 h-auto self-stretch" />
 
-                {/* Right panel - Testcase search + table (fills remaining width and height) */}
-                <div
-                    className={`flex flex-col flex-1 overflow-hidden ${spacingClasses.panel}`}
-                    style={{minWidth: 0, minHeight: 0}}
+                {/* Right panel - Testcase search + table */}
+                <TestsetSelectionPreview
+                    searchTerm={testcaseSearchTerm}
+                    onSearchChange={setTestcaseSearchTerm}
                 >
-                    {/* Testcase search bar — visual only for now.
-                     * TODO: Wire to TestcaseTable search filter when EntityTable exposes a
-                     * searchTerm prop for client-side row filtering (similar to
-                     * TestcasesTableShell.onSearchChange in the legacy LoadTestsetModal). */}
-                    <Input.Search
-                        placeholder="Search testcases..."
-                        value={testcaseSearchTerm}
-                        onChange={(e) => setTestcaseSearchTerm(e.target.value)}
-                        className="mb-3 flex-shrink-0"
-                    />
-
                     <TestcaseTable
                         config={{
                             scopeId: `load-mode-${selectedRevisionId ?? "none"}`,
@@ -217,7 +135,7 @@ export function LoadModeContent({connectedRevisionId, onConfirm, onCancel}: Load
                         onSelectionChange={handleSelectionChange}
                         selectionDisabled={selectedRevisionId === connectedRevisionId}
                     />
-                </div>
+                </TestsetSelectionPreview>
             </div>
 
             {/* Footer - fixed at bottom */}

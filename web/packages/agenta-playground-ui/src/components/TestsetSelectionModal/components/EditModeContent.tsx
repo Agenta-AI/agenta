@@ -10,13 +10,8 @@ import {useCallback, useMemo} from "react"
 import {testcase} from "@agenta/entities"
 import {loadableController} from "@agenta/entities/loadable"
 import {testcasePaginatedStore} from "@agenta/entities/testcase"
-import {
-    EntityPicker,
-    TestcaseTable,
-    testsetAdapter,
-    type TestsetSelectionResult,
-} from "@agenta/entity-ui"
-import {layoutSizes, spacingClasses} from "@agenta/ui/styles"
+import {TestcaseTable} from "@agenta/entity-ui"
+import {spacingClasses} from "@agenta/ui/styles"
 import {Divider} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -24,6 +19,8 @@ import {useTestsetSelection} from "../hooks/useTestsetSelection"
 import type {TestsetSelectionPayload} from "../types"
 
 import {SelectionSummary} from "./SelectionSummary"
+import {TestsetSelectionPreview} from "./TestsetSelectionPreview"
+import {TestsetSelectionSidebar} from "./TestsetSelectionSidebar"
 
 export interface EditModeContentProps {
     loadableId: string
@@ -146,40 +143,18 @@ export function EditModeContent({
     return (
         <div className="flex flex-col h-full">
             <div className="flex flex-1 overflow-hidden" style={{minHeight: 0}}>
-                {/* Left panel - Testset picker (fixed width) */}
-                <div
-                    className={`flex flex-col overflow-auto ${spacingClasses.panel}`}
-                    style={{
-                        width: layoutSizes.sidebarWide,
-                        flexShrink: 0,
-                    }}
-                >
-                    <EntityPicker<TestsetSelectionResult>
-                        variant="list-popover"
-                        adapter={testsetAdapter}
-                        onSelect={(selection) =>
-                            setSelection(
-                                selection.metadata.revisionId,
-                                selection.metadata.testsetId,
-                            )
-                        }
-                        selectedParentId={selectedTestsetId}
-                        selectedChildId={selectedRevisionId}
-                        showSearch
-                        emptyMessage="No testsets found"
-                        popoverPlacement="rightTop"
-                        autoSelectLatest
-                        selectLatestOnParentClick
-                    />
-                </div>
+                {/* Left panel - Testset picker */}
+                <TestsetSelectionSidebar
+                    selectedRevisionId={selectedRevisionId}
+                    selectedTestsetId={selectedTestsetId}
+                    onSelect={(revisionId, testsetId) => setSelection(revisionId, testsetId)}
+                    showCreateCard={false}
+                />
 
                 <Divider type="vertical" className="m-0 h-auto self-stretch" />
 
-                {/* Right panel - Testcase table (fills remaining width and height) */}
-                <div
-                    className={`flex flex-col flex-1 overflow-hidden ${spacingClasses.panel}`}
-                    style={{minWidth: 0, minHeight: 0}}
-                >
+                {/* Right panel - Testcase table */}
+                <TestsetSelectionPreview searchTerm="" onSearchChange={() => {}} showSearch={false}>
                     <TestcaseTable
                         config={{
                             scopeId: `edit-mode-${draftKey}`,
@@ -192,7 +167,7 @@ export function EditModeContent({
                         selectedIds={currentSelection}
                         onSelectionChange={handleSelectionChange}
                     />
-                </div>
+                </TestsetSelectionPreview>
             </div>
 
             {/* Footer - fixed at bottom */}
