@@ -92,6 +92,10 @@ export interface DrillInContentProps {
     onPathChange?: (path: string[]) => void
     /** Keys to exclude when displaying items at the initial path level (e.g., ["parameters"] to hide parameters from ag.data view) */
     excludeKeys?: string[]
+    /** Content rendered inline in the breadcrumb toolbar row (after breadcrumb, before add-controls) */
+    toolbarContent?: ReactNode
+    /** Hide the breadcrumb row when at root level (useful when an external header already shows the root title) */
+    hideRootBreadcrumb?: boolean
 }
 
 /**
@@ -123,6 +127,8 @@ export function DrillInContent({
     initialPath,
     onPathChange,
     excludeKeys,
+    toolbarContent,
+    hideRootBreadcrumb = false,
 }: DrillInContentProps) {
     // Parse initialPath to array format, removing rootTitle prefix if present
     const parsedInitialPath = useMemo(() => {
@@ -526,27 +532,30 @@ export function DrillInContent({
                 {headerContent}
 
                 {/* Breadcrumb navigation and add controls */}
-                <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                        <div className="flex-1">
-                            <DrillInBreadcrumb
-                                currentPath={currentPath}
-                                rootTitle={rootTitle}
-                                onNavigateBack={navigateBack}
-                                onNavigateToIndex={navigateToIndex}
-                                prefix={breadcrumbPrefix}
-                                showBackArrow={showBackArrow}
-                            />
+                {!(hideRootBreadcrumb && currentPath.length === 0) && (
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                                <DrillInBreadcrumb
+                                    currentPath={currentPath}
+                                    rootTitle={rootTitle}
+                                    onNavigateBack={navigateBack}
+                                    onNavigateToIndex={navigateToIndex}
+                                    prefix={breadcrumbPrefix}
+                                    showBackArrow={showBackArrow}
+                                />
+                            </div>
+                            {toolbarContent}
+                            {showAddControls && (
+                                <DrillInControls
+                                    currentPathDataType={currentPathDataType}
+                                    onAddArrayItem={addArrayItem}
+                                    onAddObjectProperty={addObjectProperty}
+                                />
+                            )}
                         </div>
-                        {showAddControls && (
-                            <DrillInControls
-                                currentPathDataType={currentPathDataType}
-                                onAddArrayItem={addArrayItem}
-                                onAddObjectProperty={addObjectProperty}
-                            />
-                        )}
                     </div>
-                </div>
+                )}
 
                 {/* Current level items */}
                 {filteredLevelItems.length === 0 && (
