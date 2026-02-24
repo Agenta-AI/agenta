@@ -174,6 +174,21 @@ export interface PlaygroundUIProviders {
      * Called with rowId and loadableId — implementor derives syncState inline.
      */
     renderSyncStateTag?: ComponentType<{rowId: string; loadableId: string}>
+
+    /**
+     * Optional slot for rendering a testcase editor in the focus drawer.
+     * OSS provides EntityDualViewEditor wrapping the testcase entity.
+     * Includes Fields/JSON toggle, breadcrumb navigation, rich editors,
+     * and add/delete controls.
+     */
+    TestcaseEditor?: ComponentType<TestcaseEditorSlotProps>
+}
+
+/**
+ * Props for the testcase editor slot in the focus drawer.
+ */
+export interface TestcaseEditorSlotProps {
+    testcaseId: string
 }
 
 export interface PlaygroundUIContextValue {

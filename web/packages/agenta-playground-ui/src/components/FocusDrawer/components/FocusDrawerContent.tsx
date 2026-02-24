@@ -1,22 +1,17 @@
-import React, {useCallback, useMemo, useRef, useState} from "react"
+import React, {useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {MarkdownLogoIcon} from "@phosphor-icons/react"
 import {Collapse} from "antd"
-import clsx from "clsx"
 import {atom} from "jotai"
 import {useAtomValue} from "jotai"
 
-import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
-
+import {usePlaygroundUIOptional} from "../../../context/PlaygroundUIContext"
 import {playgroundFocusDrawerAtom} from "../../../state"
 import ExecutionResultView from "../../ExecutionResultView"
-import CollapseToggleButton from "../../shared/CollapseToggleButton"
 import {EvaluatorFieldGrid} from "../../shared/EvaluatorFieldGrid"
 import {
     extractDisplayEntries,
@@ -24,88 +19,6 @@ import {
     formatFieldLabel,
 } from "../../shared/EvaluatorFieldGrid/utils"
 import {NodeResultCard, ensureNodeCardKeyframes, type NodeStatus} from "../../shared/NodeResultCard"
-
-// ============================================================================
-// SUB-COMPONENT: Input variables section with collapse support
-// ============================================================================
-
-function InputVariablesSection({
-    rowId,
-    entityId,
-    variableKeys,
-}: {
-    rowId: string
-    entityId: string
-    variableKeys: string[]
-}) {
-    const [collapsedInputs, setCollapsedInputs] = useState<Record<string, boolean>>({})
-    const refsMap = useRef<Map<string, React.RefObject<HTMLDivElement | null>>>(new Map())
-    const [markdownToggles, setMarkdownToggles] = useState<
-        Record<string, (() => void) | undefined>
-    >({})
-
-    const getRef = useCallback((id: string) => {
-        if (!refsMap.current.has(id)) {
-            refsMap.current.set(id, React.createRef<HTMLDivElement>())
-        }
-        return refsMap.current.get(id)!
-    }, [])
-
-    const toggleCollapse = useCallback((id: string) => {
-        setCollapsedInputs((prev) => ({...prev, [id]: !prev[id]}))
-    }, [])
-
-    return (
-        <div className="flex flex-col gap-2">
-            {variableKeys.map((key) => (
-                <div
-                    key={key}
-                    className={clsx(
-                        "relative group/item w-full",
-                        "hover:[&_.collapse-icon]:opacity-100",
-                    )}
-                >
-                    <VariableControlAdapter
-                        entityId={entityId}
-                        variableKey={key}
-                        rowId={rowId}
-                        view="focus"
-                        collapsed={collapsedInputs[key] || false}
-                        containerRef={getRef(key)}
-                        className="w-full overflow-hidden"
-                        onMarkdownToggleReady={(toggle) => {
-                            setMarkdownToggles((prev) => ({
-                                ...(prev[key] === (toggle ?? undefined)
-                                    ? prev
-                                    : {...prev, [key]: toggle ?? undefined}),
-                            }))
-                        }}
-                        headerActions={
-                            <>
-                                <EnhancedButton
-                                    size="small"
-                                    type="text"
-                                    icon={<MarkdownLogoIcon size={14} />}
-                                    onClick={() => markdownToggles[key]?.()}
-                                    disabled={!markdownToggles[key]}
-                                    tooltipProps={{title: "Preview markdown"}}
-                                />
-                                <CollapseToggleButton
-                                    className="collapse-icon"
-                                    collapsed={collapsedInputs[key] || false}
-                                    onToggle={() => toggleCollapse(key)}
-                                    contentRef={getRef(key)}
-                                />
-                            </>
-                        }
-                        editorProps={{enableTokens: false}}
-                    />
-                </div>
-            ))}
-            {variableKeys.length === 0 && <div className="text-gray-400">No inputs available</div>}
-        </div>
-    )
-}
 
 // ============================================================================
 // SUB-COMPONENT: Primary output for an entity
@@ -285,7 +198,8 @@ function DownstreamNodeCard({
 
 const FocusDrawerContent = () => {
     const {rowId, entityId} = useAtomValue(playgroundFocusDrawerAtom)
-    const variableKeys = useAtomValue(executionItemController.selectors.variableKeys) as string[]
+    const providers = usePlaygroundUIOptional()
+    const TestcaseEditor = providers?.TestcaseEditor
 
     // Chain nodes for downstream results
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
@@ -321,30 +235,8 @@ const FocusDrawerContent = () => {
 
     return (
         <div className="flex flex-col h-full overflow-y-auto">
-            {/* Input Section */}
-            <Collapse
-                defaultActiveKey={["input"]}
-                expandIconPlacement="end"
-                bordered={false}
-                style={{background: "transparent", borderRadius: 0}}
-                styles={{
-                    header: {borderRadius: 0, userSelect: "none", padding: "10px 16px"},
-                    body: {borderRadius: 0, padding: "16px 24px"},
-                }}
-                items={[
-                    {
-                        key: "input",
-                        label: "Input",
-                        children: (
-                            <InputVariablesSection
-                                rowId={rowId}
-                                entityId={primaryEntityId}
-                                variableKeys={variableKeys}
-                            />
-                        ),
-                    },
-                ]}
-            />
+            {/* Data Section (testcase editor injected by OSS) */}
+            {TestcaseEditor && <TestcaseEditor testcaseId={rowId} />}
             {/* Output Section */}
             <Collapse
                 defaultActiveKey={["output"]}
