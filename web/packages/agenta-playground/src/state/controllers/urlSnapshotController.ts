@@ -26,7 +26,11 @@
 import {snapshotAdapterRegistry} from "@agenta/entities/runnable"
 import {atom} from "jotai"
 
-import {parseSnapshot, type SnapshotLoadableConnection} from "../../snapshot"
+import {
+    parseSnapshot,
+    type SnapshotLoadableConnection,
+    type SnapshotLocalTestset,
+} from "../../snapshot"
 import type {RunnableType} from "../types"
 
 import {
@@ -186,17 +190,18 @@ const buildEncodedSnapshotAtom = atom(
                 }
             }
 
-            // Check if snapshot has drafts, ephemeral entities, or a testset connection
+            // Check if snapshot has drafts, ephemeral entities, testset connection, or local testset
             const hasDrafts = (result.snapshot?.drafts?.length ?? 0) > 0
             const hasEphemeralEntities = result.snapshot?.selection?.some(
                 (item) => item.kind === "ephemeral",
             )
             const hasLoadable = Boolean(result.snapshot?.loadable)
+            const hasLocalTestset = Boolean(result.snapshot?.localTestset)
 
             return {
                 ok: true,
                 encoded: result.encoded,
-                hasDrafts: hasDrafts || !!hasEphemeralEntities || hasLoadable,
+                hasDrafts: hasDrafts || !!hasEphemeralEntities || hasLoadable || hasLocalTestset,
                 entityIds,
                 selectionIds: entityIds,
                 warning: result.warning,
@@ -325,6 +330,8 @@ export interface HydrateFromUrlResult {
     error?: string
     /** Testset connection to restore after playground nodes are set up */
     loadable?: SnapshotLoadableConnection
+    /** Local testcase data to restore after playground nodes are set up */
+    localTestset?: SnapshotLocalTestset
 }
 
 /**
@@ -371,6 +378,7 @@ const hydrateFromUrlAtom = atom(null, (get, set, encodedSnapshot: string): Hydra
             entities: hydrateResult.entities,
             hasPendingHydrations: get(pendingHydrationsAtom).size > 0,
             loadable: hydrateResult.loadable,
+            localTestset: hydrateResult.localTestset,
         }
     } catch (err) {
         return {
