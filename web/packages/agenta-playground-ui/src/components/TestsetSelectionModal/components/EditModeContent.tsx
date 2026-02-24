@@ -150,7 +150,7 @@ export function EditModeContent({
                     onSelect={(revisionId, testsetId) => setSelection(revisionId, testsetId)}
                 />
 
-                <Divider orientation="vertical" className="m-0 h-auto self-stretch" />
+                <Divider type="vertical" className="m-0 h-auto self-stretch" />
 
                 {/* Right panel - Testcase table */}
                 <TestsetSelectionPreview searchTerm="" onSearchChange={() => {}} showSearch={false}>
