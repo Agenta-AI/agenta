@@ -26,7 +26,7 @@
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom, getDefaultStore} from "jotai"
 
-import {updateWorkflow, archiveWorkflow} from "../api"
+import {commitWorkflowRevisionApi, createWorkflowVariantApi, archiveWorkflowRevision} from "../api"
 import type {Workflow} from "../core"
 
 import {
@@ -90,6 +90,7 @@ export interface WorkflowArchiveParams {
 export interface WorkflowArchiveResult {
     success: true
     revisionId: string
+    workflowId: string
 }
 
 export interface WorkflowArchiveError {
@@ -170,22 +171,29 @@ export const commitWorkflowRevisionAtom = atom(
                 throw new Error(`No workflow entity found for ${revisionId}`)
             }
 
-            // 2. Call API — updateWorkflow handles both metadata + data commit
+            // 2. Call the revision commit endpoint directly.
+            // We do NOT use `updateWorkflow` here — that function also fires a
+            // `PUT /preview/workflows/{id}` for metadata edits, which overwrites
+            // the artifact's `flags` with null and causes the app to vanish from
+            // the apps list.
             const workflowId = entity.workflow_id ?? entity.id
             const variantId = entity.workflow_variant_id ?? entity.variant_id
-            const newWorkflow = await updateWorkflow(projectId, {
-                id: workflowId,
+
+            if (!entity.data) {
+                throw new Error("Cannot commit workflow: no data to commit")
+            }
+
+            const newWorkflow = await commitWorkflowRevisionApi(projectId, {
+                workflowId,
                 variantId: variantId ?? undefined,
                 name: entity.name ?? undefined,
                 message: _commitMessage ?? undefined,
-                data: entity.data
-                    ? {
-                          uri: entity.data.uri,
-                          url: entity.data.url,
-                          parameters: entity.data.parameters,
-                          schemas: entity.data.schemas,
-                      }
-                    : null,
+                data: {
+                    uri: entity.data.uri,
+                    url: entity.data.url,
+                    parameters: entity.data.parameters,
+                    schemas: entity.data.schemas,
+                },
             })
 
             const newRevisionId = newWorkflow.id
@@ -231,11 +239,166 @@ export const commitWorkflowRevisionAtom = atom(
 )
 
 // ============================================================================
+// CREATE VARIANT ATOM
+// ============================================================================
+
+/**
+ * Parameters for creating a new workflow variant
+ */
+export interface WorkflowCreateVariantParams {
+    /** Source revision ID (to copy data from) */
+    baseRevisionId: string
+    /** Name for the new variant */
+    newVariantName: string
+    /** Commit message for the first revision */
+    commitMessage?: string
+}
+
+/**
+ * Result of a successful variant creation
+ */
+export interface WorkflowCreateVariantResult {
+    success: true
+    /** The new revision ID (first revision under the new variant) */
+    newRevisionId: string
+    /** The new variant ID */
+    newVariantId: string
+}
+
+export interface WorkflowCreateVariantError {
+    success: false
+    error: Error
+}
+
+export type WorkflowCreateVariantOutcome = WorkflowCreateVariantResult | WorkflowCreateVariantError
+
+/**
+ * Create a new workflow variant and commit its first revision with the
+ * current entity data.
+ *
+ * Flow:
+ * 1. Read the source entity data (server + draft)
+ * 2. Create a new variant via `POST /preview/workflows/variants/`
+ * 3. Commit first revision under the new variant via `POST /preview/workflows/revisions/commit`
+ * 4. Invalidate caches
+ * 5. Invoke callbacks (reuses commit callbacks for query invalidation and switch)
+ */
+export const createWorkflowVariantAtom = atom(
+    null,
+    async (
+        get,
+        set,
+        params: WorkflowCreateVariantParams,
+    ): Promise<WorkflowCreateVariantOutcome> => {
+        const {baseRevisionId, newVariantName, commitMessage} = params
+
+        try {
+            const projectId = get(projectIdAtom)
+            if (!projectId) {
+                throw new Error("No project ID available")
+            }
+
+            // 1. Read the source entity data
+            const entity = get(workflowEntityAtomFamily(baseRevisionId))
+            if (!entity) {
+                throw new Error(`No workflow entity found for ${baseRevisionId}`)
+            }
+
+            const workflowId = entity.workflow_id ?? entity.id
+            if (!entity.data) {
+                throw new Error("Cannot create variant: no data to carry over")
+            }
+
+            // 2. Create the new variant
+            const slug = newVariantName.toLowerCase().replace(/[^a-z0-9_-]/g, "_")
+            const newVariant = await createWorkflowVariantApi(projectId, {
+                workflowId,
+                slug,
+                name: newVariantName,
+            })
+
+            if (!newVariant?.id) {
+                throw new Error("Failed to create workflow variant")
+            }
+
+            // 3. Commit seed revision (v0) — matches legacy behavior where
+            //    fork always creates v0 + v1 so the user-visible first version is v1
+            await commitWorkflowRevisionApi(projectId, {
+                workflowId,
+                variantId: newVariant.id,
+                name: newVariantName,
+                data: {
+                    uri: entity.data.uri,
+                    url: entity.data.url,
+                },
+            })
+
+            // 4. Commit actual data revision (v1) with full parameters
+            const newRevision = await commitWorkflowRevisionApi(projectId, {
+                workflowId,
+                variantId: newVariant.id,
+                name: newVariantName,
+                message: commitMessage,
+                data: {
+                    uri: entity.data.uri,
+                    url: entity.data.url,
+                    parameters: entity.data.parameters,
+                    schemas: entity.data.schemas,
+                },
+            })
+
+            const newRevisionId = newRevision.id
+
+            // 5. Invalidate caches
+            invalidateWorkflowsListCache()
+            invalidateWorkflowCache(baseRevisionId)
+            invalidateWorkflowRevisionsByWorkflowCache(workflowId)
+
+            if (_commitCallbacks.onQueryInvalidate) {
+                await _commitCallbacks.onQueryInvalidate()
+            }
+
+            // 6. Invoke new revision callback (reuse commit callbacks for switch)
+            const commitResult: WorkflowCommitResult = {
+                success: true,
+                revisionId: baseRevisionId,
+                newRevisionId,
+                workflow: newRevision,
+            }
+            if (_commitCallbacks.onNewRevision) {
+                await _commitCallbacks.onNewRevision(commitResult, {
+                    revisionId: baseRevisionId,
+                    commitMessage,
+                })
+            }
+
+            // Discard draft for the base revision
+            set(discardWorkflowDraftAtom, baseRevisionId)
+
+            return {
+                success: true,
+                newRevisionId,
+                newVariantId: newVariant.id,
+            }
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error))
+            return {
+                success: false,
+                error: err,
+            }
+        }
+    },
+)
+
+// ============================================================================
 // ARCHIVE ATOM
 // ============================================================================
 
 /**
- * Archive a workflow.
+ * Archive a single workflow revision.
+ *
+ * Uses `POST /preview/workflows/revisions/{revision_id}/archive` to archive
+ * only the specified revision — NOT the entire workflow artifact.
  */
 export const archiveWorkflowRevisionAtom = atom(
     null,
@@ -248,10 +411,11 @@ export const archiveWorkflowRevisionAtom = atom(
                 throw new Error("No project ID available")
             }
 
-            await archiveWorkflow(projectId, workflowId)
+            await archiveWorkflowRevision(projectId, revisionId)
 
             // Invalidate caches
             invalidateWorkflowsListCache()
+            invalidateWorkflowRevisionsByWorkflowCache(workflowId)
 
             if (_archiveCallbacks.onQueryInvalidate) {
                 await _archiveCallbacks.onQueryInvalidate()
@@ -260,6 +424,7 @@ export const archiveWorkflowRevisionAtom = atom(
             const result: WorkflowArchiveResult = {
                 success: true,
                 revisionId,
+                workflowId,
             }
 
             if (_archiveCallbacks.onRevisionDeleted) {
