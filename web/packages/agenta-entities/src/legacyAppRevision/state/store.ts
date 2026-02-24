@@ -416,11 +416,16 @@ export const variantsQueryAtomFamily = atomFamily((appId: string) =>
     atomWithQuery<VariantListItem[]>((get) => {
         const projectId = get(projectIdAtom)
         const enabled = get(sessionAtom) && !!projectId && !!appId
+        // Subscribe to cache version so invalidateEntityQueries() forces
+        // the options getter to re-run, which cascades through the
+        // jotai-tanstack-query observer chain and triggers a fresh fetch.
+        get(revisionCacheVersionAtom)
 
         return {
             queryKey: ["oss-variants-for-selection", appId, projectId],
             queryFn: () => fetchVariantsList(appId, projectId!),
-            staleTime: 1000 * 60,
+            staleTime: 0,
+            gcTime: 0,
             refetchOnWindowFocus: false,
             enabled,
         }
@@ -448,11 +453,13 @@ export const revisionsQueryAtomFamily = atomFamily((variantId: string) =>
     atomWithQuery<RevisionListItem[]>((get) => {
         const projectId = get(projectIdAtom)
         const enabled = get(sessionAtom) && !!projectId && !!variantId
+        get(revisionCacheVersionAtom)
 
         return {
             queryKey: ["oss-revisions-for-selection", variantId, projectId],
             queryFn: () => fetchRevisionsList(variantId, projectId!),
-            staleTime: 1000 * 60,
+            staleTime: 0,
+            gcTime: 0,
             refetchOnWindowFocus: false,
             enabled,
         }
@@ -934,11 +941,13 @@ const latestServerRevisionIdQueryAtomFamily = atomFamily((appId: string) =>
     atomWithQuery<string | null>((get) => {
         const projectId = get(projectIdAtom)
         const enabled = get(sessionAtom) && !!projectId && !!appId
+        get(revisionCacheVersionAtom)
 
         return {
             queryKey: ["latest-server-revision-id", appId, projectId],
             queryFn: () => fetchLatestRevisionId(appId, projectId!),
-            staleTime: 1000 * 60,
+            staleTime: 0,
+            gcTime: 0,
             refetchOnWindowFocus: false,
             enabled,
         }

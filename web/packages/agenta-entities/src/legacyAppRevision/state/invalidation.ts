@@ -45,17 +45,21 @@ const ENTITY_QUERY_KEYS = [
  * separately via registered callbacks.
  */
 export async function invalidateEntityQueries(): Promise<void> {
-    // Invalidate to mark as stale
+    // Remove queries from TanStack cache entirely.
+    // This is critical for cross-page invalidation: when a mutation happens
+    // on one page (e.g. playground), queries used by another page (e.g. registry)
+    // may not be actively mounted. `invalidateQueries` is a no-op for unmounted
+    // queries. `removeQueries` destroys the cached data so that when the query's
+    // observer re-evaluates on navigation, it finds no data and triggers a fresh fetch.
+    ENTITY_QUERY_KEYS.forEach((queryKey) => {
+        queryClient.removeQueries({queryKey, exact: false})
+    })
+
+    // Also invalidate any that ARE currently mounted — this triggers an
+    // immediate refetch for active observers (e.g. if we're on the registry page).
     await Promise.all(
         ENTITY_QUERY_KEYS.map((queryKey) =>
             queryClient.invalidateQueries({queryKey, exact: false}),
-        ),
-    )
-
-    // Refetch with type: 'all' to bypass cache
-    await Promise.all(
-        ENTITY_QUERY_KEYS.map((queryKey) =>
-            queryClient.refetchQueries({queryKey, type: "all", exact: false}),
         ),
     )
 
