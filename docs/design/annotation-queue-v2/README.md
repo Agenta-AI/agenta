@@ -13,7 +13,8 @@ The current `EvaluationQueue` implementation is tightly coupled to evaluation ru
 | [context.md](./context.md) | Background, motivation, current state analysis |
 | [prd.md](./prd.md) | Product requirements, user stories, acceptance criteria |
 | [rfc.md](./rfc.md) | Technical proposal with three solution options and tradeoffs |
-| [research.md](./research.md) | Analysis of current implementation, code references |
+| [research.md](./research.md) | Analysis of current EvaluationQueue implementation, code references |
+| [research-human-eval-implementation.md](./research-human-eval-implementation.md) | How human evaluation works today: frontend components, state, API calls, annotation storage |
 | [competitive-analysis.md](./competitive-analysis.md) | Analysis of competitor's metadata-based approach |
 
 ## Solution Summary
