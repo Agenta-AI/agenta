@@ -445,6 +445,11 @@ export const baseRunnableMolecule = {
         update: updateBaseRunnableAtom,
         discard: discardBaseRunnableAtom,
     },
+    /** Actions for BaseMolecule interface (runnable bridge) */
+    actions: {
+        update: updateBaseRunnableAtom,
+        discard: discardBaseRunnableAtom,
+    },
     /** DrillIn configuration for MoleculeDrillInView */
     drillIn: {
         getRootData: (params: BaseRunnableDraft | null): unknown => params,
