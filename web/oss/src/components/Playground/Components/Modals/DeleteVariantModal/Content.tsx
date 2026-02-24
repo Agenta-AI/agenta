@@ -6,6 +6,7 @@ import {
     variantsListWithDraftsAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
 import {playgroundController} from "@agenta/playground"
+import type {PlaygroundNode} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Spin, Typography} from "antd"
@@ -36,7 +37,83 @@ const isVisibleServerRevision = (revision: any) => {
     return Number(revision?.revision ?? 0) > 0
 }
 
-const DeleteVariantContent = ({revisionIds, forceVariantIds = [], onClose}: Props) => {
+// ============================================================================
+// WORKFLOW DELETE CONTENT
+// ============================================================================
+
+/**
+ * Simplified delete content for workflow entities.
+ * Workflows use the archive API via playgroundController.actions.deleteRevision
+ * rather than the legacy variant deletion flow.
+ */
+const WorkflowDeleteContent = ({
+    revisionIds,
+    workflowNodes,
+    onClose,
+}: {
+    revisionIds: string[]
+    workflowNodes: PlaygroundNode[]
+    onClose: () => void
+}) => {
+    const deleteRevision = useSetAtom(playgroundController.actions.deleteRevision)
+    const invalidatePlaygroundQueries = useSetAtom(playgroundController.actions.invalidateQueries)
+    const [isMutating, setIsMutating] = useState(false)
+
+    const displayName = workflowNodes[0]?.label || "this workflow"
+
+    const onDelete = useCallback(async () => {
+        setIsMutating(true)
+        try {
+            for (const id of revisionIds) {
+                const res = await deleteRevision(id)
+                if (!res?.success) {
+                    throw new Error(res?.error || "Failed to delete workflow")
+                }
+            }
+
+            await invalidatePlaygroundQueries()
+
+            message.success("Deleted workflow successfully")
+            onClose()
+        } catch (error) {
+            console.error("Failed to delete workflow:", error)
+            message.error(error instanceof Error ? error.message : "Failed to delete workflow")
+        } finally {
+            setIsMutating(false)
+        }
+    }, [revisionIds, deleteRevision, invalidatePlaygroundQueries, onClose])
+
+    return (
+        <section className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+                <Text>
+                    You are about to delete <Text strong>{displayName}</Text>. This action cannot
+                    be undone.
+                </Text>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+                <Button onClick={onClose}>Cancel</Button>
+                <Button
+                    type="primary"
+                    danger
+                    loading={isMutating}
+                    disabled={isMutating}
+                    icon={<Trash size={14} />}
+                    onClick={onDelete}
+                >
+                    Delete
+                </Button>
+            </div>
+        </section>
+    )
+}
+
+// ============================================================================
+// LEGACY DELETE CONTENT
+// ============================================================================
+
+const LegacyDeleteContent = ({revisionIds, forceVariantIds = [], onClose}: Props) => {
     const store = getDefaultStore()
     const deleteRevision = useSetAtom(playgroundController.actions.deleteRevision)
     const invalidatePlaygroundQueries = useSetAtom(playgroundController.actions.invalidateQueries)
@@ -289,6 +366,42 @@ const DeleteVariantContent = ({revisionIds, forceVariantIds = [], onClose}: Prop
                 </Button>
             </div>
         </section>
+    )
+}
+
+// ============================================================================
+// MAIN CONTENT (Routes to workflow or legacy)
+// ============================================================================
+
+const nodesAtom = playgroundController.selectors.nodes()
+
+const DeleteVariantContent = ({revisionIds, forceVariantIds = [], onClose}: Props) => {
+    const nodes = useAtomValue(nodesAtom)
+
+    // Check if any revision IDs belong to workflow entities
+    const workflowNodes = useMemo(() => {
+        const idSet = new Set(revisionIds)
+        return nodes.filter((n) => idSet.has(n.entityId) && n.entityType === "workflow")
+    }, [nodes, revisionIds])
+
+    const isWorkflow = workflowNodes.length > 0
+
+    if (isWorkflow) {
+        return (
+            <WorkflowDeleteContent
+                revisionIds={revisionIds}
+                workflowNodes={workflowNodes}
+                onClose={onClose}
+            />
+        )
+    }
+
+    return (
+        <LegacyDeleteContent
+            revisionIds={revisionIds}
+            forceVariantIds={forceVariantIds}
+            onClose={onClose}
+        />
     )
 }
 
