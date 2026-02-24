@@ -7,6 +7,7 @@
  * @module execution/selectors
  */
 
+import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {loadableController, runnableBridge, type RunnablePort} from "@agenta/entities/runnable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {atom, type Getter} from "jotai"
@@ -55,6 +56,48 @@ export const derivedLoadableIdAtom = atom((get) => {
     const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
     if (!rootNode) return ""
     return `testset:${rootNode.entityType}:${rootNode.entityId}`
+})
+
+/**
+ * Number of hidden testcase IDs in the current loadable.
+ *
+ * Changes when the user removes/hides testcase rows.
+ * Used by the OSS URL layer to trigger snapshot re-encoding.
+ */
+export const hiddenTestcaseCountAtom = atom((get) => {
+    const loadableId = get(derivedLoadableIdAtom)
+    if (!loadableId) return 0
+    const state = get(loadableStateAtomFamily(loadableId))
+    return state.hiddenTestcaseIds.size
+})
+
+/**
+ * Number of locally-added (new) testcase IDs.
+ *
+ * Changes when the user adds or removes a new testcase row.
+ * Used by the OSS URL layer to trigger snapshot re-encoding
+ * so that new rows persist across page reloads.
+ */
+export const newTestcaseCountAtom = atom((get) => {
+    const newIds = get(testcaseMolecule.atoms.newIds)
+    return newIds.length
+})
+
+/**
+ * Hash of locally-added (new) testcase data.
+ *
+ * Changes when the user edits the content of a new testcase row.
+ * Used by the OSS URL layer to trigger snapshot re-encoding
+ * so that edited new row data persists across page reloads.
+ */
+export const newTestcaseDataHashAtom = atom((get) => {
+    const newIds = get(testcaseMolecule.atoms.newIds)
+    if (newIds.length === 0) return ""
+    const parts = newIds.map((id) => {
+        const entity = get(testcaseMolecule.data(id))
+        return entity?.data ? JSON.stringify(entity.data) : ""
+    })
+    return parts.join("|")
 })
 
 /**

@@ -28,6 +28,7 @@ import {
     commitRevisionAtom as commitLegacyRevisionAtom,
     deleteRevisionAtom as deleteLegacyRevisionAtom,
 } from "@agenta/entities/legacyAppRevision"
+import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
 import {registerRunnableTypeHint, clearRunnableTypeHint} from "@agenta/entities/shared"
 import {fetchTestcasesPage} from "@agenta/entities/testcase"
@@ -37,7 +38,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
-import type {SnapshotLoadableConnection} from "../../snapshot"
+import type {SnapshotLoadableConnection, SnapshotLocalTestset} from "../../snapshot"
 import {outputConnectionsAtom} from "../atoms/connections"
 import {
     playgroundNodesAtom,
@@ -66,7 +67,13 @@ import {
     playgroundStatusAtom,
     schemaInputKeysAtom,
 } from "../execution/displayedEntities"
-import {derivedLoadableIdAtom, inputVariableNamesAtom} from "../execution/selectors"
+import {
+    derivedLoadableIdAtom,
+    hiddenTestcaseCountAtom,
+    inputVariableNamesAtom,
+    newTestcaseCountAtom,
+    newTestcaseDataHashAtom,
+} from "../execution/selectors"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
 
 import {getRunnableBridge} from "./runnableBridgeAccess"
@@ -160,45 +167,50 @@ function asNonEmptyString(value: unknown): string | undefined {
  * 3. Creates an initial empty row for testcases
  * 4. Sets up a local testset with a generated name
  */
-const addPrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => {
-    const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    const node: PlaygroundNode = {
-        id: nodeId,
-        entityType: entity.type,
-        entityId: entity.id,
-        label: entity.label,
-        depth: 0,
-    }
+const addPrimaryNodeAtom = atom(
+    null,
+    (get, set, entity: EntitySelection, options?: {skipInitialRow?: boolean}) => {
+        const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const node: PlaygroundNode = {
+            id: nodeId,
+            entityType: entity.type,
+            entityId: entity.id,
+            label: entity.label,
+            depth: 0,
+        }
 
-    // Register type hint so runnableBridge skips probing other molecule types
-    registerRunnableTypeHint(entity.id, entity.type)
+        // Register type hint so runnableBridge skips probing other molecule types
+        registerRunnableTypeHint(entity.id, entity.type)
 
-    // Reset state and add the primary node
-    set(playgroundNodesAtom, [node])
-    set(selectedNodeIdAtom, nodeId)
-    set(outputConnectionsAtom, [])
+        // Reset state and add the primary node
+        set(playgroundNodesAtom, [node])
+        set(selectedNodeIdAtom, nodeId)
+        set(outputConnectionsAtom, [])
 
-    // Set up local testset with generated name from entity label
-    const localTestsetName = generateLocalTestsetName(entity.label)
-    set(connectedTestsetAtom, {
-        id: null, // null id indicates it's a local (unsaved) testset
-        name: localTestsetName,
-    })
+        // Set up local testset with generated name from entity label
+        const localTestsetName = generateLocalTestsetName(entity.label)
+        set(connectedTestsetAtom, {
+            id: null, // null id indicates it's a local (unsaved) testset
+            name: localTestsetName,
+        })
 
-    // Link the loadable to the runnable and create initial row
-    // This triggers reactive column derivation from runnable's inputSchema
-    const loadableId = `testset:${entity.type}:${entity.id}`
+        // Link the loadable to the runnable and create initial row
+        // This triggers reactive column derivation from runnable's inputSchema
+        const loadableId = `testset:${entity.type}:${entity.id}`
 
-    // Use loadableController action which handles row creation via testcaseMolecule
-    set(
-        loadableController.actions.linkToRunnable,
-        loadableId,
-        entity.type as RunnableType,
-        entity.id,
-    )
+        // Use loadableController action which handles row creation via testcaseMolecule
+        // skipInitialRow defers row creation when a loadable/localTestset restore will follow
+        set(
+            loadableController.actions.linkToRunnable,
+            loadableId,
+            entity.type as RunnableType,
+            entity.id,
+            options?.skipInitialRow ? {skipInitialRow: true} : undefined,
+        )
 
-    return nodeId
-})
+        return nodeId
+    },
+)
 
 /**
  * Add a downstream node (receiver of output from another node)
@@ -713,8 +725,44 @@ const restoreLoadableConnectionAtom = atom(
             testsetName: loadable.sourceName ?? undefined,
             testsetId: loadable.testsetId ?? undefined,
         })
+
+        // Restore hidden testcase IDs (user's testcase selection filter)
+        if (loadable.hiddenTestcaseIds && loadable.hiddenTestcaseIds.length > 0) {
+            const state = get(loadableStateAtomFamily(loadableId))
+            set(loadableStateAtomFamily(loadableId), {
+                ...state,
+                hiddenTestcaseIds: new Set(loadable.hiddenTestcaseIds),
+            })
+        }
+
+        // Restore locally-added draft rows that were captured in the snapshot
+        if (loadable.draftRows && loadable.draftRows.length > 0) {
+            set(loadableController.actions.importRows, loadableId, loadable.draftRows)
+        }
     },
 )
+
+/**
+ * Restore local testcase data from a URL snapshot.
+ *
+ * This is a synchronous compound action that:
+ * 1. Gets the loadable ID from the primary node
+ * 2. Imports the local testcase rows via loadable controller
+ * 3. Sets the connected testset atom to local mode with the snapshot's name
+ */
+const restoreLocalTestsetAtom = atom(null, (get, set, localTestset: SnapshotLocalTestset) => {
+    const loadableId = get(derivedLoadableIdAtom)
+    if (!loadableId) return
+
+    // Import rows via loadable controller (stays in local mode)
+    set(loadableController.actions.importRows, loadableId, localTestset.rows)
+
+    // Set connected testset to local mode with the name from the snapshot
+    set(connectedTestsetAtom, {
+        id: null,
+        name: localTestset.name,
+    })
+})
 
 // ============================================================================
 // QUERY INVALIDATION
@@ -1137,6 +1185,15 @@ export const playgroundController = {
         /** Loadable ID for root node */
         loadableId: () => derivedLoadableIdAtom,
 
+        /** Number of hidden (removed) testcase IDs in the current loadable */
+        hiddenTestcaseCount: () => hiddenTestcaseCountAtom,
+
+        /** Number of locally-added (new) testcase rows */
+        newTestcaseCount: () => newTestcaseCountAtom,
+
+        /** Hash of locally-added (new) testcase data (triggers URL re-encode on content edits) */
+        newTestcaseDataHash: () => newTestcaseDataHashAtom,
+
         /** Displayed entity IDs (validated against revisions) */
         displayedEntityIds: () => displayedEntityIdsAtom,
 
@@ -1243,6 +1300,9 @@ export const playgroundController = {
 
         /** Restore a testset connection from a URL snapshot (call after primary node is set) */
         restoreLoadableConnection: restoreLoadableConnectionAtom,
+
+        /** Restore local testcase data from a URL snapshot (call after primary node is set) */
+        restoreLocalTestset: restoreLocalTestsetAtom,
     },
 
     /**
