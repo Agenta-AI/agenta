@@ -15,6 +15,7 @@ import {playgroundSyncAtom} from "@/oss/state/url/playground"
 
 import PlaygroundMainView from "./Components/MainLayout"
 import PlaygroundHeader from "./Components/PlaygroundHeader"
+import PlaygroundTestcaseEditor from "./Components/PlaygroundTestcaseEditor"
 import {OSSPlaygroundEntityProvider} from "./OSSPlaygroundEntityProvider"
 import PlaygroundOnboarding from "./PlaygroundOnboarding"
 
@@ -71,6 +72,7 @@ const Playground: FC = () => {
         SimpleSharedEditor,
         SharedGenerationResultUtils,
         renderSyncStateTag: PlaygroundSyncStateTag,
+        TestcaseEditor: PlaygroundTestcaseEditor,
     } as unknown as PlaygroundUIProviders
 
     return (
