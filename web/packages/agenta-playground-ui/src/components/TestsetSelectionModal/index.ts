@@ -7,15 +7,17 @@
  * For saving new testsets, use EntityCommitModal from @agenta/entity-ui.
  */
 
-export {TestsetSelectionModal, default} from "./TestsetSelectionModal"
+export {default, TestsetSelectionModal} from "./TestsetSelectionModal"
 export type {
-    TestsetSelectionModalProps,
+    CreateCardRenderProps,
+    PreviewPanelRenderProps,
+    RevisionInfo,
+    SelectionSummaryProps,
     TestsetSelectionModalContentProps,
+    TestsetSelectionModalProps,
     TestsetSelectionMode,
     TestsetSelectionPayload,
-    SelectionSummaryProps,
     UseTestsetSelectionReturn,
-    RevisionInfo,
 } from "./types"
 
 // Re-export TestcaseTable type from shared entities
@@ -25,4 +27,4 @@ export type {TestcaseTableProps} from "@agenta/entity-ui"
 export {useTestsetSelection} from "./hooks"
 
 // Export sub-components for potential reuse
-export {TestcaseTable, SelectionSummary} from "./components"
+export {CreateTestsetCard, SelectionSummary, TestcaseTable} from "./components"

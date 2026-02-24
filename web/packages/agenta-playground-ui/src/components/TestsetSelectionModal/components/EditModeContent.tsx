@@ -142,13 +142,12 @@ export function EditModeContent({
 
     return (
         <div className="flex flex-col h-full">
-            <div className="flex flex-1 overflow-hidden" style={{minHeight: 0}}>
+            <div className="flex flex-1 overflow-hidden min-h-0">
                 {/* Left panel - Testset picker */}
                 <TestsetSelectionSidebar
                     selectedRevisionId={selectedRevisionId}
                     selectedTestsetId={selectedTestsetId}
                     onSelect={(revisionId, testsetId) => setSelection(revisionId, testsetId)}
-                    showCreateCard={false}
                 />
 
                 <Divider type="vertical" className="m-0 h-auto self-stretch" />

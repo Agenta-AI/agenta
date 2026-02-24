@@ -23,6 +23,12 @@ export function TestsetSelectionModalContent({
     mode,
     onConfirm,
     onCancel,
+    selectionMode,
+    renderCreateCard,
+    renderPreviewPanel,
+    warningMessage,
+    hasWarning,
+    onCreateAndLoad,
 }: TestsetSelectionModalContentProps) {
     if (mode === "edit") {
         return (
@@ -42,6 +48,12 @@ export function TestsetSelectionModalContent({
             connectedRevisionId={connectedRevisionId}
             onConfirm={onConfirm}
             onCancel={onCancel}
+            selectionMode={selectionMode}
+            renderCreateCard={renderCreateCard}
+            renderPreviewPanel={renderPreviewPanel}
+            warningMessage={warningMessage}
+            hasWarning={hasWarning}
+            onCreateAndLoad={onCreateAndLoad}
         />
     )
 }

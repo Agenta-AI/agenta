@@ -46,8 +46,8 @@
  */
 
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
+import {atomFamily} from "jotai/utils"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
@@ -75,7 +75,7 @@ import {
     resetColumnsAtom,
 } from "../testcase/columnState"
 
-import {hasUnsavedChangesAtom, changesSummaryAtom, type ChangesSummary} from "./dirtyState"
+import {type ChangesSummary, changesSummaryAtom, hasUnsavedChangesAtom} from "./dirtyState"
 import {
     clearRevisionDraftAtom,
     enableRevisionsListQueryAtom,

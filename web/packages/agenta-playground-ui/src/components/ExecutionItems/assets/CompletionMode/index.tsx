@@ -74,7 +74,7 @@ const CompletionMode = ({
             {withControls ? (
                 <div
                     className={clsx([
-                        "flex items-center gap-2 mx-4 mt-2 -mb-10",
+                        "flex items-center gap-2 mx-4 mt-2 -mb-10 px-4 py-2",
                         {"mb-10": viewType !== "comparison"},
                     ])}
                 >

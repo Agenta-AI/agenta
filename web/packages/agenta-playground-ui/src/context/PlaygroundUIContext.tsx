@@ -16,7 +16,6 @@
  *     <PlaygroundUIProvider providers={{
  *       EntityDrillInView,
  *       SharedGenerationResultUtils,
- *       LoadTestsetModal: dynamic(() => import("...LoadTestsetModal")),
  *       CommitVariantChangesButton: dynamic(() => import("...CommitVariantChangesButton")),
  *     }}>
  *       <PlaygroundContent />
@@ -26,9 +25,9 @@
  * ```
  */
 
-import {createContext, useContext, type ReactNode, type ComponentType} from "react"
+import {createContext, useContext, type ComponentType, type ReactNode} from "react"
 
-import type {ModalProps, ButtonProps} from "antd"
+import type {ButtonProps} from "antd"
 
 // ============================================================================
 // PROP TYPES FOR INJECTABLE COMPONENTS
@@ -71,14 +70,6 @@ export interface LoadTestsetSelectionPayload {
     testsetName?: string
     testsetId?: string
     revisionVersion?: number | null
-}
-
-/**
- * Props for LoadTestsetModal component
- * Modal for selecting/loading testset data
- */
-export interface LoadTestsetModalProps extends ModalProps {
-    setTestsetData: (payload: LoadTestsetSelectionPayload | null) => void
 }
 
 /**
@@ -153,9 +144,6 @@ export interface PlaygroundUIProviders {
     /** SharedGenerationResultUtils for trace info display */
     SharedGenerationResultUtils: ComponentType<SharedGenerationResultUtilsProps>
 
-    /** LoadTestsetModal for testset selection */
-    LoadTestsetModal: ComponentType<LoadTestsetModalProps>
-
     /** CommitVariantChangesButton for saving variants */
     CommitVariantChangesButton: ComponentType<CommitVariantChangesButtonProps>
 
@@ -163,7 +151,7 @@ export interface PlaygroundUIProviders {
     SimpleSharedEditor?: ComponentType<SimpleSharedEditorProps>
 
     /**
-     * Initialize save mode for the LoadTestsetModal.
+     * Initialize save mode for testset selection modal.
      * Called before opening the modal to set up testcases for saving.
      * This allows the modal to switch to "save" mode instead of "load" mode.
      */
